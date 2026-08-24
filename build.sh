@@ -179,6 +179,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AppearanceStrings.swift \
         Sources/Vorssaint/Core/BatteryTimeStrings.swift \
         Sources/Vorssaint/Core/KeepAwakeStrings.swift \
+        Sources/Vorssaint/Core/BluetoothSleepStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Core/FanControlStrings.swift \
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
@@ -209,9 +210,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift \
+        Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift \
         Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift \
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift \
         Sources/Vorssaint/Services/Audio/MixerRender.swift \
+        Sources/Vorssaint/Services/Audio/PreciseVolumeRollerSupport.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \

@@ -2931,6 +2931,14 @@ struct MetricsTests {
                "extra brightness is opt-in")
         expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
                "extra brightness starts at full intensity once enabled")
+        expect(registeredDefaults[DefaultsKey.bluetoothSleepEnabled] as? Bool == false,
+               "switching Bluetooth off on sleep is opt-in")
+        expect(registeredDefaults[DefaultsKey.bluetoothSleepRestoreOnWake] as? Bool == true,
+               "an enabled Bluetooth sleep feature puts Bluetooth back on wake")
+        expect(registeredDefaults[DefaultsKey.bluetoothSleepRestorePending] as? Bool == false,
+               "no Bluetooth restore is owed before the first sleep")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.bluetoothSleepRestorePending),
+               "a Bluetooth restore owed by one sleeping Mac never travels to another")
         expect(registeredDefaults[DefaultsKey.musicBlockEnabled] as? Bool == false,
                "blocking the music app from launching is opt-in")
         expect(registeredDefaults[DefaultsKey.musicBlockReplacementPath] as? String == "",
@@ -9534,7 +9542,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 53, "feature catalog has 53 features")
+        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -9544,7 +9552,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
@@ -9611,6 +9619,43 @@ struct MetricsTests {
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
                 && AppFeature.diskImageInstaller.energyProfile == .idle,
                "the disk image installer is an event-driven file feature with contextual app access")
+        expect(AppFeature.bluetoothSleep.group == .energyDisplay
+                && AppFeature.bluetoothSleep.enabledKeys == [DefaultsKey.bluetoothSleepEnabled]
+                && AppFeature.bluetoothSleep.permissions.isEmpty
+                && AppFeature.bluetoothSleep.energyProfile == .idle
+                && !AppFeature.bluetoothSleep.isBeta,
+               "Bluetooth on sleep is an energy feature that costs nothing at rest")
+        expect((AppFeature.availabilityDefaults[AppFeature.bluetoothSleep.availabilityKey] as? Bool) == true,
+               "Bluetooth on sleep ships installed, switched off, so its section is findable")
+        expect(AppFeature.bluetoothSleep.settingsDestination
+                == FeatureSettingsDestination(.energy, sectionAnchor: .bluetoothSleep)
+                && AppFeature.bluetoothSleep.settingsDestination.hasValidSectionAnchor
+                && FeatureVisibilitySupport.features(for: .energy).contains(.bluetoothSleep),
+               "Bluetooth on sleep owns a section of the Energy page and can keep it alive alone")
+        expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: true)
+                == BluetoothSleepSupport.SleepPlan(powersOff: true, owesRestore: true),
+               "Bluetooth on before sleep is switched off and owed back")
+        expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: false)
+                == BluetoothSleepSupport.SleepPlan(powersOff: true, owesRestore: false),
+               "without the restore option, sleep switches Bluetooth off for good")
+        expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: false, restoresOnWake: true)
+                == BluetoothSleepSupport.SleepPlan(powersOff: false, owesRestore: false),
+               "Bluetooth already off before sleep is left alone, so the wake never turns it on")
+        expect(BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: false),
+               "a wake that still owes a restore switches Bluetooth back on")
+        expect(!BluetoothSleepSupport.restores(owesRestore: false, isPoweredOn: false),
+               "a wake owing nothing leaves Bluetooth off")
+        expect(!BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: true),
+               "Bluetooth the user switched on first is left alone")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.bluetoothSleep(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 7 && values.allSatisfy { !$0.isEmpty },
+                   "Bluetooth on sleep has every localized field for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "Bluetooth on sleep text uses human punctuation for \(language.rawValue)")
+        }
         expect((Defaults.registeredDefaults[DefaultsKey.panelShowFanControl] as? Bool) == true,
                "installing fan control reveals its panel section by default")
 
@@ -10014,6 +10059,10 @@ struct MetricsTests {
                "brightness sliders alone never use accessibility")
         expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
+        expect(activeSet(.accessibility, on: [DefaultsKey.preciseVolumeRollerEnabled]).contains(.mixer),
+               "mixer uses accessibility only for precise volume roller")
+        expect(!activeSet(.accessibility).contains(.mixer),
+               "mixer without precise volume roller does not use accessibility")
 
         expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
                 == [.switcher, .screenOCR, .screenshot, .screenRecorder],
@@ -10514,8 +10563,9 @@ struct MetricsTests {
         expect(!pageVisible(.mouse, available: []),
                "the mouse page hides only with all six mouse features off")
         expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
-                                                                         .extraBrightness])),
-               "energy hides when all three display features are off")
+                                                                         .extraBrightness,
+                                                                         .bluetoothSleep])),
+               "energy hides when all four of its features are off")
         expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")
@@ -13722,6 +13772,43 @@ struct MetricsTests {
         expect(restoredSwitcherRules?["com.example.editor"] as? String
                 == SwitcherAppRule.windowsOnly.rawValue,
                "per-app Switcher rules keep their bundle identity and behavior through backup import")
+        expect(Defaults.registeredDefaults[DefaultsKey.preciseVolumeRollerEnabled] as? Bool == false,
+               "precise volume roller is opt-in")
+
+        // MARK: Precise volume roller
+
+        var volumeGate = PreciseVolumeRollerGate()
+        expect(volumeGate.accepts(.up, at: 100.00),
+               "precise volume accepts the first wheel step")
+        expect(!volumeGate.accepts(.up, at: 100.01),
+               "precise volume drops repeats that arrive inside the spacing window")
+        expect(volumeGate.accepts(.up, at: 100.05),
+               "precise volume accepts a later step in the same direction")
+
+        var reversalGate = PreciseVolumeRollerGate()
+        expect(reversalGate.accepts(.up, at: 200.00),
+               "precise volume reversal setup accepts the initial direction")
+        expect(!reversalGate.accepts(.down, at: 200.08),
+               "precise volume ignores the first opposite pulse inside the reversal window")
+        expect(!reversalGate.accepts(.down, at: 200.16),
+               "precise volume waits for a stable opposite direction")
+        expect(reversalGate.accepts(.down, at: 200.24),
+               "precise volume accepts the confirmed opposite direction")
+
+        var oldDirectionGate = PreciseVolumeRollerGate()
+        expect(oldDirectionGate.accepts(.up, at: 300.00),
+               "precise volume accepts first old-direction step")
+        expect(oldDirectionGate.accepts(.down, at: 300.40),
+               "precise volume accepts an opposite step after the reversal window")
+        var fastStreamGate = PreciseVolumeRollerGate()
+        let fastAccepted = stride(from: 400.00, through: 400.10, by: 0.02)
+            .filter { fastStreamGate.accepts(.up, at: $0) }
+        expect(fastAccepted.count == 3,
+               "precise volume rate-limits sustained fast input instead of starving it")
+        expect(PreciseVolumeMediaKey.volumeUp.rollerDirection == .up
+                && PreciseVolumeMediaKey.volumeDown.rollerDirection == .down
+                && PreciseVolumeMediaKey.mute.rollerDirection == nil,
+               "precise volume only remaps volume up and down media keys")
 
         // MARK: App updates
 
