@@ -258,6 +258,21 @@ enum SwitcherSupport {
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
+    /// How long the pointer must stay on the last visible icon before the
+    /// overflow row reveals the next one. Long enough that crossing the
+    /// edge does not start a scroll, short enough that a parked pointer
+    /// does not feel stuck.
+    static let iconRowEdgeHoverInterval: TimeInterval = 0.24
+
+    /// Cadence for later one-icon steps while the pointer stays parked.
+    /// Kept just above the slide so the next icon appears as soon as the
+    /// previous one has settled.
+    static let iconRowEdgeHoverRepeatInterval: TimeInterval = 0.20
+
+    /// Duration of the one-icon slide. Slightly slower than the previous
+    /// 0.15s center jump so the newly revealed icon can still be aimed at.
+    static let iconRowEdgeHoverAnimationDuration: TimeInterval = 0.18
+
     static func firstValuesByPID<Value>(_ pairs: [(pid_t, Value)]) -> [pid_t: Value] {
         Dictionary(pairs, uniquingKeysWith: { first, _ in first })
     }
@@ -663,6 +678,66 @@ enum SwitcherSupport {
                                                    wasShiftHeld: Bool,
                                                    isShiftHeld: Bool) -> Bool {
         shiftIsNavigationModifier && isShiftHeld && !wasShiftHeld
+    }
+
+    /// Keeps the overflow icon row from scrolling past either end.
+    static func clampedIconRowFirstVisibleIndex(itemCount: Int,
+                                                visibleCount: Int,
+                                                firstVisibleIndex: Int) -> Int {
+        let visible = max(1, visibleCount)
+        guard itemCount > visible else { return 0 }
+        return min(max(0, firstVisibleIndex), itemCount - visible)
+    }
+
+    /// Slides the visible window just far enough for `selectedIndex` to stay
+    /// on screen. Centering would yank several icons past the pointer at once.
+    static func iconRowFirstVisibleIndex(revealing selectedIndex: Int,
+                                         itemCount: Int,
+                                         visibleCount: Int,
+                                         currentFirstVisibleIndex: Int) -> Int {
+        let visible = max(1, visibleCount)
+        let first = clampedIconRowFirstVisibleIndex(itemCount: itemCount,
+                                                    visibleCount: visible,
+                                                    firstVisibleIndex: currentFirstVisibleIndex)
+        guard itemCount > 0 else { return 0 }
+        let selected = min(max(0, selectedIndex), itemCount - 1)
+        if selected < first { return selected }
+        let lastVisible = first + min(visible, itemCount) - 1
+        if selected > lastVisible { return selected - min(visible, itemCount) + 1 }
+        return first
+    }
+
+    /// Hovering a middle icon must not move the row. Only the last visible
+    /// icon on a side, and only while more icons wait beyond it, may step.
+    static func iconRowEdgeHoverDelta(hoveredIndex: Int,
+                                      firstVisibleIndex: Int,
+                                      visibleCount: Int,
+                                      itemCount: Int) -> Int? {
+        let visible = max(1, visibleCount)
+        guard itemCount > visible else { return nil }
+        let first = clampedIconRowFirstVisibleIndex(itemCount: itemCount,
+                                                    visibleCount: visible,
+                                                    firstVisibleIndex: firstVisibleIndex)
+        let lastVisible = first + visible - 1
+        let hovered = min(max(0, hoveredIndex), itemCount - 1)
+        if hovered == lastVisible, lastVisible < itemCount - 1 { return 1 }
+        if hovered == first, first > 0 { return -1 }
+        return nil
+    }
+
+    /// After an edge-hover step, highlight the newly revealed icon so the
+    /// pointer is still sitting on the last visible app of that side.
+    static func iconRowIndexAfterEdgeHoverStep(firstVisibleIndex: Int,
+                                               visibleCount: Int,
+                                               itemCount: Int,
+                                               delta: Int) -> Int {
+        let visible = max(1, visibleCount)
+        let first = clampedIconRowFirstVisibleIndex(itemCount: itemCount,
+                                                    visibleCount: visible,
+                                                    firstVisibleIndex: firstVisibleIndex)
+        guard itemCount > 0 else { return 0 }
+        if delta < 0 { return first }
+        return min(itemCount - 1, first + min(visible, itemCount) - 1)
     }
 
     static func selectedPreviewPlacement(appCount rawAppCount: Int,
