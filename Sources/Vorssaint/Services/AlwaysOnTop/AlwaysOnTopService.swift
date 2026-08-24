@@ -147,7 +147,7 @@ final class AlwaysOnTopService: ObservableObject {
         }
     }
 
-    private func unpinExcluded() {
+    func unpinExcluded() {
         let exceptions = UserDefaults.standard.stringArray(forKey: DefaultsKey.alwaysOnTopExcludedApps) ?? []
         let gone = AlwaysOnTopSupport.windowIDsToUnpinAfterExclude(
             pins: Array(map.pins.values),

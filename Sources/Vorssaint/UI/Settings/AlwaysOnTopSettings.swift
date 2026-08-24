@@ -1,12 +1,172 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 struct AlwaysOnTopSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var service = AlwaysOnTopService.shared
+    @AppStorage(DefaultsKey.alwaysOnTopEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.alwaysOnTopShowBorder) private var showBorder = true
+    @AppStorage(DefaultsKey.alwaysOnTopBorderColor) private var borderColor = "#00ADEF"
+    @AppStorage(DefaultsKey.alwaysOnTopBorderThickness) private var borderThickness = 4.0
+    @AppStorage(DefaultsKey.alwaysOnTopPlaySound) private var playSound = true
+    @State private var showingAppPicker = false
+
+    private var strings: AlwaysOnTopFeatureStrings {
+        FeatureStrings.alwaysOnTop(l10n.language)
+    }
+
     var body: some View {
         Form {
-            Text(FeatureStrings.alwaysOnTop(L10n.shared.language).title)
+            Section {
+                Toggle(strings.enable, isOn: $enabled)
+                    .onChange(of: enabled) { _, _ in
+                        AlwaysOnTopService.shared.syncWithPreferences()
+                    }
+                Text(strings.enableCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if enabled, service.isRunning {
+                    Label(strings.activeNow, systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                }
+            }
+
+            Section {
+                ShortcutPreferenceRow(
+                    role: .alwaysOnTop,
+                    isEnabled: enabled,
+                    label: strings.shortcut,
+                    onChange: {
+                        AlwaysOnTopService.shared.syncWithPreferences()
+                    }
+                )
+                .disabled(!enabled)
+            }
+
+            Section {
+                Toggle(strings.showBorder, isOn: $showBorder)
+                    .disabled(!enabled)
+                if showBorder {
+                    ColorPicker(strings.borderColor, selection: colorBinding, supportsOpacity: false)
+                        .disabled(!enabled)
+                    Stepper(value: $borderThickness, in: 1...12, step: 1) {
+                        Text("\(strings.borderThickness): \(Int(borderThickness))")
+                    }
+                    .disabled(!enabled)
+                }
+            }
+
+            Section {
+                Toggle(strings.playSound, isOn: $playSound)
+                    .disabled(!enabled)
+            }
+
+            Section(strings.excludeTitle) {
+                if sortedExceptions.isEmpty {
+                    Text(strings.excludeEmpty)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(sortedExceptions, id: \.self) { bundleID in
+                        HStack(spacing: 9) {
+                            Image(nsImage: InstalledApps.icon(for: bundleID))
+                                .resizable().frame(width: 20, height: 20)
+                            Text(InstalledApps.name(for: bundleID))
+                            Spacer()
+                            Button {
+                                removeException(bundleID)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .disabled(!enabled)
+                }
+
+                Button {
+                    showingAppPicker = true
+                } label: {
+                    Label(strings.addApp, systemImage: "plus")
+                }
+                .disabled(!enabled)
+
+                Text(strings.excludeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if enabled, !service.pinningAvailable {
+                Section {
+                    Text(strings.pinningUnavailable)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if enabled, !permissions.accessibility {
+                Section(strings.permissionRequired) {
+                    PermissionRow(kind: .accessibility)
+                }
+            }
         }
+        .formStyle(.grouped)
+        .sheet(isPresented: $showingAppPicker) {
+            appPickerSheet
+        }
+    }
+
+    private var exceptions: [String] {
+        UserDefaults.standard.stringArray(forKey: DefaultsKey.alwaysOnTopExcludedApps) ?? []
+    }
+
+    private var sortedExceptions: [String] {
+        exceptions.sorted {
+            InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1)) == .orderedAscending
+        }
+    }
+
+    private var colorBinding: Binding<Color> {
+        Binding {
+            let rgb = MenuBarUsageBarSupport.rgb(for: borderColor, fallback: "#00ADEF")
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        } set: { color in
+            guard let converted = NSColor(color).usingColorSpace(.sRGB) else { return }
+            borderColor = MenuBarUsageBarSupport.hex(red: Double(converted.redComponent),
+                                                     green: Double(converted.greenComponent),
+                                                     blue: Double(converted.blueComponent))
+        }
+    }
+
+    private var appPickerSheet: some View {
+        let excluded = Set(exceptions)
+        return AppPickerView {
+            showingAppPicker = false
+        } onSelect: { url in
+            showingAppPicker = false
+            guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
+            addException(bundleID)
+        } loadApps: {
+            InstalledApps.installedBundleApplications(excluding: excluded)
+        }
+    }
+
+    private func addException(_ bundleID: String) {
+        var next = exceptions
+        guard !next.contains(bundleID) else { return }
+        next.append(bundleID)
+        UserDefaults.standard.set(next, forKey: DefaultsKey.alwaysOnTopExcludedApps)
+        AlwaysOnTopService.shared.unpinExcluded()
+    }
+
+    private func removeException(_ bundleID: String) {
+        UserDefaults.standard.set(exceptions.filter { $0 != bundleID },
+                                  forKey: DefaultsKey.alwaysOnTopExcludedApps)
     }
 }
