@@ -50,7 +50,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         let enabledKey: String
     }
 
-    var dedicatedShortcut: DedicatedShortcut? {
+    var dedicatedShortcut: DedicatedShortcut {
         switch self {
         case .screenshot:
             return DedicatedShortcut(role: .screenshot,

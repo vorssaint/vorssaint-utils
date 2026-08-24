@@ -41,7 +41,7 @@ final class ScreenCaptureService: ObservableObject {
     private let toolHotkeys: [ScreenCaptureTool: QuickToolHotkey] = {
         var next: UInt32 = 25
         var hotkeys: [ScreenCaptureTool: QuickToolHotkey] = [:]
-        for tool in ScreenCaptureTool.allCases where tool.dedicatedShortcut != nil {
+        for tool in ScreenCaptureTool.allCases {
             hotkeys[tool] = QuickToolHotkey(id: next)
             next += 1
         }
@@ -86,7 +86,7 @@ final class ScreenCaptureService: ObservableObject {
                                    defaults: UserDefaults) {
         var failures: Set<ScreenCaptureTool> = []
         for (tool, hotkey) in toolHotkeys {
-            guard let keys = tool.dedicatedShortcut else { continue }
+            let keys = tool.dedicatedShortcut
             let enabled = availableTools.contains(tool) && defaults.bool(forKey: keys.enabledKey)
             if !hotkey.sync(enabled: enabled, shortcut: keys.role.savedShortcut) {
                 failures.insert(tool)

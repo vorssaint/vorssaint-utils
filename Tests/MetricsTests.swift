@@ -16786,27 +16786,22 @@ struct MetricsTests {
 
         // MARK: Capture tool shortcuts
 
-        expect(ScreenCaptureTool.screenshot.dedicatedShortcut?.role == .screenshot
-                && ScreenCaptureTool.screenshot.dedicatedShortcut?.enabledKey
+        expect(ScreenCaptureTool.screenshot.dedicatedShortcut.role == .screenshot
+                && ScreenCaptureTool.screenshot.dedicatedShortcut.enabledKey
                     == DefaultsKey.screenshotShortcutEnabled,
                "the screenshot tool keeps the old general shortcut's keys as its own")
-        expect(ScreenCaptureTool.allCases.compactMap { $0.dedicatedShortcut?.role }
+        expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
                 == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
                "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded
         // and the combination did nothing (issue #708).
         expect(ScreenCaptureTool.allCases.allSatisfy { tool in
-                guard let keys = tool.dedicatedShortcut else { return true }
+                let keys = tool.dedicatedShortcut
                 return keys.role.requiredEnableKeys == [keys.enabledKey]
                     && keys.role.feature == tool.feature
                },
                "a capture tool registers exactly the keys its own settings row reads")
-        expect(([.screenshot, .screenRecorder, .screenOCR, .colorPicker] as [GlobalShortcutRole])
-                .allSatisfy { role in
-                    ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
-                },
-               "no capture tool's shortcut row is left without something to register it")
         // MARK: A failed removal explains itself where it failed
         // A green tick above "some items couldn't be moved to the Trash" told
         // nobody that sandboxed app data needs Full Disk Access, and the note

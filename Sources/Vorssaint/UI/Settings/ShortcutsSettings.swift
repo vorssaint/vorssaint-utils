@@ -84,13 +84,10 @@ struct ShortcutsSettings: View {
     @ViewBuilder
     private var captureGroupRows: some View {
         let roles = captureRoles
-        let active = roles.contains { role in
-            role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
-        }
         disclosureHeader(
             title: FeatureStrings.screenshot(l10n.language).screenCaptureTitle,
             symbolName: AppFeature.screenshot.symbolName,
-            isActive: active,
+            isActive: featureHasActiveShortcut(.screenshot, roles: roles),
             count: roles.count,
             isExpanded: expansionBinding(for: .screenshot))
         if expandedFeatures.contains(.screenshot) {

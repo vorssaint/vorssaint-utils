@@ -27,12 +27,9 @@ struct ScreenCaptureSettings: View {
 
     var body: some View {
         Form {
-            let showsPicker = availableTools.count > 1
-            let shortcutKeys = availableTools.contains(currentTool)
-                ? currentTool.dedicatedShortcut : nil
-            if showsPicker || shortcutKeys != nil {
+            if !availableTools.isEmpty {
                 Section {
-                    if showsPicker {
+                    if availableTools.count > 1 {
                         Picker(strings.screenCaptureTitle, selection: toolSelection) {
                             ForEach(availableTools, id: \.self) { tool in
                                 Label(tool.settingsTitle(l10n.s, language: l10n.language),
@@ -44,10 +41,8 @@ struct ScreenCaptureSettings: View {
                         .labelsHidden()
                         .controlSize(.large)
                     }
-                    if let keys = shortcutKeys {
-                        ToolShortcutRows(tool: currentTool, keys: keys)
-                            .id(currentTool)
-                    }
+                    ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
+                        .id(currentTool)
                 } header: {
                     Text(strings.screenCaptureTitle)
                 }
@@ -115,7 +110,7 @@ private extension SettingsSectionAnchor {
 
 /// The shortcut that opens the chooser straight on one tool, shown in the
 /// page's top section under the tool's own name while that tool is selected.
-struct ToolShortcutRows: View {
+private struct ToolShortcutRows: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ScreenCaptureService.shared
     @AppStorage private var enabled: Bool
