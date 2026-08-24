@@ -1,0 +1,207 @@
+name: Issue fix status
+
+# Two mechanical steps, no judgement in either.
+#
+#   a merged pull request that references an issue  ->  the issue gets
+#   `fixed (pending release)`, with the merge commit recorded in the bot's
+#   comment
+#
+#   a stable release that contains that commit      ->  the label becomes
+#   `v<version> please confirm` and the reporter is asked to check it
+#
+# Neither step decides that anything is fixed. A human decided that when they
+# merged. The label only says where the change is, and `git tag --contains`
+# answers the second one, so a changelog entry is never the evidence.
+#
+# Both labels and both comments are addressed to the person who filed the
+# report, and most of them are not developers. Nothing in what they read says
+# `main`, a commit, or a merge: the change is in the development build, and it
+# is not on their Mac until a release says it is.
+
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_run:
+    # Not `release: published`. The release is created by `gh release create`
+    # with the built-in token, and an event raised by that token does not start
+    # another workflow, so a `release` trigger here would never fire once.
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-fix-status-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  fixed-on-main:
+    name: Label the issues a merged PR referenced
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No checkout. This job runs with write access in the base repository
+      # context, so it must never execute anything from the pull request.
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const pr = context.payload.pull_request
+            const sha = pr.merge_commit_sha
+            const body = pr.body || ''
+
+            // Every form people actually use here. `Closes`/`Fixes` already
+            // closed the issue on merge, and closed issues are skipped below,
+            // so matching them costs nothing and catches the rest.
+            const refs = new Set()
+            const pattern = /(?:refs?|references?|related to|fixes|fixed|closes?|resolves?)\s*:?\s*#(\d+)/gi
+            for (const m of body.matchAll(pattern)) refs.add(Number(m[1]))
+            if (refs.size === 0) return
+
+            for (const number of refs) {
+              const { data: issue } = await github.rest.issues.get({
+                ...context.repo, issue_number: number,
+              })
+              if (issue.pull_request) continue
+              if (issue.state !== 'open') continue
+              if (issue.labels.some(l => (l.name || l) === 'fixed (pending release)')) continue
+
+              await github.rest.issues.addLabels({
+                ...context.repo, issue_number: number, labels: ['fixed (pending release)'],
+              })
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: number,
+                body: [
+                  `A fix for this went into the development version of the app in #${pr.number}, and it`,
+                  `is queued to go out in an upcoming release.`,
+                  ``,
+                  `**Nothing has changed on your Mac yet**, and this is not us saying your report is`,
+                  `fixed — that part is up to you. When a release goes out carrying this fix you will get`,
+                  `a note on this issue with the version to install, and two weeks to say whether it`,
+                  `worked for you.`,
+                  ``,
+                  `**If it fixes part of what you reported and not the rest, please say which part** when`,
+                  `that note arrives. One fix often answers one thing in a report that mentions several,`,
+                  `and the rest are invisible to us unless you name them.`,
+                  ``,
+                  `<!-- vorssaint-fix-status sha=${sha} pr=${pr.number} -->`,
+                ].join('\n'),
+              })
+              core.info(`#${number}: labelled fixed (pending release) (${sha})`)
+            }
+
+  reporter-check:
+    name: Ask the reporters a stable release reached
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { execFileSync } = require('child_process')
+
+            // A tag-triggered run carries the tag in head_branch.
+            const tag = context.payload.workflow_run.head_branch || ''
+            if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
+              core.info(`${tag || '(no tag)'} is not a stable version tag, nothing to do`)
+              return
+            }
+
+            // Asking anyone to confirm on a build that is not downloadable is a
+            // wasted trip, so the release has to exist and be the real thing.
+            let release
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ ...context.repo, tag })).data
+            } catch (e) {
+              if (e.status === 404) { core.info(`No release published for ${tag}`); return }
+              throw e
+            }
+            if (release.draft || release.prerelease) {
+              core.info(`${tag} is a draft or pre-release, nothing to do`)
+              return
+            }
+
+            const version = tag.replace(/^v/, '')
+            const label = `v${version} please confirm`
+            try {
+              await github.rest.issues.createLabel({
+                ...context.repo, name: label, color: '1F8B8B',
+                description: `The fix is out in ${version}; whoever reported it has two weeks to say whether that build fixed it`,
+              })
+            } catch (e) {
+              if (e.status !== 422) throw e   // 422 = already there
+            }
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo, state: 'open', labels: 'fixed (pending release)', per_page: 100,
+            })
+
+            for (const issue of issues) {
+              if (issue.pull_request) continue
+
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo, issue_number: issue.number, per_page: 100,
+              })
+              const shas = []
+              for (const c of comments) {
+                for (const m of (c.body || '').matchAll(/<!--\s*vorssaint-fix-status sha=([0-9a-f]{7,40})/g)) {
+                  shas.push(m[1])
+                }
+              }
+              if (shas.length === 0) {
+                core.warning(`#${issue.number}: labelled fixed (pending release) with no recorded commit, left alone`)
+                continue
+              }
+
+              // The label moves only when the release really carries the fix.
+              // Reading the changelog instead of the history is how issues get
+              // closed against a version that never shipped the change.
+              const contained = shas.filter(sha => {
+                try {
+                  const tags = execFileSync('git', ['tag', '--contains', sha], { encoding: 'utf8' })
+                  return tags.split('\n').includes(tag)
+                } catch {
+                  return false
+                }
+              })
+              if (contained.length === 0) {
+                core.info(`#${issue.number}: fix is not in ${tag} yet, left alone`)
+                continue
+              }
+
+              await github.rest.issues.addLabels({
+                ...context.repo, issue_number: issue.number, labels: [label],
+              })
+              await github.rest.issues.removeLabel({
+                ...context.repo, issue_number: issue.number, name: 'fixed (pending release)',
+              }).catch(e => { if (e.status !== 404) throw e })
+
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: issue.number,
+                body: [
+                  `The fix for this is out now, in **${version}**.`,
+                  ``,
+                  `@${issue.user.login}, could you update to that version and say whether it fixed things`,
+                  `on your Mac? We cannot tell from here — yours is the setup that found this.`,
+                  ``,
+                  `Please say **how much of it is fixed**, not only whether it is. If part of what you`,
+                  `reported still happens, or something related turned up, say so here and the issue goes`,
+                  `back for another look — this is not a last call.`,
+                  ``,
+                  `If nothing arrives in two weeks the issue will be closed as it stands, and a comment`,
+                  `reopens it at any point after that.`,
+                ].join('\n'),
+              })
+              core.info(`#${issue.number}: moved to ${label}`)
+            }

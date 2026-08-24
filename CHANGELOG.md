@@ -129,6 +129,9 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   the window shortcut reach each window, even when showing one entry per app.
 - Windowless apps no longer repeat or misplace their name in the App Switcher's Small
   size. Thanks to @Yahddyyp.
+- App Switcher grid cards now give their thumbnail the 14 points their chrome
+  was reserving and not using, and their title band holds a subtitle without
+  clipping its descenders. Thanks to @PathGao.
 - Clicking the Dock icon of a background app to restore its minimized windows now
   brings that app forward, instead of leaving its windows behind whichever app was
   already in front. Thanks to @PathGao.
