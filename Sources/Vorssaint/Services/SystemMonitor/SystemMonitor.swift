@@ -42,6 +42,8 @@ struct SystemSnapshot {
     var memoryUsed: UInt64?
     var memoryAppUsed: UInt64?
     var memoryTotal: UInt64?
+    var memoryCompressed: UInt64?
+    var memoryCached: UInt64?
     var memorySwapUsed: UInt64?
     var memoryPressure: MemoryPressure = .unknown
     var fanSpeeds: [Double] = []
@@ -422,6 +424,8 @@ final class SystemMonitor: ObservableObject {
         var used: UInt64
         var appUsed: UInt64
         var total: UInt64
+        var compressed: UInt64
+        var cached: UInt64
         var swapUsed: UInt64?
         var pressure: MemoryPressure
         var updatedAt: TimeInterval
@@ -631,13 +635,15 @@ final class SystemMonitor: ObservableObject {
 
             if plan.needMemory {
                 if take(.memory),
-                   let memory = self.stabilizedMemoryReading(now: now) {
+                   let (memory, isFresh) = self.stabilizedMemoryReading(now: now) {
                     next.memoryUsed = memory.used
                     next.memoryAppUsed = memory.appUsed
                     next.memoryTotal = memory.total
+                    next.memoryCompressed = memory.compressed
+                    next.memoryCached = memory.cached
                     next.memorySwapUsed = memory.swapUsed
                     next.memoryPressure = memory.pressure
-                    if memory.isFresh, memory.total > 0 {
+                    if isFresh, memory.total > 0 {
                         self.memoryHistory.push(Double(memory.used) / Double(memory.total))
                         self.memoryAppHistory.push(Double(memory.appUsed) / Double(memory.total))
                     }
@@ -817,7 +823,7 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    private func stabilizedMemoryReading(now: TimeInterval) -> (used: UInt64, appUsed: UInt64, total: UInt64, swapUsed: UInt64?, pressure: MemoryPressure, isFresh: Bool)? {
+    private func stabilizedMemoryReading(now: TimeInterval) -> (CachedMemoryReading, isFresh: Bool)? {
         let pressure = Self.readMemoryPressure()
         if let memory = SystemInfo.memoryUsage(), memory.total > 0 {
             let swapUsed = memory.swapUsed ?? memoryCache?.swapUsed
@@ -828,31 +834,34 @@ final class SystemMonitor: ObservableObject {
             case .normal, .warning, .critical:
                 stablePressure = pressure
             }
-            memoryCache = CachedMemoryReading(used: memory.used,
+            let reading = CachedMemoryReading(used: memory.used,
                                               appUsed: memory.appUsed,
                                               total: memory.total,
+                                              compressed: memory.compressed,
+                                              cached: memory.cached,
                                               swapUsed: swapUsed,
                                               pressure: stablePressure,
                                               updatedAt: now,
                                               missedSamples: 0)
-            return (memory.used, memory.appUsed, memory.total, swapUsed, stablePressure, true)
+            memoryCache = reading
+            return (reading, true)
         }
 
-        guard var cached = memoryCache else { return nil }
-        cached.missedSamples += 1
-        guard cached.missedSamples <= 4, now - cached.updatedAt <= 12 else {
+        guard var held = memoryCache else { return nil }
+        held.missedSamples += 1
+        guard held.missedSamples <= 4, now - held.updatedAt <= 12 else {
             memoryCache = nil
             return nil
         }
 
         switch pressure {
         case .normal, .warning, .critical:
-            cached.pressure = pressure
+            held.pressure = pressure
         case .unknown:
             break
         }
-        memoryCache = cached
-        return (cached.used, cached.appUsed, cached.total, cached.swapUsed, cached.pressure, false)
+        memoryCache = held
+        return (held, false)
     }
 
     // MARK: - Sensor preparation
