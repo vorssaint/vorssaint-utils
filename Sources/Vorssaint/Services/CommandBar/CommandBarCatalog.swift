@@ -1260,7 +1260,9 @@ enum CommandBarCatalog {
         let service = CommandBarService.shared
         let typed = service.queryWhenRun.trimmingCharacters(in: .whitespaces)
         let argument = CommandBarLinks.trailingArgument(query: typed, name: link.name) ?? ""
-        if argument.isEmpty {
+        // A script that needs something to work on asks for it rather than
+        // running on nothing; one marked as needing nothing just runs.
+        if argument.isEmpty, !link.runsWithoutArgument {
             service.prefill(link.name + " ")
             return
         }
