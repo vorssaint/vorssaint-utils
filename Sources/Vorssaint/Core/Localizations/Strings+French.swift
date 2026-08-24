@@ -245,6 +245,8 @@ extension Strings {
         cutPasteName: "Couper-coller",
         cutPasteEnable: "Couper-coller des fichiers dans le Finder",
         cutPasteEnableCaption: "Utilisez ⌘X pour couper et ⌘V pour déplacer des fichiers et des dossiers dans le Finder.",
+        cutPasteShowHUD: "Afficher le panneau flottant",
+        cutPasteShowHUDCaption: "Affiche un indicateur flottant avec les fichiers coupés lorsque le Finder est actif.",
         cutPasteHowTitle: "Comment l’utiliser",
         cutPasteStep1: "Sélectionnez des éléments dans le Finder et appuyez sur ⌘X pour les couper.",
         cutPasteStep2: "Ouvrez le dossier de destination et appuyez sur ⌘V pour les y déplacer.",

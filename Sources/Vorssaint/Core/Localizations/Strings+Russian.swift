@@ -246,6 +246,8 @@ extension Strings {
         cutPasteName: "Вырезать и вставить",
         cutPasteEnable: "Вырезать и вставлять файлы в Finder",
         cutPasteEnableCaption: "Используйте ⌘X для вырезания и ⌘V для перемещения файлов и папок в Finder.",
+        cutPasteShowHUD: "Показывать плавающую панель",
+        cutPasteShowHUDCaption: "Отображать плавающий индикатор с вырезанными файлами, пока активен Finder.",
         cutPasteHowTitle: "Как использовать",
         cutPasteStep1: "Выберите элементы в Finder и нажмите ⌘X, чтобы вырезать их.",
         cutPasteStep2: "Откройте папку назначения и нажмите ⌘V, чтобы переместить их туда.",

@@ -362,6 +362,8 @@ struct Strings {
     let cutPasteName: String
     let cutPasteEnable: String
     let cutPasteEnableCaption: String
+    let cutPasteShowHUD: String
+    let cutPasteShowHUDCaption: String
     let cutPasteHowTitle: String
     let cutPasteStep1: String
     let cutPasteStep2: String
@@ -1343,6 +1345,8 @@ extension Strings {
         cutPasteName: "Recortar e colar",
         cutPasteEnable: "Recortar e colar arquivos no Finder",
         cutPasteEnableCaption: "Use ⌘X para recortar e ⌘V para mover arquivos e pastas no Finder.",
+        cutPasteShowHUD: "Mostrar painel flutuante",
+        cutPasteShowHUDCaption: "Exibe um indicador com os arquivos recortados enquanto o Finder estiver ativo.",
         cutPasteHowTitle: "Como usar",
         cutPasteStep1: "Selecione itens no Finder e pressione ⌘X para recortá-los.",
         cutPasteStep2: "Abra a pasta de destino e pressione ⌘V para movê-los para lá.",
@@ -2298,6 +2302,8 @@ extension Strings {
         cutPasteName: "Cut & paste",
         cutPasteEnable: "Cut & paste files in Finder",
         cutPasteEnableCaption: "Use ⌘X to cut and ⌘V to move files and folders in Finder.",
+        cutPasteShowHUD: "Show floating panel",
+        cutPasteShowHUDCaption: "Display a floating indicator with the cut files while Finder is active.",
         cutPasteHowTitle: "How to use",
         cutPasteStep1: "Select items in Finder and press ⌘X to cut them.",
         cutPasteStep2: "Open the destination folder and press ⌘V to move them there.",

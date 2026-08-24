@@ -40,8 +40,9 @@ dedicated keychain. `build.sh` then signs local builds with it and gives them a
 constant designated requirement, so granted permissions stick across rebuilds.
 It is a local convenience only and never shows up outside the keychain.
 
-Official releases work differently. CI signs them with an Apple **Developer ID**,
-from the repo secrets `SIGNING_CERT_P12` and `SIGNING_CERT_PASSWORD`, then
+Official releases work differently. CI signs the app and DMG with an Apple
+**Developer ID**, using credentials isolated in the protected `release-signing`
+environment, then
 **notarizes** and staples them through `Tools/notarize.sh`, with secrets
 `NOTARY_API_KEY_P8`, `NOTARY_KEY_ID` and `NOTARY_ISSUER_ID`, so downloads open
 with no Gatekeeper warning. `build.sh` prefers the Developer ID identity when it
@@ -121,5 +122,6 @@ For general help and every support channel, see [support](SUPPORT.md).
 git tag v2.1.0 && git push origin v2.1.0
 ```
 
-The `release` workflow builds the app, packages the DMG and attaches it to a
-GitHub release automatically.
+Only an owner-created protected version tag can enter the `release-signing`
+environment. After owner approval, the workflow builds, signs, notarizes and
+publishes the DMG as an immutable GitHub release.

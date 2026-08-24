@@ -246,6 +246,8 @@ extension Strings {
         cutPasteName: "剪下並貼上",
         cutPasteEnable: "在 Finder 中剪下並貼上檔案",
         cutPasteEnableCaption: "在 Finder 中用 ⌘X 剪下、用 ⌘V 移動檔案和資料夾。",
+        cutPasteShowHUD: "顯示浮動面板",
+        cutPasteShowHUDCaption: "Finder 處於啟動狀態時，顯示包含已剪下檔案的浮動提示。",
         cutPasteHowTitle: "使用方法",
         cutPasteStep1: "在 Finder 中選擇項目，按 ⌘X 將其剪下。",
         cutPasteStep2: "開啟目標資料夾，按 ⌘V 將其移動到該位置。",

@@ -246,6 +246,8 @@ extension Strings {
         cutPasteName: "잘라내기 및 붙여넣기",
         cutPasteEnable: "Finder에서 파일 잘라내기 및 붙여넣기",
         cutPasteEnableCaption: "⌘X로 잘라내고 ⌘V로 Finder의 파일과 폴더를 이동합니다.",
+        cutPasteShowHUD: "플로팅 패널 표시",
+        cutPasteShowHUDCaption: "Finder가 활성화되어 있는 동안 잘라낸 파일이 담긴 플로팅 표시를 띄웁니다.",
         cutPasteHowTitle: "사용 방법",
         cutPasteStep1: "Finder에서 항목을 선택하고 ⌘X를 눌러 잘라냅니다.",
         cutPasteStep2: "대상 폴더를 열고 ⌘V를 눌러 그곳으로 이동합니다.",

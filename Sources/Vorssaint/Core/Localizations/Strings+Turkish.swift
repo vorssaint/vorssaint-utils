@@ -245,6 +245,8 @@ extension Strings {
         cutPasteName: "Kes ve yapıştır",
         cutPasteEnable: "Finder'da dosya kes ve yapıştır",
         cutPasteEnableCaption: "Finder'da dosya ve klasörleri kesmek için ⌘X, taşımak için ⌘V kullan.",
+        cutPasteShowHUD: "Kayan paneli göster",
+        cutPasteShowHUDCaption: "Finder etkinken kesilen dosyaları içeren kayan bir gösterge görüntüler.",
         cutPasteHowTitle: "Nasıl kullanılır",
         cutPasteStep1: "Finder'da öğeleri seç ve kesmek için ⌘X'e bas.",
         cutPasteStep2: "Hedef klasörü aç ve oraya taşımak için ⌘V'ye bas.",

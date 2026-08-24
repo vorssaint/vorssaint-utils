@@ -245,6 +245,8 @@ extension Strings {
         cutPasteName: "Ausschneiden & Einsetzen",
         cutPasteEnable: "Dateien im Finder ausschneiden & einsetzen",
         cutPasteEnableCaption: "Verwende ⌘X zum Ausschneiden und ⌘V, um Dateien und Ordner im Finder zu bewegen.",
+        cutPasteShowHUD: "Schwebendes Fenster anzeigen",
+        cutPasteShowHUDCaption: "Zeigt eine schwebende Anzeige mit den ausgeschnittenen Dateien, während der Finder aktiv ist.",
         cutPasteHowTitle: "So geht's",
         cutPasteStep1: "Wähle Objekte im Finder aus und drücke ⌘X, um sie auszuschneiden.",
         cutPasteStep2: "Öffne den Zielordner und drücke ⌘V, um sie dorthin zu bewegen.",

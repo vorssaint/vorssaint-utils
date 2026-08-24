@@ -245,6 +245,8 @@ extension Strings {
         cutPasteName: "剪切和粘贴",
         cutPasteEnable: "在访达中剪切和粘贴文件",
         cutPasteEnableCaption: "在访达中用 ⌘X 剪切、用 ⌘V 移动文件和文件夹。",
+        cutPasteShowHUD: "显示浮动面板",
+        cutPasteShowHUDCaption: "访达处于活跃状态时，显示包含已剪切文件的浮动提示。",
         cutPasteHowTitle: "使用方法",
         cutPasteStep1: "在访达中选择项目，按 ⌘X 将其剪切。",
         cutPasteStep2: "打开目标文件夹，按 ⌘V 将其移动到那里。",
