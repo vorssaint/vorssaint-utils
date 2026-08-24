@@ -536,6 +536,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "耳机断开时降低音量",
         mixerLowerOnHeadphonesDisconnectCaption: "有线或蓝牙耳机断开时，自动调整输出音量。",
         mixerHeadphonesDisconnectVolume: "断开后的音量",
+        preciseVolumeRollerEnable: "使用更细的音量步进",
+        preciseVolumeRollerCaption: "将音量滚轮和按键转换为更小的系统音量步进。",
+        preciseVolumeRollerTapFailed: "无法监听音量键。",
         soundOutputSwitcherTitle: "输出切换器",
         soundOutputSwitcherEnable: "用快捷键切换输出",
         soundOutputSwitcherCaption: "选择输出设备，然后用快捷键切到下一个可用输出。",
@@ -935,6 +938,11 @@ extension Strings {
         shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。",
         focusFollowsMouseName: "悬停聚焦",
         focusFollowsMouseCaption: "鼠标短暂停留后，聚焦并置前指针下方的窗口。",
-        focusFollowsMouseDelay: "悬停延迟"
+        focusFollowsMouseDelay: "悬停延迟",
+        switcherMinimizedPlacementLabel: "最小化的窗口",
+        switcherMinimizedPlacementNormal: "正常顺序",
+        switcherMinimizedPlacementEnd: "放到末尾",
+        switcherMinimizedPlacementHidden: "隐藏",
+        switcherShowFullscreenWindows: "显示全屏窗口" 
     )
 }

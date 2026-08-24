@@ -537,6 +537,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "耳機中斷連線時降低音量",
         mixerLowerOnHeadphonesDisconnectCaption: "有線或藍牙耳機中斷連線時，自動調整輸出音量。",
         mixerHeadphonesDisconnectVolume: "中斷連線後的音量",
+        preciseVolumeRollerEnable: "使用更細的音量級距",
+        preciseVolumeRollerCaption: "將音量滾輪和按鍵轉成更小的系統音量級距。",
+        preciseVolumeRollerTapFailed: "無法監聽音量鍵。",
         soundOutputSwitcherTitle: "輸出切換器",
         soundOutputSwitcherEnable: "使用快速鍵切換輸出",
         soundOutputSwitcherCaption: "選擇輸出裝置，然後用快速鍵切換到下一個可用輸出。",
@@ -936,6 +939,11 @@ extension Strings {
         shelfEdgeCaption: "將檔案拖曳到螢幕邊緣，暫存架就會探出一角。放在那裡即可放下，往回拖曳就會收回去。",
         focusFollowsMouseName: "游標停留時聚焦",
         focusFollowsMouseCaption: "游標短暫停留後，聚焦並將其下方視窗移至最前方。",
-        focusFollowsMouseDelay: "停留延遲"
+        focusFollowsMouseDelay: "停留延遲",
+        switcherMinimizedPlacementLabel: "已最小化的視窗",
+        switcherMinimizedPlacementNormal: "正常順序",
+        switcherMinimizedPlacementEnd: "放到最後",
+        switcherMinimizedPlacementHidden: "隱藏",
+        switcherShowFullscreenWindows: "顯示全螢幕視窗" 
     )
 }

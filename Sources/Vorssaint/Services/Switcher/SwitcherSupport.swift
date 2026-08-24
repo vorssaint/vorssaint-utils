@@ -493,6 +493,23 @@ enum SwitcherSupport {
         appIsHidden && !windowSpaces.isEmpty
     }
 
+    /// Whether a WindowServer surface whose owner never answered Accessibility
+    /// is a stale leftover instead of a real window (issue #807). The ghost
+    /// veto normally comes from the Accessibility cross-check, but a busy or
+    /// dying process answers with nothing, which used to let its closed
+    /// windows keep appearing in the switcher. The window server itself tells
+    /// the two apart: a real window off screen is still parked on at least one
+    /// Space, while a leftover belongs to none. Anything on screen stays — a
+    /// visible surface is real by definition — and when the Space queries are
+    /// unavailable there is no evidence either way, so the surface keeps the
+    /// pre-existing treatment.
+    static func unwitnessedSurfaceIsLeftover(isOnScreen: Bool,
+                                             canResolveSpaces: Bool,
+                                             windowSpacesCount: Int) -> Bool {
+        guard !isOnScreen, canResolveSpaces else { return false }
+        return windowSpacesCount == 0
+    }
+
     /// Downsamples a capture into a small alpha grid for classification.
     static func alphaGrid(of image: CGImage, gridSize: Int = captureAlphaGridSize) -> [Double]? {
         guard gridSize > 0 else { return nil }

@@ -536,6 +536,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Bajar volumen al desconectar auriculares",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta la salida cuando se desconectan auriculares con cable o Bluetooth.",
         mixerHeadphonesDisconnectVolume: "Volumen al desconectar",
+        preciseVolumeRollerEnable: "Usar pasos de volumen más finos",
+        preciseVolumeRollerCaption: "Convierte ruedas y teclas de volumen en pasos más pequeños del sistema.",
+        preciseVolumeRollerTapFailed: "No se pudo escuchar las teclas de volumen.",
         soundOutputSwitcherTitle: "Selector de salida",
         soundOutputSwitcherEnable: "Cambiar salidas con atajo",
         soundOutputSwitcherCaption: "Elige salidas y usa el atajo para pasar a la siguiente disponible.",
@@ -935,6 +938,11 @@ extension Strings {
         shelfEdgeCaption: "Arrastra un archivo hacia el borde de la pantalla para que el estante asome. Suéltalo ahí, o retíralo y el estante se repliega.",
         focusFollowsMouseName: "El foco sigue al ratón",
         focusFollowsMouseCaption: "Enfoca y trae al frente la ventana bajo el puntero tras una breve pausa.",
-        focusFollowsMouseDelay: "Retraso al pasar"
+        focusFollowsMouseDelay: "Retraso al pasar",
+        switcherMinimizedPlacementLabel: "Ventanas minimizadas",
+        switcherMinimizedPlacementNormal: "Orden normal",
+        switcherMinimizedPlacementEnd: "Colocar al final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
     )
 }
