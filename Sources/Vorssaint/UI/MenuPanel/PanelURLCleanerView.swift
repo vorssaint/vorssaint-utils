@@ -134,14 +134,15 @@ struct PanelURLCleanerView: View {
     }
 
     private func clean() {
-        guard let cleaned = cleaner.clean(input) else {
-            output = ""
-            message = l10n.s.urlCleanerNoURL
-            return
+        let result = cleaner.clean(input)
+        output = result?.url ?? ""
+        switch URLCleaning.outcome(for: result, input: input) {
+        case .notAURL: message = l10n.s.urlCleanerNoURL
+        case .unchanged: message = l10n.s.urlCleanerNoChange
+        case .rewritten: message = l10n.s.urlCleanerCleaned
+        case .removed(let names):
+            message = String(format: l10n.s.urlCleanerRemovedFormat, names.joined(separator: ", "))
         }
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        output = cleaned
-        message = cleaned == trimmed ? l10n.s.urlCleanerNoChange : l10n.s.urlCleanerCleaned
     }
 
     private func copy() {

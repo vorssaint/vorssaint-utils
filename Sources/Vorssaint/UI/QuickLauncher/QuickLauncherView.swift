@@ -113,29 +113,14 @@ struct QuickLauncherView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .accessibilityHidden(true)
                 HStack {
-                    Button {
-                        launcher.hide()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 26, height: 26)
+                    if launcher.activeUtility != nil {
+                        backButton
+                    } else {
+                        closeButton
                     }
-                    .buttonStyle(.plain)
-                    .help(l10n.s.menuClose)
-                    .accessibilityLabel(l10n.s.menuClose)
                     Spacer()
                     if launcher.activeUtility != nil {
-                        Button {
-                            launcher.closeUtility()
-                        } label: {
-                            Image(systemName: "chevron.backward.circle.fill")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 26, height: 26)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(l10n.s.menuClose)
+                        closeButton
                     } else {
                         Button {
                             withAnimation(.easeOut(duration: 0.15)) {
@@ -162,6 +147,34 @@ struct QuickLauncherView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var closeButton: some View {
+        Button {
+            launcher.hide()
+        } label: {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .help(l10n.s.menuClose)
+        .accessibilityLabel(l10n.s.menuClose)
+    }
+
+    private var backButton: some View {
+        Button {
+            launcher.closeUtility()
+        } label: {
+            Image(systemName: "chevron.backward.circle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .help(l10n.s.obBack)
+        .accessibilityLabel(l10n.s.obBack)
     }
 
     private var grid: some View {
