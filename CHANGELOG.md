@@ -132,6 +132,11 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   write. Thanks to @ThomasWaldmann.
 - Administrator approval for updates now originates from Vorssaint instead of a
   system script. Thanks to @dbhorst.
+- Switching a display back on from Displays no longer freezes the app. The
+  change is now made on the main thread, where macOS expects it, instead of on
+  the queue that also carries monitor probing, and the record of which displays
+  are off is written with that queue's lock released. Thanks to @ozimosko and
+  @bayujo.
 - Stopping Music from opening on its own no longer blocks opening it from the
   Dock, Spotlight or Applications. Media keys still cannot launch it.
 - The recording editor now reads composition duration directly without background

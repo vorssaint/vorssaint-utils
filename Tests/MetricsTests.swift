@@ -11185,6 +11185,36 @@ struct MetricsTests {
         expect(BrightnessSupport.headlessRecoveryCandidates(
             drawableDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
                "a display disabled elsewhere is never changed during headless recovery")
+        // CoreGraphics runs a reconfiguration's callbacks inline on the driving
+        // thread, and in this process those callbacks are AppKit's, so the
+        // transaction belongs to the main thread. Getting it wrong hangs the
+        // app rather than returning a wrong answer, and no pure helper can
+        // carry that, so it is pinned against the CoreGraphics symbols.
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        expect(brightnessSource.components(separatedBy: "CGBeginDisplayConfiguration(").count == 2
+               && brightnessSource.components(separatedBy: "CGCompleteDisplayConfiguration(").count == 2,
+               "every display power change goes through the one reconfiguration transaction")
+        let beforeDisplayConfiguration = brightnessSource
+            .components(separatedBy: "CGBeginDisplayConfiguration(").first ?? ""
+        expect((beforeDisplayConfiguration.components(separatedBy: "func ").last ?? "")
+                .contains("Thread.isMainThread"),
+               "the display reconfiguration transaction refuses to start off the main thread")
+
+        // A `UserDefaults` write posts `didChangeNotification`, and the
+        // observers registered with `queue: .main` make that post wait for the
+        // main thread. Held under `stateLock` it waits on a main thread that
+        // can itself be waiting for the same lock inside `canToggleDisplay`,
+        // called from a SwiftUI body, and the app hangs with nothing left that
+        // can end it (issue #647). Which thread the write happens to run on
+        // does not change that, so it is the locked region that is pinned.
+        let lockedRegions = brightnessSource.components(separatedBy: "stateLock.lock()")
+            .dropFirst()
+            .map { $0.components(separatedBy: "stateLock.unlock()").first ?? $0 }
+        expect(!lockedRegions.isEmpty
+               && lockedRegions.allSatisfy { !$0.contains("SwitchedOff(") },
+               "the list of displays switched off is never written while stateLock is held")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: nil) == 0,
