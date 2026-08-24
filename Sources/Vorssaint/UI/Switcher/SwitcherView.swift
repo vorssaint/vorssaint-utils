@@ -536,14 +536,7 @@ struct SwitcherView: View {
     }
 
     private var iconRowContentWidth: CGFloat {
-        if simpleMode {
-            return max(switcher.iconRowLayout.appRowSurfaceWidth,
-                       usesWindowRow ? 0 : switcher.iconRowLayout.simpleTitleSurfaceWidth,
-                       showsShortcutHints ? SwitcherIconRowLayout.hintBarWidth : 0)
-        }
-        return max(switcher.iconRowLayout.appRowSurfaceWidth,
-                   switcher.iconRowLayout.previewSurfaceWidth,
-                   SwitcherIconRowLayout.hintBarWidth)
+        switcher.iconRowLayout.contentWidth(simpleMode: simpleMode, windowRow: usesWindowRow)
     }
 
     private var selectedPreviewPlacement: SwitcherIconRowPreviewPlacement {

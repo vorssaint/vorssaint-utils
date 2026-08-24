@@ -31,6 +31,10 @@ All notable changes to this project are documented here. The format follows
 - Beta releases now automatically turn on the beta update channel on first launch, ensuring seamless delivery of subsequent beta updates.
 - Keep Awake now preserves the order of asynchronous closed-lid sleep requests when rapidly toggled. Thanks to @Tr1meputiNe.
 - The Uninstaller now names the items a removal could not move, and offers Full Disk Access on the spot when that permission is what stopped it. Sandboxed app data used to be left behind under a success tick. Thanks to @PathGao.
+- Rebuilding the display list after a hotplug, a wake or opening the panel no
+  longer reads the screen names from a background thread. The names the sliders
+  carry are unchanged. Thanks to @PathGao.
+- App Switcher now sizes its window and icon rows from a single shared width, preventing clipping when fewer than three apps are open. Thanks to @iltonandrew.
 
 ## [3.3.3-beta.1] - 2026-08-22
 
@@ -90,6 +94,9 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   the Dock Preview block. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
+- The Scratchpad tab strip now takes the width its row has free, so widening the
+  pad shows more of each tab name instead of leaving the space beside the pad
+  actions button empty. Thanks to @AB-boi.
 - Dock Preview cards now carry the App Switcher's look: the app's icon and the window's
   state along the bottom of a 16:10 picture, the name and its subtitle underneath, and the
   close and minimize buttons in that band rather than over the picture. Thanks to @PathGao.
@@ -120,6 +127,9 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   already in front. Thanks to @PathGao.
 - The recording editor now trims reliably from the beginning of a video when
   dragging the left handle. Thanks to @lmilojevicc.
+
+- A test run no longer leaves a preference file behind in `~/Library/Preferences`
+  for every defaults suite it uses. Thanks to @PathGao.
 - Screen recorder, Copy text from screen and Color picker can each take a shortcut
   of their own again, opening screen capture already on that mode. Their Settings
   rows no longer record a combination that does nothing. Thanks to @wiidede and

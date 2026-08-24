@@ -6852,8 +6852,8 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.includeBetaUpdates] as? Bool == false,
                "includeBetaUpdates defaults to false in registeredDefaults")
 
-        let testDefaults = UserDefaults(suiteName: "VorssaintTests.BetaActivation")!
-        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        let testDefaults = UserDefaults(suiteName: "com.vorssaint.tests.betaActivation")!
+        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
         Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
         expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == true,
                "beta channel is activated automatically on a beta build")
@@ -6863,13 +6863,13 @@ struct MetricsTests {
                "manual opt-out on a beta build is preserved across launches")
 
         // Stable version does not activate beta channel
-        let stableDefaults = UserDefaults(suiteName: "VorssaintTests.StableActivation")!
-        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        let stableDefaults = UserDefaults(suiteName: "com.vorssaint.tests.stableActivation")!
+        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
         Defaults.activateBetaChannelIfRunningBeta(in: stableDefaults, version: "3.3.3")
         expect(stableDefaults.object(forKey: DefaultsKey.includeBetaUpdates) == nil,
                "stable release does not touch beta channel default")
-        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
-        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
+        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
 
         // Localization completeness & formatting
         for language in AppLanguage.allCases {
@@ -7145,6 +7145,18 @@ struct MetricsTests {
                       compactIconRowLayout.simpleTitleSurfaceWidth)
                     + SwitcherIconRowLayout.padding * 2,
                "App Switcher without shortcut hints still fits its title rail")
+        // Two apps leave the icon row narrower than the hint bar, the case that
+        // used to lay rows out against a width the panel was never sized for.
+        let twoAppLayout = SwitcherIconRowLayout.compute(appCount: 2,
+                                                         selectedWindowCount: 1,
+                                                         screenVisibleFrame: screen,
+                                                         showsShortcutHints: false)
+        expect(twoAppLayout.appRowSurfaceWidth < SwitcherIconRowLayout.hintBarWidth
+               && twoAppLayout.contentWidth(simpleMode: true, windowRow: false)
+                    == twoAppLayout.simplePanelSize.width - SwitcherIconRowLayout.padding * 2
+               && twoAppLayout.contentWidth(simpleMode: true, windowRow: true)
+                    == twoAppLayout.simpleWindowPanelSize.width - SwitcherIconRowLayout.padding * 2,
+               "App Switcher rows fit the panel with fewer apps than the hint bar is wide")
         expect(SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8) == 5,
                "App Switcher wrapping splits ten windows across two even rows")
         expect(SwitcherSupport.gridColumnCount(itemCount: 9, maxColumns: 8) == 5,
@@ -11030,6 +11042,25 @@ struct MetricsTests {
 
         // MARK: Display brightness (DDC/CI helpers)
 
+        // Every section of the service below its "Rebuild (work queue)" MARK
+        // runs on the private work queue, so a display's user-facing name is
+        // read from NSScreen on the main thread and handed to the rebuild.
+        // AppKit reached from below the line would be a main thread violation
+        // on every hotplug, wake and panel open.
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        let brightnessWorkQueueHalf = brightnessSource
+            .components(separatedBy: "// MARK: - Rebuild (work queue)").last ?? ""
+        // Comments are stripped first: a note naming the symbol it bans is not
+        // a call, and a check that cannot tell them apart goes red for prose.
+        let brightnessWorkQueueCode = brightnessWorkQueueHalf
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!brightnessWorkQueueHalf.isEmpty && !brightnessWorkQueueCode.contains("NSScreen"),
+               "the brightness work queue resolves display names without touching NSScreen")
+
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
         let expectedDDCWrite: [UInt8] = [0x84, 0x03, 0x10, 0x12, 0x34, 0x8E]
         expect(ddcWrite == expectedDDCWrite,
@@ -11190,9 +11221,6 @@ struct MetricsTests {
         // transaction belongs to the main thread. Getting it wrong hangs the
         // app rather than returning a wrong answer, and no pure helper can
         // carry that, so it is pinned against the CoreGraphics symbols.
-        let brightnessSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
-            encoding: .utf8)) ?? ""
         expect(brightnessSource.components(separatedBy: "CGBeginDisplayConfiguration(").count == 2
                && brightnessSource.components(separatedBy: "CGCompleteDisplayConfiguration(").count == 2,
                "every display power change goes through the one reconfiguration transaction")
@@ -12960,6 +12988,41 @@ struct MetricsTests {
         ]
         expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
+        // An unpinned borderless Menu claims the free width of its row on
+        // macOS 15 and starves whatever shares that row (issue #569), so the
+        // rule is checked for every borderless menu in the app rather than for
+        // the one this fix touches. Kill Process is the one
+        // deliberate exception: its row controls take a shared minimum width
+        // so the Kill button and the menu beside it line up down the list.
+        let borderlessMenuException = "KillProcess/KillProcessView"
+        var unpinnedBorderlessMenus: [String] = []
+        let uiFiles = FileManager.default
+            .enumerator(atPath: "Sources/Vorssaint/UI")?
+            .compactMap { $0 as? String }
+            .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
+        for file in uiFiles.sorted() {
+            let path = "Sources/Vorssaint/UI/\(file)"
+            guard !file.contains(borderlessMenuException),
+                  let source = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+            let lines = source.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated()
+            where line.contains(".menuStyle(.borderlessButton)") {
+                // Read to the end of the menu's own modifier chain: the next
+                // line that is neither a modifier nor a comment belongs to
+                // something else.
+                var pinned = false
+                var cursor = index + 1
+                while cursor < lines.count {
+                    let text = lines[cursor].trimmingCharacters(in: .whitespaces)
+                    guard text.hasPrefix(".") || text.hasPrefix("//") else { break }
+                    if text.hasPrefix(".fixedSize()") { pinned = true; break }
+                    cursor += 1
+                }
+                if !pinned { unpinnedBorderlessMenus.append("\(file):\(index + 1)") }
+            }
+        }
+        expect(unpinnedBorderlessMenus.isEmpty,
+               "every borderless menu keeps its own size: \(unpinnedBorderlessMenus)")
         expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
@@ -16624,6 +16687,43 @@ struct MetricsTests {
         try? FileManager.default.removeItem(at: privateRoot)
 
         // MARK: Result
+
+        // MARK: Every defaults suite stays inside a namespace build.sh sweeps
+        // A UserDefaults suite leaves an empty plist in ~/Library/Preferences
+        // even after `removePersistentDomain`, and cfprefsd writes that file
+        // back out around the time this process exits, so the run cannot delete
+        // it itself. `build.sh --test` clears them afterwards, by name prefix.
+        // A suite named outside those prefixes survives every run instead.
+        let testSource = (try? String(contentsOfFile: "Tests/MetricsTests.swift",
+                                      encoding: .utf8)) ?? ""
+        expect(!testSource.isEmpty, "the test file reads back for its own source checks")
+        // The prefixes are read out of the sweep itself, so the check and the
+        // thing it guards cannot drift apart.
+        let buildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        let sweepBody = buildScript.components(separatedBy: "discard_test_preferences() {")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let sweptNamespaces = sweepBody.components(separatedBy: "\"")
+            .enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+            .filter { $0.hasSuffix(".") }
+        expect(!sweptNamespaces.isEmpty, "the swept namespaces read back out of build.sh")
+        // Split so this needle is not itself a match in the text it scans.
+        let suiteCall = "UserDefaults(suiteName" + ": "
+        let suiteArguments = testSource.components(separatedBy: suiteCall)
+            .dropFirst()
+            .map { String($0.prefix { $0 != ")" && $0 != "," && !$0.isNewline }) }
+        expect(!suiteArguments.isEmpty, "the namespace check finds the suites it guards")
+        for argument in Set(suiteArguments) {
+            let name: String?
+            if argument.hasPrefix("\"") {
+                name = String(argument.dropFirst().prefix { $0 != "\"" })
+            } else {
+                name = testSource.components(separatedBy: "let \(argument) = \"")
+                    .dropFirst().first
+                    .map { String($0.prefix { $0 != "\"" }) }
+            }
+            expect(name.map { value in sweptNamespaces.contains { value.hasPrefix($0) } } == true,
+                   "defaults suite \(argument) is named inside a namespace build.sh sweeps")
+        }
 
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
