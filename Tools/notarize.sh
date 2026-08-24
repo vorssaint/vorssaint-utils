@@ -14,6 +14,7 @@
 # When the credentials are absent it skips quietly (exit 0), so a plain build
 # without notarization still succeeds.
 set -euo pipefail
+umask 077
 cd "$(dirname "$0")/.."
 
 TARGET="${1:-}"
@@ -23,6 +24,10 @@ if [[ -z "$TARGET" ]]; then
 fi
 
 if [[ -z "${NOTARY_API_KEY_P8:-}" || -z "${NOTARY_KEY_ID:-}" || -z "${NOTARY_ISSUER_ID:-}" ]]; then
+    if [[ "${REQUIRE_NOTARIZATION:-0}" == "1" ]]; then
+        echo "Release notarization credentials are incomplete." >&2
+        exit 1
+    fi
     echo "No notarization credentials in the environment — skipping ($TARGET)."
     exit 0
 fi

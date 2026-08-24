@@ -10,6 +10,7 @@ import UserNotifications
 struct CleanerSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
+    @AppStorage(DefaultsKey.whatsAppDownloadsEnabled) private var whatsAppEnabled = false
     @State private var tool = Tool.system
 
     private enum Tool: String {
@@ -19,37 +20,51 @@ struct CleanerSettings: View {
     /// A panel surface can ask for a specific tool; the hint is one-shot.
     private func consumeToolHint() {
         guard let hint = router.cleanerTool else { return }
-        if let wanted = Tool(rawValue: hint) { tool = wanted }
         router.cleanerTool = nil
+        guard whatsAppEnabled, let wanted = Tool(rawValue: hint) else { return }
+        tool = wanted
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("", selection: $tool) {
-                Label(l10n.s.cleanerName, systemImage: "sparkles")
-                    .tag(Tool.system)
-                Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
-                      systemImage: "arrow.down.doc")
-                    .tag(Tool.whatsApp)
+            if whatsAppEnabled {
+                Picker("", selection: $tool) {
+                    Label(l10n.s.cleanerName, systemImage: "sparkles")
+                        .tag(Tool.system)
+                    Label(FeatureStrings.whatsAppDownloads(l10n.language).title,
+                          systemImage: "arrow.down.doc")
+                        .tag(Tool.whatsApp)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 440)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
+
+                Divider()
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(maxWidth: 440)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
 
-            Divider()
-
-            switch tool {
-            case .system:
-                CleanerView()
-            case .whatsApp:
+            if whatsAppEnabled, tool == .whatsApp {
                 WhatsAppDownloadsSettings()
+            } else {
+                CleanerView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .onAppear(perform: consumeToolHint)
+        .onAppear {
+            if !whatsAppEnabled { tool = .system }
+            consumeToolHint()
+        }
         .onChange(of: router.cleanerTool) { _, _ in consumeToolHint() }
+        .onChange(of: whatsAppEnabled) { _, enabled in
+            tool = enabled ? .whatsApp : .system
+            WhatsAppDownloadScheduler.shared.syncWithPreferences()
+            WhatsAppDownloadOrganizer.shared.syncWithPreferences()
+            if !enabled {
+                WhatsAppDownloadManager.shared.reset()
+                WhatsAppDownloadOrganizer.shared.stop()
+            }
+        }
     }
 }
 
@@ -72,6 +87,7 @@ struct CleanerView: View {
     @AppStorage(DefaultsKey.cleanerScheduleNotify) private var scheduleNotify = true
     @ObservedObject private var scheduler = CleanerScheduler.shared
     @ObservedObject private var whatsAppScheduler = WhatsAppDownloadScheduler.shared
+    @AppStorage(DefaultsKey.whatsAppDownloadsEnabled) private var whatsAppEnabled = false
     @AppStorage(DefaultsKey.whatsAppDownloadsAutomaticEnabled) private var whatsAppAutomatic = false
     @AppStorage(DefaultsKey.whatsAppDownloadsLastCleanup) private var whatsAppLastCleanup = 0.0
     @AppStorage(DefaultsKey.whatsAppDownloadsLastCleanupCount) private var whatsAppLastCount = 0
@@ -237,10 +253,11 @@ struct CleanerView: View {
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
             scheduleCard
+            if !compact, !whatsAppEnabled { whatsAppOptInCard }
             // The Settings page has its own full tool for these downloads;
             // the panel gets this one-line home so the feature is findable
             // without opening Settings.
-            if compact { whatsAppCard }
+            if compact, whatsAppEnabled { whatsAppCard }
             if !permissions.fullDiskAccess {
                 FullDiskAccessNote(compact: compact).frame(maxWidth: 380)
             }
@@ -254,6 +271,20 @@ struct CleanerView: View {
 
     private var whatsAppStrings: WhatsAppDownloadStrings {
         FeatureStrings.whatsAppDownloads(l10n.language)
+    }
+
+    private var whatsAppOptInCard: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(whatsAppStrings.title, isOn: $whatsAppEnabled)
+                .font(.system(size: 12, weight: .medium))
+            Text(whatsAppStrings.hubDescription)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(11)
+        .frame(maxWidth: 380)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.primary.opacity(0.05)))
     }
 
     /// Collapsed summary: Off until the automation is armed, then the next

@@ -490,7 +490,7 @@ final class AppUpdatesService: ObservableObject {
         bundleID == Bundle.main.bundleIdentifier || bundleID.hasPrefix("com.vorssaint")
     }
 
-    private static let ownPackageTokens: Set<String> = ["vorssaint"]
+    private static let ownPackageTokens: Set<String> = ["vorssaint", "vorssaint@beta", "vorssaint-beta"]
 
     /// The package manager refreshes its own catalog on the way, which can sit
     /// on a slow network. A ceiling keeps a stalled command from leaving the

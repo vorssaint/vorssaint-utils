@@ -399,7 +399,10 @@ struct PermissionsPortalSections: View {
         case .screenRecording: return permissions.screenRecording ? .granted : .missing
         case .fullDiskAccess: return permissions.fullDiskAccess ? .granted : .missing
         case .filesAndFolders:
-            guard AppFeature.cleaner.isAvailable else { return .unknown }
+            guard AppFeature.cleaner.isAvailable,
+                  WhatsAppDownloadSupport.isEnabled else {
+                return .unknown
+            }
             switch WhatsAppDownloadManager.shared.accessStatus {
             case .available: return .granted
             case .denied: return .missing
@@ -624,6 +627,7 @@ extension AppFeature {
         case .keepAwake: return s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
+        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).pageTitle
         case .quickLauncher: return s.launcherName
         case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .colorPicker: return s.colorPickerName
@@ -683,6 +687,7 @@ extension AppFeature {
         case .keepAwake: return hub.descKeepAwake
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).hubDescription
         case .extraBrightness: return hub.descExtraBrightness
+        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).hubDescription
         case .quickLauncher: return hub.descQuickLauncher
         case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).hubDescription
         case .colorPicker: return hub.descColorPicker
@@ -696,7 +701,11 @@ extension AppFeature {
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
         case .cleaner:
-            return hub.descCleaner + " · "
+            let description = hub.descCleaner
+            guard WhatsAppDownloadSupport.isEnabled else {
+                return description
+            }
+            return description + " · "
                 + FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription
         case .uninstaller: return hub.descUninstaller
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).hubDescription
