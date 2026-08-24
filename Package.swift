@@ -8,8 +8,13 @@ let package = Package(
     name: "Vorssaint",
     platforms: [.macOS(.v14)],
     targets: [
+        .systemLibrary(
+            name: "VMStatisticsCompat",
+            path: "Sources/VMStatisticsCompat"
+        ),
         .executableTarget(
             name: "Vorssaint",
+            dependencies: ["VMStatisticsCompat"],
             path: "Sources/Vorssaint"
         )
     ]

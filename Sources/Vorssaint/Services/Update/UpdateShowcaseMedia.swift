@@ -7,9 +7,10 @@ import Foundation
 enum UpdateShowcaseInfo {
     static let releaseVersion = "3.1.4"
     static let mediaAssetName = "vorssaint-3.1.4-showcase-1.mp4"
+    static let mediaSHA256 = "88031b2b48708b8eb96248fef1143432a0600382b59ad5ea39e0746af27ab9e8"
 
     static var remoteMediaURL: URL {
-        URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v\(releaseVersion)/\(mediaAssetName)")!
+        URL(string: "https://github.com/vorssaintapp/vorssaint-utils/releases/download/v\(releaseVersion)/\(mediaAssetName)")!
     }
 
     static var localDeveloperMediaURL: URL? {
@@ -35,6 +36,11 @@ enum UpdateShowcaseInfo {
 
     static var cachedMediaURL: URL {
         cacheDirectory.appendingPathComponent(mediaAssetName)
+    }
+
+    static func mediaIsTrusted(at url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return false }
+        return UpdateServiceSupport.sha256Matches(data, expectedHex: mediaSHA256)
     }
 
     static func cleanupCache() {
@@ -75,10 +81,11 @@ final class UpdateShowcaseMediaLoader: ObservableObject {
         }
 
         let cached = UpdateShowcaseInfo.cachedMediaURL
-        if FileManager.default.fileExists(atPath: cached.path) {
+        if UpdateShowcaseInfo.mediaIsTrusted(at: cached) {
             state = .ready(cached)
             return
         }
+        try? FileManager.default.removeItem(at: cached)
 
         state = .loading
         let request = URLRequest(url: UpdateShowcaseInfo.remoteMediaURL,
@@ -88,6 +95,10 @@ final class UpdateShowcaseMediaLoader: ObservableObject {
             guard let self else { return }
             let ok = (response as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? true
             guard let tempURL, error == nil, ok else {
+                DispatchQueue.main.async { self.state = .failed }
+                return
+            }
+            guard UpdateShowcaseInfo.mediaIsTrusted(at: tempURL) else {
                 DispatchQueue.main.async { self.state = .failed }
                 return
             }

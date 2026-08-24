@@ -17,15 +17,16 @@ enum UpdateInstallerSupport {
         return trimmed
     }
 
-    /// The installer: waits for the app to exit, mounts the DMG, stages a
-    /// copy of the new bundle, verifies its signature, swaps it in and
-    /// relaunches. Arguments: $1 app path, $2 dmg path, $3 pid to wait for,
+    /// The installer: waits for the app to exit, verifies and mounts the DMG,
+    /// stages and verifies the new bundle, swaps it in and relaunches.
+    /// Arguments: $1 app path, $2 dmg path, $3 pid to wait for,
     /// $4 result marker path, $5 uid to relaunch as (used when running as
-    /// root, where a plain `open` could launch the app as root).
+    /// root, where a plain `open` could launch the app as root), $6 expected
+    /// version from the trusted release tag.
     static func installerScript() -> String {
         """
         #!/bin/sh
-        APP="$1"; DMG="$2"; PID="$3"; RESULT="$4"; ASUSER="$5"
+        APP="$1"; DMG="$2"; PID="$3"; RESULT="$4"; ASUSER="$5"; EXPECTED_VERSION="$6"
         SCRIPT="$0"
         # Write-ahead markers go to a progress file; only a FINISHED run
         # promotes it to the real marker. The app may relaunch while this
@@ -61,6 +62,15 @@ enum UpdateInstallerSupport {
             /usr/bin/open "$1"
         }
         while kill -0 "$PID" 2>/dev/null; do sleep 0.3; done
+        note fail-dmg-verify
+        DMG_VERIFY_REQ='anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+        if ! /usr/bin/codesign -v --strict -R="$DMG_VERIFY_REQ" "$DMG" 2>/dev/null; then
+            /bin/rm -f "$DMG"
+            finalize
+            relaunch "$APP"
+            cleanup_script
+            exit 1
+        fi
         note fail-tempdir
         MNT="$(/usr/bin/mktemp -d)" || { /bin/rm -f "$DMG"; finalize; relaunch "$APP"; cleanup_script; exit 1; }
         note fail-mount
@@ -91,43 +101,47 @@ enum UpdateInstallerSupport {
                 # Clear ALL xattrs (quarantine + FinderInfo the DMG round-trip
                 # adds): FinderInfo breaks strict signature verification.
                 /usr/bin/xattr -cr "$STAGE" 2>/dev/null
-                # When the user disabled Gatekeeper, spctl cannot assess anything
-                # and rejects even a healthy bundle; the codesign identity check
-                # below stays as the gate in that case.
-                GATEKEEPER_OK=0
-                if /usr/sbin/spctl --status 2>/dev/null | /usr/bin/grep -q disabled; then
-                    GATEKEEPER_OK=1
-                elif /usr/sbin/spctl -a -t exec "$STAGE" >/dev/null 2>&1; then
-                    GATEKEEPER_OK=1
-                fi
-                VERIFY_REQ='identifier "com.vorssaint.utils" and anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
-                note fail-verify
-                if /usr/bin/codesign -v --deep --strict -R="$VERIFY_REQ" "$STAGE" 2>/dev/null \
-                    && [ "$GATEKEEPER_OK" = 1 ]; then
-                    note fail-swap
-                    # The backup name is unique per run: after an elevated
-                    # install the old bundle is root-owned, a later user-run
-                    # cannot delete that backup, and reusing a fixed name
-                    # would make the NEXT swap fail on it. Strays from
-                    # earlier runs are swept best-effort (an elevated run
-                    # clears even the root-owned ones).
-                    BACKUP="$DEST.update-old.$PID"
-                    /bin/rm -rf "$DEST".update-old "$DEST".update-old.* 2>/dev/null
-                    if { [ ! -d "$DEST" ] || /bin/mv "$DEST" "$BACKUP"; } \
-                        && /bin/mv "$STAGE" "$DEST"; then
-                        LAUNCH="$DEST"
-                        note ok
-                        # Installed as root: hand the bundle to the user, or
-                        # the next user-path update cannot replace it.
-                        if [ "$(/usr/bin/id -u)" = "0" ] && [ -n "$ASUSER" ]; then
-                            /usr/sbin/chown -R "$ASUSER" "$DEST" 2>/dev/null
+                note fail-version
+                BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$STAGE/Contents/Info.plist" 2>/dev/null)"
+                if [ "$BUNDLE_VERSION" = "$EXPECTED_VERSION" ]; then
+                    # When the user disabled Gatekeeper, spctl cannot assess anything
+                    # and rejects even a healthy bundle; the codesign identity check
+                    # below stays as the gate in that case.
+                    GATEKEEPER_OK=0
+                    if /usr/sbin/spctl --status 2>/dev/null | /usr/bin/grep -q disabled; then
+                        GATEKEEPER_OK=1
+                    elif /usr/sbin/spctl -a -t exec "$STAGE" >/dev/null 2>&1; then
+                        GATEKEEPER_OK=1
+                    fi
+                    VERIFY_REQ='identifier "com.vorssaint.utils" and anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+                    note fail-verify
+                    if /usr/bin/codesign -v --deep --strict -R="$VERIFY_REQ" "$STAGE" 2>/dev/null \
+                        && [ "$GATEKEEPER_OK" = 1 ]; then
+                        note fail-swap
+                        # The backup name is unique per run: after an elevated
+                        # install the old bundle is root-owned, a later user-run
+                        # cannot delete that backup, and reusing a fixed name
+                        # would make the NEXT swap fail on it. Strays from
+                        # earlier runs are swept best-effort (an elevated run
+                        # clears even the root-owned ones).
+                        BACKUP="$DEST.update-old.$PID"
+                        /bin/rm -rf "$DEST".update-old "$DEST".update-old.* 2>/dev/null
+                        if { [ ! -d "$DEST" ] || /bin/mv "$DEST" "$BACKUP"; } \
+                            && /bin/mv "$STAGE" "$DEST"; then
+                            LAUNCH="$DEST"
+                            note ok
+                            # Installed as root: hand the bundle to the user, or
+                            # the next user-path update cannot replace it.
+                            if [ "$(/usr/bin/id -u)" = "0" ] && [ -n "$ASUSER" ]; then
+                                /usr/sbin/chown -R "$ASUSER" "$DEST" 2>/dev/null
+                            fi
+                            /bin/rm -rf "$BACKUP"
+                            # If the bundle was renamed, remove the old-named one.
+                            # This happens only after the new bundle is in place.
+                            [ "$DEST" != "$APP" ] && /bin/rm -rf "$APP"
+                        else
+                            [ -d "$BACKUP" ] && [ ! -d "$DEST" ] && /bin/mv "$BACKUP" "$DEST"
                         fi
-                        /bin/rm -rf "$BACKUP"
-                        # If the bundle was renamed, remove the old-named one.
-                        # This happens only after the new bundle is in place.
-                        [ "$DEST" != "$APP" ] && /bin/rm -rf "$APP"
-                    else
-                        [ -d "$BACKUP" ] && [ ! -d "$DEST" ] && /bin/mv "$BACKUP" "$DEST"
                     fi
                 fi
             fi
@@ -160,9 +174,10 @@ enum UpdateInstallerSupport {
                                        dmgPath: String,
                                        pid: Int32,
                                        resultPath: String,
-                                       uid: uid_t) -> String {
+                                       uid: uid_t,
+                                       expectedVersion: String) -> String {
         let script = shellSingleQuoted(installerScript())
-        let args = [appPath, dmgPath, "\(pid)", resultPath, "\(uid)"]
+        let args = [appPath, dmgPath, "\(pid)", resultPath, "\(uid)", expectedVersion]
             .map(shellSingleQuoted)
             .joined(separator: " ")
         return "/usr/bin/nohup /bin/sh -c \(script) vorssaint-installer \(args) >/dev/null 2>&1 &"

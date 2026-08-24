@@ -10,7 +10,7 @@ under GPL-3.0-or-later.
 ## Getting started
 
 ```sh
-git clone https://github.com/vorssaint/vorssaint-utils.git
+git clone https://github.com/vorssaintapp/vorssaint-utils.git
 cd vorssaint-utils
 ./build.sh                         # build and assemble the bundle
 ./build/Vorssaint --selftest       # quick health check (SELFTEST OK)
@@ -40,8 +40,9 @@ dedicated keychain. `build.sh` then signs local builds with it and gives them a
 constant designated requirement, so granted permissions stick across rebuilds.
 It is a local convenience only and never shows up outside the keychain.
 
-Official releases work differently. CI signs them with an Apple **Developer ID**,
-from the repo secrets `SIGNING_CERT_P12` and `SIGNING_CERT_PASSWORD`, then
+Official releases work differently. CI signs the app and DMG with an Apple
+**Developer ID**, using credentials isolated in the protected `release-signing`
+environment, then
 **notarizes** and staples them through `Tools/notarize.sh`, with secrets
 `NOTARY_API_KEY_P8`, `NOTARY_KEY_ID` and `NOTARY_ISSUER_ID`, so downloads open
 with no Gatekeeper warning. `build.sh` prefers the Developer ID identity when it
@@ -75,11 +76,14 @@ Every user facing string lives in `Core/Localization.swift` as a field of the
 it, and the compiler is the completeness check, so a translation can never
 silently fall out of sync.
 
-Vorssaint ships eight languages today, namely English, Português (Brasil),
-Español, Deutsch, Français, Italiano, 日本語 and 简体中文. The non base
-translations live in `Core/Localizations/`. To add a language, add a case to
-`AppLanguage` and a `static let` extension of `Strings` with every field
-translated.
+Vorssaint ships thirteen locales today: English (US), Português (Brasil),
+Türkçe, Русский, Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文,
+繁體中文（台灣） and 繁體中文（香港）. The non-base translations live in
+`Core/Localizations/`. To add a language, add a case to `AppLanguage`, provide
+a complete `Strings` catalog and all feature-specific string catalogs, register
+the locale in `Resources/Info.plist`, add localized permission prompts under
+`Resources/<locale>.lproj/` when needed, and extend the localization coverage
+tests.
 
 ## Sensors on new chips
 
@@ -96,7 +100,7 @@ and open a PR with the dump and the adjusted prefixes.
 ## Reporting bugs and requesting features
 
 You do not need to write code to help. Use the issue forms on the
-[new issue](https://github.com/vorssaint/vorssaint-utils/issues/new/choose) page.
+[new issue](https://github.com/vorssaintapp/vorssaint-utils/issues/new/choose) page.
 
 - **Bug report.** Include your Vorssaint version from Settings under About and
   your macOS version, plus clear steps to reproduce. The
@@ -121,5 +125,6 @@ For general help and every support channel, see [support](SUPPORT.md).
 git tag v2.1.0 && git push origin v2.1.0
 ```
 
-The `release` workflow builds the app, packages the DMG and attaches it to a
-GitHub release automatically.
+Only an owner-created protected version tag can enter the `release-signing`
+environment. After owner approval, the workflow builds, signs, notarizes and
+publishes the DMG as an immutable GitHub release.

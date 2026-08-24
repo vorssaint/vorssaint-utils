@@ -1,52 +1,143 @@
 name: Release
 
-# Push a tag (vX.Y.Z) and CI does the whole release: build, sign (Developer ID +
-# hardened runtime), notarize the app and the DMG, staple both, verify, and
-# publish the GitHub release with the styled DMG. Releases are NOT cut locally, so
-# nothing ever has to enable/disable a workflow. If a run hits a transient
-# failure, re-run it with `gh run rerun <run-id>` (or from the Actions tab); no
-# need to retag.
+# Only an owner-created version tag can reach the protected signing job. The
+# preflight runs without release credentials and proves that the tag names a
+# verified commit already present on main before the environment can be approved.
 on:
   push:
-    tags: ["v*"]
+    tags: ["v[0-9]*"]
 
-permissions:
-  contents: write
+permissions: {}
+
+concurrency:
+  group: release-signing
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build & publish DMG
+  preflight:
+    name: Verify trusted release ref
+    if: >-
+      github.repository == 'vorssaintapp/vorssaint-utils' &&
+      github.event_name == 'push' &&
+      github.ref_type == 'tag' &&
+      github.actor == 'vorssaint' &&
+      github.triggering_actor == 'vorssaint'
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
 
-      - name: Unit tests
-        run: ./build.sh --test
-
-      - name: Set up signing
+      - name: Verify release source
         env:
-          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
-          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
-        run: ./Tools/ci-setup-signing.sh
-
-      - name: Verify release version
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(beta|rc|alpha)\.[0-9]+)?$ ]]; then
+            echo "Unsupported release tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+          COMMIT_SHA="$(git rev-parse 'HEAD^{commit}')"
+          VERIFIED="$(gh api "repos/$GITHUB_REPOSITORY/commits/$COMMIT_SHA" --jq '.commit.verification.verified')"
+          if [[ "$VERIFIED" != "true" ]]; then
+            echo "Release commit is not verified by GitHub" >&2
+            exit 1
+          fi
+          IMMUTABLE_RELEASES="$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')"
+          if [[ "$IMMUTABLE_RELEASES" != "true" ]]; then
+            echo "Immutable releases are not enabled" >&2
+            exit 1
+          fi
+
+          RELATION="$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMMIT_SHA...main" --jq '.status + ":" + .merge_base_commit.sha')"
+          if [[ "$RELATION" != "identical:$COMMIT_SHA" && "$RELATION" != "ahead:$COMMIT_SHA" ]]; then
+            echo "Release tag does not point to a commit on main" >&2
+            exit 1
+          fi
+
           VERSION="${GITHUB_REF_NAME#v}"
           APP_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' Resources/Info.plist)"
           if [[ "$APP_VERSION" != "$VERSION" ]]; then
             echo "Tag $GITHUB_REF_NAME does not match app version $APP_VERSION" >&2
             exit 1
           fi
+          if ! grep -Eq "^## \\[$VERSION\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md; then
+            echo "CHANGELOG.md has no dated release entry for $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: ./build.sh --test
+
+  release:
+    name: Build, sign & notarize DMG
+    needs: preflight
+    if: >-
+      needs.preflight.result == 'success' &&
+      github.repository == 'vorssaintapp/vorssaint-utils' &&
+      github.event_name == 'push' &&
+      github.ref_type == 'tag' &&
+      github.actor == 'vorssaint' &&
+      github.triggering_actor == 'vorssaint'
+    runs-on: macos-26
+    timeout-minutes: 30
+    environment: release-signing
+    outputs:
+      commit_sha: ${{ steps.source.outputs.commit_sha }}
+      prerelease: ${{ steps.notes.outputs.prerelease }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Reverify protected release ref
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          COMMIT_SHA="$(git rev-parse 'HEAD^{commit}')"
+          REMOTE_COMMIT="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME" --jq '.sha')"
+          if [[ "$REMOTE_COMMIT" != "$COMMIT_SHA" ]]; then
+            echo "Release tag moved after preflight" >&2
+            exit 1
+          fi
+          RELATION="$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMMIT_SHA...main" --jq '.status + ":" + .merge_base_commit.sha')"
+          if [[ "$RELATION" != "identical:$COMMIT_SHA" && "$RELATION" != "ahead:$COMMIT_SHA" ]]; then
+            echo "Release tag no longer points to a commit on main" >&2
+            exit 1
+          fi
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Set up signing
+        env:
+          REQUIRE_SIGNING: "1"
+          SIGNING_CERT_P12: ${{ secrets.SIGNING_CERT_P12 }}
+          SIGNING_CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: ./Tools/ci-setup-signing.sh
 
       - name: Build
         run: ./build.sh
+
+      - name: Verify release signature
+        run: |
+          REQUIREMENT='identifier "com.vorssaint.utils" and anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+          codesign --verify --deep --strict -R="$REQUIREMENT" build/stage/Vorssaint.app
 
       - name: Selftest
         run: ./build/Vorssaint --selftest
 
       - name: Notarize app
         env:
+          REQUIRE_NOTARIZATION: "1"
           NOTARY_API_KEY_P8: ${{ secrets.NOTARY_API_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
@@ -55,15 +146,23 @@ jobs:
       - name: Package DMG
         run: ./Tools/make-dmg.sh
 
+      - name: Sign DMG
+        run: |
+          DMG=$(ls dist/*.dmg | head -1)
+          codesign --force --timestamp \
+            --sign 'Developer ID Application: Pedro Gomes (3D485NHW29)' "$DMG"
+          REQUIREMENT='anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+          codesign --verify --strict -R="$REQUIREMENT" "$DMG"
+
       - name: Notarize DMG
         env:
+          REQUIRE_NOTARIZATION: "1"
           NOTARY_API_KEY_P8: ${{ secrets.NOTARY_API_KEY_P8 }}
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
         run: ./Tools/notarize.sh dist/*.dmg
 
       - name: Prepare release showcase media
-        id: release_files
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           mkdir -p dist/showcase
@@ -76,22 +175,16 @@ jobs:
             fi
             if [[ ! -s "$TARGET" ]]; then
               echo "Missing required showcase media: $TARGET" >&2
-              echo "The app expects https://github.com/vorssaint/vorssaint-utils/releases/download/v3.1.4/$ASSET" >&2
+              echo "The app expects https://github.com/vorssaintapp/vorssaint-utils/releases/download/v3.1.4/$ASSET" >&2
               exit 1
             fi
           fi
-          {
-            echo "FILES<<__VRSS_FILES__"
-            printf '%s\n' dist/*.dmg
-            if compgen -G "dist/showcase/*.mp4" > /dev/null; then
-              printf '%s\n' dist/showcase/*.mp4
-            fi
-            echo "__VRSS_FILES__"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Verify notarization
         run: |
           DMG=$(ls dist/*.dmg | head -1)
+          DMG_REQUIREMENT='anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+          codesign --verify --strict -R="$DMG_REQUIREMENT" "$DMG"
           xcrun stapler validate "$DMG"
           MP=$(mktemp -d)
           cleanup() {
@@ -102,40 +195,210 @@ jobs:
           hdiutil attach -nobrowse -readonly -mountpoint "$MP" "$DMG"
           spctl -a -t exec -vv "$MP/Vorssaint.app" 2>&1 | tee /tmp/spctl.txt
           grep -q "source=Notarized Developer ID" /tmp/spctl.txt
+          REQUIREMENT='identifier "com.vorssaint.utils" and anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+          codesign --verify --deep --strict -R="$REQUIREMENT" "$MP/Vorssaint.app"
           xcrun stapler validate "$MP/Vorssaint.app"
 
       - name: Release notes from CHANGELOG
         id: notes
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          if ! grep -Fq "## [$VERSION]" CHANGELOG.md; then
-            echo "CHANGELOG.md has no entry for $VERSION" >&2
-            exit 1
-          fi
           NOTES="$(awk -v hdr="## [$VERSION]" 'index($0,hdr)==1{g=1;next} /^## \[/&&g{exit} g{print}' CHANGELOG.md)"
           if [[ -z "${NOTES//[[:space:]]/}" ]]; then
             echo "CHANGELOG.md entry for $VERSION is empty" >&2
             exit 1
           fi
+          NOTES_FILE="$RUNNER_TEMP/release-notes.md"
           {
-            echo "NOTES<<__VRSS_EOF__"
             printf '%s\n' "$NOTES"
             echo ""
             echo "Signed with an Apple Developer ID and notarized by Apple, so it downloads and opens normally. Requires macOS 14 or later. Open the .dmg below and drag Vorssaint to Applications."
-            echo "__VRSS_EOF__"
+          } > "$NOTES_FILE"
+          {
+            echo "file=$NOTES_FILE"
             if [[ "$VERSION" =~ -(beta|rc|alpha) ]]; then
-              echo "PRERELEASE=true"
-              echo "MAKE_LATEST=false"
+              echo "prerelease=true"
             else
-              echo "PRERELEASE=false"
-              echo "MAKE_LATEST=true"
+              echo "prerelease=false"
             fi
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+      - name: Stage release artifact
+        env:
+          NOTES_FILE: ${{ steps.notes.outputs.file }}
+        run: |
+          set -euo pipefail
+          BUNDLE="$RUNNER_TEMP/release-bundle"
+          mkdir -p "$BUNDLE"
+          cp dist/*.dmg "$BUNDLE/"
+          if compgen -G "dist/showcase/*.mp4" > /dev/null; then
+            cp dist/showcase/*.mp4 "$BUNDLE/"
+          fi
+          cp "$NOTES_FILE" "$BUNDLE/release-notes.md"
+          (
+            cd "$BUNDLE"
+            shasum -a 256 ./*.dmg ./release-notes.md > SHA256SUMS
+            if compgen -G "*.mp4" > /dev/null; then
+              shasum -a 256 ./*.mp4 >> SHA256SUMS
+            fi
+          )
+
+      - name: Upload verified release artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          files: ${{ steps.release_files.outputs.FILES }}
-          body: ${{ steps.notes.outputs.NOTES }}
-          prerelease: ${{ steps.notes.outputs.PRERELEASE == 'true' }}
-          make_latest: ${{ steps.notes.outputs.MAKE_LATEST }}
+          name: release-${{ github.ref_name }}
+          path: ${{ runner.temp }}/release-bundle
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  publish:
+    name: Publish immutable release
+    needs: release
+    if: >-
+      needs.release.result == 'success' &&
+      github.repository == 'vorssaintapp/vorssaint-utils' &&
+      github.event_name == 'push' &&
+      github.ref_type == 'tag' &&
+      github.actor == 'vorssaint' &&
+      github.triggering_actor == 'vorssaint'
+    runs-on: macos-26
+    timeout-minutes: 10
+    permissions:
+      contents: write # Publishes the release; this job never receives Apple credentials.
+    steps:
+      - name: Download verified release artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-${{ github.ref_name }}
+          path: release-bundle
+
+      - name: Verify release artifact
+        run: |
+          set -euo pipefail
+          cd release-bundle
+          shasum -a 256 -c SHA256SUMS
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT_SHA: ${{ needs.release.outputs.commit_sha }}
+          NOTES_FILE: release-bundle/release-notes.md
+          PRERELEASE: ${{ needs.release.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          REMOTE_COMMIT="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME" --jq '.sha')"
+          if [[ "$REMOTE_COMMIT" != "$COMMIT_SHA" ]]; then
+            echo "Release tag moved after signing" >&2
+            exit 1
+          fi
+          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')" != "true" ]]; then
+            echo "Immutable releases are not enabled" >&2
+            exit 1
+          fi
+          FILES=(release-bundle/*.dmg)
+          if compgen -G "release-bundle/*.mp4" > /dev/null; then
+            FILES+=(release-bundle/*.mp4)
+          fi
+
+          verify_release() {
+            local expected_draft="$1"
+            local release_id asset_count file name digest record
+            local expected_metadata metadata body_base64 expected_body_base64
+
+            release_id="$(gh release view "$GITHUB_REF_NAME" --json databaseId --jq '.databaseId')"
+            asset_count="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" --jq 'length')"
+            if [[ "$asset_count" -ne "${#FILES[@]}" ]]; then
+              echo "Release contains unexpected assets" >&2
+              return 1
+            fi
+            for file in "${FILES[@]}"; do
+              name="$(basename "$file")"
+              digest="sha256:$(shasum -a 256 "$file" | awk '{print $1}')"
+              record="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+                --jq '.[] | [.name, .digest, .uploader.login] | @tsv' \
+                | awk -F '\t' -v name="$name" '$1 == name { print $2 "\t" $3 }')"
+              if [[ "$record" != "$digest"$'\t'"github-actions[bot]" ]]; then
+                echo "Release asset verification failed for $name" >&2
+                return 1
+              fi
+            done
+
+            expected_metadata="$GITHUB_REF_NAME"$'\t'"$expected_draft"$'\t'"$PRERELEASE"$'\t'"github-actions[bot]"
+            metadata="$(gh release view "$GITHUB_REF_NAME" --json name,isDraft,isPrerelease,author \
+              --jq '[.name, .isDraft, .isPrerelease, .author.login] | @tsv')"
+            body_base64="$(gh release view "$GITHUB_REF_NAME" --json body --jq '.body | @base64')"
+            expected_body_base64="$(base64 < "$NOTES_FILE" | tr -d '\n')"
+            if [[ "$metadata" != "$expected_metadata" || "$body_base64" != "$expected_body_base64" ]]; then
+              echo "Release metadata verification failed" >&2
+              return 1
+            fi
+          }
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            IS_DRAFT="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft')"
+            IS_IMMUTABLE="$(gh release view "$GITHUB_REF_NAME" --json isImmutable --jq '.isImmutable')"
+            AUTHOR="$(gh release view "$GITHUB_REF_NAME" --json author --jq '.author.login')"
+            if [[ "$IS_DRAFT" == "false" ]]; then
+              if [[ "$IS_IMMUTABLE" != "true" || "$AUTHOR" != "github-actions[bot]" ]]; then
+                echo "Refusing to reuse an untrusted or mutable published release" >&2
+                exit 1
+              fi
+              verify_release false
+              echo "Release is already published, immutable and verified."
+              exit 0
+            fi
+            if [[ "$AUTHOR" != "github-actions[bot]" ]]; then
+              echo "Refusing to reuse an untrusted or mutable published release" >&2
+              exit 1
+            fi
+            gh release upload "$GITHUB_REF_NAME" "${FILES[@]}" --clobber
+          else
+            CREATE_ARGS=(
+              "$GITHUB_REF_NAME"
+              "${FILES[@]}"
+              --verify-tag
+              --title "$GITHUB_REF_NAME"
+              --notes-file "$NOTES_FILE"
+              --draft
+            )
+            if [[ "$PRERELEASE" == "true" ]]; then
+              CREATE_ARGS+=(--prerelease)
+            fi
+            gh release create "${CREATE_ARGS[@]}"
+          fi
+
+          EDIT_ARGS=(
+            "$GITHUB_REF_NAME"
+            --draft
+            --title "$GITHUB_REF_NAME"
+            --notes-file "$NOTES_FILE"
+          )
+          if [[ "$PRERELEASE" == "true" ]]; then
+            EDIT_ARGS+=(--prerelease)
+          else
+            EDIT_ARGS+=(--prerelease=false)
+          fi
+          gh release edit "${EDIT_ARGS[@]}"
+          verify_release true
+          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')" != "true" ]]; then
+            echo "Immutable releases were disabled before publication" >&2
+            exit 1
+          fi
+
+          if [[ "$PRERELEASE" == "true" ]]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false
+          else
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease=false --latest
+          fi
+          IS_IMMUTABLE=false
+          for _ in {1..10}; do
+            IS_IMMUTABLE="$(gh release view "$GITHUB_REF_NAME" --json isImmutable --jq '.isImmutable')"
+            [[ "$IS_IMMUTABLE" == "true" ]] && break
+            sleep 1
+          done
+          if [[ "$IS_IMMUTABLE" != "true" ]]; then
+            echo "Published release is not immutable" >&2
+            exit 1
+          fi
+          verify_release false
