@@ -11958,6 +11958,18 @@ struct MetricsTests {
                "other bundle ids are not excluded")
         expect(!AlwaysOnTopSupport.isExcluded(bundleIdentifier: nil, exceptions: ["com.apple.Safari"]),
                "missing bundle id is not excluded")
+        let excludePins = [
+            AlwaysOnTopPin(windowID: 1, originalLevel: 0, pid: 10),
+            AlwaysOnTopPin(windowID: 2, originalLevel: 0, pid: 20),
+        ]
+        let gone = AlwaysOnTopSupport.windowIDsToUnpinAfterExclude(
+            pins: excludePins,
+            exceptions: ["com.apple.Safari"],
+            bundleIDForPID: { pid in
+                pid == 10 ? "com.apple.Safari" : "com.apple.Notes"
+            }
+        )
+        expect(gone == [1], "later excluding a pinned app unpins it")
 
         let missing = AlwaysOnTopPinning(client: AlwaysOnTopStubClient(isAvailable: false))
         expect(missing.pin(1) == nil, "missing private symbol is a no-op")

@@ -51,4 +51,15 @@ enum AlwaysOnTopSupport {
                                    bundleURL: nil,
                                    exceptions: exceptions)
     }
+
+    static func windowIDsToUnpinAfterExclude(
+        pins: [AlwaysOnTopPin],
+        exceptions: [String],
+        bundleIDForPID: (pid_t) -> String?
+    ) -> [CGWindowID] {
+        pins.compactMap { pin in
+            isExcluded(bundleIdentifier: bundleIDForPID(pin.pid), exceptions: exceptions)
+                ? pin.windowID : nil
+        }
+    }
 }

@@ -142,6 +142,10 @@ enum SettingsDirectory {
                                                  FeatureStrings.windowLayout(language).gestureResize]),
                 SettingsDirectoryItem(page: .autoQuit, title: s.autoQuitName, icon: "xmark.rectangle",
                                       keywords: [s.autoQuitEnable]),
+                SettingsDirectoryItem(page: .alwaysOnTop,
+                                      title: FeatureStrings.alwaysOnTop(language).title,
+                                      icon: "pin.fill",
+                                      keywords: [FeatureStrings.alwaysOnTop(language).enable]),
             ]),
             (categories.files, [
                 SettingsDirectoryItem(page: .clipboard, title: FeatureStrings.clipboard(language).title,

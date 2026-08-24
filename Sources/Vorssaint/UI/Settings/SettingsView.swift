@@ -358,6 +358,7 @@ struct SettingsView: View {
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
+        case .alwaysOnTop: AlwaysOnTopSettings()
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
