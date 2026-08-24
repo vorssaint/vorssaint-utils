@@ -359,12 +359,16 @@ enum DefaultsKey {
     static let mediaVideoFPS = "mediaVideoFPS"
     static let mediaVideoKeepAudio = "mediaVideoKeepAudio"
     static let mediaVideoCodec = "mediaVideoCodec"
+    static let mediaVideoSizing = "mediaVideoSizing"
+    static let mediaVideoTargetMegabytes = "mediaVideoTargetMegabytes"
     static let mediaGIFStart = "mediaGIFStart"
     static let mediaGIFEnd = "mediaGIFEnd"
     static let mediaGIFQuality = "mediaGIFQuality"
     static let mediaGIFWidth = "mediaGIFWidth"
     static let mediaGIFFPS = "mediaGIFFPS"
     static let mediaGIFLoops = "mediaGIFLoops"
+    static let mediaGIFSizing = "mediaGIFSizing"
+    static let mediaGIFTargetMegabytes = "mediaGIFTargetMegabytes"
     static let mediaImageQuality = "mediaImageQuality"
     static let mediaImageMaxDimension = "mediaImageMaxDimension"
     static let mediaImageFormat = "mediaImageFormat"
@@ -1039,12 +1043,16 @@ enum Defaults {
         DefaultsKey.mediaVideoFPS: 30.0,
         DefaultsKey.mediaVideoKeepAudio: true,
         DefaultsKey.mediaVideoCodec: MediaVideoCodec.h264.rawValue,
+        DefaultsKey.mediaVideoSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaVideoTargetMegabytes: 20,
         DefaultsKey.mediaGIFStart: 0.0,
         DefaultsKey.mediaGIFEnd: 0.0,
         DefaultsKey.mediaGIFQuality: 0.74,
         DefaultsKey.mediaGIFWidth: 720,
         DefaultsKey.mediaGIFFPS: 12.0,
         DefaultsKey.mediaGIFLoops: true,
+        DefaultsKey.mediaGIFSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaGIFTargetMegabytes: 10,
         DefaultsKey.mediaImageQuality: 0.72,
         DefaultsKey.mediaImageMaxDimension: 1600,
         DefaultsKey.mediaImageFormat: MediaImageFormat.jpeg.rawValue,

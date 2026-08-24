@@ -4550,6 +4550,125 @@ struct MetricsTests {
                 && MediaSupport.gifLoopCount(loops: true) == 0
                 && MediaSupport.gifLoopCount(loops: false) == nil,
                "GIF limits are actionable and non-looping output omits repeat metadata")
+
+        // MARK: Media size targets
+
+        expect(MediaSizingMode.sanitized("targetSize") == .targetSize
+                && MediaSizingMode.sanitized("resolution") == .resolution
+                && MediaSizingMode.sanitized("nonsense") == .resolution,
+               "A stored sizing mode falls back to the historical resolution mode")
+        expect(MediaSupport.targetBytes(megabytes: 20) == 20_000_000
+                && MediaSupport.targetBytes(megabytes: 0) == 1_000_000
+                && MediaSupport.targetBytes(megabytes: 99_999)
+                    == Int64(MediaSupport.maximumTargetMegabytes) * 1_000_000,
+               "Target megabytes are 1000 based and clamped to a usable range")
+
+        // The case the mode exists for: a minute of 1080p that has to fit the
+        // 20 MB a chat service accepts without paid tiers.
+        let sharePlan = MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                                   duration: 60,
+                                                   sourceSize: CGSize(width: 1920, height: 1080),
+                                                   frameRate: 30,
+                                                   hasAudio: true)
+        expect(sharePlan != nil, "A minute of 1080p can be planned into 20 MB")
+        if let plan = sharePlan {
+            let projectedBytes = Double(plan.videoBitRate + plan.audioBitRate) * 60 / 8
+            expect(projectedBytes <= 20_000_000,
+                   "The planned bitrate cannot overrun the target it was derived from")
+            expect(projectedBytes >= 18_000_000,
+                   "The plan spends the budget instead of undershooting it")
+            expect(plan.size.width <= 1920 && plan.size.height <= 1080,
+                   "A size target never upscales the source")
+            expect(Int(plan.size.width).isMultiple(of: 2) && Int(plan.size.height).isMultiple(of: 2),
+                   "Planned dimensions stay even, which H.264 requires")
+        }
+
+        // Short clips have bitrate to spare, so nothing is thrown away.
+        expect(MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                          duration: 5,
+                                          sourceSize: CGSize(width: 1280, height: 720),
+                                          frameRate: 30,
+                                          hasAudio: true)?.size == CGSize(width: 1280, height: 720),
+               "A budget larger than the source needs keeps the full resolution")
+        // A budget too thin to be watchable is refused rather than encoded.
+        expect(MediaSupport.videoSizePlan(targetBytes: 1_000_000,
+                                          duration: 120,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: true) == nil,
+               "An unreachable target fails planning instead of producing mush")
+        expect(MediaSupport.videoSizePlan(targetBytes: 2_000_000,
+                                          duration: 60,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: false)?.size == CGSize(width: 480, height: 270),
+               "Scaling stops at 480 on the long edge even when the budget would buy less")
+        expect(MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                          duration: 0,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: true) == nil
+                && MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                              duration: 60,
+                                              sourceSize: .zero,
+                                              frameRate: 30,
+                                              hasAudio: true) == nil,
+               "Planning rejects a clip with no duration or no size")
+        expect(MediaSupport.targetAudioBitRate(targetBytes: 20_000_000, duration: 60) == 128_000
+                && MediaSupport.targetAudioBitRate(targetBytes: 2_000_000, duration: 60) == 64_000,
+               "Audio gives up half its bitrate when the whole budget is thin")
+
+        // Rate control lands near the budget, so an overshoot is measured and
+        // scaled down rather than retried at the same setting.
+        expectClose(MediaSupport.targetRetryScale(current: 1,
+                                                  actualBytes: 24_000_000,
+                                                  targetBytes: 20_000_000) ?? 0,
+                    0.7833, "overshoot retry scale", tol: 0.001)
+        expect(MediaSupport.targetRetryScale(current: 1,
+                                             actualBytes: 19_000_000,
+                                             targetBytes: 20_000_000) == nil,
+               "A pass that already fits is never retried")
+        expect((MediaSupport.targetRetryScale(current: 1,
+                                              actualBytes: 20_000_001,
+                                              targetBytes: 20_000_000) ?? 1) <= 0.9,
+               "Every retry gives up at least a tenth so the passes converge")
+
+        // A GIF has no bitrate, so overshoot is corrected on frames first.
+        let gifRetry = MediaSupport.gifSizePlan(width: 720, fps: 15,
+                                                actualBytes: 12_000_000, targetBytes: 8_000_000)
+        expect(gifRetry?.fps == 9 && gifRetry?.width == 720,
+               "A GIF over its target drops frames before it drops pixels")
+        let gifDeepRetry = MediaSupport.gifSizePlan(width: 720, fps: 9,
+                                                    actualBytes: 9_000_000, targetBytes: 2_000_000)
+        expect((gifDeepRetry?.width ?? 720) < 720 && gifDeepRetry?.fps == MediaSupport.minimumTargetGIFFPS,
+               "Once the frame rate hits its floor the frame itself shrinks")
+        expect(MediaSupport.gifSizePlan(width: 160, fps: 6,
+                                        actualBytes: 5_000_000, targetBytes: 1_000_000) == nil
+                && MediaSupport.gifSizePlan(width: 720, fps: 15,
+                                            actualBytes: 1_000_000, targetBytes: 8_000_000) == nil,
+               "A GIF already at its floor, or already fitting, has nothing left to plan")
+        expect(MediaSupport.targetGIFStartFPS(duration: 10) == 15
+                && MediaSupport.targetGIFStartFPS(duration: 60) == MediaSupport.minimumTargetGIFFPS,
+               "A size targeted GIF starts at the highest rate its frame ceiling allows")
+        expect(MediaSupport.targetGIFStartWidth(sourceWidth: 1_920) == 1_600
+                && MediaSupport.targetGIFStartWidth(sourceWidth: 640) == 640
+                && MediaSupport.targetGIFStartWidth(sourceWidth: 0) == 1_600,
+               "A size targeted GIF starts from the source width, capped at the tool maximum")
+
+        let sizeTargetStrings: [(String, Strings)] = [
+            ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
+            ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
+            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
+        ]
+        for (name, strings) in sizeTargetStrings {
+            expect(!strings.mediaSizingResolution.isEmpty
+                    && !strings.mediaSizingFileSize.isEmpty
+                    && !strings.mediaTargetSize.isEmpty
+                    && !strings.mediaTargetSizeHint.isEmpty
+                    && !strings.mediaErrorTargetTooSmall.isEmpty
+                    && !strings.mediaMegabytesSuffix.isEmpty,
+                   "\(name) names the size target controls")
+        }
         let sanitizedProfiles = MediaSupport.sanitizedImageProfiles([
             MediaImageProfile(id: "same", name: "  ", options: profileOptions),
             MediaImageProfile(id: "same", name: " Work ", options: profileOptions),
