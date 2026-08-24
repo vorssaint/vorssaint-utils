@@ -427,7 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // has since parked out of the way is not.
             if let expectedMidX = self.popoverAnchor?.midX ?? expectedMidX,
                let popoverMidX = self.popover.contentViewController?.view.window?.frame.midX,
-               abs(popoverMidX - expectedMidX) <= 34 {
+               abs(popoverMidX - expectedMidX) <= Self.popoverAnchorDriftTolerance {
                 self.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
                 return
@@ -454,6 +454,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     /// How long a captured click still counts as "where the icon is".
     private static let statusClickFreshness: TimeInterval = 0.5
+    /// Small menu-bar layout shifts still belong to AppKit. A larger jump is
+    /// the fallback-slot failure and must be corrected from the opening anchor.
+    private static let popoverAnchorDriftTolerance: CGFloat = 34
 
     /// The spot an open panel holds: the horizontal middle and the top edge it
     /// must keep across content resizes, plus the screen the menu bar icon was
@@ -603,25 +606,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
             popoverDriftObservers.append(NotificationCenter.default.addObserver(
                 forName: name, object: window, queue: .main
-            ) { [weak self, weak window] _ in
+            ) { [weak self, weak window] notification in
                 guard let window else { return }
-                self?.applyPopoverDriftFrame(window)
+                let contentResized = notification.name == NSWindow.didResizeNotification
+                self?.applyPopoverDriftFrame(window, contentResized: contentResized)
+                // NSPopover can do a second placement pass after publishing its
+                // resize. Re-apply on the next run-loop turn so that pass cannot
+                // strand a newly expanded utility (notably Homebrew) at the
+                // status area's top-right fallback slot.
+                if contentResized {
+                    DispatchQueue.main.async { [weak self, weak window] in
+                        guard let self,
+                              let window,
+                              self.popover.isShown,
+                              window === self.popover.contentViewController?.view.window else { return }
+                        self.applyPopoverDriftFrame(window, contentResized: true)
+                    }
+                }
             })
         }
     }
 
-    private func applyPopoverDriftFrame(_ window: NSWindow) {
+    private func applyPopoverDriftFrame(_ window: NSWindow, contentResized: Bool = false) {
         guard let anchor = popoverAnchor,
-              // A healthy bar places the panel better than the anchor can, and
-              // keeps it under an icon that shifts as items come and go, so the
-              // anchor stays dormant until that frame stops meaning anything.
-              anchor.overridesSoundFrame || !frameStillDescribesMenuBar(anchor),
               let visible = anchorVisibleFrame(anchor, window: window) else { return }
         let frame = window.frame
         let target = StatusItemAnchorSupport.pinnedPanelFrame(size: frame.size,
                                                               anchorMidX: anchor.midX,
                                                               anchorTop: anchor.top,
                                                               visibleFrame: visible)
+        let jumpedToFallback = abs(frame.midX - target.midX) > Self.popoverAnchorDriftTolerance
+            || abs(frame.maxY - target.maxY) > Self.popoverAnchorDriftTolerance
+        // A healthy bar places the panel better than the anchor can, and keeps
+        // it under an icon that shifts as items come and go. A content resize
+        // or a large fallback-slot jump is different: the opening position must
+        // win even while the status window still occupies the menu-bar band.
+        guard contentResized || jumpedToFallback || anchor.overridesSoundFrame
+                || !frameStillDescribesMenuBar(anchor) else { return }
         // The 2pt tolerance breaks the loop with our own setFrame's didMove.
         guard abs(frame.midX - target.midX) > 2 || abs(frame.maxY - target.maxY) > 2 else { return }
         window.setFrame(target, display: true)
@@ -726,8 +747,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             guard let self, self.popover.isShown else { return }
-            guard !PanelInteractionState.shared.keepsPopoverOpen else { return }
             guard self.statusController.containsStatusItem(at: NSEvent.mouseLocation) == false else { return }
+            // A package-changing Homebrew command keeps its progress surface
+            // available even if the user has switched to another panel tab.
+            // Search, refresh and merely viewing Homebrew do not block a genuine
+            // outside click. As soon as the command finishes, the next click
+            // delivered to another app or the desktop dismisses normally.
+            guard HomebrewManager.shared.operationStatus?.isActive != true else { return }
             self.closePopover()
         }
 
