@@ -1837,10 +1837,36 @@ struct MetricsTests {
         expect(SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
                                                           windowSpaces: [3])
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: false,
-                                                               windowSpaces: [3])
+                                                              windowSpaces: [3])
                && !SwitcherSupport.isConfirmedHiddenAppWindow(appIsHidden: true,
-                                                               windowSpaces: []),
+                                                              windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
+
+        // MARK: Stale surfaces without an Accessibility witness (issue #807)
+
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 0),
+               "App Switcher keeps a visible surface even when its app never answered Accessibility")
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 2),
+               "App Switcher keeps an off-screen surface the window server parked on a desktop")
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 7),
+               "App Switcher keeps an off-screen surface assigned to any desktop, visible or not")
+        expect(SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                            canResolveSpaces: true,
+                                                            windowSpacesCount: 0),
+               "App Switcher drops an off-screen surface that belongs to no desktop at all")
+        expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,
+                                                             canResolveSpaces: true,
+                                                             windowSpacesCount: 0)
+               && !SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: false,
+                                                                canResolveSpaces: false,
+                                                                windowSpacesCount: 0),
+               "App Switcher keeps the old behavior when the desktop queries are unavailable")
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: 101,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow])?.id == embeddedWindow.id,
@@ -2935,6 +2961,14 @@ struct MetricsTests {
                "extra brightness is opt-in")
         expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
                "extra brightness starts at full intensity once enabled")
+        expect(registeredDefaults[DefaultsKey.bluetoothSleepEnabled] as? Bool == false,
+               "switching Bluetooth off on sleep is opt-in")
+        expect(registeredDefaults[DefaultsKey.bluetoothSleepRestoreOnWake] as? Bool == true,
+               "an enabled Bluetooth sleep feature puts Bluetooth back on wake")
+        expect(registeredDefaults[DefaultsKey.bluetoothSleepRestorePending] as? Bool == false,
+               "no Bluetooth restore is owed before the first sleep")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.bluetoothSleepRestorePending),
+               "a Bluetooth restore owed by one sleeping Mac never travels to another")
         expect(registeredDefaults[DefaultsKey.musicBlockEnabled] as? Bool == false,
                "blocking the music app from launching is opt-in")
         expect(registeredDefaults[DefaultsKey.musicBlockReplacementPath] as? String == "",
@@ -8502,75 +8536,137 @@ struct MetricsTests {
 
         // MARK: URL cleaning
 
-        expectEqual(URLCleaning.cleanedString(from: "https://example.com/path?utm_source=news&id=42&fbclid=abc") ?? "",
+        expectEqual(URLCleaning.clean("https://example.com/path?utm_source=news&id=42&fbclid=abc")?.url ?? "",
                     "https://example.com/path?id=42",
                     "URL cleaner removes tracking and preserves useful query")
-        expectEqual(URLCleaning.cleanedString(from: " https://example.com/?GCLID=one&utm_campaign=x#section ") ?? "",
+        expectEqual(URLCleaning.clean(" https://example.com/?GCLID=one&utm_campaign=x#section ")?.url ?? "",
                     "https://example.com/#section",
                     "URL cleaner is case-insensitive and preserves fragments")
-        expectEqual(URLCleaning.cleanedString(from: "https://example.com/?id=42") ?? "",
+        expectEqual(URLCleaning.clean("https://example.com/?id=42")?.url ?? "",
                     "https://example.com/?id=42",
                     "URL cleaner leaves clean URLs alone")
         let customURLParameters = URLCleaning.customParameters(from: " Ref, source\nref,  ")
         expect(customURLParameters == ["ref", "source"],
                "URL cleaner normalizes comma-separated custom parameter names")
-        expectEqual(URLCleaning.cleanedString(from: "https://example.com/?REF=one&id=42&source=two",
-                                              customParameters: customURLParameters) ?? "",
+        let customURLRules = URLCleaning.rules(globalNames: " Ref, source\nref,  ",
+                                               siteNames: nil, disabledNames: nil)
+        expectEqual(URLCleaning.clean("https://example.com/?REF=one&id=42&source=two",
+                                              rules: customURLRules)?.url ?? "",
                     "https://example.com/?id=42",
                     "URL cleaner removes custom parameters by exact case-insensitive name")
-        expectEqual(URLCleaning.cleanedString(from: "https://example.com/?reference=one",
-                                              customParameters: customURLParameters) ?? "",
+        expectEqual(URLCleaning.clean("https://example.com/?reference=one",
+                                              rules: customURLRules)?.url ?? "",
                     "https://example.com/?reference=one",
                     "URL cleaner does not treat custom parameter names as prefixes")
-        // A grouped Form renders a TextField's first argument as a leading
-        // label, so the words sat beside a short strip of field and clicking
-        // them did nothing. The hint has to travel as `prompt:` and the label
-        // has to stay empty for the field to own its whole row.
+        // A grouped Form keeps a label column even for an empty label, which
+        // left every field on the right half of its row. The hint has to
+        // travel as `prompt:` and the label has to be hidden for a field to
+        // own its whole row.
         let urlCleanerSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift",
             encoding: .utf8)) ?? ""
-        expect(urlCleanerSettingsSource.contains("prompt: Text(l10n.s.urlCleanerCustomPlaceholder)")
-                && urlCleanerSettingsSource.contains("prompt: Text(l10n.s.urlCleanerInputPlaceholder)"),
-               "the Clean URL fields carry their hint as a prompt, not as a row label")
         expect(!urlCleanerSettingsSource.contains("TextField(l10n.s."),
                "no Clean URL field spends its row on a label instead of the field")
-        expect(urlCleanerSettingsSource.contains("TextField(\"\", text: $customDraft,"),
-               "the custom parameter field edits a draft of its own")
-        expect(!urlCleanerSettingsSource.contains("text: $customParameters"),
-               "typing never reaches the list the cleaner reads on its next poll")
+        expect(urlCleanerSettingsSource.components(separatedBy: "TextField(").count
+                == urlCleanerSettingsSource.components(separatedBy: ".labelsHidden()").count,
+               "every Clean URL field hides its label so the field owns the row")
 
-        expect(Defaults.registeredDefaults[DefaultsKey.urlCleanerCustomParameters] as? String == ""
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.urlCleanerCustomParameters),
-               "custom URL cleaner parameters start empty and travel in Settings backups")
-        expect(URLCleaning.cleanedString(from: "not a url") == nil,
+        // Rules are stored as a difference from the built-in tables, never as
+        // a copy of them, so names a later version adds still reach someone
+        // who has already edited their rules.
+        let keptUTM = URLCleaning.rules(globalNames: nil, siteNames: nil, disabledNames: "|utm_*")
+        expectEqual(URLCleaning.clean("https://example.com/?utm_source=news&fbclid=abc&id=1",
+                                      rules: keptUTM)?.url ?? "",
+                    "https://example.com/?utm_source=news&id=1",
+                    "switching the utm row off keeps every utm name and leaves the rest cleaning")
+        let keptShareToken = URLCleaning.rules(globalNames: nil, siteNames: nil,
+                                               disabledNames: "youtube.com|si")
+        expectEqual(URLCleaning.clean("https://www.youtube.com/watch?v=1&si=x&feature=share",
+                                      rules: keptShareToken)?.url ?? "",
+                    "https://www.youtube.com/watch?v=1&si=x",
+                    "a switched off site name stays in the link while its siblings still go")
+        let addedSiteRule = URLCleaning.rules(globalNames: nil, siteNames: "weibo.com|sudaref",
+                                              disabledNames: nil)
+        expectEqual(URLCleaning.clean("https://weibo.com/a?sudaref=x&id=1", rules: addedSiteRule)?.url ?? "",
+                    "https://weibo.com/a?id=1",
+                    "a name added to one site cleans that site")
+        expectEqual(URLCleaning.clean("https://example.com/?sudaref=x", rules: addedSiteRule)?.url ?? "",
+                    "https://example.com/?sudaref=x",
+                    "a name added to one site never reaches another")
+        expect(URLCleaning.clean("https://example.com/?utm_source=a&fbclid=b&id=1")?.removed
+                == ["utm_source", "fbclid"],
+               "cleaning answers with the names it took out, in the order the link carried them")
+        expect(URLCleaning.outcome(for: nil, input: "nope") == .notAURL,
+               "text that is not a link reads as no URL")
+        let paddedLink = " https://example.com/?id=1 "
+        expect(URLCleaning.outcome(for: URLCleaning.clean(paddedLink), input: paddedLink) == .unchanged,
+               "trimming alone does not count as a clean")
+
+        let editedRules = URLCleaning.rules(globalNames: "ref", siteNames: "weibo.com|sudaref",
+                                            disabledNames: "|fbclid")
+        let ruleGroups = URLCleaning.ruleGroups(rules: editedRules)
+        expect(ruleGroups.first?.site == URLCleaning.allSites,
+               "the rules that apply everywhere lead the list")
+        expect(ruleGroups.first?.entries.first?.name == URLCleaning.utmWildcard,
+               "one row stands for every utm name")
+        expect(ruleGroups.first?.entries.allSatisfy {
+            $0.name == URLCleaning.utmWildcard || !$0.name.hasPrefix("utm_")
+        } == true, "the utm names that row already covers are not listed again")
+        expect(ruleGroups.first?.entries.contains { $0.name == "fbclid" && !$0.isEnabled } == true,
+               "a switched off built-in stays listed so it can be switched back on")
+        expect(ruleGroups.first?.entries.contains { $0.name == "ref" && !$0.isBuiltIn } == true,
+               "names the user added share the list with the built-in ones")
+        expect(ruleGroups.contains { $0.site == "weibo.com" },
+               "a site the user added gets a row of its own")
+        expect(ruleGroups.contains { $0.site == "youtube.com" },
+               "every built-in site is listed")
+        expectEqual(URLCleaning.siteKey(from: " https://WWW.Weibo.com/path?x=1 ") ?? "",
+                    "weibo.com", "the site field takes a pasted link and keeps the host")
+        expect(URLCleaning.siteKey(from: "not a host") == nil,
+               "text that is not a host is refused rather than stored")
+        expectEqual(URLCleaning.parameterName(from: " Ref ") ?? "", "ref",
+                    "a parameter name is trimmed and lowercased")
+        expect(URLCleaning.parameterName(from: "a=b") == nil,
+               "a name a query cannot carry as one parameter is refused")
+        expect(URLCleaning.tokens(from: "youtube.com|si, |ref") == ["youtube.com": ["si"], "": ["ref"]],
+               "stored tokens read back as site and global names")
+        expectEqual(URLCleaning.storageValue(forTokens: URLCleaning.tokens(from: "youtube.com|si, |ref")),
+                    "|ref,youtube.com|si", "tokens are stored in a stable order")
+
+        expect([DefaultsKey.urlCleanerCustomParameters,
+                DefaultsKey.urlCleanerSiteParameters,
+                DefaultsKey.urlCleanerDisabledParameters].allSatisfy {
+                    Defaults.registeredDefaults[$0] as? String == ""
+                        && SettingsBackupSupport.exportKeys().contains($0)
+                },
+               "URL cleaner rules start empty and travel in Settings backups")
+        expect(URLCleaning.clean("not a url") == nil,
                "URL cleaner rejects plain text")
-        expectEqual(URLCleaning.cleanedString(
-            from: "https://www.bilibili.com/video/BV1TY8J67EUB/?spm_id_from=333.1007.tianma.1-1-1.click&vd_source=3b2eea5") ?? "",
+        expectEqual(URLCleaning.clean("https://www.bilibili.com/video/BV1TY8J67EUB/?spm_id_from=333.1007.tianma.1-1-1.click&vd_source=3b2eea5")?.url ?? "",
                     "https://www.bilibili.com/video/BV1TY8J67EUB/",
                     "URL cleaner strips Bilibili share tracking")
-        expectEqual(URLCleaning.cleanedString(from: "https://www.bilibili.com/video/BV1xx411c7mD/?p=3&t=90&vd_source=abc") ?? "",
+        expectEqual(URLCleaning.clean("https://www.bilibili.com/video/BV1xx411c7mD/?p=3&t=90&vd_source=abc")?.url ?? "",
                     "https://www.bilibili.com/video/BV1xx411c7mD/?p=3&t=90",
                     "URL cleaner keeps the Bilibili part number and playback position")
-        expectEqual(URLCleaning.cleanedString(from: "https://search.bilibili.com/all?keyword=swift&from_source=webtop_search") ?? "",
+        expectEqual(URLCleaning.clean("https://search.bilibili.com/all?keyword=swift&from_source=webtop_search")?.url ?? "",
                     "https://search.bilibili.com/all?keyword=swift",
                     "URL cleaner keeps the Bilibili search keyword")
-        expectEqual(URLCleaning.cleanedString(from: "https://youtu.be/TImSMeurR84?si=Xq1&t=42") ?? "",
+        expectEqual(URLCleaning.clean("https://youtu.be/TImSMeurR84?si=Xq1&t=42")?.url ?? "",
                     "https://youtu.be/TImSMeurR84?t=42",
                     "URL cleaner strips the YouTube share token and keeps the timestamp")
-        expectEqual(URLCleaning.cleanedString(from: "https://www.youtube.com/watch?v=TImSMeurR84") ?? "",
+        expectEqual(URLCleaning.clean("https://www.youtube.com/watch?v=TImSMeurR84")?.url ?? "",
                     "https://www.youtube.com/watch?v=TImSMeurR84",
                     "URL cleaner leaves a bare YouTube watch link alone")
-        expectEqual(URLCleaning.cleanedString(from: "https://x.com/user/status/1?s=20&t=abc") ?? "",
+        expectEqual(URLCleaning.clean("https://x.com/user/status/1?s=20&t=abc")?.url ?? "",
                     "https://x.com/user/status/1",
                     "URL cleaner strips X share tracking")
-        expectEqual(URLCleaning.cleanedString(from: "https://example.com/?si=keep&t=keep&s=keep") ?? "",
+        expectEqual(URLCleaning.clean("https://example.com/?si=keep&t=keep&s=keep")?.url ?? "",
                     "https://example.com/?si=keep&t=keep&s=keep",
                     "site rules never leak onto other hosts")
-        expectEqual(URLCleaning.cleanedString(from: "https://open.spotify.com/track/abc?si=xyz") ?? "",
+        expectEqual(URLCleaning.clean("https://open.spotify.com/track/abc?si=xyz")?.url ?? "",
                     "https://open.spotify.com/track/abc",
                     "site rules match subdomains")
-        expectEqual(URLCleaning.cleanedString(
-            from: "https://www.reddit.com/r/swift/comments/abc/?%24deep_link=true&%243p=x&share_id=y&sort=new") ?? "",
+        expectEqual(URLCleaning.clean("https://www.reddit.com/r/swift/comments/abc/?%24deep_link=true&%243p=x&share_id=y&sort=new")?.url ?? "",
                     "https://www.reddit.com/r/swift/comments/abc/?sort=new",
                     "URL cleaner strips Reddit's deep-link tracking in either spelling")
 
@@ -9538,7 +9634,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 53, "feature catalog has 53 features")
+        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -9548,7 +9644,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
@@ -9615,6 +9711,43 @@ struct MetricsTests {
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
                 && AppFeature.diskImageInstaller.energyProfile == .idle,
                "the disk image installer is an event-driven file feature with contextual app access")
+        expect(AppFeature.bluetoothSleep.group == .energyDisplay
+                && AppFeature.bluetoothSleep.enabledKeys == [DefaultsKey.bluetoothSleepEnabled]
+                && AppFeature.bluetoothSleep.permissions.isEmpty
+                && AppFeature.bluetoothSleep.energyProfile == .idle
+                && !AppFeature.bluetoothSleep.isBeta,
+               "Bluetooth on sleep is an energy feature that costs nothing at rest")
+        expect((AppFeature.availabilityDefaults[AppFeature.bluetoothSleep.availabilityKey] as? Bool) == true,
+               "Bluetooth on sleep ships installed, switched off, so its section is findable")
+        expect(AppFeature.bluetoothSleep.settingsDestination
+                == FeatureSettingsDestination(.energy, sectionAnchor: .bluetoothSleep)
+                && AppFeature.bluetoothSleep.settingsDestination.hasValidSectionAnchor
+                && FeatureVisibilitySupport.features(for: .energy).contains(.bluetoothSleep),
+               "Bluetooth on sleep owns a section of the Energy page and can keep it alive alone")
+        expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: true)
+                == BluetoothSleepSupport.SleepPlan(powersOff: true, owesRestore: true),
+               "Bluetooth on before sleep is switched off and owed back")
+        expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: false)
+                == BluetoothSleepSupport.SleepPlan(powersOff: true, owesRestore: false),
+               "without the restore option, sleep switches Bluetooth off for good")
+        expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: false, restoresOnWake: true)
+                == BluetoothSleepSupport.SleepPlan(powersOff: false, owesRestore: false),
+               "Bluetooth already off before sleep is left alone, so the wake never turns it on")
+        expect(BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: false),
+               "a wake that still owes a restore switches Bluetooth back on")
+        expect(!BluetoothSleepSupport.restores(owesRestore: false, isPoweredOn: false),
+               "a wake owing nothing leaves Bluetooth off")
+        expect(!BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: true),
+               "Bluetooth the user switched on first is left alone")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.bluetoothSleep(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 7 && values.allSatisfy { !$0.isEmpty },
+                   "Bluetooth on sleep has every localized field for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "Bluetooth on sleep text uses human punctuation for \(language.rawValue)")
+        }
         expect((Defaults.registeredDefaults[DefaultsKey.panelShowFanControl] as? Bool) == true,
                "installing fan control reveals its panel section by default")
 
@@ -10412,10 +10545,17 @@ struct MetricsTests {
             expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty
                     && !strings.obPurposeSkip.isEmpty,
                    "the purpose step speaks \(language.rawValue)")
-            expect(!strings.urlCleanerCustomTitle.isEmpty
-                    && !strings.urlCleanerCustomPlaceholder.isEmpty
-                    && !strings.urlCleanerCustomCaption.isEmpty,
-                   "custom URL cleaner settings speak \(language.rawValue)")
+            expect(!strings.urlCleanerRulesTitle.isEmpty
+                    && !strings.urlCleanerRulesAllSites.isEmpty
+                    && !strings.urlCleanerRulesCaption.isEmpty
+                    && !strings.urlCleanerRulesAddSite.isEmpty
+                    && !strings.urlCleanerRulesParameterPlaceholder.isEmpty
+                    && !strings.urlCleanerRulesAddButton.isEmpty
+                    && !strings.urlCleanerRulesRemoveButton.isEmpty
+                    && !strings.urlCleanerRulesCountSingular.isEmpty
+                    && strings.urlCleanerRulesCountPluralFormat.contains("%d")
+                    && strings.urlCleanerRemovedFormat.contains("%@"),
+                   "the URL cleaner rule list speaks \(language.rawValue)")
         }
 
         // MARK: Hub presets and energy badges
@@ -10522,8 +10662,9 @@ struct MetricsTests {
         expect(!pageVisible(.mouse, available: []),
                "the mouse page hides only with all six mouse features off")
         expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
-                                                                         .extraBrightness])),
-               "energy hides when all three display features are off")
+                                                                         .extraBrightness,
+                                                                         .bluetoothSleep])),
+               "energy hides when all four of its features are off")
         expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")

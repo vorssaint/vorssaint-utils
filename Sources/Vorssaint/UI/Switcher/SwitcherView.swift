@@ -901,8 +901,8 @@ private struct WindowCard: View {
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 80)
-                        .switcherHiddenAppBadge(window.isAppHidden, size: 22)
+                        .frame(width: 80 * PreviewSizing.scale, height: 80 * PreviewSizing.scale)
+                        .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
                 }
 
                 // One row along the bottom of the thumbnail: the app on the
@@ -993,11 +993,11 @@ private struct WindowCard: View {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 84, height: 84)
-                    .switcherHiddenAppBadge(window.isAppHidden, size: 22)
+                    .frame(width: 84 * PreviewSizing.scale, height: 84 * PreviewSizing.scale)
+                    .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
             }
             Text(l10n.s.switcherNoOpenWindow)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 11 * PreviewSizing.scale, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
