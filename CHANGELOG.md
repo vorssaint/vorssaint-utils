@@ -7,9 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- The app icon has been redesigned and now supports adaptive system appearance modes for light,
-  dark, tinted, or clear icon styles. Available on macOS 26 and later, while macOS 14 and
-  15 keep the classic icon. Thanks to @divisionseven.
+- The app icon has been redesigned and now supports adaptive system appearance modes for light, dark, tinted, or clear icon styles on macOS 26 and later, while macOS 14 and 15 keep the classic icon. Thanks to @divisionseven.
 
 ## [3.3.3-beta.2] - 2026-08-22
 
