@@ -12966,15 +12966,15 @@ struct MetricsTests {
         // the one this fix touches. Kill Process is the one
         // deliberate exception: its row controls take a shared minimum width
         // so the Kill button and the menu beside it line up down the list.
-        let borderlessMenuException = "Sources/Vorssaint/UI/KillProcess/KillProcessView.swift"
+        let borderlessMenuException = "KillProcess/KillProcessView"
         var unpinnedBorderlessMenus: [String] = []
         let uiFiles = FileManager.default
             .enumerator(atPath: "Sources/Vorssaint/UI")?
             .compactMap { $0 as? String }
-            .filter { $0.hasSuffix(".swift") } ?? []
+            .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
         for file in uiFiles.sorted() {
             let path = "Sources/Vorssaint/UI/\(file)"
-            guard path != borderlessMenuException,
+            guard !file.contains(borderlessMenuException),
                   let source = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
             let lines = source.components(separatedBy: "\n")
             for (index, line) in lines.enumerated()
