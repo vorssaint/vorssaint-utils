@@ -59,6 +59,9 @@ struct PanelHomebrewView: View {
         .onChange(of: homebrew.operationStatus?.targetID) { _, _ in
             showOperationDetails = false
         }
+        .onDisappear {
+            PanelInteractionState.shared.blocksOutsideDismissal = false
+        }
         .confirmationDialog(confirmationTitle,
                             isPresented: confirmationPresented,
                             titleVisibility: .visible) {
@@ -68,7 +71,7 @@ struct PanelHomebrewView: View {
                 }
             }
             Button(l10n.s.uninstallerCancel, role: .cancel) {
-                pendingAction = nil
+                dismissConfirmation()
             }
         } message: {
             if let pendingAction {
@@ -237,8 +240,7 @@ struct PanelHomebrewView: View {
                 .help(l10n.s.homebrewCheckPackages)
                 .disabled(homebrew.isBusy)
                 Button {
-                    pendingAction = HomebrewPendingAction(action: .updateHomebrew)
-                    keepPopoverOpen()
+                    presentConfirmation(HomebrewPendingAction(action: .updateHomebrew))
                 } label: {
                     Label(l10n.s.homebrewUpdateHomebrew, systemImage: "arrow.triangle.2.circlepath")
                         .font(.system(size: 10.5, weight: .medium))
@@ -273,8 +275,7 @@ struct PanelHomebrewView: View {
                     .foregroundStyle(.orange)
                 Spacer(minLength: 0)
                 Button {
-                    pendingAction = HomebrewPendingAction(action: .upgradeAll)
-                    keepPopoverOpen()
+                    presentConfirmation(HomebrewPendingAction(action: .upgradeAll))
                 } label: {
                     Label(l10n.s.homebrewUpgradeAll, systemImage: "arrow.up.circle")
                         .font(.system(size: 10.5, weight: .medium))
@@ -406,8 +407,7 @@ struct PanelHomebrewView: View {
 
     private func updateButton(_ package: HomebrewPackage, update: HomebrewPackageUpdate) -> some View {
         Button {
-            pendingAction = HomebrewPendingAction(action: .upgrade, package: package)
-            keepPopoverOpen()
+            presentConfirmation(HomebrewPendingAction(action: .upgrade, package: package))
         } label: {
             Image(systemName: "arrow.up.circle.fill")
                 .font(.system(size: 12, weight: .semibold))
@@ -432,8 +432,7 @@ struct PanelHomebrewView: View {
         }
         if package.update != nil {
             Button {
-                pendingAction = HomebrewPendingAction(action: .upgrade, package: package)
-                keepPopoverOpen()
+                presentConfirmation(HomebrewPendingAction(action: .upgrade, package: package))
             } label: {
                 Label(l10n.s.homebrewUpgrade, systemImage: "arrow.up.circle")
             }
@@ -441,16 +440,14 @@ struct PanelHomebrewView: View {
         }
         if package.isInstalled {
             Button(role: .destructive) {
-                pendingAction = HomebrewPendingAction(action: .uninstall, package: package)
-                keepPopoverOpen()
+                presentConfirmation(HomebrewPendingAction(action: .uninstall, package: package))
             } label: {
                 Label(l10n.s.homebrewUninstall, systemImage: "trash")
             }
             .disabled(isBusy)
         } else {
             Button {
-                pendingAction = HomebrewPendingAction(action: .install, package: package)
-                keepPopoverOpen()
+                presentConfirmation(HomebrewPendingAction(action: .install, package: package))
             } label: {
                 Label(l10n.s.homebrewInstall, systemImage: "arrow.down.circle")
             }
@@ -565,14 +562,14 @@ struct PanelHomebrewView: View {
             if package.update != nil {
                 VStack(alignment: .trailing, spacing: 6) {
                     Button {
-                        pendingAction = HomebrewPendingAction(action: .upgrade, package: package)
+                        presentConfirmation(HomebrewPendingAction(action: .upgrade, package: package))
                     } label: {
                         Label(l10n.s.homebrewUpgrade, systemImage: "arrow.up.circle")
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
                     Button(role: .destructive) {
-                        pendingAction = HomebrewPendingAction(action: .uninstall, package: package)
+                        presentConfirmation(HomebrewPendingAction(action: .uninstall, package: package))
                     } label: {
                         Label(l10n.s.homebrewUninstall, systemImage: "trash")
                             .font(.system(size: 11, weight: .semibold))
@@ -581,7 +578,7 @@ struct PanelHomebrewView: View {
                 }
             } else {
                 Button(role: .destructive) {
-                    pendingAction = HomebrewPendingAction(action: .uninstall, package: package)
+                    presentConfirmation(HomebrewPendingAction(action: .uninstall, package: package))
                 } label: {
                     Label(l10n.s.homebrewUninstall, systemImage: "trash")
                         .font(.system(size: 11, weight: .semibold))
@@ -590,7 +587,7 @@ struct PanelHomebrewView: View {
             }
         } else {
             Button {
-                pendingAction = HomebrewPendingAction(action: .install, package: package)
+                presentConfirmation(HomebrewPendingAction(action: .install, package: package))
             } label: {
                 Label(l10n.s.homebrewInstall, systemImage: "arrow.down.circle")
                     .font(.system(size: 11, weight: .semibold))
@@ -667,7 +664,7 @@ struct PanelHomebrewView: View {
         Binding {
             pendingAction != nil
         } set: { isPresented in
-            if !isPresented { pendingAction = nil }
+            if !isPresented { dismissConfirmation() }
         }
     }
 
@@ -722,7 +719,7 @@ struct PanelHomebrewView: View {
     }
 
     private func run(_ action: HomebrewPendingAction) {
-        pendingAction = nil
+        dismissConfirmation()
         switch action.action {
         case .install:
             if let package = action.package { homebrew.install(package) }
@@ -769,8 +766,19 @@ struct PanelHomebrewView: View {
         PanelInteractionState.shared.keepsPopoverOpen = true
     }
 
-    private func resetContextSelection() {
+    private func presentConfirmation(_ action: HomebrewPendingAction) {
+        PanelInteractionState.shared.blocksOutsideDismissal = true
+        pendingAction = action
+        keepPopoverOpen()
+    }
+
+    private func dismissConfirmation() {
         pendingAction = nil
+        PanelInteractionState.shared.blocksOutsideDismissal = false
+    }
+
+    private func resetContextSelection() {
+        dismissConfirmation()
         showOperationDetails = false
         homebrew.clearSelection()
     }

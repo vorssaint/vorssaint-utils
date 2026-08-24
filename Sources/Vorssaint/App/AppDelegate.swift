@@ -748,6 +748,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ) { [weak self] _ in
             guard let self, self.popover.isShown else { return }
             guard self.statusController.containsStatusItem(at: NSEvent.mouseLocation) == false else { return }
+            guard !PanelInteractionState.shared.blocksOutsideDismissal else { return }
             // A package-changing Homebrew command keeps its progress surface
             // available even if the user has switched to another panel tab.
             // Search, refresh and merely viewing Homebrew do not block a genuine
@@ -966,6 +967,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         removePopoverDismissMonitor()
         endPopoverDriftCorrection()
         PanelInteractionState.shared.keepsPopoverOpen = false
+        PanelInteractionState.shared.blocksOutsideDismissal = false
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()
