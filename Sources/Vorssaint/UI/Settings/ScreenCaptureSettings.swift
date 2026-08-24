@@ -3,15 +3,14 @@
 
 import SwiftUI
 
-/// One Settings destination for every tool that starts from the screen.
-/// The shared shortcut stays fixed at the top; the segmented control only
-/// changes the feature-specific options shown below it.
+/// One Settings destination for every tool that starts from the screen. The
+/// segmented control at the top changes the feature-specific options shown
+/// below it, and the top section also carries the selected tool's own
+/// shortcut where the old shared shortcut lived.
 struct ScreenCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @ObservedObject private var service = ScreenCaptureService.shared
-    @AppStorage(DefaultsKey.screenshotShortcutEnabled) private var shortcutEnabled = false
     @State private var selectedTool = ScreenCaptureTool.screenshot
 
     private var strings: ScreenshotFeatureStrings {
@@ -28,42 +27,30 @@ struct ScreenCaptureSettings: View {
 
     var body: some View {
         Form {
-            Section {
-                if availableTools.count > 1 {
-                    Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                        ForEach(availableTools, id: \.self) { tool in
-                            Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                                  systemImage: tool.systemImageName)
-                                .tag(tool)
+            let showsPicker = availableTools.count > 1
+            let shortcutKeys = availableTools.contains(currentTool)
+                ? currentTool.dedicatedShortcut : nil
+            if showsPicker || shortcutKeys != nil {
+                Section {
+                    if showsPicker {
+                        Picker(strings.screenCaptureTitle, selection: toolSelection) {
+                            ForEach(availableTools, id: \.self) { tool in
+                                Label(tool.settingsTitle(l10n.s, language: l10n.language),
+                                      systemImage: tool.systemImageName)
+                                    .tag(tool)
+                            }
                         }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .controlSize(.large)
                     }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .controlSize(.large)
-                }
-
-                Text(strings.screenCaptureCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Toggle(l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
-                    .onChange(of: shortcutEnabled) { _, _ in
-                        service.syncWithPreferences()
+                    if let keys = shortcutKeys {
+                        ToolShortcutRows(tool: currentTool, keys: keys)
+                            .id(currentTool)
                     }
-                ShortcutPreferenceRow(role: .screenshot,
-                                      isEnabled: shortcutEnabled) {
-                    service.syncWithPreferences()
+                } header: {
+                    Text(strings.screenCaptureTitle)
                 }
-                if shortcutEnabled, service.shortcutRegistrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                if let keys = currentTool.dedicatedShortcut {
-                    ToolShortcutRows(tool: currentTool, keys: keys)
-                }
-            } header: {
-                Text(strings.screenCaptureTitle)
             }
 
             selectedSettings
@@ -126,10 +113,9 @@ private extension SettingsSectionAnchor {
     }
 }
 
-/// The shortcut that opens the chooser straight on the tool being looked at,
-/// below the general one that opens it on whatever comes first. The toggle
-/// carries the tool's own name, so the two rows never read alike.
-private struct ToolShortcutRows: View {
+/// The shortcut that opens the chooser straight on one tool, shown in the
+/// page's top section under the tool's own name while that tool is selected.
+struct ToolShortcutRows: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ScreenCaptureService.shared
     @AppStorage private var enabled: Bool

@@ -13063,14 +13063,13 @@ struct MetricsTests {
             ]) == [oversizedCaptureIDs[0], oversizedCaptureIDs[2]],
                "recent captures keeps the latest screenshot and respects its disk budget")
         expect(GlobalShortcutRole.screenshot.requiredEnableKeys == [DefaultsKey.screenshotShortcutEnabled]
-                && Set(GlobalShortcutRole.screenshot.availabilityFeatures)
-                    == Set([.screenshot, .screenRecorder, .screenOCR, .colorPicker]),
-               "one capture shortcut follows every mode in the combined chooser")
-        expect(GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
+                && GlobalShortcutRole.screenshot.availabilityFeatures == [.screenshot],
+               "the screenshot shortcut keeps its old keys and follows its own tool")
+        expect(!GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                 .contains(.screenshot)
                 && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                     .contains(.screenRecorder),
-               "a recording-only install shows the general and dedicated shortcuts")
+               "a recording-only install shows only the recorder's own shortcut")
         expect(GlobalShortcutRole.screenshotFullScreen.requiredEnableKeys
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
@@ -16787,11 +16786,13 @@ struct MetricsTests {
 
         // MARK: Capture tool shortcuts
 
-        expect(ScreenCaptureTool.screenshot.dedicatedShortcut == nil,
-               "the screenshot tool has no shortcut of its own: the general capture one is it")
+        expect(ScreenCaptureTool.screenshot.dedicatedShortcut?.role == .screenshot
+                && ScreenCaptureTool.screenshot.dedicatedShortcut?.enabledKey
+                    == DefaultsKey.screenshotShortcutEnabled,
+               "the screenshot tool keeps the old general shortcut's keys as its own")
         expect(ScreenCaptureTool.allCases.compactMap { $0.dedicatedShortcut?.role }
-                == [.screenRecorder, .screenOCR, .colorPicker],
-               "every other capture tool owns a shortcut role, in tool order")
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+               "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded
         // and the combination did nothing (issue #708).
@@ -16801,9 +16802,10 @@ struct MetricsTests {
                     && keys.role.feature == tool.feature
                },
                "a capture tool registers exactly the keys its own settings row reads")
-        expect(([.screenRecorder, .screenOCR, .colorPicker] as [GlobalShortcutRole]).allSatisfy { role in
-                ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
-               },
+        expect(([.screenshot, .screenRecorder, .screenOCR, .colorPicker] as [GlobalShortcutRole])
+                .allSatisfy { role in
+                    ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
+                },
                "no capture tool's shortcut row is left without something to register it")
         // MARK: A failed removal explains itself where it failed
         // A green tick above "some items couldn't be moved to the Trash" told

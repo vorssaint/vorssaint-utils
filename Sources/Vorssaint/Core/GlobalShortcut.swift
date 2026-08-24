@@ -669,7 +669,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return strings.micMuteName
         case .quickLauncher: return strings.launcherName
         case .screenshot:
-            return FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle
+            return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenshotFullScreen:
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotLastCapture:
@@ -756,15 +756,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
-    /// The main capture role survives while any mode in its chooser is
-    /// installed. Dedicated roles follow their own tool.
+    /// Every capture role follows its own tool: the shortcut opens the shared
+    /// chooser on that mode, so it lives and dies with the mode itself.
     var availabilityFeatures: [AppFeature] {
-        switch self {
-        case .screenshot:
-            return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        default:
-            return [feature]
-        }
+        [feature]
     }
 
     func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
