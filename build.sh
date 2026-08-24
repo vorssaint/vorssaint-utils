@@ -283,8 +283,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift \
-        Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
-        Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
+         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
+         Sources/Vorssaint/Services/AlwaysOnTop/AlwaysOnTopSupport.swift \
+         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift \

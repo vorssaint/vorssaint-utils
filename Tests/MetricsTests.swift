@@ -11925,8 +11925,41 @@ struct MetricsTests {
                "always on top shortcut follows the feature switch")
         expect(GlobalShortcutRole.alwaysOnTop.feature == .alwaysOnTop,
                "always on top role belongs to the alwaysOnTop feature")
+
+        // MARK: Always On Top
+
+        var map = AlwaysOnTopPinMap()
+        expect(map.isEmpty, "new pin map is empty")
+        map.pin(AlwaysOnTopPin(windowID: 10, originalLevel: 0, pid: 100))
+        map.pin(AlwaysOnTopPin(windowID: 11, originalLevel: 3, pid: 100))
+        map.pin(AlwaysOnTopPin(windowID: 12, originalLevel: 0, pid: 200))
+        expect(map.contains(10) && map.contains(11) && map.contains(12),
+               "pin map keeps several windows")
+        expect(map.pins(for: 100).map(\.windowID).sorted() == [10, 11],
+               "pin map can list one pid")
+        let removed = map.remove(pid: 100)
+        expect(removed.map(\.windowID).sorted() == [10, 11],
+               "closing an app drops that pid")
+        expect(!map.contains(10) && map.contains(12),
+               "other pids stay pinned")
+        let unpinned = map.unpin(12)
+        expect(unpinned?.originalLevel == 0 && map.isEmpty,
+               "unpin restores the recorded level and drops the entry")
+        map.pin(AlwaysOnTopPin(windowID: 13, originalLevel: 5, pid: 300))
+        let all = map.unpinAll()
+        expect(all.map(\.windowID) == [13] && map.isEmpty,
+               "unpin-all clears the map")
+
+        expect(AlwaysOnTopSupport.isExcluded(bundleIdentifier: "com.apple.Safari",
+                                             exceptions: ["com.apple.Safari"]),
+               "exact bundle id is excluded")
+        expect(!AlwaysOnTopSupport.isExcluded(bundleIdentifier: "com.apple.Safari",
+                                              exceptions: ["com.apple.Notes"]),
+               "other bundle ids are not excluded")
+        expect(!AlwaysOnTopSupport.isExcluded(bundleIdentifier: nil, exceptions: ["com.apple.Safari"]),
+               "missing bundle id is not excluded")
         expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
-                == AppFeature.allCases.count,
+                 == AppFeature.allCases.count,
                "every feature belongs to exactly one group")
         expect(!FeatureGroup.allCases.contains { AppFeature.features(in: $0).isEmpty },
                "no hub group is empty")
