@@ -49,35 +49,29 @@ enum SystemInfo {
     }
 
     static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, compressed: UInt64, cached: UInt64, swapUsed: UInt64?)? {
-        var stats = vm_statistics64()
-        var count = mach_msg_type_number_t(MemoryLayout<vm_statistics64>.stride / MemoryLayout<integer_t>.stride)
-        // mach_host_self() returns a send right the caller owns; release it or each
-        // call leaks a mach port (this runs every couple of seconds while sampling).
-        let host = mach_host_self()
-        defer { mach_port_deallocate(mach_task_self_, host) }
-        let kr = withUnsafeMutablePointer(to: &stats) { ptr in
-            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
-                host_statistics64(host, HOST_VM_INFO64, $0, &count)
-            }
-        }
-        guard kr == KERN_SUCCESS else { return nil }
+        guard let stats = VMStatisticsDecoder.read() else { return nil }
         let total = ProcessInfo.processInfo.physicalMemory
         let pageSize = UInt64(vm_kernel_page_size)
-        let used = MetricFormat.memoryUsed(totalBytes: total,
-                                           pageSize: pageSize,
-                                           freePages: UInt64(stats.free_count),
-                                           speculativePages: UInt64(stats.speculative_count),
-                                           fileBackedPages: UInt64(stats.external_page_count))
+        let tagStoragePages = VMStatisticsDecoder.validatedTagStoragePages(
+            stats.tagStoragePages,
+            totalBytes: total,
+            pageSize: pageSize)
         let appUsed = MetricFormat.appMemory(totalBytes: total,
                                              pageSize: pageSize,
-                                             internalPages: UInt64(stats.internal_page_count),
-                                             purgeablePages: UInt64(stats.purgeable_count))
+                                             internalPages: stats.internalPages,
+                                             purgeablePages: stats.purgeablePages)
+        let used = MetricFormat.memoryUsed(totalBytes: total,
+                                           appBytes: appUsed,
+                                           pageSize: pageSize,
+                                           wiredPages: stats.wiredPages,
+                                           compressorPages: stats.compressorPages,
+                                           tagStoragePages: tagStoragePages)
         let compressed = MetricFormat.compressedMemory(totalBytes: total,
                                                        pageSize: pageSize,
-                                                       compressorPages: UInt64(stats.compressor_page_count))
+                                                       compressorPages: stats.compressorPages)
         let cached = MetricFormat.cachedFiles(totalBytes: total,
                                               pageSize: pageSize,
-                                              fileBackedPages: UInt64(stats.external_page_count))
+                                              fileBackedPages: stats.externalPages)
         var swap = xsw_usage()
         var swapSize = MemoryLayout<xsw_usage>.stride
         let swapUsed = sysctlbyname("vm.swapusage", &swap, &swapSize, nil, 0) == 0

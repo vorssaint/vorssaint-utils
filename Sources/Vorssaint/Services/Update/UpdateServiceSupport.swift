@@ -1,11 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CryptoKit
 import Foundation
 
 /// Pure helpers for checking and comparing application versions according to
 /// Semantic Versioning 2.0.0, handling stable and pre-release (beta, rc, alpha) channels.
 enum UpdateServiceSupport {
+
+    static func sha256Matches(_ data: Data, expectedHex: String) -> Bool {
+        guard expectedHex.utf8.count == SHA256.byteCount * 2 else { return false }
+        let actual = SHA256.hash(data: data)
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return actual == expectedHex.lowercased()
+    }
 
     // MARK: - Pre-release Identifier
 

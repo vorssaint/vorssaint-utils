@@ -55,11 +55,17 @@ enum WindowEnumerator {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
         let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let minimizedPlacement = WindowSwitchMinimizedPlacement(
+            rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
+        ) ?? .normal
+        let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
                            appRules: appRules,
                            groupByApp: groupByApp,
+                           minimizedPlacement: minimizedPlacement,
+                           showFullscreenWindows: showFullscreenWindows,
                            preservingGroupedWindows: preservingGroupedWindows,
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly)
@@ -81,6 +87,8 @@ enum WindowEnumerator {
                     windowlessApps: .off,
                     appRules: [:],
                     groupByApp: false,
+                    minimizedPlacement: .normal,
+                    showFullscreenWindows: true,
                     preservingGroupedWindows: false,
                     currentSpaceOnly: false,
                     marksHiddenSpaces: false)
@@ -91,13 +99,20 @@ enum WindowEnumerator {
                                     windowlessApps: SwitcherWindowlessApps,
                                     appRules: [String: SwitcherAppRule],
                                     groupByApp: Bool,
+                                    minimizedPlacement: WindowSwitchMinimizedPlacement,
+                                    showFullscreenWindows: Bool,
                                     preservingGroupedWindows: Bool,
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool) -> [SwitcherItem] {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
-        let runningApps = NSWorkspace.shared.runningApplications
+        // Terminating processes linger in the workspace list while they shut
+        // down, and the window server can keep their surfaces for a moment
+        // after that. Mapping those pids to a regular app used to admit their
+        // leftover surfaces as switchable windows, which is how an app's
+        // preview outlived its quit (issue #807).
+        let runningApps = NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }
         let hiddenAppPIDs = Set(runningApps.lazy
             .filter { $0.isHidden }
             .map(\.processIdentifier))
@@ -223,14 +238,33 @@ enum WindowEnumerator {
                 continue
             }
             let isAppHidden = hiddenAppPIDs.contains(appPID)
+            let isOnScreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
+                ?? (info[kCGWindowIsOnscreen as String] as? Bool)
+                ?? false
             let isConfirmedHiddenAppWindow = isAppHidden
                 && SwitcherSupport.isConfirmedHiddenAppWindow(
                     appIsHidden: isAppHidden,
                     windowSpaces: spaces(of: CGWindowID(windowID)))
-            let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
-            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
-               ((!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
-                || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))) {
+            let axSnapshot = accessibilityWindows[windowOwnerPID]
+            let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
+            if axSnapshot != nil, axWindow == nil {
+                // WindowServer kept a surface Accessibility does not vouch for:
+                // a stale leftover from a closed tab or window. Windows parked
+                // on a hidden Space and confirmed hidden-app windows are real,
+                // so they survive this veto.
+                if (!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
+                    || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
+                    continue
+                }
+            } else if axSnapshot == nil,
+                      SwitcherSupport.unwitnessedSurfaceIsLeftover(
+                        isOnScreen: isOnScreen,
+                        canResolveSpaces: SpaceWindowBridge.canResolveSpaces,
+                        windowSpacesCount: spaces(of: CGWindowID(windowID)).count) {
+                // No Accessibility witness at all: the owner was too busy to
+                // answer or is shutting down, which used to wave every one of
+                // its surfaces through, closed windows included (issue #807).
+                // The window server's own leftover signature decides instead.
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -249,9 +283,6 @@ enum WindowEnumerator {
             }
 
             let title = info[kCGWindowName as String] as? String ?? ""
-            let isOnScreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
-                ?? (info[kCGWindowIsOnscreen as String] as? Bool)
-                ?? false
 
             let appName: String
             let displayTitle: String
@@ -310,11 +341,25 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
-        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? windows : []
-        if groupByApp {
-            windows = groupWindowsByApp(windows)
+        let filtered = windows.filter { item in
+            if !showFullscreenWindows, item.isFullscreen { return false }
+            if minimizedPlacement == .hidden, item.isMinimized { return false }
+            return true
         }
-        let ordered = orderByUse(windows, frontToBack: frontToBack)
+        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? filtered : []
+        let ordered: [SwitcherItem]
+        if minimizedPlacement == .end {
+            let primary = filtered.filter { !$0.isMinimized }
+            let deferred = filtered.filter { $0.isMinimized }
+            let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
+            let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
+            let groupedPrimary = groupByApp ? groupWindowsByApp(orderedPrimary) : orderedPrimary
+            let groupedDeferred = groupByApp ? groupWindowsByApp(orderedDeferred) : orderedDeferred
+            ordered = groupedPrimary + groupedDeferred
+        } else {
+            let orderedRaw = orderByUse(filtered, frontToBack: frontToBack)
+            ordered = groupByApp ? groupWindowsByApp(orderedRaw) : orderedRaw
+        }
         var result = ordered
         if ordered.count > maximumCount {
             result = Array(ordered.prefix(maximumCount))
@@ -328,8 +373,16 @@ enum WindowEnumerator {
             }
         }
         if groupByApp, preservingGroupedWindows {
+            let backingOrdered: [SwitcherItem]
+            if minimizedPlacement == .end {
+                let primary = groupedBackingWindows.filter { !$0.isMinimized }
+                let deferred = groupedBackingWindows.filter { $0.isMinimized }
+                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
+            } else {
+                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
+            }
             result = SwitcherSupport.expandGroupedWindows(
-                orderedWindows: orderByUse(groupedBackingWindows, frontToBack: frontToBack),
+                orderedWindows: backingOrdered,
                 representatives: result)
         }
         // Space lookups are comparatively expensive. Resolve badges only for
@@ -345,7 +398,10 @@ enum WindowEnumerator {
 
     /// WindowServer can keep stale, titled surfaces around after some apps close
     /// tabs or windows. Cross-checking against Accessibility removes those ghosts
-    /// while preserving minimized windows and windows on other Spaces.
+    /// while preserving minimized windows and windows on other Spaces. When the
+    /// owner cannot answer Accessibility at all (busy or terminating), surfaces
+    /// that are off screen and belong to no Space are leftovers by the same
+    /// definition instead of trusted blindly (issue #807).
     private struct AccessibilityWindowSnapshot {
         let title: String
         let frame: CGRect?

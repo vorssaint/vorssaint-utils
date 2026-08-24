@@ -68,22 +68,28 @@ struct DiskIOCounters: Equatable {
 enum MetricFormat {
     // MARK: Memory
 
-    /// Matches Activity Monitor's "Memory Used": physical RAM minus pages that
-    /// are free, speculative, or file-backed cache. The side breakdown
-    /// (App/Wired/Compressed) does not expose every bucket counted in the total.
+    /// Matches Activity Monitor's Memory Used: app memory, wired memory,
+    /// compressed memory and the reserved tagged-memory storage region.
     static func memoryUsed(totalBytes: UInt64,
+                           appBytes: UInt64,
                            pageSize: UInt64,
-                           freePages: UInt64,
-                           speculativePages: UInt64,
-                           fileBackedPages: UInt64) -> UInt64 {
+                           wiredPages: UInt64,
+                           compressorPages: UInt64,
+                           tagStoragePages: UInt64) -> UInt64 {
         guard totalBytes > 0, pageSize > 0 else { return 0 }
-        let freeAndSpeculative = freePages.addingReportingOverflow(speculativePages)
-        guard !freeAndSpeculative.overflow else { return 0 }
-        let availablePages = freeAndSpeculative.partialValue.addingReportingOverflow(fileBackedPages)
-        guard !availablePages.overflow else { return 0 }
-        let availableBytes = availablePages.partialValue.multipliedReportingOverflow(by: pageSize)
-        guard !availableBytes.overflow else { return 0 }
-        return availableBytes.partialValue >= totalBytes ? 0 : totalBytes - availableBytes.partialValue
+        let wiredBytes = wiredPages.multipliedReportingOverflow(by: pageSize)
+        guard !wiredBytes.overflow else { return 0 }
+        let compressedBytes = compressorPages.multipliedReportingOverflow(by: pageSize)
+        guard !compressedBytes.overflow else { return 0 }
+        let tagStorageBytes = tagStoragePages.multipliedReportingOverflow(by: pageSize)
+        guard !tagStorageBytes.overflow else { return 0 }
+        let appAndWired = appBytes.addingReportingOverflow(wiredBytes.partialValue)
+        guard !appAndWired.overflow else { return 0 }
+        let withCompressed = appAndWired.partialValue.addingReportingOverflow(compressedBytes.partialValue)
+        guard !withCompressed.overflow else { return 0 }
+        let usedBytes = withCompressed.partialValue.addingReportingOverflow(tagStorageBytes.partialValue)
+        guard !usedBytes.overflow else { return 0 }
+        return min(usedBytes.partialValue, totalBytes)
     }
 
     /// Purgeable internal pages do not count because the system can reclaim
