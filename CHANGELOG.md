@@ -17,6 +17,7 @@ All notable changes to this project are documented here. The format follows
 - Finder Cut & Paste now includes an option in Settings to show or hide the floating panel for staged files, and automatically hides the panel when Finder is in the background.
 
 ### Changed
+- Command Bar settings no longer put a command key glyph in front of "Open the bar now", read as one paragraph rather than four separate cards, and name what the shortcut opens. Thanks to @PathGao.
 - Sound Mixer panel now groups audio devices and organizes preferences in a collapsible Options section.
 - Embedded utilities in the Quick Launcher now provide distinct Back and Close buttons. Thanks to @ruvelro.
 
@@ -86,9 +87,6 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
 - Settings now lists Dock Preview and Dock click as separate named sections, and
   opening Dock click from the Features hub lands on its own controls rather than on
   the Dock Preview block. Thanks to @PathGao.
-- Command Bar settings no longer put a command key glyph in front of "Open the bar
-  now", read as one paragraph rather than four separate cards, and name what the
-  shortcut opens. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
 - Dock Preview cards now carry the App Switcher's look: the app's icon and the window's
