@@ -1193,7 +1193,7 @@ enum CommandBarCatalog {
                 id: "link.\(link.id.uuidString)",
                 title: link.name,
                 subtitle: link.kind == .script
-                    ? bar.scriptSearchHint
+                    ? (link.runsWithoutArgument ? bar.scriptBareSearchHint : bar.scriptSearchHint)
                     : (link.takesArgument ? bar.linkSearchHint : bar.kindLink),
                 keywords: bar.kindLink,
                 icon: .symbol(link.kind.symbolName),

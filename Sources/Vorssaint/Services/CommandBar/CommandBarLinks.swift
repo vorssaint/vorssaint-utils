@@ -195,13 +195,25 @@ enum CommandBarLinks {
         return ""
     }
 
+    /// Every script the query names. The answer row stands in for all of them,
+    /// so these are the rows the list drops once it has one.
+    ///
+    /// One question, asked in one place: the row that is removed has to be
+    /// decided by exactly the rule that decided the script would run, or a
+    /// query that runs a script leaves that script's own row in the list
+    /// beside the answer.
+    static func matchingScriptLinks(in links: [CommandBarLink],
+                                    query: String) -> [CommandBarLink] {
+        links.filter { $0.kind == .script && scriptArgument(for: $0, query: query) != nil }
+    }
+
     /// The most specific script-kind link the query names, with what it would
     /// run with, or nil when nothing matches. A longer name wins over one that
     /// is only its prefix.
     static func matchingScriptLink(in links: [CommandBarLink],
                                    query: String) -> (link: CommandBarLink, argument: String)? {
         var best: (link: CommandBarLink, argument: String, nameLength: Int)?
-        for link in links where link.kind == .script {
+        for link in matchingScriptLinks(in: links, query: query) {
             guard let argument = scriptArgument(for: link, query: query) else { continue }
             let nameLength = CommandBarSearch.normalized(link.name).count
             if let best, nameLength <= best.nameLength { continue }
