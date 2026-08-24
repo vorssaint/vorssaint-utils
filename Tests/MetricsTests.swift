@@ -12744,10 +12744,13 @@ struct MetricsTests {
                "the legacy scratchpad becomes the first selected tab without losing text")
         let twoPads = migratedScratchpad.addingPad(defaultName: "Scratchpad", id: secondPadID)
         let threePads = twoPads?.addingPad(defaultName: "Scratchpad", id: thirdPadID)
-        expect(threePads?.pads.map(\.name) == ["Scratchpad", "Scratchpad 2", "Scratchpad 3"]
+        expect(threePads?.pads.map(\.name) == ["Scratchpad 1", "Scratchpad 2", "Scratchpad 3"]
                 && threePads?.pads.map(\.id) == [firstPadID, secondPadID, thirdPadID]
                 && threePads?.selectedID == thirdPadID,
                "new scratchpads append in order, receive clear names and become selected")
+        expect(ScratchpadSupport.nextPadName(defaultName: "Scratchpad",
+                                             existingNames: ["Scratchpad"]) == "Scratchpad 2",
+               "an existing unnumbered scratchpad still occupies the first numbered slot")
         let renamedPad = threePads?.renaming(secondPadID, to: "  Work\nideas  ")
         expect(renamedPad?.pads[1].name == "Work ideas"
                 && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 50)).count
