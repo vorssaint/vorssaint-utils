@@ -138,7 +138,7 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   queries. Thanks to @Bald-M.
 - Launch at login now names System Settings › General › Login Items & Extensions
   when the login item is registered but switched off there, instead of springing
-  back with nothing said. Thanks to @wenujacodes.
+  back with nothing said. Thanks to @PathGao and @wenujacodes.
 
 ## [3.3.2] - 2026-08-20
 
