@@ -14,9 +14,13 @@ What changes, and for a fix, what was wrong.
 
 If this adds or changes a feature, say why it belongs in Vorssaint. Direction
 is the most common reason a pull request is turned down here, and it is far
-cheaper to settle in an issue before the code exists. Intel support and
-hardcoded integrations with particular third-party apps have both been
-declined before.
+cheaper to settle in an issue before the code exists. Say what the feature is
+built on and whether that will still be here, what it drags in at runtime and
+who carries that when it breaks, what it exposes the project to, and how much
+permanent surface it adds against how many people will ever switch it on.
+Intel support, hardcoded integrations with particular third-party apps, a
+plugin system and video downloading have all been declined on those grounds;
+CONTRIBUTING works them through with the cases.
 
 ## Verification
 
