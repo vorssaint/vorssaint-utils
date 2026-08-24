@@ -17,7 +17,7 @@ final class AppUninstaller: ObservableObject {
         case scanning
         case results
         case removing
-        case done(freed: Int64, failed: Int)
+        case done(freed: Int64, failed: [Leftover])
     }
 
     struct Target: Equatable {
@@ -167,7 +167,7 @@ final class AppUninstaller: ObservableObject {
             let fm = FileManager.default
             var freed = alreadyFreed
             var stubborn: [Leftover] = []
-            var failed = 0
+            var failed: [Leftover] = []
             let exclusiveBundleIDs = targetURL.map {
                 Self.exclusiveOwnedBundleIDs(in: $0, candidates: candidateBundleIDs)
             } ?? []
@@ -175,14 +175,14 @@ final class AppUninstaller: ObservableObject {
                 if item.category != .app {
                     guard let owner = item.ownerBundleID,
                           exclusiveBundleIDs.contains(owner) else {
-                        failed += 1
+                        failed.append(item)
                         continue
                     }
                 }
                 guard Self.removalIsStillSafe(item.url,
                                               allowedPaths: allowedPaths,
                                               targetURL: targetURL) else {
-                    failed += 1
+                    failed.append(item)
                     continue
                 }
                 do {
@@ -201,7 +201,7 @@ final class AppUninstaller: ObservableObject {
                 Self.trashViaFinder(stubborn.map(\.url))
                 for item in stubborn {
                     if fm.fileExists(atPath: item.url.path) {
-                        failed += 1
+                        failed.append(item)
                     } else {
                         freed += item.size
                     }
@@ -255,7 +255,7 @@ final class AppUninstaller: ObservableObject {
         if items.contains(where: \.include) {
             removeSelected()
         } else {
-            phase = .done(freed: homebrewRemovalSize, failed: 0)
+            phase = .done(freed: homebrewRemovalSize, failed: [])
         }
     }
 
