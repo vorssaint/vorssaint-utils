@@ -291,7 +291,7 @@ final class BrightnessService: ObservableObject {
         // `configureDisplay`), and put the gamma curves back behind them.
         // Normal app termination uses the synchronous restoration below;
         // gamma also reverts with the process.
-        workQueue.async {
+        workQueue.async { [weak self] in
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.restoreManagedDisplays()
