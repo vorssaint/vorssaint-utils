@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.png">
-    <img src="docs/assets/readme/logo.png" width="220" alt="Vorssaint logo">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.svg">
+    <img src="docs/assets/readme/logo.svg" width="220" alt="Vorssaint logo">
   </picture>
 </p>
 
@@ -151,6 +151,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, let displays sleep without stopping local work, choose the active menu bar icon and color, see the remaining time beside it, and optionally toggle it with a right click.
 - **Displays.** Adjust brightness or turn individual displays on and off. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage.
 - **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom.
+- **Bluetooth on sleep.** Switches Bluetooth off while the Mac sleeps, so a laptop in a bag stops stealing the headphones you are listening to elsewhere. Bluetooth you had already turned off stays off, and only what Vorssaint switched off comes back on wake.
 
 ## Install
 
@@ -234,6 +235,10 @@ The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common ca
 Vorssaint went from first commit to the front of GitHub trending in three days, top of the Swift charts, and issues and pull requests have shaped every release since. Bug reports, feature ideas and translations are all welcome, starting from the [contributing guide](CONTRIBUTING.md).
 
 Vorssaint is free and will stay that way. If it earned its place in your menu bar, a star helps other people find it, and a [coffee](https://buymeacoffee.com/vorssaint) keeps the maintainer awake, with or without the Keep awake feature.
+
+## Acknowledgements
+
+- App icon designed by [@divisionseven](https://github.com/divisionseven)
 
 ## License
 
