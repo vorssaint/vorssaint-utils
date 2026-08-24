@@ -127,8 +127,16 @@ For general help and every support channel, see [support](SUPPORT.md).
    it does.
 6. Settle the direction before writing the code. Scope is the most common
    reason a pull request is turned down here, and an issue costs far less
-   than a branch. Intel support and hardcoded integrations with particular
-   third-party apps have both been declined already.
+   than a branch. Four things decide it: what the feature is built on and
+   whether that will still be here, what it exposes the project to, what it
+   drags in as a runtime dependency and who then carries it when that breaks,
+   and how much permanent surface it adds against how many people will ever
+   switch it on. Vorssaint reaches for what macOS almost does; it does not
+   grow a subsystem of its own. Intel support, hardcoded integrations with
+   particular third-party apps, a plugin system and video downloading have all
+   been declined already, and [contributing with an
+   agent](docs/AI-CONTRIBUTIONS.md) works the four through with the cases they
+   came from.
 7. Title it `type(scope): lowercase imperative phrase`, and do not add the PR
    number yourself, since squash merge appends it. Reuse a scope that already
    shows up in `git log --oneline` rather than inventing one, and leave the

@@ -59,6 +59,69 @@ confident wrong answer.
 
 ---
 
+## Whether it belongs here
+
+Vorssaint is one menu bar icon doing the job of a dozen paid Mac apps. Doing
+their job is not the same as becoming them. The app reaches for what macOS
+almost does, or for what one small paid app does, and it does not grow a
+subsystem of its own — a network stack, an audio graph with drift
+compensation, a plugin host, a client that has to exist on the other end of
+the wire. Each of those has been asked for here, and each was turned down for
+that reason rather than for lack of interest.
+
+Four questions settle most proposals, and an agent will raise none of them on
+its own. They are about what the project is committing to rather than about
+how well the code is written: the video downloader that was declined was
+carefully built.
+
+**What carries it, and will that still be here?** Touch Bar support was
+declined because the hardware is discontinued and the audience only shrinks —
+the feature would have been right on the day it merged and dead weight a year
+later. Lock screen widgets were declined because macOS has no API for them at
+all, so the demand has nothing to attach to. And anything riding a private
+enumeration path is rented rather than owned: macOS 27 changed the menu bar
+backend, and the call that listed other apps' status item windows stopped
+returning them. Ask what the feature stands on, who controls that, and what
+the app looks like the day it goes.
+
+**What does it expose the project to?** A signed, notarised, branded
+application puts the project's distribution identity behind whatever it does,
+in a way a user running the same command line tool themselves does not. Video
+downloading was declined on exactly that: the tool chain needs a JavaScript
+runtime to solve YouTube's signature challenge, which is the mechanism the
+DMCA 1201 notice against youtube-dl was written about, and the feature also
+read the browser's login cookies to reach members-only videos. Typing sounds
+carry sample licensing. A plugin system loading third-party code carries a GPL
+boundary on top of signing, notarisation and crash isolation. When the value
+of a feature depends on getting past something, raise that before writing it,
+not in the description afterwards.
+
+**What does it drag in?** The app builds with a plain `swiftc` call and no
+external dependencies, and a runtime dependency counts the same way. A tool
+the user has to install through Homebrew is one. A tool that ships fixes on a
+near daily cadence is a maintenance contract. The cost is not the install: it
+is that every upstream breakage arrives here as a Vorssaint bug, reported by
+somebody with no way to tell whose fault it is, against a release cadence that
+cannot track it. A privileged helper, a new signing target, an extension the
+user has to switch on by hand in System Settings — those are release process
+changes wearing the clothes of a code change, and the issue should say so.
+
+**How many people want it, and how specific is the want?** One vendor's one
+mouse button, one chat application's shortcut hardcoded into the media key
+path, a network management protocol for a narrow audience: all declined.
+Narrow on its own is fine, and the app is full of things only some people ever
+switch on. Narrow **and** needing a new subsystem is what fails. The ratio to
+weigh is the permanent surface a feature adds — a service, a permission,
+settings, strings in thirteen languages — against how many people will ever
+turn it on.
+
+The ruled-out section of the enhancement summary linked above is the record of
+these four being applied, with the reasoning attached to each. It is worth
+reading before proposing anything large: re-proposing something costs as much
+as proposing it did, and the answer may already be written there.
+
+---
+
 ## Deciding what it should do
 
 **A user's expectation of how something should behave comes from the software
@@ -81,6 +144,16 @@ with no manual alternative are the ones that need an entry point most.
 
 **Wording, defaults and actual behaviour have to agree**, and an error should
 say what happened. **Never lose the user's input.**
+
+**A fix that takes something away from everyone to help some of them is a
+direction question, not a fix.** A Settings page here overflowed its window in
+eight of the thirteen languages, because a segmented control has no compressed
+size — it asks for the sum of its segments and pushes whatever contains it.
+The fix on offer replaced it with a pop-up menu: one visible choice instead of
+four, in all thirteen languages, including the five where nothing was wrong.
+Measuring the problem exhaustively does not settle that. The measurement says
+how big it is, not what it is worth. Take it to the issue while it is still a
+paragraph.
 
 ---
 
@@ -226,6 +299,16 @@ lines. If your agent produced something large, the useful next instruction is
 **find the smallest piece of this that stands on its own**, not describe the
 whole thing better.
 
+**Do not stack your own branches.** Two follow-ups here sat on a branch that
+had not merged, all three touching the same file and answering the same
+design question. Installing the build once replaced that design with a view
+the App Switcher already had, and all three had to be abandoned together.
+Depending on somebody else's branch is sometimes unavoidable; depending on
+your own means that when the shape changes — and after living with it, the
+shape usually does — you lose the stack rather than a branch. If a later
+branch would change an earlier one's shape, the earlier one was not ready to
+open.
+
 **Say what you did not check.** Every pull request is run locally before it is
 merged, on one maintainer's hardware, so the most valuable thing in a
 description is the gap between that machine and yours: the Mac, the macOS
@@ -238,6 +321,13 @@ issue is closed once the reporter confirms on a real build, not on merge. When
 it merges, say on that issue **which part of it this covered and which part it
 did not**: an issue here often carries more than one report, and a fix for one
 reads as a fix for all of them until somebody says otherwise.
+
+**If you close it yourself, leave the findings on the issue.** The measuring
+is usually the expensive part and the code the cheap part. That overflowing
+Settings page was measured in all thirteen languages against the width the
+window guarantees; the branch was withdrawn, the issue is still open, and the
+numbers now exist nowhere. A comment costs a minute, and it is the only part
+of a withdrawn branch that keeps its value.
 
 **Sign your own work.** The pull request carries your name and the review is a
 conversation with you. Read what the agent wrote before you send it, and mark
