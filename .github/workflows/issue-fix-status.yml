@@ -3,14 +3,20 @@ name: Issue fix status
 # Two mechanical steps, no judgement in either.
 #
 #   a merged pull request that references an issue  ->  the issue gets
-#   `fixed on main`, with the merge commit recorded in the bot's comment
+#   `fixed (pending release)`, with the merge commit recorded in the bot's
+#   comment
 #
 #   a stable release that contains that commit      ->  the label becomes
-#   `v<version> reporter check` and the reporter is asked to confirm
+#   `v<version> please confirm` and the reporter is asked to check it
 #
 # Neither step decides that anything is fixed. A human decided that when they
 # merged. The label only says where the change is, and `git tag --contains`
 # answers the second one, so a changelog entry is never the evidence.
+#
+# Both labels and both comments are addressed to the person who filed the
+# report, and most of them are not developers. Nothing in what they read says
+# `main`, a commit, or a merge: the change is in the development build, and it
+# is not on their Mac until a release says it is.
 
 on:
   pull_request_target:
@@ -60,28 +66,30 @@ jobs:
               })
               if (issue.pull_request) continue
               if (issue.state !== 'open') continue
-              if (issue.labels.some(l => (l.name || l) === 'fixed on main')) continue
+              if (issue.labels.some(l => (l.name || l) === 'fixed (pending release)')) continue
 
               await github.rest.issues.addLabels({
-                ...context.repo, issue_number: number, labels: ['fixed on main'],
+                ...context.repo, issue_number: number, labels: ['fixed (pending release)'],
               })
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: number,
                 body: [
-                  `#${pr.number} referenced this issue and has been merged, so the change is on \`main\`.`,
+                  `A fix for this went into the development version of the app in #${pr.number}, and it`,
+                  `is queued to go out in an upcoming release.`,
                   ``,
-                  `Nothing here says the report is fixed — that is what the next step asks you. When a`,
-                  `release contains this commit you will get a note on this issue with the version to`,
-                  `install, and two weeks to say whether it holds up on your Mac.`,
+                  `**Nothing has changed on your Mac yet**, and this is not us saying your report is`,
+                  `fixed — that part is up to you. When a release goes out carrying this fix you will get`,
+                  `a note on this issue with the version to install, and two weeks to say whether it`,
+                  `worked for you.`,
                   ``,
                   `**If it fixes part of what you reported and not the rest, please say which part** when`,
-                  `that note arrives. A pull request often answers one report inside an issue that carries`,
-                  `several, and the remaining ones are invisible to us unless you name them.`,
+                  `that note arrives. One fix often answers one thing in a report that mentions several,`,
+                  `and the rest are invisible to us unless you name them.`,
                   ``,
                   `<!-- vorssaint-fix-status sha=${sha} pr=${pr.number} -->`,
                 ].join('\n'),
               })
-              core.info(`#${number}: labelled fixed on main (${sha})`)
+              core.info(`#${number}: labelled fixed (pending release) (${sha})`)
             }
 
   reporter-check:
@@ -125,18 +133,18 @@ jobs:
             }
 
             const version = tag.replace(/^v/, '')
-            const label = `v${version} reporter check`
+            const label = `v${version} please confirm`
             try {
               await github.rest.issues.createLabel({
                 ...context.repo, name: label, color: '1F8B8B',
-                description: `Fix is in the ${version} release; reporter has two weeks to confirm on that build`,
+                description: `The fix is out in ${version}; whoever reported it has two weeks to say whether that build fixed it`,
               })
             } catch (e) {
               if (e.status !== 422) throw e   // 422 = already there
             }
 
             const issues = await github.paginate(github.rest.issues.listForRepo, {
-              ...context.repo, state: 'open', labels: 'fixed on main', per_page: 100,
+              ...context.repo, state: 'open', labels: 'fixed (pending release)', per_page: 100,
             })
 
             for (const issue of issues) {
@@ -152,7 +160,7 @@ jobs:
                 }
               }
               if (shas.length === 0) {
-                core.warning(`#${issue.number}: labelled fixed on main with no recorded commit, left alone`)
+                core.warning(`#${issue.number}: labelled fixed (pending release) with no recorded commit, left alone`)
                 continue
               }
 
@@ -176,20 +184,20 @@ jobs:
                 ...context.repo, issue_number: issue.number, labels: [label],
               })
               await github.rest.issues.removeLabel({
-                ...context.repo, issue_number: issue.number, name: 'fixed on main',
+                ...context.repo, issue_number: issue.number, name: 'fixed (pending release)',
               }).catch(e => { if (e.status !== 404) throw e })
 
               await github.rest.issues.createComment({
                 ...context.repo, issue_number: issue.number,
                 body: [
-                  `The change for this issue is in **${version}**, out now.`,
+                  `The fix for this is out now, in **${version}**.`,
                   ``,
-                  `@${issue.user.login}, could you install it and say whether it holds up on your Mac?`,
-                  `Reading the code is not the same as your setup, which is the one that found this.`,
+                  `@${issue.user.login}, could you update to that version and say whether it fixed things`,
+                  `on your Mac? We cannot tell from here — yours is the setup that found this.`,
                   ``,
                   `Please say **how much of it is fixed**, not only whether it is. If part of what you`,
-                  `reported still happens, or a related case appeared, say so here and the issue goes back`,
-                  `for another look — this is not a last call.`,
+                  `reported still happens, or something related turned up, say so here and the issue goes`,
+                  `back for another look — this is not a last call.`,
                   ``,
                   `If nothing arrives in two weeks the issue will be closed as it stands, and a comment`,
                   `reopens it at any point after that.`,
