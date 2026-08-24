@@ -10,6 +10,10 @@ All notable changes to this project are documented here. The format follows
 - The video and GIF tools now include an option to compress directly to a target file size in megabytes, automatically deriving the resolution and frame rate to stay under the limit. Thanks to @FlowSync0.
 - The Command Bar now offers a compact mode: the bar opens as a field alone and shows results only once you type. Press Down to see the usual list anyway. Under Command Bar, off by default. Thanks to @kobebrylant.
 
+### Changed
+- Every screen capture tool — screenshot, recording, copy text and color picker — now carries its own keyboard shortcut that opens the shared chooser on that tool, replacing the single general capture shortcut; an existing capture shortcut keeps working unchanged as the screenshot's own, and the selected tool's shortcut is edited at the top of the Screen capture settings page.
+- The Keyboard Shortcuts page now lists every capture shortcut under one Screen capture group, and expandable shortcut groups are toggled by their whole row, with the chevron moved to the trailing edge.
+
 ## [3.3.3-beta.2] - 2026-08-22
 
 ### Added
