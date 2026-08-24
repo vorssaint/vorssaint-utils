@@ -95,82 +95,96 @@ final class ClipboardHistoryService: ObservableObject {
         lastChangeCount = max(lastChangeCount, changeCount)
     }
 
-    @discardableResult
-    func copy(_ entry: ClipboardHistoryEntry) -> Bool {
-        guard writeToPasteboard([entry]) else { return false }
-        touch([entry.id])
-        return true
+    func copy(_ entry: ClipboardHistoryEntry, completion: ((Bool) -> Void)? = nil) {
+        writeToPasteboard([entry]) { [weak self] ok in
+            if ok { self?.touch([entry.id]) }
+            completion?(ok)
+        }
     }
 
-    @discardableResult
-    func copy(_ selectedEntries: [ClipboardHistoryEntry]) -> Bool {
-        guard !selectedEntries.isEmpty, writeToPasteboard(selectedEntries) else { return false }
-        touch(selectedEntries.map(\.id))
-        return true
+    func copy(_ selectedEntries: [ClipboardHistoryEntry], completion: ((Bool) -> Void)? = nil) {
+        guard !selectedEntries.isEmpty else {
+            completion?(false)
+            return
+        }
+        writeToPasteboard(selectedEntries) { [weak self] ok in
+            if ok { self?.touch(selectedEntries.map(\.id)) }
+            completion?(ok)
+        }
     }
 
     /// Resolves the payload before touching the pasteboard: a stale entry
     /// (image purged from the store, files deleted or on an ejected volume)
     /// must abort with the user's current clipboard intact, not after a
-    /// clearContents() already destroyed it.
-    private func writeToPasteboard(_ list: [ClipboardHistoryEntry]) -> Bool {
-        GeneralPasteboardAccess.shared.sync {
-            let pasteboard = NSPasteboard.general
+    /// clearContents() already destroyed it. The result comes back on the
+    /// main queue, because callers sit on it: a stalled pasteboard provider
+    /// holds the shared lane for as long as it likes, and no interface path
+    /// may wait behind one.
+    private func writeToPasteboard(_ list: [ClipboardHistoryEntry],
+                                   completion: @escaping (Bool) -> Void) {
+        GeneralPasteboardAccess.shared.async({ [weak self] () -> Bool in
+            self?.performWrite(list) ?? false
+        }, then: { ok in completion(ok) })
+    }
 
-            if list.count == 1, let entry = list.first {
-                switch entry.kind {
-                case .text:
-                    pasteboard.clearContents()
-                    pasteboard.setString(entry.text, forType: .string)
-                case .image:
-                    guard let name = entry.imageFile,
-                          let data = ClipboardImageStore.imageData(named: name) else { return false }
-                    pasteboard.clearContents()
-                    pasteboard.setData(data, forType: .png)
-                    // TIFF alongside PNG: some paste targets only take TIFF.
-                    if let tiff = NSBitmapImageRep(data: data)?.tiffRepresentation {
-                        pasteboard.setData(tiff, forType: .tiff)
-                    }
-                case .files:
-                    let urls = entry.filePaths
-                        .map { URL(fileURLWithPath: $0) }
-                        .filter { FileManager.default.fileExists(atPath: $0.path) }
-                    guard !urls.isEmpty else { return false }
-                    pasteboard.clearContents()
-                    pasteboard.writeObjects(urls as [NSURL])
+    /// Runs only on the shared pasteboard lane.
+    private func performWrite(_ list: [ClipboardHistoryEntry]) -> Bool {
+        let pasteboard = NSPasteboard.general
+
+        if list.count == 1, let entry = list.first {
+            switch entry.kind {
+            case .text:
+                pasteboard.clearContents()
+                pasteboard.setString(entry.text, forType: .string)
+            case .image:
+                guard let name = entry.imageFile,
+                      let data = ClipboardImageStore.imageData(named: name) else { return false }
+                pasteboard.clearContents()
+                pasteboard.setData(data, forType: .png)
+                // TIFF alongside PNG: some paste targets only take TIFF.
+                if let tiff = NSBitmapImageRep(data: data)?.tiffRepresentation {
+                    pasteboard.setData(tiff, forType: .tiff)
                 }
-                lastChangeCount = pasteboard.changeCount
-                return true
-            }
-
-            // Batches: an all-files selection pastes as the files themselves; a
-            // selection with images pastes as rich text with the images embedded;
-            // anything else combines as text (files contribute paths).
-            switch ClipboardHistoryBatch.pasteMode(for: list) {
-            case let .files(paths):
-                let urls = paths.map { URL(fileURLWithPath: $0) }
+            case .files:
+                let urls = entry.filePaths
+                    .map { URL(fileURLWithPath: $0) }
                     .filter { FileManager.default.fileExists(atPath: $0.path) }
                 guard !urls.isEmpty else { return false }
                 pasteboard.clearContents()
                 pasteboard.writeObjects(urls as [NSURL])
-            case let .text(combined):
-                pasteboard.clearContents()
-                pasteboard.setString(combined, forType: .string)
-            case let .rich(parts):
-                guard let rich = Self.richBatchAttributedString(parts) else { return false }
-                pasteboard.clearContents()
-                pasteboard.writeObjects([rich])
-                let plain = ClipboardHistoryBatch.richPlainText(parts)
-                if !plain.isEmpty {
-                    pasteboard.setString(plain, forType: .string)
-                }
-            case nil:
-                guard let first = list.first else { return false }
-                return writeToPasteboard([first])
             }
             lastChangeCount = pasteboard.changeCount
             return true
         }
+
+        // Batches: an all-files selection pastes as the files themselves; a
+        // selection with images pastes as rich text with the images embedded;
+        // anything else combines as text (files contribute paths).
+        switch ClipboardHistoryBatch.pasteMode(for: list) {
+        case let .files(paths):
+            let urls = paths
+                .map { URL(fileURLWithPath: $0) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            guard !urls.isEmpty else { return false }
+            pasteboard.clearContents()
+            pasteboard.writeObjects(urls as [NSURL])
+        case let .text(combined):
+            pasteboard.clearContents()
+            pasteboard.setString(combined, forType: .string)
+        case let .rich(parts):
+            guard let rich = Self.richBatchAttributedString(parts) else { return false }
+            pasteboard.clearContents()
+            pasteboard.writeObjects([rich])
+            let plain = ClipboardHistoryBatch.richPlainText(parts)
+            if !plain.isEmpty {
+                pasteboard.setString(plain, forType: .string)
+            }
+        case nil:
+            guard let first = list.first else { return false }
+            return performWrite([first])
+        }
+        lastChangeCount = pasteboard.changeCount
+        return true
     }
 
     /// Text and images interleaved in list order, as one attributed string:
@@ -439,23 +453,25 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func copyQuickEntry(_ entry: ClipboardHistoryEntry) {
-        let copied = copy(entry)
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
         // A stale entry leaves the clipboard untouched; pasting now would
         // paste whatever the user had copied before, out of nowhere.
-        guard copied else { return }
-        pasteIntoPreviousApp(target)
+        copy(entry) { [weak self] copied in
+            guard copied else { return }
+            self?.pasteIntoPreviousApp(target)
+        }
     }
 
     func copyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
-        let copied = copy(selectedEntries)
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
-        guard copied else { return }
-        pasteIntoPreviousApp(target)
+        copy(selectedEntries) { [weak self] copied in
+            guard copied else { return }
+            self?.pasteIntoPreviousApp(target)
+        }
     }
 
     func copyOnlyQuickEntry(_ entry: ClipboardHistoryEntry) {

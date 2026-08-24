@@ -24,6 +24,19 @@ final class GeneralPasteboardAccess {
         queue.async(execute: work)
     }
 
+    /// Runs work on the lane and hands its result back on the main queue,
+    /// without ever blocking the calling thread. Main-thread callers must use
+    /// this instead of `sync`: one read stuck behind a pasteboard provider
+    /// that promised data and went quiet holds the whole lane for as long as
+    /// it likes, and a synchronous hop from the main thread would freeze the
+    /// entire app behind that stranger.
+    func async<T>(_ work: @escaping () -> T, then: @escaping (T) -> Void) {
+        queue.async {
+            let result = work()
+            DispatchQueue.main.async { then(result) }
+        }
+    }
+
     func sync<T>(_ work: () throws -> T) rethrows -> T {
         if DispatchQueue.getSpecific(key: queueKey) == queueValue {
             return try work()

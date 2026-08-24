@@ -21,6 +21,7 @@ All notable changes to this project are documented here. The format follows
 - Embedded utilities in the Quick Launcher now provide distinct Back and Close buttons. Thanks to @ruvelro.
 
 ### Fixed
+- Command bar no longer freezes when running a row whose action touches the clipboard. Rows that copy or read the general pasteboard now wait off the main thread, so another app that promised clipboard content but stalled can hold up the copy without holding up the app. Thanks to @atomsbaza.
 - System metrics now accurately report used memory by including hardware-reserved tagged memory on supported hardware. Thanks to @pergioa and @PathGao.
 - App Switcher now steps one icon at a time when hovering the edge of an overflowing icon row instead of scrolling continuously. Thanks to @BenjaminD2023.
 - App Switcher now scales windowless app icons and labels proportionally when preview size is set to small. Thanks to @Yahddyyp.

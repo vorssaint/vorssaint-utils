@@ -1141,11 +1141,16 @@ enum CommandBarCatalog {
     }
 
     private static func copyAnswer(_ value: String) {
-        GeneralPasteboardAccess.shared.sync {
+        // The write goes through the shared lane with the completion back on
+        // the main queue: a stalled pasteboard provider must never hold up
+        // the person pressing Return, so the confirmation waits for the copy
+        // instead of the app waiting for either.
+        GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(value, forType: .string)
-        }
-        QuickToolHUD.show(icon: "doc.on.doc", message: value)
+        }, then: {
+            QuickToolHUD.show(icon: "doc.on.doc", message: value)
+        })
     }
 
     // MARK: - Emoji
@@ -1231,26 +1236,31 @@ enum CommandBarCatalog {
         // Everything below opens something, so the bar is done. A row that
         // takes a query is still on screen; one that does not was already
         // hidden, and hiding twice costs nothing.
-        defer { service.hide() }
         let date = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
-        let copied = GeneralPasteboardAccess.shared.sync {
-            NSPasteboard.general.string(forType: .string)
-        } ?? ""
-        let expanded = CommandBarLinks.expand(link.destination,
-                                              kind: link.kind,
-                                              query: argument,
-                                              clipboard: copied,
-                                              selection: service.selectionWhenRun,
-                                              date: date)
-        guard let url = CommandBarLinks.url(for: link, expanded: expanded) else {
-            NSSound.beep()
-            return
-        }
-        if link.kind == .place, !FileManager.default.fileExists(atPath: url.path) {
-            QuickToolHUD.show(icon: "folder.badge.questionmark", message: link.name)
-            return
-        }
-        NSWorkspace.shared.open(url)
+        let selection = service.selectionWhenRun
+        // The clipboard is read on the shared lane with everything decided
+        // back on the main queue: a provider that promised data and stalled
+        // would otherwise freeze the app right at the keystroke.
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.string(forType: .string) ?? ""
+        }, then: { copied in
+            defer { service.hide() }
+            let expanded = CommandBarLinks.expand(link.destination,
+                                                  kind: link.kind,
+                                                  query: argument,
+                                                  clipboard: copied,
+                                                  selection: selection,
+                                                  date: date)
+            guard let url = CommandBarLinks.url(for: link, expanded: expanded) else {
+                NSSound.beep()
+                return
+            }
+            if link.kind == .place, !FileManager.default.fileExists(atPath: url.path) {
+                QuickToolHUD.show(icon: "folder.badge.questionmark", message: link.name)
+                return
+            }
+            NSWorkspace.shared.open(url)
+        })
     }
 
     /// Return pressed before a script's debounced run has answered yet: runs

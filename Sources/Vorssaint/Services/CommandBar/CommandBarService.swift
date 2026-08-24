@@ -1897,12 +1897,14 @@ final class CommandBarService: ObservableObject {
             }
             return
         }
-        guard ClipboardHistoryService.shared.copy(entry) else {
-            NSSound.beep()
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            Self.postPasteWhenModifiersReleased(attempt: 0)
+        ClipboardHistoryService.shared.copy(entry) { ok in
+            guard ok else {
+                NSSound.beep()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                Self.postPasteWhenModifiersReleased(attempt: 0)
+            }
         }
     }
 

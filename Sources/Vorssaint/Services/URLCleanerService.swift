@@ -64,11 +64,15 @@ final class URLCleanerService: ObservableObject {
 
     func copy(_ urlString: String) {
         cancelPoll()
-        let changeCount = GeneralPasteboardAccess.shared.sync {
+        // Written through the shared lane with the bookkeeping back on the
+        // main queue: this runs from row presses, and a stalled pasteboard
+        // provider must never freeze the interface behind a write.
+        GeneralPasteboardAccess.shared.async({
             Self.writeToPasteboard(urlString)
-        }
-        lastChangeCount = changeCount
-        lastCleaned = urlString
+        }, then: { [weak self] changeCount in
+            self?.lastChangeCount = changeCount
+            self?.lastCleaned = urlString
+        })
     }
 
     func stop() {
