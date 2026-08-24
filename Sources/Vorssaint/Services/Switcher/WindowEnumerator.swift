@@ -107,7 +107,12 @@ enum WindowEnumerator {
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
-        let runningApps = NSWorkspace.shared.runningApplications
+        // Terminating processes linger in the workspace list while they shut
+        // down, and the window server can keep their surfaces for a moment
+        // after that. Mapping those pids to a regular app used to admit their
+        // leftover surfaces as switchable windows, which is how an app's
+        // preview outlived its quit (issue #807).
+        let runningApps = NSWorkspace.shared.runningApplications.filter { !$0.isTerminated }
         let hiddenAppPIDs = Set(runningApps.lazy
             .filter { $0.isHidden }
             .map(\.processIdentifier))
@@ -233,14 +238,33 @@ enum WindowEnumerator {
                 continue
             }
             let isAppHidden = hiddenAppPIDs.contains(appPID)
+            let isOnScreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
+                ?? (info[kCGWindowIsOnscreen as String] as? Bool)
+                ?? false
             let isConfirmedHiddenAppWindow = isAppHidden
                 && SwitcherSupport.isConfirmedHiddenAppWindow(
                     appIsHidden: isAppHidden,
                     windowSpaces: spaces(of: CGWindowID(windowID)))
-            let axWindow = accessibilityWindows[windowOwnerPID]?.byID[CGWindowID(windowID)]
-            if accessibilityWindows[windowOwnerPID] != nil, axWindow == nil,
-               ((!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
-                || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))) {
+            let axSnapshot = accessibilityWindows[windowOwnerPID]
+            let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
+            if axSnapshot != nil, axWindow == nil {
+                // WindowServer kept a surface Accessibility does not vouch for:
+                // a stale leftover from a closed tab or window. Windows parked
+                // on a hidden Space and confirmed hidden-app windows are real,
+                // so they survive this veto.
+                if (!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
+                    || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
+                    continue
+                }
+            } else if axSnapshot == nil,
+                      SwitcherSupport.unwitnessedSurfaceIsLeftover(
+                        isOnScreen: isOnScreen,
+                        canResolveSpaces: SpaceWindowBridge.canResolveSpaces,
+                        windowSpacesCount: spaces(of: CGWindowID(windowID)).count) {
+                // No Accessibility witness at all: the owner was too busy to
+                // answer or is shutting down, which used to wave every one of
+                // its surfaces through, closed windows included (issue #807).
+                // The window server's own leftover signature decides instead.
                 continue
             }
             let cgFrame = CGRect(x: (boundsDict["X"] as? NSNumber)?.doubleValue ?? 0,
@@ -259,9 +283,6 @@ enum WindowEnumerator {
             }
 
             let title = info[kCGWindowName as String] as? String ?? ""
-            let isOnScreen = (info[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
-                ?? (info[kCGWindowIsOnscreen as String] as? Bool)
-                ?? false
 
             let appName: String
             let displayTitle: String
@@ -377,7 +398,10 @@ enum WindowEnumerator {
 
     /// WindowServer can keep stale, titled surfaces around after some apps close
     /// tabs or windows. Cross-checking against Accessibility removes those ghosts
-    /// while preserving minimized windows and windows on other Spaces.
+    /// while preserving minimized windows and windows on other Spaces. When the
+    /// owner cannot answer Accessibility at all (busy or terminating), surfaces
+    /// that are off screen and belong to no Space are leftovers by the same
+    /// definition instead of trusted blindly (issue #807).
     private struct AccessibilityWindowSnapshot {
         let title: String
         let frame: CGRect?

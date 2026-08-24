@@ -89,6 +89,7 @@ enum DefaultsKey {
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
+    static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
     static let soundOutputSwitcherDeviceUIDs = "soundOutputSwitcherDeviceUIDs"
@@ -124,6 +125,11 @@ enum DefaultsKey {
     // healthily for a while, or when it is quit properly. Found still set at
     // the next start, it means the previous one died on the way up.
     static let startupDidNotFinish = "startupDidNotFinish"
+    static let bluetoothSleepEnabled = "bluetoothSleepEnabled"
+    static let bluetoothSleepRestoreOnWake = "bluetoothSleepRestoreOnWake"
+    // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
+    // while asleep still gets it back on the next launch.
+    static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
@@ -803,6 +809,7 @@ enum Defaults {
         DefaultsKey.mixerHideInactiveApps: false,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
+        DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
         // Finder never benefits from being "quit" (it just relaunches), so
@@ -828,6 +835,9 @@ enum Defaults {
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.bluetoothSleepEnabled: false,
+        DefaultsKey.bluetoothSleepRestoreOnWake: true,
+        DefaultsKey.bluetoothSleepRestorePending: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",
