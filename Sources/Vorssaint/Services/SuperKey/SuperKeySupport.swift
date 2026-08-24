@@ -59,6 +59,11 @@ enum SuperKeySupport {
             .storageTokens.joined(separator: "+")
     }
 
+    /// One serial queue for every writer of the system's UserKeyMapping
+    /// property. Two features each read, compose and write that one table,
+    /// and interleaved cycles would drop each other's entries.
+    static let mappingWriteQueue = DispatchQueue(label: "com.vorssaint.utils.keyboard-mapping")
+
     /// HID usage values (page 7, keyboard) of the two keys involved.
     static let capsLockUsage: UInt64 = 0x700000039
     /// Modifier Keys represents “No Action” with this sentinel.
@@ -120,8 +125,17 @@ enum SuperKeySupport {
     static func consistentMappings(_ report: String,
                                    property: String,
                                    ownsExistingMapping: Bool = false) -> [SuperKeyMapping]? {
+        consistentMappings(report, property: property,
+                           settingAside: ownsExistingMapping ? isOwnedMapping : { _ in false })
+    }
+
+    /// The shared core. Each mapping-table writer passes the predicate for the entries it owns.
+    static func consistentMappings(_ report: String,
+                                   property: String,
+                                   settingAside isOwned: (SuperKeyMapping) -> Bool)
+        -> [SuperKeyMapping]? {
         let tables = mappingTables(report, property: property).map { mappings in
-            ownsExistingMapping ? mappings.filter { !isOwnedMapping($0) } : mappings
+            mappings.filter { !isOwned($0) }
         }
         guard let first = tables.first,
               tables.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else { return nil }

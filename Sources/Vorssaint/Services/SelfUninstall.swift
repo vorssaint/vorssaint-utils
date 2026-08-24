@@ -81,6 +81,8 @@ enum SelfUninstall {
         // Also takes the Caps Lock mapping back out, synchronously, so the
         // key is never left remapped behind a tap that is about to die.
         SuperKeyService.shared.suspend()
+        // Same for the F-row remap. After the uninstall no app is left to undo it.
+        KeyOverrideService.shared.suspend()
         DockClickService.shared.suspend()
         MiddleClickService.shared.suspend()
         PastePlainService.shared.suspend()

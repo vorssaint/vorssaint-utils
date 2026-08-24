@@ -20,8 +20,8 @@ final class KeyOverrideService: ObservableObject {
     private let hidutilPath = "/usr/bin/hidutil"
     /// Matches every keyboard, also one connected later.
     private let keyboardMatch = "keyboard"
-    /// A serial queue keeps mapping writes in order and off the main thread.
-    private let mappingQueue = DispatchQueue(label: "com.vorssaint.utils.keyoverrides-mapping")
+    /// The queue shared with the Super key. Both features read, compose, and write the same UserKeyMapping property, so their cycles must never interleave.
+    private let mappingQueue = SuperKeySupport.mappingWriteQueue
     private let stateLock = NSLock()
     /// A stop that comes while an apply is queued must add a clear after it.
     private var pendingMappingEnableCount = 0
@@ -29,9 +29,10 @@ final class KeyOverrideService: ObservableObject {
     private var syncGeneration = 0
     private var wakeObserver: NSObjectProtocol?
 
-    /// One Carbon hotkey per bound override. The ids start at 300, clear of the other id ranges.
+    /// One Carbon hotkey per bound override. The ids start at 300, clear of the other id ranges, and return to a free list when a row unbinds.
     private var hotkeys: [UUID: QuickToolHotkey] = [:]
     private var hotkeyIDs: [UUID: UInt32] = [:]
+    private var freeHotkeyIDs: [UInt32] = []
     private var nextHotkeyID: UInt32 = 300
 
     private init() {}
@@ -84,6 +85,7 @@ final class KeyOverrideService: ObservableObject {
         for (id, hotkey) in hotkeys where !boundIDs.contains(id) {
             hotkey.unregister()
             hotkeys.removeValue(forKey: id)
+            if let freed = hotkeyIDs.removeValue(forKey: id) { freeHotkeyIDs.append(freed) }
         }
         var failures: Set<UUID> = []
         for override in bound {
@@ -98,12 +100,12 @@ final class KeyOverrideService: ObservableObject {
     }
 
     private func makeHotkey(for id: UUID) -> QuickToolHotkey {
-        let hotkeyID = hotkeyIDs[id] ?? {
+        let hotkeyID = hotkeyIDs[id] ?? freeHotkeyIDs.popLast() ?? {
             let assigned = nextHotkeyID
             nextHotkeyID += 1
-            hotkeyIDs[id] = assigned
             return assigned
         }()
+        hotkeyIDs[id] = hotkeyID
         let hotkey = QuickToolHotkey(id: hotkeyID)
         hotkeys[id] = hotkey
         return hotkey

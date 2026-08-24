@@ -227,17 +227,12 @@ enum KeyOverrideSupport {
         return existing.contains { sources.contains($0.source) && !isOwnedMapping($0) }
     }
 
-    /// Returns one table only when all keyboards report the same external mappings. Owned entries are set aside first.
+    /// Returns one table only when all keyboards report the same external mappings, through the Super key's shared core with this feature's ownership predicate.
     static func consistentMappings(_ report: String,
                                    ownsExistingMapping: Bool) -> [SuperKeyMapping]? {
-        let tables = SuperKeySupport.mappingTables(
-            report, property: SuperKeySupport.userMappingProperty
-        ).map { table in
-            ownsExistingMapping ? table.filter { !isOwnedMapping($0) } : table
-        }
-        guard let first = tables.first,
-              tables.dropFirst().allSatisfy({ SuperKeySupport.mappingsMatch($0, first) })
-        else { return nil }
-        return first
+        SuperKeySupport.consistentMappings(
+            report,
+            property: SuperKeySupport.userMappingProperty,
+            settingAside: ownsExistingMapping ? isOwnedMapping : { _ in false })
     }
 }
