@@ -1434,26 +1434,39 @@ enum ScreenshotSupport {
         return captureLoupeBaseSampleSide / clamped
     }
 
-    /// The square of source pixels a loupe magnifies, centred on the pixel the
-    /// color is read from. The side is forced odd because an even one has no
-    /// middle cell: the sampled pixel then sat half a cell right of and below
-    /// the frame's centre, and so did the ring drawn around it. Centring on the
-    /// floored coordinate rather than the pointer keeps the pointer's
-    /// sub-pixel position out of the result.
+    /// The square of source pixels a loupe magnifies. The two loupes centre on
+    /// different things and therefore need opposite parities.
+    ///
+    /// The capture loupe reads a color, so it centres on a whole *pixel*
+    /// (`centredOnPixel`): the side is forced odd because an even one has no
+    /// middle cell, which left the sampled pixel half a cell right of and below
+    /// the frame's centre, and the ring drawn around it followed. Centring on
+    /// the floored coordinate keeps the pointer's sub-pixel position out of it.
+    ///
+    /// The editor's crop loupe marks a crop *edge*, which runs between pixels.
+    /// An edge lands in the middle of the frame only when the side is even, so
+    /// that caller passes `centredOnPixel: false` and the side is forced even.
     static func cropLoupeSampleRect(around point: CGPoint,
                                     imageSize: CGSize,
-                                    sideLength: CGFloat = 13) -> CGRect {
+                                    sideLength: CGFloat = 13,
+                                    centredOnPixel: Bool = true) -> CGRect {
         let imageWidth = max(1, floor(imageSize.width))
         let imageHeight = max(1, floor(imageSize.height))
         var side = max(1, floor(sideLength))
-        if side.truncatingRemainder(dividingBy: 2) == 0 {
+        let isEven = side.truncatingRemainder(dividingBy: 2) == 0
+        if centredOnPixel, isEven {
             side = max(1, side - 1)
+        } else if !centredOnPixel, !isEven {
+            side += 1
         }
         let width = min(side, imageWidth)
         let height = min(side, imageHeight)
-        let x = min(max(floor(point.x) - floor(width / 2), 0), imageWidth - width)
-        let y = min(max(floor(point.y) - floor(height / 2), 0), imageHeight - height)
-        return CGRect(x: x, y: y, width: width, height: height)
+        let x = centredOnPixel ? floor(point.x) - floor(width / 2) : floor(point.x - width / 2)
+        let y = centredOnPixel ? floor(point.y) - floor(height / 2) : floor(point.y - height / 2)
+        return CGRect(x: min(max(x, 0), imageWidth - width),
+                      y: min(max(y, 0), imageHeight - height),
+                      width: width,
+                      height: height)
     }
 
     /// Where the one source pixel under `point` lands inside a loupe frame.
