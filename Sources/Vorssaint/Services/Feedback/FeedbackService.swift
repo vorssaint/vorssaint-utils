@@ -14,15 +14,21 @@ struct FeedbackDiagnostics: Codable {
     let macOS: String
     let macModel: String?
     let language: String
+    let isBeta: Bool
+    let updateChannel: String
 
     static func current() -> FeedbackDiagnostics {
         let version = ProcessInfo.processInfo.operatingSystemVersion
+        let isBeta = AppInfo.isBeta
+        let channel = AppInfo.isDeveloperBuild ? "developer" : (isBeta ? "beta" : (UpdateService.shared.includeBetaUpdates ? "beta-opt-in" : "stable"))
         return FeedbackDiagnostics(
             appVersion: AppInfo.version,
             appBuild: Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0",
             macOS: "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
             macModel: modelIdentifier,
-            language: L10n.shared.language.rawValue
+            language: L10n.shared.language.rawValue,
+            isBeta: isBeta,
+            updateChannel: channel
         )
     }
 

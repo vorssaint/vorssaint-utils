@@ -480,8 +480,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func enableClamshell() {
         guard !clamshellActive else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            let ok = Sudoers.pmsetDisableSleep(true)
+        Sudoers.pmsetDisableSleep(true) { ok in
             DispatchQueue.main.async {
                 guard ok else {
                     // The rule was reported as working but the real call failed.
@@ -514,8 +513,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func disableClamshell(synchronous: Bool) {
         clamshellActive = false
-        let revert = { [synchronous] in
-            let usedPasswordless = Sudoers.pmsetDisableSleep(false)
+        let finish: (Bool) -> Void = { [synchronous] usedPasswordless in
             // Quitting is the one moment where asking for a password is not
             // an option: the dialog would hold the app open until somebody
             // answers it, and nobody is watching an app that is closing. The
@@ -534,9 +532,9 @@ final class KeepAwakeManager: ObservableObject {
             }
         }
         if synchronous {
-            revert()
+            finish(Sudoers.pmsetDisableSleep(false))
         } else {
-            DispatchQueue.global(qos: .userInitiated).async(execute: revert)
+            Sudoers.pmsetDisableSleep(false, completion: finish)
         }
     }
 
