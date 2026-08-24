@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- An opt-in Key Overrides feature takes the F-row special keys back from the system:
+  the dictation key (F5) can mute every microphone system-wide, the Spotlight, Focus,
+  Mission Control and Launchpad keys can act as their plain F-keys or press a custom
+  shortcut, and the upper function keys (F13–F17, F19 and F20; F18 belongs to the
+  Super key) can be bound too. Keys are remapped
+  at the keyboard level while an override is on and restored when it goes off or the
+  app quits. It ships uninstalled.
+
 ## [3.3.3-beta.2] - 2026-08-22
 
 ### Added

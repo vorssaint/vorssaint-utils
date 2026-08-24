@@ -126,6 +126,7 @@ struct SettingsView: View {
         case .switcher: SwitcherSettings()
         case .keyDebounce: KeyboardDebounceSettings()
         case .superKey: SuperKeySettings()
+        case .keyOverrides: KeyOverrideSettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .uninstaller: UninstallerView()

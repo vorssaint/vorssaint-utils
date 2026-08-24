@@ -230,6 +230,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         TextSnippetService.shared.suspend()
         // Takes the Caps Lock mapping back out before the process goes away.
         SuperKeyService.shared.suspend()
+        // The F-row remap must not outlive the app.
+        KeyOverrideService.shared.suspend()
         MiddleClickService.shared.suspend()
         SmoothScrollService.shared.suspend()
         MouseNavigationService.shared.suspend()

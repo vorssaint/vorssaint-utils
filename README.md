@@ -113,6 +113,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Apps to leave alone.** Every feature above can name apps from anywhere on your Mac that drive themselves with the mouse, like 3D and design tools, and it steps aside in those.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
 - **Super key.** Hold Caps Lock and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing.
+- **Key overrides.** Take the F-row back from the system. The dictation key (F5) can mute every microphone instead of starting dictation, the Spotlight, Focus, Mission Control and Launchpad keys can act as their plain F-keys or press any shortcut, and the upper function keys (F13–F17, F19 and F20) can too — remapped at the keyboard level, no Karabiner needed, and restored the moment the override goes off.
 - **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available.
 
 ### Clipboard, files and links

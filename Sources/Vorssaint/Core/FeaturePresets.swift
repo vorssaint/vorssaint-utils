@@ -113,7 +113,8 @@ extension AppFeature {
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
-        case .pastePlain, .soundOutputSwitcher, .micMute,
+        // Key overrides use Carbon hotkeys and one keyboard mapping. Nothing runs at rest.
+        case .pastePlain, .soundOutputSwitcher, .micMute, .keyOverrides,
              .musicBlock, .bluetoothSleep, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,

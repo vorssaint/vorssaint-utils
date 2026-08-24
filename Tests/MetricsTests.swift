@@ -9630,13 +9630,13 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
             "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
-            "keyboardDebounce", "textSnippets", "superKey",
+            "keyboardDebounce", "textSnippets", "superKey", "keyOverrides",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
@@ -9654,9 +9654,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.keyOverrides.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .keyOverrides
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -16278,6 +16279,210 @@ struct MetricsTests {
         expect(privateMode(privateRoot) == 0o700,
                "a container an earlier version left world readable is tightened on the next write")
         try? FileManager.default.removeItem(at: privateRoot)
+
+        // MARK: Key overrides
+
+        let dictationMapping = SuperKeyMapping(source: 0xC_0000_00CF,
+                                               destination: 0x7_0000_003E)
+        expect(KeyOverrideKey.dictation.reclaimSource == 0xC_0000_00CF
+                && KeyOverrideKey.dictation.reclaimDestination == 0x7_0000_003E
+                && KeyOverrideKey.dictation.keyCode == 96,
+               "the dictation cap reclaims Voice Command as plain F5")
+        expect(KeyOverrideKey.spotlight.keyCode == KeyOverrideKey.launchpad.keyCode
+                && KeyOverrideKey.spotlight.reclaimSource
+                    != KeyOverrideKey.launchpad.reclaimSource,
+               "spotlight and launchpad are different caps landing on the same F4")
+        expect(KeyOverrideKey.allCases.allSatisfy {
+            ($0.reclaimSource == nil) == ($0.reclaimDestination == nil)
+        }, "reclaim sources and destinations come in pairs")
+        expect(!KeyOverrideKey.allCases.contains {
+            $0.keyCode == SuperKeySupport.triggerKeyCode
+        }, "no override key collides with the Super key's F18 trigger")
+
+        let overrideList = [
+            KeyOverride(key: .dictation, action: .micMute),
+            KeyOverride(key: .spotlight, action: .remapOnly, isEnabled: false),
+            KeyOverride(key: .f13,
+                        action: KeyOverrideAction(
+                            kind: .pressShortcut,
+                            shortcut: GlobalShortcut(keyCode: 9, modifiers: [.command]))),
+        ]
+        expect(KeyOverrideSupport.decode(KeyOverrideSupport.encode(overrideList))
+                == overrideList,
+               "the key override codec roundtrips ids, shortcuts and toggles")
+        expect(KeyOverrideSupport.decode(nil).isEmpty
+                && KeyOverrideSupport.decode(Data("nonsense".utf8)).isEmpty,
+               "unreadable override data decodes as an empty list")
+        let handEditedOverrides = Data("""
+        [{"key":"dictation","action":"micMute"},
+         {"key":"launchpad","action":"remapOnly"},
+         {"key":"spotlight","action":"remapOnly"},
+         {"key":"bogus","action":"micMute"},
+         {"key":"focus","action":"bogus"}]
+        """.utf8)
+        let sanitizedOverrides = KeyOverrideSupport.decode(handEditedOverrides)
+        expect(sanitizedOverrides.map(\.key) == [.dictation, .launchpad],
+               "unknown entries drop and a duplicated key code keeps the first")
+        expect(sanitizedOverrides.allSatisfy(\.isEnabled),
+               "a missing enabled flag means on")
+
+        expect(KeyOverrideSupport.commonOverrides().map(\.key) == [.dictation, .spotlight, .focus]
+                && KeyOverrideSupport.commonOverrides().first?.action == .micMute,
+               "the common set leads with the dictation cap muting the microphone")
+
+        let mixedOverrides = [
+            KeyOverride(key: .dictation, action: .micMute),
+            KeyOverride(key: .focus, action: .remapOnly),
+            KeyOverride(key: .f13,
+                        action: KeyOverrideAction(kind: .pressShortcut, shortcut: nil)),
+            KeyOverride(key: .missionControl, action: .remapOnly, isEnabled: false),
+        ]
+        expect(KeyOverrideSupport.reclaimedKeys(in: mixedOverrides) == [.dictation, .focus],
+               "the reclaim covers enabled special caps only; plain F keys need none")
+        expect(KeyOverrideSupport.boundOverrides(in: mixedOverrides,
+                                                 micMuteAvailable: true).map(\.key)
+                == [.dictation],
+               "remap-only and unconfigured shortcut actions register no binding")
+        expect(KeyOverrideSupport.boundOverrides(in: mixedOverrides,
+                                                 micMuteAvailable: false).isEmpty,
+               "the mic mute binding waits for its feature to be installed")
+        let selfShortcutOverride = [
+            KeyOverride(key: .f13,
+                        action: KeyOverrideAction(
+                            kind: .pressShortcut,
+                            shortcut: KeyOverrideKey.f13.triggerShortcut)),
+        ]
+        expect(KeyOverrideSupport.boundOverrides(in: selfShortcutOverride,
+                                                 micMuteAvailable: true).isEmpty,
+               "a shortcut equal to the plain key binds nothing instead of looping")
+        let cyclicOverrides = [
+            KeyOverride(key: .f13,
+                        action: KeyOverrideAction(kind: .pressShortcut,
+                                                  shortcut: KeyOverrideKey.f14.triggerShortcut)),
+            KeyOverride(key: .f14,
+                        action: KeyOverrideAction(kind: .pressShortcut,
+                                                  shortcut: KeyOverrideKey.f13.triggerShortcut)),
+        ]
+        expect(KeyOverrideSupport.boundOverrides(in: cyclicOverrides,
+                                                 micMuteAvailable: true).isEmpty,
+               "two overrides that press each other's plain keys bind nothing")
+        let modifiedTargetOverrides = [
+            KeyOverride(key: .f13,
+                        action: KeyOverrideAction(
+                            kind: .pressShortcut,
+                            shortcut: GlobalShortcut(keyCode: KeyOverrideKey.f14.keyCode,
+                                                     modifiers: [.command]))),
+            KeyOverride(key: .f14, action: .remapOnly),
+        ]
+        expect(KeyOverrideSupport.boundOverrides(in: modifiedTargetOverrides,
+                                                 micMuteAvailable: true).map(\.key) == [.f13],
+               "a modified shortcut on another override's key cannot loop and binds")
+        expect(KeyOverrideSupport.needsAccessibility(overrideList)
+                && !KeyOverrideSupport.needsAccessibility(mixedOverrides),
+               "only a recorded press-a-shortcut action asks for Accessibility")
+
+        let overrideForeign = SuperKeyMapping(source: 0x7_0000_0029,
+                                              destination: 0x7_0000_0035)
+        let overrideSuperKeyCaps = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
+                                                   destination: SuperKeySupport.triggerUsage)
+        expect(KeyOverrideSupport.mappings(reclaiming: [.dictation],
+                                           existing: [overrideForeign, overrideSuperKeyCaps])
+                == [dictationMapping, overrideForeign, overrideSuperKeyCaps],
+               "the reclaim keeps every external entry, the Super key's included")
+        expect(KeyOverrideSupport.mappings(reclaiming: [],
+                                           existing: [dictationMapping, overrideForeign])
+                == [overrideForeign],
+               "clearing removes only the entries this feature owns")
+        expect(KeyOverrideSupport.mappings(reclaiming: [.dictation, .dictation],
+                                           existing: []) == [dictationMapping],
+               "a duplicated key writes one mapping entry")
+        expect(KeyOverrideSupport.mappings(reclaiming: [.spotlight, .launchpad],
+                                           existing: []).count == 2,
+               "spotlight and launchpad reclaim their own distinct sources")
+        let foreignDictation = SuperKeyMapping(source: 0xC_0000_00CF,
+                                               destination: 0x7_0000_0040)
+        expect(KeyOverrideSupport.hasMappingConflict(in: [foreignDictation],
+                                                     reclaiming: [.dictation])
+                && !KeyOverrideSupport.hasMappingConflict(in: [dictationMapping],
+                                                          reclaiming: [.dictation])
+                && !KeyOverrideSupport.hasMappingConflict(in: [foreignDictation],
+                                                          reclaiming: [.focus]),
+               "an external remap of a wanted key refuses activation; owned or unrelated entries do not")
+
+        // 51539607759→30064771134 is the owned dictation entry. 30064771172→30064771125 is external.
+        let overrideOwnedDifferenceReport = """
+        RegistryID  Key                   Value
+        100000a84   UserKeyMapping   (
+                {
+                HIDKeyboardModifierMappingDst = 30064771134;
+                HIDKeyboardModifierMappingSrc = 51539607759;
+            }
+                {
+                HIDKeyboardModifierMappingDst = 30064771125;
+                HIDKeyboardModifierMappingSrc = 30064771172;
+            }
+        )
+        100000a85   UserKeyMapping   (
+                {
+                HIDKeyboardModifierMappingDst = 30064771125;
+                HIDKeyboardModifierMappingSrc = 30064771172;
+            }
+        )
+        """
+        expect(KeyOverrideSupport.consistentMappings(overrideOwnedDifferenceReport,
+                                                     ownsExistingMapping: true)
+                == [SuperKeyMapping(source: 30064771172, destination: 30064771125)],
+               "a keyboard that arrived after the reclaim converges when only owned entries differ")
+        expect(KeyOverrideSupport.consistentMappings(overrideOwnedDifferenceReport,
+                                                     ownsExistingMapping: false) == nil,
+               "an unowned difference between keyboards is never merged")
+
+        let accessibilityOverrideData = KeyOverrideSupport.encode([
+            KeyOverride(key: .f13,
+                        action: KeyOverrideAction(
+                            kind: .pressShortcut,
+                            shortcut: GlobalShortcut(keyCode: 9, modifiers: [.command]))),
+        ])
+        expect(AppFeature.activeFeatures(
+            using: .accessibility,
+            isAvailable: { _ in true },
+            boolFor: { $0 == DefaultsKey.keyOverridesEnabled },
+            stringFor: { _ in nil },
+            dataFor: { $0 == DefaultsKey.keyOverrides ? accessibilityOverrideData : nil }
+        ).contains(.keyOverrides),
+               "a recorded press-a-shortcut override reports live accessibility use")
+        expect(!AppFeature.activeFeatures(
+            using: .accessibility,
+            isAvailable: { _ in true },
+            boolFor: { $0 == DefaultsKey.keyOverridesEnabled },
+            stringFor: { _ in nil }
+        ).contains(.keyOverrides),
+               "mic mute and remap-only overrides never ask for accessibility")
+
+        expect(Defaults.registeredDefaults[DefaultsKey.keyOverridesEnabled] as? Bool == true,
+               "key overrides register enabled so an install works right away")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keyOverrides)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.keyOverridesEnabled),
+               "the override list and its switch travel in a settings backup")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.keyOverridesMappingApplied),
+               "the mapping recovery marker never leaves the machine")
+        expect(AppFeature.keyOverrides.group == .mouseKeyboard
+                && AppFeature.keyOverrides.energyProfile == .idle,
+               "key overrides sit with the keyboard features and cost nothing at rest")
+        expect(AppFeature.keyOverrides.settingsDestination.page == .keyOverrides
+                && FeatureVisibilitySupport.features(for: .keyOverrides) == [.keyOverrides],
+               "the key overrides page appears and disappears with its feature")
+        expect(AppFeature.availabilityDefaults[AppFeature.keyOverrides.availabilityKey]
+                as? Bool == false,
+               "key overrides ship uninstalled, an explicit opt-in")
+        expect(GlobalShortcutRole.featuresToSilenceWhileRecording.contains(.keyOverrides),
+               "recording a shortcut silences the override keys too")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.keyOverrides(language)
+            expect(!strings.pageTitle.isEmpty && !strings.hubDescription.isEmpty
+                    && !strings.actionMicMute.isEmpty && !strings.keyDictation.isEmpty,
+                   "key override strings exist for \(language.rawValue)")
+        }
 
         // MARK: Result
 

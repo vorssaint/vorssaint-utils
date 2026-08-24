@@ -50,6 +50,10 @@ enum DefaultsKey {
     // Machine state, never exported: whether the keyboard mapping is in place,
     // so a launch after a crash can take it back out.
     static let superKeyMappingApplied = "superKeyMappingApplied"
+    static let keyOverridesEnabled = "keyOverridesEnabled"  // master switch for key overrides
+    static let keyOverrides = "keyOverrides"                // JSON [KeyOverride], see KeyOverrideSupport
+    // Machine state, never exported. Same recovery contract as the Super key mapping.
+    static let keyOverridesMappingApplied = "keyOverridesMappingApplied"
     // One list of bundle ids per mouse feature: apps it leaves alone (issue #358).
     static let smoothScrollExceptions = "smoothScrollExceptions"
     static let scrollInverterExceptions = "scrollInverterExceptions"
@@ -774,6 +778,7 @@ enum Defaults {
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
+        DefaultsKey.keyOverridesEnabled: true,
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
         DefaultsKey.mouseNavigationExceptions: [String](),
