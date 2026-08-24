@@ -73,8 +73,10 @@ final class FinderCutPaste: ObservableObject {
     private var operationGeneration = 0
     private var moveInProgress = false
     private var cutPasteEnabled = false
+    private var showHUD = true
     private var pasteImageAsFileEnabled = false
     private var imagePasteInProgress = false
+    private var appObserver: NSObjectProtocol?
 
     private static let finderBundleID = "com.apple.finder"
     private static let syntheticPasteMarker: Int64 = 0x564F5249
@@ -91,11 +93,16 @@ final class FinderCutPaste: ObservableObject {
 
     var isRunning: Bool { tapLifecycleLock.withLock { tap != nil } }
 
+    private var isFinderFrontmost: Bool {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderBundleID
+    }
+
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
         let available = AppFeature.finderCutPaste.isAvailable
         cutPasteEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
+        showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
         pasteImageAsFileEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
         if (cutPasteEnabled || pasteImageAsFileEnabled), Permissions.shared.accessibility {
@@ -103,9 +110,13 @@ final class FinderCutPaste: ObservableObject {
         } else {
             removeTap()
         }
-        if !cutPasteEnabled {
+        if cutPasteEnabled {
+            installAppObserver()
+        } else {
+            removeAppObserver()
             clearMarks()
         }
+        refreshPanel()
     }
 
     /// Force-stops the tap regardless of the preference. Used before the app
@@ -113,7 +124,31 @@ final class FinderCutPaste: ObservableObject {
     /// leave a live tap behind.
     func suspend() {
         removeTap()
+        removeAppObserver()
         clearMarks()
+    }
+
+    private func installAppObserver() {
+        guard appObserver == nil else { return }
+        appObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleApplicationActivation()
+        }
+    }
+
+    private func removeAppObserver() {
+        if let observer = appObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            appObserver = nil
+        }
+    }
+
+    private func handleApplicationActivation() {
+        guard cutPasteEnabled else { return }
+        refreshPanel()
     }
 
     // MARK: - Event tap
@@ -653,7 +688,13 @@ final class FinderCutPaste: ObservableObject {
     }
 
     private func refreshPanel() {
-        if marked.isEmpty, lastResult == nil {
+        guard showHUD else {
+            panel?.orderOut(nil)
+            return
+        }
+        if marked.isEmpty, lastResult == nil, moveProgress == nil {
+            panel?.orderOut(nil)
+        } else if !isFinderFrontmost && lastResult == nil && moveProgress == nil {
             panel?.orderOut(nil)
         } else {
             showPanel()
@@ -661,6 +702,14 @@ final class FinderCutPaste: ObservableObject {
     }
 
     private func showPanel() {
+        guard showHUD else {
+            panel?.orderOut(nil)
+            return
+        }
+        guard isFinderFrontmost || lastResult != nil || moveProgress != nil else {
+            panel?.orderOut(nil)
+            return
+        }
         let panel = ensurePanel()
         let view = panel.contentViewController!.view
         view.layoutSubtreeIfNeeded()

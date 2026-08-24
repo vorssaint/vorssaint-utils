@@ -17,9 +17,8 @@
 # It does NOT replace Apple notarization: downloaded builds still show Gatekeeper's
 # "unverified developer" prompt on first launch. It only stabilizes the identity.
 #
-# Maintainers: the official releases are signed by CI with a shared certificate
-# (repo secrets SIGNING_CERT_P12 / SIGNING_CERT_PASSWORD). Run this only to get
-# the same permission-preserving behavior for your own local builds.
+# Maintainers: official releases use the protected release-signing environment.
+# Run this only to get the same permission-preserving behavior for local builds.
 set -euo pipefail
 
 IDENTITY="Vorssaint Utils Signing"

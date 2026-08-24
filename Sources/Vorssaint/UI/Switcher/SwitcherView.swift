@@ -445,74 +445,80 @@ struct SwitcherView: View {
 
     private var appIconRow: some View {
         let groups = appGroups
-        return ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
-                    ForEach(groups) { group in
-                        let index = group.representativeIndex
-                        let window = switcher.windows[index]
-                        SwitcherIconTile(window: window,
-                                         windowCount: group.windowCount,
-                                         showsWindowTitle: false,
-                                         isSelected: group.pid == selectedWindow?.pid,
-                                         onCommit: {
-                                             switcher.select(index: index)
-                                             switcher.commitSession()
-                                         })
-                            .id(group.id)
-                            .onHover { hovering in
-                                if hovering { switcher.hoverSelect(index: index) }
-                            }
+        return overflowingIconRow(
+            itemCount: groups.count,
+            tileWidth: SwitcherIconRowLayout.appTileWidth
+        ) {
+            ForEach(groups) { group in
+                let index = group.representativeIndex
+                let window = switcher.windows[index]
+                SwitcherIconTile(window: window,
+                                 windowCount: group.windowCount,
+                                 showsWindowTitle: false,
+                                 isSelected: group.pid == selectedWindow?.pid,
+                                 onCommit: {
+                                     switcher.select(index: index)
+                                     switcher.commitSession()
+                                 })
+                    .onHover { hovering in
+                        if hovering {
+                            switcher.hoverSelectIconRow(index: index)
+                        } else {
+                            switcher.hoverSelectIconRowEnded(index: index)
+                        }
                     }
-                }
-                .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
-            }
-            .scrollDisabled(groups.count <= switcher.iconRowLayout.visibleIconCount)
-            .frame(width: switcher.iconRowLayout.appRowContentWidth,
-                   height: SwitcherIconRowLayout.rowHeight)
-            .onChange(of: switcher.selectedIndex) { _, newIndex in
-                guard switcher.windows.indices.contains(newIndex) else { return }
-                let pid = switcher.windows[newIndex].pid
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo(pid, anchor: .center)
-                }
             }
         }
     }
 
     private var windowIconRow: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
-                    ForEach(Array(switcher.windows.enumerated()), id: \.element.id) { index, window in
-                        SwitcherIconTile(
-                            window: window,
-                            windowCount: 1,
-                            showsWindowTitle: true,
-                            isSelected: index == switcher.selectedIndex,
-                            onCommit: {
-                                switcher.select(index: index)
-                                switcher.commitSession()
-                            }
-                        )
-                        .id(window.id)
-                        .onHover { hovering in
-                            if hovering { switcher.hoverSelect(index: index) }
-                        }
+        overflowingIconRow(
+            itemCount: switcher.windows.count,
+            tileWidth: SwitcherIconRowLayout.windowTileWidth
+        ) {
+            ForEach(Array(switcher.windows.enumerated()), id: \.element.id) { index, window in
+                SwitcherIconTile(
+                    window: window,
+                    windowCount: 1,
+                    showsWindowTitle: true,
+                    isSelected: index == switcher.selectedIndex,
+                    onCommit: {
+                        switcher.select(index: index)
+                        switcher.commitSession()
                     }
-                }
-                .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
-            }
-            .scrollDisabled(switcher.windows.count <= switcher.iconRowLayout.visibleIconCount)
-            .frame(width: switcher.iconRowLayout.appRowContentWidth,
-                   height: SwitcherIconRowLayout.rowHeight)
-            .onChange(of: switcher.selectedIndex) { _, newIndex in
-                guard switcher.windows.indices.contains(newIndex) else { return }
-                withAnimation(.easeOut(duration: 0.15)) {
-                    proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
+                )
+                .onHover { hovering in
+                    if hovering {
+                        switcher.hoverSelectIconRow(index: index)
+                    } else {
+                        switcher.hoverSelectIconRowEnded(index: index)
+                    }
                 }
             }
         }
+    }
+
+    private func overflowingIconRow<Content: View>(itemCount: Int,
+                                                   tileWidth: CGFloat,
+                                                   @ViewBuilder content: () -> Content) -> some View {
+        let overflow = itemCount > switcher.iconRowLayout.visibleIconCount
+        return HStack(alignment: .center, spacing: SwitcherIconRowLayout.spacing) {
+            content()
+        }
+        .frame(height: SwitcherIconRowLayout.rowHeight, alignment: .center)
+        .offset(x: overflow ? iconRowOverflowOffset(tileWidth: tileWidth) : 0)
+        .animation(.easeOut(duration: SwitcherSupport.iconRowEdgeHoverAnimationDuration),
+                   value: switcher.iconRowFirstVisibleIndex)
+        .frame(width: switcher.iconRowLayout.appRowContentWidth,
+               height: SwitcherIconRowLayout.rowHeight,
+               alignment: .leading)
+        .clipped()
+        .contentShape(Rectangle())
+    }
+
+    private func iconRowOverflowOffset(tileWidth: CGFloat) -> CGFloat {
+        let first = switcher.iconRowFirstVisibleIndex
+        return -CGFloat(first) * (tileWidth + SwitcherIconRowLayout.spacing)
     }
 
     private var selectedWindow: SwitcherItem? {
@@ -901,8 +907,8 @@ private struct WindowCard: View {
                     Image(nsImage: icon)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 80)
-                        .switcherHiddenAppBadge(window.isAppHidden, size: 22)
+                        .frame(width: 80 * PreviewSizing.scale, height: 80 * PreviewSizing.scale)
+                        .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
                 }
 
                 // One row along the bottom of the thumbnail: the app on the
@@ -944,10 +950,10 @@ private struct WindowCard: View {
                    height: SwitcherGrid.cardHeight - 72)
 
             VStack(spacing: 2) {
-                Text(window.displayTitle)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                ScrollingTitle(text: window.displayTitle,
+                               weight: isSelected ? .semibold : .regular,
+                               width: SwitcherGrid.cardWidth - 28,
+                               scrolls: isHovering)
                     .foregroundStyle(isSelected ? .primary : .secondary)
                 if let subtitle = window.displaySubtitle {
                     Text(subtitle)
@@ -993,11 +999,11 @@ private struct WindowCard: View {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 84, height: 84)
-                    .switcherHiddenAppBadge(window.isAppHidden, size: 22)
+                    .frame(width: 84 * PreviewSizing.scale, height: 84 * PreviewSizing.scale)
+                    .switcherHiddenAppBadge(window.isAppHidden, size: 22 * PreviewSizing.scale)
             }
             Text(l10n.s.switcherNoOpenWindow)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 11 * PreviewSizing.scale, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }

@@ -25,3 +25,5 @@ E2E/
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+.cursor/
+.gemini/

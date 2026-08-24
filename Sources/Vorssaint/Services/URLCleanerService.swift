@@ -17,6 +17,9 @@ final class URLCleanerService: ObservableObject {
 
     @Published private(set) var isRunning = false
     @Published private(set) var lastCleaned: String?
+    /// Names the last automatic clean took out, so Settings can say what the
+    /// silent rewrite did rather than only that it is running.
+    @Published private(set) var lastRemoved: [String] = []
 
     private final class PollToken {
         private let lock = NSLock()
@@ -37,7 +40,7 @@ final class URLCleanerService: ObservableObject {
 
     private struct PollResult {
         let changeCount: Int
-        let cleaned: String?
+        let cleaned: URLCleaning.Result?
     }
 
     private var timer: Timer?
@@ -55,8 +58,8 @@ final class URLCleanerService: ObservableObject {
         }
     }
 
-    func clean(_ text: String) -> String? {
-        URLCleaning.cleanedString(from: text, customParameters: Self.customParameters)
+    func clean(_ text: String) -> URLCleaning.Result? {
+        URLCleaning.clean(text, rules: Self.rules)
     }
 
     func copy(_ urlString: String) {
@@ -127,7 +130,8 @@ final class URLCleanerService: ObservableObject {
                 guard self.isRunning, let result else { return }
                 self.lastChangeCount = result.changeCount
                 if let cleaned = result.cleaned {
-                    self.lastCleaned = cleaned
+                    self.lastCleaned = cleaned.url
+                    self.lastRemoved = cleaned.removed
                 }
             }
         }
@@ -144,14 +148,14 @@ final class URLCleanerService: ObservableObject {
         }
 
         guard let text = pasteboard.string(forType: .string),
-              let cleaned = URLCleaning.cleanedString(from: text, customParameters: customParameters),
-              cleaned != text.trimmingCharacters(in: .whitespacesAndNewlines),
+              let cleaned = URLCleaning.clean(text, rules: rules),
+              cleaned.url != text.trimmingCharacters(in: .whitespacesAndNewlines),
               canSafelyRewriteAutomatically(pasteboard),
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
 
-        let rewrittenChangeCount = writeToPasteboard(cleaned)
+        let rewrittenChangeCount = writeToPasteboard(cleaned.url)
         return PollResult(changeCount: rewrittenChangeCount, cleaned: cleaned)
     }
 
@@ -160,9 +164,12 @@ final class URLCleanerService: ObservableObject {
         return Set(types).isSubset(of: automaticRewriteTypes)
     }
 
-    private static var customParameters: Set<String> {
-        URLCleaning.customParameters(from: UserDefaults.standard.string(
-            forKey: DefaultsKey.urlCleanerCustomParameters))
+    private static var rules: URLCleaning.Rules {
+        let defaults = UserDefaults.standard
+        return URLCleaning.rules(
+            globalNames: defaults.string(forKey: DefaultsKey.urlCleanerCustomParameters),
+            siteNames: defaults.string(forKey: DefaultsKey.urlCleanerSiteParameters),
+            disabledNames: defaults.string(forKey: DefaultsKey.urlCleanerDisabledParameters))
     }
 
     @discardableResult

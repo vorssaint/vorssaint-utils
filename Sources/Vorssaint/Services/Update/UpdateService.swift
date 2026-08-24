@@ -27,7 +27,7 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    private let repository = "vorssaint/vorssaint-utils"
+    private let repository = "vorssaintapp/vorssaint-utils"
     private var downloadURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?
@@ -45,16 +45,32 @@ final class UpdateService: ObservableObject {
         }
     }
 
+    var includeBetaUpdates: Bool {
+        get {
+            if let explicit = UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) as? Bool {
+                return explicit
+            }
+            return AppInfo.isBeta
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: DefaultsKey.includeBetaUpdates)
+        }
+    }
+
     // MARK: - Scheduling
 
     /// Called at launch: checks shortly after start and then daily, if enabled.
     func startAutomaticChecks() {
         consumeInstallResult()
+        if AppInfo.isBeta && UserDefaults.standard.object(forKey: DefaultsKey.includeBetaUpdates) == nil {
+            UserDefaults.standard.set(true, forKey: DefaultsKey.includeBetaUpdates)
+        }
         // The local dev build never auto-updates, but can simulate the
         // "update available" UI via the `simulateUpdate` default, for testing.
         if AppInfo.isDeveloperBuild {
             if UserDefaults.standard.bool(forKey: DefaultsKey.simulateUpdate) {
-                state = .available(version: "9.9.9")
+                let simulatedVersion = AppInfo.isBeta ? "9.9.9-beta.1" : "9.9.9"
+                state = .available(version: simulatedVersion)
                 availableNotes = ReleaseNotes.rawNotes(for: AppInfo.version)
             }
             return
@@ -102,7 +118,11 @@ final class UpdateService: ObservableObject {
         if case .installing = state { return }
         state = .checking
 
-        var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!)
+        let endpoint = includeBetaUpdates
+            ? "https://api.github.com/repos/\(repository)/releases?per_page=10"
+            : "https://api.github.com/repos/\(repository)/releases/latest"
+
+        var request = URLRequest(url: URL(string: endpoint)!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Vorssaint/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
         request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -111,26 +131,55 @@ final class UpdateService: ObservableObject {
             guard let self else { return }
             DispatchQueue.main.async {
                 self.lastChecked = Date()
-                guard let data, error == nil,
-                      let release = try? JSONDecoder().decode(GitHubRelease.self, from: data) else {
+                guard let data, error == nil else {
                     self.availableNotes = nil
                     self.state = .failed(error?.localizedDescription ?? "-")
                     return
                 }
-                let latest = release.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
-                let asset = release.assets.first { $0.name.hasSuffix(".dmg") }
-                self.downloadURL = asset?.browserDownloadURL
-                self.downloadExpectedBytes = asset?.size
 
-                if Self.isNewer(latest, than: AppInfo.version), self.downloadURL != nil {
-                    self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: release.body)
-                    self.state = .available(version: latest)
+                let releases: [GitHubRelease]
+                if self.includeBetaUpdates {
+                    releases = (try? JSONDecoder().decode([GitHubRelease].self, from: data)) ?? []
+                } else if let single = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
+                    releases = [single]
+                } else {
+                    releases = []
+                }
+
+                guard !releases.isEmpty else {
+                    self.availableNotes = nil
+                    self.state = .failed(error?.localizedDescription ?? "-")
+                    return
+                }
+
+                let candidates = releases.map { rel -> UpdateServiceSupport.ReleaseCandidate in
+                    let asset = rel.assets.first { $0.name.hasSuffix(".dmg") }
+                    return UpdateServiceSupport.ReleaseCandidate(
+                        tagName: rel.tagName,
+                        isPrerelease: rel.prerelease ?? false,
+                        isDraft: rel.draft ?? false,
+                        dmgURL: asset?.browserDownloadURL,
+                        dmgExpectedBytes: asset?.size,
+                        body: rel.body
+                    )
+                }
+
+                if let chosen = UpdateServiceSupport.selectUpdate(
+                    from: candidates,
+                    currentVersion: AppInfo.version,
+                    includeBetas: self.includeBetaUpdates
+                ) {
+                    let versionClean = chosen.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
+                    self.downloadURL = chosen.dmgURL
+                    self.downloadExpectedBytes = chosen.dmgExpectedBytes
+                    self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: chosen.body)
+                    self.state = .available(version: versionClean)
                     // Notify once per distinct release, not on every hourly re-check.
-                    if !manual, latest != self.notifiedVersion {
-                        self.notifiedVersion = latest
+                    if !manual, versionClean != self.notifiedVersion {
+                        self.notifiedVersion = versionClean
                         let s = L10n.shared.s
                         Notifier.post(title: s.updateNotifyTitle,
-                                      body: "\(s.updateAvailablePrefix) \(latest)")
+                                      body: "\(s.updateAvailablePrefix) \(versionClean)")
                     }
                 } else {
                     self.availableNotes = nil
@@ -258,17 +307,17 @@ final class UpdateService: ObservableObject {
     }
 
     /// Hands the swap to a detached shell script: it waits for this process to
-    /// quit, mounts the DMG, replaces the bundle, clears quarantine and
-    /// relaunches. Running it outside the app means the bundle can be replaced
-    /// safely while we exit. When the app's folder is not writable by this
-    /// user (standard account with the app in /Applications), the script runs
-    /// through an admin prompt instead of failing silently.
+    /// quit, verifies and mounts the DMG, replaces the bundle, clears
+    /// quarantine and relaunches. Running it outside the app means the bundle
+    /// can be replaced safely while we exit. When the app's folder is not
+    /// writable by this user (standard account with the app in /Applications),
+    /// the script runs through an admin prompt instead of failing silently.
     private func launchInstaller(dmgPath: String, offered: String?) {
         let appPath = Bundle.main.bundlePath
         let pid = ProcessInfo.processInfo.processIdentifier
         let fm = FileManager.default
 
-        guard let resultURL = Self.installResultURL else {
+        guard let resultURL = Self.installResultURL, let expectedVersion = offered else {
             abortInstall(dmgPath: dmgPath, offered: offered)
             return
         }
@@ -282,18 +331,18 @@ final class UpdateService: ObservableObject {
         if fm.isWritableFile(atPath: appDirectory),
            !UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: lastFailure) {
             launchUserInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
-                                resultPath: resultURL.path, offered: offered)
+                                resultPath: resultURL.path, expectedVersion: expectedVersion)
         } else {
             // Either the folder is not writable, or the last attempt died at
             // the copy/swap step: retry with admin rights instead of failing
             // the same way twice.
             launchAdminInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
-                                 resultPath: resultURL.path, offered: offered)
+                                 resultPath: resultURL.path, expectedVersion: expectedVersion)
         }
     }
 
     private func launchUserInstaller(appPath: String, dmgPath: String, pid: Int32,
-                                     resultPath: String, offered: String?) {
+                                     resultPath: String, expectedVersion: String) {
         let scriptURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-update-\(pid)-\(UUID().uuidString).sh")
         do {
@@ -306,7 +355,8 @@ final class UpdateService: ObservableObject {
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath, "\(getuid())"]
+        task.arguments = [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath,
+                          "\(getuid())", expectedVersion]
         do {
             try task.run()
         } catch {
@@ -327,12 +377,13 @@ final class UpdateService: ObservableObject {
     /// with nohup so the prompt returns while the installer waits for our
     /// exit.
     private func launchAdminInstaller(appPath: String, dmgPath: String, pid: Int32,
-                                      resultPath: String, offered: String?) {
+                                      resultPath: String, expectedVersion: String) {
         let command = UpdateInstallerSupport.elevatedInstallCommand(appPath: appPath,
                                                                     dmgPath: dmgPath,
                                                                     pid: pid,
                                                                     resultPath: resultPath,
-                                                                    uid: getuid())
+                                                                    uid: getuid(),
+                                                                    expectedVersion: expectedVersion)
         AdminShell.runInProcess(command, prompt: L10n.shared.s.adminPromptUpdate) { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -341,7 +392,7 @@ final class UpdateService: ObservableObject {
                 } else {
                     // The user dismissed the admin prompt: keep the offer so
                     // the button simply works again.
-                    self.abortInstall(dmgPath: dmgPath, offered: offered)
+                    self.abortInstall(dmgPath: dmgPath, offered: expectedVersion)
                 }
             }
         }
@@ -419,14 +470,7 @@ final class UpdateService: ObservableObject {
 
     /// True when `latest` is a higher semantic version than `current`.
     static func isNewer(_ latest: String, than current: String) -> Bool {
-        func parts(_ s: String) -> [Int] { s.split(separator: ".").map { Int($0) ?? 0 } }
-        let l = parts(latest), c = parts(current)
-        for i in 0..<max(l.count, c.count) {
-            let lv = i < l.count ? l[i] : 0
-            let cv = i < c.count ? c[i] : 0
-            if lv != cv { return lv > cv }
-        }
-        return false
+        UpdateServiceSupport.isNewer(latest, than: current)
     }
 }
 
@@ -534,11 +578,15 @@ private final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDeleg
 
 private struct GitHubRelease: Decodable {
     let tagName: String
+    let prerelease: Bool?
+    let draft: Bool?
     let assets: [Asset]
     let body: String?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
+        case prerelease
+        case draft
         case assets
         case body
     }

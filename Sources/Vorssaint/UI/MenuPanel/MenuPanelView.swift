@@ -447,13 +447,43 @@ struct MenuPanelView: View {
 
 private struct MenuPanelHeader: View {
     @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        BrandMark(width: 48, tint: markTint)
-            .frame(height: 28)
-            .padding(.vertical, 4)
-            .accessibilityHidden(true)
-            .frame(maxWidth: .infinity, alignment: .center)
+        ZStack {
+            BrandMark(width: 48, tint: markTint)
+                .frame(height: 28)
+                .accessibilityHidden(true)
+
+            if AppInfo.isBeta {
+                HStack {
+                    Text(l10n.s.betaBadgeLabel.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.18))
+                        .foregroundStyle(.orange)
+                        .clipShape(Capsule())
+
+                    Spacer()
+
+                    Button {
+                        appDelegate()?.openFeedbackWindow()
+                    } label: {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .padding(4)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(FeatureStrings.feedback(l10n.language).openButton)
+                }
+            }
+        }
+        .frame(height: 28)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
     }
 
     private var markTint: Color {
@@ -2229,6 +2259,9 @@ struct UpdateBanner: View {
     var body: some View {
         switch updates.state {
         case let .available(version):
+            let isBeta = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease ?? false
+            let tintColor: Color = isBeta ? .orange : .accentColor
+
             Button {
                 appDelegate()?.showUpdatePreview()
             } label: {
@@ -2250,7 +2283,7 @@ struct UpdateBanner: View {
                     Spacer()
                     Text(l10n.s.updateBannerAction)
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(tintColor)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(.white))
@@ -2259,7 +2292,7 @@ struct UpdateBanner: View {
                 .padding(.vertical, 9)
                 .background(
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.accentColor)
+                        .fill(tintColor)
                 )
             }
             .buttonStyle(.plain)
