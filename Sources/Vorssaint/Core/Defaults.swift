@@ -109,6 +109,13 @@ enum DefaultsKey {
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
+    static let alwaysOnTopEnabled = "alwaysOnTopEnabled"
+    static let alwaysOnTopShortcut = "alwaysOnTopShortcut"
+    static let alwaysOnTopShowBorder = "alwaysOnTopShowBorder"
+    static let alwaysOnTopBorderColor = "alwaysOnTopBorderColor"
+    static let alwaysOnTopBorderThickness = "alwaysOnTopBorderThickness"
+    static let alwaysOnTopPlaySound = "alwaysOnTopPlaySound"
+    static let alwaysOnTopExcludedApps = "alwaysOnTopExcludedApps"
     static let shelfEnabled = "shelfEnabled"
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
@@ -1140,6 +1147,13 @@ enum Defaults {
         DefaultsKey.screenOCRShortcutEnabled: false,
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
         DefaultsKey.screenOCRRemoveLineBreaks: false,
+        DefaultsKey.alwaysOnTopEnabled: false,
+        DefaultsKey.alwaysOnTopShortcut: GlobalShortcut.alwaysOnTopDefault.storageValue,
+        DefaultsKey.alwaysOnTopShowBorder: true,
+        DefaultsKey.alwaysOnTopBorderColor: "#00ADEF",
+        DefaultsKey.alwaysOnTopBorderThickness: 4,
+        DefaultsKey.alwaysOnTopPlaySound: true,
+        DefaultsKey.alwaysOnTopExcludedApps: [String](),
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,

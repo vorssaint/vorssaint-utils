@@ -11865,11 +11865,11 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
-            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
+            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "alwaysOnTop",
             "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "keyboardDebounce", "textSnippets", "superKey",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
@@ -11888,14 +11888,43 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
-                && AppFeature.allCases.filter {
-                    $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
-                }.allSatisfy {
+                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                 && (AppFeature.availabilityDefaults[AppFeature.alwaysOnTop.availabilityKey] as? Bool) == false
+                 && AppFeature.allCases.filter {
+                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
+                         && $0 != .killProcess && $0 != .alwaysOnTop
+                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
                "new opt-in features ship uninstalled while existing features remain available")
+        expect(AppFeature.alwaysOnTop.group == .windowsDock,
+               "always on top lives in Windows and Dock")
+        expect(AppFeature.alwaysOnTop.symbolName == "pin.fill",
+               "always on top uses pin.fill")
+        expect(AppFeature.alwaysOnTop.enabledKeys == [DefaultsKey.alwaysOnTopEnabled],
+               "always on top has its own enable key")
+        expect(AppFeature.alwaysOnTop.permissions == [.accessibility],
+               "always on top needs Accessibility")
+        expect(!FeaturePreset.windows.features.contains(.alwaysOnTop),
+               "always on top is not in the Windows preset")
+        expect(AppFeature.alwaysOnTop.energyProfile == .idle,
+               "always on top is idle (Carbon hotkey, not a keyboard tap)")
+
+        expect(GlobalShortcut.alwaysOnTopDefault
+                == GlobalShortcut(keyCode: Int64(kVK_ANSI_T), modifiers: [.control, .option, .shift]),
+               "default pin shortcut is control-option-shift-T")
+        expect(GlobalShortcut.alwaysOnTopDefault != GlobalShortcut.windowLayoutRightTwoThirdsDefault,
+               "pin shortcut must not collide with window layout control-option-T")
+        expect(GlobalShortcut.alwaysOnTopDefault != GlobalShortcut.screenOCRDefault,
+               "pin shortcut must not collide with screen OCR control-option-command-T")
+        expect(GlobalShortcutRole.alwaysOnTop.storageKey == DefaultsKey.alwaysOnTopShortcut,
+               "always on top role stores under alwaysOnTopShortcut")
+        expect(GlobalShortcutRole.alwaysOnTop.defaultShortcut == .alwaysOnTopDefault,
+               "always on top role default matches alwaysOnTopDefault")
+        expect(GlobalShortcutRole.alwaysOnTop.requiredEnableKeys == [DefaultsKey.alwaysOnTopEnabled],
+               "always on top shortcut follows the feature switch")
+        expect(GlobalShortcutRole.alwaysOnTop.feature == .alwaysOnTop,
+               "always on top role belongs to the alwaysOnTop feature")
         expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
                 == AppFeature.allCases.count,
                "every feature belongs to exactly one group")
