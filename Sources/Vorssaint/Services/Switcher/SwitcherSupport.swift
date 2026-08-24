@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -168,12 +169,23 @@ struct SwitcherIconRowLayout: Equatable {
     static let simpleTitleSpacing: CGFloat = 6
     static let simpleTitleScrollPadding: CGFloat = 1
 
+    /// The widest row the panel has to hold. Panel sizing and the rows
+    /// themselves both measure against this one value, so a row can never come
+    /// out wider than the window drawing it and get clipped (issues #710, #730).
+    func contentWidth(simpleMode: Bool, windowRow: Bool) -> CGFloat {
+        let hintWidth = showsShortcutHints ? Self.hintBarWidth : 0
+        guard simpleMode else {
+            return max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth)
+        }
+        return max(appRowSurfaceWidth,
+                   windowRow ? 0 : simpleTitleSurfaceWidth,
+                   hintWidth)
+    }
+
     /// App-only mode keeps the same icon row and shortcut preference, but
     /// removes the entire preview area so no blank space remains where captures were.
     var simplePanelSize: CGSize {
-        CGSize(width: max(appRowSurfaceWidth,
-                          simpleTitleSurfaceWidth,
-                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
+        CGSize(width: contentWidth(simpleMode: true, windowRow: false) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
                         + Self.rowHeight + shortcutHintHeight
                         + Self.padding * 2)
@@ -182,8 +194,7 @@ struct SwitcherIconRowLayout: Equatable {
     /// A flat window row names every entry under its icon, so it needs no
     /// separate title strip above the row.
     var simpleWindowPanelSize: CGSize {
-        CGSize(width: max(appRowSurfaceWidth,
-                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
+        CGSize(width: contentWidth(simpleMode: true, windowRow: true) + Self.padding * 2,
                height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
     }
 
@@ -255,6 +266,26 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// How wide a window's name is in the font a card draws it in. Measured
+    /// against the font rather than a layout pass, so a card can decide whether
+    /// to scroll the name before the band has ever been on screen -- and a test
+    /// can ask the same question without one.
+    static func titleWidth(_ title: String,
+                           fontSize: CGFloat = 13,
+                           weight: NSFont.Weight = .regular) -> CGFloat {
+        guard !title.isEmpty else { return 0 }
+        let font = NSFont.systemFont(ofSize: fontSize, weight: weight)
+        return (title as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    static func titleOverflows(_ title: String,
+                               width: CGFloat,
+                               fontSize: CGFloat = 13,
+                               weight: NSFont.Weight = .regular) -> Bool {
+        guard width > 0 else { return false }
+        return titleWidth(title, fontSize: fontSize, weight: weight) > width
+    }
+
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 

@@ -37,40 +37,44 @@ struct CommandBarSettings: View {
     var body: some View {
         Form {
             Section {
-                Button {
-                    CommandBarService.shared.show()
-                } label: {
-                    Label(text.openButton, systemImage: "command")
-                }
-                Button {
-                    CommandBarService.shared.resetPanelPosition()
-                } label: {
-                    Label(text.resetPositionButton, systemImage: "arrow.uturn.backward")
-                }
-                .disabled(!service.hasCustomPosition)
-                Text(text.positionCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(text.settingsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Label(text.privacyNote, systemImage: "lock.laptopcomputer")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    Text(text.tryTheseLabel)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    ForEach(examples, id: \.self) { example in
-                        Text(example)
-                            .font(.system(size: 10.5, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                // One choice, open it or recenter it, so one row. Neither
+                // carries an icon: a ⌘ glyph in front of "Open the bar now"
+                // reads as the shortcut that opens it, which it is not.
+                HStack(spacing: 10) {
+                    Button(text.openButton) {
+                        CommandBarService.shared.show()
                     }
+                    Button(text.resetPositionButton) {
+                        CommandBarService.shared.resetPanelPosition()
+                    }
+                    .disabled(!service.hasCustomPosition)
                 }
-                Toggle(l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
+                // One row for the whole explanation. As separate rows the form
+                // drew a divider between every sentence, cutting one paragraph
+                // about one feature into four cards that looked like settings.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(text.positionCaption)
+                    Text(text.settingsCaption)
+                    Label(text.privacyNote, systemImage: "lock.laptopcomputer")
+                    HStack(spacing: 6) {
+                        Text(text.tryTheseLabel)
+                            .foregroundStyle(.tertiary)
+                        ForEach(examples, id: \.self) { example in
+                            Text(example)
+                                .font(.system(size: 10.5, design: .rounded))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                // Not the shared "Global shortcut" label the other feature
+                // pages use: this page already has an "open the bar" button at
+                // the top, so the toggle has to say which of the two it arms.
+                Toggle(text.shortcutToggle, isOn: $shortcutEnabled)
                     .onChange(of: shortcutEnabled) { _, _ in
                         CommandBarService.shared.syncWithPreferences()
                     }

@@ -15,6 +15,13 @@ enum UninstallerSupport {
         let kind: Kind
     }
 
+    /// The symbol a finished removal shows. A tick is for a removal that took
+    /// everything; anything left behind gets a warning, so a done state cannot
+    /// report success over its own survivors.
+    static func doneSymbol(hasLeftovers: Bool) -> String {
+        hasLeftovers ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
+    }
+
     static func verifiedBundleID(_ rawValue: String?) -> String? {
         guard let rawValue,
               CleanerSupport.looksLikeBundleID(rawValue),
