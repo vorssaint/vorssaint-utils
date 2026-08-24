@@ -31,6 +31,9 @@ All notable changes to this project are documented here. The format follows
 - Beta releases now automatically turn on the beta update channel on first launch, ensuring seamless delivery of subsequent beta updates.
 - Keep Awake now preserves the order of asynchronous closed-lid sleep requests when rapidly toggled. Thanks to @Tr1meputiNe.
 - The Uninstaller now names the items a removal could not move, and offers Full Disk Access on the spot when that permission is what stopped it. Sandboxed app data used to be left behind under a success tick. Thanks to @PathGao.
+- Rebuilding the display list after a hotplug, a wake or opening the panel no
+  longer reads the screen names from a background thread. The names the sliders
+  carry are unchanged. Thanks to @PathGao.
 
 ## [3.3.3-beta.1] - 2026-08-22
 
@@ -142,9 +145,6 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   @bayujo.
 - Stopping Music from opening on its own no longer blocks opening it from the
   Dock, Spotlight or Applications. Media keys still cannot launch it.
-- Rebuilding the display list after a hotplug, a wake or opening the panel no
-  longer reads the screen names from a background thread. The names the sliders
-  carry are unchanged. Thanks to @PathGao.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
 - Launch at login now names System Settings › General › Login Items & Extensions

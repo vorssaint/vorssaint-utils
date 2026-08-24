@@ -11209,9 +11209,6 @@ struct MetricsTests {
         // transaction belongs to the main thread. Getting it wrong hangs the
         // app rather than returning a wrong answer, and no pure helper can
         // carry that, so it is pinned against the CoreGraphics symbols.
-        let brightnessSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
-            encoding: .utf8)) ?? ""
         expect(brightnessSource.components(separatedBy: "CGBeginDisplayConfiguration(").count == 2
                && brightnessSource.components(separatedBy: "CGCompleteDisplayConfiguration(").count == 2,
                "every display power change goes through the one reconfiguration transaction")
