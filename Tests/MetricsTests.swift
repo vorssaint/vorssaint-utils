@@ -11958,6 +11958,25 @@ struct MetricsTests {
                "other bundle ids are not excluded")
         expect(!AlwaysOnTopSupport.isExcluded(bundleIdentifier: nil, exceptions: ["com.apple.Safari"]),
                "missing bundle id is not excluded")
+
+        let missing = AlwaysOnTopPinning(client: AlwaysOnTopStubClient(isAvailable: false))
+        expect(missing.pin(1) == nil, "missing private symbol is a no-op")
+
+        let stub = AlwaysOnTopStubClient()
+        stub.levels[42] = 0
+        let pinning = AlwaysOnTopPinning(client: stub)
+        let original = pinning.pin(42)
+        expect(original == 0, "pin remembers the original level")
+        expect(stub.levels[42] == AlwaysOnTopPinning.floatingLevel,
+               "pin sets the floating level")
+        expect(pinning.unpin(42, originalLevel: 0), "unpin restores")
+        expect(stub.levels[42] == 0, "unpin writes the recorded level back")
+
+        stub.setShouldFail.insert(99)
+        stub.levels[99] = 0
+        expect(pinning.pin(99) == nil, "failed pin leaves the window alone")
+        expect(stub.levels[99] == 0, "failed pin does not change the stored level")
+
         expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
                  == AppFeature.allCases.count,
                "every feature belongs to exactly one group")

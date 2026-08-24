@@ -285,6 +285,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift \
          Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
          Sources/Vorssaint/Services/AlwaysOnTop/AlwaysOnTopSupport.swift \
+         Sources/Vorssaint/Services/AlwaysOnTop/AlwaysOnTopPinning.swift \
          Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
