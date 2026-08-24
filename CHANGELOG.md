@@ -20,6 +20,8 @@ All notable changes to this project are documented here. The format follows
 - Embedded utilities in the Quick Launcher now provide distinct Back and Close buttons. Thanks to @ruvelro.
 
 ### Fixed
+- System metrics now accurately report used memory by including hardware-reserved tagged memory on supported hardware. Thanks to @pergioa and @PathGao.
+- App Switcher now steps one icon at a time when hovering the edge of an overflowing icon row instead of scrolling continuously. Thanks to @BenjaminD2023.
 - App Switcher now scales windowless app icons and labels proportionally when preview size is set to small. Thanks to @Yahddyyp.
 - Screenshot editor now opens the full-resolution image when editing a file copied in Finder instead of its preview icon. Thanks to @iltonandrew.
 - App Switcher now shows an application's user-selected alternate icon instead of the default bundled icon. Thanks to @iltonandrew and @EugeneCarldotme.
@@ -42,6 +44,13 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
 - Clean URL now removes the tracking parameters that YouTube, X, Instagram, Spotify,
   Reddit, TikTok, Bilibili and Xiaohongshu add to their own share links, while leaving
   the same parameter names alone on every other site. Thanks to @PathGao.
+- Clean URL now lists every rule it applies in Settings, where any name can be switched off
+  and names of your own can be added to one site or to every site. A whole site's rules can
+  be turned off at once, and the list says what the names are for. Cleaning now also names
+  the parameters it removed. Thanks to @PathGao.
+
+- The Clean URL switch now says when it acts: it cleans a link as it reaches the
+  clipboard, rather than reading as a name for the page it sits on.
 - An opt-in Kill Process feature searches running processes to force quit, restart or terminate
   process trees from Settings and the Command Bar. It ships uninstalled. Thanks to @naveenkrdy.
 - The System panel now shows compressed memory and cached files next to swap.
