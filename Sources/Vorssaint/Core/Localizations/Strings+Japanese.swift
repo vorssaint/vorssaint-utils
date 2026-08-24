@@ -536,6 +536,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "ヘッドフォン切断時に音量を下げる",
         mixerLowerOnHeadphonesDisconnectCaption: "有線またはBluetoothヘッドフォンが切断されたら出力を調整します。",
         mixerHeadphonesDisconnectVolume: "切断後の音量",
+        preciseVolumeRollerEnable: "より細かい音量ステップを使う",
+        preciseVolumeRollerCaption: "音量ホイールやキーを、より小さなシステム音量ステップに変換します。",
+        preciseVolumeRollerTapFailed: "音量キーを監視できませんでした。",
         soundOutputSwitcherTitle: "出力切り替え",
         soundOutputSwitcherEnable: "ショートカットで出力を切り替える",
         soundOutputSwitcherCaption: "出力を選び、ショートカットで次に利用可能な出力へ切り替えます。",
@@ -935,6 +938,11 @@ extension Strings {
         shelfEdgeCaption: "ファイルを画面の端に向けてドラッグすると、シェルフが少しだけ現れます。そこでドロップするか、手を戻すとシェルフは引っ込みます。",
         focusFollowsMouseName: "マウス追従フォーカス",
         focusFollowsMouseCaption: "短い停止後、ポインタの下にあるウインドウをフォーカスして手前に表示します。",
-        focusFollowsMouseDelay: "ホバー遅延"
+        focusFollowsMouseDelay: "ホバー遅延",
+        switcherMinimizedPlacementLabel: "最小化されたウインドウ",
+        switcherMinimizedPlacementNormal: "通常の順序",
+        switcherMinimizedPlacementEnd: "最後に配置",
+        switcherMinimizedPlacementHidden: "非表示",
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示" 
     )
 }

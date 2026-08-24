@@ -537,6 +537,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Снижать громкость при отключении наушников",
         mixerLowerOnHeadphonesDisconnectCaption: "Меняет громкость выхода при отключении проводных или Bluetooth-наушников.",
         mixerHeadphonesDisconnectVolume: "Громкость после отключения",
+        preciseVolumeRollerEnable: "Использовать более точные шаги громкости",
+        preciseVolumeRollerCaption: "Преобразует колесики и клавиши громкости в меньшие системные шаги.",
+        preciseVolumeRollerTapFailed: "Не удалось отслеживать клавиши громкости.",
         soundOutputSwitcherTitle: "Переключатель выхода",
         soundOutputSwitcherEnable: "Переключать выходы горячей клавишей",
         soundOutputSwitcherCaption: "Выберите выходы и используйте сочетание клавиш, чтобы перейти к следующему доступному.",
@@ -936,6 +939,11 @@ extension Strings {
         shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся.",
         focusFollowsMouseName: "Фокус следует за мышью",
         focusFollowsMouseCaption: "Фокусирует и поднимает окно под указателем после короткой паузы.",
-        focusFollowsMouseDelay: "Задержка наведения"
+        focusFollowsMouseDelay: "Задержка наведения",
+        switcherMinimizedPlacementLabel: "Свёрнутые окна",
+        switcherMinimizedPlacementNormal: "Обычный порядок",
+        switcherMinimizedPlacementEnd: "В конец списка",
+        switcherMinimizedPlacementHidden: "Скрывать",
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
     )
 }

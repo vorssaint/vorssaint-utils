@@ -537,6 +537,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "헤드폰 연결 해제 시 볼륨 낮추기",
         mixerLowerOnHeadphonesDisconnectCaption: "유선 또는 Bluetooth 헤드폰이 연결 해제되면 출력을 조정합니다.",
         mixerHeadphonesDisconnectVolume: "연결 해제 후 볼륨",
+        preciseVolumeRollerEnable: "더 세밀한 볼륨 단계 사용",
+        preciseVolumeRollerCaption: "볼륨 휠과 키를 더 작은 시스템 볼륨 단계로 바꿉니다.",
+        preciseVolumeRollerTapFailed: "볼륨 키를 감지할 수 없습니다.",
         soundOutputSwitcherTitle: "출력 전환",
         soundOutputSwitcherEnable: "단축키로 출력 전환",
         soundOutputSwitcherCaption: "출력을 선택하고 단축키로 다음 사용 가능한 출력으로 전환합니다.",
@@ -936,6 +939,11 @@ extension Strings {
         shelfEdgeCaption: "파일을 화면 가장자리 쪽으로 드래그하면 선반이 살짝 나타납니다. 그 자리에 놓거나, 다시 뒤로 당기면 선반이 들어갑니다.",
         focusFollowsMouseName: "마우스를 따라 포커스",
         focusFollowsMouseCaption: "잠시 멈춘 뒤 포인터 아래의 윈도우에 포커스를 주고 앞으로 가져옵니다.",
-        focusFollowsMouseDelay: "호버 지연"
+        focusFollowsMouseDelay: "호버 지연",
+        switcherMinimizedPlacementLabel: "최소화된 윈도우",
+        switcherMinimizedPlacementNormal: "일반 순서",
+        switcherMinimizedPlacementEnd: "끝으로 보내기",
+        switcherMinimizedPlacementHidden: "숨기기",
+        switcherShowFullscreenWindows: "전체 화면 윈도우 표시" 
     )
 }

@@ -254,7 +254,7 @@ extension AppFeature {
         case .homebrew: return [.automationTerminal, .appManagement]
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
-        case .mixer: return [.audioCapture]
+        case .mixer: return [.audioCapture, .accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .musicBlock,
@@ -314,6 +314,8 @@ extension AppFeature {
                         stringFor(DefaultsKey.radialMenuMouseButton)) != .off
             case (.keepAwake, .accessibility):
                 return boolFor(DefaultsKey.keepAwakeMouseJiggleEnabled)
+            case (.mixer, .accessibility):
+                return boolFor(DefaultsKey.preciseVolumeRollerEnabled)
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)

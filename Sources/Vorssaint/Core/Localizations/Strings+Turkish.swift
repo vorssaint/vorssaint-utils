@@ -536,6 +536,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Kulaklık bağlantısı kesilince sesi düşür",
         mixerLowerOnHeadphonesDisconnectCaption: "Kablolu veya Bluetooth kulaklık bağlantısı kesildiğinde çıkışı seçilen seviyeye ayarlar.",
         mixerHeadphonesDisconnectVolume: "Bağlantı kesilince ses",
+        preciseVolumeRollerEnable: "Daha hassas ses adımları kullan",
+        preciseVolumeRollerCaption: "Ses tekerleklerini ve tuşlarını daha küçük sistem adımlarına dönüştürür.",
+        preciseVolumeRollerTapFailed: "Ses tuşları dinlenemedi.",
         soundOutputSwitcherTitle: "Çıkış değiştirici",
         soundOutputSwitcherEnable: "Çıkışları kısayolla değiştir",
         soundOutputSwitcherCaption: "Çıkışları seç ve kısayolla bir sonraki kullanılabilir çıkışa geç.",
@@ -935,6 +938,11 @@ extension Strings {
         shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir.",
         focusFollowsMouseName: "Odak fareyi takip etsin",
         focusFollowsMouseCaption: "Kısa bir beklemeden sonra işaretçinin altındaki pencereye odaklanır ve öne getirir.",
-        focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi"
+        focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi",
+        switcherMinimizedPlacementLabel: "Küçültülmüş pencereler",
+        switcherMinimizedPlacementNormal: "Normal sıralama",
+        switcherMinimizedPlacementEnd: "Sona yerleştir",
+        switcherMinimizedPlacementHidden: "Gizle",
+        switcherShowFullscreenWindows: "Tam ekran pencereleri göster" 
     )
 }

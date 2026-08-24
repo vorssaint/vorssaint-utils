@@ -13,16 +13,21 @@ struct MixerSection: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
+    @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
     private var hideInactiveApps = false
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+    @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
+    private var preciseVolumeRollerEnabled = false
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var soundOutputSwitcherEnabled = false
     @State private var soundOutputSwitcherUIDs: [String] = []
     @State private var showListChooser = false
+    @State private var optionsExpanded = false
     @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
@@ -32,12 +37,8 @@ struct MixerSection: View {
     var body: some View {
         PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
             VStack(alignment: .leading, spacing: 8) {
-                outputPickers
-                headphoneDisconnectProtectionToggle
-                if AppFeature.soundOutputSwitcher.isAvailable {
-                    soundOutputSwitcherControls
-                }
-                microphonePicker
+                audioDevicesSection
+
                 if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
                     Divider()
                 }
@@ -51,11 +52,9 @@ struct MixerSection: View {
                 } else {
                     mixerRows
                 }
-                if AppVolumeMixer.isSupported, !listChoices.isEmpty {
-                    Divider()
-                    inactiveAppsVisibilityToggle
-                    listVisibilityFooter
-                }
+
+                Divider()
+                optionsDisclosure
             }
             .panelCard()
         }
@@ -70,13 +69,53 @@ struct MixerSection: View {
         }
     }
 
-    private var outputPickers: some View {
+    private var audioDevicesSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             universalOutputPicker
             systemSoundOutputPicker
+            microphonePicker
             if let outputSwitchError = mixer.outputSwitchError {
                 inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
                              systemImage: "exclamationmark.triangle")
+            }
+        }
+    }
+
+    private var optionsDisclosure: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                optionsExpanded.toggle()
+            } label: {
+                HStack(spacing: 7) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 12)
+                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                    Text(l10n.s.keepAwakeOptions)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if optionsExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    if AppVolumeMixer.isSupported {
+                        inactiveAppsVisibilityToggle
+                    }
+                    headphoneDisconnectProtectionToggle
+                    preciseVolumeRollerToggle
+                    if AppFeature.soundOutputSwitcher.isAvailable {
+                        soundOutputSwitcherControls
+                    }
+                    if AppVolumeMixer.isSupported, !listChoices.isEmpty {
+                        listVisibilityFooter
+                    }
+                }
+                .padding(.leading, 19)
             }
         }
     }
@@ -280,6 +319,36 @@ struct MixerSection: View {
 
     private var headphonesDisconnectDisplayPercent: Int {
         Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(headphonesDisconnectVolumePercent)
+    }
+
+    private var preciseVolumeRollerToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.preciseVolumeRollerEnable, isOn: $preciseVolumeRollerEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: preciseVolumeRollerEnabled) { _, enabled in
+                    if enabled { permissions.requestAccessibility() }
+                    PreciseVolumeRollerService.shared.syncWithPreferences()
+                }
+
+            Text(l10n.s.preciseVolumeRollerCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if preciseVolumeRollerEnabled, !permissions.accessibility {
+                Button {
+                    Permissions.shared.openAccessibilitySettings()
+                } label: {
+                    Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 10.5, weight: .medium))
+            } else if preciseVolumeRoller.tapFailed {
+                inputMessage(l10n.s.preciseVolumeRollerTapFailed,
+                             systemImage: "exclamationmark.triangle")
+            }
+        }
     }
 
     private var soundOutputSwitcherControls: some View {
@@ -500,7 +569,6 @@ struct MixerSection: View {
                 }
             }
         }
-        .animation(.easeOut(duration: 0.15), value: showListChooser)
     }
 
     private func listedBinding(for choice: MixerListChoice) -> Binding<Bool> {
