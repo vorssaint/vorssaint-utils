@@ -661,6 +661,9 @@ struct Strings {
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
     let mixerHeadphonesDisconnectVolume: String
+    let preciseVolumeRollerEnable: String
+    let preciseVolumeRollerCaption: String
+    let preciseVolumeRollerTapFailed: String
     let soundOutputSwitcherTitle: String
     let soundOutputSwitcherEnable: String
     let soundOutputSwitcherCaption: String
@@ -1064,10 +1067,19 @@ struct Strings {
     let memoryMetricApp: String
     let keepAwakeRightClickToggle: String
     let keepAwakeRightClickToggleCaption: String
-    let urlCleanerCustomTitle: String
-    let urlCleanerCustomPlaceholder: String
-    let urlCleanerCustomCaption: String
-    let urlCleanerCustomSaveButton: String
+    let urlCleanerRulesTitle: String
+    let urlCleanerRulesCaption: String
+    let urlCleanerRulesCoverageCaption: String
+    let urlCleanerRulesAllSites: String
+    let urlCleanerRulesCountSingular: String
+    let urlCleanerRulesCountPluralFormat: String   // + count
+    let urlCleanerRulesAddSite: String
+    let urlCleanerRulesParameterPlaceholder: String
+    let urlCleanerRulesMatchCaption: String
+    let urlCleanerRulesAddButton: String
+    let urlCleanerRulesRemoveButton: String
+    let urlCleanerRulesRemoveSiteButton: String
+    let urlCleanerRemovedFormat: String            // + comma separated names
     let switcherSearchPin: String
     let switcherSearchPinCaption: String
     let invertVerticalScroll: String
@@ -1080,6 +1092,11 @@ struct Strings {
     let focusFollowsMouseName: String
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
+    let switcherMinimizedPlacementLabel: String
+    let switcherMinimizedPlacementNormal: String
+    let switcherMinimizedPlacementEnd: String
+    let switcherMinimizedPlacementHidden: String
+    let switcherShowFullscreenWindows: String
 }
 
 // MARK: - Português (Brasil)
@@ -1392,8 +1409,8 @@ extension Strings {
         uninstallerCatOther: "Outros",
 
         urlCleanerName: "Limpar URL",
-        urlCleanerEnable: "Limpar URLs copiadas",
-        urlCleanerEnableCaption: "Remove parâmetros de rastreamento de links copiados.",
+        urlCleanerEnable: "Limpar URLs ao copiar",
+        urlCleanerEnableCaption: "Remove os parâmetros de rastreamento de um link assim que ele chega à área de transferência.",
         urlCleanerActiveNow: "Ativo agora",
         urlCleanerManualTitle: "Limpar agora",
         urlCleanerInputPlaceholder: "Cole uma URL",
@@ -1617,6 +1634,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
         mixerHeadphonesDisconnectVolume: "Volume ao desconectar",
+        preciseVolumeRollerEnable: "Volume mais preciso no controle",
+        preciseVolumeRollerCaption: "Transforma roletes e teclas de volume em passos menores.",
+        preciseVolumeRollerTapFailed: "Não foi possível ouvir as teclas de volume.",
         soundOutputSwitcherTitle: "Alternador de saída",
         soundOutputSwitcherEnable: "Alternar saídas por atalho",
         soundOutputSwitcherCaption: "Escolha as saídas e use o atalho para passar para a próxima disponível.",
@@ -2001,10 +2021,19 @@ extension Strings {
         memoryMetricApp: "Memória de apps",
         keepAwakeRightClickToggle: "Clique com o botão direito no ícone da barra de menus para alternar “Manter acordado”",
         keepAwakeRightClickToggleCaption: "Substitui o menu de contexto do clique com o botão direito.",
-        urlCleanerCustomTitle: "Mais nomes para remover",
-        urlCleanerCustomPlaceholder: "ref, origem",
-        urlCleanerCustomCaption: "Separe os nomes dos parâmetros com vírgulas. Eles serão removidos de todos os links.",
-        urlCleanerCustomSaveButton: "Salvar",
+        urlCleanerRulesTitle: "Regras de limpeza",
+        urlCleanerRulesCaption: "Um site anexa estes parâmetros aos próprios links de compartilhamento para rastrear de onde o link veio. Ligado, o nome é removido ao limpar um link; desligado, ele permanece. Os nomes que você adicionar podem ser excluídos.",
+        urlCleanerRulesCoverageCaption: "A lista cobre os diferentes caminhos de compartilhamento de um site — a página, o app, uma sala ao vivo — por isso é longa; um link real costuma carregar apenas dois a quatro deles.",
+        urlCleanerRulesAllSites: "Todos os sites",
+        urlCleanerRulesCountSingular: "1 parâmetro",
+        urlCleanerRulesCountPluralFormat: "%d parâmetros",
+        urlCleanerRulesAddSite: "Adicionar site",
+        urlCleanerRulesParameterPlaceholder: "Nome do parâmetro",
+        urlCleanerRulesMatchCaption: "Escreva o nome à esquerda do = , como utm_source. Um nome que corresponde tira aquele parâmetro do link e deixa o resto como está.",
+        urlCleanerRulesAddButton: "Adicionar",
+        urlCleanerRulesRemoveButton: "Excluir nome",
+        urlCleanerRulesRemoveSiteButton: "Desativar todas as regras deste site",
+        urlCleanerRemovedFormat: "Removidos %@",
         switcherSearchPin: "Fixar busca com S",
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
         invertVerticalScroll: "Inverter rolagem vertical",
@@ -2016,7 +2045,12 @@ extension Strings {
         shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua.",
         focusFollowsMouseName: "Foco ao passar o mouse",
         focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
-        focusFollowsMouseDelay: "Atraso ao passar o mouse"
+        focusFollowsMouseDelay: "Atraso ao passar o mouse",
+        switcherMinimizedPlacementLabel: "Janelas minimizadas",
+        switcherMinimizedPlacementNormal: "Ordem normal",
+        switcherMinimizedPlacementEnd: "Colocar no final",
+        switcherMinimizedPlacementHidden: "Ocultar",
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
     )
 }
 
@@ -2330,8 +2364,8 @@ extension Strings {
         uninstallerCatOther: "Other",
 
         urlCleanerName: "Clean URL",
-        urlCleanerEnable: "Clean copied URLs",
-        urlCleanerEnableCaption: "Removes tracking parameters from copied links.",
+        urlCleanerEnable: "Clean URLs as you copy them",
+        urlCleanerEnableCaption: "Removes tracking parameters from a link the moment it reaches the clipboard.",
         urlCleanerActiveNow: "Active now",
         urlCleanerManualTitle: "Clean now",
         urlCleanerInputPlaceholder: "Paste a URL",
@@ -2555,6 +2589,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
         mixerHeadphonesDisconnectVolume: "Volume after disconnect",
+        preciseVolumeRollerEnable: "Use finer volume steps",
+        preciseVolumeRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
+        preciseVolumeRollerTapFailed: "Could not listen for volume keys.",
         soundOutputSwitcherTitle: "Output switcher",
         soundOutputSwitcherEnable: "Switch outputs with shortcut",
         soundOutputSwitcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
@@ -2939,10 +2976,19 @@ extension Strings {
         memoryMetricApp: "App Memory",
         keepAwakeRightClickToggle: "Right-click the menu bar icon to toggle Keep Awake",
         keepAwakeRightClickToggleCaption: "Replaces the right-click context menu.",
-        urlCleanerCustomTitle: "More names to remove",
-        urlCleanerCustomPlaceholder: "ref, source",
-        urlCleanerCustomCaption: "Separate parameter names with commas. They are removed from every link.",
-        urlCleanerCustomSaveButton: "Save",
+        urlCleanerRulesTitle: "Cleaning rules",
+        urlCleanerRulesCaption: "A site attaches these parameters to its own share links to track where the link came from. Switched on, a name is removed when a link is cleaned; switched off, it stays. Names you add can be deleted.",
+        urlCleanerRulesCoverageCaption: "The list covers a site's different share paths — the web page, the app, a live room — which is why it is long; a real link usually carries only two to four of them.",
+        urlCleanerRulesAllSites: "All sites",
+        urlCleanerRulesCountSingular: "1 parameter",
+        urlCleanerRulesCountPluralFormat: "%d parameters",
+        urlCleanerRulesAddSite: "Add a site",
+        urlCleanerRulesParameterPlaceholder: "Parameter name",
+        urlCleanerRulesMatchCaption: "Write the name to the left of the = , like utm_source. A name that matches takes that one parameter out of the link and leaves the rest as it was.",
+        urlCleanerRulesAddButton: "Add",
+        urlCleanerRulesRemoveButton: "Delete name",
+        urlCleanerRulesRemoveSiteButton: "Turn off every rule for this site",
+        urlCleanerRemovedFormat: "Removed %@",
         switcherSearchPin: "Pin search with S",
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",
         invertVerticalScroll: "Invert vertical scrolling",
@@ -2954,6 +3000,11 @@ extension Strings {
         shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats.",
         focusFollowsMouseName: "Focus follows mouse",
         focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
-        focusFollowsMouseDelay: "Hover delay"
+        focusFollowsMouseDelay: "Hover delay",
+        switcherMinimizedPlacementLabel: "Minimized windows",
+        switcherMinimizedPlacementNormal: "Normal ordering",
+        switcherMinimizedPlacementEnd: "Place at end",
+        switcherMinimizedPlacementHidden: "Hide",
+        switcherShowFullscreenWindows: "Show fullscreen windows"
     )
 }

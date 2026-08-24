@@ -45,6 +45,15 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: CopySpacesFunction.self)
     }()
 
+    /// Whether `spaces(of:)` can actually answer in this session. Callers use
+    /// it to tell "this surface belongs to no Space" (the leftover signature)
+    /// apart from "the Space queries are unavailable here", so a macOS that
+    /// drops the private symbol keeps the pre-existing behavior instead of
+    /// misreading every window as a leftover (issue #807).
+    static var canResolveSpaces: Bool {
+        connection != 0 && copySpacesForWindows != nil
+    }
+
     /// Every Space (user desktops and fullscreen Spaces alike) containing the
     /// window. Empty for leftover surfaces, and when the query is unavailable.
     static func spaces(of windowID: CGWindowID) -> [UInt64] {

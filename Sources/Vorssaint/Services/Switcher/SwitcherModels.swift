@@ -4,6 +4,12 @@
 import AppKit
 import CoreGraphics
 
+enum WindowSwitchMinimizedPlacement: String, CaseIterable {
+    case normal
+    case end
+    case hidden
+}
+
 /// One selectable entry in the switcher. Most entries are real user-facing
 /// windows; Finder can also appear as an app entry when it has no windows, so
 /// the user can still switch to the desktop/menu bar like the system switcher.
@@ -78,8 +84,15 @@ struct SwitcherItem: Identifiable, Equatable {
         return label
     }
 
+    /// Read from the bundle on disk, the same icon Finder and the Dock draw,
+    /// so an app whose user picked one of its alternate icons shows the one
+    /// they picked. Asking the running process instead hands back one cached
+    /// NSImage for the app's whole life, and a view that already drew it never
+    /// redraws it, so the switcher stayed on the bundled icon (issue #801).
     var appIcon: NSImage? {
-        NSRunningApplication(processIdentifier: pid)?.icon
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        guard let bundlePath = app.bundleURL?.path else { return app.icon }
+        return NSWorkspace.shared.icon(forFile: bundlePath)
     }
 
     func withMinimized(_ minimized: Bool) -> SwitcherItem {
