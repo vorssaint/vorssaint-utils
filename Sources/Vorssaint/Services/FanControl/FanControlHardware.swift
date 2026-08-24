@@ -427,4 +427,15 @@ final class FanControlHardware {
         }
         return false
     }
+
+    /// Check if the mac has a fan that can be controlled
+    /// Gets computed once and then cached
+    static let hasControllableFan: Bool = {
+        guard let client = SMCClient(),
+        let key = client.key(named: "FNUM"),
+        let value = client.readValue(key) else {
+            return false
+        }
+        return FanControlPolicy.fanCount(from: value) != nil
+    }()
 }

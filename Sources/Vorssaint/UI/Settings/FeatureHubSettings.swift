@@ -224,6 +224,9 @@ private struct FeatureHubRow: View {
     let hub: FeatureHubStrings
 
     private var installed: Bool { feature.isAvailable }
+    private var isUnsupportedHardware: Bool {
+        feature == .fanControl && !FanControlHardware.hasControllableFan
+    }
 
     private var accessibilityTitle: String {
         let title = feature.hubTitle(l10n.s, hub: hub)
@@ -243,7 +246,7 @@ private struct FeatureHubRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            if installed, feature.hasNavigableSettingsDestination {
+            if installed, feature.hasNavigableSettingsDestination, !isUnsupportedHardware {
                 Button {
                     SettingsRouter.shared.request(feature.settingsDestination)
                 } label: {
@@ -258,6 +261,8 @@ private struct FeatureHubRow: View {
                 rowContent(showsChevron: false)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                    .opacity(isUnsupportedHardware ? 0.4 : 1)
+                    .saturation(isUnsupportedHardware ? 0 : 1)
             }
             if working {
                 ProgressView()
@@ -268,10 +273,18 @@ private struct FeatureHubRow: View {
                     .controlSize(.small)
                     .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
             } else {
-                Button(hub.installButton) { flip(to: true) }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
+                if isUnsupportedHardware {
+                    Button(hub.installButton) { flip(to: true) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(true)
+                        .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
+                } else {
+                    Button(hub.installButton) { flip(to: true) }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
+                }
             }
         }
         .padding(.vertical, 1)

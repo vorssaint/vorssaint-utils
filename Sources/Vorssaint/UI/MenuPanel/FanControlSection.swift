@@ -82,6 +82,16 @@ struct FanControlCardContent: View {
     let stopCooling: () -> Void
 
     var body: some View {
+        content
+            .opacity(isFanless ? 0.4 : 1)
+            .saturation(isFanless ? 0 : 1)
+            .allowsHitTesting(!isFanless)
+            .help(isFanless ? strings.noFans : "")
+    }
+
+    private var isFanless: Bool { error == .noFans }
+
+    private var content: some View {
         VStack(alignment: .leading, spacing: 10) {
             statusHeader
 
@@ -277,7 +287,7 @@ struct FanControlCardContent: View {
     }
 
     private var stateMessage: String? {
-        if error == .noFans { return strings.noFans }
+        if isFanless { return nil }
         if accessState == .unavailable { return strings.unsupported }
         switch error {
         case .alreadyControlled: return strings.alreadyControlled
