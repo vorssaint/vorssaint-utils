@@ -536,6 +536,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Abbassa il volume quando le cuffie si scollegano",
         mixerLowerOnHeadphonesDisconnectCaption: "Regola l'uscita quando cuffie cablate o Bluetooth si scollegano.",
         mixerHeadphonesDisconnectVolume: "Volume dopo disconnessione",
+        preciseVolumeRollerEnable: "Usa passi volume più fini",
+        preciseVolumeRollerCaption: "Trasforma rotelle e tasti volume in passi di sistema più piccoli.",
+        preciseVolumeRollerTapFailed: "Impossibile ascoltare i tasti volume.",
         soundOutputSwitcherTitle: "Selettore uscita",
         soundOutputSwitcherEnable: "Cambia uscite con scorciatoia",
         soundOutputSwitcherCaption: "Scegli le uscite e usa la scorciatoia per passare alla prossima disponibile.",
@@ -935,6 +938,11 @@ extension Strings {
         shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira.",
         focusFollowsMouseName: "Il focus segue il mouse",
         focusFollowsMouseCaption: "Mette a fuoco e porta in primo piano la finestra sotto il puntatore dopo una breve pausa.",
-        focusFollowsMouseDelay: "Ritardo al passaggio"
+        focusFollowsMouseDelay: "Ritardo al passaggio",
+        switcherMinimizedPlacementLabel: "Finestre ridotte a icona",
+        switcherMinimizedPlacementNormal: "Ordine normale",
+        switcherMinimizedPlacementEnd: "Sposta alla fine",
+        switcherMinimizedPlacementHidden: "Nascondi",
+        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero" 
     )
 }

@@ -536,6 +536,9 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Lautstärke senken, wenn Kopfhörer getrennt werden",
         mixerLowerOnHeadphonesDisconnectCaption: "Passt die Ausgabe an, wenn kabelgebundene oder Bluetooth-Kopfhörer getrennt werden.",
         mixerHeadphonesDisconnectVolume: "Lautstärke nach Trennung",
+        preciseVolumeRollerEnable: "Feinere Lautstärkeschritte verwenden",
+        preciseVolumeRollerCaption: "Macht aus Lautstärkerädern und -tasten kleinere Systemschritte.",
+        preciseVolumeRollerTapFailed: "Lautstärketasten konnten nicht überwacht werden.",
         soundOutputSwitcherTitle: "Ausgabeumschalter",
         soundOutputSwitcherEnable: "Ausgaben per Kurzbefehl wechseln",
         soundOutputSwitcherCaption: "Wähle Ausgaben und nutze den Kurzbefehl für die nächste verfügbare.",
@@ -935,6 +938,11 @@ extension Strings {
         shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
         focusFollowsMouseName: "Fokus folgt Maus",
         focusFollowsMouseCaption: "Fokussiert das Fenster unter dem Zeiger und bringt es nach kurzer Pause nach vorn.",
-        focusFollowsMouseDelay: "Verzögerung"
+        focusFollowsMouseDelay: "Verzögerung",
+        switcherMinimizedPlacementLabel: "Minimierte Fenster",
+        switcherMinimizedPlacementNormal: "Normale Reihenfolge",
+        switcherMinimizedPlacementEnd: "Ans Ende stellen",
+        switcherMinimizedPlacementHidden: "Ausblenden",
+        switcherShowFullscreenWindows: "Vollbildfenster anzeigen" 
     )
 }
