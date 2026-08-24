@@ -953,7 +953,7 @@ private struct WindowCard: View {
             VStack(spacing: 2) {
                 ScrollingTitle(text: window.displayTitle,
                                weight: isSelected ? .semibold : .regular,
-                               width: SwitcherGrid.cardWidth - 28,
+                               width: SwitcherGridCard.titleWidth,
                                scrolls: isHovering)
                     .foregroundStyle(isSelected ? .primary : .secondary)
                 if let subtitle = window.displaySubtitle {
@@ -965,10 +965,10 @@ private struct WindowCard: View {
                 }
             }
             .frame(height: SwitcherGridCard.titleHeight, alignment: .top)
-                .frame(maxWidth: SwitcherGridCard.thumbnailWidth - 8)
+                .frame(maxWidth: SwitcherGridCard.titleWidth)
         }
         .padding(SwitcherGridCard.padding)
-        .frame(width: SwitcherGrid.cardWidth, height: SwitcherGrid.cardHeight)
+        .frame(width: SwitcherGridCard.width, height: SwitcherGridCard.height)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(isSelected ? Color.white.opacity(0.14) : Color.clear)

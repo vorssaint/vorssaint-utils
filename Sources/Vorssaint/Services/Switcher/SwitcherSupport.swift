@@ -139,8 +139,12 @@ enum SwitcherGridCard {
     static let titleHeight: CGFloat = 31
     static var thumbnailWidth: CGFloat { width - padding * 2 }
     static var thumbnailHeight: CGFloat { height - padding * 2 - titleSpacing - titleHeight }
-    /// Stands in for a thumbnail that has not arrived, so it follows the
-    /// thumbnail's size rather than staying the one fixed picture on the card.
+    /// The title band sits inside the thumbnail's width so a long name stops
+    /// short of the card's rounded corners.
+    static var titleWidth: CGFloat { thumbnailWidth - 8 }
+    /// Stands in for a thumbnail that has not arrived, so it has to stay
+    /// inside the thumbnail at every preview size (#793 gave it the scale;
+    /// naming it is what lets a test hold it to the thumbnail it sits in).
     static var fallbackIconSize: CGFloat { 80 * PreviewSizing.scale }
 }
 
