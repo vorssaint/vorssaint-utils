@@ -3,6 +3,7 @@
 
 import AppKit
 import ImageIO
+import UniformTypeIdentifiers
 
 /// The screenshot tool: freeze-first area, window and full screen capture
 /// with an annotation editor, pinned floating captures and direct clipboard
@@ -482,7 +483,7 @@ final class ScreenshotService: ObservableObject {
     private static func clipboardCapture(
         from pasteboard: NSPasteboard
     ) -> ScreenshotSelectionController.Capture? {
-        guard let image = NSImage(pasteboard: pasteboard),
+        guard let image = clipboardImage(from: pasteboard),
               image.size.width > 0, image.size.height > 0
         else { return nil }
         var rect = CGRect(origin: .zero, size: image.size)
@@ -496,6 +497,22 @@ final class ScreenshotService: ObservableObject {
         return ScreenshotSelectionController.Capture(image: cgImage,
                                                      scale: scale,
                                                      anchorRect: .zero)
+    }
+
+    /// Copying a file in Finder leaves both its URL and a small icon preview on
+    /// the pasteboard, so the file on disk wins whenever it is a readable image.
+    private static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [
+            .urlReadingFileURLsOnly: true,
+            .urlReadingContentsConformToTypes: [UTType.image.identifier]
+        ]
+        if let url = (pasteboard.readObjects(forClasses: [NSURL.self],
+                                             options: options) as? [NSURL])?.first as URL?,
+           let image = NSImage(contentsOf: url),
+           image.size.width > 0, image.size.height > 0 {
+            return image
+        }
+        return NSImage(pasteboard: pasteboard)
     }
 
     func editorDidClose(_ editor: ScreenshotEditorController) {

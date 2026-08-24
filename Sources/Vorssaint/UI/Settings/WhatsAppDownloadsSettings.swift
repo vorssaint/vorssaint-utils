@@ -11,6 +11,7 @@ struct WhatsAppDownloadsSettings: View {
     @ObservedObject private var organizer = WhatsAppDownloadOrganizer.shared
     @ObservedObject private var permissions = Permissions.shared
 
+    @AppStorage(DefaultsKey.whatsAppDownloadsEnabled) private var enabled = false
     @AppStorage(DefaultsKey.whatsAppDownloadsAutomaticEnabled) private var automatic = false
     @AppStorage(DefaultsKey.whatsAppDownloadsCategories) private var categoriesRaw = "image,video,audio"
     @AppStorage(DefaultsKey.whatsAppDownloadsRetentionDays) private var retentionDays = 7
@@ -96,6 +97,7 @@ struct WhatsAppDownloadsSettings: View {
 
     private var introductionSection: some View {
         Section {
+            Toggle(text.title, isOn: $enabled)
             Text(organizerEnabled ? organizerText.privacyNote : text.intro)
                 .font(.callout)
             HStack(spacing: 8) {

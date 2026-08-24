@@ -170,6 +170,16 @@ enum MixerRoutingSupport {
         abs(volume - 1) < 0.005
     }
 
+    /// Inactive apps with a custom volume or output remain visible so hiding
+    /// idle rows can never conceal a setting the user may want to undo.
+    static func shouldShowApp(isPlaying: Bool,
+                              volume: Double,
+                              selectedOutputDeviceUID: String?,
+                              hideInactiveApps: Bool) -> Bool {
+        guard hideInactiveApps else { return true }
+        return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
+    }
+
     /// Turns the text entered beside a mixer slider into its gain. The field
     /// accepts the same optional percent sign it displays, while the caller
     /// supplies the limit (100 for the system output, 200 for an app row).

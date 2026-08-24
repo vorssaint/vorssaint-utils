@@ -165,6 +165,7 @@ final class FeatureRuntime: ObservableObject {
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
         .diskImageInstaller: { DiskImageInstallerService.shared.syncWithPreferences() },
         .mixer: {
+            PreciseVolumeRollerService.shared.syncWithPreferences()
             AppVolumeMixer.shared.syncWithPreferences()
             AudioInputDeviceManager.shared.syncWithPreferences()
         },
@@ -177,6 +178,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
+        .bluetoothSleep: { BluetoothSleepService.shared.syncWithPreferences() },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
         .colorPicker: {
             ScreenCaptureService.shared.syncWithPreferences()
@@ -201,7 +203,7 @@ final class FeatureRuntime: ObservableObject {
             CleanerScheduler.shared.syncWithPreferences()
             WhatsAppDownloadScheduler.shared.syncWithPreferences()
             WhatsAppDownloadOrganizer.shared.syncWithPreferences()
-            if !AppFeature.cleaner.isAvailable {
+            if !AppFeature.cleaner.isAvailable || !WhatsAppDownloadSupport.isEnabled {
                 WhatsAppDownloadManager.shared.reset()
                 WhatsAppDownloadOrganizer.shared.stop()
             }

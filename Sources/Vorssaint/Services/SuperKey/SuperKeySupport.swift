@@ -244,10 +244,6 @@ enum SuperKeySupport {
         return enabledIDs[(index + 1) % enabledIDs.count]
     }
 
-    static func shouldCommitMarkedText(length: Int?) -> Bool {
-        (length ?? 0) > 0
-    }
-
     // MARK: - What each event means
 
     /// A key event, reduced to the only distinctions the decision needs.
