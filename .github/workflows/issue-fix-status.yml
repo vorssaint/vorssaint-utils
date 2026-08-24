@@ -1,0 +1,205 @@
+name: Issue fix status
+
+# Two mechanical steps, no judgement in either.
+#
+#   a merged pull request that references an issue  ->  the issue gets
+#   `fixed (pending release)`, with the merge commit recorded in the bot's
+#   comment
+#
+#   a stable release that contains that commit      ->  the label becomes
+#   `v<version> please confirm` and the reporter is asked to check it
+#
+# Neither step decides that anything is fixed. A human decided that when they
+# merged. The label only says where the change is, and `git tag --contains`
+# answers the second one, so a changelog entry is never the evidence.
+#
+# Both labels and both comments are addressed to the person who filed the
+# report, and most of them are not developers. Nothing in what they read says
+# `main`, a commit, or a merge: the change is in the development build, and it
+# is not on their Mac until a release says it is.
+#
+# Everything below runs through `gh`, which is preinstalled on the runners,
+# rather than through `actions/github-script`. The repository only allows
+# `actions/checkout`, `actions/upload-artifact` and `actions/download-artifact`,
+# so a workflow that reaches for anything else fails before a job starts. `gh`
+# covers the whole issues/labels/comments/releases surface without asking for
+# that list to be widened, and this is the shape any later bot here should take.
+
+on:
+  pull_request_target:
+    types: [closed]
+  workflow_run:
+    # Not `release: published`. The release is created by `gh release create`
+    # with the built-in token, and an event raised by that token does not start
+    # another workflow, so a `release` trigger here would never fire once.
+    workflows: [Release]
+    types: [completed]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-fix-status-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  PENDING_LABEL: fixed (pending release)
+
+jobs:
+  fixed-on-main:
+    name: Label the issues a merged PR referenced
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No checkout. This job runs with write access in the base repository
+      # context, so it must never execute anything from the pull request. The
+      # body is read through the API into a file and only ever grepped -- no
+      # part of it is interpolated into a command.
+      - name: Label the referenced issues
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '.body // ""' > pr-body.txt
+
+          # Every form people actually use here. `Closes`/`Fixes` already closed
+          # the issue on merge, and closed issues are skipped below, so matching
+          # them costs nothing and catches the rest.
+          refs=$(grep -oiE '(refs?|references?|related to|fixes|fixed|closes?|resolves?)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
+                   | grep -oE '[0-9]+$' | sort -un) || true
+          if [ -z "$refs" ]; then
+            echo "#$PR_NUMBER references no issue, nothing to do"
+            exit 0
+          fi
+
+          for number in $refs; do
+            issue=$(gh api "repos/$GH_REPO/issues/$number") || {
+              echo "#$number: not readable, left alone"
+              continue
+            }
+            [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
+            [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            jq -e --arg l "$PENDING_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
+
+            # POST /labels creates the label if the repository has not seen it
+            # yet, which `gh issue edit --add-label` does not.
+            gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$PENDING_LABEL" --silent
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          A fix for this went into the development version of the app in #$PR_NUMBER, and it
+          is queued to go out in an upcoming release.
+
+          **Nothing has changed on your Mac yet**, and this is not us saying your report is
+          fixed — that part is up to you. When a release goes out carrying this fix you will get
+          a note on this issue with the version to install, and two weeks to say whether it
+          worked for you.
+
+          **If it fixes part of what you reported and not the rest, please say which part** when
+          that note arrives. One fix often answers one thing in a report that mentions several,
+          and the rest are invisible to us unless you name them.
+
+          <!-- vorssaint-fix-status sha=$MERGE_SHA pr=$PR_NUMBER -->
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            echo "#$number: labelled $PENDING_LABEL ($MERGE_SHA)"
+          done
+
+  reporter-check:
+    name: Ask the reporters a stable release reached
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Move the label onto the release that carries the fix
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          # A tag-triggered run carries the tag in head_branch.
+          if ! grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$TAG"; then
+            echo "${TAG:-(no tag)} is not a stable version tag, nothing to do"
+            exit 0
+          fi
+
+          # Asking anyone to confirm on a build that is not downloadable is a
+          # wasted trip, so the release has to exist and be the real thing.
+          release=$(gh release view "$TAG" --json isDraft,isPrerelease) || {
+            echo "No release published for $TAG"
+            exit 0
+          }
+          if [ "$(jq '.isDraft or .isPrerelease' <<<"$release")" != false ]; then
+            echo "$TAG is a draft or pre-release, nothing to do"
+            exit 0
+          fi
+
+          version=${TAG#v}
+          label="v$version please confirm"
+          gh label create "$label" --color 1F8B8B \
+            --description "The fix is out in $version; whoever reported it has two weeks to say whether that build fixed it" \
+            || true   # already there
+
+          # `gh issue list` never returns pull requests.
+          gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
+            --json number,author --jq '.[] | "\(.number) \(.author.login)"' > pending.txt
+
+          while read -r number login; do
+            [ -n "$number" ] || continue
+
+            shas=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" --jq '.[].body' \
+                     | grep -oE 'vorssaint-fix-status sha=[0-9a-f]{7,40}' | cut -d= -f2 | sort -u) || true
+            if [ -z "$shas" ]; then
+              echo "::warning::#$number: labelled $PENDING_LABEL with no recorded commit, left alone"
+              continue
+            fi
+
+            # The label moves only when the release really carries the fix.
+            # Reading the changelog instead of the history is how issues get
+            # closed against a version that never shipped the change.
+            contained=false
+            for sha in $shas; do
+              if git tag --contains "$sha" 2>/dev/null | grep -qxF "$TAG"; then
+                contained=true
+                break
+              fi
+            done
+            if [ "$contained" = false ]; then
+              echo "#$number: fix is not in $TAG yet, left alone"
+              continue
+            fi
+
+            gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$label" --silent
+            gh issue edit "$number" --remove-label "$PENDING_LABEL" || true
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          The fix for this is out now, in **$version**.
+
+          @$login, could you update to that version and say whether it fixed things
+          on your Mac? We cannot tell from here — yours is the setup that found this.
+
+          Please say **how much of it is fixed**, not only whether it is. If part of what you
+          reported still happens, or something related turned up, say so here and the issue goes
+          back for another look — this is not a last call.
+
+          If nothing arrives in two weeks the issue will be closed as it stands, and a comment
+          reopens it at any point after that.
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            echo "#$number: moved to $label"
+          done < pending.txt

@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import VMStatisticsCompat
 
 // Standalone unit tests for pure helpers. Compiled without IOKit or UI by
 // `./build.sh --test`, so they run fast and deterministically on any machine.
@@ -1369,14 +1370,48 @@ struct MetricsTests {
         // MARK: Memory used
 
         let used = MetricFormat.memoryUsed(totalBytes: 16 * 1024,
+                                           appBytes: 5 * 1024,
                                            pageSize: 1024,
-                                           freePages: 1,
-                                           speculativePages: 2,
-                                           fileBackedPages: 3)
-        expect(used == 10 * 1024, "memory used excludes free, speculative and file-backed pages")
-        expect(MetricFormat.memoryUsed(totalBytes: 16, pageSize: 1,
-                                       freePages: 20, speculativePages: 0, fileBackedPages: 0) == 0,
-               "memory used clamps impossible available memory")
+                                           wiredPages: 2,
+                                           compressorPages: 1,
+                                           tagStoragePages: 1)
+        expect(used == 9 * 1024, "memory used includes app, wired, compressed and tagged storage")
+        expect(MetricFormat.memoryUsed(totalBytes: 16, appBytes: 20,
+                                       pageSize: 1, wiredPages: 0,
+                                       compressorPages: 0, tagStoragePages: 0) == 16,
+               "memory used clamps impossible used memory")
+
+        var vmStats = vorssaint_vm_statistics64_rev3_t()
+        vmStats.wire_count = 2
+        vmStats.purgeable_count = 3
+        vmStats.compressor_page_count = 4
+        vmStats.external_page_count = 5
+        vmStats.internal_page_count = 6
+        vmStats.total_tag_storage_pages = 7
+        expect(VMStatisticsDecoder.decode(vmStats,
+                                          returnedCount: VMStatisticsDecoder.rev1Count - 1) == nil,
+               "VM statistics rejects a truncated legacy payload")
+        expect(VMStatisticsDecoder.decode(vmStats,
+                                          returnedCount: VMStatisticsDecoder.rev1Count) ==
+                   VMStatisticsSnapshot(wiredPages: 2,
+                                        purgeablePages: 3,
+                                        compressorPages: 4,
+                                        externalPages: 5,
+                                        internalPages: 6,
+                                        tagStoragePages: 0),
+               "VM statistics decodes the typed legacy prefix")
+        expect(VMStatisticsDecoder.decode(vmStats,
+                                          returnedCount: VMStatisticsDecoder.rev2Count)?.tagStoragePages == 0,
+               "VM statistics does not read tagged storage from a rev2 payload")
+        expect(VMStatisticsDecoder.decode(vmStats,
+                                          returnedCount: VMStatisticsDecoder.rev3Count)?.tagStoragePages == 7,
+               "VM statistics reads tagged storage from a rev3 payload")
+        expect(VMStatisticsDecoder.validatedTagStoragePages(2, totalBytes: 16, pageSize: 4) == 2,
+               "VM statistics accepts plausible tagged storage")
+        expect(VMStatisticsDecoder.validatedTagStoragePages(5, totalBytes: 16, pageSize: 4) == 0,
+               "VM statistics rejects tagged storage larger than physical memory")
+        expect(VMStatisticsDecoder.validatedTagStoragePages(1, totalBytes: 16, pageSize: 0) == 0,
+               "VM statistics rejects tagged storage without a page size")
 
         // MARK: App memory
 
@@ -2176,21 +2211,75 @@ struct MetricsTests {
                "hiding the active app from its Dock icon is opt-in")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
                "a Dock Preview background opacity inside the range is kept")
-        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: true,
-                                                 isMinimized: false, isFullscreen: false),
+        // A card is dragged for the same reason whatever state its window is in:
+        // the user wants that window here. Minimized and parked-on-another-Space
+        // used to refuse the gesture, which read as the drag doing nothing --
+        // releasing then counted as a click and the window went back to its own
+        // old place instead of the drop point.
+        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isFullscreen: false),
                "an ordinary preview card can be dragged out of the panel")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
-                                                  isMinimized: false, isFullscreen: false),
-               "a window on another Space cannot be dragged from the current screen")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
-                                                  isMinimized: true, isFullscreen: false),
-               "a minimized window has no on-screen position to drag it to")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isOnScreen: false,
-                                                  isMinimized: false, isFullscreen: true),
+        expect(DockPreviewSupport.canDragToPlace(hasWindowID: true, isFullscreen: false),
+               "a minimized or parked window is dragged like any other")
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: true, isFullscreen: true),
                "a fullscreen window owns its Space and ignores a dropped position")
-        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isOnScreen: false,
-                                                  isMinimized: false, isFullscreen: false),
+        expect(!DockPreviewSupport.canDragToPlace(hasWindowID: false, isFullscreen: false),
                "an entry without a window has nothing to move")
+        // The preview size setting sizes the thumbnail, not the writing around
+        // it. Both halves of that are checked across every size on offer: the
+        // picture tracks the setting exactly, and the chrome does not move at
+        // all — a title band that scaled with the card once left a 12pt line
+        // adrift in 31pt of nothing at the largest setting.
+        let previewScales = Defaults.allowedPreviewSizes.map { PreviewSizing.scale(for: $0) }
+        expect(previewScales.count == 4 && previewScales.contains(1.0),
+               "every preview size on offer has a scale, including the unscaled one")
+        expect(previewScales.allSatisfy { scale in
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   let base = DockPreviewSupport.cardThumbnailSize(scale: 1)
+                   return abs(thumbnail.width - base.width * scale) < 0.0001
+                       && abs(thumbnail.height - base.height * scale) < 0.0001
+               },
+               "a Dock Preview thumbnail is exactly the chosen preview size")
+        expect(previewScales.allSatisfy { scale in
+                   let card = DockPreviewSupport.cardSize(scale: scale)
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   return card.height - thumbnail.height - 13 * scale >= DockPreviewSupport.cardTitleHeight
+               },
+               "a card keeps a full title band at every preview size, never a scaled-down one")
+        expect(DockPreviewSupport.cardTitleHeight >= 20,
+               "the title band holds one line of 12pt semibold beside two 16pt controls")
+        // The well is cut to the shape of the screen the capture came from, so
+        // a full-height window fills it instead of sitting between two bars.
+        expect(previewScales.allSatisfy { scale in
+                   let picture = DockPreviewSupport.cardPictureSize(scale: scale)
+                   return abs(picture.width / picture.height - 1.6) < 0.001
+               },
+               "the picture inside a thumbnail is 16:10 at every preview size")
+        expect(previewScales.allSatisfy { scale in
+                   let picture = DockPreviewSupport.cardPictureSize(scale: scale)
+                   let thumbnail = DockPreviewSupport.cardThumbnailSize(scale: scale)
+                   return picture.width < thumbnail.width && picture.height < thumbnail.height
+               },
+               "the picture keeps its inset inside the thumbnail well at every size")
+        expect(previewScales.allSatisfy {
+                   DockPreviewSupport.cardFallbackIconSize(scale: $0)
+                       < DockPreviewSupport.cardThumbnailSize(scale: $0).height
+               },
+               "the stand-in app icon stays inside the thumbnail it stands in for at every size")
+        // Every window takes the same steps on a drop, whatever state it was
+        // in. A branch on `isMinimized` made that drop feel like a different
+        // gesture from an ordinary one -- which is the thing being fixed, so a
+        // branch is what this guards against.
+        let placeSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowActivator.swift",
+            encoding: .utf8)) ?? ""
+        let placeBody = (placeSource.components(separatedBy: "static func place(_ item: SwitcherItem")
+            .last ?? "").components(separatedBy: "\n    @discardableResult").first ?? ""
+        let placeCode = placeBody
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!placeCode.isEmpty && !placeCode.contains("isMinimized"),
+               "a drop takes the same steps for a minimized window as for any other")
         // The thumbnail is derived from the card, so a constant changed on its
         // own must not silently eat into it or leave the card short.
         expectClose(Double(DockPreviewSupport.cardThumbnailHeight
@@ -2209,10 +2298,35 @@ struct MetricsTests {
         let dockPreviewCardSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Switcher/DockPreviewPanelView.swift",
             encoding: .utf8)) ?? ""
-        expect(dockPreviewCardSource.components(separatedBy: "Text(window.displayTitle)").count - 1 == 1,
+        let dockPreviewCardCode = dockPreviewCardSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(dockPreviewCardCode.components(separatedBy: "window.displayTitle").count - 1 == 1,
                "a Dock Preview card names its window once")
-        expect(dockPreviewCardSource.components(separatedBy: "window.appIcon").count - 1 == 1,
-               "a Dock Preview card only falls back to the app icon when it has no thumbnail")
+        // Nothing is drawn on top of the picture any more. The close and
+        // minimize buttons sat in a 28pt capsule in its top-right corner --
+        // over a third of its height -- and the pinned badge sat beside them.
+        expect(!dockPreviewCardCode.contains("previewControlBar"),
+               "no control bar floats over a Dock Preview thumbnail")
+        let titleBandBody = dockPreviewCardCode
+            .components(separatedBy: "private var titleBand: some View {").last ?? ""
+        let bandDeclaration = titleBandBody.components(separatedBy: "private var").first ?? ""
+        expect(bandDeclaration.contains("closeButton") && bandDeclaration.contains("minimizeButton"),
+               "both window controls sit in the title band, beside the name")
+        expect(!DockPreviewSupport.showsCardControls(isHovering: false, isSelected: false),
+               "a card with no pointer on it and no selection draws no window controls")
+        expect(DockPreviewSupport.showsCardControls(isHovering: true, isSelected: false),
+               "the pointer summons a card's window controls")
+        let contextMenuBody = dockPreviewCardCode
+            .components(separatedBy: "private var cardContextMenu: some View {").last ?? ""
+        expect((contextMenuBody.components(separatedBy: "private var").first ?? "")
+                   .contains("dockPreviewPinPanel"),
+               "pinning is offered by name in the card menu, not by a bare pushpin")
+        expect(DockPreviewSupport.showsCardAppBadge(hasPreview: true),
+               "a card with a capture badges it with the app's icon, as the App Switcher does")
+        expect(!DockPreviewSupport.showsCardAppBadge(hasPreview: false),
+               "a card without one already shows that icon as its watermark, so it takes no badge")
         expect(dockPreviewCardSource.contains("window.isOnHiddenSpace"),
                "a Dock Preview card badges a window that lives on another desktop")
 
@@ -2382,6 +2496,8 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.clipboardHistoryShortcut] as? String
                == GlobalShortcut.clipboardDefault.storageValue,
                "clipboard history shortcut defaults to Ctrl+Opt+Cmd+V")
+        expect(registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true,
+               "the Finder cut and paste floating panel starts enabled")
         expect(registeredDefaults[DefaultsKey.finderRenameEnabled] as? Bool == false,
                "the Finder rename shortcut is opt-in")
         expect(registeredDefaults[DefaultsKey.finderRenameShortcut] as? String == ":120",
@@ -4550,6 +4666,125 @@ struct MetricsTests {
                 && MediaSupport.gifLoopCount(loops: true) == 0
                 && MediaSupport.gifLoopCount(loops: false) == nil,
                "GIF limits are actionable and non-looping output omits repeat metadata")
+
+        // MARK: Media size targets
+
+        expect(MediaSizingMode.sanitized("targetSize") == .targetSize
+                && MediaSizingMode.sanitized("resolution") == .resolution
+                && MediaSizingMode.sanitized("nonsense") == .resolution,
+               "A stored sizing mode falls back to the historical resolution mode")
+        expect(MediaSupport.targetBytes(megabytes: 20) == 20_000_000
+                && MediaSupport.targetBytes(megabytes: 0) == 1_000_000
+                && MediaSupport.targetBytes(megabytes: 99_999)
+                    == Int64(MediaSupport.maximumTargetMegabytes) * 1_000_000,
+               "Target megabytes are 1000 based and clamped to a usable range")
+
+        // The case the mode exists for: a minute of 1080p that has to fit the
+        // 20 MB a chat service accepts without paid tiers.
+        let sharePlan = MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                                   duration: 60,
+                                                   sourceSize: CGSize(width: 1920, height: 1080),
+                                                   frameRate: 30,
+                                                   hasAudio: true)
+        expect(sharePlan != nil, "A minute of 1080p can be planned into 20 MB")
+        if let plan = sharePlan {
+            let projectedBytes = Double(plan.videoBitRate + plan.audioBitRate) * 60 / 8
+            expect(projectedBytes <= 20_000_000,
+                   "The planned bitrate cannot overrun the target it was derived from")
+            expect(projectedBytes >= 18_000_000,
+                   "The plan spends the budget instead of undershooting it")
+            expect(plan.size.width <= 1920 && plan.size.height <= 1080,
+                   "A size target never upscales the source")
+            expect(Int(plan.size.width).isMultiple(of: 2) && Int(plan.size.height).isMultiple(of: 2),
+                   "Planned dimensions stay even, which H.264 requires")
+        }
+
+        // Short clips have bitrate to spare, so nothing is thrown away.
+        expect(MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                          duration: 5,
+                                          sourceSize: CGSize(width: 1280, height: 720),
+                                          frameRate: 30,
+                                          hasAudio: true)?.size == CGSize(width: 1280, height: 720),
+               "A budget larger than the source needs keeps the full resolution")
+        // A budget too thin to be watchable is refused rather than encoded.
+        expect(MediaSupport.videoSizePlan(targetBytes: 1_000_000,
+                                          duration: 120,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: true) == nil,
+               "An unreachable target fails planning instead of producing mush")
+        expect(MediaSupport.videoSizePlan(targetBytes: 2_000_000,
+                                          duration: 60,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: false)?.size == CGSize(width: 480, height: 270),
+               "Scaling stops at 480 on the long edge even when the budget would buy less")
+        expect(MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                          duration: 0,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: true) == nil
+                && MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                              duration: 60,
+                                              sourceSize: .zero,
+                                              frameRate: 30,
+                                              hasAudio: true) == nil,
+               "Planning rejects a clip with no duration or no size")
+        expect(MediaSupport.targetAudioBitRate(targetBytes: 20_000_000, duration: 60) == 128_000
+                && MediaSupport.targetAudioBitRate(targetBytes: 2_000_000, duration: 60) == 64_000,
+               "Audio gives up half its bitrate when the whole budget is thin")
+
+        // Rate control lands near the budget, so an overshoot is measured and
+        // scaled down rather than retried at the same setting.
+        expectClose(MediaSupport.targetRetryScale(current: 1,
+                                                  actualBytes: 24_000_000,
+                                                  targetBytes: 20_000_000) ?? 0,
+                    0.7833, "overshoot retry scale", tol: 0.001)
+        expect(MediaSupport.targetRetryScale(current: 1,
+                                             actualBytes: 19_000_000,
+                                             targetBytes: 20_000_000) == nil,
+               "A pass that already fits is never retried")
+        expect((MediaSupport.targetRetryScale(current: 1,
+                                              actualBytes: 20_000_001,
+                                              targetBytes: 20_000_000) ?? 1) <= 0.9,
+               "Every retry gives up at least a tenth so the passes converge")
+
+        // A GIF has no bitrate, so overshoot is corrected on frames first.
+        let gifRetry = MediaSupport.gifSizePlan(width: 720, fps: 15,
+                                                actualBytes: 12_000_000, targetBytes: 8_000_000)
+        expect(gifRetry?.fps == 9 && gifRetry?.width == 720,
+               "A GIF over its target drops frames before it drops pixels")
+        let gifDeepRetry = MediaSupport.gifSizePlan(width: 720, fps: 9,
+                                                    actualBytes: 9_000_000, targetBytes: 2_000_000)
+        expect((gifDeepRetry?.width ?? 720) < 720 && gifDeepRetry?.fps == MediaSupport.minimumTargetGIFFPS,
+               "Once the frame rate hits its floor the frame itself shrinks")
+        expect(MediaSupport.gifSizePlan(width: 160, fps: 6,
+                                        actualBytes: 5_000_000, targetBytes: 1_000_000) == nil
+                && MediaSupport.gifSizePlan(width: 720, fps: 15,
+                                            actualBytes: 1_000_000, targetBytes: 8_000_000) == nil,
+               "A GIF already at its floor, or already fitting, has nothing left to plan")
+        expect(MediaSupport.targetGIFStartFPS(duration: 10) == 15
+                && MediaSupport.targetGIFStartFPS(duration: 60) == MediaSupport.minimumTargetGIFFPS,
+               "A size targeted GIF starts at the highest rate its frame ceiling allows")
+        expect(MediaSupport.targetGIFStartWidth(sourceWidth: 1_920) == 1_600
+                && MediaSupport.targetGIFStartWidth(sourceWidth: 640) == 640
+                && MediaSupport.targetGIFStartWidth(sourceWidth: 0) == 1_600,
+               "A size targeted GIF starts from the source width, capped at the tool maximum")
+
+        let sizeTargetStrings: [(String, Strings)] = [
+            ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
+            ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
+            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
+        ]
+        for (name, strings) in sizeTargetStrings {
+            expect(!strings.mediaSizingResolution.isEmpty
+                    && !strings.mediaSizingFileSize.isEmpty
+                    && !strings.mediaTargetSize.isEmpty
+                    && !strings.mediaTargetSizeHint.isEmpty
+                    && !strings.mediaErrorTargetTooSmall.isEmpty
+                    && !strings.mediaMegabytesSuffix.isEmpty,
+                   "\(name) names the size target controls")
+        }
         let sanitizedProfiles = MediaSupport.sanitizedImageProfiles([
             MediaImageProfile(id: "same", name: "  ", options: profileOptions),
             MediaImageProfile(id: "same", name: " Work ", options: profileOptions),
@@ -6629,13 +6864,21 @@ struct MetricsTests {
                                                                  volumeIsReadOnly: { _ in false }),
                "apps on a writable external volume stay updatable in place")
         let installerScript = UpdateInstallerSupport.installerScript()
-        for step in ["fail-tempdir", "fail-mount", "fail-no-app-in-dmg",
-                     "fail-copy", "fail-verify", "fail-swap", "note ok"] {
+        for step in ["fail-dmg-verify", "fail-tempdir", "fail-mount", "fail-no-app-in-dmg",
+                     "fail-copy", "fail-version", "fail-verify", "fail-swap", "note ok"] {
             expect(installerScript.contains(step),
                    "installer script reports the \(step) step")
         }
         expect(installerScript.contains("spctl --status"),
                "installer script skips Gatekeeper assessment when the user disabled it")
+        let dmgVerification = installerScript.range(of: "DMG_VERIFY_REQ")
+        let dmgMount = installerScript.range(of: "/usr/bin/hdiutil attach")
+        expect(dmgVerification != nil && dmgMount != nil
+               && dmgVerification!.lowerBound < dmgMount!.lowerBound,
+               "installer verifies the release signer before mounting the DMG")
+        expect(installerScript.contains("BUNDLE_VERSION=")
+               && installerScript.contains("\"$BUNDLE_VERSION\" = \"$EXPECTED_VERSION\""),
+               "installer requires the signed app to match the offered release version")
         expect(installerScript.contains("chown -R"),
                "an elevated install hands the bundle back to the user")
         expect(installerScript.contains("update-old.$PID"),
@@ -6654,11 +6897,14 @@ struct MetricsTests {
             dmgPath: "/tmp/Vorssaint-update.dmg",
             pid: 123,
             resultPath: "/tmp/result",
-            uid: 501)
+            uid: 501,
+            expectedVersion: "3.3.3")
         expect(elevated.contains("nohup") && elevated.hasSuffix("&"),
                "elevated installer detaches so the app can quit")
         expect(elevated.contains("'/Applications/Vorssaint.app'"),
                "elevated installer passes the app path quoted for the shell")
+        expect(elevated.contains("'3.3.3'"),
+               "elevated installer passes the expected version quoted for the shell")
 
         // MARK: - UpdateServiceSupport & SemVer channel reconciliation
 
@@ -6695,8 +6941,8 @@ struct MetricsTests {
                "beta is not newer than the released final version")
 
         // Release candidate selection
-        let dummyDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
-        let dummyBetaDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
+        let dummyDMG = URL(string: "https://github.com/vorssaintapp/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
+        let dummyBetaDMG = URL(string: "https://github.com/vorssaintapp/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
 
         let candidateList = [
             UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.4-beta.1", isPrerelease: true, isDraft: false, dmgURL: dummyBetaDMG, dmgExpectedBytes: 1000, body: "Beta notes"),
@@ -6713,12 +6959,20 @@ struct MetricsTests {
         let selectedFromHigherBeta = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.4-beta.1", includeBetas: false)
         expect(selectedFromHigherBeta == nil, "user on beta turning off betas does not downgrade to older stable")
 
+        let knownDigest = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        expect(UpdateServiceSupport.sha256Matches(Data("abc".utf8), expectedHex: knownDigest),
+               "update media accepts its pinned SHA-256 digest")
+        expect(!UpdateServiceSupport.sha256Matches(Data("altered".utf8), expectedHex: knownDigest),
+               "update media rejects content that does not match its pinned digest")
+        expect(!UpdateServiceSupport.sha256Matches(Data("abc".utf8), expectedHex: "invalid"),
+               "update media rejects a malformed pinned digest")
+
         // Defaults registered
         expect(Defaults.registeredDefaults[DefaultsKey.includeBetaUpdates] as? Bool == false,
                "includeBetaUpdates defaults to false in registeredDefaults")
 
-        let testDefaults = UserDefaults(suiteName: "VorssaintTests.BetaActivation")!
-        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        let testDefaults = UserDefaults(suiteName: "com.vorssaint.tests.betaActivation")!
+        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
         Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
         expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == true,
                "beta channel is activated automatically on a beta build")
@@ -6728,13 +6982,13 @@ struct MetricsTests {
                "manual opt-out on a beta build is preserved across launches")
 
         // Stable version does not activate beta channel
-        let stableDefaults = UserDefaults(suiteName: "VorssaintTests.StableActivation")!
-        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
+        let stableDefaults = UserDefaults(suiteName: "com.vorssaint.tests.stableActivation")!
+        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
         Defaults.activateBetaChannelIfRunningBeta(in: stableDefaults, version: "3.3.3")
         expect(stableDefaults.object(forKey: DefaultsKey.includeBetaUpdates) == nil,
                "stable release does not touch beta channel default")
-        stableDefaults.removePersistentDomain(forName: "VorssaintTests.StableActivation")
-        testDefaults.removePersistentDomain(forName: "VorssaintTests.BetaActivation")
+        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
+        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
 
         // Localization completeness & formatting
         for language in AppLanguage.allCases {
@@ -6749,27 +7003,42 @@ struct MetricsTests {
 
         // MARK: Launch at login reconciliation
 
-        expect(LaunchAtLoginSupport.startupAction(wanted: true, systemEnabled: false,
+        expect(LaunchAtLoginSupport.startupAction(wanted: true, registration: .off,
                                                   locationIsUnstable: false) == .register,
                "a lost registration the user wants is redone at startup")
-        expect(LaunchAtLoginSupport.startupAction(wanted: true, systemEnabled: false,
+        expect(LaunchAtLoginSupport.startupAction(wanted: true, registration: .off,
                                                   locationIsUnstable: true) == .none,
                "no registration is redone from an unstable location")
-        expect(LaunchAtLoginSupport.startupAction(wanted: true, systemEnabled: true,
+        expect(LaunchAtLoginSupport.startupAction(wanted: true, registration: .enabled,
                                                   locationIsUnstable: false) == .none
-                && LaunchAtLoginSupport.startupAction(wanted: true, systemEnabled: true,
+                && LaunchAtLoginSupport.startupAction(wanted: true, registration: .enabled,
                                                       locationIsUnstable: true) == .none,
                "a healthy registration is left alone")
-        expect(LaunchAtLoginSupport.startupAction(wanted: false, systemEnabled: true,
+        expect(LaunchAtLoginSupport.startupAction(wanted: false, registration: .enabled,
                                                   locationIsUnstable: false) == .adoptEnabled
-                && LaunchAtLoginSupport.startupAction(wanted: false, systemEnabled: true,
+                && LaunchAtLoginSupport.startupAction(wanted: false, registration: .enabled,
                                                       locationIsUnstable: true) == .adoptEnabled,
                "an enable made outside the app becomes the stored choice")
-        expect(LaunchAtLoginSupport.startupAction(wanted: false, systemEnabled: false,
+        expect(LaunchAtLoginSupport.startupAction(wanted: false, registration: .off,
                                                   locationIsUnstable: false) == .none
-                && LaunchAtLoginSupport.startupAction(wanted: false, systemEnabled: false,
+                && LaunchAtLoginSupport.startupAction(wanted: false, registration: .off,
                                                       locationIsUnstable: true) == .none,
                "startup never turns launch at login on for a user who never asked")
+        expect(LaunchAtLoginSupport.startupAction(wanted: true, registration: .needsApproval,
+                                                  locationIsUnstable: false) == .none
+                && LaunchAtLoginSupport.startupAction(wanted: false, registration: .needsApproval,
+                                                      locationIsUnstable: false) == .none,
+               "an item awaiting approval in System Settings is never registered over (issue #260)")
+        // `SMAppService.Status` cannot be driven without a real login item, so
+        // what the service does with the third state is pinned by source. Both
+        // needles are public symbols, not a line's spelling.
+        let launchAtLoginSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/LaunchAtLogin.swift",
+            encoding: .utf8)) ?? ""
+        expect(launchAtLoginSource.contains(".requiresApproval"),
+               "an approval-pending login item is read as its own state")
+        expect(launchAtLoginSource.contains("throw NeedsApprovalError()"),
+               "turning launch at login on says so when only approval is missing")
 
         // MARK: Dock Preview helpers
 
@@ -6872,14 +7141,80 @@ struct MetricsTests {
         expect(DockPreviewSupport.dockProximityBand(tileSize: 200)
                > DockPreviewSupport.dockProximityBand(tileSize: 64),
                "Dock proximity band grows with the Dock tile size")
-        let onePreviewSize = DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen)
-        let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen)
+        let onePreviewSize = DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen,
+                                                          isPinned: false)
+        let twoPreviewSize = DockPreviewSupport.panelSize(itemCount: 2, screenVisibleFrame: screen,
+                                                          isPinned: false)
         expect(twoPreviewSize.width > onePreviewSize.width,
                "Dock Preview panel size shrinks when a card is removed")
+        // The header carries the window counter and the steppers that move
+        // between windows, so one window leaves it with nothing to say. It used
+        // to name the app instead, back at a pointer resting on that app's Dock
+        // icon. A pinned panel keeps it: there it is the drag handle, and the
+        // only way to unpin or close.
+        // A long name is clipped at rest and scrolled under the pointer. The
+        // measurement runs off the font rather than a layout pass, so it holds
+        // before the band has ever been drawn.
+        let bandWidth = DockPreviewSupport.cardTitleTextWidth
+        expect(bandWidth > 0 && bandWidth < DockPreviewSupport.cardThumbnailWidth,
+               "the name's room is the band less the two controls beside it")
+        expect(!SwitcherSupport.titleOverflows("Mail", width: bandWidth),
+               "a short window name is not scrolled")
+        expect(SwitcherSupport.titleOverflows(String(repeating: "measurement ", count: 8),
+                                              width: bandWidth),
+               "a name longer than the band is")
+        expect(!SwitcherSupport.titleOverflows("anything", width: 0),
+               "a band with no room to measure against scrolls nothing")
+        expect(SwitcherSupport.titleWidth("Preferences", weight: .semibold)
+               > SwitcherSupport.titleWidth("Preferences", weight: .regular),
+               "the selected card's heavier name is measured as the heavier name")
+        // Both panels show windows of the same kind, so a name too long for its
+        // room behaves the same in each. One view, two callers, two widths.
+        let scrollingTitleSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/ScrollingTitle.swift",
+            encoding: .utf8)) ?? ""
+        expect(scrollingTitleSource.contains("struct ScrollingTitle: View"),
+               "the scrolling name is one view, not a copy in each panel")
+        let switcherCardSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
+            encoding: .utf8)) ?? ""
+        expect(switcherCardSource.contains("ScrollingTitle(")
+               && dockPreviewCardSource.contains("ScrollingTitle("),
+               "the App Switcher and the Dock preview both draw their name through it")
+        expect(!DockPreviewSupport.showsPanelHeader(isPinned: false),
+               "a hovered panel draws no header, whatever it is showing")
+        expect(DockPreviewSupport.showsPanelHeader(isPinned: true),
+               "a pinned panel keeps the header that names it and moves it")
+        // Cards run along the Dock's own edge. A row beside a side Dock grew
+        // away from it across the screen, which is the one direction the
+        // pointer is not coming from.
+        expect(!DockPreviewSupport.stacksVertically(orientation: .bottom, isPinned: false),
+               "a Dock at the bottom gets a row of cards")
+        expect(DockPreviewSupport.stacksVertically(orientation: .left, isPinned: false)
+               && DockPreviewSupport.stacksVertically(orientation: .right, isPinned: false),
+               "a Dock at either side gets a column of cards")
+        expect(!DockPreviewSupport.stacksVertically(orientation: .right, isPinned: true),
+               "a pinned panel is detached from the Dock, so it keeps the row")
+        let sideSize = DockPreviewSupport.panelSize(itemCount: 3, screenVisibleFrame: screen,
+                                                    isPinned: false, orientation: .right)
+        let bottomSize = DockPreviewSupport.panelSize(itemCount: 3, screenVisibleFrame: screen,
+                                                      isPinned: false, orientation: .bottom)
+        expect(sideSize.width == DockPreviewSupport.cardWidth + DockPreviewSupport.panelPadding * 2,
+               "a side Dock's panel is one card wide however many windows it holds")
+        expect(sideSize.height > bottomSize.height && sideSize.width < bottomSize.width,
+               "the same three windows make a tall narrow panel beside a side Dock")
+        expect(DockPreviewSupport.visibleCardCount(itemCount: 99, screenVisibleFrame: screen,
+                                                   orientation: .bottom, isPinned: false) < 99,
+               "the panel reports how many cards it can show before it has to scroll")
+        expect(DockPreviewSupport.visibleCardCount(itemCount: 2, screenVisibleFrame: screen,
+                                                   orientation: .bottom, isPinned: false) == 2,
+               "two cards that fit are both counted, so the panel does not scroll for them")
         expect(onePreviewSize.height == DockPreviewSupport.cardHeight
-               + DockPreviewSupport.panelPadding * 2
-               + DockPreviewSupport.panelHeaderHeight,
-               "Dock Preview panel reserves room for the pinned header")
+               + DockPreviewSupport.panelPadding * 2,
+               "a headerless panel is the card and the padding, nothing more")
+        expect(DockPreviewSupport.panelSize(itemCount: 1, screenVisibleFrame: screen, isPinned: true).height
+               == onePreviewSize.height + DockPreviewSupport.panelHeaderHeight,
+               "the header is the whole difference a pinned panel makes to the height")
         expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11]) == nil,
                "Dock Preview hides the window counter for a single window")
         expect(DockPreviewSupport.windowPositionText(selectedWindowID: nil, windowIDs: [11, 22, 33]) == "3",
@@ -6929,6 +7264,18 @@ struct MetricsTests {
                       compactIconRowLayout.simpleTitleSurfaceWidth)
                     + SwitcherIconRowLayout.padding * 2,
                "App Switcher without shortcut hints still fits its title rail")
+        // Two apps leave the icon row narrower than the hint bar, the case that
+        // used to lay rows out against a width the panel was never sized for.
+        let twoAppLayout = SwitcherIconRowLayout.compute(appCount: 2,
+                                                         selectedWindowCount: 1,
+                                                         screenVisibleFrame: screen,
+                                                         showsShortcutHints: false)
+        expect(twoAppLayout.appRowSurfaceWidth < SwitcherIconRowLayout.hintBarWidth
+               && twoAppLayout.contentWidth(simpleMode: true, windowRow: false)
+                    == twoAppLayout.simplePanelSize.width - SwitcherIconRowLayout.padding * 2
+               && twoAppLayout.contentWidth(simpleMode: true, windowRow: true)
+                    == twoAppLayout.simpleWindowPanelSize.width - SwitcherIconRowLayout.padding * 2,
+               "App Switcher rows fit the panel with fewer apps than the hint bar is wide")
         expect(SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8) == 5,
                "App Switcher wrapping splits ten windows across two even rows")
         expect(SwitcherSupport.gridColumnCount(itemCount: 9, maxColumns: 8) == 5,
@@ -6978,9 +7325,33 @@ struct MetricsTests {
                     "App Switcher Small keeps the selection outline inside its icon row")
         expectClose(Double(DockPreviewSupport.cardSpacing), 6,
                     "Dock Preview Small previews tighten card spacing")
-        expectClose(Double(DockPreviewSupport.panelPadding), 9,
-                    "Dock Preview Small previews tighten panel padding")
+        expectClose(Double(DockPreviewSupport.panelPadding),
+                    Double(DockPreviewSupport.cardPadding),
+                    "Dock Preview Small previews tighten panel padding with the card's")
+        // The grid card's chrome is two lines of text that do not change with
+        // the preview size. The card does, so the thumbnail has to take every
+        // point the chrome leaves, at whichever size is stored.
+        let smallGridScale = PreviewSizing.scale
+        let smallGridCardHeight = SwitcherGridCard.height
+        let smallGridCardChrome = smallGridCardHeight - SwitcherGridCard.thumbnailHeight
+        expect(SwitcherGridCard.fallbackIconSize < SwitcherGridCard.thumbnailHeight,
+               "App Switcher Small keeps the stand-in app icon inside its grid card thumbnail")
         UserDefaults.standard.set("xlarge", forKey: DefaultsKey.previewSize)
+        expectClose(Double(SwitcherGridCard.height / smallGridCardHeight),
+                    Double(PreviewSizing.scale / smallGridScale),
+                    "an App Switcher grid card's height follows the preview size")
+        expectClose(Double(SwitcherGridCard.height - SwitcherGridCard.thumbnailHeight),
+                    Double(smallGridCardChrome),
+                    "an App Switcher grid card spends the same chrome at every preview size")
+        expectClose(Double(smallGridCardChrome),
+                    Double(SwitcherGridCard.padding * 2
+                            + SwitcherGridCard.titleSpacing
+                            + SwitcherGridCard.titleHeight),
+                    "the grid card's chrome is exactly the parts it is made of, not a number standing in for them")
+        expect(SwitcherGridCard.titleHeight >= 31,
+               "the grid card title band holds a 13pt line over a 10.5pt line without clipping")
+        expect(SwitcherGridCard.fallbackIconSize < SwitcherGridCard.thumbnailHeight,
+               "App Switcher Extra Large keeps the stand-in app icon inside its grid card thumbnail")
         let xlargeIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
                                                                  selectedWindowCount: 1,
                                                                  screenVisibleFrame: screen)
@@ -7700,6 +8071,64 @@ struct MetricsTests {
                                                                  selectedIndex: 2,
                                                                  delta: 1) == 2,
                "App Switcher icon-row window navigation stays put when the app has one window")
+        expect(SwitcherSupport.iconRowEdgeHoverInterval > SwitcherSupport.iconRowEdgeHoverAnimationDuration
+               && SwitcherSupport.iconRowEdgeHoverRepeatInterval >= SwitcherSupport.iconRowEdgeHoverAnimationDuration
+               && SwitcherSupport.iconRowEdgeHoverRepeatInterval < SwitcherSupport.iconRowEdgeHoverInterval
+               && SwitcherSupport.iconRowEdgeHoverAnimationDuration > 0.15,
+               "App Switcher overflow hover waits to start, then steps with the slide")
+        expect(SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 12,
+                                                              visibleCount: 6,
+                                                              firstVisibleIndex: -2) == 0
+               && SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 12,
+                                                                 visibleCount: 6,
+                                                                 firstVisibleIndex: 20) == 6
+               && SwitcherSupport.clampedIconRowFirstVisibleIndex(itemCount: 5,
+                                                                 visibleCount: 6,
+                                                                 firstVisibleIndex: 3) == 0,
+               "App Switcher overflow row never scrolls past either end")
+        expect(SwitcherSupport.iconRowFirstVisibleIndex(revealing: 8,
+                                                        itemCount: 12,
+                                                        visibleCount: 6,
+                                                        currentFirstVisibleIndex: 0) == 3
+               && SwitcherSupport.iconRowFirstVisibleIndex(revealing: 1,
+                                                           itemCount: 12,
+                                                           visibleCount: 6,
+                                                           currentFirstVisibleIndex: 3) == 1
+               && SwitcherSupport.iconRowFirstVisibleIndex(revealing: 4,
+                                                           itemCount: 12,
+                                                           visibleCount: 6,
+                                                           currentFirstVisibleIndex: 3) == 3,
+               "App Switcher overflow row slides just far enough to keep the selection visible")
+        expect(SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 5,
+                                                     firstVisibleIndex: 0,
+                                                     visibleCount: 6,
+                                                     itemCount: 12) == 1
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 3,
+                                                        firstVisibleIndex: 3,
+                                                        visibleCount: 6,
+                                                        itemCount: 12) == -1
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 2,
+                                                        firstVisibleIndex: 0,
+                                                        visibleCount: 6,
+                                                        itemCount: 12) == nil
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 5,
+                                                        firstVisibleIndex: 6,
+                                                        visibleCount: 6,
+                                                        itemCount: 12) == nil
+               && SwitcherSupport.iconRowEdgeHoverDelta(hoveredIndex: 3,
+                                                        firstVisibleIndex: 0,
+                                                        visibleCount: 6,
+                                                        itemCount: 5) == nil,
+               "App Switcher overflow hover only steps from the last visible icon on a side")
+        expect(SwitcherSupport.iconRowIndexAfterEdgeHoverStep(firstVisibleIndex: 1,
+                                                              visibleCount: 6,
+                                                              itemCount: 12,
+                                                              delta: 1) == 6
+               && SwitcherSupport.iconRowIndexAfterEdgeHoverStep(firstVisibleIndex: 2,
+                                                                 visibleCount: 6,
+                                                                 itemCount: 12,
+                                                                 delta: -1) == 2,
+               "App Switcher overflow hover lands on the newly revealed last visible icon")
         let frontmostScoped = SwitcherSupport.frontmostAppWindows(allItems: groupedSwitcherItems,
                                                                     frontmostPID: 101)
         expect(frontmostScoped.count == 2
@@ -10756,6 +11185,25 @@ struct MetricsTests {
 
         // MARK: Display brightness (DDC/CI helpers)
 
+        // Every section of the service below its "Rebuild (work queue)" MARK
+        // runs on the private work queue, so a display's user-facing name is
+        // read from NSScreen on the main thread and handed to the rebuild.
+        // AppKit reached from below the line would be a main thread violation
+        // on every hotplug, wake and panel open.
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        let brightnessWorkQueueHalf = brightnessSource
+            .components(separatedBy: "// MARK: - Rebuild (work queue)").last ?? ""
+        // Comments are stripped first: a note naming the symbol it bans is not
+        // a call, and a check that cannot tell them apart goes red for prose.
+        let brightnessWorkQueueCode = brightnessWorkQueueHalf
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!brightnessWorkQueueHalf.isEmpty && !brightnessWorkQueueCode.contains("NSScreen"),
+               "the brightness work queue resolves display names without touching NSScreen")
+
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
         let expectedDDCWrite: [UInt8] = [0x84, 0x03, 0x10, 0x12, 0x34, 0x8E]
         expect(ddcWrite == expectedDDCWrite,
@@ -10911,6 +11359,33 @@ struct MetricsTests {
         expect(BrightnessSupport.headlessRecoveryCandidates(
             drawableDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
                "a display disabled elsewhere is never changed during headless recovery")
+        // CoreGraphics runs a reconfiguration's callbacks inline on the driving
+        // thread, and in this process those callbacks are AppKit's, so the
+        // transaction belongs to the main thread. Getting it wrong hangs the
+        // app rather than returning a wrong answer, and no pure helper can
+        // carry that, so it is pinned against the CoreGraphics symbols.
+        expect(brightnessSource.components(separatedBy: "CGBeginDisplayConfiguration(").count == 2
+               && brightnessSource.components(separatedBy: "CGCompleteDisplayConfiguration(").count == 2,
+               "every display power change goes through the one reconfiguration transaction")
+        let beforeDisplayConfiguration = brightnessSource
+            .components(separatedBy: "CGBeginDisplayConfiguration(").first ?? ""
+        expect((beforeDisplayConfiguration.components(separatedBy: "func ").last ?? "")
+                .contains("Thread.isMainThread"),
+               "the display reconfiguration transaction refuses to start off the main thread")
+
+        // A `UserDefaults` write posts `didChangeNotification`, and the
+        // observers registered with `queue: .main` make that post wait for the
+        // main thread. Held under `stateLock` it waits on a main thread that
+        // can itself be waiting for the same lock inside `canToggleDisplay`,
+        // called from a SwiftUI body, and the app hangs with nothing left that
+        // can end it (issue #647). Which thread the write happens to run on
+        // does not change that, so it is the locked region that is pinned.
+        let lockedRegions = brightnessSource.components(separatedBy: "stateLock.lock()")
+            .dropFirst()
+            .map { $0.components(separatedBy: "stateLock.unlock()").first ?? $0 }
+        expect(!lockedRegions.isEmpty
+               && lockedRegions.allSatisfy { !$0.contains("SwitchedOff(") },
+               "the list of displays switched off is never written while stateLock is held")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: nil) == 0,
@@ -10934,6 +11409,12 @@ struct MetricsTests {
                 && BrightnessSupport.reconnectedDimLevel(1.0) == 1.0
                 && BrightnessSupport.reconnectedDimLevel(1.4) == 1.0,
                "visible dim levels return from a gap untouched, clamped to the range")
+
+        expect(BrightnessSupport.softwareDimToRestore(remembered: 0.7, appliedByApp: false) == 1.0
+                && BrightnessSupport.softwareDimToRestore(remembered: nil, appliedByApp: true) == 1.0,
+               "a level read from the monitor is never replayed as a gamma dim")
+        expect(BrightnessSupport.softwareDimToRestore(remembered: 0.4, appliedByApp: true) == 0.4,
+               "a dim this app applied is restored when the routes are rebuilt")
 
         expect(BrightnessSupport.softwareDimFactor(for: 1.0) == 1.0
                 && BrightnessSupport.softwareDimFactor(for: 0.0) == 0.0,
@@ -12656,6 +13137,41 @@ struct MetricsTests {
         ]
         expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
+        // An unpinned borderless Menu claims the free width of its row on
+        // macOS 15 and starves whatever shares that row (issue #569), so the
+        // rule is checked for every borderless menu in the app rather than for
+        // the one this fix touches. Kill Process is the one
+        // deliberate exception: its row controls take a shared minimum width
+        // so the Kill button and the menu beside it line up down the list.
+        let borderlessMenuException = "KillProcess/KillProcessView"
+        var unpinnedBorderlessMenus: [String] = []
+        let uiFiles = FileManager.default
+            .enumerator(atPath: "Sources/Vorssaint/UI")?
+            .compactMap { $0 as? String }
+            .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
+        for file in uiFiles.sorted() {
+            let path = "Sources/Vorssaint/UI/\(file)"
+            guard !file.contains(borderlessMenuException),
+                  let source = try? String(contentsOfFile: path, encoding: .utf8) else { continue }
+            let lines = source.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated()
+            where line.contains(".menuStyle(.borderlessButton)") {
+                // Read to the end of the menu's own modifier chain: the next
+                // line that is neither a modifier nor a comment belongs to
+                // something else.
+                var pinned = false
+                var cursor = index + 1
+                while cursor < lines.count {
+                    let text = lines[cursor].trimmingCharacters(in: .whitespaces)
+                    guard text.hasPrefix(".") || text.hasPrefix("//") else { break }
+                    if text.hasPrefix(".fixedSize()") { pinned = true; break }
+                    cursor += 1
+                }
+                if !pinned { unpinnedBorderlessMenus.append("\(file):\(index + 1)") }
+            }
+        }
+        expect(unpinnedBorderlessMenus.isEmpty,
+               "every borderless menu keeps its own size: \(unpinnedBorderlessMenus)")
         expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
@@ -13689,6 +14205,9 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
                 && backupKeys.contains(DefaultsKey.finderPasteImageAsFile),
                "pasting copied images as files is opt-in and travels with settings backup")
+        expect(Defaults.registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true
+                && backupKeys.contains(DefaultsKey.finderCutPasteShowHUD),
+               "the Finder cut and paste floating panel default is on and travels with settings backup")
         expect(backupKeys.contains(DefaultsKey.windowPreviewExcludedApps)
                 && (Defaults.registeredDefaults[DefaultsKey.windowPreviewExcludedApps] as? [String]) == [],
                "the window preview exclusion list starts empty and travels with the settings backup")
@@ -14374,6 +14893,42 @@ struct MetricsTests {
         expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
                                                         hasSavedItems: false),
                "an empty disabled clipboard still points to setup")
+
+        // MARK: Compact mode, what an empty field shows
+        expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),
+               "the browse list is what an ordinary empty bar shows")
+        expect(!CommandBarHome.showsBrowseList(compact: true, hasCategory: false, isPeeking: false),
+               "a compact bar draws no list until something is typed")
+        expect(CommandBarHome.showsBrowseList(compact: true, hasCategory: true, isPeeking: false),
+               "a category is an explicit drill-in and always shows its rows")
+        expect(CommandBarHome.showsBrowseList(compact: true, hasCategory: false, isPeeking: true),
+               "a peek is the person asking for the list anyway")
+        expect(CommandBarHome.isCollapsed(compact: true, query: "",
+                                          hasCategory: false, isPeeking: false),
+               "an empty compact field is the whole panel")
+        expect(CommandBarHome.isCollapsed(compact: true, query: "   ",
+                                          hasCategory: false, isPeeking: false),
+               "whitespace is not something typed")
+        expect(!CommandBarHome.isCollapsed(compact: true, query: "fire",
+                                           hasCategory: false, isPeeking: false),
+               "one letter brings the list and the footer back")
+        expect(!CommandBarHome.isCollapsed(compact: true, query: "",
+                                           hasCategory: true, isPeeking: false),
+               "a category keeps the panel open")
+        expect(!CommandBarHome.isCollapsed(compact: true, query: "",
+                                           hasCategory: false, isPeeking: true),
+               "a peeked bar is not collapsed either")
+        expect(!CommandBarHome.isCollapsed(compact: false, query: "",
+                                           hasCategory: false, isPeeking: false),
+               "the ordinary bar is never collapsed")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarCompactMode] as? Bool == false,
+               "compact mode ships off: the browse list is how the bar introduces itself")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarCompactMode),
+               "compact mode is configuration, so it travels with an exported setup")
+        expect(SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarCompactMode, true)
+                && !SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarCompactMode, "yes"),
+               "a restored compact mode has to be a switch, not text that looks like one")
+
         // MARK: What the bar noticed about this session
         expect(CommandBarQueryMemory.prefixes(of: "wha") == ["w", "wh", "wha"],
                "choosing a row for what was typed also answers every shorter piece of it")
@@ -15721,11 +16276,23 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 146 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 149 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
         }
+
+        // A key glyph in front of a button label reads as that button's
+        // shortcut, so neither command bar action button carries one.
+        let commandBarSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/CommandBarSettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(!commandBarSettingsSource.contains("Label(text.openButton, systemImage:")
+                && !commandBarSettingsSource.contains("Label(text.resetPositionButton, systemImage:"),
+               "neither command bar action button wears an icon")
+        expect(commandBarSettingsSource.contains("Toggle(text.shortcutToggle,")
+                && !commandBarSettingsSource.contains("l10n.s.quickToolShortcutToggle"),
+               "the command bar shortcut toggle says what the shortcut opens")
         for language in AppLanguage.allCases {
             let recordingShareValues = Mirror(
                 reflecting: FeatureStrings.recorderShare(language)).children
@@ -16239,6 +16806,30 @@ struct MetricsTests {
                 ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
                },
                "no capture tool's shortcut row is left without something to register it")
+        // MARK: A failed removal explains itself where it failed
+        // A green tick above "some items couldn't be moved to the Trash" told
+        // nobody that sandboxed app data needs Full Disk Access, and the note
+        // offering the permission only ever appeared before an app was picked.
+        expect(UninstallerSupport.doneSymbol(hasLeftovers: false) == "checkmark.circle.fill",
+               "a removal that took everything ends on a tick")
+        expect(UninstallerSupport.doneSymbol(hasLeftovers: true)
+                != UninstallerSupport.doneSymbol(hasLeftovers: false),
+               "a removal that left something behind does not end on the same mark")
+        // Both done states have to route through that decision and name what
+        // survived; neither may spell a tick of its own.
+        for path in ["Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",
+                     "Sources/Vorssaint/UI/MenuPanel/PanelUninstallerView.swift"] {
+            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            expect(source.contains("UninstallFailureNote(items:"),
+                   "\(path) names what the removal left behind")
+            expect(!source.contains("\"checkmark.circle.fill\""),
+                   "\(path) takes its done symbol from UninstallerSupport")
+        }
+        let sharedUISource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/SharedUI.swift",
+                                          encoding: .utf8)) ?? ""
+        expect(sharedUISource.contains("uninstallerFailedNeedsFDA"),
+               "the failure note explains the permission the removal needed")
+
         // MARK: Private file store
 
         let privateRoot = FileManager.default.temporaryDirectory
@@ -16485,6 +17076,43 @@ struct MetricsTests {
         }
 
         // MARK: Result
+
+        // MARK: Every defaults suite stays inside a namespace build.sh sweeps
+        // A UserDefaults suite leaves an empty plist in ~/Library/Preferences
+        // even after `removePersistentDomain`, and cfprefsd writes that file
+        // back out around the time this process exits, so the run cannot delete
+        // it itself. `build.sh --test` clears them afterwards, by name prefix.
+        // A suite named outside those prefixes survives every run instead.
+        let testSource = (try? String(contentsOfFile: "Tests/MetricsTests.swift",
+                                      encoding: .utf8)) ?? ""
+        expect(!testSource.isEmpty, "the test file reads back for its own source checks")
+        // The prefixes are read out of the sweep itself, so the check and the
+        // thing it guards cannot drift apart.
+        let buildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        let sweepBody = buildScript.components(separatedBy: "discard_test_preferences() {")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let sweptNamespaces = sweepBody.components(separatedBy: "\"")
+            .enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
+            .filter { $0.hasSuffix(".") }
+        expect(!sweptNamespaces.isEmpty, "the swept namespaces read back out of build.sh")
+        // Split so this needle is not itself a match in the text it scans.
+        let suiteCall = "UserDefaults(suiteName" + ": "
+        let suiteArguments = testSource.components(separatedBy: suiteCall)
+            .dropFirst()
+            .map { String($0.prefix { $0 != ")" && $0 != "," && !$0.isNewline }) }
+        expect(!suiteArguments.isEmpty, "the namespace check finds the suites it guards")
+        for argument in Set(suiteArguments) {
+            let name: String?
+            if argument.hasPrefix("\"") {
+                name = String(argument.dropFirst().prefix { $0 != "\"" })
+            } else {
+                name = testSource.components(separatedBy: "let \(argument) = \"")
+                    .dropFirst().first
+                    .map { String($0.prefix { $0 != "\"" }) }
+            }
+            expect(name.map { value in sweptNamespaces.contains { value.hasPrefix($0) } } == true,
+                   "defaults suite \(argument) is named inside a namespace build.sh sweeps")
+        }
 
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
