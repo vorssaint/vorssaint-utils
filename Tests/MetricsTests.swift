@@ -1729,6 +1729,7 @@ struct MetricsTests {
                    "a setup that kept the screenshot tool keeps its capture shortcut untouched")
             migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
             migrationDefaults.removeObject(forKey: DefaultsKey.screenshotShortcut)
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenOCRShortcut)
             migrationDefaults.set(false, forKey: AppFeature.screenshot.availabilityKey)
             Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
             expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
@@ -1736,6 +1737,17 @@ struct MetricsTests {
                         == GlobalShortcut.screenshotDefault.storageValue
                    && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
                    "a never-customized capture combination moves as the default combination")
+            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
+            migrationDefaults.set(false, forKey: DefaultsKey.screenOCRShortcutEnabled)
+            migrationDefaults.set(true, forKey: AppFeature.colorPicker.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.colorPickerShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.colorPickerShortcut)
+                        == GlobalShortcut.screenshotDefault.storageValue
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+                   "a switched-off but customized shortcut is kept and the next tool takes over")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")

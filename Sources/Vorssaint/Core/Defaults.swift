@@ -1393,6 +1393,8 @@ enum Defaults {
     /// an install without that tool a saved combination would register
     /// nothing. Move it once onto the first available tool that has no
     /// shortcut of its own, so the combination keeps opening the chooser.
+    /// A tool whose shortcut is switched off but was customized still counts
+    /// as having its own, so its saved combination is never overwritten.
     /// Availability is read from the passed defaults — the same key
     /// `isAvailable` reads from the standard ones — to stay testable.
     static func migrateOrphanedCaptureShortcut(in defaults: UserDefaults) {
@@ -1408,14 +1410,22 @@ enum Defaults {
         let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
             ?? GlobalShortcut.screenshotDefault.storageValue
 
-        let candidates: [(feature: AppFeature, enabled: String, shortcut: String)] = [
-            (.screenRecorder, DefaultsKey.recorderShortcutEnabled, DefaultsKey.recorderShortcut),
-            (.screenOCR, DefaultsKey.screenOCRShortcutEnabled, DefaultsKey.screenOCRShortcut),
-            (.colorPicker, DefaultsKey.colorPickerShortcutEnabled, DefaultsKey.colorPickerShortcut),
+        let candidates: [(feature: AppFeature, enabled: String,
+                          shortcut: String, unset: String)] = [
+            (.screenRecorder, DefaultsKey.recorderShortcutEnabled,
+             DefaultsKey.recorderShortcut,
+             GlobalShortcut.screenRecorderDefault.storageValue),
+            (.screenOCR, DefaultsKey.screenOCRShortcutEnabled,
+             DefaultsKey.screenOCRShortcut,
+             GlobalShortcut.screenOCRDefault.storageValue),
+            (.colorPicker, DefaultsKey.colorPickerShortcutEnabled,
+             DefaultsKey.colorPickerShortcut,
+             GlobalShortcut.colorPickerDefault.storageValue),
         ]
         guard let target = candidates.first(where: {
             defaults.bool(forKey: $0.feature.availabilityKey)
                 && !defaults.bool(forKey: $0.enabled)
+                && (defaults.string(forKey: $0.shortcut) ?? $0.unset) == $0.unset
         }) else { return }
         defaults.set(true, forKey: target.enabled)
         defaults.set(shortcut, forKey: target.shortcut)
