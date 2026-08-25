@@ -7566,6 +7566,38 @@ struct MetricsTests {
                && elevated.components(separatedBy: "\"$@\"").count == 3,
                "elevated installer names its arguments once and reuses them for the fallback")
 
+        // The fallback branch has to be chosen on whether perl is there, never
+        // on an exit code: perl execs the payload, so the status the shell sees
+        // is the payload's own. Every `exit 1` inside the installer script would
+        // otherwise start the whole installer a second time, as root.
+        let detachRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VorssaintDetachTests-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: detachRoot, withIntermediateDirectories: true)
+        let detachPayload = detachRoot.appendingPathComponent("payload.sh")
+        let detachLedger = detachRoot.appendingPathComponent("runs")
+        try? "#!/bin/sh\n/bin/echo ran >> \"$1\"\nexit 1\n"
+            .write(to: detachPayload, atomically: true, encoding: .utf8)
+        let detachCommand = DetachedProcess.detachedShellCommand(
+            quotedArgv: ["/bin/sh", detachPayload.path, detachLedger.path]
+                .map(UpdateInstallerSupport.shellSingleQuoted)
+                .joined(separator: " "))
+        let detachShell = Process()
+        detachShell.executableURL = URL(fileURLWithPath: "/bin/sh")
+        detachShell.arguments = ["-c", detachCommand]
+        try? detachShell.run()
+        detachShell.waitUntilExit()
+        func detachedRunCount() -> Int {
+            (try? String(contentsOf: detachLedger, encoding: .utf8))?
+                .split(separator: "\n").count ?? 0
+        }
+        for _ in 0..<300 where detachedRunCount() == 0 { usleep(10_000) }
+        usleep(500_000)   // a rerun follows the first run immediately; wait it out
+        let detachedRuns = detachedRunCount()
+        expect(detachedRuns == 1,
+               "a detached command runs its payload once whatever the payload exits with "
+               + "(ran \(detachedRuns) time(s))")
+        try? FileManager.default.removeItem(at: detachRoot)
+
         // A detached spawn is only detached if the child really is its own
         // session leader; `nohup` alone leaves it in ours.
         do {

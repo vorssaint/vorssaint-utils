@@ -1504,10 +1504,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// process, so this is how the uninstaller picks up a just-granted grant.
     func relaunchApp() {
         let path = Bundle.main.bundlePath
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.3; /usr/bin/open \"$1\"", "vorssaint-relaunch", path]
-        try? task.run()
+        // Its own session: the reopen fires after we terminate, so the child
+        // has to outlive the session it was started from.
+        _ = try? DetachedProcess.spawn(
+            "/bin/sh",
+            ["-c", "sleep 0.3; /usr/bin/open \"$1\"", "vorssaint-relaunch", path])
         NSApp.terminate(nil)
     }
 
