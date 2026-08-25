@@ -10,7 +10,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   compatibility:
@@ -58,11 +58,3 @@ jobs:
 
       - name: Unit tests
         run: ./build.sh --test
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        with:
-          name: Vorssaint-unsigned-ci-dmg
-          path: dist/*.dmg
-          if-no-files-found: error
-          retention-days: 3

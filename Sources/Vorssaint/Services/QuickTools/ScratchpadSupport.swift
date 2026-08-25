@@ -283,7 +283,8 @@ enum ScratchpadSupport {
         let base = sanitizedPadName(defaultName)
         let safeBase = base.isEmpty ? "Scratchpad" : base
         let used = Set(existingNames)
-        guard used.contains(safeBase) else { return safeBase }
+        let firstName = "\(safeBase) 1"
+        guard used.contains(safeBase) || used.contains(firstName) else { return firstName }
         for number in 2...ScratchpadDocument.maximumPadCount where !used.contains("\(safeBase) \(number)") {
             return "\(safeBase) \(number)"
         }

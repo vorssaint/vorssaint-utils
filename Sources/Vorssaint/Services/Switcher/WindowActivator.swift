@@ -217,6 +217,42 @@ enum WindowActivator {
         return AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute as CFString, value) == .success
     }
 
+    /// Puts a window where a drag dropped it. Every window takes the same four
+    /// steps in the same order whatever state it was in, because a drop that
+    /// stops to check on a minimized window feels like a different gesture from
+    /// a drop that does not. Un-minimizing a window that is already out returns
+    /// immediately, so the step costs one attribute read.
+    ///
+    /// The position goes on before the window is restored: the restore then
+    /// ends at the drop point rather than flying to the window's old place.
+    @discardableResult
+    static func place(_ item: SwitcherItem, origin: CGPoint, pointer: CGPoint) -> Bool {
+        guard Permissions.shared.accessibility,
+              let windowID = item.windowID,
+              item.windowOwnerPID != ProcessInfo.processInfo.processIdentifier
+        else { return false }
+        let pid = item.windowOwnerPID
+
+        if item.isAppHidden {
+            NSRunningApplication(processIdentifier: item.pid)?.unhide()
+        }
+        let placed = setWindowOrigin(origin, windowID: windowID, pid: pid)
+        SpaceWindowBridge.moveToVisibleSpace(windowID, near: pointer)
+        setWindowMinimized(false, windowID: windowID, pid: pid)
+        return placed
+    }
+
+    /// Hands the keyboard to a window a drag just placed. Dropping a window
+    /// somewhere is a request to use it, and the app-level activation that
+    /// follows raises the app without saying which of its windows the user was
+    /// pointing at.
+    static func focusPlacedWindow(_ item: SwitcherItem) {
+        guard let windowID = item.windowID,
+              item.windowOwnerPID != ProcessInfo.processInfo.processIdentifier
+        else { return }
+        SpaceWindowBridge.frontWindow(windowID, ownerPID: item.windowOwnerPID)
+    }
+
     @discardableResult
     static func setWindowMinimized(_ minimized: Bool, windowID: CGWindowID, pid: pid_t) -> Bool {
         if pid == ProcessInfo.processInfo.processIdentifier {

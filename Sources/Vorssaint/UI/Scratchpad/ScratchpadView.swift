@@ -115,6 +115,11 @@ struct ScratchpadView: View {
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
+            // A borderless Menu takes every point its row can spare on macOS
+            // 15, which left the tab strip beside it stuck at its old width
+            // while the window grew and cut tab names for no reason (issue
+            // #569). Pinned to its label, the strip gets the rest of the row.
+            .fixedSize()
             .help(text.padActions)
             .accessibilityLabel(text.padActions)
         }
