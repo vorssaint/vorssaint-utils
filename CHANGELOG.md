@@ -10,6 +10,9 @@ All notable changes to this project are documented here. The format follows
 - The video and GIF tools now include an option to compress directly to a target file size in megabytes, automatically deriving the resolution and frame rate to stay under the limit. Thanks to @FlowSync0.
 - The Command Bar now offers a compact mode: the bar opens as a field alone and shows results only once you type. Press Down to see the usual list anyway. Under Command Bar, off by default. Thanks to @kobebrylant.
 
+### Fixed
+- The screen capture loupe now rings the pixel under the pointer instead of drawing a crosshair across it, and that pixel sits in the middle of the loupe, so the Color picker shows the color it is about to copy. Thanks to @I-Have-No-Idea-What-Im-Doing-Right-Now and @PathGao.
+
 ## [3.3.3-beta.2] - 2026-08-22
 
 ### Added
@@ -145,10 +148,6 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   of their own again, opening screen capture already on that mode. Their Settings
   rows no longer record a combination that does nothing. Thanks to @wiidede and
   @PathGao.
-- The screen capture loupe now rings the pixel under the pointer instead of
-  drawing a crosshair across it, and that pixel sits in the middle of the loupe,
-  so the Color picker shows the color it is about to copy.
-  Thanks to @I-Have-No-Idea-What-Im-Doing-Right-Now and @PathGao.
 - App Switcher window preview warm-up no longer crashes right after startup when
   the system returns duplicate window identifiers. Thanks to @james-rose.
 - Clipboard history, its copied images, shelf files, recordings and temporary share
