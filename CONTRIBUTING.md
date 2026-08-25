@@ -81,11 +81,10 @@ A few conventions to keep in mind.
 
 ## Strings and translations
 
-Shared chrome strings live in `Core/Localization.swift` as fields of the
-`Strings` struct. Feature-specific copy lives in a `*Strings.swift` file under
-`Core/` and is exposed through `FeatureStrings`. Adding a field forces **every**
-supported language to provide it, and the compiler is the completeness check,
-so a translation can never silently fall out of sync.
+Every user facing string lives in `Core/Localization.swift` as a field of the
+`Strings` struct. Adding a field forces **every** supported language to provide
+it, and the compiler is the completeness check, so a translation can never
+silently fall out of sync.
 
 Vorssaint ships these locales today: English (US), Português (Brasil),
 Türkçe, Русский, Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文,
