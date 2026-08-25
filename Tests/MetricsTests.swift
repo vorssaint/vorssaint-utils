@@ -1703,6 +1703,30 @@ struct MetricsTests {
             Defaults.migrateRestoredScreenCaptureShortcuts(in: migrationDefaults)
             expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
                    "a distinct general capture shortcut stays enabled when dedicated ones return")
+            migrationDefaults.set(true, forKey: AppFeature.screenRecorder.availabilityKey)
+            migrationDefaults.set(true, forKey: AppFeature.screenOCR.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.screenOCRShortcut)
+                        == "control+option:42"
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.recorderShortcut)
+                        == "command:12",
+                   "an orphaned capture shortcut moves to the first available tool without its own")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
+            migrationDefaults.set(false, forKey: DefaultsKey.screenOCRShortcutEnabled)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled),
+                   "the orphaned capture shortcut migration runs once")
+            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+            migrationDefaults.set(true, forKey: AppFeature.screenshot.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && migrationDefaults.bool(
+                        forKey: DefaultsKey.orphanedCaptureShortcutMigrated),
+                   "a setup that kept the screenshot tool keeps its capture shortcut untouched")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
