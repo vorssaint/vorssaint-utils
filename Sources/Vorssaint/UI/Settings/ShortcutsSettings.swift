@@ -15,24 +15,12 @@ struct ShortcutsSettings: View {
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
-    /// Every capture tool's shortcut lives under one "Screen capture" group,
-    /// the way the tools share one settings page and one selection surface.
-    private static let captureFeatures: [AppFeature] =
-        [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-
-    /// Chooser tools first, in chooser order, then the screenshot extras.
-    private static let captureRoleOrder: [GlobalShortcutRole] = [
-        .screenshot, .screenRecorder, .screenOCR, .colorPicker,
-        .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
-    ]
-
     private var availableRoles: [GlobalShortcutRole] {
         GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable })
     }
 
     private var captureRoles: [GlobalShortcutRole] {
-        let available = availableRoles
-        return Self.captureRoleOrder.filter(available.contains)
+        GlobalShortcutRole.captureRoles(in: availableRoles)
     }
 
     private var visibleGroups: [FeatureGroup] {
@@ -73,7 +61,7 @@ struct ShortcutsSettings: View {
             // The screenshot slot anchors the combined capture group; the
             // other capture tools render inside it instead of on their own.
             if feature == .screenshot { return !captureRoles.isEmpty }
-            if Self.captureFeatures.contains(feature) { return false }
+            if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
             return (feature.isAvailable || availableRoles.contains { $0.feature == feature })
                 && (feature == .windowLayout || availableRoles.contains { $0.feature == feature })
         }

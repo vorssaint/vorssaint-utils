@@ -16802,6 +16802,12 @@ struct MetricsTests {
                     && keys.role.feature == tool.feature
                },
                "a capture tool registers exactly the keys its own settings row reads")
+        expect(GlobalShortcutRole.captureRoles(in: GlobalShortcutRole.allCases)
+                == GlobalShortcutRole.captureDisplayOrder,
+               "every role of a capture feature reaches the shortcuts page, in display order")
+        expect(GlobalShortcutRole.captureRoles(in: [.colorPicker, .screenshot, .commandBar])
+                == [.screenshot, .colorPicker],
+               "capture roles are reordered for display and other roles fall away")
         // MARK: A failed removal explains itself where it failed
         // A green tick above "some items couldn't be moved to the Trash" told
         // nobody that sandboxed app data needs Full Disk Access, and the note

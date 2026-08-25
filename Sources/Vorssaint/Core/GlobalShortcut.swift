@@ -797,6 +797,30 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         -> [GlobalShortcutRole] {
         allCases.filter { $0.isAvailable(using: isAvailable) }
     }
+
+    /// The features whose shortcuts share one Screen capture group on the
+    /// central shortcuts page.
+    static let captureFeatures: [AppFeature] =
+        [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+
+    /// Chooser tools first, in chooser order, then the screenshot extras.
+    static let captureDisplayOrder: [GlobalShortcutRole] = [
+        .screenshot, .screenRecorder, .screenOCR, .colorPicker,
+        .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
+    ]
+
+    /// The given roles narrowed to the capture group, in display order. The
+    /// order list only sorts, so an unlisted role lands at the end instead of
+    /// vanishing.
+    static func captureRoles(in roles: [GlobalShortcutRole]) -> [GlobalShortcutRole] {
+        roles.filter { captureFeatures.contains($0.feature) }
+            .enumerated()
+            .sorted { lhs, rhs in
+                (captureDisplayOrder.firstIndex(of: lhs.element) ?? .max, lhs.offset)
+                    < (captureDisplayOrder.firstIndex(of: rhs.element) ?? .max, rhs.offset)
+            }
+            .map(\.element)
+    }
 }
 
 /// macOS answers its own shortcuts before an application hotkey ever sees the
