@@ -439,7 +439,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir links temporários",
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
-        screenCaptureTitle: "Captura de tela"
+        screenCaptureTitle: "Ferramentas de captura"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -856,7 +856,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir enlaces temporales",
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
-        screenCaptureTitle: "Captura de pantalla"
+        screenCaptureTitle: "Herramientas de captura"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -1134,7 +1134,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Autoriser les liens temporaires",
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
-        screenCaptureTitle: "Capture d’écran"
+        screenCaptureTitle: "Outils de capture"
     )
 
     static let it = ScreenshotFeatureStrings(
