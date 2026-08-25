@@ -588,7 +588,7 @@ struct MetricsTests {
         for _ in 0..<16 {
             pasteboardGroup.enter()
             DispatchQueue.global(qos: .userInitiated).async {
-                pasteboardAccess.sync {
+                pasteboardAccess.async {
                     pasteboardStateLock.lock()
                     activePasteboardOperations += 1
                     maximumPasteboardOperations = max(maximumPasteboardOperations,
@@ -598,19 +598,45 @@ struct MetricsTests {
                     pasteboardStateLock.lock()
                     activePasteboardOperations -= 1
                     pasteboardStateLock.unlock()
+                    pasteboardGroup.leave()
                 }
-                pasteboardGroup.leave()
             }
         }
-        expect(pasteboardGroup.wait(timeout: .now() + 2) == .success,
+        expect(pasteboardGroup.wait(timeout: .now() + 5) == .success,
                "pasteboard access operations finish without deadlock")
         expect(maximumPasteboardOperations == 1,
                "pasteboard access serializes concurrent service work")
-        let nestedPasteboardValue = pasteboardAccess.sync {
-            pasteboardAccess.sync { 230 }
+
+        // The freeze this lane exists to prevent (issue #887): a read stuck
+        // behind an app that promised pasteboard content and stopped answering
+        // holds the lane, and any caller that waited for it would be frozen
+        // with it. Wedge the lane, then ask for work from the main thread: the
+        // ask must return at once and the answer must arrive later, on main.
+        let wedgeReleased = DispatchSemaphore(value: 0)
+        pasteboardAccess.async { wedgeReleased.wait() }
+        // Released on its own, so a caller that waited for the lane comes out
+        // measurably late instead of hanging the whole test run.
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.3) {
+            wedgeReleased.signal()
         }
-        expect(nestedPasteboardValue == 230,
-               "pasteboard access permits nested work without deadlock")
+        var laneAnswer: Int?
+        var laneAnsweredOnMain = false
+        let askedAt = Date()
+        pasteboardAccess.async({ 887 }, then: { value in
+            laneAnswer = value
+            laneAnsweredOnMain = Thread.isMainThread
+        })
+        let askDuration = Date().timeIntervalSince(askedAt)
+        expect(askDuration < 0.1,
+               "asking the wedged pasteboard lane for work returns without waiting "
+                   + "(took \(askDuration)s)")
+        expect(laneAnswer == nil, "the wedged lane has not answered yet")
+        let laneDeadline = Date().addingTimeInterval(5)
+        while laneAnswer == nil, Date() < laneDeadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        expect(laneAnswer == 887, "the queued work runs once the lane comes free")
+        expect(laneAnsweredOnMain, "the pasteboard lane answers on the main queue")
 
         let maxCapacityStringJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"93%"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityStringJSON) == 93,
@@ -11697,6 +11723,18 @@ struct MetricsTests {
                "unknown variables stay visible")
         expect(TextSnippetSupport.expand("plain", date: fixedDate, clipboard: nil) == "plain",
                "text without variables passes through untouched")
+
+        // Only a replacement that names the clipboard pays for reading it: the
+        // pasteboard can hang on content nobody renders any more, and that read
+        // sits on the keystroke path (issue #887).
+        expect(TextSnippetSupport.needsClipboard("clip: {{clipboard}}"),
+               "a replacement naming the clipboard needs it read")
+        expect(!TextSnippetSupport.needsClipboard("Report on {{date}} at {{time}}."),
+               "a replacement with only date variables never reads the clipboard")
+        expect(!TextSnippetSupport.needsClipboard("plain"),
+               "a replacement without variables never reads the clipboard")
+        expect(!TextSnippetSupport.needsClipboard("keep {{unknown}}"),
+               "an unknown variable is not the clipboard one")
 
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")
