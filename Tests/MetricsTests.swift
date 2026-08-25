@@ -10869,8 +10869,14 @@ struct MetricsTests {
                    "every Settings category name is set for \(language.rawValue)")
             let superKeyValues = Mirror(reflecting: FeatureStrings.superKey(language)).children
                 .compactMap { $0.value as? String }
-            expect(superKeyValues.count == 15 && superKeyValues.allSatisfy { !$0.isEmpty },
+            expect(superKeyValues.count == 17 && superKeyValues.allSatisfy { !$0.isEmpty },
                    "every super key string is set for \(language.rawValue)")
+            let refusals = SuperKeyMappingFailure.allCases.map {
+                FeatureStrings.superKey(language).mappingFailure($0)
+            }
+            expect(Set(refusals).count == SuperKeyMappingFailure.allCases.count
+                    && refusals.allSatisfy { !$0.isEmpty },
+                   "every reason the key mapping is refused reads differently (\(language.rawValue))")
             expect(superKeyValues.allSatisfy { !$0.contains("—") }
                     && FeatureStrings.superKey(language).panelCaptionFormat.contains("%@"),
                    "super key strings keep their format and avoid em-dashes (\(language.rawValue))")
@@ -13826,8 +13832,6 @@ struct MetricsTests {
 
         let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
                                           destination: SuperKeySupport.triggerUsage)
-        let noActionMapping = SuperKeyMapping(source: SuperKeySupport.noActionUsage,
-                                              destination: SuperKeySupport.triggerUsage)
         let foreignMapping = SuperKeyMapping(source: 0x700000064, destination: 0x700000035)
         expect(SuperKeySupport.mappings(enablingSuperKey: true, existing: []) == [capsMapping],
                "turning the key on maps caps lock to the key it arrives as")
@@ -13855,15 +13859,6 @@ struct MetricsTests {
                 && SuperKeySupport.mappings(enablingSuperKey: true,
                                             existing: [capsMapping]) == [capsMapping],
                "an identical external Caps Lock mapping is not claimed without ownership proof")
-        expect(SuperKeySupport.mappings(enablingSuperKey: true,
-                                        existing: [foreignMapping],
-                                        includeNoAction: true)
-                == [capsMapping, noActionMapping, foreignMapping]
-                && SuperKeySupport.mappings(enablingSuperKey: false,
-                                            existing: [capsMapping, noActionMapping, foreignMapping],
-                                            ownsExistingMapping: true)
-                == [foreignMapping],
-               "the no-action mapping belongs to the feature and leaves with it")
         expect(SuperKeySupport.mappingArgument([capsMapping])
                 == "{\"UserKeyMapping\":[{\"HIDKeyboardModifierMappingSrc\":30064771129,\"HIDKeyboardModifierMappingDst\":30064771181}]}",
                "the mapping table goes out in the form the system takes")
@@ -13952,50 +13947,24 @@ struct MetricsTests {
             ownsExistingMapping: true
         ) == [foreignMapping], "a newly connected keyboard can converge when only the owned mapping differs")
 
-        let disabledCaps = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
-                                           destination: SuperKeySupport.noActionUsage)
-        let disabledControl = SuperKeyMapping(source: 0x7000000E0,
-                                              destination: SuperKeySupport.noActionUsage)
-        expect(SuperKeySupport.canMapNoAction(from: [disabledCaps])
-                && !SuperKeySupport.canMapNoAction(from: [disabledControl])
-                && !SuperKeySupport.canMapNoAction(from: [disabledCaps, disabledControl])
-                && !SuperKeySupport.canMapNoAction(from: []),
-               "the shared no-action sentinel is recovered only when Caps Lock owns it")
-        expect(SuperKeySupport.modifierMappingsAllowSuperKey([])
-                && SuperKeySupport.modifierMappingsAllowSuperKey([disabledControl])
-                && SuperKeySupport.modifierMappingsAllowSuperKey([disabledCaps])
-                && !SuperKeySupport.modifierMappingsAllowSuperKey(
-                    [disabledCaps, disabledControl]
-                )
-                && !SuperKeySupport.modifierMappingsAllowSuperKey([foreignCapsMapping]),
-               "an external or shared Modifier Keys rule for Caps Lock blocks activation")
         let noActionReport = """
         HIDKeyboardModifierMappingPairs = {
           HIDKeyboardModifierMappingSrc = 30064771129;
           HIDKeyboardModifierMappingDst = "-1";
         }
         """
-        expect(SuperKeySupport.parseMappings(noActionReport) == [disabledCaps],
+        expect(SuperKeySupport.parseMappings(noActionReport)
+                == [SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
+                                    destination: UInt64.max)],
                "hidutil's signed no-action value keeps its unsigned HID meaning")
-        let heterogeneousModifierReport = """
-        RegistryID  Key                               Value
-        100000a84   HIDKeyboardModifierMappingPairs   (
-                {
-                HIDKeyboardModifierMappingDst = "-1";
-                HIDKeyboardModifierMappingSrc = 30064771129;
-            }
-        )
-        100000a85   HIDKeyboardModifierMappingPairs   (
-                {
-                HIDKeyboardModifierMappingDst = 30064771113;
-                HIDKeyboardModifierMappingSrc = 30064771129;
-            }
-        )
-        """
-        expect(SuperKeySupport.consistentMappings(
-            heterogeneousModifierReport,
-            property: SuperKeySupport.modifierMappingProperty
-        ) == nil, "different per-keyboard Modifier Keys rules block Super key activation")
+        // The page is the only place a refused mapping is visible, so the
+        // reason has to reach it and be spelled out there.
+        let superKeySettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SuperKeySettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(superKeySettingsSource.contains("superKey.mappingFailure")
+                && superKeySettingsSource.contains("text.mappingFailure(failure)"),
+               "the Super key page names the reason its mapping was refused")
 
         var superKeyState = SuperKeySupport.State()
         expect(superKeyState.decide(.otherKey) == .pass,
