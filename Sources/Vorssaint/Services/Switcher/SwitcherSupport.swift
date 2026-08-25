@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -122,6 +123,31 @@ struct SwitcherAppGroup: Identifiable, Equatable {
     var windowCount: Int { itemIDs.count }
 }
 
+/// What one App Switcher grid card is made of.
+///
+/// The card scales with the preview size; its chrome does not, because the
+/// chrome is two lines of text that are the same at every size. The thumbnail
+/// takes whatever is left, derived from the parts rather than from one number
+/// standing in for them — the number it used to be had drifted 16pt past what
+/// it stood for, and the card spent the difference on nothing.
+enum SwitcherGridCard {
+    static var width: CGFloat { 288 * PreviewSizing.scale }
+    static var height: CGFloat { 214 * PreviewSizing.scale }
+    static let padding: CGFloat = 10
+    static let titleSpacing: CGFloat = 7
+    /// One 13pt line over one 10.5pt line, 2pt apart, descenders included.
+    static let titleHeight: CGFloat = 31
+    static var thumbnailWidth: CGFloat { width - padding * 2 }
+    static var thumbnailHeight: CGFloat { height - padding * 2 - titleSpacing - titleHeight }
+    /// The title band sits inside the thumbnail's width so a long name stops
+    /// short of the card's rounded corners.
+    static var titleWidth: CGFloat { thumbnailWidth - 8 }
+    /// Stands in for a thumbnail that has not arrived, so it has to stay
+    /// inside the thumbnail at every preview size (#793 gave it the scale;
+    /// naming it is what lets a test hold it to the thumbnail it sits in).
+    static var fallbackIconSize: CGFloat { 80 * PreviewSizing.scale }
+}
+
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
@@ -168,12 +194,23 @@ struct SwitcherIconRowLayout: Equatable {
     static let simpleTitleSpacing: CGFloat = 6
     static let simpleTitleScrollPadding: CGFloat = 1
 
+    /// The widest row the panel has to hold. Panel sizing and the rows
+    /// themselves both measure against this one value, so a row can never come
+    /// out wider than the window drawing it and get clipped (issues #710, #730).
+    func contentWidth(simpleMode: Bool, windowRow: Bool) -> CGFloat {
+        let hintWidth = showsShortcutHints ? Self.hintBarWidth : 0
+        guard simpleMode else {
+            return max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth)
+        }
+        return max(appRowSurfaceWidth,
+                   windowRow ? 0 : simpleTitleSurfaceWidth,
+                   hintWidth)
+    }
+
     /// App-only mode keeps the same icon row and shortcut preference, but
     /// removes the entire preview area so no blank space remains where captures were.
     var simplePanelSize: CGSize {
-        CGSize(width: max(appRowSurfaceWidth,
-                          simpleTitleSurfaceWidth,
-                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
+        CGSize(width: contentWidth(simpleMode: true, windowRow: false) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
                         + Self.rowHeight + shortcutHintHeight
                         + Self.padding * 2)
@@ -182,8 +219,7 @@ struct SwitcherIconRowLayout: Equatable {
     /// A flat window row names every entry under its icon, so it needs no
     /// separate title strip above the row.
     var simpleWindowPanelSize: CGSize {
-        CGSize(width: max(appRowSurfaceWidth,
-                          showsShortcutHints ? Self.hintBarWidth : 0) + Self.padding * 2,
+        CGSize(width: contentWidth(simpleMode: true, windowRow: true) + Self.padding * 2,
                height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
     }
 
@@ -255,6 +291,26 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// How wide a window's name is in the font a card draws it in. Measured
+    /// against the font rather than a layout pass, so a card can decide whether
+    /// to scroll the name before the band has ever been on screen -- and a test
+    /// can ask the same question without one.
+    static func titleWidth(_ title: String,
+                           fontSize: CGFloat = 13,
+                           weight: NSFont.Weight = .regular) -> CGFloat {
+        guard !title.isEmpty else { return 0 }
+        let font = NSFont.systemFont(ofSize: fontSize, weight: weight)
+        return (title as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    static func titleOverflows(_ title: String,
+                               width: CGFloat,
+                               fontSize: CGFloat = 13,
+                               weight: NSFont.Weight = .regular) -> Bool {
+        guard width > 0 else { return false }
+        return titleWidth(title, fontSize: fontSize, weight: weight) > width
+    }
+
     /// Grid resolution used to classify window captures.
     static let captureAlphaGridSize = 8
 
