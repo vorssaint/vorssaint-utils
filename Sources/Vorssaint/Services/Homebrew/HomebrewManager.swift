@@ -42,6 +42,8 @@ final class HomebrewManager: ObservableObject {
     private var popularityLoads: Set<HomebrewPackageKind> = []
     private var activeProcess: Process?
     private var cancelRequested = false
+    private var pendingUpgradeRetries: [HomebrewCommand] = []
+    private var upgradeRetryNote = ""
     private var installedCaskRecords: [HomebrewCaskRecord] = []
     private var installedCaskRecordsFetchedAt: Date?
     private var ownershipLoads: [String: [(HomebrewPackage?) -> Void]] = [:]
@@ -362,6 +364,8 @@ final class HomebrewManager: ObservableObject {
         terminalFallbackCommand = nil
         errorMessage = nil
         clearUntrustedTap()
+        pendingUpgradeRetries = []
+        upgradeRetryNote = ""
         cancelRequested = false
         completedOperationCleanup?.cancel()
         completedOperationCleanup = nil
@@ -376,6 +380,11 @@ final class HomebrewManager: ObservableObject {
                 self.activeProcess = nil
                 self.operation = nil
                 if status == 0 {
+                    if action == .upgradeAll, !self.pendingUpgradeRetries.isEmpty {
+                        self.continueUpgradeRetry(self.pendingUpgradeRetries,
+                                                  note: self.upgradeRetryNote)
+                        return
+                    }
                     self.markOperationComplete(result: .succeeded,
                                                phase: .refreshing,
                                                activity: nil)
@@ -409,8 +418,10 @@ final class HomebrewManager: ObservableObject {
                               from: command,
                               outdated: Array(self.outdatedPackagesByID.values)) {
                     // A disabled package can never be upgraded, so skip it.
-                    self.perform(action, package: package, command: retry)
-                    self.appendLog("Skipping \(disabled): disabled in Homebrew.\n\n")
+                    self.continueUpgradeRetry(
+                        retry + self.pendingUpgradeRetries,
+                        note: self.upgradeRetryNote
+                            + "Skipping \(disabled): disabled in Homebrew.\n")
                 } else {
                     let message = HomebrewProgressParser.visibleError(from: output)
                     self.errorMessage = message.isEmpty ? output.trimmingCharacters(in: .whitespacesAndNewlines) : message
@@ -421,6 +432,18 @@ final class HomebrewManager: ObservableObject {
                 self.cancelRequested = false
             }
         }
+    }
+
+    /// Runs the next command of a retried upgrade-all. The queue and note are
+    /// restored after `perform` resets them, and the note plus the command
+    /// being run are appended after it clears the log, so every leg's log
+    /// says what was skipped and exactly what the retry covers.
+    private func continueUpgradeRetry(_ commands: [HomebrewCommand], note: String) {
+        guard let first = commands.first else { return }
+        perform(.upgradeAll, package: nil, command: first)
+        pendingUpgradeRetries = Array(commands.dropFirst())
+        upgradeRetryNote = note
+        appendLog(note + "$ " + HomebrewCommandBuilder.shellCommand(first) + "\n\n")
     }
 
     private func finishOwnershipLoad(path: String, package: HomebrewPackage?) {

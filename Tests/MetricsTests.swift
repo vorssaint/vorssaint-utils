@@ -9147,17 +9147,27 @@ struct MetricsTests {
         let pinnedOutdated = HomebrewPackageUpdate(kind: .formula, name: "node",
                                                    installedVersions: ["22.0"],
                                                    currentVersion: "24.0", isPinned: true)
+        let dockerOutdated = HomebrewPackageUpdate(kind: .cask, name: "docker",
+                                                   installedVersions: ["4.30"],
+                                                   currentVersion: "4.31", isPinned: false)
         expect(HomebrewCommandBuilder.upgradeExcluding(
                 ["six"],
                 from: HomebrewCommand(executable: brewPath, arguments: ["upgrade"]),
-                outdated: [sixOutdated, jqOutdated, pinnedOutdated])?.arguments
-               == ["upgrade", "jq"],
-               "bare upgrade retries with the outdated list minus disabled and pinned packages")
+                outdated: [sixOutdated, jqOutdated, pinnedOutdated, dockerOutdated])?
+                .map(\.arguments)
+               == [["upgrade", "--formula", "jq"], ["upgrade", "--cask"]],
+               "bare upgrade retries per kind: outdated formulae minus disabled and pinned by name, casks left to brew so a name shared with a formula cannot misresolve")
+        expect(HomebrewCommandBuilder.upgradeExcluding(
+                ["six"],
+                from: HomebrewCommand(executable: brewPath, arguments: ["upgrade"]),
+                outdated: [sixOutdated])?.map(\.arguments)
+               == [["upgrade", "--cask"]],
+               "a bare upgrade with no formula left still retries the cask half")
         expect(HomebrewCommandBuilder.upgradeExcluding(
                 ["six"],
                 from: HomebrewCommand(executable: brewPath, arguments: ["upgrade", "--cask", "six", "jq"]),
-                outdated: [])?.arguments
-               == ["upgrade", "--cask", "jq"],
+                outdated: [])?.map(\.arguments)
+               == [["upgrade", "--cask", "jq"]],
                "explicit upgrade keeps its flags and drops only the disabled package")
         expect(HomebrewCommandBuilder.upgradeExcluding(
                 ["six"],
@@ -9169,6 +9179,11 @@ struct MetricsTests {
                 from: HomebrewCommand(executable: brewPath, arguments: ["upgrade", "jq"]),
                 outdated: [jqOutdated]) == nil,
                "an upgrade that never named the disabled package is not retried again")
+        expect(HomebrewCommandBuilder.upgradeExcluding(
+                ["six"],
+                from: HomebrewCommand(executable: brewPath, arguments: ["upgrade", "--cask"]),
+                outdated: [sixOutdated, dockerOutdated]) == nil,
+               "a failing retried cask half is never expanded again, so retries always end")
 
         let cask = HomebrewPackage(kind: .cask, name: "sample-tool",
                                    displayName: "Sample Tool", desc: nil,

@@ -322,25 +322,40 @@ enum HomebrewCommandBuilder {
         return isValidToken(name) ? name : nil
     }
 
-    /// The failed upgrade rebuilt without the given packages: explicit tokens
-    /// lose the excluded names, a bare `upgrade` expands to the outdated list
-    /// minus them. nil when the retry would repeat the same command or
-    /// nothing is left to upgrade.
+    /// The failed upgrade rebuilt without the given packages, as the commands
+    /// to run in order. Explicit tokens just lose the excluded names, keeping
+    /// their flags. A bare `upgrade` cannot exclude anything, so it splits by
+    /// kind: an explicit `--formula` upgrade from the outdated list minus
+    /// excluded and pinned names, then a bare `--cask` upgrade — a plain name
+    /// shared by a formula and a cask would resolve as the formula, so cask
+    /// coverage stays brew's own instead of a list of names. nil when the
+    /// retry would repeat the failed command or nothing is left to upgrade.
     static func upgradeExcluding(_ excluded: Set<String>,
                                  from command: HomebrewCommand,
-                                 outdated: [HomebrewPackageUpdate]) -> HomebrewCommand? {
+                                 outdated: [HomebrewPackageUpdate]) -> [HomebrewCommand]? {
         guard command.arguments.first == "upgrade" else { return nil }
         let rest = command.arguments.dropFirst()
         let flags = rest.filter { $0.hasPrefix("-") }
         var tokens = rest.filter { !$0.hasPrefix("-") }
-        if tokens.isEmpty {
-            tokens = outdated.filter { !$0.isPinned }.map(\.name).sorted()
+        guard tokens.isEmpty else {
+            guard tokens.contains(where: excluded.contains) else { return nil }
+            tokens.removeAll { excluded.contains($0) || !isValidToken($0) }
+            guard !tokens.isEmpty else { return nil }
+            return [HomebrewCommand(executable: command.executable,
+                                    arguments: ["upgrade"] + flags + tokens)]
         }
-        guard tokens.contains(where: excluded.contains) else { return nil }
-        tokens.removeAll { excluded.contains($0) || !isValidToken($0) }
-        guard !tokens.isEmpty else { return nil }
-        return HomebrewCommand(executable: command.executable,
-                               arguments: ["upgrade"] + flags + tokens)
+        guard flags.isEmpty else { return nil }
+        let formulae = outdated
+            .filter { $0.kind == .formula && !$0.isPinned && !excluded.contains($0.name) }
+            .map(\.name).filter(isValidToken).sorted()
+        var commands: [HomebrewCommand] = []
+        if !formulae.isEmpty {
+            commands.append(HomebrewCommand(executable: command.executable,
+                                            arguments: ["upgrade", "--formula"] + formulae))
+        }
+        commands.append(HomebrewCommand(executable: command.executable,
+                                        arguments: ["upgrade", "--cask"]))
+        return commands
     }
 
     static func needsTerminalFallback(output: String) -> Bool {
