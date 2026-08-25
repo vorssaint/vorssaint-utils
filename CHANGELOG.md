@@ -38,6 +38,7 @@ All notable changes to this project are documented here. The format follows
 - Uninstallation via script or inside the app now fully clears the Fan Control helper daemon registration, stored application data, caches and ByHost preferences. Thanks to @mugurc.
 - The menu bar panel keeps its arrow under the icon when the bar hides itself and the panel content changes height. Thanks to @pergioa.
 - Homebrew formulas installed from another tap now show their update on the row. Thanks to @pergioa.
+- Super key now shows why it could not remap Caps Lock, instead of staying on with a key that still only toggles capitals. Thanks to @PathGao.
 
 ## [3.3.3-beta.2] - 2026-08-22
 
