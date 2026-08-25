@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows
 - The Keyboard Shortcuts page now lists every capture shortcut under one Screen capture group, and expandable shortcut groups are toggled by their whole row, with the chevron moved to the trailing edge. Thanks to @RecoilGaming.
 
 ### Fixed
+- Muting the microphone from Quick toggles no longer moves the menu panel. Thanks to @FloatingPegasus.
 - Fan Control can no longer be installed on a Mac with no controllable fan, including from Install all and first-run setup. Thanks to @PathGao and @Yahddyyp.
 - Quit on close no longer causes elevated background CPU usage in watched applications. Thanks to @iltonandrew.
 - The Displays section no longer freezes when switching off the built-in display while an external monitor is connected. Thanks to @iltonandrew.
