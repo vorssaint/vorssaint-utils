@@ -334,12 +334,14 @@ struct MetricsTests {
                    "\(language.rawValue) window edge snap controls are localized")
             let alertStrings = FeatureStrings.monitorAlerts(language)
             expect(alertStrings.caption.contains("12"),
-                   "\(language.rawValue) monitor alert caption explains the CPU spike window")
+                   "\(language.rawValue) monitor alert caption explains the sustained alert window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
             expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
+            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["d"],
+                         "\(language.rawValue) battery temperature alert format")
         }
         expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",
                "English monitor repeat control is explicit")
@@ -1281,6 +1283,11 @@ struct MetricsTests {
         expectClose(TemperatureSensorSelector.stabilizedTemperature(
             7, cache: &batteryTemperatureCache, now: 100, maxAge: 30
         ) ?? -1, 7, "chip floor does not reject a legitimate low battery reading")
+        expectClose(TemperatureSensorSelector.stabilizedTemperature(
+            1, cache: &batteryTemperatureCache, now: 101, maxAge: 30
+        ) ?? -1, 7, "an invalid battery sample bridges the last valid reading")
+        expect(batteryTemperatureCache?.updatedAt == 100,
+               "a bridged battery temperature keeps the real sample timestamp")
         var invalidBatteryTemperatureCache: CachedSensorReading?
         expect(TemperatureSensorSelector.stabilizedTemperature(
             1, cache: &invalidBatteryTemperatureCache, now: 100, maxAge: 30
@@ -2564,6 +2571,10 @@ struct MetricsTests {
                "the two minute alert cooldown is a valid stored choice")
         expect(Defaults.sanitizedMonitorAlertCooldown(7) == 15,
                "unknown alert cooldowns fall back to fifteen minutes")
+        expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperature] as? Bool == false,
+               "battery temperature alerts are opt-in")
+        expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperatureThreshold] as? Int == 40,
+               "battery temperature alerts default to forty degrees")
         expect(Defaults.sanitizedMenuBarMetricSpacing("standard") == "standard",
                "standard menu bar spacing is a valid stored choice")
         expect(Defaults.sanitizedMenuBarMetricSpacing("banana") == "compact",
@@ -4666,6 +4677,125 @@ struct MetricsTests {
                 && MediaSupport.gifLoopCount(loops: true) == 0
                 && MediaSupport.gifLoopCount(loops: false) == nil,
                "GIF limits are actionable and non-looping output omits repeat metadata")
+
+        // MARK: Media size targets
+
+        expect(MediaSizingMode.sanitized("targetSize") == .targetSize
+                && MediaSizingMode.sanitized("resolution") == .resolution
+                && MediaSizingMode.sanitized("nonsense") == .resolution,
+               "A stored sizing mode falls back to the historical resolution mode")
+        expect(MediaSupport.targetBytes(megabytes: 20) == 20_000_000
+                && MediaSupport.targetBytes(megabytes: 0) == 1_000_000
+                && MediaSupport.targetBytes(megabytes: 99_999)
+                    == Int64(MediaSupport.maximumTargetMegabytes) * 1_000_000,
+               "Target megabytes are 1000 based and clamped to a usable range")
+
+        // The case the mode exists for: a minute of 1080p that has to fit the
+        // 20 MB a chat service accepts without paid tiers.
+        let sharePlan = MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                                   duration: 60,
+                                                   sourceSize: CGSize(width: 1920, height: 1080),
+                                                   frameRate: 30,
+                                                   hasAudio: true)
+        expect(sharePlan != nil, "A minute of 1080p can be planned into 20 MB")
+        if let plan = sharePlan {
+            let projectedBytes = Double(plan.videoBitRate + plan.audioBitRate) * 60 / 8
+            expect(projectedBytes <= 20_000_000,
+                   "The planned bitrate cannot overrun the target it was derived from")
+            expect(projectedBytes >= 18_000_000,
+                   "The plan spends the budget instead of undershooting it")
+            expect(plan.size.width <= 1920 && plan.size.height <= 1080,
+                   "A size target never upscales the source")
+            expect(Int(plan.size.width).isMultiple(of: 2) && Int(plan.size.height).isMultiple(of: 2),
+                   "Planned dimensions stay even, which H.264 requires")
+        }
+
+        // Short clips have bitrate to spare, so nothing is thrown away.
+        expect(MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                          duration: 5,
+                                          sourceSize: CGSize(width: 1280, height: 720),
+                                          frameRate: 30,
+                                          hasAudio: true)?.size == CGSize(width: 1280, height: 720),
+               "A budget larger than the source needs keeps the full resolution")
+        // A budget too thin to be watchable is refused rather than encoded.
+        expect(MediaSupport.videoSizePlan(targetBytes: 1_000_000,
+                                          duration: 120,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: true) == nil,
+               "An unreachable target fails planning instead of producing mush")
+        expect(MediaSupport.videoSizePlan(targetBytes: 2_000_000,
+                                          duration: 60,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: false)?.size == CGSize(width: 480, height: 270),
+               "Scaling stops at 480 on the long edge even when the budget would buy less")
+        expect(MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                          duration: 0,
+                                          sourceSize: CGSize(width: 1920, height: 1080),
+                                          frameRate: 30,
+                                          hasAudio: true) == nil
+                && MediaSupport.videoSizePlan(targetBytes: 20_000_000,
+                                              duration: 60,
+                                              sourceSize: .zero,
+                                              frameRate: 30,
+                                              hasAudio: true) == nil,
+               "Planning rejects a clip with no duration or no size")
+        expect(MediaSupport.targetAudioBitRate(targetBytes: 20_000_000, duration: 60) == 128_000
+                && MediaSupport.targetAudioBitRate(targetBytes: 2_000_000, duration: 60) == 64_000,
+               "Audio gives up half its bitrate when the whole budget is thin")
+
+        // Rate control lands near the budget, so an overshoot is measured and
+        // scaled down rather than retried at the same setting.
+        expectClose(MediaSupport.targetRetryScale(current: 1,
+                                                  actualBytes: 24_000_000,
+                                                  targetBytes: 20_000_000) ?? 0,
+                    0.7833, "overshoot retry scale", tol: 0.001)
+        expect(MediaSupport.targetRetryScale(current: 1,
+                                             actualBytes: 19_000_000,
+                                             targetBytes: 20_000_000) == nil,
+               "A pass that already fits is never retried")
+        expect((MediaSupport.targetRetryScale(current: 1,
+                                              actualBytes: 20_000_001,
+                                              targetBytes: 20_000_000) ?? 1) <= 0.9,
+               "Every retry gives up at least a tenth so the passes converge")
+
+        // A GIF has no bitrate, so overshoot is corrected on frames first.
+        let gifRetry = MediaSupport.gifSizePlan(width: 720, fps: 15,
+                                                actualBytes: 12_000_000, targetBytes: 8_000_000)
+        expect(gifRetry?.fps == 9 && gifRetry?.width == 720,
+               "A GIF over its target drops frames before it drops pixels")
+        let gifDeepRetry = MediaSupport.gifSizePlan(width: 720, fps: 9,
+                                                    actualBytes: 9_000_000, targetBytes: 2_000_000)
+        expect((gifDeepRetry?.width ?? 720) < 720 && gifDeepRetry?.fps == MediaSupport.minimumTargetGIFFPS,
+               "Once the frame rate hits its floor the frame itself shrinks")
+        expect(MediaSupport.gifSizePlan(width: 160, fps: 6,
+                                        actualBytes: 5_000_000, targetBytes: 1_000_000) == nil
+                && MediaSupport.gifSizePlan(width: 720, fps: 15,
+                                            actualBytes: 1_000_000, targetBytes: 8_000_000) == nil,
+               "A GIF already at its floor, or already fitting, has nothing left to plan")
+        expect(MediaSupport.targetGIFStartFPS(duration: 10) == 15
+                && MediaSupport.targetGIFStartFPS(duration: 60) == MediaSupport.minimumTargetGIFFPS,
+               "A size targeted GIF starts at the highest rate its frame ceiling allows")
+        expect(MediaSupport.targetGIFStartWidth(sourceWidth: 1_920) == 1_600
+                && MediaSupport.targetGIFStartWidth(sourceWidth: 640) == 640
+                && MediaSupport.targetGIFStartWidth(sourceWidth: 0) == 1_600,
+               "A size targeted GIF starts from the source width, capped at the tool maximum")
+
+        let sizeTargetStrings: [(String, Strings)] = [
+            ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
+            ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
+            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
+        ]
+        for (name, strings) in sizeTargetStrings {
+            expect(!strings.mediaSizingResolution.isEmpty
+                    && !strings.mediaSizingFileSize.isEmpty
+                    && !strings.mediaTargetSize.isEmpty
+                    && !strings.mediaTargetSizeHint.isEmpty
+                    && !strings.mediaErrorTargetTooSmall.isEmpty
+                    && !strings.mediaMegabytesSuffix.isEmpty,
+                   "\(name) names the size target controls")
+        }
         let sanitizedProfiles = MediaSupport.sanitizedImageProfiles([
             MediaImageProfile(id: "same", name: "  ", options: profileOptions),
             MediaImageProfile(id: "same", name: " Work ", options: profileOptions),
@@ -10482,6 +10612,8 @@ struct MetricsTests {
                "no alerts and no schedule means notifications are unused")
         expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertCPUTemperature]) == [.monitorCPU],
                "a CPU temperature alert marks the CPU monitor as notifying")
+        expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertBatteryTemperature]) == [.monitorPower],
+               "a battery temperature alert marks the power monitor as notifying")
         expect(activeSet(.notifications,
                          available: Set(AppFeature.allCases).subtracting([.monitorCPU]),
                          on: [DefaultsKey.monitorAlertCPU]) == [],
@@ -10549,6 +10681,16 @@ struct MetricsTests {
         expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
                                                  boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "one alert on an available metric arms the alert service")
+        expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
+                                                 boolFor: {
+                                                     $0 == DefaultsKey.monitorAlertBatteryTemperature
+                                                 }),
+               "a battery temperature alert arms the alert service")
+        expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorPower },
+                                                  boolFor: {
+                                                      $0 == DefaultsKey.monitorAlertBatteryTemperature
+                                                  }),
+               "a battery temperature alert stays disarmed without the power metric")
         expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorDisk },
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
@@ -12834,25 +12976,121 @@ struct MetricsTests {
         expect(ScreenshotSupport.cropLoupeSampleRect(
             around: CGPoint(x: 50, y: 40),
             imageSize: CGSize(width: 100, height: 80))
-            == CGRect(x: 43, y: 33, width: 14, height: 14),
+            == CGRect(x: 44, y: 34, width: 13, height: 13),
                "the crop loupe centers its source pixels around an inner grip")
         expect(ScreenshotSupport.cropLoupeSampleRect(
             around: CGPoint(x: 100, y: 80),
             imageSize: CGSize(width: 100, height: 80))
-            == CGRect(x: 86, y: 66, width: 14, height: 14),
+            == CGRect(x: 87, y: 67, width: 13, height: 13),
                "the crop loupe keeps a full sample at the bottom right edge")
+        // An even sample side has no middle cell. The sampled pixel then sat
+        // half a cell right of and below the frame's centre, and the ring drawn
+        // around it followed, which is what read as an off-centre reticle.
+        for loupeZoom in [ScreenshotSupport.captureLoupeMinZoom, 1, 2,
+                          ScreenshotSupport.captureLoupeMaxZoom] {
+            let side = ScreenshotSupport.captureLoupeSampleSide(zoom: loupeZoom)
+            let pointer = CGPoint(x: 80.4, y: 50.7)
+            let image = CGSize(width: 160, height: 100)
+            let sample = ScreenshotSupport.cropLoupeSampleRect(around: pointer,
+                                                               imageSize: image,
+                                                               sideLength: side)
+            let loupeFrame = CGRect(x: 0, y: 0, width: 70, height: 70)
+            let marked = ScreenshotSupport.captureLoupeTargetPixelRect(around: pointer,
+                                                                       source: sample,
+                                                                       frame: loupeFrame)
+            expectClose(Double(marked.midX), Double(loupeFrame.midX),
+                        "the loupe marks the pixel in the middle of its frame across the zoom range")
+            expectClose(Double(marked.midY), Double(loupeFrame.midY),
+                        "the marked pixel is as centred vertically as it is horizontally")
+        }
+        // The editor's crop loupe marks an edge between pixels, so it needs the
+        // opposite parity: an even side puts that edge in the middle of the
+        // frame, where an odd one leaves it half a cell short of centre.
+        let cropEdgeSample = ScreenshotSupport.cropLoupeSampleRect(
+            around: CGPoint(x: 100, y: 60),
+            imageSize: CGSize(width: 400, height: 300),
+            sideLength: 14,
+            centredOnPixel: false)
+        expect(cropEdgeSample == CGRect(x: 93, y: 53, width: 14, height: 14)
+                && cropEdgeSample.midX == 100 && cropEdgeSample.midY == 60,
+               "the crop loupe centres its sample on the handle's edge, not on a pixel cell")
+        expect(ScreenshotSupport.cropLoupeSampleRect(
+            around: CGPoint(x: 100, y: 60),
+            imageSize: CGSize(width: 400, height: 300),
+            sideLength: 13,
+            centredOnPixel: false).width == 14,
+               "an odd side grows to the next even one when the loupe centres on an edge")
+
         expect(ScreenshotSupport.cropLoupeSampleRect(
             around: .zero,
             imageSize: CGSize(width: 8, height: 5))
             == CGRect(x: 0, y: 0, width: 8, height: 5),
                "the crop loupe safely shrinks only for images smaller than its sample")
+        expect(ScreenshotSupport.captureLoupeTargetPixelRect(
+            around: CGPoint(x: 50.5, y: 40.2),
+            source: CGRect(x: 43, y: 33, width: 14, height: 14),
+            frame: CGRect(x: 0, y: 0, width: 70, height: 70))
+            == CGRect(x: 35, y: 35, width: 5, height: 5),
+               "the loupe highlights one whole source pixel, not the pointer's sub-pixel position")
+        expect(ScreenshotSupport.captureLoupeTargetPixelRect(
+            around: CGPoint(x: 100, y: 80),
+            source: CGRect(x: 86, y: 66, width: 14, height: 14),
+            frame: CGRect(x: 0, y: 0, width: 70, height: 70))
+            == CGRect(x: 65, y: 65, width: 5, height: 5),
+               "a pointer on the far display edge highlights the last pixel the picker can read")
+        // The pixel the loupe marks and the pixel `confirmColor` copies come
+        // from two independent expressions. Sweeping the whole overlay at
+        // every zoom is what keeps them from drifting apart by one pixel.
+        let sampledImageSize = CGSize(width: 160, height: 100)
+        let sampledViewSize = CGSize(width: 320, height: 200)
+        let sampledFrame = CGRect(x: 20, y: 30, width: 70, height: 70)
+        var loupeAimFailure: String?
+        for zoom in [ScreenshotSupport.captureLoupeMinZoom, 1, ScreenshotSupport.captureLoupeMaxZoom] {
+            for stepX in 0...128 {
+                for stepY in 0...80 {
+                    let pixelPoint = ScreenshotSupport.imagePixelPoint(
+                        fromView: CGPoint(x: CGFloat(stepX) * 2.5, y: CGFloat(stepY) * 2.5),
+                        viewSize: sampledViewSize,
+                        imageSize: sampledImageSize)
+                    let source = ScreenshotSupport.cropLoupeSampleRect(
+                        around: pixelPoint,
+                        imageSize: sampledImageSize,
+                        sideLength: ScreenshotSupport.captureLoupeSampleSide(zoom: zoom))
+                    let highlight = ScreenshotSupport.captureLoupeTargetPixelRect(
+                        around: pixelPoint, source: source, frame: sampledFrame)
+                    let cellWidth = sampledFrame.width / source.width
+                    let cellHeight = sampledFrame.height / source.height
+                    let markedX = source.minX + ((highlight.minX - sampledFrame.minX) / cellWidth).rounded()
+                    let markedY = source.minY + ((highlight.minY - sampledFrame.minY) / cellHeight).rounded()
+                    // Copied verbatim from `confirmColor`.
+                    let copiedX = CGFloat(min(max(Int(pixelPoint.x.rounded(.down)), 0),
+                                              Int(sampledImageSize.width) - 1))
+                    let copiedY = CGFloat(min(max(Int(pixelPoint.y.rounded(.down)), 0),
+                                              Int(sampledImageSize.height) - 1))
+                    if markedX != copiedX || markedY != copiedY {
+                        loupeAimFailure = "at \(pixelPoint) zoom \(zoom) the loupe marks "
+                            + "(\(markedX), \(markedY)) but the picker copies (\(copiedX), \(copiedY))"
+                    }
+                    if !sampledFrame.insetBy(dx: -0.001, dy: -0.001).contains(highlight) {
+                        loupeAimFailure = "at \(pixelPoint) zoom \(zoom) the highlight leaves the loupe"
+                    }
+                }
+            }
+        }
+        expect(loupeAimFailure == nil,
+               loupeAimFailure ?? "the loupe highlight marks the pixel the color picker copies")
+        expect(ScreenshotSupport.captureLoupeTargetPixelRect(
+            around: .zero, source: .zero, frame: CGRect(x: 0, y: 0, width: 70, height: 70))
+            == CGRect(x: 0, y: 0, width: 70, height: 70),
+               "an empty sample leaves the loupe highlight harmless instead of dividing by zero")
         expectClose(ScreenshotSupport.captureLoupeZoom(1, adjustedBy: 1), 1.15,
                     "scrolling up zooms the capture loupe in")
         expectClose(ScreenshotSupport.captureLoupeZoom(0.5, adjustedBy: -1), 0.5,
                     "capture loupe zoom stays above its minimum")
         expectClose(ScreenshotSupport.captureLoupeZoom(4, adjustedBy: 1), 4,
                     "capture loupe zoom stays below its maximum")
-        expectClose(ScreenshotSupport.captureLoupeSampleSide(zoom: 2), 6,
+        expectClose(ScreenshotSupport.captureLoupeSampleSide(zoom: 2),
+                    Double(ScreenshotSupport.captureLoupeBaseSampleSide) / 2,
                     "higher capture loupe zoom samples fewer source pixels")
 
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotFreeze] as? Bool == true,
@@ -13141,10 +13379,13 @@ struct MetricsTests {
                "the legacy scratchpad becomes the first selected tab without losing text")
         let twoPads = migratedScratchpad.addingPad(defaultName: "Scratchpad", id: secondPadID)
         let threePads = twoPads?.addingPad(defaultName: "Scratchpad", id: thirdPadID)
-        expect(threePads?.pads.map(\.name) == ["Scratchpad", "Scratchpad 2", "Scratchpad 3"]
+        expect(threePads?.pads.map(\.name) == ["Scratchpad 1", "Scratchpad 2", "Scratchpad 3"]
                 && threePads?.pads.map(\.id) == [firstPadID, secondPadID, thirdPadID]
                 && threePads?.selectedID == thirdPadID,
                "new scratchpads append in order, receive clear names and become selected")
+        expect(ScratchpadSupport.nextPadName(defaultName: "Scratchpad",
+                                             existingNames: ["Scratchpad"]) == "Scratchpad 2",
+               "an existing unnumbered scratchpad still occupies the first numbered slot")
         let renamedPad = threePads?.renaming(secondPadID, to: "  Work\nideas  ")
         expect(renamedPad?.pads[1].name == "Work ideas"
                 && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 50)).count

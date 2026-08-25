@@ -1016,27 +1016,39 @@ private final class ScreenshotOverlayView: NSView {
         context.draw(sample, in: flippedFrame)
         context.restoreGState()
 
-        let crossX = min(max(frame.minX
-            + (pixelPoint.x - source.minX) / source.width * frame.width,
-                             frame.minX + 0.5), frame.maxX - 0.5)
-        let crossY = min(max(frame.minY
-            + (pixelPoint.y - source.minY) / source.height * frame.height,
-                             frame.minY + 0.5), frame.maxY - 0.5)
+        // A ring around the target pixel rather than lines through it: the
+        // frame shows about a dozen source pixels, so a 3pt crosshair on the
+        // pointer's sub-pixel position buried the very pixel the color picker
+        // is about to copy (issue #755). The ring sits just outside the pixel
+        // so the sample keeps its own color.
+        let target = ScreenshotSupport.captureLoupeTargetPixelRect(
+            around: pixelPoint,
+            source: source,
+            frame: frame)
+        let ring = target.insetBy(dx: -1, dy: -1)
+        let reticle = CGMutablePath()
+        reticle.addRect(ring)
+        // Arms still carry the eye in from the frame edges, which is what the
+        // selection tools aim with, and stop before they reach the pixel.
+        let arms = [
+            (CGPoint(x: ring.midX, y: frame.minY), CGPoint(x: ring.midX, y: ring.minY)),
+            (CGPoint(x: ring.midX, y: ring.maxY), CGPoint(x: ring.midX, y: frame.maxY)),
+            (CGPoint(x: frame.minX, y: ring.midY), CGPoint(x: ring.minX, y: ring.midY)),
+            (CGPoint(x: ring.maxX, y: ring.midY), CGPoint(x: frame.maxX, y: ring.midY)),
+        ]
+        for (start, end) in arms where end.x > start.x || end.y > start.y {
+            reticle.move(to: start)
+            reticle.addLine(to: end)
+        }
 
         context.saveGState()
+        context.addPath(reticle)
         context.setStrokeColor(CGColor(gray: 0, alpha: 0.76))
         context.setLineWidth(3)
-        context.move(to: CGPoint(x: crossX, y: frame.minY))
-        context.addLine(to: CGPoint(x: crossX, y: frame.maxY))
-        context.move(to: CGPoint(x: frame.minX, y: crossY))
-        context.addLine(to: CGPoint(x: frame.maxX, y: crossY))
         context.strokePath()
+        context.addPath(reticle)
         context.setStrokeColor(CGColor(gray: 1, alpha: 0.92))
         context.setLineWidth(1)
-        context.move(to: CGPoint(x: crossX, y: frame.minY))
-        context.addLine(to: CGPoint(x: crossX, y: frame.maxY))
-        context.move(to: CGPoint(x: frame.minX, y: crossY))
-        context.addLine(to: CGPoint(x: frame.maxX, y: crossY))
         context.strokePath()
         context.addPath(path)
         context.setStrokeColor(CGColor(gray: 1, alpha: 0.95))
