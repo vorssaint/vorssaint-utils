@@ -648,6 +648,7 @@ final class RadialMenuService: ObservableObject {
             case .darkMode: toggles.toggleDarkMode()
             case .emptyTrash: toggles.emptyTrash()
             case .ejectDisks: toggles.ejectAllDisks()
+            case .flushDNS: toggles.flushDNSCache()
             case .hiddenFiles: toggles.toggleHiddenFiles()
             case .desktopIcons: toggles.toggleDesktopIcons()
             case .lockScreen: toggles.lockScreen()

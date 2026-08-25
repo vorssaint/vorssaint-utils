@@ -11998,6 +11998,9 @@ struct MetricsTests {
 
         expect(QuickTogglesSupport.emptyTrashSource == "tell application \"Finder\" to empty trash",
                "the Trash script asks the Finder and nothing else")
+        expect(QuickTogglesSupport.flushDNSCommand
+                == "/usr/sbin/dscacheutil -flushcache && /usr/bin/killall -HUP mDNSResponder",
+               "a DNS flush clears the Directory Service cache and signals mDNSResponder in one go")
         expect(QuickTogglesSupport.isPermissionError(-1743)
                 && QuickTogglesSupport.isPermissionError(-1744),
                "both Apple Event consent errors read as a permission problem")

@@ -237,6 +237,7 @@ enum DefaultsKey {
     static let panelToggleMicMute = "panelUtilityMicMute"
     static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
     static let panelToggleEjectDisks = "panelToggleEjectDisks"
+    static let panelToggleFlushDNS = "panelToggleFlushDNS"
     static let panelToggleHiddenFiles = "panelToggleHiddenFiles"
     static let panelToggleDesktopIcons = "panelToggleDesktopIcons"
     static let panelToggleLockScreen = "panelToggleLockScreen"
@@ -958,6 +959,7 @@ enum Defaults {
         DefaultsKey.panelToggleMicMute: true,
         DefaultsKey.panelToggleEmptyTrash: true,
         DefaultsKey.panelToggleEjectDisks: true,
+        DefaultsKey.panelToggleFlushDNS: true,
         DefaultsKey.panelToggleHiddenFiles: true,
         DefaultsKey.panelToggleDesktopIcons: true,
         DefaultsKey.panelToggleLockScreen: true,

@@ -77,6 +77,7 @@ struct QuickTogglesList: View {
     @AppStorage(DefaultsKey.panelToggleMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.panelToggleEmptyTrash) private var showEmptyTrash = true
     @AppStorage(DefaultsKey.panelToggleEjectDisks) private var showEjectDisks = true
+    @AppStorage(DefaultsKey.panelToggleFlushDNS) private var showFlushDNS = true
     @AppStorage(DefaultsKey.panelToggleHiddenFiles) private var showHiddenFiles = true
     @AppStorage(DefaultsKey.panelToggleDesktopIcons) private var showDesktopIcons = true
     @AppStorage(DefaultsKey.panelToggleLockScreen) private var showLockScreen = true
@@ -155,6 +156,7 @@ struct QuickTogglesList: View {
         case .micMute: return $showMicMute
         case .emptyTrash: return $showEmptyTrash
         case .ejectDisks: return $showEjectDisks
+        case .flushDNS: return $showFlushDNS
         case .hiddenFiles: return $showHiddenFiles
         case .desktopIcons: return $showDesktopIcons
         case .lockScreen: return $showLockScreen
@@ -226,6 +228,16 @@ struct QuickTogglesList: View {
                                 visibility: visibilityBinding(item),
                                 action: {
                                     QuickTogglesService.shared.ejectAllDisks()
+                                })
+        case .flushDNS:
+            UtilityActionButton(title: strings.flushDNSTitle,
+                                caption: caption(for: item, idle: strings.flushDNSCaption),
+                                systemImage: "network",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: visibilityBinding(item),
+                                action: {
+                                    QuickTogglesService.shared.flushDNSCache()
                                 })
         case .hiddenFiles:
             UtilityActionButton(title: toggles.hiddenFilesShown ? strings.hiddenFilesHide : strings.hiddenFilesShow,

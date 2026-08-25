@@ -8,7 +8,7 @@ import AppKit
 enum QuickToggleAction: String, PanelOrderItem, Identifiable {
     // Case order is the default panel order: the appearance switch leads
     // because it is the tab's headline action (issue request).
-    case darkMode, keyboardLight, micMute, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+    case darkMode, keyboardLight, micMute, emptyTrash, ejectDisks, flushDNS, hiddenFiles, desktopIcons,
          lockScreen, displayOff, screenSaver
 
     var id: String { rawValue }
@@ -102,6 +102,19 @@ final class QuickTogglesService: ObservableObject {
         runAppleScript(.emptyTrash,
                        target: .finder,
                        source: QuickTogglesSupport.emptyTrashSource)
+    }
+
+    // MARK: - DNS
+
+    /// Flushes the system's DNS caches. Signaling mDNSResponder needs
+    /// administrator rights, so both steps run through one elevated shell —
+    /// a single password prompt per click; declining it fails the row.
+    func flushDNSCache() {
+        guard available, beginRun(.flushDNS) else { return }
+        AdminShell.run(QuickTogglesSupport.flushDNSCommand,
+                       prompt: FeatureStrings.quickToggles(L10n.shared.language).flushDNSAdminPrompt) { flushed in
+            self.finishRun(.flushDNS, state: flushed ? nil : .failed)
+        }
     }
 
     // MARK: - Finder flags

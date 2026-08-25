@@ -14,6 +14,11 @@ enum QuickTogglesSupport {
     static let emptyTrashSource = "tell application \"Finder\" to empty trash"
     static let quitFinderSource = "tell application \"Finder\" to quit"
 
+    /// One elevated shell does both halves of a real flush: the Directory
+    /// Service cache first, then the HUP that makes mDNSResponder drop its
+    /// own (the signal needs root, so the pair rides a single prompt).
+    static let flushDNSCommand = "/usr/sbin/dscacheutil -flushcache && /usr/bin/killall -HUP mDNSResponder"
+
     /// Apple Event consent errors: not permitted, or the prompt was dismissed.
     static let permissionErrorNumbers: Set<Int> = [-1743, -1744]
 

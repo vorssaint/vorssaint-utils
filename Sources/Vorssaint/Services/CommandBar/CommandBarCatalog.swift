@@ -573,6 +573,12 @@ enum CommandBarCatalog {
                 icon: .symbol("eject.fill"),
                 run: { _ in QuickTogglesService.shared.ejectAllDisks() }))
             entries.append(CommandBarEntry(
+                id: "action.flushDNS",
+                title: togglesText.flushDNSTitle,
+                subtitle: togglesArea,
+                icon: .symbol("network"),
+                run: { _ in QuickTogglesService.shared.flushDNSCache() }))
+            entries.append(CommandBarEntry(
                 id: "action.hiddenFiles",
                 title: toggles.hiddenFilesShown ? togglesText.hiddenFilesHide : togglesText.hiddenFilesShow,
                 subtitle: togglesArea,

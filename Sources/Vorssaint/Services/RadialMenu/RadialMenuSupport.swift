@@ -65,7 +65,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
 /// Quick toggle actions a slice can trigger. Raw values persist inside the
 /// items blob; never rename them.
 enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
-    case darkMode, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
+    case darkMode, emptyTrash, ejectDisks, flushDNS, hiddenFiles, desktopIcons,
          lockScreen, displayOff, screenSaver
 
     var id: String { rawValue }
@@ -75,6 +75,7 @@ enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
         case .darkMode: return "moon.fill"
         case .emptyTrash: return "trash"
         case .ejectDisks: return "eject.fill"
+        case .flushDNS: return "network"
         case .hiddenFiles: return "eye"
         case .desktopIcons: return "desktopcomputer"
         case .lockScreen: return "lock.fill"
