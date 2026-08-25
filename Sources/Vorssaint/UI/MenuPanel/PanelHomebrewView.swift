@@ -377,9 +377,11 @@ struct PanelHomebrewView: View {
                         popularityBadge(popularity)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
             if activeStatus(for: package) != nil {
                 ProgressView()
                     .controlSize(.mini)
