@@ -713,7 +713,6 @@ struct PanelHomebrewView: View {
     }
 
     private func run(_ action: HomebrewPendingAction) {
-        dismissConfirmation()
         switch action.action {
         case .install:
             if let package = action.package { homebrew.install(package) }
@@ -726,6 +725,7 @@ struct PanelHomebrewView: View {
         case .updateHomebrew:
             homebrew.updateHomebrew()
         }
+        dismissConfirmation()
     }
 
     private func search() {

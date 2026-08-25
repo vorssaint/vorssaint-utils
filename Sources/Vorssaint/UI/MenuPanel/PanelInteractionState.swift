@@ -2,16 +2,14 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import Combine
-import Foundation
 
 /// Shared hints between the panel content and the AppKit popover host.
-final class PanelInteractionState: ObservableObject {
+final class PanelInteractionState {
     static let shared = PanelInteractionState()
 
     /// A visible utility whose workflow intentionally spans clicks in other
     /// apps. This is one input to the close policy, not the policy itself.
-    @Published var viewKeepsPopoverOpen = false
+    var viewKeepsPopoverOpen = false
 
     /// A SwiftUI alert or confirmation dialog is presented from the popover.
     /// Closing its parent window underneath the presentation can leave AppKit's

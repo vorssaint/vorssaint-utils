@@ -715,7 +715,6 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showAppUpdates,
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showAppUpdatesPanel = true
                                 })
         case .media:
@@ -726,7 +725,6 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showMedia,
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showMediaPanel = true
                                 })
         case .clipboard:
@@ -740,7 +738,6 @@ struct UtilitiesSection: View {
                                 visibility: $showClipboard,
                                 shortcutHint: shortcutHint(.clipboard),
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showClipboardPanel = true
                                 })
         case .windowLayout:
@@ -751,7 +748,6 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showWindowLayout,
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showWindowLayoutPanel = true
                                 })
         case .uninstaller:
@@ -762,7 +758,6 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showUninstallerAction,
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showUninstaller = true
                                 })
         case .cleaner:
@@ -773,7 +768,6 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showCleanerAction,
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showCleanerPanel = true
                                 })
         case .cleanURL:
@@ -784,7 +778,6 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showCleanURL,
                                 action: {
-                                    PanelInteractionState.shared.viewKeepsPopoverOpen = true
                                     showURLCleaner = true
                                 })
         case .cleaning:
@@ -986,7 +979,6 @@ struct UtilitiesSection: View {
     }
 
     private func showRecentCaptures() {
-        PanelInteractionState.shared.viewKeepsPopoverOpen = true
         showRecentCapturesPanel = true
     }
 
