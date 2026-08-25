@@ -9326,6 +9326,14 @@ struct MetricsTests {
               "homepage": "https://example.com/sample-formula",
               "versions": { "stable": "1.8.1" },
               "installed": [{ "version": "1.8.1" }]
+            },
+            {
+              "name": "tapped-formula",
+              "full_name": "example/tap/tapped-formula",
+              "desc": "Formula from a third-party tap",
+              "homepage": "https://example.com/tapped-formula",
+              "versions": { "stable": "2.0.0" },
+              "installed": [{ "version": "1.0.0" }]
             }
           ],
           "casks": [
@@ -9341,15 +9349,18 @@ struct MetricsTests {
         }
         """
         let homebrewPackages = (try? HomebrewParser.parseInfoJSON(Data(homebrewJSON.utf8))) ?? []
-        expect(homebrewPackages.count == 2, "Homebrew JSON parser keeps formulae and casks")
+        expect(homebrewPackages.count == 3, "Homebrew JSON parser keeps formulae and casks")
         expect(homebrewPackages.first?.kind == .cask,
                "Homebrew JSON parser sorts casks before formulae")
         expect(homebrewPackages.first(where: { $0.name == "sample-formula" })?.installedVersion == "1.8.1",
                "Homebrew parser reads installed formula version")
+        let tappedFormula = homebrewPackages.first { $0.name == "example/tap/tapped-formula" }
+        expect(tappedFormula?.displayName == "example/tap/tapped-formula",
+               "Homebrew parser keeps the canonical name for a formula from a tap")
         expect(homebrewPackages.first(where: { $0.name == "sample-tool" })?.displayName == "Sample Tool",
                "Homebrew parser reads cask display name")
         let cleanCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(homebrewJSON)) ?? []
-        expect(cleanCommandPackages.count == 2,
+        expect(cleanCommandPackages.count == 3,
                "Homebrew command output parser keeps clean JSON")
         let noisyHomebrewOutput = """
         Warning: Skipping some beta metadata
@@ -9358,7 +9369,7 @@ struct MetricsTests {
         Warning: A newer Homebrew beta changed an optional field
         """
         let noisyCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(noisyHomebrewOutput)) ?? []
-        expect(noisyCommandPackages.count == 2,
+        expect(noisyCommandPackages.count == 3,
                "Homebrew command output parser accepts warnings around JSON")
         expect(noisyCommandPackages.first(where: { $0.name == "sample-tool" })?.installedVersion == "1.107.0",
                "Homebrew command output parser keeps package data from noisy output")
@@ -9371,6 +9382,12 @@ struct MetricsTests {
               "name": "fmt",
               "installed_versions": ["12.1.0"],
               "current_version": "12.2.0",
+              "pinned": false
+            },
+            {
+              "name": "example/tap/tapped-formula",
+              "installed_versions": ["1.0.0"],
+              "current_version": "2.0.0",
               "pinned": false
             }
           ],
@@ -9385,12 +9402,14 @@ struct MetricsTests {
         }
         """
         let outdatedPackages = (try? HomebrewParser.parseOutdatedJSON(Data(outdatedJSON.utf8))) ?? [:]
-        expect(outdatedPackages.count == 2,
+        expect(outdatedPackages.count == 3,
                "Homebrew outdated parser keeps formulae and casks")
         expect(outdatedPackages["formula:fmt"]?.versionSummary == "12.1.0 -> 12.2.0",
                "Homebrew outdated parser renders installed to current version")
         expect(outdatedPackages["cask:sample-tool"]?.isPinned == true,
                "Homebrew outdated parser reads pinned status")
+        expect(tappedFormula.flatMap { outdatedPackages[$0.id] }?.currentVersion == "2.0.0",
+               "Homebrew installed and outdated data use the same ID for tapped formulae")
         let noisyOutdatedOutput = """
         Warning: Homebrew updated metadata
         {"notice": "not outdated data"}
