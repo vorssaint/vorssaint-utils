@@ -7552,12 +7552,34 @@ struct MetricsTests {
             resultPath: "/tmp/result",
             uid: 501,
             expectedVersion: "3.3.3")
-        expect(elevated.contains("nohup") && elevated.hasSuffix("&"),
-               "elevated installer detaches so the app can quit")
+        expect(elevated.contains("POSIX::setsid()") && elevated.hasSuffix("&"),
+               "elevated installer leaves this app's session so it outlives the app it replaces")
+        expect(elevated.contains("nohup"),
+               "elevated installer keeps the nohup fallback if setsid is unavailable")
         expect(elevated.contains("'/Applications/Vorssaint.app'"),
                "elevated installer passes the app path quoted for the shell")
         expect(elevated.contains("'3.3.3'"),
                "elevated installer passes the expected version quoted for the shell")
+        // The script travels inline and is long; it must be spelled once, with
+        // both the setsid attempt and the fallback reusing the same "$@".
+        expect(elevated.components(separatedBy: "DMG_VERIFY_REQ=").count == 2
+               && elevated.components(separatedBy: "\"$@\"").count == 3,
+               "elevated installer names its arguments once and reuses them for the fallback")
+
+        // A detached spawn is only detached if the child really is its own
+        // session leader; `nohup` alone leaves it in ours.
+        do {
+            let child = try DetachedProcess.spawn("/bin/sleep", ["30"])
+            expect(getsid(child) == child,
+                   "a detached child is its own session leader")
+            expect(getsid(child) != getsid(0),
+                   "a detached child is not in this process's session")
+            kill(child, SIGKILL)
+            var reaped: Int32 = 0
+            waitpid(child, &reaped, 0)
+        } catch {
+            expect(false, "detached spawn failed: \(error.localizedDescription)")
+        }
 
         // MARK: - UpdateServiceSupport & SemVer channel reconciliation
 
