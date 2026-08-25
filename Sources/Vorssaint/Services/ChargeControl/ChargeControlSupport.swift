@@ -82,6 +82,7 @@ enum ChargeControlIPC {
 enum ChargeLimitPolicy {
     static let range = 20...100
     static let defaultLimit = 80
+    static let hysteresis = 2
 
     static func sanitizedLimit(_ value: Int) -> Int {
         min(max(value, range.lowerBound), range.upperBound)
@@ -91,8 +92,10 @@ enum ChargeLimitPolicy {
                             previous: ChargeControlMode) -> ChargeControlMode {
         let limit = sanitizedLimit(limit)
         guard pluggedIn, limit < 100 else { return .charging }
-        if percent > limit { return .discharging }
-        if percent == limit { return .paused }
+        // Normal enforcement never force-discharges. While paused, wait for
+        // the full band before allowing charging again to avoid micro-cycles.
+        if previous == .paused, percent > limit - hysteresis { return .paused }
+        if percent >= limit { return .paused }
         return .charging
     }
 

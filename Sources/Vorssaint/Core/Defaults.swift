@@ -21,7 +21,6 @@ enum DefaultsKey {
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let chargeLimitEnabled = "chargeLimitEnabled"
     static let chargeLimitPercent = "chargeLimitPercent"
-    static let chargeLimitDischargeEnabled = "chargeLimitDischargeEnabled"
     static let chargeControlHelperVersion = "chargeControlHelperVersion"
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
@@ -769,7 +768,6 @@ enum Defaults {
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.chargeLimitEnabled: false,
         DefaultsKey.chargeLimitPercent: ChargeLimitPolicy.defaultLimit,
-        DefaultsKey.chargeLimitDischargeEnabled: false,
         DefaultsKey.chargeControlHelperVersion: "",
         DefaultsKey.keepAwakeAutoStart: false,
         DefaultsKey.keepAwakeRightClickToggle: false,

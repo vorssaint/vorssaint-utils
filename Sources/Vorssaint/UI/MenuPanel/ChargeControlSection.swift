@@ -90,7 +90,7 @@ struct ChargeControlSection: View {
 
     private func controls(_ strings: ChargeControlStrings) -> some View {
         HStack(spacing: 7) {
-            Text("Limit: \(limit)%")
+            Text(strings.limitValue(limit))
             .font(.system(size: 11, weight: .semibold))
             .frame(height: 27)
 
@@ -148,7 +148,8 @@ struct ChargeControlSection: View {
             }
         }
         .frame(height: 25)
-        .accessibilityLabel("Battery \(service.percent ?? 0)%, limit \(limit)%")
+        .accessibilityLabel(ChargeControlStrings.current(l10n.language)
+            .batteryAccessibility(percent: service.percent ?? 0, limit: limit))
     }
 
     private var powerFlow: some View {

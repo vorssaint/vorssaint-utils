@@ -436,7 +436,8 @@ struct EnergySettings: View {
                             Text(strings.limit)
                             Slider(value: Binding(get: { Double(chargeLimitPercent) },
                                                   set: { chargeLimitPercent = ChargeLimitPolicy.sanitizedLimit(Int($0.rounded())) }),
-                                   in: 20...100, step: 1)
+                                   in: Double(ChargeLimitPolicy.range.lowerBound)...Double(ChargeLimitPolicy.range.upperBound),
+                                   step: 1)
                             Text("\(chargeLimitPercent)")
                                 .font(.system(.body, design: .monospaced))
                                 .frame(width: 32, alignment: .trailing)

@@ -71,4 +71,20 @@ struct ChargeControlStrings {
         case .controlFailed: return "Control failed; system charging restored"
         }
     }
+
+    func limitValue(_ value: Int) -> String {
+        switch L10n.shared.language {
+        case .zhHans: return "上限：\(value)%"
+        case .zhTW, .zhHK: return "上限：\(value)%"
+        default: return "Limit: \(value)%"
+        }
+    }
+
+    func batteryAccessibility(percent: Int, limit: Int) -> String {
+        switch L10n.shared.language {
+        case .zhHans: return "电池电量 \(percent)%，充电上限 \(limit)%"
+        case .zhTW, .zhHK: return "電池電量 \(percent)%，充電上限 \(limit)%"
+        default: return "Battery \(percent)%, limit \(limit)%"
+        }
+    }
 }

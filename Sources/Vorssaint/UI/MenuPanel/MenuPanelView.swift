@@ -72,6 +72,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.panelShowChargeControl) private var showChargeControl = true
+    @AppStorage(DefaultsKey.chargeLimitEnabled) private var chargeLimitEnabled = false
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -288,7 +289,10 @@ struct MenuPanelView: View {
     private func section(for id: PanelSectionID, collapsible: Bool = true) -> some View {
         switch id {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
-        case .chargeControl: if showChargeControl { ChargeControlSection(collapsible: collapsible) }
+        case .chargeControl:
+            if showChargeControl, chargeLimitEnabled, PowerSampler.hasInternalBattery {
+                ChargeControlSection(collapsible: collapsible)
+            }
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
@@ -306,7 +310,8 @@ struct MenuPanelView: View {
         guard id.isAvailable else { return false }
         switch id {
         case .keepAwake: return showKeepAwake
-        case .chargeControl: return showChargeControl
+        case .chargeControl:
+            return showChargeControl && chargeLimitEnabled && PowerSampler.hasInternalBattery
         // The section only earns its navigation tab while the feature is on;
         // it is switched on in Settings, not from an empty panel screen.
         case .brightness: return showBrightness && brightnessEnabled

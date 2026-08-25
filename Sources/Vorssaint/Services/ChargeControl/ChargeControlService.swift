@@ -47,9 +47,6 @@ final class ChargeControlService: ObservableObject {
     }
 
     private init() {
-        // Automatic discharge was briefly shipped during the beta. It is now
-        // an explicit, session-only action, so never carry the old preference forward.
-        UserDefaults.standard.set(false, forKey: DefaultsKey.chargeLimitDischargeEnabled)
         refreshAccessState()
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(didWake), name: NSWorkspace.didWakeNotification, object: nil)

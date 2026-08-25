@@ -3676,14 +3676,20 @@ struct MetricsTests {
                                              previous: .charging) == .paused,
                "charge limit pauses at the target")
         expect(ChargeLimitPolicy.desiredMode(percent: 79, limit: 80, pluggedIn: true,
+                                             previous: .paused) == .paused,
+               "charge limit stays paused inside the hysteresis band")
+        expect(ChargeLimitPolicy.desiredMode(percent: 78, limit: 80, pluggedIn: true,
                                              previous: .paused) == .charging,
-               "charge limit charges whenever battery is below the target")
+               "charge limit resumes charging at the lower hysteresis boundary")
         expect(ChargeLimitPolicy.desiredMode(percent: 77, limit: 80, pluggedIn: true,
                                              previous: .paused) == .charging,
                "charge limit keeps charging below the target")
         expect(ChargeLimitPolicy.desiredMode(percent: 81, limit: 80, pluggedIn: true,
-                                             previous: .paused) == .discharging,
-               "charge limit automatically discharges above the target")
+                                             previous: .paused) == .paused,
+               "normal limit enforcement never starts forced discharge")
+        expect(ChargeLimitPolicy.desiredMode(percent: 81, limit: 80, pluggedIn: true,
+                                             previous: .charging) == .paused,
+               "charge limit pauses charging above the target")
         expect(ChargeLimitPolicy.desiredMode(percent: 90, limit: 100, pluggedIn: true,
                                              previous: .paused) == .charging,
                "one hundred percent restores normal charging")
