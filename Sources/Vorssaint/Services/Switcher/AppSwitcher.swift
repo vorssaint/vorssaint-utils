@@ -793,6 +793,8 @@ final class AppSwitcher: ObservableObject {
         searchQuery = ""
         isSearchPinned = false
         self.windows = list
+        // Optional.map: a session that starts with no source clears the
+        // context instead of keeping the previous session's.
         sessionSourceContext = source.map { source in
             SwitcherSourceContext(itemID: source.id,
                                   pid: source.pid,
