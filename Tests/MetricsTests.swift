@@ -13833,6 +13833,15 @@ struct MetricsTests {
             pixelSize: CGSize(width: 1200, height: 800),
             pointSize: CGSize(width: 600, height: 800)) == 1,
                "copied images with inconsistent metadata safely use 1x")
+        expect(ScreenshotSupport.editorAcceptsImage(pixelSize: CGSize(width: 4_000, height: 3_000))
+                && ScreenshotSupport.editorAcceptsImage(
+                    pixelSize: CGSize(width: 10_000, height: 6_000)),
+               "an imported image up to the capture ceiling opens in the editor")
+        expect(!ScreenshotSupport.editorAcceptsImage(pixelSize: CGSize(width: 10_000, height: 6_001))
+                && !ScreenshotSupport.editorAcceptsImage(pixelSize: .zero)
+                && !ScreenshotSupport.editorAcceptsImage(
+                    pixelSize: CGSize(width: CGFloat.infinity, height: 1)),
+               "an image beyond the ceiling, empty or unmeasurable never opens a window")
 
         expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewShortcutEnabled] as? Bool == false,
                "the camera preview shortcut ships off like the other quick tools")

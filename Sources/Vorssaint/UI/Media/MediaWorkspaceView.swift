@@ -403,6 +403,17 @@ struct MediaWorkspaceView: View {
                 }
             }
 
+            // The editor belongs to the screenshot feature, so the button is
+            // absent rather than inert when that feature is turned off.
+            if selectedTool == .imageCompressor, AppFeature.screenshot.isAvailable {
+                Button {
+                    openImageEditor()
+                } label: {
+                    Label(screenshotText.editButton, systemImage: "crop")
+                }
+                .disabled(inputURLs.count != 1 || isRunning)
+            }
+
             if isRunning {
                 Button {
                     media.cancel()
@@ -1310,6 +1321,19 @@ struct MediaWorkspaceView: View {
     }
 
     @MainActor
+    /// The dropped image goes straight to the capture editor: nothing is
+    /// imported or copied first, because that editor works on an image rather
+    /// than on a file it has to own.
+    private func openImageEditor() {
+        guard AppFeature.mediaTools.isAvailable, AppFeature.screenshot.isAvailable,
+              let url = inputURL, inputURLs.count == 1
+        else { return }
+        localMessage = nil
+        if !ScreenshotService.shared.openEditor(imageAt: url) {
+            localMessage = l10n.s.mediaErrorUnsupported
+        }
+    }
+
     private func openVideoEditor() {
         guard AppFeature.mediaTools.isAvailable, let url = inputURL,
               !isImportingVideo else { return }

@@ -560,6 +560,16 @@ enum ScreenshotSupport {
         return CGFloat(scale)
     }
 
+    /// An image that arrives from outside a capture can be far larger than
+    /// anything the screen produces, so it is refused before a window opens on
+    /// it rather than after the editor has tried to hold it.
+    static func editorAcceptsImage(pixelSize: CGSize) -> Bool {
+        guard pixelSize.width.isFinite, pixelSize.height.isFinite,
+              pixelSize.width >= 1, pixelSize.height >= 1
+        else { return false }
+        return pixelSize.width * pixelSize.height <= CGFloat(scrollingCaptureMaximumPixels)
+    }
+
     /// Uses the logical size carried by a copied image when it describes one
     /// consistent display scale. Imported files without that metadata edit at 1x.
     static func clipboardImageScale(pixelSize: CGSize, pointSize: CGSize) -> CGFloat {

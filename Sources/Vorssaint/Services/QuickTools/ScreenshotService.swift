@@ -480,16 +480,33 @@ final class ScreenshotService: ObservableObject {
         }
     }
 
+    /// Opens the editor on an image file instead of on a capture, so the media
+    /// tools can hand it a dropped file the way they already hand a dropped
+    /// video to the recorder editor. Returns false when the file is not an
+    /// image the editor can hold, leaving the caller to say so.
+    @discardableResult
+    func openEditor(imageAt url: URL) -> Bool {
+        guard AppFeature.screenshot.isAvailable,
+              let image = NSImage(contentsOf: url),
+              let capture = Self.capture(from: image)
+        else { return false }
+        openEditor(with: capture)
+        return true
+    }
+
     private static func clipboardCapture(
         from pasteboard: NSPasteboard
     ) -> ScreenshotSelectionController.Capture? {
-        guard let image = clipboardImage(from: pasteboard),
-              image.size.width > 0, image.size.height > 0
-        else { return nil }
+        guard let image = clipboardImage(from: pasteboard) else { return nil }
+        return capture(from: image)
+    }
+
+    private static func capture(from image: NSImage) -> ScreenshotSelectionController.Capture? {
+        guard image.size.width > 0, image.size.height > 0 else { return nil }
         var rect = CGRect(origin: .zero, size: image.size)
         guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil),
-              cgImage.width > 0, cgImage.height > 0,
-              cgImage.width <= ScreenshotSupport.scrollingCaptureMaximumPixels / cgImage.height
+              ScreenshotSupport.editorAcceptsImage(
+                  pixelSize: CGSize(width: cgImage.width, height: cgImage.height))
         else { return nil }
         let pixelSize = CGSize(width: cgImage.width, height: cgImage.height)
         let scale = ScreenshotSupport.clipboardImageScale(pixelSize: pixelSize,
