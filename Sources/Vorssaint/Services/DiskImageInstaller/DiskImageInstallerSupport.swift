@@ -30,6 +30,14 @@ enum DiskImageInstallerSupport {
         return url
     }
 
+    static func applicationsDomain(useUserApplications: Bool) -> FileManager.SearchPathDomainMask {
+        useUserApplications ? .userDomainMask : .localDomainMask
+    }
+
+    static func destinationURLs(for appURL: URL, applicationsURLs: [URL]) -> [URL] {
+        applicationsURLs.compactMap { destinationURL(for: appURL, applicationsURL: $0) }
+    }
+
     static func destinationURL(for appURL: URL, applicationsURL: URL) -> URL? {
         let name = appURL.lastPathComponent
         guard appURL.pathExtension.caseInsensitiveCompare("app") == .orderedSame,

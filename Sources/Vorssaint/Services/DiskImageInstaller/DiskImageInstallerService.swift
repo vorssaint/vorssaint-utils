@@ -118,12 +118,21 @@ final class DiskImageInstallerService {
             else { return false }
             return Self.validBundle(at: url)
         }
+        let useUserApplications = UserDefaults.standard.bool(
+            forKey: DefaultsKey.diskImageInstallerUseUserApplications)
+        let applicationsDomain = DiskImageInstallerSupport.applicationsDomain(
+            useUserApplications: useUserApplications)
         guard apps.count == 1, let appURL = apps.first,
+              let applicationsURL = try? fm.url(for: .applicationDirectory,
+                                                in: applicationsDomain,
+                                                appropriateFor: nil,
+                                                create: true),
               let destinationURL = DiskImageInstallerSupport.destinationURL(
                 for: appURL,
-                applicationsURL: URL(fileURLWithPath: "/Applications", isDirectory: true)),
-              !fm.fileExists(atPath: destinationURL.path)
+                applicationsURL: applicationsURL)
         else { return nil }
+        guard Self.collisionURLs(for: appURL, fileManager: fm)
+            .allSatisfy({ !fm.fileExists(atPath: $0.path) }) else { return nil }
 
         let preferredName = Bundle(url: appURL)?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
         return Candidate(mountURL: mountURL,
@@ -169,7 +178,8 @@ final class DiskImageInstallerService {
 
     private func install(_ candidate: Candidate) -> InstallOutcome {
         let fm = FileManager.default
-        guard !fm.fileExists(atPath: candidate.destinationURL.path) else {
+        guard Self.collisionURLs(for: candidate.appURL, fileManager: fm)
+            .allSatisfy({ !fm.fileExists(atPath: $0.path) }) else {
             return .failed(.alreadyInstalled)
         }
 
@@ -198,7 +208,8 @@ final class DiskImageInstallerService {
         }
 
         do {
-            guard !fm.fileExists(atPath: candidate.destinationURL.path) else {
+            guard Self.collisionURLs(for: candidate.appURL, fileManager: fm)
+                .allSatisfy({ !fm.fileExists(atPath: $0.path) }) else {
                 return .failed(.alreadyInstalled)
             }
             try fm.moveItem(at: stagedApp, to: candidate.destinationURL)
@@ -221,6 +232,20 @@ final class DiskImageInstallerService {
         } catch {
             return .installedKeepingDownload
         }
+    }
+
+    private static func collisionURLs(for appURL: URL,
+                                      fileManager fm: FileManager) -> [URL] {
+        let domains: [FileManager.SearchPathDomainMask] = [.localDomainMask, .userDomainMask]
+        let applicationsURLs: [URL] = domains.compactMap { domain -> URL? in
+            guard let applicationsURL = try? fm.url(for: .applicationDirectory,
+                                                    in: domain,
+                                                    appropriateFor: nil,
+                                                    create: false) else { return nil }
+            return applicationsURL
+        }
+        return DiskImageInstallerSupport.destinationURLs(for: appURL,
+                                                         applicationsURLs: applicationsURLs)
     }
 
     private func present(outcome: InstallOutcome, candidate: Candidate) {

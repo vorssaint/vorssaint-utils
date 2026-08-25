@@ -241,7 +241,20 @@ private struct FeatureHubRow: View {
         }
     }
 
+    @ViewBuilder
     var body: some View {
+        if installed, feature == .diskImageInstaller {
+            VStack(alignment: .leading, spacing: 8) {
+                primaryRow
+                DiskImageInstallerDestinationToggle()
+                    .padding(.leading, 40)
+            }
+        } else {
+            primaryRow
+        }
+    }
+
+    private var primaryRow: some View {
         HStack(spacing: 10) {
             if installed, feature.hasNavigableSettingsDestination {
                 Button {
@@ -345,6 +358,19 @@ private struct FeatureHubRow: View {
             }
             working = false
         }
+    }
+}
+
+private struct DiskImageInstallerDestinationToggle: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.diskImageInstallerUseUserApplications)
+    private var useUserApplications = false
+
+    var body: some View {
+        Toggle(FeatureStrings.diskImageInstaller(l10n.language).useUserApplications,
+               isOn: $useUserApplications)
+            .font(.caption)
+            .controlSize(.small)
     }
 }
 
