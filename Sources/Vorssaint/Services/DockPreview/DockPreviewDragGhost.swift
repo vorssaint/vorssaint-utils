@@ -18,13 +18,9 @@ final class DockPreviewDragGhost {
 
     private var window: NSWindow?
     private var size: CGSize = .zero
-    private var isSnapped = false
 
     private static let scale: CGFloat = 0.22
     private static let opacity: CGFloat = 0.55
-    /// The snapped stand-in covers a whole screen region, so it has to be
-    /// fainter than the small free-floating one to stay readable over content.
-    private static let snappedOpacity: CGFloat = 0.7
 
     private init() {}
 
@@ -63,31 +59,14 @@ final class DockPreviewDragGhost {
     /// it so the corner the drop uses is the one under the cursor.
     func move(to pointer: CGPoint) {
         guard let window else { return }
-        if isSnapped {
-            isSnapped = false
-            window.animator().alphaValue = 1
-        }
         window.setFrame(CGRect(origin: CGPoint(x: pointer.x, y: pointer.y - size.height),
                                size: size),
                         display: true)
-    }
-
-    /// Fills the frame the window would land in. The stand-in *is* the preview:
-    /// growing it to the target says where the window goes without a second
-    /// overlay to keep in step with the first.
-    func snap(to frame: CGRect) {
-        guard let window else { return }
-        if !isSnapped {
-            isSnapped = true
-            window.animator().alphaValue = Self.snappedOpacity
-        }
-        window.setFrame(frame, display: true)
     }
 
     func end() {
         window?.orderOut(nil)
         window = nil
         size = .zero
-        isSnapped = false
     }
 }

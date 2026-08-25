@@ -1,10 +1,19 @@
 name: "✨ Feature Request"
 description: Suggest a new feature or improvement for Vorssaint
-title: "[Feature]: "
 labels:
   - enhancement
 
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **Someone may have asked already.** [Enhancement Summary](https://github.com/vorssaintapp/vorssaint-utils/issues/838)
+        indexes every open request, sorted into what already shipped, what is
+        worth doing, and what has been ruled out and why.
+
+        A comment and a 👍 on the existing request carries further than a
+        second issue for the same thing, since the votes stay in one place.
+
   - type: textarea
     id: problem
     attributes:
@@ -40,6 +49,13 @@ body:
         - Other
     validations:
       required: true
+
+  - type: input
+    id: existing_apps
+    attributes:
+      label: Does another app already do this?
+      description: "A name or a screenshot is the most useful thing you can add. A request pointing at something concrete gets answered against that thing rather than against a guess at what you meant. [Related Apps](https://github.com/vorssaintapp/vorssaint-utils/issues/880) already tracks the apps people cite most often and where Vorssaint stands on each — worth a look before and after you write this, and say which behaviour of it you mean rather than only the name."
+      placeholder: "Rectangle, Raycast, macOS itself..."
 
   - type: textarea
     id: mockups

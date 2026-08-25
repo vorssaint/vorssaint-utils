@@ -1198,7 +1198,7 @@ enum CommandBarCatalog {
                 id: "link.\(link.id.uuidString)",
                 title: link.name,
                 subtitle: link.kind == .script
-                    ? bar.scriptSearchHint
+                    ? (link.runsWithoutArgument ? bar.scriptBareSearchHint : bar.scriptSearchHint)
                     : (link.takesArgument ? bar.linkSearchHint : bar.kindLink),
                 keywords: bar.kindLink,
                 icon: .symbol(link.kind.symbolName),
@@ -1270,7 +1270,9 @@ enum CommandBarCatalog {
         let service = CommandBarService.shared
         let typed = service.queryWhenRun.trimmingCharacters(in: .whitespaces)
         let argument = CommandBarLinks.trailingArgument(query: typed, name: link.name) ?? ""
-        if argument.isEmpty {
+        // A script that needs something to work on asks for it rather than
+        // running on nothing; one marked as needing nothing just runs.
+        if argument.isEmpty, !link.runsWithoutArgument {
             service.prefill(link.name + " ")
             return
         }

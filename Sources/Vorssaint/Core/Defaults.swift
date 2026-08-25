@@ -326,11 +326,13 @@ enum DefaultsKey {
     // System monitor — optional notifications for sustained or actionable conditions.
     static let monitorAlertCPU = "monitorAlertCPU"
     static let monitorAlertCPUTemperature = "monitorAlertCPUTemperature"
+    static let monitorAlertBatteryTemperature = "monitorAlertBatteryTemperature"
     static let monitorAlertMemory = "monitorAlertMemory"
     static let monitorAlertDisk = "monitorAlertDisk"
     static let monitorAlertBattery = "monitorAlertBattery"
     static let monitorAlertCPUThreshold = "monitorAlertCPUThreshold"
     static let monitorAlertCPUTemperatureThreshold = "monitorAlertCPUTemperatureThreshold"
+    static let monitorAlertBatteryTemperatureThreshold = "monitorAlertBatteryTemperatureThreshold"
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
@@ -360,12 +362,16 @@ enum DefaultsKey {
     static let mediaVideoFPS = "mediaVideoFPS"
     static let mediaVideoKeepAudio = "mediaVideoKeepAudio"
     static let mediaVideoCodec = "mediaVideoCodec"
+    static let mediaVideoSizing = "mediaVideoSizing"
+    static let mediaVideoTargetMegabytes = "mediaVideoTargetMegabytes"
     static let mediaGIFStart = "mediaGIFStart"
     static let mediaGIFEnd = "mediaGIFEnd"
     static let mediaGIFQuality = "mediaGIFQuality"
     static let mediaGIFWidth = "mediaGIFWidth"
     static let mediaGIFFPS = "mediaGIFFPS"
     static let mediaGIFLoops = "mediaGIFLoops"
+    static let mediaGIFSizing = "mediaGIFSizing"
+    static let mediaGIFTargetMegabytes = "mediaGIFTargetMegabytes"
     static let mediaImageQuality = "mediaImageQuality"
     static let mediaImageMaxDimension = "mediaImageMaxDimension"
     static let mediaImageFormat = "mediaImageFormat"
@@ -425,6 +431,8 @@ enum DefaultsKey {
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
+    /// Compact mode: an empty field shows nothing but itself. Off by default
+    static let commandBarCompactMode = "commandBarCompactMode"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
@@ -706,13 +714,17 @@ enum PreviewSizing {
         Defaults.allowedPreviewSizes.contains(value) ? value : "normal"
     }
 
-    static var scale: CGFloat {
-        switch sanitized(UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal") {
+    static func scale(for value: String) -> CGFloat {
+        switch sanitized(value) {
         case "small": return 0.75
         case "large": return 1.4
         case "xlarge": return 1.8
         default: return 1.0
         }
+    }
+
+    static var scale: CGFloat {
+        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal")
     }
 }
 
@@ -1024,11 +1036,13 @@ enum Defaults {
         DefaultsKey.monitorPwrHealth: true,
         DefaultsKey.monitorAlertCPU: false,
         DefaultsKey.monitorAlertCPUTemperature: false,
+        DefaultsKey.monitorAlertBatteryTemperature: false,
         DefaultsKey.monitorAlertMemory: false,
         DefaultsKey.monitorAlertDisk: false,
         DefaultsKey.monitorAlertBattery: false,
         DefaultsKey.monitorAlertCPUThreshold: 90,
         DefaultsKey.monitorAlertCPUTemperatureThreshold: 90,
+        DefaultsKey.monitorAlertBatteryTemperatureThreshold: 40,
         DefaultsKey.monitorAlertDiskFreePercent: 10,
         DefaultsKey.monitorAlertBatteryPercent: 15,
         DefaultsKey.monitorAlertCooldownMinutes: 15,
@@ -1040,12 +1054,16 @@ enum Defaults {
         DefaultsKey.mediaVideoFPS: 30.0,
         DefaultsKey.mediaVideoKeepAudio: true,
         DefaultsKey.mediaVideoCodec: MediaVideoCodec.h264.rawValue,
+        DefaultsKey.mediaVideoSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaVideoTargetMegabytes: 20,
         DefaultsKey.mediaGIFStart: 0.0,
         DefaultsKey.mediaGIFEnd: 0.0,
         DefaultsKey.mediaGIFQuality: 0.74,
         DefaultsKey.mediaGIFWidth: 720,
         DefaultsKey.mediaGIFFPS: 12.0,
         DefaultsKey.mediaGIFLoops: true,
+        DefaultsKey.mediaGIFSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaGIFTargetMegabytes: 10,
         DefaultsKey.mediaImageQuality: 0.72,
         DefaultsKey.mediaImageMaxDimension: 1600,
         DefaultsKey.mediaImageFormat: MediaImageFormat.jpeg.rawValue,
@@ -1099,6 +1117,7 @@ enum Defaults {
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
+        DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarDisabledSources: "",
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",
