@@ -116,17 +116,11 @@ jobs:
 
             # Expanded heredoc: keep the text free of backticks and `$`.
             cat > comment.md <<COMMENT
-          A fix for this went into the development version of the app in #$PR_NUMBER, and it
-          is queued to go out in an upcoming release.
+          A fix for this was added in #$PR_NUMBER and will be included in a future release.
 
-          **Nothing has changed on your Mac yet**, and this is not us saying your report is
-          fixed — that part is up to you. When a release goes out carrying this fix you will get
-          a note on this issue with the version to install, and two weeks to say whether it
-          worked for you.
+          Nothing has changed on your Mac yet, and your issue is not considered fixed. When the release is available, you'll get a comment on this issue with the version to install. After that, you'll have two weeks to let us know if it solved the problem.
 
-          **If it fixes part of what you reported and not the rest, please say which part** when
-          that note arrives. One fix often answers one thing in a report that mentions several,
-          and the rest are invisible to us unless you name them.
+          If it only fixes part of the issue, tell us what still doesn't work. A report can include multiple problems, and we need to know which ones remain.
 
           <!-- vorssaint-fix-status sha=$MERGE_SHA pr=$PR_NUMBER -->
           COMMENT
