@@ -570,9 +570,13 @@ private struct CommandBarLinkEditor: View {
                     }
                 }
             } else {
-                Text(text.scriptHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(text.scriptHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.scriptRunsWithoutArgument, isOn: $draft.runsWithoutArgument)
+                        .font(.caption)
+                }
             }
 
             HStack {

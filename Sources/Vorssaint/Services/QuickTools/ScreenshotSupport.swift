@@ -1415,6 +1415,20 @@ enum ScreenshotSupport {
         return CGRect(x: x, y: y, width: rect.width, height: rect.height)
     }
 
+    /// The pixel rectangle a crop draft stands for. A crop cuts on pixel
+    /// boundaries, so the chrome, the loupe cross and `applyCrop` all read the
+    /// draft through here and mark the same edge. Rounding both edges to the
+    /// nearest boundary leaves an already snapped rectangle the same size under
+    /// a move, because the two edges carry the same fraction.
+    static func pixelSnappedCropRect(_ rect: CGRect, within bounds: CGRect) -> CGRect {
+        let minX = (rect.minX).rounded()
+        let minY = (rect.minY).rounded()
+        let maxX = (rect.maxX).rounded()
+        let maxY = (rect.maxY).rounded()
+        return clamp(CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
+                     to: bounds)
+    }
+
     /// A stable square of source pixels for the crop loupe. Near an image
     /// edge the sample slides inward instead of shrinking, and the loupe's
     /// reticle still marks the exact adjusted pixel.
@@ -1445,8 +1459,9 @@ enum ScreenshotSupport {
     /// the floored coordinate keeps the pointer's sub-pixel position out of it.
     ///
     /// The editor's crop loupe marks a crop *edge*, which runs between pixels.
-    /// An edge lands in the middle of the frame only when the side is even, so
-    /// that caller passes `centredOnPixel: false` and the side is forced even.
+    /// An edge lands in the middle of the frame only when the side is even and
+    /// the coordinate is whole, so that caller passes `centredOnPixel: false`
+    /// and reads a draft `pixelSnappedCropRect` has put on a boundary.
     static func cropLoupeSampleRect(around point: CGPoint,
                                     imageSize: CGSize,
                                     sideLength: CGFloat = 13,

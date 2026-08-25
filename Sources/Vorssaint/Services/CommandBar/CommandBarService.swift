@@ -1242,12 +1242,9 @@ final class CommandBarService: ObservableObject {
         // a ranking tie and Return runs a different file from the answer shown.
         if let scriptMatch {
             let winnerID = "link.\(scriptMatch.link.id.uuidString)"
-            let matchingScriptIDs = Set(savedLinks.compactMap { link -> String? in
-                guard link.kind == .script,
-                      CommandBarLinks.trailingArgument(query: trimmed, name: link.name) != nil
-                else { return nil }
-                return "link.\(link.id.uuidString)"
-            })
+            let matchingScriptIDs = Set(
+                CommandBarLinks.matchingScriptLinks(in: savedLinks, query: trimmed)
+                    .map { "link.\($0.id.uuidString)" })
             pool.removeAll {
                 matchingScriptIDs.contains($0.id) && (scriptAnswer != nil || $0.id != winnerID)
             }
