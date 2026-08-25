@@ -22,6 +22,8 @@ All notable changes to this project are documented here. The format follows
 - The Keyboard Shortcuts page now lists every capture shortcut under one Screen capture group, and expandable shortcut groups are toggled by their whole row, with the chevron moved to the trailing edge. Thanks to @RecoilGaming.
 
 ### Fixed
+- Quit on close no longer causes elevated background CPU usage in watched applications. Thanks to @iltonandrew.
+- The Displays section no longer freezes when switching off the built-in display while an external monitor is connected. Thanks to @iltonandrew.
 - Subprocess sampling and window enumeration no longer exhaust background dispatch threads or deadlock the main thread. Thanks to @PathGao, @iltonandrew and @SudhanshuBhogal.
 - Quick tool confirmation panels and scrolling capture banners now keep long copied text or parameter lists bounded on screen instead of overflowing the display. Thanks to @rhukster.
 - App Switcher now keeps walking backwards when you hold Shift and tap Tab again. Thanks to @iltonandrew and @justin-chiam.
@@ -29,6 +31,10 @@ All notable changes to this project are documented here. The format follows
 - Screenshot editor crop now snaps selection and resize edges to pixel boundaries, keeping the loupe cross and the final cut aligned to the exact source pixel. Thanks to @PathGao.
 - Media settings now keep the title and tool picker in place when More options expands, and matching disclosure rows across Settings toggle from the full label. Thanks to @ruvelro.
 - Saved image profiles now restore max-side values up to 20,000 pixels without silently shrinking them. Thanks to @ruvelro.
+- Menu bar icon recovery no longer overlaps or hides the item under macOS system items like the battery icon.
+- Command Bar and quick tools no longer freeze when copying, opening links, or expanding snippets while the clipboard holds stalled content. Thanks to @PathGao and @atomsbaza.
+- Keep going with lid closed no longer fails to set up on accounts whose username contains @ or other non-alphanumeric characters, granting the rule by user ID instead. Thanks to @iltonandrew and @dhruvsaxena1998.
+- Uninstallation via script or inside the app now fully clears the Fan Control helper daemon registration, stored application data, caches and ByHost preferences. Thanks to @mugurc.
 
 ## [3.3.3-beta.2] - 2026-08-22
 

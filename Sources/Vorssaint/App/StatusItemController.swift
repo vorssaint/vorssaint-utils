@@ -76,13 +76,14 @@ final class StatusItemController {
     /// recovers access (see applicationShouldHandleReopen) and the "Show menu bar
     /// icon" button in Settings rebuilds it.
     private func installStatusItem() {
+        StatusItemPlacementSupport.sanitizeStalePlacement(in: .standard)
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // A stable identity so macOS remembers the item's position across launches
         // and across rebuilds, instead of re-placing it at the crowded default spot.
-        statusItem.autosaveName = Self.mainAutosaveName(in: .standard)
+        statusItem.autosaveName = StatusItemPlacementSupport.mainAutosaveName(in: .standard)
         statusItem.behavior = []
         statusItem.isVisible = true
         if let button = statusItem.button {
@@ -105,49 +106,10 @@ final class StatusItemController {
     /// the same hidden/crowded position that made it unreachable.
     func recreateStatusItem(resetPlacement: Bool = false) {
         if resetPlacement {
-            Self.bumpPlacementGeneration(in: .standard)
-            Self.seedProtectedPlacement(in: .standard)
+            StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
         }
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         installStatusItem()
-    }
-
-    /// Placed with no saved position, a new item lands at the LEFT end of the
-    /// status area, right by the notch, which is the first zone macOS hides
-    /// when the bar runs out of room. That made the recovery useless exactly
-    /// on the crowded bars that lose the icon (issue #167). Seeding a small
-    /// preferred position (distance from the screen's right edge) makes the
-    /// rebuilt item claim a spot beside the clock, the last zone to be hidden.
-    private static let protectedPlacementOffset: Double = 64
-
-    private static func seedProtectedPlacement(in defaults: UserDefaults) {
-        defaults.set(protectedPlacementOffset,
-                     forKey: "NSStatusItem Preferred Position \(mainAutosaveName(in: defaults))")
-    }
-
-    private static func placementGeneration(in defaults: UserDefaults) -> Int {
-        min(max(defaults.integer(forKey: DefaultsKey.statusItemPlacementGeneration), 0),
-            maxPlacementGeneration)
-    }
-
-    private static func mainAutosaveName(in defaults: UserDefaults) -> String {
-        let generation = placementGeneration(in: defaults)
-        guard generation > 0 else { return mainAutosaveName }
-        return "\(mainAutosaveName).\(generation)"
-    }
-
-    private static func bumpPlacementGeneration(in defaults: UserDefaults) {
-        // The abandoned autosave name would otherwise strand macOS's saved
-        // placement keys forever (one pair per recovery).
-        let previousName = mainAutosaveName(in: defaults)
-        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
-        defaults.removeObject(forKey: "NSStatusItem Visible \(previousName)")
-        // The spelling macOS actually uses for the remembered visibility. Left
-        // behind, it also keeps the item marked as hidden, which is the state
-        // the recovery exists to undo.
-        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(previousName)")
-        defaults.set((placementGeneration(in: defaults) % maxPlacementGeneration) + 1,
-                     forKey: DefaultsKey.statusItemPlacementGeneration)
     }
 
     private func bind() {
