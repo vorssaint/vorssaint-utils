@@ -964,6 +964,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "正常順序",
         switcherMinimizedPlacementEnd: "放到最後",
         switcherMinimizedPlacementHidden: "隱藏",
-        switcherShowFullscreenWindows: "顯示全螢幕視窗" 
+        switcherShowFullscreenWindows: "顯示全螢幕視窗",
+        switcherScreenPlacementLabel: "顯示於",
+        switcherScreenPlacementPointer: "指標所在的螢幕",
+        switcherScreenPlacementMenuBar: "選單列所在的螢幕",
+        switcherScreenPlacementActiveWindow: "使用中視窗所在的螢幕",
+        switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。"
     )
 }

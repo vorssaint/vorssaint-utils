@@ -1108,6 +1108,11 @@ struct Strings {
     let switcherMinimizedPlacementEnd: String
     let switcherMinimizedPlacementHidden: String
     let switcherShowFullscreenWindows: String
+    let switcherScreenPlacementLabel: String
+    let switcherScreenPlacementPointer: String
+    let switcherScreenPlacementMenuBar: String
+    let switcherScreenPlacementActiveWindow: String
+    let switcherScreenPlacementCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2072,7 +2077,12 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia",
+        switcherScreenPlacementLabel: "Mostrar em",
+        switcherScreenPlacementPointer: "Tela com o ponteiro",
+        switcherScreenPlacementMenuBar: "Tela com a barra de menus",
+        switcherScreenPlacementActiveWindow: "Tela com a janela ativa",
+        switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada."
     )
 }
 
@@ -3038,6 +3048,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",
-        switcherShowFullscreenWindows: "Show fullscreen windows"
+        switcherShowFullscreenWindows: "Show fullscreen windows",
+        switcherScreenPlacementLabel: "Show on",
+        switcherScreenPlacementPointer: "Screen with the pointer",
+        switcherScreenPlacementMenuBar: "Screen with the menu bar",
+        switcherScreenPlacementActiveWindow: "Screen with the active window",
+        switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected."
     )
 }

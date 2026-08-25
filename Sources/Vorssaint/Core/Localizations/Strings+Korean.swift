@@ -964,6 +964,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "일반 순서",
         switcherMinimizedPlacementEnd: "끝으로 보내기",
         switcherMinimizedPlacementHidden: "숨기기",
-        switcherShowFullscreenWindows: "전체 화면 윈도우 표시" 
+        switcherShowFullscreenWindows: "전체 화면 윈도우 표시",
+        switcherScreenPlacementLabel: "표시 위치",
+        switcherScreenPlacementPointer: "포인터가 있는 화면",
+        switcherScreenPlacementMenuBar: "메뉴 막대가 있는 화면",
+        switcherScreenPlacementActiveWindow: "활성 윈도우가 있는 화면",
+        switcherScreenPlacementCaption: "화면이 두 개 이상 연결되어 있을 때 전환기를 어느 화면에 표시할지 선택합니다."
     )
 }

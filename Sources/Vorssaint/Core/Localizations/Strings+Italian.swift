@@ -963,6 +963,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordine normale",
         switcherMinimizedPlacementEnd: "Sposta alla fine",
         switcherMinimizedPlacementHidden: "Nascondi",
-        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero" 
+        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero",
+        switcherScreenPlacementLabel: "Mostra su",
+        switcherScreenPlacementPointer: "Schermo con il puntatore",
+        switcherScreenPlacementMenuBar: "Schermo con la barra dei menu",
+        switcherScreenPlacementActiveWindow: "Schermo con la finestra attiva",
+        switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno."
     )
 }

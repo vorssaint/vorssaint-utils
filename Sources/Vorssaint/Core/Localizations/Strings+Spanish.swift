@@ -963,6 +963,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Orden normal",
         switcherMinimizedPlacementEnd: "Colocar al final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa",
+        switcherScreenPlacementLabel: "Mostrar en",
+        switcherScreenPlacementPointer: "Pantalla con el puntero",
+        switcherScreenPlacementMenuBar: "Pantalla con la barra de menús",
+        switcherScreenPlacementActiveWindow: "Pantalla con la ventana activa",
+        switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada."
     )
 }

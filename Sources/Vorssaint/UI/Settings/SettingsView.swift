@@ -869,6 +869,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
+    @AppStorage(DefaultsKey.switcherScreenPlacement) private var switcherScreenPlacement = SwitcherScreenPlacement.fallback.rawValue
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
@@ -970,6 +971,16 @@ struct SwitcherSettings: View {
                         .onChange(of: switcherShowFullscreenWindows) { _, _ in
                             AppSwitcher.shared.syncWithPreferences()
                         }
+
+                    Picker(l10n.s.switcherScreenPlacementLabel, selection: $switcherScreenPlacement) {
+                        Text(l10n.s.switcherScreenPlacementPointer).tag(SwitcherScreenPlacement.pointer.rawValue)
+                        Text(l10n.s.switcherScreenPlacementMenuBar).tag(SwitcherScreenPlacement.menuBar.rawValue)
+                        Text(l10n.s.switcherScreenPlacementActiveWindow).tag(SwitcherScreenPlacement.activeWindow.rawValue)
+                    }
+                    .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherScreenPlacementCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)

@@ -964,6 +964,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Обычный порядок",
         switcherMinimizedPlacementEnd: "В конец списка",
         switcherMinimizedPlacementHidden: "Скрывать",
-        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна",
+        switcherScreenPlacementLabel: "Показывать на",
+        switcherScreenPlacementPointer: "Экран с указателем",
+        switcherScreenPlacementMenuBar: "Экран со строкой меню",
+        switcherScreenPlacementActiveWindow: "Экран с активным окном",
+        switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов."
     )
 }

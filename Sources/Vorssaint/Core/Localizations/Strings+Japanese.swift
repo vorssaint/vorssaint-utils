@@ -963,6 +963,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "通常の順序",
         switcherMinimizedPlacementEnd: "最後に配置",
         switcherMinimizedPlacementHidden: "非表示",
-        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示" 
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示",
+        switcherScreenPlacementLabel: "表示先",
+        switcherScreenPlacementPointer: "ポインタのある画面",
+        switcherScreenPlacementMenuBar: "メニューバーのある画面",
+        switcherScreenPlacementActiveWindow: "アクティブなウインドウのある画面",
+        switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。"
     )
 }

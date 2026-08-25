@@ -70,6 +70,7 @@ enum DefaultsKey {
     static let switcherCurrentSpaceOnly = "switcherCurrentSpaceOnly" // list only windows on the desktop the user is in (issue #337)
     static let switcherSearchPinEnabled = "switcherSearchPinEnabled" // S pins the search field open, off by default so existing users typing S as a search letter see no change
     static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
+    static let switcherScreenPlacement = "switcherScreenPlacement" // SwitcherScreenPlacement raw value: which display the panel opens on
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
@@ -806,6 +807,7 @@ enum Defaults {
         DefaultsKey.switcherCurrentSpaceOnly: false,
         DefaultsKey.switcherSearchPinEnabled: false,
         DefaultsKey.switcherShowShortcutHints: true,
+        DefaultsKey.switcherScreenPlacement: SwitcherScreenPlacement.fallback.rawValue,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,

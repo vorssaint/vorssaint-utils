@@ -2093,6 +2093,36 @@ struct MetricsTests {
         expect(WindowSwitchMinimizedPlacement.allCases.map(\.rawValue) == ["normal", "end", "hidden"],
                "every minimized placement case has a stable raw value")
 
+        // MARK: Which display the switcher opens on
+        expect(registeredDefaults[DefaultsKey.switcherScreenPlacement] as? String
+               == SwitcherScreenPlacement.pointer.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherScreenPlacement),
+               "App Switcher keeps opening on the pointer's screen by default and carries the choice in backups")
+        expect(SwitcherScreenPlacement.placement(storedValue: nil) == .pointer
+               && SwitcherScreenPlacement.placement(storedValue: "") == .pointer
+               && SwitcherScreenPlacement.placement(storedValue: "bogus") == .pointer,
+               "an unset or unreadable screen placement falls back to the pointer's screen")
+        expect(SwitcherScreenPlacement.allCases.map(\.rawValue) == ["pointer", "menuBar", "activeWindow"]
+               && SwitcherScreenPlacement.allCases.allSatisfy {
+                   SwitcherScreenPlacement.placement(storedValue: $0.rawValue) == $0
+               },
+               "every screen placement choice has a stable raw value that survives preferences")
+        let leftDisplay = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let rightDisplay = CGRect(x: 1920, y: 0, width: 1440, height: 900)
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 2000, y: 100, width: 800, height: 600),
+                                            displayBounds: [leftDisplay, rightDisplay]) == 1,
+               "a window inside one display resolves to that display")
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 1500, y: 100, width: 1000, height: 600),
+                                            displayBounds: [leftDisplay, rightDisplay]) == 1
+               && SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 1500, y: 100, width: 700, height: 600),
+                                               displayBounds: [leftDisplay, rightDisplay]) == 0,
+               "a window straddling two displays belongs to the one showing more of it, whichever comes first")
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 5000, y: 100, width: 800, height: 600),
+                                            displayBounds: [leftDisplay, rightDisplay]) == nil
+               && SwitcherSupport.displayIndex(showingMostOf: .zero, displayBounds: [leftDisplay, rightDisplay]) == nil
+               && SwitcherSupport.displayIndex(showingMostOf: leftDisplay, displayBounds: []) == nil,
+               "a window touching no display, an entry without a frame, or no display at all leave the screen to the fallback")
+
         // MARK: Switcher entries for apps with no window (issue #351)
         expect(SwitcherWindowlessApps.mode(storedValue: nil) == .finder
                && SwitcherWindowlessApps.mode(storedValue: "") == .finder
@@ -9431,6 +9461,13 @@ struct MetricsTests {
             expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
                    && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
                    "\(prefix) App Switcher current-desktop caption is present without em dash")
+            expect([strings.switcherScreenPlacementLabel,
+                    strings.switcherScreenPlacementPointer,
+                    strings.switcherScreenPlacementMenuBar,
+                    strings.switcherScreenPlacementActiveWindow,
+                    strings.switcherScreenPlacementCaption]
+                   .allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) App Switcher screen placement labels are present without em dash")
             expect(!strings.switcherOtherDesktop.isEmpty
                    && !strings.switcherOtherDesktop.contains("—"),
                    "\(prefix) App Switcher other-desktop label is present without em dash")

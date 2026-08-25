@@ -963,6 +963,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "正常顺序",
         switcherMinimizedPlacementEnd: "放到末尾",
         switcherMinimizedPlacementHidden: "隐藏",
-        switcherShowFullscreenWindows: "显示全屏窗口" 
+        switcherShowFullscreenWindows: "显示全屏窗口",
+        switcherScreenPlacementLabel: "显示在",
+        switcherScreenPlacementPointer: "指针所在的屏幕",
+        switcherScreenPlacementMenuBar: "菜单栏所在的屏幕",
+        switcherScreenPlacementActiveWindow: "活跃窗口所在的屏幕",
+        switcherScreenPlacementCaption: "连接多个屏幕时，切换器在哪个屏幕上打开。"
     )
 }

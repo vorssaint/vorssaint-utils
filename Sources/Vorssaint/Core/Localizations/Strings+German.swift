@@ -963,6 +963,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normale Reihenfolge",
         switcherMinimizedPlacementEnd: "Ans Ende stellen",
         switcherMinimizedPlacementHidden: "Ausblenden",
-        switcherShowFullscreenWindows: "Vollbildfenster anzeigen" 
+        switcherShowFullscreenWindows: "Vollbildfenster anzeigen",
+        switcherScreenPlacementLabel: "Anzeigen auf",
+        switcherScreenPlacementPointer: "Bildschirm mit dem Zeiger",
+        switcherScreenPlacementMenuBar: "Bildschirm mit der Menüleiste",
+        switcherScreenPlacementActiveWindow: "Bildschirm mit dem aktiven Fenster",
+        switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind."
     )
 }

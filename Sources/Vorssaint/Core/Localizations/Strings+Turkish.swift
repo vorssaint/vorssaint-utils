@@ -963,6 +963,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal sıralama",
         switcherMinimizedPlacementEnd: "Sona yerleştir",
         switcherMinimizedPlacementHidden: "Gizle",
-        switcherShowFullscreenWindows: "Tam ekran pencereleri göster" 
+        switcherShowFullscreenWindows: "Tam ekran pencereleri göster",
+        switcherScreenPlacementLabel: "Şurada göster",
+        switcherScreenPlacementPointer: "İmlecin olduğu ekran",
+        switcherScreenPlacementMenuBar: "Menü çubuğunun olduğu ekran",
+        switcherScreenPlacementActiveWindow: "Etkin pencerenin olduğu ekran",
+        switcherScreenPlacementCaption: "Birden fazla ekran bağlıyken değiştiricinin hangi ekranda açılacağını belirler."
     )
 }
