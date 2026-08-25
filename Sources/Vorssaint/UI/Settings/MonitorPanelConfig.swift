@@ -107,6 +107,7 @@ struct MonitorPanelConfig: View {
                                       @ViewBuilder _ items: @escaping () -> Content) -> some View {
         DisclosureHeaderRow(isExpanded: expansionBinding(for: id)) {
             Text(title)
+            Spacer()
         }
         if expandedBlocks.contains(id) {
             Group {

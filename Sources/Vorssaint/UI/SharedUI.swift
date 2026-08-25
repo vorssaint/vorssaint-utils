@@ -231,7 +231,8 @@ struct AnimatedGIFView: NSViewRepresentable {
 }
 
 /// A disclosure header where the whole row toggles the group and the chevron
-/// sits on the trailing side, the way a drop-down reads.
+/// sits on the trailing side, the way a drop-down reads. The label supplies
+/// the row's one Spacer, so trailing accessories stay flush to the chevron.
 struct DisclosureHeaderRow<Label: View>: View {
     @ObservedObject private var l10n = L10n.shared
 
@@ -251,7 +252,6 @@ struct DisclosureHeaderRow<Label: View>: View {
         } label: {
             HStack(spacing: 8) {
                 label()
-                Spacer(minLength: 0)
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
