@@ -4,14 +4,14 @@
 import SwiftUI
 
 /// One Settings destination for every tool that starts from the screen. The
-/// segmented control at the top changes the feature-specific options shown
-/// below it, and the top section also carries the selected tool's own
-/// shortcut where the old shared shortcut lived.
+/// tools are four modes of one chooser rather than four features, so the page
+/// leads with the chooser itself and then gives every installed tool a section
+/// of its own, each carrying the shortcut that opens the chooser on that mode.
+/// Sections side by side is how the rest of Settings reads, and it lets the
+/// section anchors be reached without a switcher having to move first.
 struct ScreenCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @State private var selectedTool = ScreenCaptureTool.screenshot
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -21,93 +21,41 @@ struct ScreenCaptureSettings: View {
         ScreenCaptureTool.available()
     }
 
-    private var currentTool: ScreenCaptureTool {
-        availableTools.contains(selectedTool) ? selectedTool : availableTools.first ?? .screenshot
-    }
-
     var body: some View {
         Form {
             if !availableTools.isEmpty {
                 Section {
-                    if availableTools.count > 1 {
-                        toolPicker
+                    Button {
+                        ScreenCaptureService.shared.capture()
+                    } label: {
+                        Label(strings.screenCaptureTitle, systemImage: "camera.viewfinder")
                     }
-                    ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
-                        .id(currentTool)
                 } header: {
                     Text(strings.screenCaptureTitle)
                 }
             }
 
-            selectedSettings
+            ForEach(availableTools, id: \.self) { tool in
+                settings(for: tool)
+            }
         }
         .formStyle(.grouped)
-        .onAppear { reconcileSelection(withDestination: true) }
-        .onChange(of: features.revision) { _, _ in
-            reconcileSelection(withDestination: false)
-        }
-        .onChange(of: router.requestID) { _, _ in
-            reconcileSelection(withDestination: true)
-        }
-    }
-
-    private var toolPicker: some View {
-        CaptureToolTabs(tools: availableTools,
-                        title: { $0.settingsTitle(l10n.s, language: l10n.language) },
-                        selection: toolSelection)
-    }
-
-    private var toolSelection: Binding<ScreenCaptureTool> {
-        Binding(get: { currentTool }, set: { selectedTool = $0 })
     }
 
     @ViewBuilder
-    private var selectedSettings: some View {
-        if availableTools.isEmpty {
-            EmptyView()
-        } else {
-            switch currentTool {
-            case .screenshot:
-                ScreenshotCaptureSettings()
-            case .recording:
-                ScreenRecordingCaptureSettings()
-            case .text:
-                ScreenTextCaptureSettings()
-            case .color:
-                ColorCaptureSettings()
-            }
-        }
-    }
-
-    private func reconcileSelection(withDestination: Bool) {
-        if withDestination,
-           let anchor = router.destination.sectionAnchor,
-           let requestedTool = anchor.screenCaptureTool,
-           availableTools.contains(requestedTool) {
-            selectedTool = requestedTool
-            return
-        }
-        if !availableTools.contains(selectedTool), let first = availableTools.first {
-            selectedTool = first
+    private func settings(for tool: ScreenCaptureTool) -> some View {
+        switch tool {
+        case .screenshot: ScreenshotCaptureSettings()
+        case .recording: ScreenRecordingCaptureSettings()
+        case .text: ScreenTextCaptureSettings()
+        case .color: ColorCaptureSettings()
         }
     }
 }
 
-private extension SettingsSectionAnchor {
-    var screenCaptureTool: ScreenCaptureTool? {
-        switch self {
-        case .screenshot: return .screenshot
-        case .screenRecorder: return .recording
-        case .screenOCR: return .text
-        case .colorPicker: return .color
-        default: return nil
-        }
-    }
-}
-
-/// The shortcut that opens the chooser straight on one tool, shown in the
-/// page's top section under the tool's own name while that tool is selected.
-private struct ToolShortcutRows: View {
+/// The shortcut that opens the chooser straight on one tool, shown inside
+/// that tool's own section.
+struct ToolShortcutRows: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ScreenCaptureService.shared
     @AppStorage private var enabled: Bool
@@ -115,7 +63,8 @@ private struct ToolShortcutRows: View {
     private let tool: ScreenCaptureTool
     private let keys: ScreenCaptureTool.DedicatedShortcut
 
-    init(tool: ScreenCaptureTool, keys: ScreenCaptureTool.DedicatedShortcut) {
+    init(tool: ScreenCaptureTool) {
+        let keys = tool.dedicatedShortcut
         self.tool = tool
         self.keys = keys
         _enabled = AppStorage(wrappedValue: false, keys.enabledKey)
@@ -152,6 +101,7 @@ private struct ScreenTextCaptureSettings: View {
             Text(l10n.s.ocrCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            ToolShortcutRows(tool: .text)
             Toggle(l10n.s.ocrQRToggle, isOn: $detectsQRCodes)
             Text(l10n.s.ocrQRCaption)
                 .font(.caption)
@@ -181,6 +131,7 @@ private struct ColorCaptureSettings: View {
             Text(l10n.s.colorPickerCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            ToolShortcutRows(tool: .color)
             Picker(l10n.s.colorPickerFormatLabel, selection: $format) {
                 ForEach(ColorCopyFormat.allCases) { format in
                     Text(format.label).tag(format.rawValue)
@@ -194,66 +145,5 @@ private struct ColorCaptureSettings: View {
             Text(l10n.s.colorPickerName)
         }
         .settingsSectionAnchor(.colorPicker)
-    }
-}
-
-/// SwiftUI's segmented `Picker` never lays out narrower than the labels it
-/// holds: below that width it keeps its own and paints outside the row it
-/// was given, over the sidebar on one side and off the window on the other
-/// (issue #757). `NSSegmentedControl` truncates its labels the way the rest
-/// of the system does, so the row fits any column and every tool stays on it.
-private struct CaptureToolTabs: NSViewRepresentable {
-    let tools: [ScreenCaptureTool]
-    let title: (ScreenCaptureTool) -> String
-    let selection: Binding<ScreenCaptureTool>
-
-    func makeNSView(context: Context) -> NSSegmentedControl {
-        let control = NSSegmentedControl()
-        control.controlSize = .large
-        control.trackingMode = .selectOne
-        // Equal segments are what the SwiftUI picker drew, to the pixel.
-        control.segmentDistribution = .fillEqually
-        control.target = context.coordinator
-        control.action = #selector(Coordinator.pick(_:))
-        return control
-    }
-
-    func updateNSView(_ control: NSSegmentedControl, context: Context) {
-        context.coordinator.tools = tools
-        context.coordinator.selection = selection
-        if control.segmentCount != tools.count {
-            control.segmentCount = tools.count
-        }
-        for (index, tool) in tools.enumerated() {
-            let label = title(tool)
-            guard control.label(forSegment: index) != label else { continue }
-            control.setLabel(label, forSegment: index)
-            // The full name for a segment narrow enough to be truncated.
-            control.setToolTip(label, forSegment: index)
-        }
-        control.selectedSegment = tools.firstIndex(of: selection.wrappedValue) ?? 0
-    }
-
-    /// Taking the width on offer is the whole point: the control's own
-    /// minimum is what used to travel outwards. It still stops growing at
-    /// its natural width, which is where the picker stopped too.
-    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl,
-                      context: Context) -> CGSize? {
-        let natural = nsView.intrinsicContentSize
-        return CGSize(width: ScreenshotSupport.toolTabsWidth(offered: proposal.width,
-                                                            natural: natural.width),
-                      height: natural.height)
-    }
-
-    func makeCoordinator() -> Coordinator { Coordinator() }
-
-    final class Coordinator: NSObject {
-        var tools: [ScreenCaptureTool] = []
-        var selection: Binding<ScreenCaptureTool>?
-
-        @objc func pick(_ sender: NSSegmentedControl) {
-            guard tools.indices.contains(sender.selectedSegment) else { return }
-            selection?.wrappedValue = tools[sender.selectedSegment]
-        }
     }
 }

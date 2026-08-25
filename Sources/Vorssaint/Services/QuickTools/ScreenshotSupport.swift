@@ -97,15 +97,6 @@ enum ScreenCaptureTool: String, CaseIterable {
 /// harness compiles it standalone.
 enum ScreenshotSupport {
 
-    /// The width the settings row of capture tools takes: what it is
-    /// offered, and never more than the tabs themselves need. A segmented
-    /// control answers any narrower offer with its own minimum instead,
-    /// which is how the row came to paint outside the window (issue #757).
-    static func toolTabsWidth(offered: CGFloat?, natural: CGFloat) -> CGFloat {
-        guard let offered, offered.isFinite else { return natural }
-        return min(offered, natural)
-    }
-
     struct UnifiedCapturePolicy: Equatable {
         let freeze: Bool
         let includePointer: Bool
