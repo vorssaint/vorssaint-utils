@@ -39,7 +39,9 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionIndex = 0
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
-    @Published private(set) var quickPreviewPresented = false
+    @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
+        forKey: DefaultsKey.clipboardHistoryQuickPreview
+    )
 
     private var timer: Timer?
     private var lastChangeCount = 0
@@ -951,6 +953,7 @@ final class ClipboardHistoryService: ObservableObject {
     func setQuickPreviewPresented(_ presented: Bool) {
         guard presented != quickPreviewPresented else { return }
         quickPreviewPresented = presented
+        UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         guard let panel, panel.isVisible else { return }
         resize(panel,
                to: presented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize,
@@ -972,7 +975,6 @@ final class ClipboardHistoryService: ObservableObject {
         quickQuery = ""
         clearQuickBatchSelection()
         resetQuickSelection()
-        quickPreviewPresented = false
         position(panel)
         installKeyMonitor(for: panel)
         installDismissMonitors(for: panel)
@@ -986,7 +988,6 @@ final class ClipboardHistoryService: ObservableObject {
         removeDismissMonitors()
         panel?.orderOut(nil)
         clearQuickBatchSelection()
-        quickPreviewPresented = false
     }
 
     private func rememberPasteTarget() {
@@ -1027,7 +1028,8 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.quickPanelCompactSize),
+        let initialSize = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
+        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: initialSize),
                             styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                             backing: .buffered,
                             defer: false)
@@ -1051,14 +1053,14 @@ final class ClipboardHistoryService: ObservableObject {
         // to the panel height a second time.
         host.sizingOptions = []
         panel.contentViewController = host
-        panel.setFrame(NSRect(origin: .zero, size: Self.quickPanelCompactSize),
+        panel.setFrame(NSRect(origin: .zero, size: initialSize),
                        display: false)
         self.panel = panel
         return panel
     }
 
     private func position(_ panel: NSPanel) {
-        let size = Self.quickPanelCompactSize
+        let size = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
         let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)

@@ -14,12 +14,17 @@ All notable changes to this project are documented here. The format follows
 - Monitor alerts can now warn you when the battery stays above a temperature you choose. Under Monitor alerts, off by default. Thanks to @ywu73.
 
 ### Changed
+- Clipboard history now remembers whether you left the preview inspector open or closed across launches.
 - New Scratchpad tabs now start at 1 instead of leaving the first tab unnumbered, while existing names stay unchanged. Thanks to @AB-boi and @JashRashne.
+- Every screen capture tool — screenshot, recording, copy text and color picker — now carries its own keyboard shortcut that opens the shared chooser on that tool, replacing the single general capture shortcut; an existing capture shortcut keeps working unchanged as the screenshot's own, and the selected tool's shortcut is edited at the top of the Screen capture settings page. Thanks to @RecoilGaming.
+- The Keyboard Shortcuts page now lists every capture shortcut under one Screen capture group, and expandable shortcut groups are toggled by their whole row, with the chevron moved to the trailing edge. Thanks to @RecoilGaming.
 
 ### Fixed
 - App Switcher now keeps walking backwards when you hold Shift and tap Tab again. Thanks to @iltonandrew and @justin-chiam.
 - The screen capture loupe now rings the pixel under the pointer instead of drawing a crosshair across it, and that pixel sits in the middle of the loupe, so the Color picker shows the color it is about to copy. Thanks to @I-Have-No-Idea-What-Im-Doing-Right-Now and @PathGao.
 - Screenshot editor crop now snaps selection and resize edges to pixel boundaries, keeping the loupe cross and the final cut aligned to the exact source pixel. Thanks to @PathGao.
+- Media settings now keep the title and tool picker in place when More options expands, and matching disclosure rows across Settings toggle from the full label. Thanks to @ruvelro.
+- Saved image profiles now restore max-side values up to 20,000 pixels without silently shrinking them. Thanks to @ruvelro.
 
 ## [3.3.3-beta.2] - 2026-08-22
 

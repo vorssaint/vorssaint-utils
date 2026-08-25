@@ -17,6 +17,7 @@ struct URLCleanerSettings: View {
     @State private var input = ""
     @State private var output = ""
     @State private var message: String?
+    @State private var showingAddSite = false
     private var canClearInput: Bool { !input.isEmpty || !output.isEmpty || message != nil }
     private var rules: URLCleaning.Rules {
         URLCleaning.rules(globalNames: globalNames,
@@ -80,8 +81,13 @@ struct URLCleanerSettings: View {
                         }
                     }
                 }
-                DisclosureGroup(l10n.s.urlCleanerRulesAddSite) {
+                DisclosureHeaderRow(isExpanded: $showingAddSite) {
+                    Text(l10n.s.urlCleanerRulesAddSite)
+                    Spacer()
+                }
+                if showingAddSite {
                     addSiteRow
+                        .disclosureIndent()
                 }
                 Text(l10n.s.urlCleanerRulesCaption)
                     .font(.caption)

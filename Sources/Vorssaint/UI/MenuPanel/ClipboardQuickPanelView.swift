@@ -79,11 +79,6 @@ struct ClipboardQuickPanelView: View {
             hoveredEntryID = nil
             previewEntryID = history.selectedQuickEntryID
         }
-        .onChange(of: previewEntry?.id) { _, newID in
-            if newID == nil {
-                history.setQuickPreviewPresented(false)
-            }
-        }
     }
 
     private var toolbar: some View {
@@ -100,7 +95,7 @@ struct ClipboardQuickPanelView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(previewEntry == nil)
+            .disabled(previewEntry == nil && !history.quickPreviewPresented)
             .help(text.previewLabel)
             .accessibilityLabel(text.previewLabel)
             Button {

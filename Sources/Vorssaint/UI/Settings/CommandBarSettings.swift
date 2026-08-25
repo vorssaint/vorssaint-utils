@@ -143,35 +143,41 @@ struct CommandBarSettings: View {
                 } label: {
                     Label(text.filesAddFolder, systemImage: "plus")
                 }
-                DisclosureGroup(FeatureStrings.recorder(l10n.language).moreOptions,
-                                isExpanded: $showsFileOptions) {
-                    Text(text.filesIgnoreCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ForEach(fileIgnores, id: \.self) { pattern in
+                DisclosureHeaderRow(isExpanded: $showsFileOptions) {
+                    Text(FeatureStrings.recorder(l10n.language).moreOptions)
+                    Spacer()
+                }
+                if showsFileOptions {
+                    Group {
+                        Text(text.filesIgnoreCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(fileIgnores, id: \.self) { pattern in
+                            HStack(spacing: 8) {
+                                Image(systemName: "eye.slash")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 16)
+                                Text(pattern)
+                                    .font(.system(size: 12))
+                                    .lineLimit(1)
+                                Spacer()
+                                Button(text.removeButton) { removeFileIgnore(pattern) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.mini)
+                            }
+                        }
                         HStack(spacing: 8) {
-                            Image(systemName: "eye.slash")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 16)
-                            Text(pattern)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
-                            Spacer()
-                            Button(text.removeButton) { removeFileIgnore(pattern) }
+                            TextField(text.filesIgnorePlaceholder, text: $ignoreDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit { addFileIgnore() }
+                            Button(text.filesIgnoreAdd) { addFileIgnore() }
                                 .buttonStyle(.bordered)
-                                .controlSize(.mini)
+                                .controlSize(.small)
+                                .disabled(ignoreDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
-                    HStack(spacing: 8) {
-                        TextField(text.filesIgnorePlaceholder, text: $ignoreDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { addFileIgnore() }
-                        Button(text.filesIgnoreAdd) { addFileIgnore() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(ignoreDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
+                    .disclosureIndent()
                 }
             } header: {
                 Text(text.filesTitle)
