@@ -33,6 +33,9 @@ struct SystemSnapshot {
     var cpuTemperatureReadAt: TimeInterval?
     var gpuTemperature: Double?
     var batteryTemperature: Double?
+    /// The uptime timestamp of the last real battery sensor read. Cached values
+    /// keep their original timestamp so they cannot age into a sustained alert.
+    var batteryTemperatureReadAt: TimeInterval?
     var cpuUsage: Double?          // 0...1
     /// When `cpuUsage` was last really read, on the system uptime clock; the
     /// value is carried over failed reads, and the hot CPU alert has to tell
@@ -448,6 +451,8 @@ final class SystemMonitor: ObservableObject {
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
+        let alertBatteryTemperature = hasInternalBattery
+            && defaults.bool(forKey: DefaultsKey.monitorAlertBatteryTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
         let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
@@ -472,7 +477,7 @@ final class SystemMonitor: ObservableObject {
         plan.needGPUTemperature = panelTemps || menuPanelNeeds.gpuTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
         plan.needBatteryTemperature = hasInternalBattery && (panelTemps || menuPanelNeeds.batteryTemperature ||
-            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature))
+            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
         if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
            Self.fanTelemetryAvailable {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
@@ -765,6 +770,7 @@ final class SystemMonitor: ObservableObject {
                 } else {
                     next.batteryTemperature = self.batteryTemperatureCache?.value
                 }
+                next.batteryTemperatureReadAt = self.batteryTemperatureCache?.updatedAt
             }
             if plan.needFanSpeed {
                 if take(.fanSpeed) {

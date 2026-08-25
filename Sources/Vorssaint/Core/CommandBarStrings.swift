@@ -137,8 +137,10 @@ struct CommandBarFeatureStrings {
     let openInBrowser: String
     let linkKindScript: String
     let scriptHint: String
+    let scriptRunsWithoutArgument: String
     let scriptRunFailed: String
     let scriptSearchHint: String
+    let scriptBareSearchHint: String
     let linkAddButton: String
     let positionCaption: String
     let resetPositionButton: String
@@ -154,6 +156,8 @@ struct CommandBarFeatureStrings {
     let filesIgnoreCaption: String
     let filesIgnorePlaceholder: String
     let filesIgnoreAdd: String
+    let compactModeToggle: String
+    let compactModeCaption: String
 }
 
 extension FeatureStrings {
@@ -308,8 +312,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Open in browser",
         linkKindScript: "Script",
         scriptHint: "Choose an executable file. Type its name followed by what you want to send. It runs when you pause and shows the result here.",
+        scriptRunsWithoutArgument: "Also run when its name is typed on its own",
         scriptRunFailed: "Couldn’t run this file",
         scriptSearchHint: "Type what to send after the name",
+        scriptBareSearchHint: "Runs on its own, or type what to send",
         linkAddButton: "Add shortcut",
         positionCaption: "Drag the mark at the left of the field to put the bar anywhere on the screen; double-click the mark to recenter it.",
         resetPositionButton: "Recenter the bar",
@@ -324,7 +330,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Add a folder",
         filesIgnoreCaption: "Names never worth showing: a whole folder or file name, or an extension written as *.log.",
         filesIgnorePlaceholder: "A folder or file name",
-        filesIgnoreAdd: "Add")
+        filesIgnoreAdd: "Add",
+        compactModeToggle: "Compact mode",
+        compactModeCaption: "Bar opens without suggestions. Results appear as you type.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -457,8 +465,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Abrir no navegador",
         linkKindScript: "Script",
         scriptHint: "Escolha um arquivo executável. Digite o nome seguido do que deseja enviar. Ele roda quando você para e mostra o resultado aqui.",
+        scriptRunsWithoutArgument: "Executar também quando o nome for digitado sozinho",
         scriptRunFailed: "Não foi possível executar este arquivo",
         scriptSearchHint: "Digite o que enviar depois do nome",
+        scriptBareSearchHint: "Roda sozinho, ou digite o que enviar",
         linkAddButton: "Adicionar atalho",
         positionCaption: "Arraste a marca à esquerda do campo para colocar a barra em qualquer lugar da tela; clique duas vezes nela para recentralizá-la.",
         resetPositionButton: "Recentralizar a barra",
@@ -473,7 +483,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Adicionar pasta",
         filesIgnoreCaption: "Nomes que nunca vale a pena mostrar: uma pasta ou um arquivo inteiro, ou uma extensão escrita como *.log.",
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
-        filesIgnoreAdd: "Adicionar")
+        filesIgnoreAdd: "Adicionar",
+        compactModeToggle: "Modo compacto",
+        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -606,8 +618,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Tarayıcıda aç",
         linkKindScript: "Betik",
         scriptHint: "Çalıştırılabilir bir dosya seçin. Adını ve ardından göndermek istediğiniz metni yazın. Durduğunuzda çalışır ve sonucu burada gösterir.",
+        scriptRunsWithoutArgument: "Adı tek başına yazıldığında da çalıştır",
         scriptRunFailed: "Bu dosya çalıştırılamadı",
         scriptSearchHint: "Addan sonra göndermek istediğinizi yazın",
+        scriptBareSearchHint: "Tek başına çalışır, ya da göndereceğinizi yazın",
         linkAddButton: "Kısayol ekle",
         positionCaption: "Alanı ekranın istediğiniz yerine taşımak için soldaki işareti sürükleyin; ortalamak için işarete çift tıklayın.",
         resetPositionButton: "Çubuğu ortala",
@@ -622,7 +636,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Klasör ekle",
         filesIgnoreCaption: "Asla gösterilmeye değmeyen adlar: tam bir klasör veya dosya adı ya da *.log gibi yazılmış bir uzantı.",
         filesIgnorePlaceholder: "Klasör veya dosya adı",
-        filesIgnoreAdd: "Ekle")
+        filesIgnoreAdd: "Ekle",
+        compactModeToggle: "Kompakt mod",
+        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -755,8 +771,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Открыть в браузере",
         linkKindScript: "Скрипт",
         scriptHint: "Выберите исполняемый файл. Введите имя и затем то, что хотите передать. После паузы файл запустится и покажет результат здесь.",
+        scriptRunsWithoutArgument: "Запускать и тогда, когда введено только имя",
         scriptRunFailed: "Не удалось запустить этот файл",
         scriptSearchHint: "После имени введите то, что нужно передать",
+        scriptBareSearchHint: "Запускается сам, или введите то, что нужно передать",
         linkAddButton: "Добавить ярлык",
         positionCaption: "Перетащите значок слева от поля, чтобы поставить панель в любое место экрана; двойной щелчок по значку возвращает её в центр.",
         resetPositionButton: "Вернуть панель в центр",
@@ -771,7 +789,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Добавить папку",
         filesIgnoreCaption: "Имена, которые никогда не стоит показывать: целая папка или имя файла либо расширение вида *.log.",
         filesIgnorePlaceholder: "Имя папки или файла",
-        filesIgnoreAdd: "Добавить")
+        filesIgnoreAdd: "Добавить",
+        compactModeToggle: "Компактный режим",
+        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -904,8 +924,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Abrir en el navegador",
         linkKindScript: "Script",
         scriptHint: "Elige un archivo ejecutable. Escribe su nombre seguido de lo que quieras enviar. Se ejecuta al hacer una pausa y muestra el resultado aquí.",
+        scriptRunsWithoutArgument: "Ejecutar también cuando se escriba solo el nombre",
         scriptRunFailed: "No se pudo ejecutar este archivo",
         scriptSearchHint: "Escribe lo que quieras enviar después del nombre",
+        scriptBareSearchHint: "Se ejecuta solo, o escribe lo que quieras enviar",
         linkAddButton: "Añadir atajo",
         positionCaption: "Arrastra la marca a la izquierda del campo para poner la barra en cualquier lugar de la pantalla; doble clic en la marca para centrarla.",
         resetPositionButton: "Centrar la barra",
@@ -920,7 +942,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Añadir una carpeta",
         filesIgnoreCaption: "Nombres que nunca merece la pena mostrar: una carpeta o un archivo entero, o una extensión escrita como *.log.",
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
-        filesIgnoreAdd: "Añadir")
+        filesIgnoreAdd: "Añadir",
+        compactModeToggle: "Modo compacto",
+        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1053,8 +1077,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Im Browser öffnen",
         linkKindScript: "Skript",
         scriptHint: "Wählen Sie eine ausführbare Datei. Geben Sie den Namen und danach den gewünschten Text ein. Nach einer Pause wird das Ergebnis hier angezeigt.",
+        scriptRunsWithoutArgument: "Auch ausführen, wenn nur der Name eingegeben wird",
         scriptRunFailed: "Diese Datei konnte nicht ausgeführt werden",
         scriptSearchHint: "Geben Sie nach dem Namen ein, was gesendet werden soll",
+        scriptBareSearchHint: "Läuft von selbst, oder geben Sie ein, was gesendet werden soll",
         linkAddButton: "Kurzbefehl hinzufügen",
         positionCaption: "Ziehe das Zeichen links vom Feld, um die Leiste überall auf dem Bildschirm zu platzieren; Doppelklick aufs Zeichen zentriert sie wieder.",
         resetPositionButton: "Leiste zentrieren",
@@ -1069,7 +1095,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Ordner hinzufügen",
         filesIgnoreCaption: "Namen, die nie gezeigt werden sollen: ein ganzer Ordner- oder Dateiname oder eine Endung wie *.log.",
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
-        filesIgnoreAdd: "Hinzufügen")
+        filesIgnoreAdd: "Hinzufügen",
+        compactModeToggle: "Kompaktmodus",
+        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1202,8 +1230,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Ouvrir dans le navigateur",
         linkKindScript: "Script",
         scriptHint: "Choisissez un fichier exécutable. Saisissez son nom suivi du texte à envoyer. Après une pause, le résultat s’affiche ici.",
+        scriptRunsWithoutArgument: "Exécuter aussi lorsque le nom est saisi seul",
         scriptRunFailed: "Impossible d’exécuter ce fichier",
         scriptSearchHint: "Saisissez ce qui sera envoyé après le nom",
+        scriptBareSearchHint: "S’exécute seul, ou saisissez ce qui sera envoyé",
         linkAddButton: "Ajouter un raccourci",
         positionCaption: "Faites glisser la marque à gauche du champ pour placer la barre où vous voulez à l'écran ; double-cliquez sur la marque pour la recentrer.",
         resetPositionButton: "Recentrer la barre",
@@ -1218,7 +1248,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Ajouter un dossier",
         filesIgnoreCaption: "Noms à ne jamais montrer : un dossier ou un fichier entier, ou une extension écrite ainsi : *.log.",
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
-        filesIgnoreAdd: "Ajouter")
+        filesIgnoreAdd: "Ajouter",
+        compactModeToggle: "Mode compact",
+        compactModeCaption: "La barre s'ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1351,8 +1383,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "Apri nel browser",
         linkKindScript: "Script",
         scriptHint: "Scegli un file eseguibile. Digita il nome seguito dal testo da inviare. Dopo una pausa, il risultato appare qui.",
+        scriptRunsWithoutArgument: "Esegui anche quando il nome è digitato da solo",
         scriptRunFailed: "Impossibile eseguire questo file",
         scriptSearchHint: "Digita cosa inviare dopo il nome",
+        scriptBareSearchHint: "Si esegue da solo, o digita cosa inviare",
         linkAddButton: "Aggiungi scorciatoia",
         positionCaption: "Trascina il segno a sinistra del campo per mettere la barra in qualsiasi punto dello schermo; doppio clic sul segno per centrarla.",
         resetPositionButton: "Centra la barra",
@@ -1367,7 +1401,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "Aggiungi una cartella",
         filesIgnoreCaption: "Nomi che non vale mai la pena mostrare: una cartella o un file intero, o un'estensione scritta come *.log.",
         filesIgnorePlaceholder: "Nome di cartella o file",
-        filesIgnoreAdd: "Aggiungi")
+        filesIgnoreAdd: "Aggiungi",
+        compactModeToggle: "Modalità compatta",
+        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1500,8 +1536,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "ブラウザで開く",
         linkKindScript: "スクリプト",
         scriptHint: "実行可能なファイルを選びます。名前に続けて渡したい内容を入力すると、入力を止めた後に結果がここへ表示されます。",
+        scriptRunsWithoutArgument: "名前だけを入力したときにも実行する",
         scriptRunFailed: "このファイルを実行できませんでした",
         scriptSearchHint: "名前の後に渡したい内容を入力",
+        scriptBareSearchHint: "そのまま実行、または渡したい内容を入力",
         linkAddButton: "ショートカットを追加",
         positionCaption: "入力欄の左のマークをドラッグすると、バーを画面の好きな場所に移動できます。マークをダブルクリックすると中央に戻ります。",
         resetPositionButton: "バーを中央に戻す",
@@ -1516,7 +1554,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "フォルダを追加",
         filesIgnoreCaption: "決して表示しない名前。フォルダやファイルの名前そのもの、または *.log のような拡張子。",
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
-        filesIgnoreAdd: "追加")
+        filesIgnoreAdd: "追加",
+        compactModeToggle: "コンパクトモード",
+        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1649,8 +1689,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "브라우저에서 열기",
         linkKindScript: "스크립트",
         scriptHint: "실행 가능한 파일을 선택하세요. 이름 뒤에 전달할 내용을 입력하면 멈춘 뒤 결과가 여기에 표시됩니다.",
+        scriptRunsWithoutArgument: "이름만 입력했을 때도 실행",
         scriptRunFailed: "이 파일을 실행할 수 없습니다",
         scriptSearchHint: "이름 뒤에 전달할 내용을 입력하세요",
+        scriptBareSearchHint: "이름만으로 실행되거나, 전달할 내용을 입력하세요",
         linkAddButton: "단축키 추가",
         positionCaption: "입력란 왼쪽의 표식을 드래그하면 막대를 화면 어디든 옮길 수 있습니다. 표식을 두 번 클릭하면 가운데로 돌아갑니다.",
         resetPositionButton: "막대를 가운데로 되돌리기",
@@ -1665,7 +1707,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "폴더 추가",
         filesIgnoreCaption: "절대 보이지 않을 이름. 폴더나 파일 이름 전체, 또는 *.log처럼 쓴 확장자.",
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
-        filesIgnoreAdd: "추가")
+        filesIgnoreAdd: "추가",
+        compactModeToggle: "컴팩트 모드",
+        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1798,8 +1842,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "在浏览器中打开",
         linkKindScript: "脚本",
         scriptHint: "选择一个可执行文件。输入名称，再输入要传递的内容。停止输入后会在这里显示结果。",
+        scriptRunsWithoutArgument: "仅输入名称时也运行",
         scriptRunFailed: "无法运行此文件",
         scriptSearchHint: "在名称后输入要传递的内容",
+        scriptBareSearchHint: "可直接运行，或输入要传递的内容",
         linkAddButton: "添加快捷方式",
         positionCaption: "拖动输入框左侧的标志，可以把命令栏放到屏幕任意位置；双击标志即可让它回到屏幕中间。",
         resetPositionButton: "命令栏居中",
@@ -1814,7 +1860,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "添加文件夹",
         filesIgnoreCaption: "永远不显示的名称：完整的文件夹或文件名，或写成 *.log 的扩展名。",
         filesIgnorePlaceholder: "文件夹或文件名",
-        filesIgnoreAdd: "添加")
+        filesIgnoreAdd: "添加",
+        compactModeToggle: "紧凑模式",
+        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -1947,8 +1995,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "在瀏覽器中開啟",
         linkKindScript: "腳本",
         scriptHint: "選擇一個可執行檔案。輸入名稱，再輸入要傳送的內容。停止輸入後會在這裡顯示結果。",
+        scriptRunsWithoutArgument: "僅輸入名稱時也執行",
         scriptRunFailed: "無法執行此檔案",
         scriptSearchHint: "在名稱後輸入要傳送的內容",
+        scriptBareSearchHint: "可直接執行，或輸入要傳送的內容",
         linkAddButton: "加入捷徑",
         positionCaption: "拖曳輸入欄左側的標誌，可以把指令列放到螢幕任何位置；雙按標誌即可讓它回到螢幕中央。",
         resetPositionButton: "指令列置中",
@@ -1963,7 +2013,9 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "加入檔案夾",
         filesIgnoreCaption: "永遠不顯示的名稱：完整的檔案夾或檔案名稱，或寫成 *.log 的副檔名。",
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
-        filesIgnoreAdd: "加入")
+        filesIgnoreAdd: "加入",
+        compactModeToggle: "精簡模式",
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2096,8 +2148,10 @@ extension CommandBarFeatureStrings {
         openInBrowser: "在瀏覽器中開啟",
         linkKindScript: "腳本",
         scriptHint: "選擇一個可執行檔案。輸入名稱，再輸入要傳送的內容。停止輸入後會在這裡顯示結果。",
+        scriptRunsWithoutArgument: "僅輸入名稱時也執行",
         scriptRunFailed: "無法執行此檔案",
         scriptSearchHint: "在名稱後輸入要傳送的內容",
+        scriptBareSearchHint: "可直接執行，或輸入要傳送的內容",
         linkAddButton: "加入捷徑",
         positionCaption: "拖曳輸入欄左側嘅標誌，可以將指令列放到螢幕任何位置；雙擊標誌即可讓佢返到螢幕中央。",
         resetPositionButton: "指令列置中",
@@ -2112,5 +2166,7 @@ extension CommandBarFeatureStrings {
         filesAddFolder: "加入檔案夾",
         filesIgnoreCaption: "永遠不顯示的名稱：完整的檔案夾或檔案名稱，或寫成 *.log 的副檔名。",
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
-        filesIgnoreAdd: "加入")
+        filesIgnoreAdd: "加入",
+        compactModeToggle: "精簡模式",
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
 }

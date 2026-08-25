@@ -8,6 +8,7 @@ struct CommandBarSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
+    @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -71,6 +72,13 @@ struct CommandBarSettings: View {
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                // No callback: the bar reads this on every open, and opening
+                // Settings has already hidden it, so the two can never be on
+                // screen with a stale value between them.
+                Toggle(text.compactModeToggle, isOn: $compactMode)
+                Text(text.compactModeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 // Not the shared "Global shortcut" label the other feature
                 // pages use: this page already has an "open the bar" button at
                 // the top, so the toggle has to say which of the two it arms.
@@ -562,9 +570,13 @@ private struct CommandBarLinkEditor: View {
                     }
                 }
             } else {
-                Text(text.scriptHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(text.scriptHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.scriptRunsWithoutArgument, isOn: $draft.runsWithoutArgument)
+                        .font(.caption)
+                }
             }
 
             HStack {

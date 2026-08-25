@@ -34,6 +34,14 @@ struct CommandBarLink: Codable, Identifiable, Equatable {
     var kind = Kind.link
     /// The destination, with placeholders still in it.
     var destination = ""
+    /// Whether the bare name is enough to run a script, with nothing after it.
+    ///
+    /// Off unless the person says otherwise, because a script is run when
+    /// typing pauses rather than when Return is pressed: a script that expects
+    /// input would fire on nothing the moment its name finished being typed.
+    /// Only the person who saved it knows whether it has anything to do with
+    /// no input at all.
+    var runsWithoutArgument = false
 
     /// True when the destination waits for whatever is typed after the name,
     /// which is what turns a link into a search.
@@ -46,6 +54,21 @@ struct CommandBarLink: Codable, Identifiable, Equatable {
     /// rather than through a destination placeholder.
     var takesArgument: Bool {
         kind == .script || takesQuery
+    }
+}
+
+extension CommandBarLink {
+    /// Decoded a field at a time, so a shortcut saved before a field existed
+    /// still loads. The list is decoded in one call, so a single missing key
+    /// would otherwise throw and take every saved shortcut down with it.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        kind = try container.decodeIfPresent(Kind.self, forKey: .kind) ?? .link
+        destination = try container.decodeIfPresent(String.self, forKey: .destination) ?? ""
+        runsWithoutArgument = try container.decodeIfPresent(Bool.self,
+                                                            forKey: .runsWithoutArgument) ?? false
     }
 }
 
@@ -155,14 +178,43 @@ enum CommandBarLinks {
         trailingArgument(query: query, name: name) != nil ? query : name
     }
 
-    /// The most specific script-kind link the query names, with what follows
-    /// its name as the argument, or nil when nothing matches. A longer name
-    /// wins over one that is only its prefix.
+    /// What a script would run with for this query, or nil when the query does
+    /// not name it. Ordinarily that is whatever follows the name; a script that
+    /// was marked as needing nothing also answers to its bare name, and runs
+    /// with an empty argument.
+    ///
+    /// The bare name has to match the whole query. A script cannot run off a
+    /// prefix of its name, or it would fire while the name is still being
+    /// typed towards a longer one.
+    static func scriptArgument(for link: CommandBarLink, query: String) -> String? {
+        if let trailing = trailingArgument(query: query, name: link.name) { return trailing }
+        guard link.runsWithoutArgument else { return nil }
+        let normalizedName = CommandBarSearch.normalized(link.name)
+        guard !normalizedName.isEmpty,
+              CommandBarSearch.normalized(query) == normalizedName else { return nil }
+        return ""
+    }
+
+    /// Every script the query names. The answer row stands in for all of them,
+    /// so these are the rows the list drops once it has one.
+    ///
+    /// One question, asked in one place: the row that is removed has to be
+    /// decided by exactly the rule that decided the script would run, or a
+    /// query that runs a script leaves that script's own row in the list
+    /// beside the answer.
+    static func matchingScriptLinks(in links: [CommandBarLink],
+                                    query: String) -> [CommandBarLink] {
+        links.filter { $0.kind == .script && scriptArgument(for: $0, query: query) != nil }
+    }
+
+    /// The most specific script-kind link the query names, with what it would
+    /// run with, or nil when nothing matches. A longer name wins over one that
+    /// is only its prefix.
     static func matchingScriptLink(in links: [CommandBarLink],
                                    query: String) -> (link: CommandBarLink, argument: String)? {
         var best: (link: CommandBarLink, argument: String, nameLength: Int)?
-        for link in links where link.kind == .script {
-            guard let argument = trailingArgument(query: query, name: link.name) else { continue }
+        for link in matchingScriptLinks(in: links, query: query) {
+            guard let argument = scriptArgument(for: link, query: query) else { continue }
             let nameLength = CommandBarSearch.normalized(link.name).count
             if let best, nameLength <= best.nameLength { continue }
             best = (link, argument, nameLength)

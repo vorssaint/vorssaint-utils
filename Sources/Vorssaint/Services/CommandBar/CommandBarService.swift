@@ -88,6 +88,11 @@ final class CommandBarService: ObservableObject {
     /// so Settings can offer the way back.
     @Published private(set) var hasCustomPosition = false
 
+    /// True while the bar is the field alone: compact mode, nothing typed,
+    /// no category open. The panel drops its divider and footer while this
+    /// is set.
+    @Published private(set) var isCompactHome = false
+
     private let hotkey = QuickToolHotkey(id: 20)
     private var rowHotkeys: [QuickToolHotkey] = []
     private var panel: NSPanel?
@@ -282,6 +287,7 @@ final class CommandBarService: ObservableObject {
         selectedID = nil
         lastRankedQuery = nil
         activeCategory = nil
+        isPeekingHome = false
         return id
     }
 
@@ -523,6 +529,16 @@ final class CommandBarService: ObservableObject {
         return true
     }
 
+    /// Shows the list on a collapsed field for the rest of this opening.
+    /// Returns whether it handled the key, so the caller can pass it on.
+    @discardableResult
+    func peekHome() -> Bool {
+        guard case .search = mode, isCompactHome, !isPeekingHome else { return false }
+        isPeekingHome = true
+        refreshResults()
+        return true
+    }
+
     /// Back to the unfiltered bar: clears whatever was typed and leaves the
     /// category. What the no-results state offers, so an empty category is
     /// never a room without a door.
@@ -651,6 +667,11 @@ final class CommandBarService: ObservableObject {
     /// from disk there means parsing the same JSON ninety times for one frame.
     private var pinCache: Set<String> = []
     private var shortcutCache: [String: GlobalShortcut] = [:]
+    /// Cached like the pins: read once per open, checked on every keystroke.
+    private var compactMode = false
+    /// The list was asked for anyway, through `peekHome()`. Cleared on the
+    /// next open.
+    private var isPeekingHome = false
     /// The folders a file search looks in, already resolved, and the names it
     /// never shows. Resolving reads the home folder, which is far too much to
     /// do on a keystroke and never changes between two of them.
@@ -662,6 +683,7 @@ final class CommandBarService: ObservableObject {
     private func reloadPreferenceCaches() {
         pinCache = Set(pins)
         shortcutCache = rowShortcuts
+        compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
         hasCustomPosition = positionOffset != .zero
         reloadFileSearchCaches()
     }
@@ -855,6 +877,10 @@ final class CommandBarService: ObservableObject {
             rows = []
             sectionTitles = [:]
             categoryChips = []
+            isShowingSuggestions = false
+            // The panel is on screen for this turn already, so a compact bar
+            // has to start collapsed rather than drop its footer a frame later.
+            setCompactHome(compactMode)
             return
         }
         if let builtLanguage, builtLanguage != L10n.shared.language {
@@ -865,9 +891,19 @@ final class CommandBarService: ObservableObject {
         case .search:
             let trimmed = query.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
-                let disabled = CommandBarPreferences.disabledSources(from: disabledSourcesRaw)
-                categoryChips = Self.chipOrder.filter {
-                    !disabled.contains($0) && categoryHasContent($0)
+                let showsBrowse = CommandBarHome.showsBrowseList(
+                    compact: compactMode,
+                    hasCategory: activeCategory != nil,
+                    isPeeking: isPeekingHome)
+                if showsBrowse {
+                    let disabled = CommandBarPreferences.disabledSources(from: disabledSourcesRaw)
+                    categoryChips = Self.chipOrder.filter {
+                        !disabled.contains($0) && categoryHasContent($0)
+                    }
+                } else {
+                    // Skipped, not just hidden: this is the walk of the whole
+                    // catalog compact mode exists to avoid.
+                    categoryChips = []
                 }
                 if let category = activeCategory {
                     let bar = FeatureStrings.commandBar(L10n.shared.language)
@@ -875,10 +911,13 @@ final class CommandBarService: ObservableObject {
                     sectionTitles = rows.isEmpty
                         ? [:]
                         : [0: categoryHeading(category, count: rows.count)]
-                } else {
+                } else if showsBrowse {
                     let suggestions = suggestionRows()
                     rows = suggestions.rows
                     sectionTitles = suggestions.titles
+                } else {
+                    rows = []
+                    sectionTitles = [:]
                 }
                 isShowingSuggestions = !rows.isEmpty
             } else {
@@ -916,10 +955,20 @@ final class CommandBarService: ObservableObject {
                 selectedIndex = 0
             }
             selectedID = rows.indices.contains(selectedIndex) ? rows[selectedIndex].id : nil
+            setCompactHome(CommandBarHome.isCollapsed(compact: compactMode,
+                                                      query: query,
+                                                      hasCategory: activeCategory != nil,
+                                                      isPeeking: isPeekingHome))
         case .argument, .confirm, .actions, .naming, .capturingShortcut:
-            break
+            setCompactHome(false)
         }
         refreshPanelLayout()
+    }
+
+    /// Only publishes on a real change: this is asked on every keystroke, and
+    /// an unchanged value would re-render the whole panel for nothing.
+    private func setCompactHome(_ value: Bool) {
+        if isCompactHome != value { isCompactHome = value }
     }
 
     /// The same rows with any repeated id dropped, keeping the first, which is
@@ -1193,12 +1242,9 @@ final class CommandBarService: ObservableObject {
         // a ranking tie and Return runs a different file from the answer shown.
         if let scriptMatch {
             let winnerID = "link.\(scriptMatch.link.id.uuidString)"
-            let matchingScriptIDs = Set(savedLinks.compactMap { link -> String? in
-                guard link.kind == .script,
-                      CommandBarLinks.trailingArgument(query: trimmed, name: link.name) != nil
-                else { return nil }
-                return "link.\(link.id.uuidString)"
-            })
+            let matchingScriptIDs = Set(
+                CommandBarLinks.matchingScriptLinks(in: savedLinks, query: trimmed)
+                    .map { "link.\($0.id.uuidString)" })
             pool.removeAll {
                 matchingScriptIDs.contains($0.id) && (scriptAnswer != nil || $0.id != winnerID)
             }
@@ -1837,11 +1883,15 @@ final class CommandBarService: ObservableObject {
         case .search:
             // A long query typed by mistake should be clearable without
             // throwing the whole session away; then Esc leaves the category,
-            // and only from home does it close.
+            // then it puts a peeked list away, and only from home does it
+            // close.
             if !query.isEmpty {
                 query = ""
             } else if activeCategory != nil {
                 setCategory(nil)
+            } else if isPeekingHome {
+                isPeekingHome = false
+                refreshResults()
             } else {
                 hide()
             }
@@ -2442,7 +2492,11 @@ final class CommandBarService: ObservableObject {
                 if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
                 return nil
             case kVK_DownArrow:
-                if case .actions = self.mode { self.moveActionSelection(1) } else { self.moveSelection(1) }
+                if case .actions = self.mode {
+                    self.moveActionSelection(1)
+                } else if !self.peekHome() {
+                    self.moveSelection(1)
+                }
                 return nil
             case kVK_LeftArrow:
                 // Handed back untouched when the field has text in it.
@@ -2467,7 +2521,12 @@ final class CommandBarService: ObservableObject {
                     // follow the keys the person sees.
                     switch key {
                     case "n":
-                        if case .actions = self.mode { self.moveActionSelection(1) } else { self.moveSelection(1) }
+                        // Same ↓ in the footer's own hint.
+                        if case .actions = self.mode {
+                            self.moveActionSelection(1)
+                        } else if !self.peekHome() {
+                            self.moveSelection(1)
+                        }
                         return nil
                     case "p":
                         if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }

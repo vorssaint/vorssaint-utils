@@ -250,7 +250,7 @@ extension WindowLayoutFeatureStrings {
 extension MonitorAlertFeatureStrings {
     static let ko = MonitorAlertFeatureStrings(
         section: "알림",
-        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량과 온도는 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
+        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량과 온도 알림은 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
         notificationsDenied: "시스템 설정에서 Vorssaint 알림이 꺼져 있어 경고를 표시할 수 없습니다.",
         cpu: "높은 CPU 사용량",
         cpuTemperature: "높은 CPU 온도",
@@ -276,7 +276,11 @@ extension MonitorAlertFeatureStrings {
         diskTitle: "부족한 디스크 공간",
         diskBodyFormat: "%@의 여유 공간이 %d%% 미만입니다.",
         batteryTitle: "낮은 배터리",
-        batteryBodyFormat: "배터리 잔량이 %d%%입니다."
+        batteryBodyFormat: "배터리 잔량이 %d%%입니다.",
+        batteryTemperature: "높은 배터리 온도",
+        batteryTemperatureThreshold: "온도",
+        batteryTemperatureTitle: "배터리 과열",
+        batteryTemperatureBodyFormat: "배터리 온도가 %d °C에 도달했습니다."
     )
 }
 
@@ -1921,10 +1925,14 @@ struct MonitorAlertFeatureStrings {
     let diskBodyFormat: String
     let batteryTitle: String
     let batteryBodyFormat: String
+    let batteryTemperature: String
+    let batteryTemperatureThreshold: String
+    let batteryTemperatureTitle: String
+    let batteryTemperatureBodyFormat: String
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",
-        caption: "Alerts fire when their selected limits are reached. CPU use and temperature ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
+        caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
         notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
         cpu: "High CPU",
         cpuTemperature: "High CPU temperature",
@@ -1950,12 +1958,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Low disk space",
         diskBodyFormat: "%@ has less than %d%% free.",
         batteryTitle: "Low battery",
-        batteryBodyFormat: "Battery is at %d%%."
+        batteryBodyFormat: "Battery is at %d%%.",
+        batteryTemperature: "High battery temperature",
+        batteryTemperatureThreshold: "Temperature above",
+        batteryTemperatureTitle: "Hot battery",
+        batteryTemperatureBodyFormat: "Battery reached %d °C."
     )
 
     static let ptBR = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Os alertas disparam quando os limites escolhidos são atingidos. O uso e a temperatura da CPU ignoram picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
+        caption: "Os alertas disparam quando os limites escolhidos são atingidos. O uso da CPU e os alertas de temperatura ignoram picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
         notificationsDenied: "As notificações do Vorssaint estão desativadas nos Ajustes do Sistema, então os alertas não aparecem.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura alta da CPU",
@@ -1981,12 +1993,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Pouco espaço em disco",
         diskBodyFormat: "%@ está com menos de %d%% livre.",
         batteryTitle: "Bateria baixa",
-        batteryBodyFormat: "A bateria está em %d%%."
+        batteryBodyFormat: "A bateria está em %d%%.",
+        batteryTemperature: "Temperatura alta da bateria",
+        batteryTemperatureThreshold: "Temperatura acima de",
+        batteryTemperatureTitle: "Bateria quente",
+        batteryTemperatureBodyFormat: "A bateria chegou a %d °C."
     )
 
     static let tr = MonitorAlertFeatureStrings(
         section: "Uyarılar",
-        caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Tekrarlama ayarı yalnızca aynı uyarının tekrarlanmasını sınırlar.",
+        caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU kullanımı ve sıcaklık uyarıları yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Tekrarlama ayarı yalnızca aynı uyarının tekrarlanmasını sınırlar.",
         notificationsDenied: "Sistem Ayarları'nda Vorssaint bildirimleri kapalı, bu yüzden uyarılar görünemez.",
         cpu: "Yüksek CPU",
         cpuTemperature: "Yüksek CPU sıcaklığı",
@@ -2012,12 +2028,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Düşük disk alanı",
         diskBodyFormat: "%@ diskinde %d%% altında boş alan var.",
         batteryTitle: "Düşük pil",
-        batteryBodyFormat: "Pil %d%% seviyesinde."
+        batteryBodyFormat: "Pil %d%% seviyesinde.",
+        batteryTemperature: "Yüksek pil sıcaklığı",
+        batteryTemperatureThreshold: "Sıcaklık şu değerin üstünde",
+        batteryTemperatureTitle: "Pil sıcak",
+        batteryTemperatureBodyFormat: "Pil %d °C değerine ulaştı."
     )
 
     static let ru = MonitorAlertFeatureStrings(
         section: "Оповещения",
-        caption: "Оповещения появляются при достижении выбранных порогов. CPU игнорирует скачки короче примерно 12 секунд. Настройка повтора ограничивает только повтор одного и того же оповещения.",
+        caption: "Оповещения появляются при достижении выбранных порогов. Загрузка CPU и температурные оповещения игнорируют скачки короче примерно 12 секунд. Настройка повтора ограничивает только повтор одного и того же оповещения.",
         notificationsDenied: "Уведомления Vorssaint выключены в Системных настройках, поэтому оповещения не появятся.",
         cpu: "Высокая нагрузка CPU",
         cpuTemperature: "Высокая температура CPU",
@@ -2043,12 +2063,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Мало места на диске",
         diskBodyFormat: "На %@ осталось меньше %d%% свободного места.",
         batteryTitle: "Низкий заряд батареи",
-        batteryBodyFormat: "Заряд батареи: %d%%."
+        batteryBodyFormat: "Заряд батареи: %d%%.",
+        batteryTemperature: "Высокая температура батареи",
+        batteryTemperatureThreshold: "Температура выше",
+        batteryTemperatureTitle: "Батарея перегрета",
+        batteryTemperatureBodyFormat: "Батарея достигла %d °C."
     )
 
     static let es = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Las alertas aparecen cuando se alcanzan los límites elegidos. La CPU ignora los picos de menos de unos 12 segundos. El ajuste de repetición solo limita la repetición de la misma alerta.",
+        caption: "Las alertas aparecen cuando se alcanzan los límites elegidos. El uso de CPU y las alertas de temperatura ignoran los picos de menos de unos 12 segundos. El ajuste de repetición solo limita la repetición de la misma alerta.",
         notificationsDenied: "Las notificaciones de Vorssaint están desactivadas en Ajustes del Sistema, así que las alertas no aparecen.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura de CPU alta",
@@ -2074,12 +2098,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Poco espacio en disco",
         diskBodyFormat: "%@ tiene menos de %d%% libre.",
         batteryTitle: "Batería baja",
-        batteryBodyFormat: "La batería está al %d%%."
+        batteryBodyFormat: "La batería está al %d%%.",
+        batteryTemperature: "Temperatura de la batería alta",
+        batteryTemperatureThreshold: "Temperatura por encima de",
+        batteryTemperatureTitle: "Batería caliente",
+        batteryTemperatureBodyFormat: "La batería llegó a %d °C."
     )
 
     static let de = MonitorAlertFeatureStrings(
         section: "Warnungen",
-        caption: "Warnungen erscheinen, wenn die gewählten Grenzwerte erreicht werden. Die CPU ignoriert Spitzen, die kürzer als etwa 12 Sekunden dauern. Die Wiederholungseinstellung begrenzt nur die Wiederholung derselben Warnung.",
+        caption: "Warnungen erscheinen, wenn die gewählten Grenzwerte erreicht werden. CPU-Auslastung und Temperaturwarnungen ignorieren Spitzen, die kürzer als etwa 12 Sekunden dauern. Die Wiederholungseinstellung begrenzt nur die Wiederholung derselben Warnung.",
         notificationsDenied: "Mitteilungen für Vorssaint sind in den Systemeinstellungen aus, daher können keine Warnungen erscheinen.",
         cpu: "Hohe CPU",
         cpuTemperature: "Hohe CPU-Temperatur",
@@ -2105,12 +2133,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Wenig Speicherplatz",
         diskBodyFormat: "%@ hat weniger als %d%% frei.",
         batteryTitle: "Niedriger Akkustand",
-        batteryBodyFormat: "Der Akku ist bei %d%%."
+        batteryBodyFormat: "Der Akku ist bei %d%%.",
+        batteryTemperature: "Hohe Akkutemperatur",
+        batteryTemperatureThreshold: "Temperatur über",
+        batteryTemperatureTitle: "Heißer Akku",
+        batteryTemperatureBodyFormat: "Der Akku hat %d °C erreicht."
     )
 
     static let fr = MonitorAlertFeatureStrings(
         section: "Alertes",
-        caption: "Les alertes apparaissent lorsque les seuils choisis sont atteints. Le processeur ignore les pics de moins de 12 secondes environ. Le réglage de répétition limite uniquement la répétition de la même alerte.",
+        caption: "Les alertes apparaissent lorsque les seuils choisis sont atteints. L’utilisation du processeur et les alertes de température ignorent les pics de moins de 12 secondes environ. Le réglage de répétition limite uniquement la répétition de la même alerte.",
         notificationsDenied: "Les notifications de Vorssaint sont désactivées dans Réglages Système, les alertes ne peuvent donc pas apparaître.",
         cpu: "CPU élevé",
         cpuTemperature: "Température CPU élevée",
@@ -2136,12 +2168,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Espace disque faible",
         diskBodyFormat: "%@ a moins de %d%% libre.",
         batteryTitle: "Batterie faible",
-        batteryBodyFormat: "La batterie est à %d%%."
+        batteryBodyFormat: "La batterie est à %d%%.",
+        batteryTemperature: "Température de la batterie élevée",
+        batteryTemperatureThreshold: "Température au-dessus de",
+        batteryTemperatureTitle: "Batterie chaude",
+        batteryTemperatureBodyFormat: "La batterie a atteint %d °C."
     )
 
     static let it = MonitorAlertFeatureStrings(
         section: "Avvisi",
-        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. La CPU ignora i picchi più brevi di circa 12 secondi. L'impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
+        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. L'uso della CPU e gli avvisi di temperatura ignorano i picchi più brevi di circa 12 secondi. L'impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
         notificationsDenied: "Le notifiche di Vorssaint sono disattivate in Impostazioni di Sistema, quindi gli avvisi non compaiono.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura CPU alta",
@@ -2167,12 +2203,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "Poco spazio su disco",
         diskBodyFormat: "%@ ha meno del %d%% libero.",
         batteryTitle: "Batteria scarica",
-        batteryBodyFormat: "La batteria è al %d%%."
+        batteryBodyFormat: "La batteria è al %d%%.",
+        batteryTemperature: "Temperatura batteria alta",
+        batteryTemperatureThreshold: "Temperatura sopra",
+        batteryTemperatureTitle: "Batteria calda",
+        batteryTemperatureBodyFormat: "La batteria ha raggiunto %d °C."
     )
 
     static let ja = MonitorAlertFeatureStrings(
         section: "アラート",
-        caption: "選択したしきい値に達すると通知します。CPU は約 12 秒未満の短い急上昇を無視します。繰り返し設定は同じ通知の繰り返しだけを制限します。",
+        caption: "選択したしきい値に達すると通知します。CPU 使用率と温度の通知は約 12 秒未満の短い急上昇を無視します。繰り返し設定は同じ通知の繰り返しだけを制限します。",
         notificationsDenied: "システム設定でVorssaintの通知がオフのため、アラートは表示されません。",
         cpu: "CPU 高負荷",
         cpuTemperature: "CPU 温度が高い",
@@ -2198,12 +2238,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "ディスク空き容量不足",
         diskBodyFormat: "%@ の空き容量が %d%% 未満です。",
         batteryTitle: "バッテリー残量低下",
-        batteryBodyFormat: "バッテリー残量は %d%% です。"
+        batteryBodyFormat: "バッテリー残量は %d%% です。",
+        batteryTemperature: "バッテリー温度が高い",
+        batteryTemperatureThreshold: "温度が次を超過",
+        batteryTemperatureTitle: "バッテリーが高温",
+        batteryTemperatureBodyFormat: "バッテリーが %d °C に達しました。"
     )
 
     static let zhHans = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "达到所选阈值时会发出提醒。CPU 会忽略短于约 12 秒的短暂峰值。重复设置仅限制同一提醒的重复频率。",
+        caption: "达到所选阈值时会发出提醒。CPU 使用率和温度提醒会忽略短于约 12 秒的短暂峰值。重复设置仅限制同一提醒的重复频率。",
         notificationsDenied: "Vorssaint 的通知已在系统设置中关闭，警报无法显示。",
         cpu: "CPU 过高",
         cpuTemperature: "CPU 温度过高",
@@ -2229,12 +2273,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "磁盘空间不足",
         diskBodyFormat: "%@ 的可用空间低于 %d%%。",
         batteryTitle: "电池电量低",
-        batteryBodyFormat: "电池电量为 %d%%。"
+        batteryBodyFormat: "电池电量为 %d%%。",
+        batteryTemperature: "电池温度过高",
+        batteryTemperatureThreshold: "温度高于",
+        batteryTemperatureTitle: "电池过热",
+        batteryTemperatureBodyFormat: "电池已达到 %d °C。"
     )
 
     static let zhTW = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "達到所選門檻時會發出提醒。CPU 會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提醒的重複頻率。",
+        caption: "達到所選門檻時會發出提醒。CPU 使用率和溫度提醒會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提醒的重複頻率。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -2260,12 +2308,16 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "磁碟空間不足",
         diskBodyFormat: "%@ 的可用空間低於 %d%%。",
         batteryTitle: "電池電量偏低",
-        batteryBodyFormat: "電池電量為 %d%%。"
+        batteryBodyFormat: "電池電量為 %d%%。",
+        batteryTemperature: "電池溫度過高",
+        batteryTemperatureThreshold: "溫度高於",
+        batteryTemperatureTitle: "電池過熱",
+        batteryTemperatureBodyFormat: "電池已達到 %d °C。"
     )
 
     static let zhHK = MonitorAlertFeatureStrings(
         section: "提示",
-        caption: "達到所選門檻時會發出提示。CPU 會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提示的重複頻率。",
+        caption: "達到所選門檻時會發出提示。CPU 使用率和溫度提示會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提示的重複頻率。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -2291,6 +2343,10 @@ struct MonitorAlertFeatureStrings {
         diskTitle: "磁碟空間不足",
         diskBodyFormat: "%@ 的可用空間低於 %d%%。",
         batteryTitle: "電池電量偏低",
-        batteryBodyFormat: "電池電量為 %d%%。"
+        batteryBodyFormat: "電池電量為 %d%%。",
+        batteryTemperature: "電池溫度過高",
+        batteryTemperatureThreshold: "溫度高於",
+        batteryTemperatureTitle: "電池過熱",
+        batteryTemperatureBodyFormat: "電池已達到 %d °C。"
     )
 }

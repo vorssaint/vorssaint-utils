@@ -1,22 +1,39 @@
 name: Issue fix status
 
-# Two mechanical steps, no judgement in either.
+# Three mechanical steps, no judgement in any of them.
 #
 #   a merged pull request that references an issue  ->  the issue gets
 #   `fixed (pending release)`, with the merge commit recorded in the bot's
 #   comment
 #
 #   a stable release that contains that commit      ->  the label becomes
-#   `v<version> please confirm` and the reporter is asked to check it
+#   `please confirm` and the reporter is asked to check that release
 #
-# Neither step decides that anything is fixed. A human decided that when they
-# merged. The label only says where the change is, and `git tag --contains`
-# answers the second one, so a changelog entry is never the evidence.
+#   two weeks of silence after that                 ->  the issue is closed,
+#   after a comment saying so and how to reopen it
+#
+# Neither of the first two decides that anything is fixed. A human decided that
+# when they merged. The label only says where the change is, and
+# `git tag --contains` answers the second one, so a changelog entry is never the
+# evidence. The third decides nothing either: one word from anyone stops it, and
+# it never reads what that word says.
+#
+# `please confirm` carries no version. The version lives in the comment, which
+# is the only part of this the reporter ever sees -- labels are silent, they
+# notify nobody, and a label per release would grow the repository's label list
+# without ever telling anyone anything.
 #
 # Both labels and both comments are addressed to the person who filed the
 # report, and most of them are not developers. Nothing in what they read says
 # `main`, a commit, or a merge: the change is in the development build, and it
 # is not on their Mac until a release says it is.
+#
+# Everything below runs through `gh`, which is preinstalled on the runners,
+# rather than through `actions/github-script`. The repository only allows
+# `actions/checkout`, `actions/upload-artifact` and `actions/download-artifact`,
+# so a workflow that reaches for anything else fails before a job starts. `gh`
+# covers the whole issues/labels/comments/releases surface without asking for
+# that list to be widened, and this is the shape any later bot here should take.
 
 on:
   pull_request_target:
@@ -27,6 +44,10 @@ on:
     # another workflow, so a `release` trigger here would never fire once.
     workflows: [Release]
     types: [completed]
+  schedule:
+    # Once a day is enough for a two-week clock.
+    - cron: '23 7 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -36,6 +57,13 @@ concurrency:
   group: issue-fix-status-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  PENDING_LABEL: fixed (pending release)
+  CONFIRM_LABEL: please confirm
+  CONFIRM_DAYS: 14
+
 jobs:
   fixed-on-main:
     name: Label the issues a merged PR referenced
@@ -44,53 +72,61 @@ jobs:
     timeout-minutes: 5
     steps:
       # No checkout. This job runs with write access in the base repository
-      # context, so it must never execute anything from the pull request.
-      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const pr = context.payload.pull_request
-            const sha = pr.merge_commit_sha
-            const body = pr.body || ''
+      # context, so it must never execute anything from the pull request. The
+      # body is read through the API into a file and only ever grepped -- no
+      # part of it is interpolated into a command.
+      - name: Label the referenced issues
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
 
-            // Every form people actually use here. `Closes`/`Fixes` already
-            // closed the issue on merge, and closed issues are skipped below,
-            // so matching them costs nothing and catches the rest.
-            const refs = new Set()
-            const pattern = /(?:refs?|references?|related to|fixes|fixed|closes?|resolves?)\s*:?\s*#(\d+)/gi
-            for (const m of body.matchAll(pattern)) refs.add(Number(m[1]))
-            if (refs.size === 0) return
+          gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '.body // ""' > pr-body.txt
 
-            for (const number of refs) {
-              const { data: issue } = await github.rest.issues.get({
-                ...context.repo, issue_number: number,
-              })
-              if (issue.pull_request) continue
-              if (issue.state !== 'open') continue
-              if (issue.labels.some(l => (l.name || l) === 'fixed (pending release)')) continue
+          # Every form people actually use here. `Closes`/`Fixes` already closed
+          # the issue on merge, and closed issues are skipped below, so matching
+          # them costs nothing and catches the rest.
+          refs=$(grep -oiE '(refs?|references?|related to|fixes|fixed|closes?|resolves?)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
+                   | grep -oE '[0-9]+$' | sort -un) || true
+          if [ -z "$refs" ]; then
+            echo "#$PR_NUMBER references no issue, nothing to do"
+            exit 0
+          fi
 
-              await github.rest.issues.addLabels({
-                ...context.repo, issue_number: number, labels: ['fixed (pending release)'],
-              })
-              await github.rest.issues.createComment({
-                ...context.repo, issue_number: number,
-                body: [
-                  `A fix for this went into the development version of the app in #${pr.number}, and it`,
-                  `is queued to go out in an upcoming release.`,
-                  ``,
-                  `**Nothing has changed on your Mac yet**, and this is not us saying your report is`,
-                  `fixed — that part is up to you. When a release goes out carrying this fix you will get`,
-                  `a note on this issue with the version to install, and two weeks to say whether it`,
-                  `worked for you.`,
-                  ``,
-                  `**If it fixes part of what you reported and not the rest, please say which part** when`,
-                  `that note arrives. One fix often answers one thing in a report that mentions several,`,
-                  `and the rest are invisible to us unless you name them.`,
-                  ``,
-                  `<!-- vorssaint-fix-status sha=${sha} pr=${pr.number} -->`,
-                ].join('\n'),
-              })
-              core.info(`#${number}: labelled fixed (pending release) (${sha})`)
+          for number in $refs; do
+            issue=$(gh api "repos/$GH_REPO/issues/$number") || {
+              echo "#$number: not readable, left alone"
+              continue
             }
+            [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
+            [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            jq -e --arg l "$PENDING_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
+
+            # POST /labels creates the label if the repository has not seen it
+            # yet, which `gh issue edit --add-label` does not.
+            gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$PENDING_LABEL" --silent
+
+            # One fix status at a time. An issue its reporter sent back is still
+            # carrying `please confirm` from the last release, and a new fix puts
+            # it behind the next one.
+            if jq -e --arg l "$CONFIRM_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              gh issue edit "$number" --remove-label "$CONFIRM_LABEL"
+            fi
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          A fix for this was added in #$PR_NUMBER and will be included in a future release.
+
+          Nothing has changed on your Mac yet, and your issue is not considered fixed. When the release is available, you'll get a comment on this issue with the version to install. After that, you'll have two weeks to let us know if it solved the problem.
+
+          If it only fixes part of the issue, tell us what still doesn't work. A report can include multiple problems, and we need to know which ones remain.
+
+          <!-- vorssaint-fix-status sha=$MERGE_SHA pr=$PR_NUMBER -->
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            echo "#$number: labelled $PENDING_LABEL ($MERGE_SHA)"
+          done
 
   reporter-check:
     name: Ask the reporters a stable release reached
@@ -106,102 +142,150 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const { execFileSync } = require('child_process')
+      - name: Move the label onto the release that carries the fix
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
 
-            // A tag-triggered run carries the tag in head_branch.
-            const tag = context.payload.workflow_run.head_branch || ''
-            if (!/^v\d+\.\d+\.\d+$/.test(tag)) {
-              core.info(`${tag || '(no tag)'} is not a stable version tag, nothing to do`)
-              return
-            }
+          # A tag-triggered run carries the tag in head_branch.
+          if ! grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$TAG"; then
+            echo "${TAG:-(no tag)} is not a stable version tag, nothing to do"
+            exit 0
+          fi
 
-            // Asking anyone to confirm on a build that is not downloadable is a
-            // wasted trip, so the release has to exist and be the real thing.
-            let release
-            try {
-              release = (await github.rest.repos.getReleaseByTag({ ...context.repo, tag })).data
-            } catch (e) {
-              if (e.status === 404) { core.info(`No release published for ${tag}`); return }
-              throw e
-            }
-            if (release.draft || release.prerelease) {
-              core.info(`${tag} is a draft or pre-release, nothing to do`)
-              return
-            }
+          # Asking anyone to confirm on a build that is not downloadable is a
+          # wasted trip, so the release has to exist and be the real thing.
+          release=$(gh release view "$TAG" --json isDraft,isPrerelease) || {
+            echo "No release published for $TAG"
+            exit 0
+          }
+          if [ "$(jq '.isDraft or .isPrerelease' <<<"$release")" != false ]; then
+            echo "$TAG is a draft or pre-release, nothing to do"
+            exit 0
+          fi
 
-            const version = tag.replace(/^v/, '')
-            const label = `v${version} please confirm`
-            try {
-              await github.rest.issues.createLabel({
-                ...context.repo, name: label, color: '1F8B8B',
-                description: `The fix is out in ${version}; whoever reported it has two weeks to say whether that build fixed it`,
-              })
-            } catch (e) {
-              if (e.status !== 422) throw e   // 422 = already there
-            }
+          version=${TAG#v}
 
-            const issues = await github.paginate(github.rest.issues.listForRepo, {
-              ...context.repo, state: 'open', labels: 'fixed (pending release)', per_page: 100,
-            })
+          # Created once, if the repository has never had it. A release does not
+          # mint a label -- the version it carries is in the comment below.
+          gh label create "$CONFIRM_LABEL" --color 7FCFCF \
+            --description "The fix is in a release; the reporter has two weeks to say whether that build fixed it" \
+            || true   # already there
 
-            for (const issue of issues) {
-              if (issue.pull_request) continue
+          # `gh issue list` never returns pull requests.
+          gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
+            --json number,author --jq '.[] | "\(.number) \(.author.login)"' > pending.txt
 
-              const comments = await github.paginate(github.rest.issues.listComments, {
-                ...context.repo, issue_number: issue.number, per_page: 100,
-              })
-              const shas = []
-              for (const c of comments) {
-                for (const m of (c.body || '').matchAll(/<!--\s*vorssaint-fix-status sha=([0-9a-f]{7,40})/g)) {
-                  shas.push(m[1])
-                }
-              }
-              if (shas.length === 0) {
-                core.warning(`#${issue.number}: labelled fixed (pending release) with no recorded commit, left alone`)
-                continue
-              }
+          while read -r number login; do
+            [ -n "$number" ] || continue
 
-              // The label moves only when the release really carries the fix.
-              // Reading the changelog instead of the history is how issues get
-              // closed against a version that never shipped the change.
-              const contained = shas.filter(sha => {
-                try {
-                  const tags = execFileSync('git', ['tag', '--contains', sha], { encoding: 'utf8' })
-                  return tags.split('\n').includes(tag)
-                } catch {
-                  return false
-                }
-              })
-              if (contained.length === 0) {
-                core.info(`#${issue.number}: fix is not in ${tag} yet, left alone`)
-                continue
-              }
+            shas=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" --jq '.[].body' \
+                     | grep -oE 'vorssaint-fix-status sha=[0-9a-f]{7,40}' | cut -d= -f2 | sort -u) || true
+            if [ -z "$shas" ]; then
+              echo "::warning::#$number: labelled $PENDING_LABEL with no recorded commit, left alone"
+              continue
+            fi
 
-              await github.rest.issues.addLabels({
-                ...context.repo, issue_number: issue.number, labels: [label],
-              })
-              await github.rest.issues.removeLabel({
-                ...context.repo, issue_number: issue.number, name: 'fixed (pending release)',
-              }).catch(e => { if (e.status !== 404) throw e })
+            # The label moves only when the release really carries the fix.
+            # Reading the changelog instead of the history is how issues get
+            # closed against a version that never shipped the change.
+            contained=false
+            for sha in $shas; do
+              if git tag --contains "$sha" 2>/dev/null | grep -qxF "$TAG"; then
+                contained=true
+                break
+              fi
+            done
+            if [ "$contained" = false ]; then
+              echo "#$number: fix is not in $TAG yet, left alone"
+              continue
+            fi
 
-              await github.rest.issues.createComment({
-                ...context.repo, issue_number: issue.number,
-                body: [
-                  `The fix for this is out now, in **${version}**.`,
-                  ``,
-                  `@${issue.user.login}, could you update to that version and say whether it fixed things`,
-                  `on your Mac? We cannot tell from here — yours is the setup that found this.`,
-                  ``,
-                  `Please say **how much of it is fixed**, not only whether it is. If part of what you`,
-                  `reported still happens, or something related turned up, say so here and the issue goes`,
-                  `back for another look — this is not a last call.`,
-                  ``,
-                  `If nothing arrives in two weeks the issue will be closed as it stands, and a comment`,
-                  `reopens it at any point after that.`,
-                ].join('\n'),
-              })
-              core.info(`#${issue.number}: moved to ${label}`)
-            }
+            gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$CONFIRM_LABEL" --silent
+            gh issue edit "$number" --remove-label "$PENDING_LABEL" || true
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          The fix for this is out now, in **$version**.
+
+          @$login, could you update to that version and say whether it fixed things
+          on your Mac? We cannot tell from here — yours is the setup that found this.
+
+          Please say **how much of it is fixed**, not only whether it is. If part of what you
+          reported still happens, or something related turned up, say so here and the issue goes
+          back for another look — this is not a last call.
+
+          If nothing arrives in two weeks the issue will be closed as it stands, and a comment
+          reopens it at any point after that.
+
+          <!-- vorssaint-fix-status confirm=$TAG -->
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            echo "#$number: moved to $CONFIRM_LABEL on $TAG"
+          done < pending.txt
+
+  close-unanswered:
+    name: Close the checks nobody answered
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # No checkout: nothing here reads the repository, only issues.
+      - name: Close the checks that went two weeks without a word
+        run: |
+          set -euo pipefail
+
+          cutoff=$(date -u -d "$CONFIRM_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "closing checks asked before $cutoff"
+
+          gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
+            --json number --jq '.[].number' > waiting.txt
+
+          while read -r number; do
+            [ -n "$number" ] || continue
+
+            comments=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
+                         --jq '[.[] | {created_at, login: .user.login, body}]' | jq -s add)
+
+            # The clock starts when the reporter was asked, which is the comment,
+            # not the label -- a label notifies nobody, so an issue labelled by
+            # hand has never actually asked anyone anything. Without that comment
+            # this job leaves the issue alone forever, which is what makes it safe
+            # to point at a repository that has been labelled by hand.
+            ask=$(jq -c '[.[] | select(.body | test("vorssaint-fix-status confirm="))] | last' <<<"$comments")
+            if [ "$ask" = null ]; then
+              echo "::warning::#$number: carries $CONFIRM_LABEL with no recorded ask, left alone"
+              continue
+            fi
+            asked=$(jq -r '.created_at' <<<"$ask")
+            version=$(jq -r '.body | capture("confirm=(?<v>v[0-9]+\\.[0-9]+\\.[0-9]+)") | .v' <<<"$ask")
+
+            if [[ "$asked" > "$cutoff" ]]; then
+              echo "#$number: asked $asked, not $CONFIRM_DAYS days yet"
+              continue
+            fi
+
+            # Anyone, not only the reporter. A second person saying it still
+            # happens is exactly the case where closing would be wrong, and the
+            # bot never reads what any of them said.
+            replies=$(jq --arg t "$asked" \
+              '[.[] | select(.created_at > $t) | select(.login != "github-actions[bot]")] | length' <<<"$comments")
+            if [ "$replies" -gt 0 ]; then
+              echo "#$number: answered since $asked, left for a human"
+              continue
+            fi
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          No word here in two weeks, so this is being closed as it stands.
+
+          That is bookkeeping and not a verdict. **If $version did not fix it, or fixed only part
+          of what you reported, say so here and the issue opens again** — there is no time limit
+          on that, and you do not need to file a new report.
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            gh issue close "$number" --reason completed
+            gh issue edit "$number" --remove-label "$CONFIRM_LABEL"
+            echo "#$number: closed, no answer since $asked ($version)"
+          done < waiting.txt
