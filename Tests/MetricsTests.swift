@@ -2714,6 +2714,19 @@ struct MetricsTests {
                "compact dense spacing joins blocks with a hair space")
         expect(MenuBarSpacingSupport.blockGlue(readableStyle: true, spacing: .compact) == " ",
                "compact readable spacing tightens the double space to a single one")
+        expect(MenuBarSpacingSupport.renderedMicBadgeState(current: true, held: false) == false
+                && MenuBarSpacingSupport.renderedMicBadgeState(current: false, held: true),
+               "an open panel keeps the mic badge at its held width state")
+        expect(MenuBarSpacingSupport.renderedMicBadgeState(current: true, held: nil)
+                && !MenuBarSpacingSupport.renderedMicBadgeState(current: false, held: nil),
+               "after the panel closes the mic badge follows the current state")
+        expect(MenuBarSpacingSupport.releasesMicBadgeHold(
+                    isSwitchingAnchor: false, popoverIsShown: false)
+                && !MenuBarSpacingSupport.releasesMicBadgeHold(
+                    isSwitchingAnchor: true, popoverIsShown: false)
+                && !MenuBarSpacingSupport.releasesMicBadgeHold(
+                    isSwitchingAnchor: false, popoverIsShown: true),
+               "only the final panel close releases the mic badge hold")
         expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1135, reportedMidX: 1452, buttonWidth: 38) == -317,
                "a click far left of the status item's reported frame re-anchors the panel at the click")
         expect(StatusItemAnchorSupport.anchorDriftX(clickX: 1452, reportedMidX: 1135, buttonWidth: 38) == 317,

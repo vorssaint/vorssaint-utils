@@ -163,6 +163,14 @@ enum MenuBarSpacingSupport {
         keepAwakeActive && showsCountdown && hasEndDate
     }
 
+    static func renderedMicBadgeState(current: Bool, held: Bool?) -> Bool {
+        held ?? current
+    }
+
+    static func releasesMicBadgeHold(isSwitchingAnchor: Bool, popoverIsShown: Bool) -> Bool {
+        !isSwitchingAnchor && !popoverIsShown
+    }
+
     /// The reserve compact mode uses for a metric block: the current value's
     /// shape, widened to at least `compactMinimumDigits` digits and to the
     /// block's session high-water mark. Stable by construction; still far
