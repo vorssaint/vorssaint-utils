@@ -83,7 +83,20 @@ struct SettingsView: View {
 #endif
     }
 
+    private var hasSearchQuery: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    @ViewBuilder
     private var sidebarList: some View {
+        if hasSearchQuery {
+            searchResultsList
+        } else {
+            normalSidebarList
+        }
+    }
+
+    private var normalSidebarList: some View {
         List(selection: $router.page) {
             ForEach(sidebarSections, id: \.title) { section in
                 let items = section.items.filter {
@@ -101,6 +114,34 @@ struct SettingsView: View {
             }
         }
         .listStyle(.sidebar)
+    }
+
+    private var searchResultsList: some View {
+        let items = SettingsSearchSupport.matchingItems(
+            query: searchQuery,
+            items: SettingsDirectory.searchItems(l10n.s, language: l10n.language))
+        return List {
+            ForEach(items) { item in
+                Button {
+                    requestSearchDestination(item.destination)
+                } label: {
+                    Label(item.title, systemImage: item.icon)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .listStyle(.sidebar)
+    }
+
+    private func requestSearchDestination(_ destination: FeatureSettingsDestination) {
+        if FeatureVisibilitySupport.isPageVisible(destination.page,
+                                                  isAvailable: { $0.isAvailable }) {
+            router.request(destination)
+        } else {
+            router.request(FeatureSettingsDestination(.features))
+        }
     }
 
     /// The selected page can leave the sidebar when its last feature is
