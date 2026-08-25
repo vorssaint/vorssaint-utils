@@ -221,8 +221,7 @@ final class StatusItemController {
     }
 
     private var renderedMicBadgeActive: Bool {
-        MenuBarSpacingSupport.renderedMicBadgeState(
-            current: currentMicBadgeActive, held: heldMicBadgeActive)
+        heldMicBadgeActive ?? currentMicBadgeActive
     }
 
     /// Keeps the variable-width mic badge unchanged while any status item is

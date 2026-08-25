@@ -798,9 +798,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard let button else {
                 self.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
-                if MenuBarSpacingSupport.releasesMicBadgeHold(
-                    isSwitchingAnchor: self.popoverIsSwitchingAnchor,
-                    popoverIsShown: self.popover.isShown) {
+                if !self.popover.isShown {
                     self.statusController.setMicBadgeHeld(false)
                 }
                 return
@@ -1068,8 +1066,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverDidClose(_ notification: Notification) {
-        if MenuBarSpacingSupport.releasesMicBadgeHold(
-            isSwitchingAnchor: popoverIsSwitchingAnchor, popoverIsShown: popover.isShown) {
+        if !popoverIsSwitchingAnchor && !popover.isShown {
             statusController.setMicBadgeHeld(false)
         }
         if !popoverIsSwitchingAnchor {
