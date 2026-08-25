@@ -197,6 +197,14 @@ enum Sudoers {
         sleepStateQueue.sync { pmsetDisableSleepOnQueue(on) }
     }
 
+    /// Queues asynchronous writes directly and runs completion there so
+    /// fallback work stays serialized in request order.
+    static func pmsetDisableSleep(_ on: Bool, completion: @escaping (Bool) -> Void) {
+        sleepStateQueue.async {
+            completion(pmsetDisableSleepOnQueue(on))
+        }
+    }
+
     private static func pmsetDisableSleepOnQueue(_ on: Bool) -> Bool {
         Shell.run("/usr/bin/sudo", ["-n", "/usr/bin/pmset", "disablesleep", on ? "1" : "0"]).status == 0
     }

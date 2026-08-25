@@ -545,19 +545,9 @@ struct SystemSection: View {
                     }
                     .buttonStyle(.plain)
                 }
-                if let swapUsed = monitor.snapshot.memorySwapUsed {
-                    HStack(spacing: 8) {
-                        Text(l10n.s.memorySwapUsed)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(formatMemory(swapUsed))
-                            .font(.system(size: 11, weight: .medium))
-                            .monospacedDigit()
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.leading, 16)
-                }
+                memorySecondaryRow(l10n.s.memoryCompressed, monitor.snapshot.memoryCompressed)
+                memorySecondaryRow(l10n.s.memoryCachedFiles, monitor.snapshot.memoryCached)
+                memorySecondaryRow(l10n.s.memorySwapUsed, monitor.snapshot.memorySwapUsed)
                 let memoryHistory = MonitorMemoryMetric.current.history(in: monitor.snapshot)
                 if graphMemory, memoryHistory.count >= 2 {
                     Sparkline(values: memoryHistory,
@@ -568,6 +558,23 @@ struct SystemSection: View {
                 }
                 breakdownList(for: .memory)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func memorySecondaryRow(_ title: String, _ bytes: UInt64?) -> some View {
+        if let bytes {
+            HStack(spacing: 8) {
+                Text(title)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(formatMemory(bytes))
+                    .font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.leading, 16)
         }
     }
 

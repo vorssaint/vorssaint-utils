@@ -449,6 +449,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
         ShelfService.shared.noteInteraction()
         let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
         guard !urls.isEmpty else { return nil }
+        // A tooltip already showing (or about to show, from a hover just
+        // before the right-click) has no reason to stick around once a
+        // context menu covers the same corner of the tile it anchors to.
+        ShelfTooltipPopover.shared.hide()
 
         let strings = L10n.shared.s
         let menu = NSMenu()

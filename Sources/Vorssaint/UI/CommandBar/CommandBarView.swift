@@ -134,8 +134,12 @@ struct CommandBarView: View {
                 Divider()
                 shortcutCard(entryID: entryID)
             }
-            Divider()
-            footer
+            // A footer under a bare field reads as a second row of chrome on
+            // something meant to be one strip.
+            if !service.isCompactHome {
+                Divider()
+                footer
+            }
         }
         .frame(width: 560)
         .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
@@ -192,6 +196,7 @@ struct CommandBarView: View {
                 .focused($searchFocused)
                 .disableAutocorrection(true)
                 .accessibilityLabel(text.pageTitle)
+            if service.isCompactHome { compactHints }
             if !service.query.isEmpty {
                 Button {
                     service.query = ""
@@ -205,6 +210,23 @@ struct CommandBarView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+    }
+
+    /// The collapsed bar has no footer, so the keys that still work (↓ to
+    /// peek, Esc to close) say so inline instead, in the footer's own glyphs.
+    private var compactHints: some View {
+        HStack(spacing: 4) {
+            Text("↓")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+            Text(text.suggestionsLabel)
+                .font(.system(size: 9))
+            Text("Esc")
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .padding(.leading, 4)
+        }
+        .foregroundStyle(.tertiary)
+        .lineLimit(1)
+        .fixedSize()
     }
 
     /// Everything that can be done to the selected row, in the same list

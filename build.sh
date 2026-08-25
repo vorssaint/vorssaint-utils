@@ -136,10 +136,36 @@ else
     SDK="$(xcrun --show-sdk-path)"
 fi
 SDK_COMPAT_FLAGS=()
+VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat)
 if [[ "$SDK" == "$PINNED_SDK" ]]; then
     # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
 fi
+
+# The defaults migrations under test need a real UserDefaults suite, and every
+# suite leaves an empty plist in ~/Library/Preferences. The tests already clear
+# the domains, but cfprefsd writes the emptied file back out around the time the
+# process that owned it exits, so only a caller that outlives the run can remove
+# them. `MetricsTests` keeps every suite name inside these two namespaces (a
+# check in the test file holds it to that), which is what makes this sweep
+# complete rather than a list to keep in step by hand.
+discard_test_preferences() {
+    local preferences="$HOME/Library/Preferences" name
+    for name in "vorss.tests." "com.vorssaint.tests."; do
+        find "$preferences" -maxdepth 1 -name "$name*.plist" -delete 2>/dev/null || true
+    done
+    # The harness has no bundle identifier, so `UserDefaults.standard` writes
+    # a file named after the executable.
+    rm -f "$preferences/metrics-tests.plist"
+    local survivors
+    survivors=$(find "$preferences" -maxdepth 1 \
+        \( -name "vorss.tests.*.plist" -o -name "com.vorssaint.tests.*.plist" \
+           -o -name "metrics-tests.plist" \) 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$survivors" != "0" ]]; then
+        echo "✗ the test run left $survivors preference file(s) in $preferences" >&2
+        return 1
+    fi
+}
 
 # --test: compile and run the standalone unit tests (pure helpers only: metrics,
 # Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
@@ -152,6 +178,7 @@ if (( TEST )); then
     # Unit assertions do not need optimization; avoiding it cuts most of the
     # test harness compile time without reducing the code the tests exercise.
     swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
@@ -179,6 +206,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AppearanceStrings.swift \
         Sources/Vorssaint/Core/BatteryTimeStrings.swift \
         Sources/Vorssaint/Core/KeepAwakeStrings.swift \
+        Sources/Vorssaint/Core/BluetoothSleepStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Core/FanControlStrings.swift \
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
@@ -209,9 +237,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift \
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift \
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift \
+        Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift \
         Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift \
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift \
         Sources/Vorssaint/Services/Audio/MixerRender.swift \
+        Sources/Vorssaint/Services/Audio/PreciseVolumeRollerSupport.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
@@ -224,6 +254,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
+        Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift \
         Sources/Vorssaint/Services/InstalledApps.swift \
         Sources/Vorssaint/Services/LaunchAtLoginSupport.swift \
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift \
@@ -272,6 +303,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift \
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift \
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift \
+        Sources/Vorssaint/Services/Metrics/VMStatisticsDecoder.swift \
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
@@ -298,8 +330,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
-    ./build/metrics-tests
-    exit $?
+    # `set -e` would end the script on a failing run before the sweep below.
+    test_status=0
+    ./build/metrics-tests || test_status=$?
+    discard_test_preferences || test_status=1
+    exit $test_status
 fi
 
 echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
@@ -311,13 +346,14 @@ if (( DEV )); then
     write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -j "$(sysctl -n hw.logicalcpu)" \
         -output-file-map "$APP_OUTPUT_FILE_MAP" \
-        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
+        "${BUILD_VARIANT_FLAGS[@]}" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 else
     rm -rf build
     mkdir -p build
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
-        "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 fi
 
@@ -335,6 +371,36 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
+ACTOOL_BIN="$(xcrun --find actool 2>/dev/null || true)"
+ICON_TMP="$(mktemp -d)"
+ADAPTIVE_SKIP=""
+if [[ -z "$ACTOOL_BIN" ]]; then
+    ADAPTIVE_SKIP="actool not found (adaptive icons need Xcode 26+)"
+else
+    echo "▸ Compiling adaptive icon catalog…"
+    # actool crashes on File Provider-synced paths, so compile a local copy.
+    ditto "Resources/Brand/AppIcon.icon" "$ICON_TMP/AppIcon.icon"
+    # Xcode 27 beta actool requires the --compile target directory to already exist.
+    mkdir -p "$ICON_TMP/catalog"
+    if "$ACTOOL_BIN" "$ICON_TMP/AppIcon.icon" \
+            --compile "$ICON_TMP/catalog" \
+            --app-icon AppIcon \
+            --platform macosx \
+            --target-device mac \
+            --minimum-deployment-target 14.0 \
+            --enable-on-demand-resources NO \
+            --output-partial-info-plist "$ICON_TMP/partial-info.plist" \
+            >"$ICON_TMP/actool.log" 2>&1 && [[ -s "$ICON_TMP/catalog/Assets.car" ]]; then
+        mv "$ICON_TMP/catalog/Assets.car" build/Assets.car
+    else
+        ADAPTIVE_SKIP="actool could not compile the catalog"
+    fi
+fi
+if [[ -n "$ADAPTIVE_SKIP" ]]; then
+    cp "$ICON_TMP/actool.log" build/actool-failure.log 2>/dev/null || true
+    echo "  adaptive icon skipped: $ADAPTIVE_SKIP (Dock falls back to AppIcon.icns)"
+fi
+rm -rf "$ICON_TMP"
 
 echo "▸ Assembling and signing bundle…"
 STAGE="$(mktemp -d)/$APP_NAME.app"
@@ -382,6 +448,9 @@ FAN_HELPER_VERSION="$(
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
+if [[ -f build/Assets.car ]]; then
+    cp build/Assets.car "$STAGE/Contents/Resources/Assets.car"
+fi
 if [[ -d Resources/Gifs ]]; then
     mkdir -p "$STAGE/Contents/Resources/Gifs"
     cp Resources/Gifs/*.gif "$STAGE/Contents/Resources/Gifs/"

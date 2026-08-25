@@ -45,6 +45,15 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: CopySpacesFunction.self)
     }()
 
+    /// Whether `spaces(of:)` can actually answer in this session. Callers use
+    /// it to tell "this surface belongs to no Space" (the leftover signature)
+    /// apart from "the Space queries are unavailable here", so a macOS that
+    /// drops the private symbol keeps the pre-existing behavior instead of
+    /// misreading every window as a leftover (issue #807).
+    static var canResolveSpaces: Bool {
+        connection != 0 && copySpacesForWindows != nil
+    }
+
     /// Every Space (user desktops and fullscreen Spaces alike) containing the
     /// window. Empty for leftover surfaces, and when the query is unavailable.
     static func spaces(of windowID: CGWindowID) -> [UInt64] {
@@ -113,6 +122,41 @@ enum SpaceWindowBridge {
         }
         guard !displays.isEmpty else { return nil }
         return Topology(displays: displays)
+    }
+
+    private typealias MoveWindowsToSpaceFunction =
+        @convention(c) (ConnectionID, CFArray, UInt64) -> Void
+    private static let moveWindowsToManagedSpace: MoveWindowsToSpaceFunction? = {
+        guard let symbol = symbol("CGSMoveWindowsToManagedSpace") else { return nil }
+        return unsafeBitCast(symbol, to: MoveWindowsToSpaceFunction.self)
+    }()
+
+    /// The Space showing on the display under `pointer`, an AppKit screen
+    /// point. Nil when the Space queries are unavailable, so callers can carry
+    /// on without moving anything rather than guessing at a destination.
+    static func visibleSpace(near pointer: CGPoint) -> UInt64? {
+        guard let topology = topology() else { return nil }
+        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+        if let number = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
+            .uint32Value,
+           let display = topology.displays.first(where: { $0.displayID == number }) {
+            return display.currentSpace
+        }
+        return topology.displays.first?.currentSpace
+    }
+
+    /// Brings one window onto the Space the pointer's display is showing. A
+    /// window dropped from another desktop otherwise takes the position it was
+    /// given and stays where nobody can see it.
+    @discardableResult
+    static func moveToVisibleSpace(_ windowID: CGWindowID, near pointer: CGPoint) -> Bool {
+        guard connection != 0,
+              let moveWindowsToManagedSpace,
+              let destination = visibleSpace(near: pointer)
+        else { return false }
+        guard !spaces(of: windowID).contains(destination) else { return true }
+        moveWindowsToManagedSpace(connection, [NSNumber(value: windowID)] as CFArray, destination)
+        return true
     }
 
     /// Whether the window sits on at least one Space and none of them is
