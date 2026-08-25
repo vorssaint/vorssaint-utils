@@ -105,6 +105,14 @@ enum TextSnippetSupport {
 
     /// Replaces the dynamic variables. Unknown {{tags}} pass through
     /// untouched, so a typo stays visible instead of vanishing silently.
+    /// The one variable whose value comes from somewhere that can hang: the
+    /// general pasteboard may hold content an app renders only on demand, and
+    /// an app that stops answering never answers. Both expansion paths ask
+    /// this first, so a replacement without the variable pays nothing.
+    static func needsClipboard(_ replacement: String) -> Bool {
+        replacement.contains("{{clipboard}}")
+    }
+
     static func expand(_ replacement: String,
                        date: Date,
                        clipboard: String?,

@@ -427,4 +427,13 @@ final class FanControlHardware {
         }
         return false
     }
+
+    /// Whether this Mac exposes a fan the app can actually drive. It asks the
+    /// same discovery the control path uses, so "controllable" means the very
+    /// keys a cooling write needs, not merely a reported fan count. Hardware
+    /// does not change under a running process, so the answer is computed once.
+    static let hasControllableFan: Bool = {
+        guard let hardware = FanControlHardware() else { return false }
+        return (try? hardware.discoverControlledFans())?.isEmpty == false
+    }()
 }
