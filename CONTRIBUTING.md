@@ -79,7 +79,7 @@ Every user facing string lives in `Core/Localization.swift` as a field of the
 it, and the compiler is the completeness check, so a translation can never
 silently fall out of sync.
 
-Vorssaint ships thirteen locales today: English (US), Português (Brasil),
+Vorssaint ships these locales today: English (US), Português (Brasil),
 Türkçe, Русский, Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文,
 繁體中文（台灣） and 繁體中文（香港）. The non-base translations live in
 `Core/Localizations/`. To add a language, add a case to `AppLanguage`, provide

@@ -796,6 +796,11 @@ enum SwitcherSupport {
         return min(itemCount - 1, first + min(visible, itemCount) - 1)
     }
 
+    /// A Tab this close behind a Shift-press step is the same physical chord
+    /// and must not step again; later Tabs during the Shift hold keep walking
+    /// the list (issue #784).
+    static let shiftBackChordWindow: TimeInterval = 0.35
+
     static func selectedPreviewPlacement(appCount rawAppCount: Int,
                                          selectedAppIndex rawSelectedAppIndex: Int,
                                          selectedWindowIndex _: Int,

@@ -334,12 +334,14 @@ struct MetricsTests {
                    "\(language.rawValue) window edge snap controls are localized")
             let alertStrings = FeatureStrings.monitorAlerts(language)
             expect(alertStrings.caption.contains("12"),
-                   "\(language.rawValue) monitor alert caption explains the CPU spike window")
+                   "\(language.rawValue) monitor alert caption explains the sustained alert window")
             expectFormat(alertStrings.cpuBodyFormat, ["d"], "\(language.rawValue) CPU alert format")
             expectFormat(alertStrings.cpuTemperatureBodyFormat, ["d"],
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
+            expectFormat(alertStrings.batteryTemperatureBodyFormat, ["d"],
+                         "\(language.rawValue) battery temperature alert format")
         }
         expect(FeatureStrings.monitorAlerts(.enUS).cooldown == "Repeat the same alert after",
                "English monitor repeat control is explicit")
@@ -1281,6 +1283,11 @@ struct MetricsTests {
         expectClose(TemperatureSensorSelector.stabilizedTemperature(
             7, cache: &batteryTemperatureCache, now: 100, maxAge: 30
         ) ?? -1, 7, "chip floor does not reject a legitimate low battery reading")
+        expectClose(TemperatureSensorSelector.stabilizedTemperature(
+            1, cache: &batteryTemperatureCache, now: 101, maxAge: 30
+        ) ?? -1, 7, "an invalid battery sample bridges the last valid reading")
+        expect(batteryTemperatureCache?.updatedAt == 100,
+               "a bridged battery temperature keeps the real sample timestamp")
         var invalidBatteryTemperatureCache: CachedSensorReading?
         expect(TemperatureSensorSelector.stabilizedTemperature(
             1, cache: &invalidBatteryTemperatureCache, now: 100, maxAge: 30
@@ -2564,6 +2571,10 @@ struct MetricsTests {
                "the two minute alert cooldown is a valid stored choice")
         expect(Defaults.sanitizedMonitorAlertCooldown(7) == 15,
                "unknown alert cooldowns fall back to fifteen minutes")
+        expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperature] as? Bool == false,
+               "battery temperature alerts are opt-in")
+        expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperatureThreshold] as? Int == 40,
+               "battery temperature alerts default to forty degrees")
         expect(Defaults.sanitizedMenuBarMetricSpacing("standard") == "standard",
                "standard menu bar spacing is a valid stored choice")
         expect(Defaults.sanitizedMenuBarMetricSpacing("banana") == "compact",
@@ -10601,6 +10612,8 @@ struct MetricsTests {
                "no alerts and no schedule means notifications are unused")
         expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertCPUTemperature]) == [.monitorCPU],
                "a CPU temperature alert marks the CPU monitor as notifying")
+        expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertBatteryTemperature]) == [.monitorPower],
+               "a battery temperature alert marks the power monitor as notifying")
         expect(activeSet(.notifications,
                          available: Set(AppFeature.allCases).subtracting([.monitorCPU]),
                          on: [DefaultsKey.monitorAlertCPU]) == [],
@@ -10668,6 +10681,16 @@ struct MetricsTests {
         expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
                                                  boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "one alert on an available metric arms the alert service")
+        expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
+                                                 boolFor: {
+                                                     $0 == DefaultsKey.monitorAlertBatteryTemperature
+                                                 }),
+               "a battery temperature alert arms the alert service")
+        expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorPower },
+                                                  boolFor: {
+                                                      $0 == DefaultsKey.monitorAlertBatteryTemperature
+                                                  }),
+               "a battery temperature alert stays disarmed without the power metric")
         expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorDisk },
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
@@ -13403,10 +13426,13 @@ struct MetricsTests {
                "the legacy scratchpad becomes the first selected tab without losing text")
         let twoPads = migratedScratchpad.addingPad(defaultName: "Scratchpad", id: secondPadID)
         let threePads = twoPads?.addingPad(defaultName: "Scratchpad", id: thirdPadID)
-        expect(threePads?.pads.map(\.name) == ["Scratchpad", "Scratchpad 2", "Scratchpad 3"]
+        expect(threePads?.pads.map(\.name) == ["Scratchpad 1", "Scratchpad 2", "Scratchpad 3"]
                 && threePads?.pads.map(\.id) == [firstPadID, secondPadID, thirdPadID]
                 && threePads?.selectedID == thirdPadID,
                "new scratchpads append in order, receive clear names and become selected")
+        expect(ScratchpadSupport.nextPadName(defaultName: "Scratchpad",
+                                             existingNames: ["Scratchpad"]) == "Scratchpad 2",
+               "an existing unnumbered scratchpad still occupies the first numbered slot")
         let renamedPad = threePads?.renaming(secondPadID, to: "  Work\nideas  ")
         expect(renamedPad?.pads[1].name == "Work ideas"
                 && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 50)).count
@@ -16418,7 +16444,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 149 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 151 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
@@ -16812,6 +16838,34 @@ struct MetricsTests {
                "a script link matches once something follows its name")
         expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "cur") == nil,
                "the bare name alone has nothing to run yet")
+        let bareRunnable = [
+            CommandBarLink(name: "clean", kind: .script, destination: "/tmp/clean",
+                           runsWithoutArgument: true),
+        ]
+        expect(CommandBarLinks.matchingScriptLink(in: bareRunnable, query: "clean")?.argument == "",
+               "a script marked as needing nothing runs on its bare name")
+        expect(CommandBarLinks.matchingScriptLink(in: bareRunnable, query: "  Clean  ")?.argument
+                == "",
+               "the bare name is matched the same way every other name is")
+        expect(CommandBarLinks.matchingScriptLink(in: bareRunnable, query: "clean code")?.argument
+                == "code",
+               "that same script still receives an argument when one is typed")
+        expect(CommandBarLinks.matchingScriptLink(in: bareRunnable, query: "cle") == nil
+                && CommandBarLinks.matchingScriptLink(in: bareRunnable, query: "cleaner") == nil,
+               "a script never runs off a prefix of its name, or a longer word starting with it")
+        // The list drops a script's own row once the answer row stands in for
+        // it. That has to use the same rule that decided the script would run,
+        // or a bare name shows the script twice: once as an answer and once as
+        // the plain row nothing removed.
+        expect(CommandBarLinks.matchingScriptLinks(in: bareRunnable, query: "clean")
+                .map(\.name) == ["clean"],
+               "a bare-name match is dropped from the list, like any other script match")
+        expect(CommandBarLinks.matchingScriptLinks(in: scriptLinks, query: "cur 100 usd eur")
+                .map(\.name) == ["cur"],
+               "a script named with an argument is dropped from the list")
+        expect(CommandBarLinks.matchingScriptLinks(in: scriptLinks, query: "cur").isEmpty
+                && CommandBarLinks.matchingScriptLinks(in: scriptLinks, query: "a 1").isEmpty,
+               "nothing is dropped for a script that did not match, or for a non-script link")
         expect(CommandBarLinks.matchingScriptLink(in: scriptLinks, query: "a 100 usd eur") == nil,
                "a non-script link never matches, even with an argument")
         let overlappingScripts = [
@@ -16822,10 +16876,26 @@ struct MetricsTests {
                                                    query: "run report today")?.link.name
                 == "run report",
                "the most specific script name wins over a shorter prefix")
+        expect(CommandBarLinks.matchingScriptLinks(in: overlappingScripts, query: "run report x")
+                .map(\.name).sorted() == ["run", "run report"],
+               "both overlapping names are dropped, so only the answer row is left")
         expect(CommandBarLinks.resultText("  100 USD = 86.70 EUR\n") == "100 USD = 86.70 EUR",
                "a script's output loses its wrapping whitespace")
         expect(CommandBarLinks.resultText("   \n") == nil,
                "empty output means nothing is ready yet")
+
+        let savedBeforeTheField = #"[{"id":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F","name":"gh","#
+            + #""kind":"link","destination":"https://x"}]"#
+        let loadedOldShortcuts = CommandBarLinks.decode(Data(savedBeforeTheField.utf8))
+        expect(loadedOldShortcuts.count == 1 && loadedOldShortcuts.first?.name == "gh"
+                && loadedOldShortcuts.first?.runsWithoutArgument == false,
+               "a shortcut saved before runsWithoutArgument existed still loads, defaulting to off")
+        let roundTripped = CommandBarLinks.decode(
+            CommandBarLinks.encode([CommandBarLink(name: "clean", kind: .script,
+                                                   destination: "/tmp/clean",
+                                                   runsWithoutArgument: true)]))
+        expect(roundTripped.first?.runsWithoutArgument == true,
+               "the flag survives being saved and loaded again")
 
         // MARK: Open what was typed as a URL
         for address in ["example.com", "example.com/x", "https://example.com",
