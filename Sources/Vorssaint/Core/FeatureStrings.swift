@@ -277,9 +277,9 @@ extension MonitorAlertFeatureStrings {
         diskBodyFormat: "%@의 여유 공간이 %d%% 미만입니다.",
         batteryTitle: "낮은 배터리",
         batteryBodyFormat: "배터리 잔량이 %d%%입니다.",
-        batteryTemperature: "배터리 온도",
-        batteryTemperatureThreshold: "다음을 초과하면 알림",
-        batteryTemperatureTitle: "배터리 온도 알림",
+        batteryTemperature: "높은 배터리 온도",
+        batteryTemperatureThreshold: "온도",
+        batteryTemperatureTitle: "배터리 과열",
         batteryTemperatureBodyFormat: "배터리 온도가 %d °C에 도달했습니다."
     )
 }
@@ -1959,9 +1959,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ has less than %d%% free.",
         batteryTitle: "Low battery",
         batteryBodyFormat: "Battery is at %d%%.",
-        batteryTemperature: "Battery temperature",
-        batteryTemperatureThreshold: "Notify above",
-        batteryTemperatureTitle: "Battery temperature alert",
+        batteryTemperature: "High battery temperature",
+        batteryTemperatureThreshold: "Temperature above",
+        batteryTemperatureTitle: "Hot battery",
         batteryTemperatureBodyFormat: "Battery reached %d °C."
     )
 
@@ -1994,9 +1994,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ está com menos de %d%% livre.",
         batteryTitle: "Bateria baixa",
         batteryBodyFormat: "A bateria está em %d%%.",
-        batteryTemperature: "Temperatura da bateria",
-        batteryTemperatureThreshold: "Avisar acima de",
-        batteryTemperatureTitle: "Alerta de temperatura da bateria",
+        batteryTemperature: "Temperatura alta da bateria",
+        batteryTemperatureThreshold: "Temperatura acima de",
+        batteryTemperatureTitle: "Bateria quente",
         batteryTemperatureBodyFormat: "A bateria chegou a %d °C."
     )
 
@@ -2029,9 +2029,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ diskinde %d%% altında boş alan var.",
         batteryTitle: "Düşük pil",
         batteryBodyFormat: "Pil %d%% seviyesinde.",
-        batteryTemperature: "Pil sıcaklığı",
-        batteryTemperatureThreshold: "Şunun üstünde uyar",
-        batteryTemperatureTitle: "Pil sıcaklığı uyarısı",
+        batteryTemperature: "Yüksek pil sıcaklığı",
+        batteryTemperatureThreshold: "Sıcaklık şu değerin üstünde",
+        batteryTemperatureTitle: "Pil sıcak",
         batteryTemperatureBodyFormat: "Pil %d °C değerine ulaştı."
     )
 
@@ -2064,9 +2064,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "На %@ осталось меньше %d%% свободного места.",
         batteryTitle: "Низкий заряд батареи",
         batteryBodyFormat: "Заряд батареи: %d%%.",
-        batteryTemperature: "Температура батареи",
-        batteryTemperatureThreshold: "Оповещать выше",
-        batteryTemperatureTitle: "Оповещение о температуре батареи",
+        batteryTemperature: "Высокая температура батареи",
+        batteryTemperatureThreshold: "Температура выше",
+        batteryTemperatureTitle: "Батарея перегрета",
         batteryTemperatureBodyFormat: "Батарея достигла %d °C."
     )
 
@@ -2099,9 +2099,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ tiene menos de %d%% libre.",
         batteryTitle: "Batería baja",
         batteryBodyFormat: "La batería está al %d%%.",
-        batteryTemperature: "Temperatura de la batería",
-        batteryTemperatureThreshold: "Avisar por encima de",
-        batteryTemperatureTitle: "Alerta de temperatura de la batería",
+        batteryTemperature: "Temperatura de la batería alta",
+        batteryTemperatureThreshold: "Temperatura por encima de",
+        batteryTemperatureTitle: "Batería caliente",
         batteryTemperatureBodyFormat: "La batería llegó a %d °C."
     )
 
@@ -2134,9 +2134,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ hat weniger als %d%% frei.",
         batteryTitle: "Niedriger Akkustand",
         batteryBodyFormat: "Der Akku ist bei %d%%.",
-        batteryTemperature: "Akkutemperatur",
-        batteryTemperatureThreshold: "Warnen über",
-        batteryTemperatureTitle: "Akkutemperaturwarnung",
+        batteryTemperature: "Hohe Akkutemperatur",
+        batteryTemperatureThreshold: "Temperatur über",
+        batteryTemperatureTitle: "Heißer Akku",
         batteryTemperatureBodyFormat: "Der Akku hat %d °C erreicht."
     )
 
@@ -2169,9 +2169,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ a moins de %d%% libre.",
         batteryTitle: "Batterie faible",
         batteryBodyFormat: "La batterie est à %d%%.",
-        batteryTemperature: "Température de la batterie",
-        batteryTemperatureThreshold: "Alerter au-dessus de",
-        batteryTemperatureTitle: "Alerte de température de la batterie",
+        batteryTemperature: "Température de la batterie élevée",
+        batteryTemperatureThreshold: "Température au-dessus de",
+        batteryTemperatureTitle: "Batterie chaude",
         batteryTemperatureBodyFormat: "La batterie a atteint %d °C."
     )
 
@@ -2204,9 +2204,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ ha meno del %d%% libero.",
         batteryTitle: "Batteria scarica",
         batteryBodyFormat: "La batteria è al %d%%.",
-        batteryTemperature: "Temperatura della batteria",
-        batteryTemperatureThreshold: "Avvisa sopra",
-        batteryTemperatureTitle: "Avviso temperatura batteria",
+        batteryTemperature: "Temperatura batteria alta",
+        batteryTemperatureThreshold: "Temperatura sopra",
+        batteryTemperatureTitle: "Batteria calda",
         batteryTemperatureBodyFormat: "La batteria ha raggiunto %d °C."
     )
 
@@ -2239,9 +2239,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ の空き容量が %d%% 未満です。",
         batteryTitle: "バッテリー残量低下",
         batteryBodyFormat: "バッテリー残量は %d%% です。",
-        batteryTemperature: "バッテリー温度",
-        batteryTemperatureThreshold: "次を超えたら通知",
-        batteryTemperatureTitle: "バッテリー温度の通知",
+        batteryTemperature: "バッテリー温度が高い",
+        batteryTemperatureThreshold: "温度が次を超過",
+        batteryTemperatureTitle: "バッテリーが高温",
         batteryTemperatureBodyFormat: "バッテリーが %d °C に達しました。"
     )
 
@@ -2274,9 +2274,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ 的可用空间低于 %d%%。",
         batteryTitle: "电池电量低",
         batteryBodyFormat: "电池电量为 %d%%。",
-        batteryTemperature: "电池温度",
-        batteryTemperatureThreshold: "高于此温度时提醒",
-        batteryTemperatureTitle: "电池温度提醒",
+        batteryTemperature: "电池温度过高",
+        batteryTemperatureThreshold: "温度高于",
+        batteryTemperatureTitle: "电池过热",
         batteryTemperatureBodyFormat: "电池已达到 %d °C。"
     )
 
@@ -2309,9 +2309,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ 的可用空間低於 %d%%。",
         batteryTitle: "電池電量偏低",
         batteryBodyFormat: "電池電量為 %d%%。",
-        batteryTemperature: "電池溫度",
-        batteryTemperatureThreshold: "高於此溫度時提醒",
-        batteryTemperatureTitle: "電池溫度提醒",
+        batteryTemperature: "電池溫度過高",
+        batteryTemperatureThreshold: "溫度高於",
+        batteryTemperatureTitle: "電池過熱",
         batteryTemperatureBodyFormat: "電池已達到 %d °C。"
     )
 
@@ -2344,9 +2344,9 @@ struct MonitorAlertFeatureStrings {
         diskBodyFormat: "%@ 的可用空間低於 %d%%。",
         batteryTitle: "電池電量偏低",
         batteryBodyFormat: "電池電量為 %d%%。",
-        batteryTemperature: "電池溫度",
-        batteryTemperatureThreshold: "高於此溫度時提示",
-        batteryTemperatureTitle: "電池溫度提示",
+        batteryTemperature: "電池溫度過高",
+        batteryTemperatureThreshold: "溫度高於",
+        batteryTemperatureTitle: "電池過熱",
         batteryTemperatureBodyFormat: "電池已達到 %d °C。"
     )
 }

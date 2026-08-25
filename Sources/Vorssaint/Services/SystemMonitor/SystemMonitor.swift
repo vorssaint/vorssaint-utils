@@ -476,13 +476,8 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature) || alertCPUTemperature
         plan.needGPUTemperature = panelTemps || menuPanelNeeds.gpuTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
-        plan.needBatteryTemperature = MonitorSamplingPolicy.batteryTemperatureNeeded(
-            hasInternalBattery: hasInternalBattery,
-            panelTemperatures: panelTemps,
-            menuPanelMetric: menuPanelNeeds.batteryTemperature,
-            menuBarMetric: defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature),
-            alertEnabled: alertBatteryTemperature
-        )
+        plan.needBatteryTemperature = hasInternalBattery && (panelTemps || menuPanelNeeds.batteryTemperature ||
+            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
         if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
            Self.fanTelemetryAvailable {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed

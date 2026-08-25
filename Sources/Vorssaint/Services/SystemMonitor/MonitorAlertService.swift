@@ -172,7 +172,7 @@ final class MonitorAlertService {
                                             strings: MonitorAlertFeatureStrings) {
         let threshold = Defaults.sanitizedPercent(
             defaults.integer(forKey: DefaultsKey.monitorAlertBatteryTemperatureThreshold),
-            fallback: 35,
+            fallback: 40,
             range: 30...50
         )
         guard batteryTemperatureGate.shouldAlert(reading: snapshot.batteryTemperature,

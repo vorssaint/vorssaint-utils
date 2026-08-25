@@ -16,7 +16,7 @@ struct MonitorAlertsControls: View {
     @AppStorage(DefaultsKey.monitorAlertBattery) private var alertBattery = false
     @AppStorage(DefaultsKey.monitorAlertCPUThreshold) private var alertCPUThreshold = 90
     @AppStorage(DefaultsKey.monitorAlertCPUTemperatureThreshold) private var alertCPUTemperatureThreshold = 90
-    @AppStorage(DefaultsKey.monitorAlertBatteryTemperatureThreshold) private var alertBatteryTemperatureThreshold = 35
+    @AppStorage(DefaultsKey.monitorAlertBatteryTemperatureThreshold) private var alertBatteryTemperatureThreshold = 40
     @AppStorage(DefaultsKey.monitorAlertDiskFreePercent) private var alertDiskFreePercent = 10
     @AppStorage(DefaultsKey.monitorAlertBatteryPercent) private var alertBatteryPercent = 15
     @AppStorage(DefaultsKey.monitorAlertCooldownMinutes) private var alertCooldown = 15
@@ -64,7 +64,8 @@ struct MonitorAlertsControls: View {
                 if alertBatteryTemperature {
                     Stepper("\(text.batteryTemperatureThreshold) \(alertBatteryTemperatureThreshold) °C",
                             value: $alertBatteryTemperatureThreshold,
-                            in: 30...50)
+                            in: 30...50,
+                            step: 5)
                 }
                 Toggle(text.battery, isOn: $alertBattery)
                 if alertBattery {
@@ -117,8 +118,7 @@ struct MonitorAlertsControls: View {
 
     private var anyAlertEnabled: Bool {
         alertCPU || alertCPUTemperature || alertMemory || alertDisk
-            || (PowerSampler.hasInternalBattery && alertBatteryTemperature)
-            || (PowerSampler.hasInternalBattery && alertBattery)
+            || (PowerSampler.hasInternalBattery && (alertBatteryTemperature || alertBattery))
     }
 
     /// Checked slightly delayed so a just-fired authorization prompt has a
@@ -137,7 +137,7 @@ struct MonitorAlertsControls: View {
         alertCPUThreshold = Defaults.sanitizedPercent(alertCPUThreshold, fallback: 90, range: 50...100)
         alertCPUTemperatureThreshold = Defaults.sanitizedPercent(alertCPUTemperatureThreshold, fallback: 90, range: 70...105)
         alertBatteryTemperatureThreshold = Defaults.sanitizedPercent(alertBatteryTemperatureThreshold,
-                                                                     fallback: 35,
+                                                                     fallback: 40,
                                                                      range: 30...50)
         alertDiskFreePercent = Defaults.sanitizedPercent(alertDiskFreePercent, fallback: 10, range: 5...30)
         alertBatteryPercent = Defaults.sanitizedPercent(alertBatteryPercent, fallback: 15, range: 5...50)

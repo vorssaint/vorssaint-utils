@@ -1292,20 +1292,6 @@ struct MetricsTests {
         expect(TemperatureSensorSelector.stabilizedTemperature(
             1, cache: &invalidBatteryTemperatureCache, now: 100, maxAge: 30
         ) == nil, "existing battery lower bound remains unchanged")
-        expect(MonitorSamplingPolicy.batteryTemperatureNeeded(
-            hasInternalBattery: true,
-            panelTemperatures: false,
-            menuPanelMetric: false,
-            menuBarMetric: false,
-            alertEnabled: true
-        ), "a battery temperature alert drives the sensor sampler")
-        expect(!MonitorSamplingPolicy.batteryTemperatureNeeded(
-            hasInternalBattery: false,
-            panelTemperatures: true,
-            menuPanelMetric: true,
-            menuBarMetric: true,
-            alertEnabled: true
-        ), "battery temperature sampling stays off without an internal battery")
         let m3CPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Te05", 44.0), ("Tf4E", 53.0), ("Tf4F", 76.0)],
             platform: .appleM3Family
@@ -2587,8 +2573,8 @@ struct MetricsTests {
                "unknown alert cooldowns fall back to fifteen minutes")
         expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperature] as? Bool == false,
                "battery temperature alerts are opt-in")
-        expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperatureThreshold] as? Int == 35,
-               "battery temperature alerts default to thirty-five degrees")
+        expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperatureThreshold] as? Int == 40,
+               "battery temperature alerts default to forty degrees")
         expect(Defaults.sanitizedMenuBarMetricSpacing("standard") == "standard",
                "standard menu bar spacing is a valid stored choice")
         expect(Defaults.sanitizedMenuBarMetricSpacing("banana") == "compact",

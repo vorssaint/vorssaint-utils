@@ -16,15 +16,6 @@ enum MonitorSamplingKind: String {
 }
 
 enum MonitorSamplingPolicy {
-    static func batteryTemperatureNeeded(hasInternalBattery: Bool,
-                                         panelTemperatures: Bool,
-                                         menuPanelMetric: Bool,
-                                         menuBarMetric: Bool,
-                                         alertEnabled: Bool) -> Bool {
-        hasInternalBattery
-            && (panelTemperatures || menuPanelMetric || menuBarMetric || alertEnabled)
-    }
-
     static func shouldSample(_ kind: MonitorSamplingKind,
                              tick: Int,
                              intervalSeconds: Int,
