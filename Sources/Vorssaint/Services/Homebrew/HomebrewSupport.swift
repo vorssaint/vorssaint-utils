@@ -684,6 +684,10 @@ enum HomebrewParser {
     private static func parseCaskRecord(_ item: [String: Any]) -> HomebrewCaskRecord? {
         guard let token = item["token"] as? String,
               HomebrewCommandBuilder.isValidToken(token) else { return nil }
+        let fullToken = item["full_token"] as? String
+        let identifier = fullToken.flatMap { fullToken in
+            HomebrewCommandBuilder.isValidToken(fullToken) ? fullToken : nil
+        } ?? token
         let displayName = (item["name"] as? [String])?.first(where: { !$0.isEmpty }) ?? token
         let installed = item["installed"] as? String
         var appFileNames: [String] = []
@@ -717,7 +721,7 @@ enum HomebrewParser {
                 }
             }
         }
-        return HomebrewCaskRecord(token: token,
+        return HomebrewCaskRecord(token: identifier,
                                   displayName: displayName,
                                   installedVersion: installed?.isEmpty == false ? installed : nil,
                                   appFileNames: appFileNames,
@@ -773,6 +777,10 @@ enum HomebrewParser {
     private static func parseCask(_ item: [String: Any]) -> HomebrewPackage? {
         guard let token = item["token"] as? String,
               HomebrewCommandBuilder.isValidToken(token) else { return nil }
+        let fullToken = item["full_token"] as? String
+        let identifier = fullToken.flatMap { fullToken in
+            HomebrewCommandBuilder.isValidToken(fullToken) ? fullToken : nil
+        } ?? token
         let displayName: String
         if let names = item["name"] as? [String], let first = names.first, !first.isEmpty {
             displayName = first
@@ -781,7 +789,7 @@ enum HomebrewParser {
         }
         let installed = item["installed"] as? String
         return HomebrewPackage(kind: .cask,
-                               name: token,
+                               name: identifier,
                                displayName: displayName,
                                desc: item["desc"] as? String,
                                installedVersion: installed?.isEmpty == false ? installed : nil,

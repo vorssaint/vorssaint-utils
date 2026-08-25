@@ -9344,12 +9344,21 @@ struct MetricsTests {
               "homepage": "https://example.com/sample-tool",
               "version": "1.108.1",
               "installed": "1.107.0"
+            },
+            {
+              "token": "tapped-tool",
+              "full_token": "example/tap/tapped-tool",
+              "name": ["Tapped Tool"],
+              "desc": "Cask from a third-party tap",
+              "homepage": "https://example.com/tapped-tool",
+              "version": "2.0.0",
+              "installed": "1.0.0"
             }
           ]
         }
         """
         let homebrewPackages = (try? HomebrewParser.parseInfoJSON(Data(homebrewJSON.utf8))) ?? []
-        expect(homebrewPackages.count == 3, "Homebrew JSON parser keeps formulae and casks")
+        expect(homebrewPackages.count == 4, "Homebrew JSON parser keeps formulae and casks")
         expect(homebrewPackages.first?.kind == .cask,
                "Homebrew JSON parser sorts casks before formulae")
         expect(homebrewPackages.first(where: { $0.name == "sample-formula" })?.installedVersion == "1.8.1",
@@ -9359,8 +9368,13 @@ struct MetricsTests {
                "Homebrew parser keeps the canonical name for a formula from a tap")
         expect(homebrewPackages.first(where: { $0.name == "sample-tool" })?.displayName == "Sample Tool",
                "Homebrew parser reads cask display name")
+        let tappedCask = homebrewPackages.first { $0.name == "example/tap/tapped-tool" }
+        expect(tappedCask != nil,
+               "Homebrew parser identifies a cask from a tap by its full token")
+        expect(tappedCask?.displayName == "Tapped Tool",
+               "Homebrew parser keeps the human-readable name for a cask from a tap")
         let cleanCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(homebrewJSON)) ?? []
-        expect(cleanCommandPackages.count == 3,
+        expect(cleanCommandPackages.count == 4,
                "Homebrew command output parser keeps clean JSON")
         let noisyHomebrewOutput = """
         Warning: Skipping some beta metadata
@@ -9369,7 +9383,7 @@ struct MetricsTests {
         Warning: A newer Homebrew beta changed an optional field
         """
         let noisyCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(noisyHomebrewOutput)) ?? []
-        expect(noisyCommandPackages.count == 3,
+        expect(noisyCommandPackages.count == 4,
                "Homebrew command output parser accepts warnings around JSON")
         expect(noisyCommandPackages.first(where: { $0.name == "sample-tool" })?.installedVersion == "1.107.0",
                "Homebrew command output parser keeps package data from noisy output")
@@ -9397,12 +9411,18 @@ struct MetricsTests {
               "installed_versions": ["1.107.0"],
               "current_version": "1.108.1",
               "pinned": true
+            },
+            {
+              "name": "example/tap/tapped-tool",
+              "installed_versions": ["1.0.0"],
+              "current_version": "2.0.0",
+              "pinned": false
             }
           ]
         }
         """
         let outdatedPackages = (try? HomebrewParser.parseOutdatedJSON(Data(outdatedJSON.utf8))) ?? [:]
-        expect(outdatedPackages.count == 3,
+        expect(outdatedPackages.count == 4,
                "Homebrew outdated parser keeps formulae and casks")
         expect(outdatedPackages["formula:fmt"]?.versionSummary == "12.1.0 -> 12.2.0",
                "Homebrew outdated parser renders installed to current version")
@@ -9410,6 +9430,10 @@ struct MetricsTests {
                "Homebrew outdated parser reads pinned status")
         expect(tappedFormula.flatMap { outdatedPackages[$0.id] }?.currentVersion == "2.0.0",
                "Homebrew installed and outdated data use the same ID for tapped formulae")
+        expect(tappedCask?.id == "cask:example/tap/tapped-tool",
+               "Homebrew installed cask data is identified by its full token")
+        expect(tappedCask.flatMap { outdatedPackages[$0.id] }?.currentVersion == "2.0.0",
+               "Homebrew installed and outdated data use the same ID for tapped casks, so the update is found through it")
         let noisyOutdatedOutput = """
         Warning: Homebrew updated metadata
         {"notice": "not outdated data"}
@@ -14957,13 +14981,15 @@ struct MetricsTests {
         expect(HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: "/opt/x/brew").arguments
                 == ["outdated", "--cask", "--greedy", "--json=v2"],
                "the update check asks for the apps that carry their own updater too")
-        let caskJSON = #"{"formulae":[],"casks":[{"token":"editor","name":["Editor"],"installed":"1.129.0","artifacts":[{"app":["Source.app",{"target":"Editor.app"}],"target":"/Applications/Editor.app"},{"zap":[]}]}]}"#
+        let caskJSON = #"{"formulae":[],"casks":[{"token":"editor","name":["Editor"],"installed":"1.129.0","artifacts":[{"app":["Source.app",{"target":"Editor.app"}],"target":"/Applications/Editor.app"},{"zap":[]}]},{"token":"tapped-tool","full_token":"example/tap/tapped-tool","name":["Tapped Tool"],"installed":"1.0.0","artifacts":[{"app":["Tapped Tool.app"]}]}]}"#
         let parsedRecords = HomebrewParser.parseInstalledCaskRecords(caskJSON)
-        expect(parsedRecords.count == 1 && parsedRecords[0].appFileNames == ["Editor.app"]
+        expect(parsedRecords.count == 2 && parsedRecords[0].appFileNames == ["Editor.app"]
                 && parsedRecords[0].appPaths == ["/Applications/Editor.app"]
                 && parsedRecords[0].displayName == "Editor"
                 && parsedRecords[0].installedVersion == "1.129.0",
                "an installed package is traced to the final app name after a rename")
+        expect(parsedRecords.first { $0.token == "example/tap/tapped-tool" }?.displayName == "Tapped Tool",
+               "parseInstalledCaskRecords keeps the full token for a cask from a tap")
         expect(HomebrewParser.parseInstalledCaskRecords("garbage").isEmpty,
                "unreadable package output yields no records")
         let managedPackage = HomebrewOwnershipSupport.packageManagingApplication(
