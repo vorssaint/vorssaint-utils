@@ -3,18 +3,86 @@
 
 import Foundation
 
+/// One destination-aware Settings search result. Its identity is structural,
+/// never derived from localized text or result ordering.
+struct SettingsSearchItem: Identifiable {
+    enum ID: Hashable {
+        case page(SettingsPage)
+        case feature(AppFeature)
+    }
+
+    let id: ID
+    let destination: FeatureSettingsDestination
+    let title: String
+    let icon: String
+    var keywords: [String] = []
+}
+
 /// Pure filtering for the Settings sidebar search field, so the matching
 /// rules (case, accents, word prefixes) are covered by the unit harness.
 enum SettingsSearchSupport {
+    private enum MatchRank {
+        case exactTitle
+        case title
+        case keyword
+    }
+
+    /// Every feature contributes its localized hub name and exact Settings
+    /// destination. The feature case remains the stable result identity.
+    static func featureItems(title: (AppFeature) -> String) -> [SettingsSearchItem] {
+        AppFeature.allCases.map { feature in
+            SettingsSearchItem(id: .feature(feature),
+                               destination: feature.settingsDestination,
+                               title: title(feature),
+                               icon: feature.symbolName)
+        }
+    }
+
+    /// A dedicated page row wins over a generated feature row only when both
+    /// its visible name and full destination are equivalent. This keeps a
+    /// single explicit Homebrew result while preserving differently named
+    /// fallbacks such as Disk Image Installer -> Features.
+    static func combinedItems(pageItems: [SettingsSearchItem],
+                              featureItems: [SettingsSearchItem]) -> [SettingsSearchItem] {
+        pageItems + featureItems.filter { featureItem in
+            !pageItems.contains { pageItem in
+                pageItem.destination == featureItem.destination
+                    && fold(pageItem.title) == fold(featureItem.title)
+            }
+        }
+    }
+
     /// Case-, diacritic- and width-insensitive containment: "métr" finds
     /// "Metrics", "moni" finds "Monitor". A blank query matches everything.
     /// Keywords let a page match by what lives inside it ("lid" finds
     /// Energy, "quick panel" finds Quick tools), not just by its name.
     static func matches(query: String, title: String, keywords: [String] = []) -> Bool {
-        let folded = fold(query)
-        guard !folded.isEmpty else { return true }
-        if fold(title).contains(folded) { return true }
-        return keywords.contains { fold($0).contains(folded) }
+        let foldedQuery = fold(query)
+        guard !foldedQuery.isEmpty else { return true }
+        return matchRank(foldedQuery: foldedQuery, title: title, keywords: keywords) != nil
+    }
+
+    /// Filters and ranks one query in a single stable pass: exact normalized
+    /// titles, then title containment, then keyword-only matches.
+    static func matchingItems(query: String,
+                              items: [SettingsSearchItem]) -> [SettingsSearchItem] {
+        let foldedQuery = fold(query)
+        guard !foldedQuery.isEmpty else { return items }
+
+        var exactTitleMatches: [SettingsSearchItem] = []
+        var titleMatches: [SettingsSearchItem] = []
+        var keywordMatches: [SettingsSearchItem] = []
+        for item in items {
+            switch matchRank(foldedQuery: foldedQuery,
+                             title: item.title,
+                             keywords: item.keywords) {
+            case .exactTitle: exactTitleMatches.append(item)
+            case .title: titleMatches.append(item)
+            case .keyword: keywordMatches.append(item)
+            case nil: break
+            }
+        }
+        return exactTitleMatches + titleMatches + keywordMatches
     }
 
     /// Every former screen-tool page remains discoverable after those settings
@@ -58,6 +126,16 @@ enum SettingsSearchSupport {
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
                      locale: .current)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func matchRank(foldedQuery: String,
+                                  title: String,
+                                  keywords: [String]) -> MatchRank? {
+        let foldedTitle = fold(title)
+        if foldedTitle == foldedQuery { return .exactTitle }
+        if foldedTitle.contains(foldedQuery) { return .title }
+        if keywords.contains(where: { fold($0).contains(foldedQuery) }) { return .keyword }
+        return nil
     }
 }
 

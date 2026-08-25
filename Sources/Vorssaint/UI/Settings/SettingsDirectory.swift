@@ -18,6 +18,26 @@ struct SettingsDirectoryItem: Identifiable {
 /// keywords. The sidebar renders it; the command bar searches it. One list,
 /// so a page added here is findable everywhere at once.
 enum SettingsDirectory {
+    /// Destination-aware rows for focused Settings search. The regular
+    /// directory remains page-based so blank-query sidebar identity and
+    /// command-bar behavior do not change.
+    static func searchItems(_ s: Strings,
+                            language: AppLanguage) -> [SettingsSearchItem] {
+        let pageItems = sections(s, language: language).flatMap(\.items).map { item in
+            SettingsSearchItem(id: .page(item.page),
+                               destination: FeatureSettingsDestination(item.page),
+                               title: item.title,
+                               icon: item.icon,
+                               keywords: item.keywords)
+        }
+        let hub = FeatureStrings.hub(language)
+        let featureItems = SettingsSearchSupport.featureItems { feature in
+            feature.hubTitle(s, hub: hub)
+        }
+        return SettingsSearchSupport.combinedItems(pageItems: pageItems,
+                                                   featureItems: featureItems)
+    }
+
     static func sections(_ s: Strings,
                          language: AppLanguage) -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)

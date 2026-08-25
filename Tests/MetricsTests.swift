@@ -6899,6 +6899,103 @@ struct MetricsTests {
                     keywords: captureSearchKeywords),
                "Screenshot and Screen recording find the one Screen capture page")
 
+        let settingsFeatureTitles: [AppFeature: String] = [
+            .homebrew: "Homebrew",
+            .cameraPreview: "Camera Preview",
+            .screenRecorder: "Screen Recorder",
+            .micMute: "Mic Mute",
+            .diskImageInstaller: "Disk Image Installer",
+        ]
+        let featureSearchItems = SettingsSearchSupport.featureItems { feature in
+            settingsFeatureTitles[feature] ?? feature.rawValue
+        }
+        let expectedFeatureSearchDestinations: [(AppFeature, FeatureSettingsDestination)] = [
+            (.homebrew, FeatureSettingsDestination(.homebrew)),
+            (.cameraPreview, FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)),
+            (.screenRecorder, FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)),
+            (.micMute, FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)),
+            (.diskImageInstaller, FeatureSettingsDestination(.features)),
+        ]
+        for (feature, destination) in expectedFeatureSearchDestinations {
+            let item = featureSearchItems.first { $0.id == .feature(feature) }
+            expect(item?.destination == destination,
+                   "\(settingsFeatureTitles[feature] ?? feature.rawValue) keeps its exact Settings destination")
+            expect(item?.icon == feature.symbolName,
+                   "\(settingsFeatureTitles[feature] ?? feature.rawValue) uses its feature symbol")
+        }
+        expect(featureSearchItems.count == AppFeature.allCases.count
+                && Set(featureSearchItems.map(\.id)).count == AppFeature.allCases.count,
+               "generated Settings feature results have one stable identity per feature")
+
+        let dedicatedSettingsItems = [
+            SettingsSearchItem(id: .page(.features),
+                               destination: FeatureSettingsDestination(.features),
+                               title: "Features", icon: "square.grid.2x2",
+                               keywords: ["Homebrew", "Camera Preview"]),
+            SettingsSearchItem(id: .page(.appUpdates),
+                               destination: FeatureSettingsDestination(.appUpdates),
+                               title: "App Updates", icon: "arrow.down.app",
+                               keywords: ["Homebrew"]),
+            SettingsSearchItem(id: .page(.quickTools),
+                               destination: FeatureSettingsDestination(.quickTools),
+                               title: "Quick Tools", icon: "wand.and.rays",
+                               keywords: ["Camera Preview"]),
+            SettingsSearchItem(id: .page(.homebrew),
+                               destination: FeatureSettingsDestination(.homebrew),
+                               title: "Homebrew", icon: "shippingbox"),
+        ]
+        let combinedSettingsItems = SettingsSearchSupport.combinedItems(
+            pageItems: dedicatedSettingsItems,
+            featureItems: featureSearchItems)
+        expect(combinedSettingsItems.filter {
+            $0.title == "Homebrew" && $0.destination == FeatureSettingsDestination(.homebrew)
+        }.count == 1
+                && combinedSettingsItems.contains { $0.id == .page(.homebrew) },
+               "the explicit Homebrew page result replaces its equivalent generated result")
+        expect(combinedSettingsItems.contains { $0.id == .feature(.diskImageInstaller) },
+               "a differently named feature remains discoverable through its Features fallback")
+
+        let homebrewMatches = SettingsSearchSupport.matchingItems(
+            query: "  HOMEBREW ", items: combinedSettingsItems)
+        expect(homebrewMatches.first?.destination == FeatureSettingsDestination(.homebrew)
+                && homebrewMatches.map(\.id)
+                    == [.page(.homebrew), .page(.features), .page(.appUpdates)],
+               "an exact Homebrew title ranks before earlier generic keyword matches")
+        let cameraPreviewMatches = SettingsSearchSupport.matchingItems(
+            query: "Camera Preview", items: combinedSettingsItems)
+        expect(cameraPreviewMatches.first?.destination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
+                && cameraPreviewMatches.map(\.id)
+                    == [.feature(.cameraPreview), .page(.features), .page(.quickTools)],
+               "an exact Camera Preview feature ranks before its page containers")
+
+        let keywordBeforePartialTitle = SettingsSearchItem(
+            id: .page(.features), destination: FeatureSettingsDestination(.features),
+            title: "Features", icon: "square.grid.2x2", keywords: ["Homebrew Packages"])
+        let partialTitleAfterKeyword = SettingsSearchItem(
+            id: .page(.appUpdates), destination: FeatureSettingsDestination(.appUpdates),
+            title: "Homebrew Packages", icon: "arrow.down.app")
+        let partialMatches = SettingsSearchSupport.matchingItems(
+            query: "brew", items: [keywordBeforePartialTitle, partialTitleAfterKeyword])
+        expect(partialMatches.map(\.id) == [.page(.appUpdates), .page(.features)],
+               "partial title containment ranks before an earlier keyword-only match")
+
+        let tiedTitleMatches = [
+            SettingsSearchItem(id: .page(.quickTools),
+                               destination: FeatureSettingsDestination(.quickTools),
+                               title: "Camera Tools", icon: "wand.and.rays"),
+            SettingsSearchItem(id: .feature(.cameraPreview),
+                               destination: FeatureSettingsDestination(
+                                 .quickTools, sectionAnchor: .cameraPreview),
+                               title: "Camera Controls", icon: "web.camera"),
+        ]
+        expect(SettingsSearchSupport.matchingItems(query: "camera", items: tiedTitleMatches)
+                .map(\.id) == tiedTitleMatches.map(\.id),
+               "Settings search preserves source order between equal-rank matches")
+        expect(SettingsSearchSupport.matchingItems(query: "  \n", items: tiedTitleMatches)
+                .map(\.id) == tiedTitleMatches.map(\.id),
+               "a blank Settings query preserves every item in source order")
+
         let freshSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
                                                                  availableHeight: 1200)
         expect(freshSize.width == 772 && freshSize.height == 838,
