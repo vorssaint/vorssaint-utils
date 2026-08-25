@@ -67,19 +67,19 @@ struct AlwaysOnTopSettings: View {
             }
 
             Section(strings.excludeTitle) {
-                if sortedExceptions.isEmpty {
+                if service.exceptions.isEmpty {
                     Text(strings.excludeEmpty)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(sortedExceptions, id: \.self) { bundleID in
+                    ForEach(service.exceptions, id: \.self) { bundleID in
                         HStack(spacing: 9) {
                             Image(nsImage: InstalledApps.icon(for: bundleID))
                                 .resizable().frame(width: 20, height: 20)
                             Text(InstalledApps.name(for: bundleID))
                             Spacer()
                             Button {
-                                removeException(bundleID)
+                                service.removeException(bundleID)
                             } label: {
                                 Image(systemName: "minus.circle.fill")
                                     .foregroundStyle(.secondary)
@@ -122,16 +122,6 @@ struct AlwaysOnTopSettings: View {
         }
     }
 
-    private var exceptions: [String] {
-        UserDefaults.standard.stringArray(forKey: DefaultsKey.alwaysOnTopExcludedApps) ?? []
-    }
-
-    private var sortedExceptions: [String] {
-        exceptions.sorted {
-            InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1)) == .orderedAscending
-        }
-    }
-
     private var colorBinding: Binding<Color> {
         Binding {
             let rgb = MenuBarUsageBarSupport.rgb(for: borderColor, fallback: "#00ADEF")
@@ -145,28 +135,15 @@ struct AlwaysOnTopSettings: View {
     }
 
     private var appPickerSheet: some View {
-        let excluded = Set(exceptions)
+        let excluded = Set(service.exceptions)
         return AppPickerView {
             showingAppPicker = false
         } onSelect: { url in
             showingAppPicker = false
             guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
-            addException(bundleID)
+            service.addException(bundleID)
         } loadApps: {
             InstalledApps.installedBundleApplications(excluding: excluded)
         }
-    }
-
-    private func addException(_ bundleID: String) {
-        var next = exceptions
-        guard !next.contains(bundleID) else { return }
-        next.append(bundleID)
-        UserDefaults.standard.set(next, forKey: DefaultsKey.alwaysOnTopExcludedApps)
-        AlwaysOnTopService.shared.unpinExcluded()
-    }
-
-    private func removeException(_ bundleID: String) {
-        UserDefaults.standard.set(exceptions.filter { $0 != bundleID },
-                                  forKey: DefaultsKey.alwaysOnTopExcludedApps)
     }
 }

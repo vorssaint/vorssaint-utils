@@ -11,11 +11,12 @@ final class AlwaysOnTopService: ObservableObject {
     static let shared = AlwaysOnTopService()
 
     @Published private(set) var isRunning = false
+    @Published private(set) var exceptions: [String] = []
 
     var pinningAvailable: Bool { pinning.client.isAvailable }
 
     private let pinning = AlwaysOnTopPinning(client: AlwaysOnTopSkyLightClient.shared)
-    private var map = AlwaysOnTopPinMap()
+    private var pinnedWindows = AlwaysOnTopPinMap()
     private var borders: [CGWindowID: AlwaysOnTopBorder] = [:]
     private var observers: [pid_t: AXObserver] = [:]
     private var watchedWindows: [CGWindowID: AXUIElement] = [:]
@@ -26,7 +27,9 @@ final class AlwaysOnTopService: ObservableObject {
     private var terminateObserver: NSObjectProtocol?
     private var defaultsObserver: NSObjectProtocol?
 
-    private init() {}
+    private init() {
+        reloadExceptions()
+    }
 
     func syncWithPreferences() {
         let wanted = AppFeature.alwaysOnTop.isAvailable
@@ -40,26 +43,22 @@ final class AlwaysOnTopService: ObservableObject {
 
     func toggleFrontmost() {
         guard isRunning else { return }
-        guard let pid = frontmostPID() else { return }
-        guard let windowID = WindowActivator.focusedWindowID(for: pid) else { return }
-        let bundleID = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        let exceptions = UserDefaults.standard.stringArray(forKey: DefaultsKey.alwaysOnTopExcludedApps) ?? []
+        guard let target = resolveFrontmostWindow() else { return }
+        let bundleID = NSRunningApplication(processIdentifier: target.pid)?.bundleIdentifier
         if AlwaysOnTopSupport.isExcluded(bundleIdentifier: bundleID, exceptions: exceptions) { return }
-        if map.contains(windowID) {
-            unpin(windowID)
+        if pinnedWindows.contains(target.windowID) {
+            unpin(target.windowID)
             return
         }
-        guard let original = pinning.pin(windowID) else { return }
-        map.pin(AlwaysOnTopPin(windowID: windowID, originalLevel: original, pid: pid))
-        if let element = focusedAXWindow(pid: pid) {
-            watch(windowID: windowID, pid: pid, element: element)
-        }
+        guard let original = pinning.pin(target.windowID) else { return }
+        pinnedWindows.pin(AlwaysOnTopPin(windowID: target.windowID, originalLevel: original, pid: target.pid))
+        watch(windowID: target.windowID, pid: target.pid, element: target.element)
         if UserDefaults.standard.bool(forKey: DefaultsKey.alwaysOnTopShowBorder) {
             let border = AlwaysOnTopBorder()
             let color = UserDefaults.standard.string(forKey: DefaultsKey.alwaysOnTopBorderColor) ?? "#00ADEF"
             let thickness = UserDefaults.standard.object(forKey: DefaultsKey.alwaysOnTopBorderThickness) as? Double ?? 4
-            border.show(windowID: windowID, colorHex: color, thickness: CGFloat(thickness))
-            borders[windowID] = border
+            border.show(windowID: target.windowID, colorHex: color, thickness: CGFloat(thickness))
+            borders[target.windowID] = border
         }
         if UserDefaults.standard.bool(forKey: DefaultsKey.alwaysOnTopPlaySound) {
             (NSSound(named: "Tink") ?? NSSound(named: "Funk"))?.play()
@@ -67,11 +66,34 @@ final class AlwaysOnTopService: ObservableObject {
     }
 
     func unpinAll() {
-        for pin in map.unpinAll() {
-            _ = pinning.unpin(pin.windowID, originalLevel: pin.originalLevel)
-            dropBorder(pin.windowID)
-            unwatch(windowID: pin.windowID, pid: pin.pid)
+        for pin in pinnedWindows.unpinAll() {
+            release(pin)
         }
+    }
+
+    func stop() {
+        unpinAll()
+        unregisterHotkey()
+        if let terminateObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(terminateObserver)
+            self.terminateObserver = nil
+        }
+        if let defaultsObserver {
+            NotificationCenter.default.removeObserver(defaultsObserver)
+            self.defaultsObserver = nil
+        }
+        isRunning = false
+    }
+
+    func addException(_ bundleID: String) {
+        let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bundleID.isEmpty, !exceptions.contains(bundleID) else { return }
+        persistExceptions(exceptions + [bundleID])
+        unpinExcluded()
+    }
+
+    func removeException(_ bundleID: String) {
+        persistExceptions(exceptions.filter { $0 != bundleID })
     }
 
     func handleAX(element: AXUIElement, notification: String) {
@@ -110,28 +132,19 @@ final class AlwaysOnTopService: ObservableObject {
                 self?.unpinExcluded()
             }
         }
+        reloadExceptions()
         isRunning = true
     }
 
-    private func stop() {
-        unpinAll()
-        unregisterHotkey()
-        if let terminateObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(terminateObserver)
-            self.terminateObserver = nil
-        }
-        if let defaultsObserver {
-            NotificationCenter.default.removeObserver(defaultsObserver)
-            self.defaultsObserver = nil
-        }
-        isRunning = false
+    private func unpin(_ windowID: CGWindowID) {
+        guard let pin = pinnedWindows.unpin(windowID) else { return }
+        release(pin)
     }
 
-    private func unpin(_ windowID: CGWindowID) {
-        guard let pin = map.unpin(windowID) else { return }
-        _ = pinning.unpin(windowID, originalLevel: pin.originalLevel)
-        dropBorder(windowID)
-        unwatch(windowID: windowID, pid: pin.pid)
+    private func release(_ pin: AlwaysOnTopPin) {
+        _ = pinning.unpin(pin.windowID, originalLevel: pin.originalLevel)
+        dropBorder(pin.windowID)
+        unwatch(windowID: pin.windowID, pid: pin.pid)
     }
 
     private func dropBorder(_ windowID: CGWindowID) {
@@ -140,17 +153,15 @@ final class AlwaysOnTopService: ObservableObject {
     }
 
     private func handleAppTerminated(_ pid: pid_t) {
-        for pin in map.remove(pid: pid) {
-            _ = pinning.unpin(pin.windowID, originalLevel: pin.originalLevel)
-            dropBorder(pin.windowID)
-            unwatch(windowID: pin.windowID, pid: pid)
+        for pin in pinnedWindows.remove(pid: pid) {
+            release(pin)
         }
     }
 
     func unpinExcluded() {
-        let exceptions = UserDefaults.standard.stringArray(forKey: DefaultsKey.alwaysOnTopExcludedApps) ?? []
+        reloadExceptions()
         let gone = AlwaysOnTopSupport.windowIDsToUnpinAfterExclude(
-            pins: Array(map.pins.values),
+            pins: Array(pinnedWindows.pins.values),
             exceptions: exceptions,
             bundleIDForPID: { pid in
                 NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
@@ -179,15 +190,51 @@ final class AlwaysOnTopService: ObservableObject {
         return pid
     }
 
-    private func focusedAXWindow(pid: pid_t) -> AXUIElement? {
+    private func resolveFrontmostWindow() -> (windowID: CGWindowID, element: AXUIElement, pid: pid_t)? {
+        guard let pid = frontmostPID() else { return nil }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.35)
+        let focused = axWindow(app, kAXFocusedWindowAttribute)
+        let main = axWindow(app, kAXMainWindowAttribute)
+        let first = firstAXWindow(app)
+        let focusedID = focused.flatMap { AXWindowResolver.windowID(for: $0) }
+        let mainID = main.flatMap { AXWindowResolver.windowID(for: $0) }
+        let firstID = first.flatMap { AXWindowResolver.windowID(for: $0) }
+        guard let windowID = AlwaysOnTopSupport.preferredWindowID(focused: focusedID,
+                                                                  main: mainID,
+                                                                  first: firstID)
+        else { return nil }
+        let element = (focusedID == windowID ? focused : nil)
+            ?? (mainID == windowID ? main : nil)
+            ?? first
+        guard let element else { return nil }
+        return (windowID, element, pid)
+    }
+
+    private func axWindow(_ app: AXUIElement, _ attribute: String) -> AXUIElement? {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
+        guard AXUIElementCopyAttributeValue(app, attribute as CFString, &value) == .success,
               let value,
               CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
         return (value as! AXUIElement)
+    }
+
+    private func firstAXWindow(_ app: AXUIElement) -> AXUIElement? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement]
+        else { return nil }
+        return windows.first
+    }
+
+    private func reloadExceptions() {
+        exceptions = UserDefaults.standard.stringArray(forKey: DefaultsKey.alwaysOnTopExcludedApps) ?? []
+    }
+
+    private func persistExceptions(_ next: [String]) {
+        exceptions = next
+        UserDefaults.standard.set(next, forKey: DefaultsKey.alwaysOnTopExcludedApps)
     }
 
     private func watch(windowID: CGWindowID, pid: pid_t, element: AXUIElement) {
@@ -217,7 +264,7 @@ final class AlwaysOnTopService: ObservableObject {
             }
         }
         watchedWindows[windowID] = nil
-        if map.pins(for: pid).isEmpty, let observer = observers.removeValue(forKey: pid) {
+        if pinnedWindows.pins(for: pid).isEmpty, let observer = observers.removeValue(forKey: pid) {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
         }
     }

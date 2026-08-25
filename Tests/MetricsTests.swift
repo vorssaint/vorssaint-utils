@@ -11970,6 +11970,14 @@ struct MetricsTests {
             }
         )
         expect(gone == [1], "later excluding a pinned app unpins it")
+        expect(AlwaysOnTopSupport.preferredWindowID(focused: 1, main: 2, first: 3) == 1,
+               "focused window wins")
+        expect(AlwaysOnTopSupport.preferredWindowID(focused: nil, main: 2, first: 3) == 2,
+               "main window is the first fallback")
+        expect(AlwaysOnTopSupport.preferredWindowID(focused: nil, main: nil, first: 3) == 3,
+               "first window is the last fallback")
+        expect(AlwaysOnTopSupport.preferredWindowID(focused: nil, main: nil, first: nil) == nil,
+               "no window is a no-op")
 
         let missing = AlwaysOnTopPinning(client: AlwaysOnTopStubClient(isAvailable: false))
         expect(missing.pin(1) == nil, "missing private symbol is a no-op")

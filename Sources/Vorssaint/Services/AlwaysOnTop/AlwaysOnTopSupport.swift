@@ -62,4 +62,10 @@ enum AlwaysOnTopSupport {
                 ? pin.windowID : nil
         }
     }
+
+    static func preferredWindowID(focused: CGWindowID?,
+                                  main: CGWindowID?,
+                                  first: CGWindowID?) -> CGWindowID? {
+        focused ?? main ?? first
+    }
 }

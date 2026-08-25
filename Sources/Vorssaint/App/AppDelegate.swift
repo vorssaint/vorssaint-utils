@@ -232,6 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         URLCleanerService.shared.stop()
         FocusFollowsMouseService.shared.stop()
         WindowMaximizer.shared.stop()
+        AlwaysOnTopService.shared.stop()
         WindowLayoutService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
         TextSnippetService.shared.suspend()
