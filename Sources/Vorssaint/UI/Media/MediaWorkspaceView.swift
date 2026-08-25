@@ -152,15 +152,14 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             header
             toolPicker
-            if compact {
-                ScrollView {
-                    content
-                        .padding(.trailing, 1)
-                }
-                .frame(maxHeight: 430)
-            } else {
+            // The settings detail slot clips its page to the window height,
+            // so without a scroll view the action row is unreachable. Only
+            // the popover needs a cap.
+            ScrollView {
                 content
+                    .padding(.trailing, 1)
             }
+            .frame(maxHeight: compact ? 430 : CGFloat.infinity)
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
