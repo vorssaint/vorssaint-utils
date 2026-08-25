@@ -463,9 +463,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// the panel's window, because a window already flung to a corner can
     /// report a different display and would then be clamped against that one.
     private struct PanelAnchor {
+        /// The opening popover window's horizontal center, used while direct
+        /// frame correction is still responsible for placement.
         let midX: CGFloat
-        /// The screen-space x coordinate of the arrow tip. This differs from
-        /// midX when AppKit clamps a wide popover near a screen edge.
+        /// The opening arrow's screen-space tip, used once the popover hangs
+        /// from a stable positioning view. With a trustworthy status frame this
+        /// is the status button's center, while `midX` is the already-placed
+        /// window's center; AppKit's horizontal edge clamp can make them differ.
+        /// Fallback anchors know only one x coordinate and use it for both.
         let tipX: CGFloat
         let top: CGFloat
         let screen: NSScreen?
@@ -613,7 +618,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     /// Re-arms drift correction after AppKit re-shows the popover against our
     /// stable positioning view. Keeping the panel out of the ordinary teardown
-    /// prevents `popoverDidClose` from ordering out the new anchor mid-switch.
+    /// prevents `popoverDidClose` from closing the new anchor mid-switch.
     private func beginPopoverDriftCorrection(window: NSWindow,
                                              anchor: PanelAnchor,
                                              preserving positioningPanel: NSPanel) {
@@ -729,7 +734,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard popover.isShown,
               let popoverWindow = popover.contentViewController?.view.window else {
             endPopoverDriftCorrection()
-            panel.orderOut(nil)
+            panel.close()
             removePopoverDismissMonitor()
             popoverIsSwitchingAnchor = false
             MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
@@ -761,7 +766,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popoverDriftObservers.forEach { NotificationCenter.default.removeObserver($0) }
         popoverDriftObservers.removeAll()
         if popoverPositioningPanel !== positioningPanel {
-            popoverPositioningPanel?.orderOut(nil)
+            popoverPositioningPanel?.close()
         }
         popoverPositioningPanel = nil
         popoverAnchor = nil
