@@ -136,10 +136,36 @@ else
     SDK="$(xcrun --show-sdk-path)"
 fi
 SDK_COMPAT_FLAGS=()
+VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat)
 if [[ "$SDK" == "$PINNED_SDK" ]]; then
     # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
 fi
+
+# The defaults migrations under test need a real UserDefaults suite, and every
+# suite leaves an empty plist in ~/Library/Preferences. The tests already clear
+# the domains, but cfprefsd writes the emptied file back out around the time the
+# process that owned it exits, so only a caller that outlives the run can remove
+# them. `MetricsTests` keeps every suite name inside these two namespaces (a
+# check in the test file holds it to that), which is what makes this sweep
+# complete rather than a list to keep in step by hand.
+discard_test_preferences() {
+    local preferences="$HOME/Library/Preferences" name
+    for name in "vorss.tests." "com.vorssaint.tests."; do
+        find "$preferences" -maxdepth 1 -name "$name*.plist" -delete 2>/dev/null || true
+    done
+    # The harness has no bundle identifier, so `UserDefaults.standard` writes
+    # a file named after the executable.
+    rm -f "$preferences/metrics-tests.plist"
+    local survivors
+    survivors=$(find "$preferences" -maxdepth 1 \
+        \( -name "vorss.tests.*.plist" -o -name "com.vorssaint.tests.*.plist" \
+           -o -name "metrics-tests.plist" \) 2>/dev/null | wc -l | tr -d ' ')
+    if [[ "$survivors" != "0" ]]; then
+        echo "✗ the test run left $survivors preference file(s) in $preferences" >&2
+        return 1
+    fi
+}
 
 # --test: compile and run the standalone unit tests (pure helpers only: metrics,
 # Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
@@ -152,6 +178,7 @@ if (( TEST )); then
     # Unit assertions do not need optimization; avoiding it cuts most of the
     # test harness compile time without reducing the code the tests exercise.
     swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
@@ -276,6 +303,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift \
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift \
         Sources/Vorssaint/Services/Metrics/MetricFormat.swift \
+        Sources/Vorssaint/Services/Metrics/VMStatisticsDecoder.swift \
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
@@ -302,8 +330,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
-    ./build/metrics-tests
-    exit $?
+    # `set -e` would end the script on a failing run before the sweep below.
+    test_status=0
+    ./build/metrics-tests || test_status=$?
+    discard_test_preferences || test_status=1
+    exit $test_status
 fi
 
 echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
@@ -315,13 +346,14 @@ if (( DEV )); then
     write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -j "$(sysctl -n hw.logicalcpu)" \
         -output-file-map "$APP_OUTPUT_FILE_MAP" \
-        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
+        "${BUILD_VARIANT_FLAGS[@]}" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 else
     rm -rf build
     mkdir -p build
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
-        "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 fi
 

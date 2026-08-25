@@ -52,7 +52,7 @@
       <rdf:Description rdf:about="">
         <dc:title>Vorssaint logo (dark)</dc:title>
         <dc:creator>Division 7 Holding | MI-7 (@divisionseven)</dc:creator>
-        <dc:rights>Copyright © 2026 Vorssaint. This artwork is excluded from the GPL-3.0-or-later source-code license of the Vorssaint repository (https://github.com/vorssaint/vorssaint-utils) and is reserved brand material under the Vorssaint trademark notice: https://github.com/vorssaint/vorssaint-utils/blob/main/TRADEMARKS.md. It is not licensed under the GPL. Vector asset design by Division 7.</dc:rights>
+        <dc:rights>Copyright © 2026 Vorssaint. This artwork is excluded from the GPL-3.0-or-later source-code license of the Vorssaint repository (https://github.com/vorssaintapp/vorssaint-utils) and is reserved brand material under the Vorssaint trademark notice: https://github.com/vorssaintapp/vorssaint-utils/blob/main/TRADEMARKS.md. It is not licensed under the GPL. Vector asset design by Division 7.</dc:rights>
       </rdf:Description>
     </rdf:RDF>
   </metadata>

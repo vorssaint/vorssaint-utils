@@ -256,20 +256,17 @@ struct UninstallerView: View {
 
     // MARK: Done
 
-    private func doneState(freed: Int64, failed: Int) -> some View {
+    private func doneState(freed: Int64, failed: [AppUninstaller.Leftover]) -> some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: UninstallerSupport.doneSymbol(hasLeftovers: !failed.isEmpty))
                 .font(.system(size: 54))
-                .foregroundStyle(.green)
+                .foregroundStyle(failed.isEmpty ? .green : .orange)
             Text(l10n.s.uninstallerDoneTitle).font(.system(size: 20, weight: .bold))
             Text(String(format: l10n.s.uninstallerFreedFormat, Self.byteString(freed)))
                 .font(.system(size: 13)).foregroundStyle(.secondary)
-            if failed > 0 {
-                Text(l10n.s.uninstallerSomeFailed)
-                    .font(.caption).foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+            if !failed.isEmpty {
+                UninstallFailureNote(items: failed).frame(width: 360)
             }
             Button(l10n.s.uninstallerAnother) { uninstaller.reset() }
                 .controlSize(.large)

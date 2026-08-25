@@ -45,6 +45,7 @@ final class AppSwitcher: ObservableObject {
         didSet {
             guard oldValue != selectedIndex else { return }
             updateIconRowLayoutForCurrentSelection()
+            revealSelectedIconInVisibleRow()
             if sessionActive, usesIconRowLayout {
                 resizePanel()
             }
@@ -52,6 +53,9 @@ final class AppSwitcher: ObservableObject {
     }
     @Published private(set) var grid = SwitcherGrid.empty
     @Published private(set) var iconRowLayout = SwitcherIconRowLayout.empty
+    /// First icon currently shown in an overflow row. The row steps this
+    /// index by one when the pointer parks on the last visible icon.
+    @Published private(set) var iconRowFirstVisibleIndex = 0
     @Published private(set) var searchQuery = ""
     /// True once S pinned the search field open. While set, releasing the
     /// session's modifier no longer commits — search text can then be typed
@@ -109,6 +113,9 @@ final class AppSwitcher: ObservableObject {
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
     private var hoverAnchor: NSPoint?
+    /// Fires while the pointer stays on the last visible overflow icon.
+    private var iconRowEdgeHoverWork: DispatchWorkItem?
+    private var iconRowEdgeHoverIndex: Int?
 
     /// The on-screen window when the current session opened — becomes the
     /// second-most-recent window on commit, so a flick toggles straight back.
@@ -119,6 +126,12 @@ final class AppSwitcher: ObservableObject {
     private var sessionShortcut: GlobalShortcut?
     private var sessionScope: SwitcherSessionScope = .allApps
     private var shiftBackNavigationHeld = false
+    /// Pressing Shift mid-session already steps back once, so the Tab landing
+    /// in that same physical chord must not step again — but later Tabs during
+    /// the same Shift hold must keep walking the list (issue #784). The chord
+    /// is recognized by time: anything after this deadline is a deliberate
+    /// separate press.
+    private var shiftBackChordDeadline: TimeInterval = 0
 
     /// Windows already asked to close, still listed until they are really
     /// gone. Releasing the shortcut skips them, so they are never raised on
@@ -607,7 +620,7 @@ final class AppSwitcher: ObservableObject {
         let shortcut = sessionShortcut ?? appsShortcut
         switch keyCode {
         case _ where keyCode == shortcut.keyCode && shortcut.matches(event: event, allowingExtraShift: true):
-            if shortcut.shiftIsNavigationModifier, flags.contains(.maskShift), shiftBackNavigationHeld {
+            if shortcut.shiftIsNavigationModifier, flags.contains(.maskShift), consumesShiftBackChordTab() {
                 break
             }
             let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
@@ -622,7 +635,7 @@ final class AppSwitcher: ObservableObject {
                                     tolerating: shortcut.modifiers):
             // A window-scoped session keeps its list when the Apps shortcut is
             // pressed with overlapping modifiers instead of expanding to all apps.
-            if appsShortcut.shiftIsNavigationModifier, flags.contains(.maskShift), shiftBackNavigationHeld {
+            if appsShortcut.shiftIsNavigationModifier, flags.contains(.maskShift), consumesShiftBackChordTab() {
                 break
             }
             let delta = appsShortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
@@ -855,6 +868,16 @@ final class AppSwitcher: ObservableObject {
                                                                   isShiftHeld: shiftHeld)
         else { return false }
         advanceSelection(by: -1)
+        shiftBackChordDeadline = ProcessInfo.processInfo.systemUptime
+            + SwitcherSupport.shiftBackChordWindow
+        return true
+    }
+
+    /// True exactly once for the Tab that belongs to the Shift press that just
+    /// stepped back; consuming it keeps a Shift+Tab chord at one step.
+    private func consumesShiftBackChordTab() -> Bool {
+        guard ProcessInfo.processInfo.systemUptime < shiftBackChordDeadline else { return false }
+        shiftBackChordDeadline = 0
         return true
     }
 
@@ -937,6 +960,19 @@ final class AppSwitcher: ObservableObject {
         select(index: index)
     }
 
+    /// Icon-row hover. Selects the tile, then only the last visible overflow
+    /// icon may start the one-by-one slide.
+    func hoverSelectIconRow(index: Int) {
+        hoverSelect(index: index)
+        guard hoverAnchor == nil else { return }
+        beginIconRowEdgeHoverIfNeeded(at: index)
+    }
+
+    func hoverSelectIconRowEnded(index: Int) {
+        guard iconRowEdgeHoverIndex == iconRowIndex(forSelectionIndex: index) else { return }
+        cancelIconRowEdgeHover()
+    }
+
     private var selectedItemID: String? {
         guard windows.indices.contains(selectedIndex) else { return nil }
         return windows[selectedIndex].id
@@ -1014,6 +1050,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func advanceSelection(by delta: Int, wrapping: Bool = true) {
+        cancelIconRowEdgeHover()
         guard !windows.isEmpty else { return }
         if SwitcherSupport.usesAppGroupsForMainShortcut(
             iconRowLayout: usesIconRowLayout,
@@ -1029,6 +1066,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func advanceAppSelection(by delta: Int, wrapping: Bool = true) {
+        cancelIconRowEdgeHover()
         userNavigated = true
         selectedIndex = SwitcherSupport.nextAppSelectionIndex(items: windows,
                                                               selectedIndex: selectedIndex,
@@ -1239,12 +1277,15 @@ final class AppSwitcher: ObservableObject {
         isSearchPinned = false
         totalWindowCount = 0
         hoverAnchor = nil
+        cancelIconRowEdgeHover()
+        iconRowFirstVisibleIndex = 0
         userNavigated = false
         sessionStartWindowID = nil
         sessionSourceContext = nil
         sessionShortcut = nil
         sessionScope = .allApps
         shiftBackNavigationHeld = false
+        shiftBackChordDeadline = 0
         closingItemIDs = []
         commitPendingForClose = false
     }
@@ -1364,6 +1405,115 @@ final class AppSwitcher: ObservableObject {
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
         )
+        revealSelectedIconInVisibleRow()
+    }
+
+    private var iconRowItemCount: Int {
+        usesWindowRow ? windows.count : SwitcherSupport.appGroups(items: windows).count
+    }
+
+    private func iconRowIndex(forSelectionIndex selectionIndex: Int) -> Int? {
+        guard windows.indices.contains(selectionIndex) else { return nil }
+        if usesWindowRow { return selectionIndex }
+        let groups = SwitcherSupport.appGroups(items: windows)
+        return groups.firstIndex { $0.pid == windows[selectionIndex].pid }
+    }
+
+    private func selectionIndex(forIconRowIndex iconIndex: Int) -> Int? {
+        if usesWindowRow {
+            return windows.indices.contains(iconIndex) ? iconIndex : nil
+        }
+        let groups = SwitcherSupport.appGroups(items: windows)
+        return groups.indices.contains(iconIndex) ? groups[iconIndex].representativeIndex : nil
+    }
+
+    private func revealSelectedIconInVisibleRow() {
+        guard usesIconRowLayout,
+              let iconIndex = iconRowIndex(forSelectionIndex: selectedIndex)
+        else { return }
+        iconRowFirstVisibleIndex = SwitcherSupport.iconRowFirstVisibleIndex(
+            revealing: iconIndex,
+            itemCount: iconRowItemCount,
+            visibleCount: iconRowLayout.visibleIconCount,
+            currentFirstVisibleIndex: iconRowFirstVisibleIndex
+        )
+    }
+
+    private func beginIconRowEdgeHoverIfNeeded(at selectionIndex: Int) {
+        guard usesIconRowLayout,
+              let iconIndex = iconRowIndex(forSelectionIndex: selectionIndex),
+              SwitcherSupport.iconRowEdgeHoverDelta(
+                hoveredIndex: iconIndex,
+                firstVisibleIndex: iconRowFirstVisibleIndex,
+                visibleCount: iconRowLayout.visibleIconCount,
+                itemCount: iconRowItemCount
+              ) != nil
+        else {
+            cancelIconRowEdgeHover()
+            return
+        }
+        guard iconRowEdgeHoverIndex != iconIndex else { return }
+        cancelIconRowEdgeHover()
+        iconRowEdgeHoverIndex = iconIndex
+        let work = DispatchWorkItem { [weak self] in
+            self?.stepIconRowFromEdgeHover()
+        }
+        iconRowEdgeHoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + SwitcherSupport.iconRowEdgeHoverInterval,
+                                      execute: work)
+    }
+
+    private func stepIconRowFromEdgeHover() {
+        guard sessionActive, usesIconRowLayout,
+              let hovered = iconRowEdgeHoverIndex,
+              let delta = SwitcherSupport.iconRowEdgeHoverDelta(
+                hoveredIndex: hovered,
+                firstVisibleIndex: iconRowFirstVisibleIndex,
+                visibleCount: iconRowLayout.visibleIconCount,
+                itemCount: iconRowItemCount
+              )
+        else {
+            cancelIconRowEdgeHover()
+            return
+        }
+
+        let nextFirst = SwitcherSupport.clampedIconRowFirstVisibleIndex(
+            itemCount: iconRowItemCount,
+            visibleCount: iconRowLayout.visibleIconCount,
+            firstVisibleIndex: iconRowFirstVisibleIndex + delta
+        )
+        guard nextFirst != iconRowFirstVisibleIndex else {
+            cancelIconRowEdgeHover()
+            return
+        }
+
+        let nextIcon = SwitcherSupport.iconRowIndexAfterEdgeHoverStep(
+            firstVisibleIndex: nextFirst,
+            visibleCount: iconRowLayout.visibleIconCount,
+            itemCount: iconRowItemCount,
+            delta: delta
+        )
+        // Publish the new hover target first. Sliding the row fires a hover-end
+        // on the previous last icon, and that must not cancel this step.
+        iconRowEdgeHoverIndex = nextIcon
+        iconRowFirstVisibleIndex = nextFirst
+        if let nextSelection = selectionIndex(forIconRowIndex: nextIcon) {
+            userNavigated = true
+            selectedIndex = nextSelection
+        }
+
+        let work = DispatchWorkItem { [weak self] in
+            self?.stepIconRowFromEdgeHover()
+        }
+        iconRowEdgeHoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + SwitcherSupport.iconRowEdgeHoverRepeatInterval,
+                                      execute: work)
+    }
+
+    private func cancelIconRowEdgeHover() {
+        iconRowEdgeHoverWork?.cancel()
+        iconRowEdgeHoverWork = nil
+        iconRowEdgeHoverIndex = nil
     }
 
     private func selectedAppWindowCount(in items: [SwitcherItem]) -> Int {
@@ -1409,10 +1559,10 @@ struct SwitcherGrid: Equatable {
     let visibleRows: Int
     let panelSize: CGSize
 
-    // Base sizes and breathing room scale together, so making previews smaller
-    // also keeps the panel from spending that saved space on empty gaps.
-    static var cardWidth: CGFloat { 288 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 214 * PreviewSizing.scale }
+    // Breathing room scales with the cards, so making previews smaller also
+    // keeps the panel from spending that saved space on empty gaps.
+    static var cardWidth: CGFloat { SwitcherGridCard.width }
+    static var cardHeight: CGFloat { SwitcherGridCard.height }
     static var spacing: CGFloat { 12 * PreviewSizing.scale }
     static var padding: CGFloat { 20 * PreviewSizing.scale }
 

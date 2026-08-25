@@ -1415,9 +1415,9 @@ enum ScreenshotSupport {
     }
 
     /// A stable square of source pixels for the crop loupe. Near an image
-    /// edge the sample slides inward instead of shrinking, while the loupe's
-    /// crosshair still points at the exact adjusted pixel.
-    static let captureLoupeBaseSampleSide: CGFloat = 12
+    /// edge the sample slides inward instead of shrinking, and the loupe's
+    /// reticle still marks the exact adjusted pixel.
+    static let captureLoupeBaseSampleSide: CGFloat = 13
     static let captureLoupeMinZoom: CGFloat = 0.5
     static let captureLoupeMaxZoom: CGFloat = 4
 
@@ -1434,14 +1434,58 @@ enum ScreenshotSupport {
         return captureLoupeBaseSampleSide / clamped
     }
 
+    /// The square of source pixels a loupe magnifies. The two loupes centre on
+    /// different things and therefore need opposite parities.
+    ///
+    /// The capture loupe reads a color, so it centres on a whole *pixel*
+    /// (`centredOnPixel`): the side is forced odd because an even one has no
+    /// middle cell, which left the sampled pixel half a cell right of and below
+    /// the frame's centre, and the ring drawn around it followed. Centring on
+    /// the floored coordinate keeps the pointer's sub-pixel position out of it.
+    ///
+    /// The editor's crop loupe marks a crop *edge*, which runs between pixels.
+    /// An edge lands in the middle of the frame only when the side is even, so
+    /// that caller passes `centredOnPixel: false` and the side is forced even.
     static func cropLoupeSampleRect(around point: CGPoint,
                                     imageSize: CGSize,
-                                    sideLength: CGFloat = 14) -> CGRect {
-        let width = min(max(1, floor(sideLength)), max(1, floor(imageSize.width)))
-        let height = min(max(1, floor(sideLength)), max(1, floor(imageSize.height)))
-        let x = min(max(floor(point.x - width / 2), 0), max(0, floor(imageSize.width) - width))
-        let y = min(max(floor(point.y - height / 2), 0), max(0, floor(imageSize.height) - height))
-        return CGRect(x: x, y: y, width: width, height: height)
+                                    sideLength: CGFloat = 13,
+                                    centredOnPixel: Bool = true) -> CGRect {
+        let imageWidth = max(1, floor(imageSize.width))
+        let imageHeight = max(1, floor(imageSize.height))
+        var side = max(1, floor(sideLength))
+        let isEven = side.truncatingRemainder(dividingBy: 2) == 0
+        if centredOnPixel, isEven {
+            side = max(1, side - 1)
+        } else if !centredOnPixel, !isEven {
+            side += 1
+        }
+        let width = min(side, imageWidth)
+        let height = min(side, imageHeight)
+        let x = centredOnPixel ? floor(point.x) - floor(width / 2) : floor(point.x - width / 2)
+        let y = centredOnPixel ? floor(point.y) - floor(height / 2) : floor(point.y - height / 2)
+        return CGRect(x: min(max(x, 0), imageWidth - width),
+                      y: min(max(y, 0), imageHeight - height),
+                      width: width,
+                      height: height)
+    }
+
+    /// Where the one source pixel under `point` lands inside a loupe frame.
+    /// It floors the coordinate exactly like the color read does, so a
+    /// highlight built from this rect can never mark a neighbour of the pixel
+    /// that gets copied, and the pointer's sub-pixel position stops leaking
+    /// into the drawing.
+    static func captureLoupeTargetPixelRect(around point: CGPoint,
+                                            source: CGRect,
+                                            frame: CGRect) -> CGRect {
+        guard source.width >= 1, source.height >= 1 else { return frame }
+        let column = min(max(floor(point.x), source.minX), source.maxX - 1)
+        let row = min(max(floor(point.y), source.minY), source.maxY - 1)
+        let width = frame.width / source.width
+        let height = frame.height / source.height
+        return CGRect(x: frame.minX + (column - source.minX) * width,
+                      y: frame.minY + (row - source.minY) * height,
+                      width: width,
+                      height: height)
     }
 
     // MARK: - Shape geometry
