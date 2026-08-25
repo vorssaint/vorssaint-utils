@@ -9812,6 +9812,40 @@ struct MetricsTests {
                 && Date().timeIntervalSince(timeoutStarted) < 1.5,
                "a stalled subprocess is terminated inside its deadline")
 
+        // Reproduces the freeze in issue #971 from the other side: the app's
+        // own abandoned waits had filled the shared dispatch pool, so nothing
+        // submitted to it ran any more. A runner that waits on a pool thread
+        // reports a timeout here for a command that exits instantly, and parks
+        // one more worker doing it. Waiting on the child itself is immune, so
+        // the pool the runner starved can no longer starve the runner.
+        let poolGate = DispatchSemaphore(value: 0)
+        let poolOccupied = DispatchSemaphore(value: 0)
+        // The dispatch pool's soft limit is 64 threads blocked in synchronous
+        // work; one block per thread takes every one of them.
+        for _ in 0..<64 {
+            DispatchQueue.global(qos: .utility).async {
+                poolOccupied.signal()
+                poolGate.wait()
+            }
+        }
+        var occupiedWorkers = 0
+        for _ in 0..<64 where poolOccupied.wait(timeout: .now() + 5) == .success { occupiedWorkers += 1 }
+        let starvedProbe = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async { starvedProbe.signal() }
+        let poolIsStarved = starvedProbe.wait(timeout: .now() + 0.5) == .timedOut
+        let starvedStarted = Date()
+        let starvedPoolProcess = BoundedProcessRunner.run(
+            "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
+        let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
+        for _ in 0..<64 { poolGate.signal() }
+        _ = starvedProbe.wait(timeout: .now() + 5)
+        expect(occupiedWorkers == 64 && poolIsStarved,
+               "the dispatch pool starvation this check needs was actually reached")
+        expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
+                && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
+                && starvedPoolElapsed < 0.5,
+               "a subprocess is watched off the dispatch pool, so a starved pool cannot strand it")
+
         var networkDelta = NetworkProcessDeltaTracker(maxGap: 10)
         let baselineNetwork = [
             NetworkProcessSample(pid: 10, name: "Browser", bytesIn: 1_000, bytesOut: 500),
@@ -13337,6 +13371,29 @@ struct MetricsTests {
         }
         expect(unpinnedBorderlessMenus.isEmpty,
                "every borderless menu keeps its own size: \(unpinnedBorderlessMenus)")
+
+        // `waitUntilAllOperationsAreFinished` has no deadline, and the window
+        // walk that used it runs on the main thread while its operations run on
+        // the shared dispatch pool. Once unrelated work had taken every worker
+        // in that pool, not one operation started and the wait never returned,
+        // taking the whole app with it (issue #971). The call is unusable here
+        // for that reason, so the rule is the absence of it rather than the one
+        // caller that was found holding it.
+        var unboundedOperationWaits: [String] = []
+        let appSources = FileManager.default
+            .enumerator(atPath: "Sources/Vorssaint")?
+            .compactMap { $0 as? String }
+            .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
+        for file in appSources.sorted() {
+            guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
+                                           encoding: .utf8) else { continue }
+            for (index, line) in source.components(separatedBy: "\n").enumerated()
+            where line.contains("waitUntilAllOperationsAreFinished") {
+                unboundedOperationWaits.append("\(file):\(index + 1)")
+            }
+        }
+        expect(!appSources.isEmpty && unboundedOperationWaits.isEmpty,
+               "no operation queue is waited on without a deadline: \(unboundedOperationWaits)")
         expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
