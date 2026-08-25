@@ -12507,9 +12507,17 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
-        // A segmented control never lays out narrower than the labels it
-        // holds, so the row of capture tools has to scroll rather than ask
-        // the settings window for width it does not have (issue #757).
+        // A segmented control answers an offer narrower than its labels with
+        // its own minimum, and paints outside the row it was given
+        // (issue #757). The row of capture tools takes the offer instead.
+        expect(ScreenshotSupport.toolTabsWidth(offered: 300, natural: 640) == 300,
+               "a narrow settings column gets a row of capture tools that fits it")
+        expect(ScreenshotSupport.toolTabsWidth(offered: 900, natural: 640) == 640,
+               "a wide settings column leaves the tabs at their own width")
+        expect(ScreenshotSupport.toolTabsWidth(offered: nil, natural: 640) == 640,
+               "an unspecified width leaves the tabs at their own width")
+        expect(ScreenshotSupport.toolTabsWidth(offered: .infinity, natural: 640) == 640,
+               "an unbounded width leaves the tabs at their own width")
         let screenCaptureSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
             encoding: .utf8)) ?? ""
@@ -12517,14 +12525,9 @@ struct MetricsTests {
             .components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        let toolPickerBody = (screenCaptureCode
-            .components(separatedBy: "private var toolPicker: some View {").last ?? "")
-            .components(separatedBy: "\n    private ").first ?? ""
-        expect(toolPickerBody.contains("ScrollView(.horizontal)")
-                && toolPickerBody.contains("pickerStyle(.segmented)"),
-               "the row of capture tools scrolls instead of widening the settings window")
-        expect(toolPickerBody.contains("containerRelativeFrame(.horizontal)"),
-               "the row of capture tools still fills the width the window gives it")
+        expect(screenCaptureCode.contains("NSSegmentedControl")
+                && screenCaptureCode.contains("ScreenshotSupport.toolTabsWidth("),
+               "the row of capture tools answers with the width it is offered")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])

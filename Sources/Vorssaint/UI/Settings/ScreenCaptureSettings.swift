@@ -69,25 +69,10 @@ struct ScreenCaptureSettings: View {
         }
     }
 
-    /// A segmented control never lays out narrower than the labels it holds,
-    /// so four tool names asked for more room than a settings window at its
-    /// minimum width has, and both columns spilled past the window edges
-    /// (issue #757). Scrolling the row keeps the width the control already
-    /// had wherever it fits, and absorbs the overflow where it does not.
     private var toolPicker: some View {
-        ScrollView(.horizontal) {
-            Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                ForEach(availableTools, id: \.self) { tool in
-                    Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                          systemImage: tool.systemImageName)
-                        .tag(tool)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .controlSize(.large)
-            .containerRelativeFrame(.horizontal)
-        }
+        CaptureToolTabs(tools: availableTools,
+                        title: { $0.settingsTitle(l10n.s, language: l10n.language) },
+                        selection: toolSelection)
     }
 
     private var toolSelection: Binding<ScreenCaptureTool> {
@@ -228,5 +213,66 @@ private struct ColorCaptureSettings: View {
             Text(l10n.s.colorPickerName)
         }
         .settingsSectionAnchor(.colorPicker)
+    }
+}
+
+/// SwiftUI's segmented `Picker` never lays out narrower than the labels it
+/// holds: below that width it keeps its own and paints outside the row it
+/// was given, over the sidebar on one side and off the window on the other
+/// (issue #757). `NSSegmentedControl` truncates its labels the way the rest
+/// of the system does, so the row fits any column and every tool stays on it.
+private struct CaptureToolTabs: NSViewRepresentable {
+    let tools: [ScreenCaptureTool]
+    let title: (ScreenCaptureTool) -> String
+    let selection: Binding<ScreenCaptureTool>
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = NSSegmentedControl()
+        control.controlSize = .large
+        control.trackingMode = .selectOne
+        // Equal segments are what the SwiftUI picker drew, to the pixel.
+        control.segmentDistribution = .fillEqually
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.pick(_:))
+        return control
+    }
+
+    func updateNSView(_ control: NSSegmentedControl, context: Context) {
+        context.coordinator.tools = tools
+        context.coordinator.selection = selection
+        if control.segmentCount != tools.count {
+            control.segmentCount = tools.count
+        }
+        for (index, tool) in tools.enumerated() {
+            let label = title(tool)
+            guard control.label(forSegment: index) != label else { continue }
+            control.setLabel(label, forSegment: index)
+            // The full name for a segment narrow enough to be truncated.
+            control.setToolTip(label, forSegment: index)
+        }
+        control.selectedSegment = tools.firstIndex(of: selection.wrappedValue) ?? 0
+    }
+
+    /// Taking the width on offer is the whole point: the control's own
+    /// minimum is what used to travel outwards. It still stops growing at
+    /// its natural width, which is where the picker stopped too.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl,
+                      context: Context) -> CGSize? {
+        let natural = nsView.intrinsicContentSize
+        return CGSize(width: ScreenshotSupport.toolTabsWidth(offered: proposal.width,
+                                                            natural: natural.width),
+                      height: natural.height)
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator: NSObject {
+        var tools: [ScreenCaptureTool] = []
+        var selection: Binding<ScreenCaptureTool>?
+
+        @objc func pick(_ sender: NSSegmentedControl) {
+            guard tools.indices.contains(sender.selectedSegment) else { return }
+            selection?.wrappedValue = tools[sender.selectedSegment]
+        }
     }
 }
