@@ -10245,16 +10245,25 @@ struct MetricsTests {
                 && DiskImageInstallerSupport.applicationsDomain(useUserApplications: true)
                 == .userDomainMask,
                "the disk image setting selects the system or user application domain")
+        expect(DiskImageInstallerSupport.collisionDomains(useUserApplications: false)
+                == [.localDomainMask]
+                && DiskImageInstallerSupport.collisionDomains(useUserApplications: true)
+                == [.localDomainMask, .userDomainMask],
+               "only the opt-in installer checks both application domains for collisions")
         let installerDestinations = DiskImageInstallerSupport.destinationURLs(
             for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
             applicationsURLs: [
                 URL(fileURLWithPath: "/Applications", isDirectory: true),
                 URL(fileURLWithPath: "/Users/test/Applications", isDirectory: true),
             ])
-        expect(installerDestinations.map(\.path) == [
+        expect(installerDestinations?.map(\.path) == [
             "/Applications/Example.app",
             "/Users/test/Applications/Example.app",
         ], "the already-installed guard covers both application directories")
+        expect(DiskImageInstallerSupport.destinationURLs(
+            for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
+            applicationsURLs: []) == nil,
+            "missing application-domain resolutions fail closed")
         expect(DiskImageInstallerSupport.destinationURL(
             for: URL(fileURLWithPath: "/Volumes/Installer/.Hidden.app"),
             applicationsURL: URL(fileURLWithPath: "/Applications", isDirectory: true)) == nil,

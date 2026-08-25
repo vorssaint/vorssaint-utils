@@ -34,8 +34,18 @@ enum DiskImageInstallerSupport {
         useUserApplications ? .userDomainMask : .localDomainMask
     }
 
-    static func destinationURLs(for appURL: URL, applicationsURLs: [URL]) -> [URL] {
-        applicationsURLs.compactMap { destinationURL(for: appURL, applicationsURL: $0) }
+    static func collisionDomains(
+        useUserApplications: Bool
+    ) -> [FileManager.SearchPathDomainMask] {
+        useUserApplications ? [.localDomainMask, .userDomainMask] : [.localDomainMask]
+    }
+
+    static func destinationURLs(for appURL: URL, applicationsURLs: [URL]) -> [URL]? {
+        guard !applicationsURLs.isEmpty else { return nil }
+        let destinations = applicationsURLs.compactMap {
+            destinationURL(for: appURL, applicationsURL: $0)
+        }
+        return destinations.count == applicationsURLs.count ? destinations : nil
     }
 
     static func destinationURL(for appURL: URL, applicationsURL: URL) -> URL? {
