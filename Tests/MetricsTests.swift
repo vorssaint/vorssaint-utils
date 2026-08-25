@@ -6871,6 +6871,28 @@ struct MetricsTests {
                                                                   availableHeight: 1200)
         expect(bogusSaved.width == 772 && bogusSaved.height == 838,
                "a saved size below the minimum falls back to the default")
+        let preferredSettingsFrame = CGRect(x: -50, y: 100, width: 1000, height: 700)
+        let overlappingPlacement = SettingsWindowSupport.panelPlacement(
+            preferredFrame: preferredSettingsFrame,
+            panelFrame: CGRect(x: 450, y: 500, width: 300, height: 300),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1200, height: 900))
+        expect(overlappingPlacement.closesPanel
+                && overlappingPlacement.frame == CGRect(x: 20, y: 100, width: 1000, height: 700),
+               "failed avoidance closes the panel and clamps the preferred settings frame")
+        let separatePlacement = SettingsWindowSupport.panelPlacement(
+            preferredFrame: CGRect(x: 600, y: 100, width: 800, height: 700),
+            panelFrame: CGRect(x: 1200, y: 500, width: 300, height: 300),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1600, height: 900))
+        expect(!separatePlacement.closesPanel
+                && separatePlacement.frame.maxX == 1172,
+               "successful avoidance keeps the panel beside settings")
+        let verticalPlacement = SettingsWindowSupport.panelPlacement(
+            preferredFrame: CGRect(x: 100, y: 400, width: 1000, height: 300),
+            panelFrame: CGRect(x: 450, y: 500, width: 300, height: 100),
+            visibleFrame: CGRect(x: 0, y: 0, width: 1200, height: 900))
+        expect(!verticalPlacement.closesPanel
+                && verticalPlacement.frame.maxY == 472,
+               "vertical avoidance moves settings below the panel with the standard gap")
 
         expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-copy"),
                "a copy failure retries through the admin prompt")
