@@ -1,6 +1,7 @@
 <!--
-Nothing here is required, and a one-line fix needs only the first section.
-The shortest description ever merged here was five lines.
+Only the issue reference at the bottom is required. A one-line fix needs
+nothing else beyond the first section, and the shortest description ever
+merged here was five lines.
 
 Size is what decides how long this waits. The median merged pull request is
 +110 lines and lands within a day. Nothing under +200 lines is stuck right
@@ -43,7 +44,19 @@ translation is a failed build, not a missing string.
 
 ## Anything else
 
-`Refs #123` for a related issue, rather than `Closes` — the reporter confirms
-the fix. If the issue carries more than one report and this covers only one,
-say which, here and on the issue when this merges. `Depends on #123` if it
-has to land after another branch.
+**If an issue exists for this, reference it, written exactly as `Refs #N`.**
+Not `Closes`/`Fixes`, which closes the report on merge when the fix has not
+reached anyone's Mac yet, and not a bare `#N` or a sentence about it. That
+line is what the fix-status bot reads when this merges: it labels the issue,
+comments again when a release carries the fix, and closes the issue after two
+weeks of silence. A pull request that leaves it out drops the report out of
+that track, and nobody notices until the reporter asks months later.
+
+Several issues means several references, each on its own line and each
+starting with its own `Refs`. The bot reads the word and the number as a pair,
+so `Refs #N, #M` reaches the first number and leaves the second one
+sitting there.
+
+If the issue carries more than one report and this covers only one, say which,
+here and on the issue when this merges. `Depends on #N` if it has to land
+after another branch.

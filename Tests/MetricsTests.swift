@@ -2863,6 +2863,33 @@ struct MetricsTests {
                                                                   showsCountdown: true,
                                                                   hasEndDate: false),
                "idle, hidden and indefinite Keep Awake titles need no timer")
+        let statusPlacementSuite = "com.vorssaint.tests.statusItemPlacement"
+        if let statusDefaults = UserDefaults(suiteName: statusPlacementSuite) {
+            statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
+            expect(StatusItemPlacementSupport.placementGeneration(in: statusDefaults) == 0,
+                   "initial placement generation is 0")
+            expect(StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults) == "VorssaintMenuBarItem",
+                   "generation 0 uses base autosave name")
+
+            let legacyKey = "NSStatusItem Preferred Position VorssaintMenuBarItem"
+            statusDefaults.set(64.0, forKey: legacyKey)
+            StatusItemPlacementSupport.sanitizeStalePlacement(in: statusDefaults)
+            expect(statusDefaults.object(forKey: legacyKey) == nil,
+                   "sanitizeStalePlacement removes the buggy 64.0 system-colliding offset")
+
+            statusDefaults.set(320.5, forKey: legacyKey)
+            StatusItemPlacementSupport.sanitizeStalePlacement(in: statusDefaults)
+            expect(statusDefaults.double(forKey: legacyKey) == 320.5,
+                   "sanitizeStalePlacement preserves legitimate user-arranged coordinates")
+
+            StatusItemPlacementSupport.bumpPlacementGeneration(in: statusDefaults)
+            let gen1Name = StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults)
+            expect(gen1Name == "VorssaintMenuBarItem.1",
+                   "bumped generation produces numbered autosave name")
+            expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.1") == nil,
+                   "bumpPlacementGeneration does not seed any hardcoded preferred position")
+            statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
+        }
         expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,
                "panel auto quit control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlShelf] as? Bool == true,
@@ -3897,6 +3924,27 @@ struct MetricsTests {
                                                             visibleSpaces: nil,
                                                             hasTitle: true),
                "without Spaces to compare, the old cautious rule stands")
+
+        // Attaching to a watched app must never ask its application element for
+        // a role. A Chromium app (Electron, and the browsers) answers that by
+        // switching its renderers into full accessibility mode, and then pays
+        // to rebuild and ship an accessibility tree on every DOM change for the
+        // rest of its life — measured on an idle app that this feature only
+        // ever needed a window count from (issue #953). Windows are the same
+        // liveness signal and leave that mode alone. Comments are stripped
+        // first: the note above the probe names the attribute it avoids, and a
+        // check that cannot tell prose from a call would go red for it.
+        let autoQuitServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/AutoQuit/AutoQuitService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(autoQuitServiceCode.contains(
+                   "AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windows) == .cannotComplete"),
+               "AutoQuit probes a watched app for liveness by asking for its windows")
+        expect(!autoQuitServiceCode.contains("appElement, kAXRoleAttribute"),
+               "AutoQuit never asks a watched app's application element for its role")
         expect(Defaults.sanitizedPanelItemOrder("uninstaller,homebrew,homebrew,bad",
                                                 defaultOrder: ["homebrew", "media", "uninstaller", "cleanURL", "cleaning"])
                == ["uninstaller", "homebrew", "media", "cleanURL", "cleaning"],
@@ -9882,6 +9930,40 @@ struct MetricsTests {
                 && Date().timeIntervalSince(timeoutStarted) < 1.5,
                "a stalled subprocess is terminated inside its deadline")
 
+        // Reproduces the freeze in issue #971 from the other side: the app's
+        // own abandoned waits had filled the shared dispatch pool, so nothing
+        // submitted to it ran any more. A runner that waits on a pool thread
+        // reports a timeout here for a command that exits instantly, and parks
+        // one more worker doing it. Waiting on the child itself is immune, so
+        // the pool the runner starved can no longer starve the runner.
+        let poolGate = DispatchSemaphore(value: 0)
+        let poolOccupied = DispatchSemaphore(value: 0)
+        // The dispatch pool's soft limit is 64 threads blocked in synchronous
+        // work; one block per thread takes every one of them.
+        for _ in 0..<64 {
+            DispatchQueue.global(qos: .utility).async {
+                poolOccupied.signal()
+                poolGate.wait()
+            }
+        }
+        var occupiedWorkers = 0
+        for _ in 0..<64 where poolOccupied.wait(timeout: .now() + 5) == .success { occupiedWorkers += 1 }
+        let starvedProbe = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .utility).async { starvedProbe.signal() }
+        let poolIsStarved = starvedProbe.wait(timeout: .now() + 0.5) == .timedOut
+        let starvedStarted = Date()
+        let starvedPoolProcess = BoundedProcessRunner.run(
+            "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
+        let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
+        for _ in 0..<64 { poolGate.signal() }
+        _ = starvedProbe.wait(timeout: .now() + 5)
+        expect(occupiedWorkers == 64 && poolIsStarved,
+               "the dispatch pool starvation this check needs was actually reached")
+        expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
+                && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
+                && starvedPoolElapsed < 0.5,
+               "a subprocess is watched off the dispatch pool, so a starved pool cannot strand it")
+
         var networkDelta = NetworkProcessDeltaTracker(maxGap: 10)
         let baselineNetwork = [
             NetworkProcessSample(pid: 10, name: "Browser", bytesIn: 1_000, bytesOut: 500),
@@ -11478,6 +11560,27 @@ struct MetricsTests {
         expect(!lockedRegions.isEmpty
                && lockedRegions.allSatisfy { !$0.contains("SwitchedOff(") },
                "the list of displays switched off is never written while stateLock is held")
+
+        // The same transaction relays its screen change to AppKit inline, and
+        // switching off the display the panel is on makes AppKit lay that panel
+        // out again right there: the power button's body is evaluated while
+        // this app holds the display server busy, so anything it asks the
+        // display server is a question the same thread is still answering, and
+        // the app freezes with nothing left that can end it (issue #969). The
+        // body decides from the published snapshot instead, and the live
+        // reading stays where it guards the switch itself. Comments are
+        // stripped first: a note naming what it bans is not a call.
+        let canToggleCode = ((brightnessSource
+            .components(separatedBy: "func canToggleDisplay(").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!canToggleCode.isEmpty
+               && canToggleCode.contains("drawableDisplays")
+               && !canToggleCode.contains("Self.drawableDisplayIDs(")
+               && !canToggleCode.contains("stateLock"),
+               "the panel reads whether a display can be switched off without asking the display server")
 
         expect(BrightnessSupport.ddcCommandDelay(nowMicroseconds: 1_000_000,
                                                  lastCommandEndMicroseconds: nil) == 0,
@@ -13406,6 +13509,29 @@ struct MetricsTests {
         }
         expect(unpinnedBorderlessMenus.isEmpty,
                "every borderless menu keeps its own size: \(unpinnedBorderlessMenus)")
+
+        // `waitUntilAllOperationsAreFinished` has no deadline, and the window
+        // walk that used it runs on the main thread while its operations run on
+        // the shared dispatch pool. Once unrelated work had taken every worker
+        // in that pool, not one operation started and the wait never returned,
+        // taking the whole app with it (issue #971). The call is unusable here
+        // for that reason, so the rule is the absence of it rather than the one
+        // caller that was found holding it.
+        var unboundedOperationWaits: [String] = []
+        let appSources = FileManager.default
+            .enumerator(atPath: "Sources/Vorssaint")?
+            .compactMap { $0 as? String }
+            .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
+        for file in appSources.sorted() {
+            guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
+                                           encoding: .utf8) else { continue }
+            for (index, line) in source.components(separatedBy: "\n").enumerated()
+            where line.contains("waitUntilAllOperationsAreFinished") {
+                unboundedOperationWaits.append("\(file):\(index + 1)")
+            }
+        }
+        expect(!appSources.isEmpty && unboundedOperationWaits.isEmpty,
+               "no operation queue is waited on without a deadline: \(unboundedOperationWaits)")
         expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
