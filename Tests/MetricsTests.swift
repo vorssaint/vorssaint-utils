@@ -9453,9 +9453,9 @@ struct MetricsTests {
                "Homebrew parser keeps the canonical name for a formula from a tap")
         expect(homebrewPackages.first(where: { $0.name == "sample-tool" })?.displayName == "Sample Tool",
                "Homebrew parser reads cask display name")
-        let tappedCask = homebrewPackages.first { $0.name == "example/tap/tapped-tool" }
+        let tappedCask = homebrewPackages.first { $0.name == "tapped-tool" }
         expect(tappedCask != nil,
-               "Homebrew parser identifies a cask from a tap by its full token")
+               "Homebrew parser identifies a cask from a tap by its short token")
         expect(tappedCask?.displayName == "Tapped Tool",
                "Homebrew parser keeps the human-readable name for a cask from a tap")
         let cleanCommandPackages = (try? HomebrewParser.parseInfoCommandOutput(homebrewJSON)) ?? []
@@ -9498,7 +9498,7 @@ struct MetricsTests {
               "pinned": true
             },
             {
-              "name": "example/tap/tapped-tool",
+              "name": "tapped-tool",
               "installed_versions": ["1.0.0"],
               "current_version": "2.0.0",
               "pinned": false
@@ -9515,10 +9515,10 @@ struct MetricsTests {
                "Homebrew outdated parser reads pinned status")
         expect(tappedFormula.flatMap { outdatedPackages[$0.id] }?.currentVersion == "2.0.0",
                "Homebrew installed and outdated data use the same ID for tapped formulae")
-        expect(tappedCask?.id == "cask:example/tap/tapped-tool",
-               "Homebrew installed cask data is identified by its full token")
+        expect(tappedCask?.id == "cask:tapped-tool",
+               "Homebrew installed cask data stays on the short token brew outdated reports")
         expect(tappedCask.flatMap { outdatedPackages[$0.id] }?.currentVersion == "2.0.0",
-               "Homebrew installed and outdated data use the same ID for tapped casks, so the update is found through it")
+               "Homebrew installed and outdated data use the same short-token ID for tapped casks")
         let noisyOutdatedOutput = """
         Warning: Homebrew updated metadata
         {"notice": "not outdated data"}
@@ -15163,8 +15163,8 @@ struct MetricsTests {
                 && parsedRecords[0].displayName == "Editor"
                 && parsedRecords[0].installedVersion == "1.129.0",
                "an installed package is traced to the final app name after a rename")
-        expect(parsedRecords.first { $0.token == "example/tap/tapped-tool" }?.displayName == "Tapped Tool",
-               "parseInstalledCaskRecords keeps the full token for a cask from a tap")
+        expect(parsedRecords.first { $0.token == "tapped-tool" }?.displayName == "Tapped Tool",
+               "parseInstalledCaskRecords keeps the short token brew outdated reports for a cask from a tap")
         expect(HomebrewParser.parseInstalledCaskRecords("garbage").isEmpty,
                "unreadable package output yields no records")
         let managedPackage = HomebrewOwnershipSupport.packageManagingApplication(
