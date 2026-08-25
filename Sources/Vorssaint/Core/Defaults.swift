@@ -1393,6 +1393,8 @@ enum Defaults {
     /// an install without that tool a saved combination would register
     /// nothing. Move it once onto the first available tool that has no
     /// shortcut of its own, so the combination keeps opening the chooser.
+    /// Availability is read from the passed defaults — the same key
+    /// `isAvailable` reads from the standard ones — to stay testable.
     static func migrateOrphanedCaptureShortcut(in defaults: UserDefaults) {
         guard !defaults.bool(forKey: DefaultsKey.orphanedCaptureShortcutMigrated) else {
             return
@@ -1401,9 +1403,10 @@ enum Defaults {
             defaults.set(true, forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
         }
         guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
-              !defaults.bool(forKey: AppFeature.screenshot.availabilityKey),
-              let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+              !defaults.bool(forKey: AppFeature.screenshot.availabilityKey)
         else { return }
+        let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+            ?? GlobalShortcut.screenshotDefault.storageValue
 
         let candidates: [(feature: AppFeature, enabled: String, shortcut: String)] = [
             (.screenRecorder, DefaultsKey.recorderShortcutEnabled, DefaultsKey.recorderShortcut),

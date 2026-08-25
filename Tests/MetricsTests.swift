@@ -1727,6 +1727,15 @@ struct MetricsTests {
                    && migrationDefaults.bool(
                         forKey: DefaultsKey.orphanedCaptureShortcutMigrated),
                    "a setup that kept the screenshot tool keeps its capture shortcut untouched")
+            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotShortcut)
+            migrationDefaults.set(false, forKey: AppFeature.screenshot.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.screenOCRShortcut)
+                        == GlobalShortcut.screenshotDefault.storageValue
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+                   "a never-customized capture combination moves as the default combination")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
