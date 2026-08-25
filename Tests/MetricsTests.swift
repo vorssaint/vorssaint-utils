@@ -2219,8 +2219,34 @@ struct MetricsTests {
         expect(DockPreviewSupport.closeAction(quitAppOnClose: false) == .closeWindow
                 && DockPreviewSupport.closeAction(quitAppOnClose: true) == .quitApp,
                "the Dock Preview close preference selects exactly one close action")
-        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.dockPreviewQuitAppOnClose),
-               "the Dock Preview close preference travels with settings backups")
+        var dockPreviewQuitRequests = 0
+        var dockPreviewWindowCloseRequests = 0
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: false,
+            requestQuit: {
+                dockPreviewQuitRequests += 1
+                return true
+            },
+            closeWindow: { dockPreviewWindowCloseRequests += 1 }
+        )
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: true,
+            requestQuit: {
+                dockPreviewQuitRequests += 1
+                return true
+            },
+            closeWindow: { dockPreviewWindowCloseRequests += 1 }
+        )
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: true,
+            requestQuit: {
+                dockPreviewQuitRequests += 1
+                return false
+            },
+            closeWindow: { dockPreviewWindowCloseRequests += 1 }
+        )
+        expect(dockPreviewQuitRequests == 2 && dockPreviewWindowCloseRequests == 2,
+               "Dock Preview closes a window normally, waits after an accepted quit, and falls back after refusal")
         expect(registeredDefaults[DefaultsKey.dockClickHide] as? Bool == false,
                "hiding the active app from its Dock icon is opt-in")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,

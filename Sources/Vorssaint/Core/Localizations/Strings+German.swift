@@ -225,7 +225,7 @@ extension Strings {
         dockPreviewOpenDelay: "Öffnungsverzögerung",
         dockPreviewOpenDelayCaption: "Wie lange der Zeiger auf einem Symbol ruhen muss, bevor sich das Panel öffnet.",
         dockPreviewQuitAppOnClose: "App mit der ×-Taste beenden",
-        dockPreviewQuitAppOnCloseCaption: "Wenn aktiviert, beendet × die gesamte App, statt nur dieses Fenster zu schließen.",
+        dockPreviewQuitAppOnCloseCaption: "In Dock Preview beendet × die gesamte App, statt nur dieses Fenster zu schließen.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
         dockClickMinimizeCaption: "Die Fenster der aktiven App werden beim Klick auf ihr Dock-Symbol im Dock abgelegt. Ein weiterer Klick holt sie zurück.",
         dockClickCycleWindows: "Klick aufs Dock-Symbol wechselt Fenster",

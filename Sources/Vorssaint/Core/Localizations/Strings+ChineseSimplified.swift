@@ -225,7 +225,7 @@ extension Strings {
         dockPreviewOpenDelay: "打开延迟",
         dockPreviewOpenDelayCaption: "指针停在图标上多久之后才打开面板。",
         dockPreviewQuitAppOnClose: "使用 × 按钮退出 App",
-        dockPreviewQuitAppOnCloseCaption: "启用后，× 会退出整个 App，而不只是关闭该窗口。",
+        dockPreviewQuitAppOnCloseCaption: "在 Dock Preview 中，× 会退出整个 App，而不只是关闭该窗口。",
         dockClickMinimize: "点按 Dock 图标最小化",
         dockClickMinimizeCaption: "点按最前面 App 的 Dock 图标可将其窗口最小化。再次点按即可恢复。",
         dockClickCycleWindows: "点按 Dock 图标切换窗口",

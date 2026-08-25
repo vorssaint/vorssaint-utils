@@ -170,24 +170,21 @@ final class DockPreviewService: ObservableObject {
               let windowID = item.windowID
         else { return }
 
-        if DockPreviewSupport.closeAction(
-            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose)
-        ) == .quitApp {
-            if requestDockPreviewApplicationQuit(item) {
-                endSession()
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
+            requestQuit: { requestDockPreviewApplicationQuit(item) },
+            closeWindow: {
+                WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
+                    guard didClose, let self else { return }
+                    if self.selectedWindowID == windowID {
+                        self.selectedWindowID = nil
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                        self?.finishClosing(item, windowID: windowID, attempt: 0)
+                    }
+                }
             }
-            return
-        }
-
-        WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
-            guard didClose, let self else { return }
-            if self.selectedWindowID == windowID {
-                self.selectedWindowID = nil
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-                self?.finishClosing(item, windowID: windowID, attempt: 0)
-            }
-        }
+        )
     }
 
     func toggleMinimized(_ item: SwitcherItem) {
@@ -1301,21 +1298,18 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
               let windowID = item.windowID
         else { return }
 
-        if DockPreviewSupport.closeAction(
-            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose)
-        ) == .quitApp {
-            if requestDockPreviewApplicationQuit(item) {
-                closePreviewPanel()
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
+            requestQuit: { requestDockPreviewApplicationQuit(item) },
+            closeWindow: {
+                WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
+                    guard didClose else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
+                        self?.finishClosing(item, windowID: windowID, attempt: 0)
+                    }
+                }
             }
-            return
-        }
-
-        WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
-            guard didClose else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { [weak self] in
-                self?.finishClosing(item, windowID: windowID, attempt: 0)
-            }
-        }
+        )
     }
 
     func toggleMinimized(_ item: SwitcherItem) {

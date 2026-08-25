@@ -99,6 +99,16 @@ enum DockPreviewSupport {
         quitAppOnClose ? .quitApp : .closeWindow
     }
 
+    static func performCloseAction(quitAppOnClose: Bool,
+                                   requestQuit: () -> Bool,
+                                   closeWindow: () -> Void) {
+        if closeAction(quitAppOnClose: quitAppOnClose) == .quitApp,
+           requestQuit() {
+            return
+        }
+        closeWindow()
+    }
+
     /// How long the cursor must rest on an icon before its panel opens. Long
     /// enough that the Dock can be crossed on the way somewhere else, short
     /// enough that a cursor which stopped is answered. Adjustable: that line

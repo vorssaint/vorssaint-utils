@@ -226,7 +226,7 @@ extension Strings {
         dockPreviewOpenDelay: "열림 지연",
         dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
         dockPreviewQuitAppOnClose: "× 버튼으로 앱 종료",
-        dockPreviewQuitAppOnCloseCaption: "켜면 ×가 해당 윈도우만 닫는 대신 앱 전체를 종료합니다.",
+        dockPreviewQuitAppOnCloseCaption: "Dock Preview에서 ×는 해당 윈도우만 닫는 대신 앱 전체를 종료합니다.",
         dockClickMinimize: "Dock 클릭으로 최소화",
         dockClickMinimizeCaption: "앞에 있는 앱의 Dock 아이콘을 클릭하면 윈도우를 최소화합니다. 다시 클릭하면 복원됩니다.",
         dockClickCycleWindows: "Dock 클릭으로 윈도우 전환",
