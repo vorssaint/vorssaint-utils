@@ -310,7 +310,7 @@ enum CommandBarCatalog {
                 title: running ? recorder.stopButton : recorder.pageTitle,
                 subtitle: area(.screenRecorder, under: recorder.pageTitle),
                 icon: .symbol(running ? "stop.circle" : "record.circle"),
-                shortcut: roleShortcut(.screenshot),
+                shortcut: roleShortcut(.screenRecorder),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenRecorderService.shared.toggle() } }))
         }
@@ -333,7 +333,7 @@ enum CommandBarCatalog {
                 title: s.ocrName,
                 subtitle: area(.screenOCR, under: s.ocrName),
                 icon: .symbol("text.viewfinder"),
-                shortcut: roleShortcut(.screenshot),
+                shortcut: roleShortcut(.screenOCR),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenTextService.shared.capture() } }))
         }
@@ -343,7 +343,7 @@ enum CommandBarCatalog {
                 title: s.colorPickerName,
                 subtitle: area(.colorPicker, under: s.colorPickerName),
                 icon: .symbol("eyedropper"),
-                shortcut: roleShortcut(.screenshot),
+                shortcut: roleShortcut(.colorPicker),
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
