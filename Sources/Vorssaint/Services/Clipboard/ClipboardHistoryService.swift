@@ -641,16 +641,15 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func promoteImage(_ image: (data: Data, width: Int, height: Int)) {
         let hash = Self.sha256Hex(image.data)
-        let thumbnail = ClipboardImageRedeclare.thumbnail(of: image.data)
-        defer {
-            lastImageSignature = thumbnail.map {
-                ClipboardImageRedeclare.Signature(width: image.width,
-                                                  height: image.height,
-                                                  thumbnail: $0,
-                                                  capturedAt: Date(),
-                                                  entryID: entries.first { $0.kind == .image }?.id ?? UUID())
-            }
-        }
+        var thumbnail: [UInt8]?
+        // The id of the entry this capture was recorded into. Threaded from
+        // each insertion site instead of re-searching `entries` afterwards:
+        // the array is pinned-first, so a lookup like
+        // `entries.first { $0.kind == .image }` binds to a PINNED image when
+        // one exists and the next re-declare would fold into (and refresh)
+        // the wrong entry, silently dropping a real copy.
+        var recordedID: UUID?
+
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
             entries.removeAll { $0.id == existing.id }
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
@@ -662,35 +661,59 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageHash: hash,
                                                  imageWidth: existing.imageWidth,
                                                  imageHeight: existing.imageHeight))
-        } else if let thumbnail,
-                  let redeclaredID = ClipboardImageRedeclare.redeclaredEntryID(
-                      previous: lastImageSignature,
-                      width: image.width,
-                      height: image.height,
-                      thumbnail: thumbnail),
-                  let existing = entries.first(where: { $0.id == redeclaredID }) {
-            // The source app re-posted the same picture while resolving a
-            // promised flavor (Chromium image copies do this seconds after the
-            // copy, re-encoded to sRGB). Refresh the entry it already has
-            // instead of recording a twin.
-            entries.removeAll { $0.id == existing.id }
-            insertPromoted(ClipboardHistoryEntry(id: existing.id,
-                                                 text: "",
-                                                 copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt,
-                                                 kind: .image,
-                                                 imageFile: existing.imageFile,
-                                                 imageHash: existing.imageHash,
-                                                 imageWidth: existing.imageWidth,
-                                                 imageHeight: existing.imageHeight))
+            recordedID = existing.id
         } else {
-            guard let name = ClipboardImageStore.store(image.data) else { return }
-            insertPromoted(ClipboardHistoryEntry(text: "",
-                                                 kind: .image,
-                                                 imageFile: name,
-                                                 imageHash: hash,
-                                                 imageWidth: image.width,
-                                                 imageHeight: image.height))
+            thumbnail = ClipboardImageRedeclare.thumbnail(of: image.data)
+            if let thumbnail,
+               let redeclaredID = ClipboardImageRedeclare.redeclaredEntryID(
+                   previous: lastImageSignature,
+                   width: image.width,
+                   height: image.height,
+                   thumbnail: thumbnail),
+               let existing = entries.first(where: { $0.id == redeclaredID }) {
+                // The source app re-posted the same picture while resolving a
+                // promised flavor (Chromium image copies do this seconds after
+                // the copy, re-encoded to sRGB). Refresh the entry it already
+                // has instead of recording a twin.
+                entries.removeAll { $0.id == existing.id }
+                insertPromoted(ClipboardHistoryEntry(id: existing.id,
+                                                     text: "",
+                                                     copiedAt: Date(),
+                                                     pinnedAt: existing.pinnedAt,
+                                                     kind: .image,
+                                                     imageFile: existing.imageFile,
+                                                     imageHash: existing.imageHash,
+                                                     imageWidth: existing.imageWidth,
+                                                     imageHeight: existing.imageHeight))
+                recordedID = existing.id
+            } else if let name = ClipboardImageStore.store(image.data) {
+                let entry = ClipboardHistoryEntry(text: "",
+                                                  kind: .image,
+                                                  imageFile: name,
+                                                  imageHash: hash,
+                                                  imageWidth: image.width,
+                                                  imageHeight: image.height)
+                insertPromoted(entry)
+                recordedID = entry.id
+            }
+        }
+
+        guard let recordedID else {
+            // Nothing was recorded (image store failure). A signature must
+            // not survive pointing at a stale id, or the next capture inside
+            // the window would fold into an entry this capture never touched.
+            lastImageSignature = nil
+            return
+        }
+        if thumbnail == nil {
+            thumbnail = ClipboardImageRedeclare.thumbnail(of: image.data)
+        }
+        lastImageSignature = thumbnail.map {
+            ClipboardImageRedeclare.Signature(width: image.width,
+                                              height: image.height,
+                                              thumbnail: $0,
+                                              capturedAt: Date(),
+                                              entryID: recordedID)
         }
         normalizeEntryOrder()
         trimToLimit()

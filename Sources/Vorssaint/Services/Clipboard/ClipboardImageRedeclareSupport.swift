@@ -60,8 +60,18 @@ enum ClipboardImageRedeclare {
     }
 
     static func thumbnail(of data: Data) -> [UInt8]? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        // Ask ImageIO for a decode bounded at the comparison size instead of
+        // decoding the full bitmap: this runs on the main queue for every
+        // image copy, and a full decode of a 6K screenshot there is real,
+        // visible latency. ImageIO subsamples during decode, so the cost
+        // scales with the thumbnail, not the source.
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceThumbnailMaxPixelSize: thumbnailSide,
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
         else { return nil }
         return thumbnail(of: image)
     }
