@@ -14249,9 +14249,12 @@ struct MetricsTests {
         let superKeySettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/SuperKeySettings.swift",
             encoding: .utf8)) ?? ""
-        expect(superKeySettingsSource.contains("superKey.mappingFailure")
+        let failureMark = superKeySettingsSource.range(of: "superKey.mappingFailure")
+        let runningMark = superKeySettingsSource.range(of: "superKey.isRunning")
+        expect(failureMark != nil && runningMark != nil
+                && failureMark!.lowerBound < runningMark!.lowerBound
                 && superKeySettingsSource.contains("text.mappingFailure(failure)"),
-               "the Super key page names the reason its mapping was refused")
+               "the Super key page names a refused mapping ahead of the working state")
 
         var superKeyState = SuperKeySupport.State()
         expect(superKeyState.decide(.otherKey) == .pass,

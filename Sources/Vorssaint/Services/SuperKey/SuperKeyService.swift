@@ -392,13 +392,17 @@ final class SuperKeyService: ObservableObject {
             guard active else { return }
             guard let failure else {
                 self.setMappingFailure(nil)
-                if publishingRunState { self.finishStart() }
+                if publishingRunState || !self.isRunning { self.finishStart() }
                 return
             }
-            // A repair that fails leaves the key dead without touching the
-            // tap, so the reason is published either way. stop() clears it,
-            // which is why the reason is set after it and not before.
-            if publishingRunState { self.stop() }
+            // A repair that fails leaves the tap up so the next keystroke can
+            // try again. The key is not working, so isRunning goes false and
+            // the page can show the reason. stop() would clear that reason.
+            if publishingRunState {
+                self.stop()
+            } else {
+                self.isRunning = false
+            }
             self.setMappingFailure(failure)
         }
     }
