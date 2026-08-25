@@ -68,6 +68,9 @@ A few conventions to keep in mind.
   the Command Line Tools.
 - Comments explain *why*, not *what*. Keep them rare and useful.
 - No new dependencies without talking it over first in an issue.
+- Working with an agent? [Contributing with an
+  agent](docs/AI-CONTRIBUTIONS.md) is the process that gets that work merged
+  here, and it is written to be read by the agent as much as by you.
 
 ## Strings and translations
 
@@ -118,6 +121,63 @@ For general help and every support channel, see [support](SUPPORT.md).
 3. New user facing text must land in **every** supported language, since the
    build will not compile until it does.
 4. Match the style of the file you are editing.
+5. Keep it small. Half of the open pull requests over a thousand added lines
+   have been waiting a week or more; nothing under two hundred is waiting at
+   all. When a change is large, splitting it moves it faster than explaining
+   it does.
+6. Settle the direction before writing the code. Scope is the most common
+   reason a pull request is turned down here, and an issue costs far less
+   than a branch. Four things decide it: what the feature is built on and
+   whether that will still be here, what it exposes the project to, what it
+   drags in as a runtime dependency and who then carries it when that breaks,
+   and how much permanent surface it adds against how many people will ever
+   switch it on. Vorssaint reaches for what macOS almost does; it does not
+   grow a subsystem of its own. Intel support, hardcoded integrations with
+   particular third-party apps, a plugin system and video downloading have all
+   been declined already, and [contributing with an
+   agent](docs/AI-CONTRIBUTIONS.md) works the four through with the cases they
+   came from.
+7. Title it `type(scope): lowercase imperative phrase`, and do not add the PR
+   number yourself, since squash merge appends it. Reuse a scope that already
+   shows up in `git log --oneline` rather than inventing one, and leave the
+   version and environment notes for the description.
+8. Leave `CHANGELOG.md` alone. The maintainer writes the entry when merging,
+   in the release notes voice and with your credit, so an entry in your branch
+   is a conflict with every sibling PR and a wording that gets rewritten
+   anyway. Say in the description what a user would notice; the entry is
+   written from that.
+9. Link the issue with `Refs #123` rather than `Closes`/`Fixes`, and when the
+   branch merges, say on that issue which part of it this covered and which
+   part it did not. An issue here often carries more than one report, and a
+   fix for one of them reads as a fix for all of them until somebody says
+   otherwise. The issue itself stays open until the person who reported it
+   confirms on a real build.
+10. Fix the cause, not the path the report happened to take. A reporter names
+    the symptom they hit; the same mistake usually sits in every sibling call
+    site. Find the other callers of whatever you are about to change before
+    you change it, and name in the description which ones you checked — one
+    guard in the shared function is a smaller diff than a guard in each
+    caller, and it is the difference between a fix and a fix for one person.
+11. Verify on a real Mac, and describe where. Give as much of it as you have:
+    the Mac model, the macOS version and build, the display and Spaces
+    layout, whether it was a release build or one of your own, and the app
+    language if the change touches text. Then say what you could not test.
+    Every pull request is run locally before it is merged, on one
+    maintainer's hardware, so the gap between your machine and that one is
+    the part worth writing down; changes have passed review and then failed
+    on a different Mac. Building with a stable signing identity, see above,
+    keeps granted permissions across rebuilds and makes this cheap.
+12. The pull request template lists the sections a description here usually
+    has. Nothing in it is required, and it is a prompt rather than a form, so
+    delete what does not apply and write prose.
+13. A new feature is not ready the day it compiles. Install your own build,
+    live with it for a few days, and fix what surfaces. The rough edge you
+    only notice on the third day is the one a reviewer cannot find and a user
+    will. A fix or a small change does not need that wait; a feature does.
+14. Even so, an unfinished branch is welcome. Open it as a **draft** and name
+    in the description what is missing or what decision you need. A draft
+    says on its own that it is not asking to be merged yet, and it says so
+    everywhere the pull request appears.
 
 ## Releases (maintainers)
 
