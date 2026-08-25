@@ -36,6 +36,9 @@ struct ScratchpadView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
+        .overlay(alignment: .topLeading) {
+            closeShortcut
+        }
         .alert(dialogTitle, isPresented: dialogIsPresented) {
             switch dialog {
             case .rename(let pad):
@@ -95,6 +98,7 @@ struct ScratchpadView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .keyboardShortcut("t", modifiers: .command)
             .disabled(!service.canCreatePad)
             .help(service.canCreatePad
                 ? text.newPad
@@ -105,7 +109,7 @@ struct ScratchpadView: View {
                 if let selectedPad {
                     Button(text.renamePad) { presentRename(selectedPad) }
                     Button(text.closePad, role: .destructive) { requestClose(selectedPad) }
-                        .disabled(!service.canClosePad)
+                        .keyboardShortcut("w", modifiers: .command)
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -163,6 +167,22 @@ struct ScratchpadView: View {
         service.pads.first(where: { $0.id == service.selectedPadID })
     }
 
+    /// A shortcut inside the actions menu loses to the app's standard
+    /// Command-W while the menu is closed, so this control stays in the panel's
+    /// active view hierarchy without adding another visible close button.
+    private var closeShortcut: some View {
+        Button {
+            guard let selectedPad else { return }
+            requestClose(selectedPad)
+        } label: {
+            Color.clear
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut("w", modifiers: .command)
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+
     private var dialogTitle: String {
         switch dialog {
         case .rename: return text.renamePad
@@ -185,7 +205,10 @@ struct ScratchpadView: View {
     }
 
     private func requestClose(_ pad: ScratchpadPad) {
-        guard service.canClosePad else { return }
+        guard service.canClosePad else {
+            service.hide()
+            return
+        }
         if !ScratchpadSupport.requiresCloseConfirmation(pad) {
             _ = service.closePad(pad.id)
         } else {
