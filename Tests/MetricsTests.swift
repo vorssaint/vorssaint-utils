@@ -12197,28 +12197,71 @@ struct MetricsTests {
                              direction: .forward,
                              contentColumns: 0..<16),
                "a fixed footer does not hide the moving page overlap")
-        expect(ScreenshotSupport.scrollingFixedBottomRows(
+        let fixedBottomClean = ScreenshotSupport.scrollingCleanBottom(
             previous: fixedBottomStart,
             current: fixedBottomNext,
-            overlap: 78,
-            contentColumns: 0..<16) == 18,
-               "scrolling capture identifies a fixed footer at the bottom edge")
-        expect(ScreenshotSupport.scrollingFixedBottomRows(
+            advance: 42,
+            contentColumns: 0..<16)
+        expect(fixedBottomClean >= 42 && fixedBottomClean <= 102,
+               "a fixed footer stays out of the joined rows while the join keeps up with the page: \(fixedBottomClean)")
+        expect(ScreenshotSupport.scrollingCleanBottom(
             previous: firstScrollSample,
             current: scrollingSample(offset: 42),
-            overlap: 78,
-            contentColumns: 0..<16) == 0,
-               "ordinary moving content is never mistaken for a fixed footer")
-        expect(ScreenshotSupport.scrollingNewContentRows(
-            imageHeight: 120,
-            overlap: 78,
-            fixedBottomRows: 18) == 60..<102,
-               "new scrolling pixels move above the fixed footer instead of copying it")
-        expect(ScreenshotSupport.scrollingNewContentRows(
-            imageHeight: 120,
-            overlap: 78,
-            fixedBottomRows: 0) == 78..<120,
-               "captures without a fixed footer keep the original crop geometry")
+            advance: 42,
+            contentColumns: 0..<16) == 120,
+               "ordinary moving content holds nothing back")
+        // A button floating over the bottom corner covers a few columns and
+        // leaves a gap under itself, which is what made it repeat down the
+        // whole image while only full width footers were recognized.
+        func sampleWithFloatingButton(offset: Int) -> ScreenshotSupport.ScrollingSample {
+            let sample = scrollingSample(offset: offset)
+            var pixels = sample.pixels
+            for row in 100..<112 {
+                for column in 13..<sample.width {
+                    pixels[row * sample.width + column] = UInt8((row * 7 + column * 13) % 251)
+                }
+            }
+            return ScreenshotSupport.ScrollingSample(width: sample.width,
+                                                     height: sample.height,
+                                                     pixels: pixels)
+        }
+        let floatingButtonClean = ScreenshotSupport.scrollingCleanBottom(
+            previous: sampleWithFloatingButton(offset: 0),
+            current: sampleWithFloatingButton(offset: 42),
+            advance: 42,
+            contentColumns: 0..<16)
+        expect(floatingButtonClean == 98,
+               "a button standing still over part of the width holds back its rows and the margin above them: \(floatingButtonClean)")
+        expect(ScreenshotSupport.scrollingHarvest(imageHeight: 120,
+                                                  joinedThrough: 0,
+                                                  cleanBottom: 102,
+                                                  advance: 42)
+                == ScreenshotSupport.ScrollingHarvest(rows: 0..<102, joinedThrough: 60),
+               "the first scroll joins the opening view without its fixed band")
+        expect(ScreenshotSupport.scrollingHarvest(imageHeight: 120,
+                                                  joinedThrough: 60,
+                                                  cleanBottom: 102,
+                                                  advance: 42)
+                == ScreenshotSupport.ScrollingHarvest(rows: 60..<102, joinedThrough: 60),
+               "a steady scroll joins exactly the rows it revealed")
+        expect(ScreenshotSupport.scrollingHarvest(imageHeight: 120,
+                                                  joinedThrough: 60,
+                                                  cleanBottom: 120,
+                                                  advance: 42)
+                == ScreenshotSupport.ScrollingHarvest(rows: 60..<120, joinedThrough: 78),
+               "a band that goes away releases the rows it was holding back")
+        expect(ScreenshotSupport.scrollingHarvest(imageHeight: 120,
+                                                  joinedThrough: 60,
+                                                  cleanBottom: 50,
+                                                  advance: 42)
+                == ScreenshotSupport.ScrollingHarvest(rows: nil, joinedThrough: 18),
+               "a band that grows past the join adds nothing instead of repeating it")
+        expect(ScreenshotSupport.scrollingHarvest(imageHeight: 120,
+                                                  joinedThrough: 0,
+                                                  cleanBottom: 30,
+                                                  advance: 42)
+                == ScreenshotSupport.ScrollingHarvest(rows: 0..<42, joinedThrough: 0),
+               "an element too close to step around reaches the image instead of leaving a hole")
         var scrollingStressPassed = true
         var scrollingStressFailure: ScreenshotSupport.ScrollingTransition?
         for iteration in 0..<250 {
@@ -12242,8 +12285,40 @@ struct MetricsTests {
                              direction: .forward,
                              contentColumns: 0..<32),
                "scroll matching handles a full-width sample at a realistic Retina selection height")
+        // A flick of the wheel moves most of the view at once. Insisting on the
+        // same wide margins at both ends left too few shared rows to compare,
+        // so every frame of a brisk scroll was thrown away and the capture
+        // ended with nothing but its first screenful.
+        let longScrollNext = scrollingSample(width: 32, height: 900, offset: 738)
+        let longScrollTransition = ScreenshotSupport.scrollingTransition(
+            previous: retinaScrollStart,
+            current: longScrollNext)
+        expect(longScrollTransition == .advanced(overlap: 162,
+                                                 direction: .forward,
+                                                 contentColumns: 0..<32),
+               "a long scroll is joined instead of failing the capture: \(longScrollTransition)")
+        func retinaSampleWithFloatingButton(offset: Int) -> ScreenshotSupport.ScrollingSample {
+            let sample = scrollingSample(width: 32, height: 900, offset: offset)
+            var pixels = sample.pixels
+            for row in 780..<840 {
+                for column in 28..<sample.width {
+                    pixels[row * sample.width + column] = UInt8((row * 7 + column * 13) % 251)
+                }
+            }
+            return ScreenshotSupport.ScrollingSample(width: sample.width,
+                                                     height: sample.height,
+                                                     pixels: pixels)
+        }
+        let retinaFloatingButtonClean = ScreenshotSupport.scrollingCleanBottom(
+            previous: retinaSampleWithFloatingButton(offset: 0),
+            current: retinaSampleWithFloatingButton(offset: 540),
+            advance: 540,
+            contentColumns: 0..<32)
+        expect(retinaFloatingButtonClean == 776,
+               "a floating button is found at a realistic selection height too: \(retinaFloatingButtonClean)")
         func scrollingSampleWithFixedColumns(offset: Int,
-                                             changesAfterScroll: Bool = false)
+                                             changesAfterScroll: Bool = false,
+                                             changedRows: Range<Int> = 30..<46)
             -> ScreenshotSupport.ScrollingSample {
             let width = 24
             let height = 120
@@ -12253,7 +12328,7 @@ struct MetricsTests {
                     if column < 6 || column >= 18 {
                         pixels[row * width + column] = UInt8(
                             (row * 19 + column * 23 + (row / 5) * 11) % 251)
-                    } else if changesAfterScroll && (30..<46).contains(row) {
+                    } else if changesAfterScroll && changedRows.contains(row) {
                         pixels[row * width + column] = UInt8(
                             (row * 61 + column * 7 + 37) % 251)
                     } else {
@@ -12286,6 +12361,17 @@ struct MetricsTests {
                              direction: .forward,
                              contentColumns: 6..<18),
                "scroll matching survives a changed block inside moving content: \(changedColumnsTransition)")
+        // Something playing inside the page, a video or a carousel, disagrees
+        // with itself wherever it is put. Half the view redrawing at once is no
+        // longer a scroll anybody can measure, so it waits for the next view
+        // rather than guessing.
+        let rewrittenColumnsTransition = ScreenshotSupport.scrollingTransition(
+            previous: fixedColumnsStart,
+            current: scrollingSampleWithFixedColumns(offset: 42,
+                                                     changesAfterScroll: true,
+                                                     changedRows: 24..<56))
+        expect(rewrittenColumnsTransition == .unmatched,
+               "a view that mostly redrew itself is refused instead of joined at a guess: \(rewrittenColumnsTransition)")
         expect(ScreenshotSupport.scrollingPixelRange(sampleColumns: 6..<18,
                                                      sampleWidth: 24,
                                                      imageWidth: 1_920) == 480..<1_440,

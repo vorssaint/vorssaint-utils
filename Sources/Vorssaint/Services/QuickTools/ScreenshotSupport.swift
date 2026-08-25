@@ -232,6 +232,12 @@ enum ScreenshotSupport {
     /// Finds how many rows two successive views share. The calculation is
     /// deliberately pure: captures only provide small grayscale samples and
     /// the exact same matching policy is exercised by the test harness.
+    ///
+    /// A candidate wins by how much better it explains the two views than
+    /// standing still does. Counting matching rows instead picked the wrong
+    /// distance on real pages: a plain band, a bar or any evenly coloured area
+    /// agrees with itself at almost every short distance, so those rows look
+    /// like a perfect scroll while proving nothing about where the page went.
     static func scrollingTransition(previous: ScrollingSample,
                                     current: ScrollingSample,
                                     contentColumns: Range<Int>? = nil) -> ScrollingTransition {
@@ -265,115 +271,252 @@ enum ScreenshotSupport {
             let advance: Int
             let reversed: Bool
             let contentColumns: Range<Int>
-            let supportingTiles: Int
-            let longestRun: Int
-            let matchingRows: Int
-            let difference: Double
+            let explanation: Double
         }
 
         let tiles = scrollingColumnTiles(in: columns, sampleWidth: previous.width)
-        let movingTiles = tiles.filter {
-            scrollingDifference(previous, current, columns: $0) > 1.5
-        }
+        let still = ScrollingStillRows(previous: previous, current: current, tiles: tiles)
+        let movingTiles = tiles.indices.filter { still.movedEnough(tile: $0) }
         guard !movingTiles.isEmpty else { return .unmatched }
+
+        // Rows at either end that stay the same in both views are a header or a
+        // bar the page slides under, whatever the distance turns out to be.
+        var header = 0
+        while header < height / 8,
+              still.difference(tiles: tiles.indices,
+                               rows: header..<(header + 1)) <= scrollingRowTolerance {
+            header += 1
+        }
+        var footer = 0
+        while footer < height / 8,
+              still.difference(tiles: tiles.indices,
+                               rows: (height - footer - 1)..<(height - footer))
+                <= scrollingRowTolerance {
+            footer += 1
+        }
 
         var matches: [Match] = []
         for advance in minimumAdvance...maximumAdvance {
             for reversed in [false, true] {
-                guard let match = scrollingCandidate(previous: previous,
-                                                     current: current,
-                                                     advance: advance,
-                                                     reversed: reversed,
-                                                     tiles: movingTiles) else { continue }
+                guard let candidate = scrollingCandidate(previous: previous,
+                                                         current: current,
+                                                         advance: advance,
+                                                         reversed: reversed,
+                                                         tiles: tiles,
+                                                         movingTiles: movingTiles,
+                                                         still: still,
+                                                         header: header,
+                                                         footer: footer) else { continue }
                 matches.append(Match(advance: advance,
                                      reversed: reversed,
-                                     contentColumns: match.contentColumns,
-                                     supportingTiles: match.supportingTiles,
-                                     longestRun: match.longestRun,
-                                     matchingRows: match.matchingRows,
-                                     difference: match.difference))
+                                     contentColumns: candidate.contentColumns,
+                                     explanation: candidate.explanation))
             }
         }
-        guard !matches.isEmpty else { return .unmatched }
-        matches.sort {
-            if $0.contentColumns.count != $1.contentColumns.count {
-                return $0.contentColumns.count > $1.contentColumns.count
-            }
-            if $0.supportingTiles != $1.supportingTiles {
-                return $0.supportingTiles > $1.supportingTiles
-            }
-            if $0.longestRun != $1.longestRun { return $0.longestRun > $1.longestRun }
-            if $0.matchingRows != $1.matchingRows { return $0.matchingRows > $1.matchingRows }
-            return $0.difference < $1.difference
-        }
-
-        let best = matches[0]
-        let requiredRun = max(8, min(28, height / 12))
-        guard best.longestRun >= requiredRun else {
+        guard let best = matches.min(by: { $0.explanation < $1.explanation })
+        else { return .unmatched }
+        // Repeated bands can look equally good at several distances. A clearly
+        // better answer is required instead of guessing and creating a seam the
+        // person would have to spot themselves. Distances a hair either side of
+        // the answer are that same answer slightly out of step, not a rival, so
+        // the comparison starts beyond the width of one line of text.
+        let neighbourhood = max(3, height / 64)
+        let rival = matches.filter {
+            $0.reversed != best.reversed || abs($0.advance - best.advance) > neighbourhood
+        }.min(by: { $0.explanation < $1.explanation })
+        if let rival, best.explanation * scrollingUniquenessMargin > rival.explanation {
             return .unmatched
         }
-
-        // Repeated blank bands can look equally good at several offsets. A
-        // unique match is required instead of guessing and creating a seam.
-        if let rival = matches.dropFirst().first(where: {
-            $0.reversed != best.reversed || abs($0.advance - best.advance) > 2
-        }),
-           rival.contentColumns.count >= best.contentColumns.count - 1,
-           rival.supportingTiles >= best.supportingTiles - 1,
-           rival.longestRun >= best.longestRun - 2,
-           rival.matchingRows >= best.matchingRows - max(3, best.supportingTiles * 3),
-           rival.difference <= best.difference + 0.75 {
-            return .unmatched
-        }
+        // A page with something playing inside it leaves every distance looking
+        // middling, the right one included, because those rows disagree wherever
+        // they are put. What still separates the right distance is how far ahead
+        // of the runner-up it is, so a decisive lead, or no runner-up at all, is
+        // accepted even when the rows as a whole read poorly.
+        let decisive = rival.map {
+            best.explanation * scrollingDecisiveMargin <= $0.explanation
+        } ?? true
+        guard best.explanation <= scrollingAcceptedExplanation || decisive
+        else { return .unmatched }
         return .advanced(overlap: height - best.advance,
                          direction: best.reversed ? .backward : .forward,
                          contentColumns: best.contentColumns)
     }
 
-    /// A fixed footer stays at the same viewport rows while the page behind it
-    /// advances. Keeping that suffix in every new strip repeats it throughout
-    /// the final image, so identify it separately from the moving overlap.
-    static func scrollingFixedBottomRows(previous: ScrollingSample,
-                                         current: ScrollingSample,
-                                         overlap: Int,
-                                         contentColumns: Range<Int>) -> Int {
+    /// The first row of the older view that something standing still reaches: a
+    /// bar, a floating button, a side rail, anything the page moves under.
+    /// Everything from that row down waits for a later view, where the page has
+    /// carried it clear of the element, so the element itself reaches the image
+    /// once, in the closing piece.
+    ///
+    /// Measured per column, because an element covering part of the width
+    /// leaves the rest of its rows moving with the page, and always relative to
+    /// the scroll: rows that look the same either way are ordinary flat content
+    /// and must not be mistaken for something standing still.
+    ///
+    /// Cutting above an element is only possible while what is left between the
+    /// header and the cut still covers the scroll. A closer element cannot be
+    /// stepped around at this speed: its rows reach the image here, and the
+    /// search carries on below it.
+    static func scrollingCleanBottom(previous: ScrollingSample,
+                                     current: ScrollingSample,
+                                     advance: Int,
+                                     contentColumns: Range<Int>) -> Int {
+        let height = previous.height
         guard previous.isValid, current.isValid,
               previous.width == current.width,
               previous.height == current.height,
-              overlap > 0, overlap < previous.height,
+              advance > 0, advance < height,
               contentColumns.lowerBound >= 0,
               contentColumns.upperBound <= previous.width,
               !contentColumns.isEmpty
-        else { return 0 }
+        else { return height }
 
-        var rows = 0
-        for row in stride(from: previous.height - 1, through: 0, by: -1) {
-            let start = row * previous.width
-            var difference = 0
-            for column in contentColumns {
-                difference += abs(Int(previous.pixels[start + column])
-                    - Int(current.pixels[start + column]))
+        let width = previous.width
+        let minimumRows = max(4, min(12, height / 100))
+        /// Something that stays put starts at the same row in both views. An
+        /// evenly coloured band of the page also repeats itself between two
+        /// views, and so does the empty space under a dark line, but the edge
+        /// that marks where it began only exists in one of them.
+        func startsHere(row: Int, column: Int) -> Bool {
+            guard row > 1 else { return false }
+            func edge(_ sample: ScrollingSample) -> Bool {
+                let index = row * width + column
+                let here = Int(sample.pixels[index])
+                // Two rows up as well: an edge often lands between rows of the
+                // sample and blends the two sides together.
+                return abs(here - Int(sample.pixels[index - width])) >= scrollingMovedFloor
+                    || abs(here - Int(sample.pixels[index - 2 * width])) >= scrollingMovedFloor
             }
-            let average = Double(difference) / Double(contentColumns.count)
-            guard average <= 2 else { break }
-            rows += 1
+            return edge(previous) && edge(current)
+        }
+        /// The same pixel in both views.
+        func looksUnchanged(row: Int, column: Int) -> Bool {
+            let index = row * width + column
+            return abs(Int(previous.pixels[index]) - Int(current.pixels[index]))
+                <= scrollingStillTolerance
+        }
+        func standsStill(row: Int, column: Int) -> Bool {
+            guard row + advance < height else {
+                // Below the last row the previous view can vouch for, standing
+                // still is the only evidence there is.
+                return looksUnchanged(row: row, column: column)
+            }
+            let index = row * width + column
+            let standing = abs(Int(previous.pixels[index]) - Int(current.pixels[index]))
+            let scrolled = abs(Int(previous.pixels[(row + advance) * width + column])
+                - Int(current.pixels[index]))
+            return standing * 3 <= scrolled && scrolled >= scrollingMovedFloor
         }
 
-        let minimumRows = max(4, min(12, previous.height / 100))
-        guard rows >= minimumRows, rows < overlap else { return 0 }
-        return rows
+        // A header stays at the top of every view, so the useful window starts
+        // below it. Looking the same in both views is all it has to prove here:
+        // a pale bar over pale content is too close in colour for the scroll to
+        // say anything about it, and rows at the top are seen once regardless.
+        // A row inside it can still happen to match the page that scrolled
+        // past, which ends the run without ending the header.
+        var header = 0
+        for column in contentColumns {
+            var row = 0
+            var last = -1
+            while row < height / 8 {
+                if looksUnchanged(row: row, column: column) { last = row }
+                else if row - last > minimumRows { break }
+                row += 1
+            }
+            if last + 1 >= minimumRows { header = max(header, last + 1) }
+        }
+
+        let earliest = header + advance
+        var clean = height
+        for column in contentColumns {
+            var start: Int?
+            var lastStill = -1
+            var proven = 0
+            /// A run of rows that look the same in both views, beginning at an
+            /// edge that is in both of them, of which enough rows are where the
+            /// scroll can vouch for them. An element taller than the scroll is
+            /// its own backdrop near its top, so those rows prove nothing and
+            /// the ones below it carry the case. Flat page never gets that far:
+            /// nothing there differs from the page that moved behind it.
+            func qualifies() -> Bool {
+                guard let begin = start else { return false }
+                return lastStill - begin + 1 >= minimumRows
+                    && proven >= minimumRows
+                    && begin >= earliest
+            }
+            var row = 0
+            while row < clean {
+                if looksUnchanged(row: row, column: column) {
+                    if start == nil {
+                        if startsHere(row: row, column: column) {
+                            start = row
+                            lastStill = row
+                            proven = 0
+                        }
+                    } else {
+                        lastStill = row
+                    }
+                    if start != nil, standsStill(row: row, column: column) { proven += 1 }
+                } else if start != nil, row - lastStill > 2 {
+                    // A row or two that differ inside an element is its edge
+                    // blending, or a translucent panel letting the page through.
+                    // Any longer than that and the run was a coincidence: on a
+                    // busy page a good tenth of rows agree with themselves by
+                    // chance, enough to chain a whole column into one run.
+                    if qualifies() { break }
+                    start = nil
+                }
+                row += 1
+            }
+            if qualifies(), let begin = start {
+                // A few rows of margin: the top edge of an element blends into
+                // the row above it, and those rows are not lost, only left for
+                // the next view.
+                clean = max(earliest, begin - minimumRows / 2)
+            }
+        }
+        return clean
     }
 
-    /// Rows newly revealed by a forward scroll. A fixed footer shifts this
-    /// range upward by its own height; its pixels are appended once at the end.
-    static func scrollingNewContentRows(imageHeight: Int,
-                                        overlap: Int,
-                                        fixedBottomRows: Int) -> Range<Int>? {
+    /// How far a row may differ from itself between two views and still count
+    /// as standing still, where the scroll cannot be checked. Reading a row as
+    /// standing still when it was moving only postpones it to the next view,
+    /// while missing one stamps a fixed element into the image again and again.
+    private static let scrollingStillTolerance = 12
+    /// How much a row has to change under the scroll before the comparison says
+    /// anything: two evenly coloured rows agree whatever the page did.
+    private static let scrollingMovedFloor = 16
+
+    /// Where the join stands after one accepted scroll.
+    struct ScrollingHarvest: Equatable {
+        /// Rows of the frame the last scroll started from that can be appended
+        /// now: everything below the join and above the first fixed element.
+        let rows: Range<Int>?
+        /// The same join point, counted in the rows of the frame the scroll
+        /// ended on, which becomes the next frame to harvest from.
+        let joinedThrough: Int
+    }
+
+    /// The rows one accepted scroll adds to the image. Reading them from the
+    /// frame the scroll started on, up to where the frame it ended on proved
+    /// the page stops moving, keeps a fixed element out of the image entirely.
+    /// Rows below that wait for a later view, where the page has carried them
+    /// clear of the element.
+    static func scrollingHarvest(imageHeight: Int,
+                                 joinedThrough: Int,
+                                 cleanBottom: Int,
+                                 advance: Int) -> ScrollingHarvest? {
         guard imageHeight > 0,
-              overlap > 0, overlap < imageHeight,
-              fixedBottomRows >= 0, fixedBottomRows < overlap
+              joinedThrough >= 0, joinedThrough <= imageHeight,
+              cleanBottom >= 0, cleanBottom <= imageHeight,
+              advance > 0, advance < imageHeight
         else { return nil }
-        return (overlap - fixedBottomRows)..<(imageHeight - fixedBottomRows)
+        // The join has to keep up with the page. Stopping less than one scroll
+        // down would leave the rows in between behind for good, and a complete
+        // image with part of an element in it beats one with a hole.
+        let clean = max(cleanBottom, advance)
+        return ScrollingHarvest(rows: clean > joinedThrough ? joinedThrough..<clean : nil,
+                                joinedThrough: max(joinedThrough, clean) - advance)
     }
 
     private static func scrollingDifference(_ lhs: ScrollingSample,
@@ -398,10 +541,78 @@ enum ScreenshotSupport {
 
     private struct ScrollingCandidate {
         let contentColumns: Range<Int>
-        let supportingTiles: Int
-        let longestRun: Int
-        let matchingRows: Int
-        let difference: Double
+        let explanation: Double
+    }
+
+    /// How much better a scroll has to explain two views than standing still
+    /// does before a column band counts as agreeing with it, before the answer
+    /// counts as found at all, and how much better than the runner-up before it
+    /// counts as the only answer.
+    ///
+    /// The answer is held to a stricter standard than the bands that vote for
+    /// it: joining two views at the wrong distance quietly ruins the image,
+    /// while refusing a doubtful one only waits for the next view.
+    private static let scrollingExplanationLimit = 0.7
+    private static let scrollingAcceptedExplanation = 0.3
+    private static let scrollingUniquenessMargin = 1.3
+    private static let scrollingDecisiveMargin = 2.5
+
+    /// How much each row of the two views differs where nothing moved. The
+    /// scroll changes which rows are compared, never what standing still looks
+    /// like, so this is measured once and reused by every distance.
+    private struct ScrollingStillRows {
+        private let stride: Int
+        private let rowCount: Int
+        /// Running totals over both rows and column tiles, so any rectangle of
+        /// the two views reads back in constant time.
+        private let running: [Int]
+        /// The same running total for the pixel counts.
+        private let widths: [Int]
+
+        init(previous: ScrollingSample, current: ScrollingSample, tiles: [Range<Int>]) {
+            let width = previous.width
+            stride = tiles.count + 1
+            rowCount = previous.height
+            var running = [Int](repeating: 0, count: (previous.height + 1) * (tiles.count + 1))
+            for row in 0..<previous.height {
+                let start = row * width
+                let above = row * (tiles.count + 1)
+                let base = above + tiles.count + 1
+                var total = 0
+                for (index, tile) in tiles.enumerated() {
+                    var difference = 0
+                    for column in tile {
+                        difference += abs(Int(previous.pixels[start + column])
+                            - Int(current.pixels[start + column]))
+                    }
+                    total += difference
+                    running[base + index + 1] = running[above + index + 1] + total
+                }
+            }
+            self.running = running
+            var widths = [0]
+            for tile in tiles { widths.append(widths[widths.count - 1] + tile.count) }
+            self.widths = widths
+        }
+
+        /// A column band that never moves is page furniture beside the content,
+        /// not part of the page that scrolls.
+        func movedEnough(tile: Int) -> Bool {
+            difference(tiles: tile..<(tile + 1), rows: 0..<rowCount) > 1.5
+        }
+
+        /// How much a rectangle differs from itself between the two views, per
+        /// pixel.
+        func difference(tiles band: Range<Int>, rows: Range<Int>) -> Double {
+            guard rows.lowerBound >= 0, rows.upperBound <= rowCount, !rows.isEmpty
+            else { return .infinity }
+            let top = rows.lowerBound * stride
+            let bottom = rows.upperBound * stride
+            let total = running[bottom + band.upperBound] - running[bottom + band.lowerBound]
+                - running[top + band.upperBound] + running[top + band.lowerBound]
+            let pixels = rows.count * (widths[band.upperBound] - widths[band.lowerBound])
+            return pixels > 0 ? Double(total) / Double(pixels) : .infinity
+        }
     }
 
     private static func scrollingColumnTiles(in columns: Range<Int>,
@@ -419,97 +630,131 @@ enum ScreenshotSupport {
         return tiles
     }
 
+    /// The widest band of neighbouring column tiles a single distance explains,
+    /// so a page that scrolls inside a column is joined by that column alone.
     private static func scrollingCandidate(previous: ScrollingSample,
                                            current: ScrollingSample,
                                            advance: Int,
                                            reversed: Bool,
-                                           tiles: [Range<Int>]) -> ScrollingCandidate? {
-        let requiredRun = max(8, min(28, previous.height / 12))
-        let matches = tiles.map { tile -> (Range<Int>, ScrollingRowMatch?) in
+                                           tiles: [Range<Int>],
+                                           movingTiles: [Int],
+                                           still: ScrollingStillRows,
+                                           header: Int,
+                                           footer: Int) -> ScrollingCandidate? {
+        guard let rows = scrollingComparedRows(height: previous.height,
+                                               advance: advance,
+                                               header: header,
+                                               footer: footer) else { return nil }
+        var supported = Set<Int>()
+        for tile in movingTiles {
             guard let match = scrollingMatch(previous: previous,
-                                              current: current,
-                                              advance: advance,
-                                              reversed: reversed,
-                                              columns: tile),
-                  match.longestRun >= requiredRun,
-                  match.matchingRows >= max(requiredRun, match.comparedRows / 3)
-            else { return (tile, nil) }
-            return (tile, match)
+                                             current: current,
+                                             advance: advance,
+                                             reversed: reversed,
+                                             tiles: tiles,
+                                             band: tile..<(tile + 1),
+                                             still: still,
+                                             rows: rows),
+                  match <= scrollingExplanationLimit
+            else { continue }
+            supported.insert(tile)
         }
+        guard !supported.isEmpty else { return nil }
 
-        let minimumTiles = matches.count >= 3 ? 2 : 1
-        var runs: [[(Range<Int>, ScrollingRowMatch)]] = []
-        var run: [(Range<Int>, ScrollingRowMatch)] = []
-        var skippedOneTile = false
-        for (tile, match) in matches {
-            if let match {
-                run.append((tile, match))
-            } else if !run.isEmpty, !skippedOneTile {
-                skippedOneTile = true
-            } else {
-                if !run.isEmpty { runs.append(run) }
-                run = []
-                skippedOneTile = false
+        // The band that explains the distance best decides whether the distance
+        // is right. How much of the width the image keeps is a separate
+        // question, answered further down: a plain column agrees with any
+        // distance and would trim the picture for no reason.
+        var explanation = Double.infinity
+        var anchor: Range<Int>?
+        var lower = tiles.startIndex
+        while lower < tiles.endIndex {
+            guard supported.contains(lower) else {
+                lower += 1
+                continue
             }
+            var upper = lower
+            while upper + 1 < tiles.endIndex, supported.contains(upper + 1) { upper += 1 }
+            let band = lower..<(upper + 1)
+            if let match = scrollingMatch(previous: previous,
+                                          current: current,
+                                          advance: advance,
+                                          reversed: reversed,
+                                          tiles: tiles,
+                                          band: band,
+                                          still: still,
+                                          rows: rows),
+               match <= scrollingExplanationLimit,
+               match < explanation {
+                explanation = match
+                anchor = band
+            }
+            lower = upper + 1
         }
-        if !run.isEmpty { runs.append(run) }
+        guard let anchor else { return nil }
 
-        return runs.compactMap { supported -> ScrollingCandidate? in
-            guard supported.count >= minimumTiles,
-                  let first = supported.first,
-                  let last = supported.last else { return nil }
-            let contentColumns = first.0.lowerBound..<last.0.upperBound
-            guard let combined = scrollingMatch(previous: previous,
-                                                 current: current,
-                                                 advance: advance,
-                                                 reversed: reversed,
-                                                 columns: contentColumns),
-                  combined.longestRun >= requiredRun,
-                  combined.matchingRows >= max(requiredRun, combined.comparedRows / 3)
-            else { return nil }
-            return ScrollingCandidate(contentColumns: contentColumns,
-                                      supportingTiles: supported.count,
-                                      longestRun: combined.longestRun,
-                                      matchingRows: combined.matchingRows,
-                                      difference: combined.difference)
-        }.max {
-            if $0.contentColumns.count != $1.contentColumns.count {
-                return $0.contentColumns.count < $1.contentColumns.count
-            }
-            if $0.matchingRows != $1.matchingRows {
-                return $0.matchingRows < $1.matchingRows
-            }
-            return $0.difference > $1.difference
-        }
+        // Outward from there over every neighbouring column that moves at all:
+        // a page that scrolls across the whole selection keeps its whole width,
+        // while a pane scrolling beside furniture that never changes keeps only
+        // the pane.
+        var first = anchor.lowerBound
+        var last = anchor.upperBound - 1
+        while first > tiles.startIndex, movingTiles.contains(first - 1) { first -= 1 }
+        while last + 1 < tiles.endIndex, movingTiles.contains(last + 1) { last += 1 }
+        return ScrollingCandidate(
+            contentColumns: tiles[first].lowerBound..<tiles[last].upperBound,
+            explanation: explanation)
     }
 
-    private struct ScrollingRowMatch {
-        let longestRun: Int
-        let matchingRows: Int
-        let comparedRows: Int
-        let difference: Double
+    /// Rows both views can be compared over: the shared part, minus the header
+    /// and the bar the page slides under, minus a margin at each end. Rows of
+    /// that furniture sit against fresh content in the other view and would
+    /// argue against the very distance that is right. A long scroll leaves few
+    /// shared rows to begin with, so the margin shrinks with them instead of
+    /// consuming everything there is.
+    private static func scrollingComparedRows(height: Int,
+                                              advance: Int,
+                                              header: Int,
+                                              footer: Int) -> Range<Int>? {
+        let shared = height - footer - header - advance
+        guard shared > 0 else { return nil }
+        let inset = max(2, min((height - footer - header) / 10, shared / 5))
+        let firstRow = header + inset
+        let lastRow = height - footer - advance - inset
+        // Too narrow a window says nothing: a long scroll leaves little to
+        // compare, and any short stretch of a page agrees with itself somewhere.
+        guard lastRow - firstRow >= max(24, height / 32) else { return nil }
+        return firstRow..<lastRow
     }
 
+    /// How far two rows may differ, per pixel, and still show the same picture.
+    private static let scrollingRowTolerance = 8.0
+
+    /// How much better one distance explains two views than standing still
+    /// does. Around one means those rows would look the same either way and
+    /// prove nothing about where the page went.
     private static func scrollingMatch(previous: ScrollingSample,
                                        current: ScrollingSample,
                                        advance: Int,
                                        reversed: Bool,
-                                       columns: Range<Int>) -> ScrollingRowMatch? {
+                                       tiles: [Range<Int>],
+                                       band: Range<Int>,
+                                       still: ScrollingStillRows,
+                                       rows: Range<Int>) -> Double? {
         let width = previous.width
-        let edgeInset = max(2, previous.height / 10)
-        let lastRow = previous.height - advance - edgeInset
-        guard lastRow > edgeInset,
-              columns.lowerBound >= 0,
+        guard band.lowerBound >= 0, band.upperBound <= tiles.count, !band.isEmpty
+        else { return nil }
+        let columns = tiles[band.lowerBound].lowerBound..<tiles[band.upperBound - 1].upperBound
+        guard columns.lowerBound >= 0,
               columns.upperBound <= width,
-              !columns.isEmpty else { return nil }
+              !columns.isEmpty,
+              rows.lowerBound >= 0,
+              rows.upperBound + advance <= previous.height else { return nil }
 
         var longestRun = 0
         var run = 0
-        var matchingRows = 0
-        var comparedRows = 0
-        var totalDifference = 0
-        var comparedPixels = 0
-        for currentRow in edgeInset..<lastRow {
+        var total = 0
+        for currentRow in rows {
             let previousRow = currentRow + advance
             let previousStart = (reversed ? currentRow : previousRow) * width
             let currentStart = (reversed ? previousRow : currentRow) * width
@@ -518,24 +763,23 @@ enum ScreenshotSupport {
                 rowDifference += abs(Int(previous.pixels[previousStart + column])
                     - Int(current.pixels[currentStart + column]))
             }
-            let rowPixels = columns.count
-            let average = Double(rowDifference) / Double(rowPixels)
-            totalDifference += rowDifference
-            comparedPixels += rowPixels
-            comparedRows += 1
-            if average <= 8 {
+            total += rowDifference
+            if Double(rowDifference) / Double(columns.count) <= scrollingRowTolerance {
                 run += 1
-                matchingRows += 1
                 longestRun = max(longestRun, run)
             } else {
                 run = 0
             }
         }
-        guard comparedPixels > 0 else { return nil }
-        return ScrollingRowMatch(longestRun: longestRun,
-                                 matchingRows: matchingRows,
-                                 comparedRows: comparedRows,
-                                 difference: Double(totalDifference) / Double(comparedPixels))
+        // A stretch of rows that line up is what separates a real overlap from
+        // two views that merely average out well, and rows that barely differ
+        // from themselves cannot tell one distance from another at all.
+        let atRest = still.difference(tiles: band, rows: rows)
+        guard longestRun >= max(8, min(28, previous.height / 12)),
+              atRest.isFinite, atRest > scrollingRowTolerance
+        else { return nil }
+        let shifted = Double(total) / Double(rows.count * columns.count)
+        return shifted / atRest
     }
 
     static func scrollingPixelRange(sampleColumns: Range<Int>,

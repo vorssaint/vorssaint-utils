@@ -20,6 +20,8 @@ All notable changes to this project are documented here. The format follows
 - App Switcher now keeps walking backwards when you hold Shift and tap Tab again. Thanks to @iltonandrew and @justin-chiam.
 - The screen capture loupe now rings the pixel under the pointer instead of drawing a crosshair across it, and that pixel sits in the middle of the loupe, so the Color picker shows the color it is about to copy. Thanks to @I-Have-No-Idea-What-Im-Doing-Right-Now and @PathGao.
 - Screenshot editor crop now snaps selection and resize edges to pixel boundaries, keeping the loupe cross and the final cut aligned to the exact source pixel. Thanks to @PathGao.
+- Scrolling screenshots no longer repeat anything that stays put while the page moves under it, including a bar that lets the page show through, a floating button over part of the width and a side element that appears partway down.
+- Scrolling screenshots now keep up with a brisk scroll instead of stopping with only part of the page.
 
 ## [3.3.3-beta.2] - 2026-08-22
 
