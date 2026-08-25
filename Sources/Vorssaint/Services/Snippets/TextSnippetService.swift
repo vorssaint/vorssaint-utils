@@ -316,10 +316,17 @@ final class TextSnippetService {
                         trailingKeyCode: CGKeyCode?,
                         trailingFlags: CGEventFlags) {
         let post = {
+            // The replacement has to be posted before this callback returns,
+            // so later typing cannot overtake it — the read cannot move off
+            // this thread. It can be skipped, though, and for every snippet
+            // that does not name the clipboard it now is.
+            let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
+                ? NSPasteboard.general.string(forType: .string)
+                : nil
             let text = TextSnippetSupport.expand(
                 snippet.replacement,
                 date: Date(),
-                clipboard: NSPasteboard.general.string(forType: .string)
+                clipboard: clipboard
             )
             Self.postExpansion(deleteCount: deleteCount,
                                text: text,

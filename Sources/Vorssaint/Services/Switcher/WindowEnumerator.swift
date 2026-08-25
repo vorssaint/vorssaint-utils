@@ -29,6 +29,12 @@ enum WindowEnumerator {
     /// tree within the process thread budget while collapsing it into a few
     /// bounded AX batches.
     private static let maximumConcurrentQueries = 24
+    /// Ceiling on the whole batch, which the main thread waits out. Generous
+    /// against the messaging timeouts above even with every query as slow as
+    /// they allow, so only a dispatch pool with no thread to give can outlast
+    /// it (issue #971) — and then no answer was ever coming. A stalled main
+    /// thread stalls the event taps with it (issue #189), so it must expire.
+    private static let accessibilityBatchBudget: TimeInterval = 5.0
 
     static func listWindows(groupByApp: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
                             preservingGroupedWindows: Bool = false) -> [SwitcherItem] {
@@ -423,7 +429,8 @@ enum WindowEnumerator {
         guard !orderedPIDs.isEmpty else { return [:] }
         let screenFrames = NSScreen.screens.map(\.frame)
         var result: [pid_t: AccessibilityWindowSnapshotList] = [:]
-        let resultLock = NSLock()
+        var pendingQueries = orderedPIDs.count
+        let resultLock = NSCondition()
         // A remote app can consume its whole messaging timeout. Overlap those
         // independent calls so several slow background helpers cost one wait,
         // not one wait each, while preserving Accessibility-only windows. The
@@ -433,19 +440,31 @@ enum WindowEnumerator {
         queryQueue.maxConcurrentOperationCount = min(maximumConcurrentQueries, orderedPIDs.count)
         for pid in orderedPIDs {
             queryQueue.addOperation {
-                guard let windows = accessibilityWindows(
+                let windows = accessibilityWindows(
                     for: pid,
                     bundleIdentifier: bundleIdentifiers[pid],
                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid),
                     screenFrames: screenFrames
-                ) else { return }
+                )
                 resultLock.lock()
-                result[pid] = windows
+                if let windows { result[pid] = windows }
+                pendingQueries -= 1
+                if pendingQueries == 0 { resultLock.broadcast() }
                 resultLock.unlock()
             }
         }
-        queryQueue.waitUntilAllOperationsAreFinished()
-        return result
+        // Operations still queued when the budget runs out are cancelled and
+        // the answers already in hand are returned. An app missing from that
+        // map reads downstream like an app that could not answer Accessibility,
+        // which every caller already handles.
+        let deadline = Date(timeIntervalSinceNow: accessibilityBatchBudget)
+        resultLock.lock()
+        while pendingQueries > 0, resultLock.wait(until: deadline) {}
+        let exhaustedBudget = pendingQueries > 0
+        let collected = result
+        resultLock.unlock()
+        if exhaustedBudget { queryQueue.cancelAllOperations() }
+        return collected
     }
 
     private static func accessibilityWindows(for pid: pid_t,

@@ -132,6 +132,12 @@ enum SelfUninstall {
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Saved Application State/\(id).savedState")
         // Clipboard images and any other app-owned data live here.
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Application Support/\(id)")
+        try? FileManager.default.removeItem(atPath: "\(home)/Library/Caches/\(id)")
+        // URLSession writes these on our behalf whenever the app talks to the
+        // network, so they exist without the app ever choosing the path.
+        try? FileManager.default.removeItem(atPath: "\(home)/Library/HTTPStorages/\(id)")
+        try? FileManager.default.removeItem(
+            atPath: "\(home)/Library/HTTPStorages/\(id).binarycookies")
     }
 
     /// Moves the app's own bundle to the Trash after it quits, then quits. The
