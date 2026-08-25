@@ -159,8 +159,17 @@ final class AutoQuitService: ObservableObject {
         // it: typing dies system wide (issue #189). Give up fast and retry
         // with growing spacing until the app services its run loop again.
         AXUIElementSetMessagingTimeout(appElement, 0.35)
-        var role: CFTypeRef?
-        if AXUIElementCopyAttributeValue(appElement, kAXRoleAttribute as CFString, &role) == .cannotComplete {
+        // The probe asks for windows rather than the application's role. A
+        // Chromium app (Electron, and the browsers) answers a role query on its
+        // application element by switching its renderers into full
+        // accessibility mode, and from then on it rebuilds and ships an
+        // accessibility tree on every DOM change for the life of the process —
+        // a few percent of a core, forever, in an app this feature only ever
+        // needed a window count from (issue #953). Windows are the same
+        // liveness signal, are what the refresh below reads anyway, and leave
+        // that mode alone; WindowEnumerator probes the same way.
+        var windows: CFTypeRef?
+        if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windows) == .cannotComplete {
             guard attempt < 6 else { retryingApps.remove(pid); return }
             retryingApps.insert(pid)
             let delay = 5.0 * pow(2.0, Double(attempt))

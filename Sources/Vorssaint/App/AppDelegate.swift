@@ -410,6 +410,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         if let window = popover.contentViewController?.view.window {
+            configurePopoverWindow(window)
             beginPopoverDriftCorrection(window: window,
                                         anchor: resolvePanelAnchor(for: button, window: window))
         }
@@ -451,6 +452,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverAnchor: PanelAnchor?
     private var lastGoodPanelAnchor: PanelAnchor?
     private var popoverDriftObservers: [NSObjectProtocol] = []
+    private var popoverPositioningPanel: NSPanel?
 
     /// How long a captured click still counts as "where the icon is".
     private static let statusClickFreshness: TimeInterval = 0.5
@@ -461,7 +463,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// the panel's window, because a window already flung to a corner can
     /// report a different display and would then be clamped against that one.
     private struct PanelAnchor {
+        /// The opening popover window's horizontal center, used while direct
+        /// frame correction is still responsible for placement.
         let midX: CGFloat
+        /// The opening arrow's screen-space tip, used once the popover hangs
+        /// from a stable positioning view. With a trustworthy status frame this
+        /// is the status button's center, while `midX` is the already-placed
+        /// window's center; AppKit's horizontal edge clamp can make them differ.
+        /// Fallback anchors know only one x coordinate and use it for both.
+        let tipX: CGFloat
         let top: CGFloat
         let screen: NSScreen?
         /// False when it came from a fallback, so a guess never becomes the
@@ -532,6 +542,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             frame, screenFrames: NSScreen.screens.map(\.frame))
     }
 
+    private func statusFrameNeedsAnchorOverride(_ anchor: PanelAnchor) -> Bool {
+        anchor.overridesSoundFrame || !frameStillDescribesMenuBar(anchor)
+    }
+
     /// The spot the panel must hold while it is open, decided at the moment it
     /// opens: the user has just clicked the icon, so the menu bar is up and its
     /// frame is at its most trustworthy. Everything after that (a bar that
@@ -554,6 +568,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // where the icon really is and outranks the frame right away.
             let corrected = correctedPopoverMidX(for: button)
             return PanelAnchor(midX: corrected ?? window.frame.midX,
+                               tipX: corrected ?? statusButtonMidX(button) ?? window.frame.midX,
                                top: window.frame.maxY,
                                screen: screen,
                                trusted: true,
@@ -574,7 +589,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
            rememberedScreen.displayID == screen?.displayID {
             // Reused for an item whose frame is already pointing nowhere, so it
             // has to act now rather than wait for a frame that will not recover.
-            return PanelAnchor(midX: remembered.midX, top: remembered.top,
+            return PanelAnchor(midX: remembered.midX, tipX: remembered.tipX,
+                               top: remembered.top,
                                screen: screen, trusted: true,
                                overridesSoundFrame: true, button: button)
         }
@@ -582,30 +598,72 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let visible = screen?.visibleFrame ?? window.frame
         if let click = lastStatusClick,
            Date().timeIntervalSince(click.at) < Self.statusClickFreshness {
-            return PanelAnchor(midX: click.x, top: visible.maxY, screen: screen,
+            return PanelAnchor(midX: click.x, tipX: click.x,
+                               top: visible.maxY, screen: screen,
                                trusted: false, overridesSoundFrame: true, button: button)
         }
-        return PanelAnchor(midX: visible.maxX, top: visible.maxY, screen: screen,
+        return PanelAnchor(midX: visible.maxX, tipX: visible.maxX,
+                           top: visible.maxY, screen: screen,
                            trusted: false, overridesSoundFrame: true, button: button)
     }
 
-    /// Slides the popover window so its center (and thus the arrow tip, which
-    /// keeps its offset from the window) lands on the real icon, and keeps it
-    /// there: the popover places its window again from the status item's frame
-    /// on every content resize (switching panel tabs), which would fling the
-    /// panel to wherever that frame currently claims to be.
+    /// Keeps the popover at the opening anchor when its status item stops being
+    /// trustworthy. Ordinary menu-bar movement remains AppKit's responsibility;
+    /// an untrustworthy frame instead gets a stable screen-space positioning
+    /// view so both the window and its arrow survive later geometry changes.
     private func beginPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {
         endPopoverDriftCorrection()
+        armPopoverDriftCorrection(window: window, anchor: anchor)
+    }
+
+    /// Re-arms drift correction after AppKit re-shows the popover against our
+    /// stable positioning view. Keeping the panel out of the ordinary teardown
+    /// prevents `popoverDidClose` from closing the new anchor mid-switch.
+    private func beginPopoverDriftCorrection(window: NSWindow,
+                                             anchor: PanelAnchor,
+                                             preserving positioningPanel: NSPanel) {
+        endPopoverDriftCorrection(preserving: positioningPanel)
+        popoverPositioningPanel = positioningPanel
+        positioningPanel.orderFrontRegardless()
+        armPopoverDriftCorrection(window: window, anchor: anchor)
+    }
+
+    private func armPopoverDriftCorrection(window: NSWindow, anchor: PanelAnchor) {
         popoverAnchor = anchor
         if anchor.trusted { lastGoodPanelAnchor = anchor }
         PanelInteractionState.shared.anchorScreen = anchor.screen
-        applyPopoverDriftFrame(window)
+        if popoverPositioningPanel != nil {
+            useStablePopoverPositioningViewIfNeeded(window)
+        } else {
+            applyPopoverDriftFrame(window)
+        }
         for name in [NSWindow.didMoveNotification, NSWindow.didResizeNotification] {
             popoverDriftObservers.append(NotificationCenter.default.addObserver(
                 forName: name, object: window, queue: .main
-            ) { [weak self, weak window] _ in
-                guard let window else { return }
-                self?.applyPopoverDriftFrame(window)
+            ) { [weak self, weak window] notification in
+                guard let self, let window else { return }
+                // Once the popover hangs from the stable view, that view is the
+                // only authority for placement. Recompute its screen-space
+                // position on both resize and move; applying the old midX frame
+                // as well would fight AppKit's tip-aware edge clamping.
+                if self.popoverPositioningPanel != nil {
+                    self.useStablePopoverPositioningViewIfNeeded(window)
+                    return
+                }
+                let contentResized = notification.name == NSWindow.didResizeNotification
+                if contentResized, self.useStablePopoverPositioningViewIfNeeded(window) { return }
+                self.applyPopoverDriftFrame(window)
+                guard contentResized else { return }
+                // A status-item frame can become untrustworthy after the
+                // popover opens. AppKit may run another placement pass after
+                // publishing the resize, so check once more on the next turn.
+                DispatchQueue.main.async { [weak self, weak window] in
+                    guard let self,
+                          let window,
+                          self.popover.isShown,
+                          window === self.popover.contentViewController?.view.window else { return }
+                    self.useStablePopoverPositioningViewIfNeeded(window)
+                }
             })
         }
     }
@@ -615,7 +673,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
               // A healthy bar places the panel better than the anchor can, and
               // keeps it under an icon that shifts as items come and go, so the
               // anchor stays dormant until that frame stops meaning anything.
-              anchor.overridesSoundFrame || !frameStillDescribesMenuBar(anchor),
+              statusFrameNeedsAnchorOverride(anchor),
               let visible = anchorVisibleFrame(anchor, window: window) else { return }
         let frame = window.frame
         let target = StatusItemAnchorSupport.pinnedPanelFrame(size: frame.size,
@@ -627,6 +685,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         window.setFrame(target, display: true)
     }
 
+    /// An untrustworthy status-item frame leaves AppKit pointing the arrow at a
+    /// parked positioning view. Replace it with a transparent screen-space view
+    /// at the opening arrow location, and keep that view current as the popover
+    /// or display geometry changes.
+    @discardableResult
+    private func useStablePopoverPositioningViewIfNeeded(_ window: NSWindow) -> Bool {
+        guard let anchor = popoverAnchor,
+              popoverPositioningPanel != nil
+                || statusFrameNeedsAnchorOverride(anchor),
+              let visibleFrame = anchorVisibleFrame(anchor, window: window) else { return false }
+        let targetFrame = StatusItemAnchorSupport.pinnedPanelFrame(size: window.frame.size,
+                                                                  anchorMidX: anchor.midX,
+                                                                  anchorTop: anchor.top,
+                                                                  visibleFrame: visibleFrame)
+        let tipX = min(max(anchor.tipX, visibleFrame.minX), visibleFrame.maxX)
+        let anchorRect = CGRect(x: tipX - 0.5, y: targetFrame.maxY, width: 1, height: 1)
+        if let panel = popoverPositioningPanel {
+            if abs(panel.frame.minX - anchorRect.minX) > 0.5
+                || abs(panel.frame.minY - anchorRect.minY) > 0.5 {
+                panel.setFrame(anchorRect, display: false)
+            }
+            return true
+        }
+        let panel = NSPanel(contentRect: anchorRect,
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered,
+                            defer: false)
+        panel.isReleasedWhenClosed = false
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = false
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.level = window.level
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
+                                    .stationary, .ignoresCycle]
+        let positioningView = NSView(frame: CGRect(origin: .zero, size: anchorRect.size))
+        panel.contentView = positioningView
+        popoverPositioningPanel = panel
+        panel.orderFrontRegardless()
+        let preservedAnchor = anchor
+        popoverIsSwitchingAnchor = true
+        MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
+        popover.show(relativeTo: positioningView.bounds,
+                     of: positioningView,
+                     preferredEdge: .minY)
+        guard popover.isShown,
+              let popoverWindow = popover.contentViewController?.view.window else {
+            endPopoverDriftCorrection()
+            panel.close()
+            removePopoverDismissMonitor()
+            popoverIsSwitchingAnchor = false
+            MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+            return false
+        }
+        configurePopoverWindow(popoverWindow)
+        popoverWindow.makeKey()
+        beginPopoverDriftCorrection(window: popoverWindow,
+                                    anchor: preservedAnchor,
+                                    preserving: panel)
+        installPopoverDismissMonitor()
+        DispatchQueue.main.async { [weak self] in
+            self?.popoverIsSwitchingAnchor = false
+            MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+        }
+        return true
+    }
+
     /// The usable area the panel is clamped to. Prefers the anchor's own screen
     /// and only falls back when that display has since been unplugged.
     private func anchorVisibleFrame(_ anchor: PanelAnchor, window: NSWindow) -> CGRect? {
@@ -636,13 +762,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return (window.screen ?? NSScreen.withMenuBar)?.visibleFrame
     }
 
-    private func endPopoverDriftCorrection() {
+    private func endPopoverDriftCorrection(preserving positioningPanel: NSPanel? = nil) {
         popoverDriftObservers.forEach { NotificationCenter.default.removeObserver($0) }
         popoverDriftObservers.removeAll()
+        if popoverPositioningPanel !== positioningPanel {
+            popoverPositioningPanel?.close()
+        }
+        popoverPositioningPanel = nil
         popoverAnchor = nil
         // Nothing is measuring itself against a screen with the panel closed,
         // and holding one keeps a display object alive for no reason.
         PanelInteractionState.shared.anchorScreen = nil
+    }
+
+    private func configurePopoverWindow(_ window: NSWindow) {
+        // Keep the panel alive next to fullscreen apps and on any Space —
+        // without this it blinks shut when another display is fullscreen.
+        window.collectionBehavior.insert([.fullScreenAuxiliary, .canJoinAllSpaces])
+        if let panel = window as? NSPanel {
+            panel.hidesOnDeactivate = false
+        }
     }
 
     private func switchMetricPopover(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
@@ -686,12 +825,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         if let window = popover.contentViewController?.view.window {
-            // Keep the panel alive next to fullscreen apps and on any Space —
-            // without this it blinks shut when another display is fullscreen.
-            window.collectionBehavior.insert([.fullScreenAuxiliary, .canJoinAllSpaces])
-            if let panel = window as? NSPanel {
-                panel.hidesOnDeactivate = false
-            }
+            configurePopoverWindow(window)
             window.contentView?.layoutSubtreeIfNeeded()
             window.makeKey()
             if animate {

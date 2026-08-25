@@ -11,6 +11,8 @@ struct RadialMenuView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var items: [RadialMenuItem] { service.stack.last ?? [] }
@@ -40,7 +42,27 @@ struct RadialMenuView: View {
         .accessibilityLabel(text.pageTitle)
     }
 
+    @ViewBuilder
     private var backplate: some View {
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *), liquidGlassEnabled, !reduceTransparency {
+            Circle()
+                .fill(Color.clear)
+                .glassEffect(.regular, in: Circle())
+                .overlay(Circle().fill(PanelSurface.baseFill(for: colorScheme).opacity(colorScheme == .light ? 0.35 : 0.45)))
+                .overlay(Circle().strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8))
+                .frame(width: RadialMenuLayout.wheelDiameter, height: RadialMenuLayout.wheelDiameter)
+                .shadow(color: .black.opacity(colorScheme == .light ? 0.18 : 0.5), radius: 18, y: 5)
+        } else {
+            classicBackplate
+        }
+#else
+        classicBackplate
+#endif
+    }
+
+    @ViewBuilder
+    private var classicBackplate: some View {
         Circle()
             .fill(.regularMaterial)
             .overlay(Circle().fill(PanelSurface.baseFill(for: colorScheme)))
