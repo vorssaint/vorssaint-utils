@@ -2107,18 +2107,6 @@ struct PanelBetaBadge: View {
     }
 }
 
-/// A thin separator that sets the experimental group apart from the stable
-/// quick controls. The row's own "Beta" badge does the labelling, so this just
-/// provides the visual break.
-private struct PanelSubgroupDivider: View {
-    var body: some View {
-        Rectangle()
-            .fill(Color.secondary.opacity(0.16))
-            .frame(height: 1)
-            .padding(.vertical, 3)
-    }
-}
-
 // MARK: - Overlay scroll container
 
 /// A vertical scroll container that always uses an overlay scroller, so it never

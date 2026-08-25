@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "情報",
         tabReleaseNotes: "新機能",
         releaseNotesOnUpdateToggle: "アップデート後に新機能を表示",
-        whatsNewDontShowAgain: "今後表示しない",
         previewSizeLabel: "プレビューのサイズ",
         previewSizeNormal: "標準",
         previewSizeLarge: "大",

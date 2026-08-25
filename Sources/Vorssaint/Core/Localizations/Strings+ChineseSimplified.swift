@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "关于",
         tabReleaseNotes: "新功能",
         releaseNotesOnUpdateToggle: "更新后显示新功能",
-        whatsNewDontShowAgain: "不再显示",
         previewSizeLabel: "预览大小",
         previewSizeNormal: "正常",
         previewSizeLarge: "大",
