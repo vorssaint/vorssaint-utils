@@ -773,21 +773,29 @@ enum CommandBarCatalog {
     private static func settingsEntries(_ s: Strings,
                                         language: AppLanguage,
                                         bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        SettingsDirectory.sections(s, language: language)
-            .flatMap(\.items)
-            .filter { item in
-                !pagesCoveredByActions.contains(item.page)
-                    && FeatureVisibilitySupport.isPageVisible(item.page) { $0.isAvailable }
+        SettingsDirectory.searchItems(s, language: language).compactMap { item in
+            let id: String
+            switch item.id {
+            case .page(let page):
+                guard !pagesCoveredByActions.contains(page),
+                      FeatureVisibilitySupport.isPageVisible(page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.\(page)"
+            case .feature(let feature):
+                guard feature.isAvailable,
+                      FeatureVisibilitySupport.isPageVisible(
+                        item.destination.page, isAvailable: { $0.isAvailable })
+                else { return nil }
+                id = "settings.feature.\(feature.rawValue)"
             }
-            .map { item in
-                CommandBarEntry(
-                    id: "settings.\(item.page)",
-                    title: item.title,
-                    subtitle: s.settingsTitle,
-                    keywords: item.keywords.joined(separator: " "),
-                    icon: .symbol(item.icon),
-                    run: { _ in openSettings(at: item.page) })
-            }
+            return CommandBarEntry(
+                id: id,
+                title: item.title,
+                subtitle: s.settingsTitle,
+                keywords: item.keywords.joined(separator: " "),
+                icon: .symbol(item.icon),
+                run: { _ in openSettings(at: item.destination) })
+        }
     }
 
     // MARK: - Files
@@ -1527,7 +1535,11 @@ enum CommandBarCatalog {
     }
 
     private static func openSettings(at page: SettingsPage) {
-        SettingsRouter.shared.page = page
+        openSettings(at: FeatureSettingsDestination(page))
+    }
+
+    private static func openSettings(at destination: FeatureSettingsDestination) {
+        SettingsRouter.shared.request(destination)
         appDelegate()?.openSettingsWindow()
     }
 
