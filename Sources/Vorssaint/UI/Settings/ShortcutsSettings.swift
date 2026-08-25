@@ -122,42 +122,27 @@ struct ShortcutsSettings: View {
         }
     }
 
-    /// The whole row toggles the group, with the chevron on the trailing
-    /// side where the eye expects a drop-down, instead of the stock
-    /// disclosure triangle crowding the leading edge.
     private func disclosureHeader(title: String,
                                   symbolName: String,
                                   isActive: Bool,
                                   count: Int,
                                   isExpanded: Binding<Bool>) -> some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.wrappedValue.toggle()
-            }
-        } label: {
-            HStack(spacing: 8) {
-                ShortcutRowLabel(
-                    title: title,
-                    symbolName: symbolName,
-                    contextLabel: nil,
-                    statusText: isActive ? text.active : text.inactive,
-                    statusIsActive: isActive
-                )
-                Spacer()
-                Text("\(count)")
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.primary.opacity(0.06)))
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
-            }
-            .contentShape(Rectangle())
+        DisclosureHeaderRow(isExpanded: isExpanded) {
+            ShortcutRowLabel(
+                title: title,
+                symbolName: symbolName,
+                contextLabel: nil,
+                statusText: isActive ? text.active : text.inactive,
+                statusIsActive: isActive
+            )
+            Spacer()
+            Text("\(count)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
         }
-        .buttonStyle(.plain)
     }
 
     private func roleRow(_ role: GlobalShortcutRole,
@@ -220,14 +205,6 @@ struct ShortcutsSettings: View {
         case .tools: return hub.groupTools
         case .monitor: return hub.groupMonitor
         }
-    }
-}
-
-private extension View {
-    /// Child rows sit inset under their group's header row, aligned with the
-    /// header's title rather than its icon.
-    func disclosureIndent() -> some View {
-        padding(.leading, 25)
     }
 }
 

@@ -750,6 +750,8 @@ extension Strings {
         speedTestFailed: "Тест не удался",
 
         monitorShowInPanel: "Показывать в панели",
+        disclosureExpanded: "Развёрнуто",
+        disclosureCollapsed: "Свёрнуто",
         panelHideItem: "Скрыть из панели",
         panelShowItem: "Показать в панели",
         panelHiddenItem: "Скрыто",
