@@ -171,14 +171,6 @@ extension AppFeature {
 
     var isBeta: Bool { self == .fanControl || self == .killProcess }
 
-    /// Whether this feature can actually use the Mac's hardware.
-    var isHardwareSupported: Bool {
-        switch self {
-            case .fanControl: return FanControlHardware.hasControllableFan
-            default: return true
-        }
-    }
-
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
     var isAvailable: Bool {

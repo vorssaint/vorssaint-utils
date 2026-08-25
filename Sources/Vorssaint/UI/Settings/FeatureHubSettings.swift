@@ -272,14 +272,16 @@ private struct FeatureHubRow: View {
                     .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
             } else {
                 if isUnsupportedHardware {
+                    // .help() has no effect on a disabled control, so it
+                    // has to sit on this wrapper instead of the Button itself
                     HStack(spacing: 0) {
                         Button(hub.installButton) { flip(to: true) }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .disabled(true)
-                            .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(FeatureStrings.fanControl(l10n.language).noFans)")
+                            .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(feature.hardwareUnsupportedReason ?? "")")
                     }
-                        .help(FeatureStrings.fanControl(l10n.language).noFans)
+                        .help(feature.hardwareUnsupportedReason ?? "")
                 } else {
                     Button(hub.installButton) { flip(to: true) }
                         .buttonStyle(.borderedProminent)
