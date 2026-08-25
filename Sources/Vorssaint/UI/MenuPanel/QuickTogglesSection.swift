@@ -115,7 +115,8 @@ struct QuickTogglesList: View {
         for key in [DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleKeyboardLight,
                     DefaultsKey.panelToggleMicMute,
                     DefaultsKey.panelToggleEmptyTrash,
-                    DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
+                    DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleFlushDNS,
+                    DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
                     DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver] {
             defaults.set(true, forKey: key)
