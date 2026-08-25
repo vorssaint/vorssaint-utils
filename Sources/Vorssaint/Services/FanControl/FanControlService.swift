@@ -226,14 +226,20 @@ final class FanControlService: ObservableObject {
     /// Used by the complete-uninstall path from its background queue. The
     /// daemon is removed only after it confirms automatic control, so teardown
     /// can never kill the recovery mechanism while a manual session remains.
-    static func restoreAndUnregisterForRemoval() {
+    ///
+    /// Reports whether the daemon is actually gone. A caller that tells someone
+    /// the app was fully removed has no other way to know: the registration
+    /// outlives the bundle, so a silent failure here reads as success forever.
+    @discardableResult
+    static func restoreAndUnregisterForRemoval() -> Bool {
         let service = appService
         guard service.status == .enabled else {
-            if !UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
-               service.status != .notRegistered {
-                try? service.unregister()
-            }
-            return
+            guard service.status != .notRegistered else { return true }
+            // A pending recovery keeps the daemon deliberately: it is the only
+            // thing that can put the fans back. Still not a clean detach.
+            guard !UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+            else { return false }
+            return unregisterForRemoval(service)
         }
         let connection = NSXPCConnection(machServiceName: FanControlIdentifiers.helperID,
                                          options: .privileged)
@@ -247,7 +253,7 @@ final class FanControlService: ObservableObject {
             as? FanControlXPCProtocol
         guard let proxy else {
             connection.invalidate()
-            return
+            return false
         }
         proxy.restoreAutomatic { data in
             if let response = FanControlIPC.decode(data) {
@@ -259,7 +265,17 @@ final class FanControlService: ObservableObject {
         }
         _ = semaphore.wait(timeout: .now() + 20)
         connection.invalidate()
-        if resultLock.withLock({ restored }) { try? service.unregister() }
+        guard resultLock.withLock({ restored }) else { return false }
+        return unregisterForRemoval(service)
+    }
+
+    private static func unregisterForRemoval(_ service: SMAppService) -> Bool {
+        do {
+            try service.unregister()
+            return true
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Requests

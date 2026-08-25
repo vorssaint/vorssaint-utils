@@ -236,9 +236,16 @@ struct ScratchpadView: View {
         .frame(height: 34)
     }
 
+    /// The editor's text inset, shared with the placeholder overlay below
+    /// so the two cannot be moved independently.
+    private static let editorInset = NSSize(width: 7, height: 2)
+
     private var editor: some View {
         ZStack {
-            PlainTextEditor(text: $service.text)
+            PlainTextEditor(text: $service.text,
+                            textColor: .labelColor,
+                            textContainerInset: Self.editorInset,
+                            onCreate: { ScratchpadService.shared.registerTextView($0) })
                 .opacity(service.isPreviewing ? 0 : 1)
                 .allowsHitTesting(!service.isPreviewing)
                 .accessibilityHidden(service.isPreviewing)
@@ -247,10 +254,11 @@ struct ScratchpadView: View {
                         // NSTextView has no placeholder of its own; this sits at
                         // the exact spot of the first line and never takes clicks.
                         Text(text.placeholder)
-                            .font(.system(size: 13))
+                            .font(.system(size: PlainTextEditor.fontSize))
                             .foregroundStyle(.tertiary)
-                            .padding(.leading, 12)
-                            .padding(.top, 2)
+                            .padding(.leading,
+                                     Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
+                            .padding(.top, Self.editorInset.height)
                             .allowsHitTesting(false)
                     }
                 }
@@ -475,68 +483,6 @@ private struct MarkdownPreview: NSViewRepresentable {
                       at charIndex: Int) -> Bool {
             guard let url = link as? URL else { return false }
             return NSWorkspace.shared.open(url)
-        }
-    }
-}
-
-/// An AppKit text view configured as a pure plain-text surface: no smart
-/// quotes or dashes, no substitutions, no rich paste, with undo. SwiftUI's
-/// editor cannot switch all of that off.
-private struct PlainTextEditor: NSViewRepresentable {
-    @Binding var text: String
-
-    func makeNSView(context: Context) -> NSScrollView {
-        let scroll = NSTextView.scrollableTextView()
-        scroll.drawsBackground = false
-        scroll.hasVerticalScroller = true
-        scroll.autohidesScrollers = true
-        guard let textView = scroll.documentView as? NSTextView else { return scroll }
-        textView.delegate = context.coordinator
-        textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: 13)
-        textView.textColor = .labelColor
-        textView.allowsUndo = true
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.usesFontPanel = false
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.isAutomaticLinkDetectionEnabled = false
-        textView.isAutomaticDataDetectionEnabled = false
-        textView.smartInsertDeleteEnabled = false
-        textView.textContainerInset = NSSize(width: 7, height: 2)
-        textView.string = text
-        ScratchpadService.shared.registerTextView(textView)
-        return scroll
-    }
-
-    func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView,
-              textView.string != text,
-              !textView.hasMarkedText() else { return }
-        textView.string = text
-        // Programmatic replaces (load, retention, restore) invalidate undo
-        // entries recorded against the old storage; replaying one would
-        // resurrect cleared text or throw a range exception.
-        textView.undoManager?.removeAllActions()
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
-    }
-
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        private let text: Binding<String>
-
-        init(text: Binding<String>) {
-            self.text = text
-        }
-
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
         }
     }
 }

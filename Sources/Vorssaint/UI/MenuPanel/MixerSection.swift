@@ -633,7 +633,7 @@ struct MixerSection: View {
     @ViewBuilder
     private var mixerRows: some View {
 #if compiler(>=6.2)
-        if #available(macOS 26.0, *) {
+        if #available(macOS 26.0, *), LiquidGlassSupport.isEnabled() {
             GlassEffectContainer(spacing: 8) {
                 rowList
             }
@@ -1121,7 +1121,7 @@ private struct MixerVolumeSlider: View {
     var body: some View {
         Group {
 #if compiler(>=6.2)
-            if #available(macOS 26.0, *) {
+            if #available(macOS 26.0, *), LiquidGlassSupport.isEnabled() {
                 LiquidGlassMixerSlider(value: $value,
                                        tint: activeTint,
                                        isBoosting: isBoosting,

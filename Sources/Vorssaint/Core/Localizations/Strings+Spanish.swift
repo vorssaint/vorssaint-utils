@@ -749,6 +749,8 @@ extension Strings {
         speedTestFailed: "La prueba falló",
 
         monitorShowInPanel: "Mostrar en el panel",
+        disclosureExpanded: "Expandido",
+        disclosureCollapsed: "Contraído",
         panelHideItem: "Ocultar del panel",
         panelShowItem: "Mostrar en el panel",
         panelHiddenItem: "Oculto",

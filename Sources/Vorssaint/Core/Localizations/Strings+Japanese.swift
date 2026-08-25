@@ -749,6 +749,8 @@ extension Strings {
         speedTestFailed: "テストに失敗しました",
 
         monitorShowInPanel: "パネルに表示",
+        disclosureExpanded: "展開済み",
+        disclosureCollapsed: "折りたたみ済み",
         panelHideItem: "パネルで非表示",
         panelShowItem: "パネルに表示",
         panelHiddenItem: "非表示",

@@ -292,7 +292,10 @@ struct MediaImageOptions: Codable, Equatable {
          background: MediaImageBackground = .transparent,
          preserveModificationDate: Bool = false) {
         self.quality = MediaSupport.sanitizedQuality(quality)
-        self.maxDimension = MediaSupport.sanitizedPixelDimension(Double(maxDimension), fallback: 1600)
+        // Image profiles and their resize mode share one range. Keeping this
+        // legacy field on the video-oriented even/7680 sanitizer let the two
+        // persisted values silently disagree for large image exports.
+        self.maxDimension = MediaSupport.sanitizedImageDimension(maxDimension, fallback: 1600)
         self.format = format
         self.stripMetadata = stripMetadata
         self.resizeMode = resizeMode ?? .maxDimension(self.maxDimension)

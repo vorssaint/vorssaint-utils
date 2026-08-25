@@ -750,6 +750,8 @@ extension Strings {
         speedTestFailed: "測試失敗",
 
         monitorShowInPanel: "在面板中顯示",
+        disclosureExpanded: "已展開",
+        disclosureCollapsed: "已收合",
         panelHideItem: "從面板隱藏",
         panelShowItem: "在面板中顯示",
         panelHiddenItem: "隱藏",

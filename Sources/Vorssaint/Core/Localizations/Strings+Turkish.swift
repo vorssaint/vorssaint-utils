@@ -749,6 +749,8 @@ extension Strings {
         speedTestFailed: "Test başarısız",
 
         monitorShowInPanel: "Panelde göster",
+        disclosureExpanded: "Genişletildi",
+        disclosureCollapsed: "Daraltıldı",
         panelHideItem: "Panelden gizle",
         panelShowItem: "Panelde göster",
         panelHiddenItem: "Gizli",

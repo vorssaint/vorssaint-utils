@@ -669,7 +669,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return strings.micMuteName
         case .quickLauncher: return strings.launcherName
         case .screenshot:
-            return FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle
+            return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenshotFullScreen:
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotLastCapture:
@@ -756,15 +756,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
-    /// The main capture role survives while any mode in its chooser is
-    /// installed. Dedicated roles follow their own tool.
+    /// Every capture role follows its own tool: the shortcut opens the shared
+    /// chooser on that mode, so it lives and dies with the mode itself.
     var availabilityFeatures: [AppFeature] {
-        switch self {
-        case .screenshot:
-            return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        default:
-            return [feature]
-        }
+        [feature]
     }
 
     func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
@@ -801,6 +796,30 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static func availableRoles(isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> [GlobalShortcutRole] {
         allCases.filter { $0.isAvailable(using: isAvailable) }
+    }
+
+    /// The features whose shortcuts share one Screen capture group on the
+    /// central shortcuts page.
+    static let captureFeatures: [AppFeature] =
+        [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+
+    /// Chooser tools first, in chooser order, then the screenshot extras.
+    static let captureDisplayOrder: [GlobalShortcutRole] = [
+        .screenshot, .screenRecorder, .screenOCR, .colorPicker,
+        .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
+    ]
+
+    /// The given roles narrowed to the capture group, in display order. The
+    /// order list only sorts, so an unlisted role lands at the end instead of
+    /// vanishing.
+    static func captureRoles(in roles: [GlobalShortcutRole]) -> [GlobalShortcutRole] {
+        roles.filter { captureFeatures.contains($0.feature) }
+            .enumerated()
+            .sorted { lhs, rhs in
+                (captureDisplayOrder.firstIndex(of: lhs.element) ?? .max, lhs.offset)
+                    < (captureDisplayOrder.firstIndex(of: rhs.element) ?? .max, rhs.offset)
+            }
+            .map(\.element)
     }
 }
 
