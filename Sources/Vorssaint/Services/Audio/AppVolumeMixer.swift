@@ -1891,8 +1891,15 @@ private final class TapGainEngine: GainEngine {
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
             guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers,
-                                                            tapChannels: tapChannels) else { return }
+                                                            tapChannels: tapChannels) else {
+                // No samples to put in the buffer is not a reason to leave it:
+                // whatever the HAL left there plays otherwise (issue #326).
+                MixerRender.silence(outputBuffers)
+                return
+            }
             let gain = box.value
+            // `render` silences whatever it does not fill, so every path from
+            // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
                                             gain: gain)
