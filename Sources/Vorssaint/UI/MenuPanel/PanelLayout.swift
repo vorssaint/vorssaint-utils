@@ -10,7 +10,7 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
+    case keepAwake, chargeControl, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
          toggles
 
     var id: String { rawValue }
@@ -19,6 +19,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
     func title(_ s: Strings) -> String {
         switch self {
         case .keepAwake: return s.keepAwakeTitle
+        case .chargeControl: return ChargeControlStrings.current(L10n.shared.language).title
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .mixer: return s.mixerSection
         case .system: return s.systemSection
@@ -35,6 +36,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
     var symbolName: String {
         switch self {
         case .keepAwake: return "moon.zzz.fill"
+        case .chargeControl: return "battery.75percent"
         case .brightness: return "display.2"
         case .mixer: return "slider.horizontal.3"
         case .system: return "cpu"
@@ -54,6 +56,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
     var visibilityKey: String {
         switch self {
         case .keepAwake: return DefaultsKey.panelShowKeepAwake
+        case .chargeControl: return DefaultsKey.panelShowChargeControl
         case .brightness: return DefaultsKey.panelShowBrightness
         case .mixer: return DefaultsKey.monitorShowMixer
         case .system: return DefaultsKey.monitorShowSystem
@@ -77,6 +80,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
     var featureGate: [AppFeature] {
         switch self {
         case .keepAwake: return [.keepAwake]
+        case .chargeControl: return [.batteryChargeLimit]
         case .brightness: return [.brightness]
         case .mixer: return [.mixer]
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]

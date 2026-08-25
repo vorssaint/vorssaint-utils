@@ -39,6 +39,7 @@ else
     BUILD_CONFIGURATION="release"
 fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
+CHARGE_HELPER_ID="$APP_BUNDLE_ID.charge-control"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
@@ -91,6 +92,7 @@ write_swift_output_file_map() {
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+    local charge_helper="$bundle/Contents/Library/LaunchServices/$CHARGE_HELPER_ID"
     local devid
     devid="$(developer_id_identity)"
 
@@ -99,18 +101,25 @@ finalize_installed_bundle_after_child() {
     if [[ -n "$devid" ]]; then
         [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
+        [[ -f "$charge_helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
+            --options runtime --timestamp --identifier "$CHARGE_HELPER_ID" --sign "$devid" "$charge_helper"
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
+        [[ -f "$charge_helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$CHARGE_HELPER_ID" --sign "$LEGACY_IDENTITY" "$charge_helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$bundle"
     else
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign - "$helper"
+        [[ -f "$charge_helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$CHARGE_HELPER_ID" --sign - "$charge_helper"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign - "$bundle"
     fi
     [[ -f "$helper" ]] && /usr/bin/codesign --verify --strict "$helper"
+    [[ -f "$charge_helper" ]] && /usr/bin/codesign --verify --strict "$charge_helper"
     /usr/bin/codesign --verify --deep --strict "$bundle"
     echo "✓ Signature ready: $bundle"
 }
@@ -307,6 +316,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift \
         Sources/Vorssaint/Services/SudoersSupport.swift \
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift \
+        Sources/Vorssaint/Services/ChargeControl/ChargeControlSupport.swift \
         Sources/Vorssaint/Services/BoundedProcessRunner.swift \
         Sources/Vorssaint/Services/ShellSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
@@ -368,6 +378,17 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
     -o "build/$FAN_HELPER_ID"
 "build/$FAN_HELPER_ID" --selftest
 
+echo "▸ Compiling protected charge helper…"
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    Sources/Vorssaint/Services/ChargeControl/ChargeControlSupport.swift \
+    Sources/Vorssaint/Services/ChargeControl/ChargeControlHardware.swift \
+    Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+    Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+    Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+    Sources/ChargeControlHelper/main.swift \
+    -o "build/$CHARGE_HELPER_ID"
+"build/$CHARGE_HELPER_ID" --selftest
+
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
@@ -408,8 +429,11 @@ mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources" \
     "$STAGE/Contents/Library/LaunchDaemons" "$STAGE/Contents/Library/LaunchServices"
 cp "build/$EXECUTABLE" "$STAGE/Contents/MacOS/$EXECUTABLE"
 cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+cp "build/$CHARGE_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$CHARGE_HELPER_ID"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
+cp Resources/com.vorssaint.utils.charge-control.plist \
+    "$STAGE/Contents/Library/LaunchDaemons/$CHARGE_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
@@ -427,6 +451,11 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Delete :MachServices:com.vorssaint.utils.fan-control" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Add :MachServices:$FAN_HELPER_ID bool true" "$FAN_PLIST"
+    CHARGE_PLIST="$STAGE/Contents/Library/LaunchDaemons/$CHARGE_HELPER_ID.plist"
+    /usr/libexec/PlistBuddy -c "Set :Label $CHARGE_HELPER_ID" "$CHARGE_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$CHARGE_HELPER_ID" "$CHARGE_PLIST"
+    /usr/libexec/PlistBuddy -c "Delete :MachServices:com.vorssaint.utils.charge-control" "$CHARGE_PLIST"
+    /usr/libexec/PlistBuddy -c "Add :MachServices:$CHARGE_HELPER_ID bool true" "$CHARGE_PLIST"
     # Stamp the source commit + build time so the running dev app shows (in About)
     # exactly which code it was compiled from. Lets you verify it matches HEAD before
     # testing, instead of unknowingly running a stale build. Dev-only; never shipped.
@@ -444,6 +473,16 @@ FAN_HELPER_VERSION="$(
         | /usr/bin/awk '{print $1}'
 )"
 /usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
+    "$STAGE/Contents/Info.plist"
+CHARGE_HELPER_VERSION="$(
+    export LC_ALL=C
+    /usr/bin/shasum -a 256 \
+        "$STAGE/Contents/Library/LaunchServices/$CHARGE_HELPER_ID" \
+        "$STAGE/Contents/Library/LaunchDaemons/$CHARGE_HELPER_ID.plist" \
+        | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
+        | /usr/bin/awk '{print $1}'
+)"
+/usr/libexec/PlistBuddy -c "Add :VorssaintChargeControlHelperVersion string '$CHARGE_HELPER_VERSION'" \
     "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
@@ -497,10 +536,23 @@ codesign_fan_helper() {
     fi
 }
 
+codesign_charge_helper() {
+    local target="$1"
+    if [[ -n "$DEVID" ]]; then
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+            --identifier "$CHARGE_HELPER_ID" --sign "$DEVID" "$target"
+    elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
+        codesign --force --strip-disallowed-xattrs --identifier "$CHARGE_HELPER_ID" --sign "$LEGACY_IDENTITY" "$target"
+    else
+        codesign --force --strip-disallowed-xattrs --identifier "$CHARGE_HELPER_ID" --sign - "$target"
+    fi
+}
+
 sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+    local charge_helper="$bundle/Contents/Library/LaunchServices/$CHARGE_HELPER_ID"
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
@@ -510,6 +562,7 @@ sign_bundle() {
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+    [[ -f "$charge_helper" ]] && codesign_charge_helper "$charge_helper"
     codesign_app "$bundle"
 
     # If local filesystem metadata invalidates the first signature, sign once
@@ -518,10 +571,12 @@ sign_bundle() {
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
         [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+        [[ -f "$charge_helper" ]] && codesign_charge_helper "$charge_helper"
         codesign_app "$bundle"
     fi
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
     [[ -f "$helper" ]] && codesign --verify --strict "$helper"
+    [[ -f "$charge_helper" ]] && codesign --verify --strict "$charge_helper"
     codesign --verify --deep --strict "$bundle"
 }
 

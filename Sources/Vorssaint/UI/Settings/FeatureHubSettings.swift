@@ -625,6 +625,7 @@ extension AppFeature {
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
+        case .batteryChargeLimit: return ChargeControlStrings.current(L10n.shared.language).title
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).pageTitle
@@ -685,6 +686,7 @@ extension AppFeature {
         case .micMute: return hub.descMicMute
         case .musicBlock: return hub.descMusicBlock
         case .keepAwake: return hub.descKeepAwake
+        case .batteryChargeLimit: return ChargeControlStrings.current(L10n.shared.language).description
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).hubDescription
         case .extraBrightness: return hub.descExtraBrightness
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).hubDescription

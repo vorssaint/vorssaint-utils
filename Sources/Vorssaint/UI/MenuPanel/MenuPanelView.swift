@@ -71,6 +71,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
+    @AppStorage(DefaultsKey.panelShowChargeControl) private var showChargeControl = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -136,6 +137,7 @@ struct MenuPanelView: View {
             return selectedMetric.monitorNeeds
         }
         switch activeSection {
+        case .chargeControl: return SystemMonitorPanelNeeds(power: true)
         case .system: return SystemMonitorPanelNeeds(system: true)
         case .network: return SystemMonitorPanelNeeds(network: true)
         case .disk: return SystemMonitorPanelNeeds(disk: true)
@@ -254,6 +256,7 @@ struct MenuPanelView: View {
     private var estimatedNavigableContentHeight: CGFloat {
         switch activeSection {
         case .keepAwake: return 250
+        case .chargeControl: return 330
         case .brightness: return 140
         case .mixer: return 250
         case .system: return 460
@@ -285,6 +288,7 @@ struct MenuPanelView: View {
     private func section(for id: PanelSectionID, collapsible: Bool = true) -> some View {
         switch id {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
+        case .chargeControl: if showChargeControl { ChargeControlSection(collapsible: collapsible) }
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
@@ -302,6 +306,7 @@ struct MenuPanelView: View {
         guard id.isAvailable else { return false }
         switch id {
         case .keepAwake: return showKeepAwake
+        case .chargeControl: return showChargeControl
         // The section only earns its navigation tab while the feature is on;
         // it is switched on in Settings, not from an empty panel screen.
         case .brightness: return showBrightness && brightnessEnabled

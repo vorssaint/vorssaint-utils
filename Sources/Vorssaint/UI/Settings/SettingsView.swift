@@ -399,6 +399,7 @@ struct EnergySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var chargeControl = ChargeControlService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
@@ -408,6 +409,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.bluetoothSleepRestoreOnWake) private var bluetoothSleepRestoreOnWake = true
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
+    @AppStorage(DefaultsKey.chargeLimitEnabled) private var chargeLimitEnabled = false
+    @AppStorage(DefaultsKey.chargeLimitPercent) private var chargeLimitPercent = ChargeLimitPolicy.defaultLimit
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
@@ -419,6 +422,35 @@ struct EnergySettings: View {
 
     var body: some View {
         Form {
+            if AppFeature.batteryChargeLimit.isAvailable, PowerSampler.hasInternalBattery {
+                let strings = ChargeControlStrings.current(l10n.language)
+                Section(strings.title) {
+                    SettingsToggleWithCaption(title: strings.enable,
+                                              caption: strings.enableCaption,
+                                              isOn: $chargeLimitEnabled)
+                        .onChange(of: chargeLimitEnabled) { _, _ in
+                            ChargeControlService.shared.syncWithPreferences()
+                        }
+                    if chargeLimitEnabled {
+                        HStack {
+                            Text(strings.limit)
+                            Slider(value: Binding(get: { Double(chargeLimitPercent) },
+                                                  set: { chargeLimitPercent = ChargeLimitPolicy.sanitizedLimit(Int($0.rounded())) }),
+                                   in: 20...100, step: 1)
+                            Text("\(chargeLimitPercent)")
+                                .font(.system(.body, design: .monospaced))
+                                .frame(width: 32, alignment: .trailing)
+                            Text("%").foregroundStyle(.secondary)
+                        }
+                        .onChange(of: chargeLimitPercent) { _, _ in
+                            normalizeChargeLimit()
+                            ChargeControlService.shared.evaluate()
+                        }
+                        SettingsCaptionText(strings.warning)
+                    }
+                }
+                .settingsSectionAnchor(.batteryChargeLimit)
+            }
             if AppFeature.keepAwake.isAvailable {
                 Section(l10n.s.sessionSection) {
                     Picker(l10n.s.defaultDurationLabel, selection: $defaultDuration) {
@@ -589,6 +621,8 @@ struct EnergySettings: View {
         .onAppear {
             defaultDuration = Defaults.sanitizedDefaultDuration(defaultDuration)
             batteryLimit = Defaults.sanitizedBatteryLimit(batteryLimit)
+            normalizeChargeLimit()
+            chargeControl.syncWithPreferences()
             keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
             keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
             keepAwakeMouseJiggleInterval = Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)
@@ -598,6 +632,10 @@ struct EnergySettings: View {
             ExtraBrightnessService.shared.syncWithPreferences()
             BrightnessService.shared.refresh()
         }
+    }
+
+    private func normalizeChargeLimit() {
+        chargeLimitPercent = ChargeLimitPolicy.sanitizedLimit(chargeLimitPercent)
     }
 
     private func brightnessRow(_ display: BrightnessDisplay) -> some View {

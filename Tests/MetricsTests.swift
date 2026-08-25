@@ -3670,6 +3670,53 @@ struct MetricsTests {
         expect(Defaults.sanitizedDefaultDuration(999) == 0, "invalid default duration falls back to indefinite")
         expect(Defaults.sanitizedBatteryLimit(15) == 15, "valid battery limit is preserved")
         expect(Defaults.sanitizedBatteryLimit(100) == 10, "invalid battery limit falls back to default")
+        expect(ChargeLimitPolicy.sanitizedLimit(10) == 20, "charge limit clamps low input")
+        expect(ChargeLimitPolicy.sanitizedLimit(101) == 100, "charge limit clamps high input")
+        expect(ChargeLimitPolicy.desiredMode(percent: 80, limit: 80, pluggedIn: true,
+                                             previous: .charging) == .paused,
+               "charge limit pauses at the target")
+        expect(ChargeLimitPolicy.desiredMode(percent: 79, limit: 80, pluggedIn: true,
+                                             previous: .paused) == .charging,
+               "charge limit charges whenever battery is below the target")
+        expect(ChargeLimitPolicy.desiredMode(percent: 77, limit: 80, pluggedIn: true,
+                                             previous: .paused) == .charging,
+               "charge limit keeps charging below the target")
+        expect(ChargeLimitPolicy.desiredMode(percent: 81, limit: 80, pluggedIn: true,
+                                             previous: .paused) == .discharging,
+               "charge limit automatically discharges above the target")
+        expect(ChargeLimitPolicy.desiredMode(percent: 90, limit: 100, pluggedIn: true,
+                                             previous: .paused) == .charging,
+               "one hundred percent restores normal charging")
+        expect(!ChargeLimitPolicy.shouldEndDischarge(percent: 81, limit: 80,
+                                                     pluggedIn: true, builtInDisplayOnline: true),
+               "temporary discharge continues above the limit while open and plugged in")
+        expect(ChargeLimitPolicy.shouldEndDischarge(percent: 80, limit: 80,
+                                                    pluggedIn: true, builtInDisplayOnline: true),
+               "temporary discharge ends at the limit")
+        expect(ChargeLimitPolicy.shouldEndDischarge(percent: 90, limit: 80,
+                                                    pluggedIn: false, builtInDisplayOnline: true),
+               "temporary discharge ends when unplugged")
+        expect(ChargeLimitPolicy.shouldEndDischarge(percent: 90, limit: 80,
+                                                    pluggedIn: true, builtInDisplayOnline: false),
+               "temporary discharge ends when the lid closes")
+        expect(!ChargeLimitPolicy.shouldEndTopUp(percent: 99, pluggedIn: true),
+               "top up continues below full charge")
+        expect(ChargeLimitPolicy.shouldEndTopUp(percent: 100, pluggedIn: true),
+               "top up ends at full charge")
+        expect(ChargeLimitPolicy.shouldEndTopUp(percent: 90, pluggedIn: false),
+               "top up ends when unplugged")
+        expect(!ChargeLimitPolicy.shouldReportSystemConflict(wantsCharging: true,
+                                                             isCharging: false,
+                                                             secondsSinceAllow: 5),
+               "charging state gets a grace period after enabling")
+        expect(ChargeLimitPolicy.shouldReportSystemConflict(wantsCharging: true,
+                                                            isCharging: false,
+                                                            secondsSinceAllow: 20),
+               "charging conflict appears after the hardware grace period")
+        expect(!ChargeLimitPolicy.shouldReportSystemConflict(wantsCharging: true,
+                                                             isCharging: true,
+                                                             secondsSinceAllow: 30),
+               "real charging clears the system conflict")
         expect(Defaults.sanitizedClipboardHistoryLimit(1_000) == 1_000,
                "larger clipboard history limits are preserved")
         expect(Defaults.sanitizedClipboardHistoryLimit(999) == 50,
@@ -10070,7 +10117,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10080,7 +10127,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "keepAwake", "batteryChargeLimit", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
@@ -10094,8 +10141,9 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.batteryChargeLimit.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
-                    $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
+                    $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .batteryChargeLimit && $0 != .diskImageInstaller
                         && $0 != .killProcess
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
@@ -11109,10 +11157,10 @@ struct MetricsTests {
                "one remaining mouse feature keeps the mouse page")
         expect(!pageVisible(.mouse, available: []),
                "the mouse page hides only with all six mouse features off")
-        expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
+        expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .batteryChargeLimit, .brightness,
                                                                          .extraBrightness,
                                                                          .bluetoothSleep])),
-               "energy hides when all four of its features are off")
+               "energy hides when all five of its features are off")
         expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")

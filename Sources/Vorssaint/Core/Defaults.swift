@@ -19,6 +19,10 @@ enum DefaultsKey {
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
+    static let chargeLimitEnabled = "chargeLimitEnabled"
+    static let chargeLimitPercent = "chargeLimitPercent"
+    static let chargeLimitDischargeEnabled = "chargeLimitDischargeEnabled"
+    static let chargeControlHelperVersion = "chargeControlHelperVersion"
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
@@ -284,6 +288,7 @@ enum DefaultsKey {
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let panelShowFanControl = "panelShowFanControl"
+    static let panelShowChargeControl = "panelShowChargeControl"
     static let fanControlMode = "fanControlMode"
     static let fanControlCoolingLevel = "fanControlCoolingLevel"
     static let fanControlCurves = "fanControlCurves"
@@ -762,6 +767,10 @@ enum Defaults {
         DefaultsKey.clamshellPreferred: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
+        DefaultsKey.chargeLimitEnabled: false,
+        DefaultsKey.chargeLimitPercent: ChargeLimitPolicy.defaultLimit,
+        DefaultsKey.chargeLimitDischargeEnabled: false,
+        DefaultsKey.chargeControlHelperVersion: "",
         DefaultsKey.keepAwakeAutoStart: false,
         DefaultsKey.keepAwakeRightClickToggle: false,
         DefaultsKey.keepAwakeAllowDisplaySleep: false,
@@ -999,6 +1008,7 @@ enum Defaults {
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.panelShowFanControl: true,
+        DefaultsKey.panelShowChargeControl: true,
         DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
         DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,

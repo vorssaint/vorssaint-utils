@@ -106,7 +106,7 @@ extension AppFeature {
             return RadialMenuMouseTrigger.sanitized(
                 UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
                 ? .idle : .mouse
-        case .clipboardHistory, .urlCleaner, .extraBrightness,
+        case .clipboardHistory, .urlCleaner, .extraBrightness, .batteryChargeLimit,
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic
