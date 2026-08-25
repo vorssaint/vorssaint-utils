@@ -29,8 +29,8 @@ struct PanelUninstallerView: View {
             }
             return selected
         } isTargeted: { dropTargeted = $0 }
-        .onAppear { PanelInteractionState.shared.keepsPopoverOpen = true }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
         .alert(l10n.s.homebrewConfirmUninstallTitle,
                isPresented: Binding(get: { pendingHomebrewRemoval != nil },
                                     set: { if !$0 { pendingHomebrewRemoval = nil } }),

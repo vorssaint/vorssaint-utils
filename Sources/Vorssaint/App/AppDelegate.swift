@@ -726,7 +726,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             guard let self, self.popover.isShown else { return }
-            guard !PanelInteractionState.shared.keepsPopoverOpen else { return }
+            guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
             guard self.statusController.containsStatusItem(at: NSEvent.mouseLocation) == false else { return }
             self.closePopover()
         }
@@ -766,7 +766,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func shouldDismissPopover(forLocalEvent event: NSEvent) -> Bool {
-        guard !PanelInteractionState.shared.keepsPopoverOpen else { return false }
+        guard !PanelInteractionState.shared.preventsPopoverDismissal else { return false }
         guard event.window === settingsWindow,
               let settingsFrame = settingsWindow?.frame,
               let popoverFrame = popover.contentViewController?.view.window?.frame else {
@@ -782,7 +782,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
 
         guard popover.isShown,
-              PanelInteractionState.shared.keepsPopoverOpen,
+              PanelInteractionState.shared.viewKeepsPopoverOpen,
               isPlainPopoverHoldKey(event),
               let window = popover.contentViewController?.view.window else {
             return event
@@ -921,7 +921,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
-        popoverIsClosing || !PanelInteractionState.shared.keepsPopoverOpen
+        popoverIsClosing || !PanelInteractionState.shared.preventsPopoverDismissal
     }
 
     func popoverDidClose(_ notification: Notification) {
@@ -939,7 +939,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         removePopoverDismissMonitor()
         endPopoverDriftCorrection()
-        PanelInteractionState.shared.keepsPopoverOpen = false
+        PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        PanelInteractionState.shared.isPresentingPopoverModal = false
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()
