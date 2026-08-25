@@ -9132,6 +9132,44 @@ struct MetricsTests {
         expect(!HomebrewCommandBuilder.isValidToken("bad token"), "spaced Homebrew token is invalid")
 
         let brewPath = "/opt/homebrew/bin/brew"
+        expect(HomebrewCommandBuilder.disabledPackageName(fromOutput:
+            "Error: six has been disabled because it does not meet homebrew/core's requirements for Python library formulae! It was disabled on 2025-10-16.")
+            == "six",
+               "disabled package name is extracted from Homebrew's refusal")
+        expect(HomebrewCommandBuilder.disabledPackageName(fromOutput: "Error: no such formula") == nil,
+               "other Homebrew errors extract no disabled package")
+        let sixOutdated = HomebrewPackageUpdate(kind: .formula, name: "six",
+                                                installedVersions: ["1.16.0_3"],
+                                                currentVersion: "1.17.0", isPinned: false)
+        let jqOutdated = HomebrewPackageUpdate(kind: .formula, name: "jq",
+                                               installedVersions: ["1.7"],
+                                               currentVersion: "1.8", isPinned: false)
+        let pinnedOutdated = HomebrewPackageUpdate(kind: .formula, name: "node",
+                                                   installedVersions: ["22.0"],
+                                                   currentVersion: "24.0", isPinned: true)
+        expect(HomebrewCommandBuilder.upgradeExcluding(
+                ["six"],
+                from: HomebrewCommand(executable: brewPath, arguments: ["upgrade"]),
+                outdated: [sixOutdated, jqOutdated, pinnedOutdated])?.arguments
+               == ["upgrade", "jq"],
+               "bare upgrade retries with the outdated list minus disabled and pinned packages")
+        expect(HomebrewCommandBuilder.upgradeExcluding(
+                ["six"],
+                from: HomebrewCommand(executable: brewPath, arguments: ["upgrade", "--cask", "six", "jq"]),
+                outdated: [])?.arguments
+               == ["upgrade", "--cask", "jq"],
+               "explicit upgrade keeps its flags and drops only the disabled package")
+        expect(HomebrewCommandBuilder.upgradeExcluding(
+                ["six"],
+                from: HomebrewCommand(executable: brewPath, arguments: ["upgrade", "six"]),
+                outdated: [sixOutdated]) == nil,
+               "an upgrade with nothing left after the disabled package is not retried")
+        expect(HomebrewCommandBuilder.upgradeExcluding(
+                ["six"],
+                from: HomebrewCommand(executable: brewPath, arguments: ["upgrade", "jq"]),
+                outdated: [jqOutdated]) == nil,
+               "an upgrade that never named the disabled package is not retried again")
+
         let cask = HomebrewPackage(kind: .cask, name: "sample-tool",
                                    displayName: "Sample Tool", desc: nil,
                                    installedVersion: nil, stableVersion: nil, homepage: nil)

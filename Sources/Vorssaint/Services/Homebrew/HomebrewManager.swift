@@ -402,6 +402,15 @@ final class HomebrewManager: ObservableObject {
                     self.markOperationComplete(result: .failed,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: nil)
+                } else if action == .upgradeAll,
+                          let disabled = HomebrewCommandBuilder.disabledPackageName(fromOutput: output),
+                          let retry = HomebrewCommandBuilder.upgradeExcluding(
+                              [disabled],
+                              from: command,
+                              outdated: Array(self.outdatedPackagesByID.values)) {
+                    // A disabled package can never be upgraded, so skip it.
+                    self.perform(action, package: package, command: retry)
+                    self.appendLog("Skipping \(disabled): disabled in Homebrew.\n\n")
                 } else {
                     let message = HomebrewProgressParser.visibleError(from: output)
                     self.errorMessage = message.isEmpty ? output.trimmingCharacters(in: .whitespacesAndNewlines) : message

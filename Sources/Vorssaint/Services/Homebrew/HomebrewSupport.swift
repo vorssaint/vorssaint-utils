@@ -310,6 +310,39 @@ enum HomebrewCommandBuilder {
         HomebrewCommand(executable: brewPath, arguments: ["trust", "--tap", tap])
     }
 
+    /// Homebrew aborts a whole `upgrade` run when any package in it has been
+    /// disabled ("Error: six has been disabled because …"). The name is
+    /// extracted so the upgrade can be retried without that package.
+    static func disabledPackageName(fromOutput output: String) -> String? {
+        guard let range = output.range(of: #"Error: ([A-Za-z0-9._+@/-]+) has been disabled"#,
+                                       options: .regularExpression) else { return nil }
+        let name = String(output[range])
+            .replacingOccurrences(of: "Error: ", with: "")
+            .replacingOccurrences(of: " has been disabled", with: "")
+        return isValidToken(name) ? name : nil
+    }
+
+    /// The failed upgrade rebuilt without the given packages: explicit tokens
+    /// lose the excluded names, a bare `upgrade` expands to the outdated list
+    /// minus them. nil when the retry would repeat the same command or
+    /// nothing is left to upgrade.
+    static func upgradeExcluding(_ excluded: Set<String>,
+                                 from command: HomebrewCommand,
+                                 outdated: [HomebrewPackageUpdate]) -> HomebrewCommand? {
+        guard command.arguments.first == "upgrade" else { return nil }
+        let rest = command.arguments.dropFirst()
+        let flags = rest.filter { $0.hasPrefix("-") }
+        var tokens = rest.filter { !$0.hasPrefix("-") }
+        if tokens.isEmpty {
+            tokens = outdated.filter { !$0.isPinned }.map(\.name).sorted()
+        }
+        guard tokens.contains(where: excluded.contains) else { return nil }
+        tokens.removeAll { excluded.contains($0) || !isValidToken($0) }
+        guard !tokens.isEmpty else { return nil }
+        return HomebrewCommand(executable: command.executable,
+                               arguments: ["upgrade"] + flags + tokens)
+    }
+
     static func needsTerminalFallback(output: String) -> Bool {
         let lower = output.lowercased()
         return lower.contains("sudo:")
