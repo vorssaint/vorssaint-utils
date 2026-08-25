@@ -126,20 +126,36 @@ enum SuperKeySupport {
                                    property: String,
                                    ownsExistingMapping: Bool = false) -> [SuperKeyMapping]? {
         consistentMappings(report, property: property,
-                           settingAside: ownsExistingMapping ? isOwnedMapping : { _ in false })
+                           settingAside: ownsExistingMapping ? isOwnedMapping : { _ in false },
+                           propagating: { _ in false })
     }
 
-    /// The shared core. Each mapping-table writer passes the predicate for the entries it owns.
+    /// The shared core for every mapping-table writer. The caller's own
+    /// entries (per its ownership rule) and its partner feature's entries are
+    /// both left out of the cross-keyboard comparison — a keyboard that just
+    /// arrived lacks them, and that must not read as an external difference.
+    /// They part ways in the returned table: own entries are dropped for the
+    /// caller to re-add, while partner entries are kept as the union across
+    /// keyboards, so a repair by either feature carries the other's mapping
+    /// onto every keyboard instead of dropping it.
     static func consistentMappings(_ report: String,
                                    property: String,
-                                   settingAside isOwned: (SuperKeyMapping) -> Bool)
+                                   settingAside isOwned: (SuperKeyMapping) -> Bool,
+                                   propagating isPartner: (SuperKeyMapping) -> Bool)
         -> [SuperKeyMapping]? {
-        let tables = mappingTables(report, property: property).map { mappings in
-            mappings.filter { !isOwned($0) }
+        let tables = mappingTables(report, property: property)
+        let comparable = tables.map { mappings in
+            mappings.filter { !isOwned($0) && !isPartner($0) }
         }
-        guard let first = tables.first,
-              tables.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else { return nil }
-        return first
+        guard let first = comparable.first,
+              comparable.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else { return nil }
+        var partner: [SuperKeyMapping] = []
+        for table in tables {
+            for mapping in table where isPartner(mapping) && !partner.contains(mapping) {
+                partner.append(mapping)
+            }
+        }
+        return partner + first
     }
 
     static func mappingTables(_ report: String,
@@ -219,7 +235,9 @@ enum SuperKeySupport {
         return result
     }
 
-    private static func isOwnedMapping(_ mapping: SuperKeyMapping) -> Bool {
+    /// Internal so the key overrides can recognize this feature's entries as
+    /// the partner shape to set aside and carry along during repairs.
+    static func isOwnedMapping(_ mapping: SuperKeyMapping) -> Bool {
         (mapping.source == capsLockUsage && mapping.destination == triggerUsage)
             || (mapping.source == noActionUsage && mapping.destination == triggerUsage)
     }

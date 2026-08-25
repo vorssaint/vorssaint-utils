@@ -352,10 +352,13 @@ final class SuperKeyService: ObservableObject {
              "--get", SuperKeySupport.userMappingProperty]
         )
         guard report.status == 0 else { return false }
+        // The key overrides' entries are the partner shape here: ignored for
+        // the cross-keyboard comparison, carried along in the write.
         guard let existing = SuperKeySupport.consistentMappings(
             report.output,
             property: SuperKeySupport.userMappingProperty,
-            ownsExistingMapping: ownsExistingMapping
+            settingAside: ownsExistingMapping ? SuperKeySupport.isOwnedMapping : { _ in false },
+            propagating: KeyOverrideSupport.isOwnedMapping
         ) else { return false }
         guard !enabled || !SuperKeySupport.hasMappingConflict(
             in: existing,

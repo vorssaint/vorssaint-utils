@@ -17028,6 +17028,46 @@ struct MetricsTests {
                                                      ownsExistingMapping: false) == nil,
                "an unowned difference between keyboards is never merged")
 
+        // Keyboard A carries both features' entries (caps 30064771129 → F18
+        // 30064771181 and dictation 51539607759 → F5 30064771134); keyboard B
+        // just arrived with nothing. Each feature must still converge, and
+        // each must carry the other's entry along instead of dropping it.
+        let bothFeaturesNewKeyboardReport = """
+        RegistryID  Key                   Value
+        100000a84   UserKeyMapping   (
+                {
+                HIDKeyboardModifierMappingDst = 30064771181;
+                HIDKeyboardModifierMappingSrc = 30064771129;
+            }
+                {
+                HIDKeyboardModifierMappingDst = 30064771134;
+                HIDKeyboardModifierMappingSrc = 51539607759;
+            }
+        )
+        100000a85   UserKeyMapping   (
+        )
+        """
+        let superKeyEntry = SuperKeyMapping(source: 30064771129, destination: 30064771181)
+        let dictationEntry = SuperKeyMapping(source: 51539607759, destination: 30064771134)
+        expect(KeyOverrideSupport.consistentMappings(bothFeaturesNewKeyboardReport,
+                                                     ownsExistingMapping: true)
+                == [superKeyEntry],
+               "a new keyboard converges with both features on, the Super key's entry riding along")
+        expect(KeyOverrideSupport.mappings(reclaiming: [.dictation],
+                                           existing: [superKeyEntry])
+                == [dictationEntry, superKeyEntry],
+               "the override repair writes the Super key's entry onto the new keyboard too")
+        expect(SuperKeySupport.consistentMappings(
+            bothFeaturesNewKeyboardReport,
+            property: SuperKeySupport.userMappingProperty,
+            settingAside: SuperKeySupport.isOwnedMapping,
+            propagating: KeyOverrideSupport.isOwnedMapping
+        ) == [dictationEntry],
+               "the Super key's repair sees one table with the override entry riding along")
+        expect(SuperKeySupport.mappings(enablingSuperKey: true, existing: [dictationEntry])
+                == [superKeyEntry, dictationEntry],
+               "the Super key's repair writes the override entry onto the new keyboard too")
+
         let accessibilityOverrideData = KeyOverrideSupport.encode([
             KeyOverride(key: .f13,
                         action: KeyOverrideAction(
