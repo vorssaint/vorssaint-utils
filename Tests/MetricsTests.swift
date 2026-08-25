@@ -12315,6 +12315,53 @@ struct MetricsTests {
                 && !ScreenshotSupport.isClick(from: .zero, to: CGPoint(x: 12, y: 0)),
                "a tiny drag is a click, a real drag is not")
 
+        // The crop chrome, the loupe cross and the image applyCrop produces are
+        // three drawings of one edge. They agree only while pixelSnappedCropRect
+        // is the single thing deciding where that edge is.
+        let snapBounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        let looseDraft = CGRect(x: 100.4, y: 60.4, width: 100, height: 100)
+        let snappedDraft = ScreenshotSupport.pixelSnappedCropRect(looseDraft, within: snapBounds)
+        expect(snappedDraft == CGRect(x: 100, y: 60, width: 100, height: 100),
+               "a crop draft rounds each edge to the nearest pixel boundary")
+        expect(snappedDraft.maxX == 200,
+               "a crop draft does not grow outward the way CGRect.integral would")
+        expect(ScreenshotSupport.pixelSnappedCropRect(snappedDraft, within: snapBounds)
+                == snappedDraft,
+               "snapping a crop draft that already sits on pixels changes nothing")
+        expect(ScreenshotSupport.pixelSnappedCropRect(
+                    CGRect(x: 100.4, y: 60.4, width: 100.2, height: 100.2), within: snapBounds)
+                == CGRect(x: 100, y: 60, width: 101, height: 101),
+               "a crop edge past the halfway mark rounds to the next boundary")
+        let movedDraft = ScreenshotSupport.pixelSnappedCropRect(
+            ScreenshotSupport.movedRect(snappedDraft,
+                                        by: CGPoint(x: 12.6, y: -4.3),
+                                        within: snapBounds),
+            within: snapBounds)
+        expect(movedDraft.size == snappedDraft.size,
+               "moving a crop draft never changes its size")
+        expect(ScreenshotSupport.pixelSnappedCropRect(
+                    CGRect(x: -40, y: -30, width: 100, height: 100), within: snapBounds)
+                == CGRect(x: 0, y: 0, width: 60, height: 70),
+               "a snapped crop draft stays inside the image")
+
+        // An even sample side centres the edge only once the edge is whole,
+        // which is what the snapping above guarantees.
+        let snapImageSize = CGSize(width: 800, height: 600)
+        let snappedEdge = ScreenshotSupport.Handle.left.position(in: snappedDraft)
+        let snappedSample = ScreenshotSupport.cropLoupeSampleRect(around: snappedEdge,
+                                                                  imageSize: snapImageSize,
+                                                                  sideLength: 14,
+                                                                  centredOnPixel: false)
+        expect(snappedSample.midX == snappedEdge.x && snappedSample.midY == snappedEdge.y,
+               "the crop loupe centres on the edge it marks once the draft sits on pixels")
+        let looseEdge = ScreenshotSupport.Handle.left.position(in: looseDraft)
+        let looseSample = ScreenshotSupport.cropLoupeSampleRect(around: looseEdge,
+                                                                imageSize: snapImageSize,
+                                                                sideLength: 14,
+                                                                centredOnPixel: false)
+        expect(looseSample.midX != looseEdge.x,
+               "an even sample side alone does not centre a fractional crop edge")
+
         var patternParts = DateComponents()
         patternParts.year = 2026
         patternParts.month = 7
