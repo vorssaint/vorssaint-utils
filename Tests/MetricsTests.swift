@@ -12507,6 +12507,24 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
+        // A segmented control never lays out narrower than the labels it
+        // holds, so the row of capture tools has to scroll rather than ask
+        // the settings window for width it does not have (issue #757).
+        let screenCaptureSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
+            encoding: .utf8)) ?? ""
+        let screenCaptureCode = screenCaptureSettingsSource
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let toolPickerBody = (screenCaptureCode
+            .components(separatedBy: "private var toolPicker: some View {").last ?? "")
+            .components(separatedBy: "\n    private ").first ?? ""
+        expect(toolPickerBody.contains("ScrollView(.horizontal)")
+                && toolPickerBody.contains("pickerStyle(.segmented)"),
+               "the row of capture tools scrolls instead of widening the settings window")
+        expect(toolPickerBody.contains("containerRelativeFrame(.horizontal)"),
+               "the row of capture tools still fills the width the window gives it")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])

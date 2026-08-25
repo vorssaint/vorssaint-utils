@@ -30,16 +30,7 @@ struct ScreenCaptureSettings: View {
         Form {
             Section {
                 if availableTools.count > 1 {
-                    Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                        ForEach(availableTools, id: \.self) { tool in
-                            Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                                  systemImage: tool.systemImageName)
-                                .tag(tool)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .controlSize(.large)
+                    toolPicker
                 }
 
                 Text(strings.screenCaptureCaption)
@@ -75,6 +66,27 @@ struct ScreenCaptureSettings: View {
         }
         .onChange(of: router.requestID) { _, _ in
             reconcileSelection(withDestination: true)
+        }
+    }
+
+    /// A segmented control never lays out narrower than the labels it holds,
+    /// so four tool names asked for more room than a settings window at its
+    /// minimum width has, and both columns spilled past the window edges
+    /// (issue #757). Scrolling the row keeps the width the control already
+    /// had wherever it fits, and absorbs the overflow where it does not.
+    private var toolPicker: some View {
+        ScrollView(.horizontal) {
+            Picker(strings.screenCaptureTitle, selection: toolSelection) {
+                ForEach(availableTools, id: \.self) { tool in
+                    Label(tool.settingsTitle(l10n.s, language: l10n.language),
+                          systemImage: tool.systemImageName)
+                        .tag(tool)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.large)
+            .containerRelativeFrame(.horizontal)
         }
     }
 
