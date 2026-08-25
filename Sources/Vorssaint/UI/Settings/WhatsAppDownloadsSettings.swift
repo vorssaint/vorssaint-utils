@@ -34,6 +34,7 @@ struct WhatsAppDownloadsSettings: View {
     @State private var waitingToEnable = false
     @State private var showingExistingChoice = false
     @State private var showingInvalidDestination = false
+    @State private var showingOrganizerFileTypes = false
 
     private var text: WhatsAppDownloadStrings {
         FeatureStrings.whatsAppDownloads(l10n.language)
@@ -271,12 +272,21 @@ struct WhatsAppDownloadsSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                DisclosureGroup(text.fileTypes) {
-                    Toggle(text.allTypes, isOn: allOrganizerCategoriesBinding)
-                        .toggleStyle(.checkbox)
-                    organizerCategoryPair(.image, .video)
-                    organizerCategoryPair(.audio, .document)
-                    organizerCategoryPair(.archive, .other)
+                Group {
+                    DisclosureHeaderRow(isExpanded: $showingOrganizerFileTypes) {
+                        Text(text.fileTypes)
+                        Spacer()
+                    }
+                    if showingOrganizerFileTypes {
+                        Group {
+                            Toggle(text.allTypes, isOn: allOrganizerCategoriesBinding)
+                                .toggleStyle(.checkbox)
+                            organizerCategoryPair(.image, .video)
+                            organizerCategoryPair(.audio, .document)
+                            organizerCategoryPair(.archive, .other)
+                        }
+                        .disclosureIndent()
+                    }
                 }
                 .disabled(organizer.isBusy)
 

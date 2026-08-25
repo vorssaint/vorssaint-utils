@@ -750,6 +750,8 @@ extension Strings {
         speedTestFailed: "테스트에 실패했습니다",
 
         monitorShowInPanel: "패널에 표시",
+        disclosureExpanded: "펼쳐짐",
+        disclosureCollapsed: "접힘",
         panelHideItem: "패널에서 숨기기",
         panelShowItem: "패널에 표시",
         panelHiddenItem: "숨김",

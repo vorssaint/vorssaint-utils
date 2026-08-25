@@ -112,8 +112,8 @@ path, a network management protocol for a narrow audience: all declined.
 Narrow on its own is fine, and the app is full of things only some people ever
 switch on. Narrow **and** needing a new subsystem is what fails. The ratio to
 weigh is the permanent surface a feature adds — a service, a permission,
-settings, strings in thirteen languages — against how many people will ever
-turn it on.
+settings, strings in every locale — against how many people will ever turn
+it on.
 
 The ruled-out section of the enhancement summary linked above is the record of
 these four being applied, with the reasoning attached to each. It is worth
