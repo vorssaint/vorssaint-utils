@@ -472,6 +472,7 @@ enum DefaultsKey {
     static let screenshotShortcut = "screenshotShortcut"
     static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
     static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
+    static let orphanedCaptureShortcutMigrated = "orphanedCaptureShortcutMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
@@ -1245,6 +1246,7 @@ enum Defaults {
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateUnifiedScreenCaptureShortcut(in: defaults)
         migrateRestoredScreenCaptureShortcuts(in: defaults)
+        migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
     }
@@ -1384,6 +1386,49 @@ enum Defaults {
             defaults.bool(forKey: enabledKey)
                 && defaults.string(forKey: shortcutKey) == generalShortcut
         }) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
+    }
+
+    /// The general capture shortcut now belongs to the screenshot tool, so on
+    /// an install without that tool a saved combination would register
+    /// nothing. Move it once onto the first available tool that has no
+    /// shortcut of its own, so the combination keeps opening the chooser.
+    /// A tool whose shortcut is switched off but was customized still counts
+    /// as having its own, so its saved combination is never overwritten.
+    /// Availability is read from the passed defaults — the same key
+    /// `isAvailable` reads from the standard ones — to stay testable.
+    static func migrateOrphanedCaptureShortcut(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.orphanedCaptureShortcutMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              !defaults.bool(forKey: AppFeature.screenshot.availabilityKey)
+        else { return }
+        let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+            ?? GlobalShortcut.screenshotDefault.storageValue
+
+        let candidates: [(feature: AppFeature, enabled: String,
+                          shortcut: String, unset: String)] = [
+            (.screenRecorder, DefaultsKey.recorderShortcutEnabled,
+             DefaultsKey.recorderShortcut,
+             GlobalShortcut.screenRecorderDefault.storageValue),
+            (.screenOCR, DefaultsKey.screenOCRShortcutEnabled,
+             DefaultsKey.screenOCRShortcut,
+             GlobalShortcut.screenOCRDefault.storageValue),
+            (.colorPicker, DefaultsKey.colorPickerShortcutEnabled,
+             DefaultsKey.colorPickerShortcut,
+             GlobalShortcut.colorPickerDefault.storageValue),
+        ]
+        guard let target = candidates.first(where: {
+            defaults.bool(forKey: $0.feature.availabilityKey)
+                && !defaults.bool(forKey: $0.enabled)
+                && (defaults.string(forKey: $0.shortcut) ?? $0.unset) == $0.unset
+        }) else { return }
+        defaults.set(true, forKey: target.enabled)
+        defaults.set(shortcut, forKey: target.shortcut)
         defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
     }
 

@@ -37,23 +37,24 @@ enum ScreenCaptureTool: String, CaseIterable {
     }
 
     /// A tool's own global shortcut, which opens the chooser already on that
-    /// mode. The screenshot tool has none of its own: the general capture
-    /// shortcut opens the chooser without preferring a mode, and screenshot is
-    /// where it lands.
+    /// mode. The screenshot tool's entry keeps the storage keys of the old
+    /// general capture shortcut, so an existing combination keeps working
+    /// unchanged under its new per-tool name.
     ///
-    /// Every case that answers with one must have a hotkey registered for it.
-    /// `ScreenCaptureService` builds exactly one per case from this list, so a
-    /// tool cannot gain a settings row whose key nothing registers, which is
-    /// what left three of them doing nothing (issue #708).
+    /// Every case must have a hotkey registered for it. `ScreenCaptureService`
+    /// builds exactly one per case from this list, so a tool cannot gain a
+    /// settings row whose key nothing registers, which is what left three of
+    /// them doing nothing (issue #708).
     struct DedicatedShortcut {
         let role: GlobalShortcutRole
         let enabledKey: String
     }
 
-    var dedicatedShortcut: DedicatedShortcut? {
+    var dedicatedShortcut: DedicatedShortcut {
         switch self {
         case .screenshot:
-            return nil
+            return DedicatedShortcut(role: .screenshot,
+                                     enabledKey: DefaultsKey.screenshotShortcutEnabled)
         case .recording:
             return DedicatedShortcut(role: .screenRecorder,
                                      enabledKey: DefaultsKey.recorderShortcutEnabled)

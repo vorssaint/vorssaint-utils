@@ -1703,6 +1703,51 @@ struct MetricsTests {
             Defaults.migrateRestoredScreenCaptureShortcuts(in: migrationDefaults)
             expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
                    "a distinct general capture shortcut stays enabled when dedicated ones return")
+            migrationDefaults.set(true, forKey: AppFeature.screenRecorder.availabilityKey)
+            migrationDefaults.set(true, forKey: AppFeature.screenOCR.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.screenOCRShortcut)
+                        == "control+option:42"
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.recorderShortcut)
+                        == "command:12",
+                   "an orphaned capture shortcut moves to the first available tool without its own")
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
+            migrationDefaults.set(false, forKey: DefaultsKey.screenOCRShortcutEnabled)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled),
+                   "the orphaned capture shortcut migration runs once")
+            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+            migrationDefaults.set(true, forKey: AppFeature.screenshot.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && migrationDefaults.bool(
+                        forKey: DefaultsKey.orphanedCaptureShortcutMigrated),
+                   "a setup that kept the screenshot tool keeps its capture shortcut untouched")
+            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotShortcut)
+            migrationDefaults.removeObject(forKey: DefaultsKey.screenOCRShortcut)
+            migrationDefaults.set(false, forKey: AppFeature.screenshot.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.screenOCRShortcut)
+                        == GlobalShortcut.screenshotDefault.storageValue
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+                   "a never-customized capture combination moves as the default combination")
+            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
+            migrationDefaults.set(false, forKey: DefaultsKey.screenOCRShortcutEnabled)
+            migrationDefaults.set(true, forKey: AppFeature.colorPicker.availabilityKey)
+            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.colorPickerShortcutEnabled)
+                   && migrationDefaults.string(forKey: DefaultsKey.colorPickerShortcut)
+                        == GlobalShortcut.screenshotDefault.storageValue
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
+                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+                   "a switched-off but customized shortcut is kept and the next tool takes over")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             expect(false, "test suite defaults are available")
@@ -4650,6 +4695,14 @@ struct MetricsTests {
         let decodedProfile = encodedProfile.flatMap { try? JSONDecoder().decode([MediaImageProfile].self, from: $0) }
         expect(decodedProfile?.first?.options == profileOptions,
                "Image profiles round-trip converter options")
+        let largeSideOptions = MediaImageOptions(quality: 0.8,
+                                                 maxDimension: 12_000,
+                                                 format: .jpeg,
+                                                 stripMetadata: true,
+                                                 resizeMode: nil)
+        expect(largeSideOptions.maxDimension == 12_000
+                && largeSideOptions.resizeMode.maxDimension == 12_000,
+               "Image profile fields share the same max-side sanitizer")
         let legacyResizeJSON = #"{"kind":"exact","maxDimension":1600,"width":320,"height":180}"#
         let legacyResize = legacyResizeJSON.data(using: .utf8).flatMap { try? JSONDecoder().decode(MediaImageResizeMode.self, from: $0) }
         expect(legacyResize?.exactMode == .stretch,
@@ -13229,14 +13282,13 @@ struct MetricsTests {
             ]) == [oversizedCaptureIDs[0], oversizedCaptureIDs[2]],
                "recent captures keeps the latest screenshot and respects its disk budget")
         expect(GlobalShortcutRole.screenshot.requiredEnableKeys == [DefaultsKey.screenshotShortcutEnabled]
-                && Set(GlobalShortcutRole.screenshot.availabilityFeatures)
-                    == Set([.screenshot, .screenRecorder, .screenOCR, .colorPicker]),
-               "one capture shortcut follows every mode in the combined chooser")
-        expect(GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
+                && GlobalShortcutRole.screenshot.availabilityFeatures == [.screenshot],
+               "the screenshot shortcut keeps its old keys and follows its own tool")
+        expect(!GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                 .contains(.screenshot)
                 && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                     .contains(.screenRecorder),
-               "a recording-only install shows the general and dedicated shortcuts")
+               "a recording-only install shows only the recorder's own shortcut")
         expect(GlobalShortcutRole.screenshotFullScreen.requiredEnableKeys
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
@@ -17000,24 +17052,28 @@ struct MetricsTests {
 
         // MARK: Capture tool shortcuts
 
-        expect(ScreenCaptureTool.screenshot.dedicatedShortcut == nil,
-               "the screenshot tool has no shortcut of its own: the general capture one is it")
-        expect(ScreenCaptureTool.allCases.compactMap { $0.dedicatedShortcut?.role }
-                == [.screenRecorder, .screenOCR, .colorPicker],
-               "every other capture tool owns a shortcut role, in tool order")
+        expect(ScreenCaptureTool.screenshot.dedicatedShortcut.role == .screenshot
+                && ScreenCaptureTool.screenshot.dedicatedShortcut.enabledKey
+                    == DefaultsKey.screenshotShortcutEnabled,
+               "the screenshot tool keeps the old general shortcut's keys as its own")
+        expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+               "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded
         // and the combination did nothing (issue #708).
         expect(ScreenCaptureTool.allCases.allSatisfy { tool in
-                guard let keys = tool.dedicatedShortcut else { return true }
+                let keys = tool.dedicatedShortcut
                 return keys.role.requiredEnableKeys == [keys.enabledKey]
                     && keys.role.feature == tool.feature
                },
                "a capture tool registers exactly the keys its own settings row reads")
-        expect(([.screenRecorder, .screenOCR, .colorPicker] as [GlobalShortcutRole]).allSatisfy { role in
-                ScreenCaptureTool.allCases.contains { $0.dedicatedShortcut?.role == role }
-               },
-               "no capture tool's shortcut row is left without something to register it")
+        expect(GlobalShortcutRole.captureRoles(in: GlobalShortcutRole.allCases)
+                == GlobalShortcutRole.captureDisplayOrder,
+               "every role of a capture feature reaches the shortcuts page, in display order")
+        expect(GlobalShortcutRole.captureRoles(in: [.colorPicker, .screenshot, .commandBar])
+                == [.screenshot, .colorPicker],
+               "capture roles are reordered for display and other roles fall away")
         // MARK: A failed removal explains itself where it failed
         // A green tick above "some items couldn't be moved to the Trash" told
         // nobody that sandboxed app data needs Full Disk Access, and the note
