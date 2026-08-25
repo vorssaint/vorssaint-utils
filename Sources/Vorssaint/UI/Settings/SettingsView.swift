@@ -123,7 +123,7 @@ struct SettingsView: View {
         return List {
             ForEach(items) { item in
                 Button {
-                    requestSearchDestination(item.destination)
+                    requestSearchItem(item)
                 } label: {
                     Label(item.title, systemImage: item.icon)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -135,7 +135,12 @@ struct SettingsView: View {
         .listStyle(.sidebar)
     }
 
-    private func requestSearchDestination(_ destination: FeatureSettingsDestination) {
+    private func requestSearchItem(_ item: SettingsSearchItem) {
+        if case let .feature(feature) = item.id, !feature.isAvailable {
+            router.request(FeatureSettingsDestination(.features))
+            return
+        }
+        let destination = item.destination
         if FeatureVisibilitySupport.isPageVisible(destination.page,
                                                   isAvailable: { $0.isAvailable }) {
             router.request(destination)
