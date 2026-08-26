@@ -2578,10 +2578,10 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.3-beta.2",
+        expect(plistVersion == "3.3.3-beta.3",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "81",
+        expect(plistBuild == "82",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
@@ -10663,6 +10663,13 @@ struct MetricsTests {
                 && FanControlPolicy.coolingTargetRPM(minimum: 5_800, maximum: 5_800,
                                                      level: 100) == nil,
                "manual targets map the full percentage scale into reported hardware bounds")
+        expect(FanControlPolicy.targetRPMMatches(target: 3_121, expected: 3_121)
+                && FanControlPolicy.targetRPMMatches(target: 3_122, expected: 3_121)
+                && FanControlPolicy.targetRPMMatches(target: 1_201.5, expected: 1_200)
+                && !FanControlPolicy.targetRPMMatches(target: 3_500, expected: 3_121)
+                && !FanControlPolicy.targetRPMMatches(target: 1_205, expected: 1_200)
+                && !FanControlPolicy.targetRPMMatches(target: .nan, expected: 1_200),
+               "fan target verification allows a narrow tolerance and rejects stale or malformed targets")
 
         let defaultCurve = FanControlConfiguration.defaultCurve
         expect(FanControlPolicy.validConfiguration(.manual(level: 0))
@@ -15136,6 +15143,20 @@ struct MetricsTests {
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),
         ]) == nil, "a future format version is rejected")
+        expect(SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: 1]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: NSNumber(value: 1)]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: "1"]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: " 1 \n"]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: "invalid"]) == nil,
+               "backup format version accepts integer, NSNumber and string representations")
+        let stringVersionBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: "1",
+            SettingsBackupSupport.settingsKey: [
+                DefaultsKey.smoothScrollStep: 60,
+            ] as [String: Any],
+        ]
+        expect(SettingsBackupSupport.sanitizedSettings(from: stringVersionBackup)?[DefaultsKey.smoothScrollStep] as? Int == 60,
+               "a backup with a string-encoded format version restores correctly")
 
         // A backup file can be edited by hand, and a value of the wrong shape
         // would reach code that trusts its own settings.
