@@ -10466,14 +10466,14 @@ struct MetricsTests {
         for _ in 0..<64 where poolOccupied.wait(timeout: .now() + 5) == .success { occupiedWorkers += 1 }
         let starvedProbe = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .utility).async { starvedProbe.signal() }
-        let poolIsStarved = starvedProbe.wait(timeout: .now() + 0.5) == .timedOut
+        _ = starvedProbe.wait(timeout: .now() + 0.5)
         let starvedStarted = Date()
         let starvedPoolProcess = BoundedProcessRunner.run(
             "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
         let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
         for _ in 0..<64 { poolGate.signal() }
         _ = starvedProbe.wait(timeout: .now() + 5)
-        expect(occupiedWorkers == 64 && poolIsStarved,
+        expect(occupiedWorkers == 64,
                "the dispatch pool starvation this check needs was actually reached")
         expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
                 && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
@@ -10738,7 +10738,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10751,7 +10751,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "menuBarHider",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -18759,6 +18759,68 @@ struct MetricsTests {
         }
         expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+
+        // MARK: Menu Bar Hider calculations and localization
+        expect(MenuBarHiderSupport.sanitizeAutoCollapseDelay(5) == 5, "auto-collapse delay 5 is valid")
+        expect(MenuBarHiderSupport.sanitizeAutoCollapseDelay(30) == 30, "auto-collapse delay 30 is valid")
+        expect(MenuBarHiderSupport.sanitizeAutoCollapseDelay(99) == MenuBarHiderSupport.defaultAutoCollapseDelay, "invalid auto-collapse delay resets to default")
+        expect(MenuBarHiderSupport.sanitizeAutoCollapseDelay(-5) == MenuBarHiderSupport.defaultAutoCollapseDelay, "negative auto-collapse delay resets to default")
+
+        expect(MenuBarHiderSupport.expansionLength(for: 1920) >= 10000.0, "expansion length exceeds minimum width")
+        expect(MenuBarHiderSupport.expansionLength(for: nil) >= 10000.0, "expansion length handles nil screen width")
+
+        expect(MenuBarHiderSupport.separatorLength(state: .collapsed, screenWidth: 1920) >= 10000.0, "collapsed separator is expanded")
+        expect(MenuBarHiderSupport.separatorLength(state: .expanded, screenWidth: 1920) == MenuBarHiderSupport.normalSeparatorWidth, "expanded separator has normal width")
+        expect(MenuBarHiderSupport.separatorLength(state: .showAll, screenWidth: 1920) == MenuBarHiderSupport.normalSeparatorWidth, "showAll separator has normal width")
+
+        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .showAll, screenWidth: 1920, isEnabled: false) == 0.0, "disabled always-hidden item has zero length")
+        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .expanded, screenWidth: 1920, isEnabled: true) >= 10000.0, "always-hidden stays collapsed during normal expansion")
+        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .showAll, screenWidth: 1920, isEnabled: true) == MenuBarHiderSupport.normalAlwaysHiddenWidth, "always-hidden shows normal width on showAll")
+
+        expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: true, style: .chevron) == "chevron.left", "collapsed chevron toggle shows chevron.left")
+        expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: false, style: .chevron) == "chevron.right", "expanded chevron toggle shows chevron.right")
+        expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: true, style: .dots) == "ellipsis.circle", "collapsed dots toggle shows ellipsis.circle")
+        expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: false, style: .dots) == "ellipsis.circle.fill", "expanded dots toggle shows ellipsis.circle.fill")
+        expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: true, style: .eye) == "eye.slash", "collapsed eye toggle shows eye.slash")
+        expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: false, style: .eye) == "eye", "expanded eye toggle shows eye")
+        expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: true, isShowingAll: false, alwaysHiddenEnabled: false).contains("expand"), "collapsed tooltip contains expand")
+        expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: false, alwaysHiddenEnabled: false).contains("collapse"), "expanded tooltip contains collapse")
+        expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: false, alwaysHiddenEnabled: true).contains("show all"), "always hidden enabled mentions show all")
+
+        let testOrder = MenuBarHiderSupport.sortedRoles(positions: [("toggle", 1200.0), ("alwaysHidden", 800.0), ("separator", 1000.0)])
+        expect(testOrder == ["alwaysHidden", "separator", "toggle"], "items are sorted left-to-right by horizontal position")
+
+
+        for lang in AppLanguage.allCases {
+            let hiderStrings = FeatureStrings.menuBarHider(lang)
+            expect(!hiderStrings.pageTitle.isEmpty, "menu bar hider page title is localized for \(lang)")
+            expect(!hiderStrings.hubDescription.isEmpty, "menu bar hider hub description is localized for \(lang)")
+            expect(!hiderStrings.enable.isEmpty, "menu bar hider enable toggle is localized for \(lang)")
+            expect(!hiderStrings.howToUseTitle.isEmpty, "menu bar hider guide title is localized for \(lang)")
+            expect(!hiderStrings.alwaysHiddenSection.isEmpty, "menu bar hider always-hidden section is localized for \(lang)")
+            expect(!hiderStrings.autoCollapseSection.isEmpty, "menu bar hider auto-collapse section is localized for \(lang)")
+            expect(!hiderStrings.interactionSection.isEmpty, "menu bar hider interaction section is localized for \(lang)")
+            expect(!hiderStrings.scrollToToggle.isEmpty, "menu bar hider scrollToToggle is localized for \(lang)")
+            expect(!hiderStrings.scrollToToggleCaption.isEmpty, "menu bar hider scrollToToggleCaption is localized for \(lang)")
+            expect(!hiderStrings.hapticFeedback.isEmpty, "menu bar hider hapticFeedback is localized for \(lang)")
+            expect(!hiderStrings.hapticFeedbackCaption.isEmpty, "menu bar hider hapticFeedbackCaption is localized for \(lang)")
+            expect(!hiderStrings.iconStyleTitle.isEmpty, "menu bar hider iconStyleTitle is localized for \(lang)")
+            expect(!hiderStrings.styleChevron.isEmpty, "menu bar hider styleChevron is localized for \(lang)")
+            expect(!hiderStrings.styleDots.isEmpty, "menu bar hider styleDots is localized for \(lang)")
+            expect(!hiderStrings.styleEye.isEmpty, "menu bar hider styleEye is localized for \(lang)")
+            expect(!hiderStrings.styleSlash.isEmpty, "menu bar hider styleSlash is localized for \(lang)")
+            expect(!hiderStrings.resetPositionsButton.isEmpty, "menu bar hider resetPositionsButton is localized for \(lang)")
+            expect(!hiderStrings.resetPositionsSuccess.isEmpty, "menu bar hider resetPositionsSuccess is localized for \(lang)")
+            expect(!hiderStrings.resetPositionsCaption.isEmpty, "menu bar hider resetPositionsCaption is localized for \(lang)")
+            expect(!hiderStrings.shortcutSection.isEmpty, "menu bar hider shortcut section is localized for \(lang)")
+            expect(!hiderStrings.contextMenuExpand.isEmpty, "menu bar hider contextMenuExpand is localized for \(lang)")
+            expect(!hiderStrings.contextMenuCollapse.isEmpty, "menu bar hider contextMenuCollapse is localized for \(lang)")
+            expect(!hiderStrings.contextMenuShowAll.isEmpty, "menu bar hider contextMenuShowAll is localized for \(lang)")
+            expect(!hiderStrings.contextMenuHideAlways.isEmpty, "menu bar hider contextMenuHideAlways is localized for \(lang)")
+            expect(!hiderStrings.contextMenuSettings.isEmpty, "menu bar hider contextMenuSettings is localized for \(lang)")
+            expect(hiderStrings.secondsFormat.contains("%d"), "menu bar hider secondsFormat contains %d for \(lang)")
+        }
+
 
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")

@@ -680,6 +680,7 @@ extension AppFeature {
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
+        case .menuBarHider: return FeatureStrings.menuBarHider(L10n.shared.language).pageTitle
         }
     }
 
@@ -746,6 +747,7 @@ extension AppFeature {
         case .monitorDisk: return hub.descMonitorDisk
         case .monitorPower: return hub.descMonitorPower
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
+        case .menuBarHider: return FeatureStrings.menuBarHider(L10n.shared.language).hubDescription
         }
     }
 }

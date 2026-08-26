@@ -1,0 +1,591 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// Strings for the Menu Bar Hider feature. Follows the FeatureStrings contract:
+/// memberwise init with labeled arguments in declaration order, one static per
+/// language, all in this file.
+struct MenuBarHiderStrings {
+    let pageTitle: String
+    let hubDescription: String
+    let enable: String
+    let enableCaption: String
+    let howToUseTitle: String
+    let howToUseStep1: String
+    let howToUseStep2: String
+    let howToUseStep3: String
+    let alwaysHiddenSection: String
+    let alwaysHiddenEnable: String
+    let alwaysHiddenCaption: String
+    let autoCollapseSection: String
+    let autoCollapseEnable: String
+    let autoCollapseDelay: String
+    let secondsFormat: String
+    let interactionSection: String
+    let expandOnHover: String
+    let expandOnHoverCaption: String
+    let scrollToToggle: String
+    let scrollToToggleCaption: String
+    let hapticFeedback: String
+    let hapticFeedbackCaption: String
+    let iconStyleTitle: String
+    let styleChevron: String
+    let styleDots: String
+    let styleEye: String
+    let styleSlash: String
+    let resetPositionsButton: String
+    let resetPositionsSuccess: String
+    let resetPositionsCaption: String
+    let shortcutSection: String
+    let shortcutToggle: String
+    let contextMenuExpand: String
+    let contextMenuCollapse: String
+    let contextMenuShowAll: String
+    let contextMenuHideAlways: String
+    let contextMenuSettings: String
+}
+
+extension FeatureStrings {
+    static func menuBarHider(_ language: AppLanguage) -> MenuBarHiderStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .tr: return .tr
+        case .ru: return .ru
+        case .es: return .es
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ja: return .ja
+        case .ko: return .ko
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+}
+
+extension MenuBarHiderStrings {
+    static let enUS = MenuBarHiderStrings(
+        pageTitle: "Menu Bar Hider",
+        hubDescription: "Hide and reveal menu bar icons with a click or shortcut to keep the menu bar clean.",
+        enable: "Enable Menu Bar Hider",
+        enableCaption: "Adds toggle and separator icons to your menu bar. Hold ⌘ and drag icons behind the separator to hide them.",
+        howToUseTitle: "How to use",
+        howToUseStep1: "Hold ⌘ (Command) and drag menu bar icons to the left of the separator ( | ).",
+        howToUseStep2: "Click the toggle button ( > ) to collapse/reveal, or double-click to toggle always-hidden icons.",
+        howToUseStep3: "Icons to the right of the toggle remain visible at all times.",
+        alwaysHiddenSection: "Always Hidden section",
+        alwaysHiddenEnable: "Enable separate Always Hidden section",
+        alwaysHiddenCaption: "Adds a second separator ( ‖ ). Icons placed to its left stay hidden during normal toggle.",
+        autoCollapseSection: "Auto-collapse",
+        autoCollapseEnable: "Auto-collapse after delay",
+        autoCollapseDelay: "Collapse delay",
+        secondsFormat: "%d seconds",
+        interactionSection: "Interaction",
+        expandOnHover: "Expand when hovering over toggle button",
+        expandOnHoverCaption: "Reveals hidden icons automatically when your mouse cursor hovers over the toggle icon.",
+        scrollToToggle: "Toggle with trackpad/mouse scroll",
+        scrollToToggleCaption: "Swipe with two fingers or scroll on the toggle button to quickly collapse or reveal icons.",
+        hapticFeedback: "Haptic feedback on trackpad",
+        hapticFeedbackCaption: "Provides a subtle tactile click when collapsing, expanding, or revealing always-hidden icons.",
+        iconStyleTitle: "Toggle icon style",
+        styleChevron: "Chevron (Default)",
+        styleDots: "Dots",
+        styleEye: "Stealth Eye",
+        styleSlash: "Diagonal Line",
+        resetPositionsButton: "Reset Separator Positions",
+        resetPositionsSuccess: "Positions restored!",
+        resetPositionsCaption: "Restores default layout for toggle and separators if they become misplaced.",
+        shortcutSection: "Shortcut",
+        shortcutToggle: "Toggle hidden icons",
+        contextMenuExpand: "Expand Icons",
+        contextMenuCollapse: "Collapse Icons",
+        contextMenuShowAll: "Show All Icons",
+        contextMenuHideAlways: "Hide Always-Hidden Icons",
+        contextMenuSettings: "Preferences..."
+    )
+
+    static let ptBR = MenuBarHiderStrings(
+        pageTitle: "Ocultador da Barra de Menus",
+        hubDescription: "Oculte e revele ícones da barra de menus com um clique ou atalho para manter a barra limpa.",
+        enable: "Ativar Ocultador da Barra de Menus",
+        enableCaption: "Adiciona ícones de alternância e separador à barra de menus. Segure ⌘ e arraste os ícones para trás do separador para ocultá-los.",
+        howToUseTitle: "Como usar",
+        howToUseStep1: "Segure ⌘ (Command) e arraste os ícones da barra de menus para a esquerda do separador ( | ).",
+        howToUseStep2: "Clique no botão de alternância ( > ) para recolher/exibir, ou clique duas vezes para ver os sempre ocultos.",
+        howToUseStep3: "Os ícones à direita do botão de alternância permanecem visíveis o tempo todo.",
+        alwaysHiddenSection: "Seção Sempre Ocultos",
+        alwaysHiddenEnable: "Ativar seção separada Sempre Ocultos",
+        alwaysHiddenCaption: "Adiciona um segundo separador ( ‖ ). Os ícones colocados à esquerda dele continuam ocultos na alternância comum.",
+        autoCollapseSection: "Recolhimento automático",
+        autoCollapseEnable: "Recolher automaticamente após inatividade",
+        autoCollapseDelay: "Tempo para recolher",
+        secondsFormat: "%d segundos",
+        interactionSection: "Interação",
+        expandOnHover: "Expandir ao passar o cursor no botão",
+        expandOnHoverCaption: "Mostra os ícones ocultos automaticamente quando o ponteiro do mouse passa sobre o ícone de alternância.",
+        scrollToToggle: "Alternar com rolagem do trackpad/mouse",
+        scrollToToggleCaption: "Deslize com dois dedos ou role sobre o botão para recolher ou exibir ícones rapidamente.",
+        hapticFeedback: "Resposta tátil no trackpad",
+        hapticFeedbackCaption: "Emite um clique tátil sutil ao recolher, expandir ou revelar ícones sempre ocultos.",
+        iconStyleTitle: "Estilo do ícone de controle",
+        styleChevron: "Chevron (Padrão)",
+        styleDots: "Pontos",
+        styleEye: "Olho Sigiloso",
+        styleSlash: "Linha Diagonal",
+        resetPositionsButton: "Redefinir Posições dos Separadores",
+        resetPositionsSuccess: "Posições restauradas!",
+        resetPositionsCaption: "Restaura o layout padrão para alternância e separadores se ficarem desordenados.",
+        shortcutSection: "Atalho",
+        shortcutToggle: "Alternar ícones ocultos",
+        contextMenuExpand: "Expandir Ícones",
+        contextMenuCollapse: "Recolher Ícones",
+        contextMenuShowAll: "Mostrar Todos os Ícones",
+        contextMenuHideAlways: "Ocultar Ícones Sempre Ocultos",
+        contextMenuSettings: "Preferências..."
+    )
+
+    static let tr = MenuBarHiderStrings(
+        pageTitle: "Menü Çubuğu Gizleyici",
+        hubDescription: "Menü çubuğunu temiz tutmak için simgeleri bir tıklama veya kısayolla gizleyin ve gösterin.",
+        enable: "Menü Çubuğu Gizleyiciyi Etkinleştir",
+        enableCaption: "Menü çubuğunuza geçiş ve ayırıcı simgeleri ekler. Simgeleri gizlemek için ⌘ basılı tutarak ayırıcının soluna sürükleyin.",
+        howToUseTitle: "Nasıl kullanılır",
+        howToUseStep1: "⌘ (Command) tuşunu basılı tutun ve menü çubuğu simgelerini ayırıcının ( | ) soluna sürükleyin.",
+        howToUseStep2: "Daraltmak/göstermek için geçiş düğmesine ( > ) tıklayın veya her zaman gizli olanları açıp kapatmak için çift tıklayın.",
+        howToUseStep3: "Geçiş düğmesinin sağındaki simgeler her zaman görünür kalır.",
+        alwaysHiddenSection: "Her Zaman Gizli bölümü",
+        alwaysHiddenEnable: "Ayrı Her Zaman Gizli bölümünü etkinleştir",
+        alwaysHiddenCaption: "İkinci bir ayırıcı ( ‖ ) ekler. Solundaki simgeler normal geçişte gizli kalır.",
+        autoCollapseSection: "Otomatik daraltma",
+        autoCollapseEnable: "Gecikmeden sonra otomatik daralt",
+        autoCollapseDelay: "Daraltma gecikmesi",
+        secondsFormat: "%d saniye",
+        interactionSection: "Etkileşim",
+        expandOnHover: "Düğmenin üzerine gelindiğinde genişlet",
+        expandOnHoverCaption: "Fare imleci geçiş simgesinin üzerine geldiğinde gizli simgeleri otomatik olarak gösterir.",
+        scrollToToggle: "İzleme dörtgeni/fare kaydırmasıyla aç/kapat",
+        scrollToToggleCaption: "Simgeleri hızlıca daraltmak veya göstermek için düğmenin üzerinde kaydırın.",
+        hapticFeedback: "İzleme dörtgeninde dokunsal geri bildirim",
+        hapticFeedbackCaption: "Simgeleri daraltırken, genişletirken veya her zaman gizlileri açarken hafif bir dokunsal tıklama sağlar.",
+        iconStyleTitle: "Geçiş simgesi stili",
+        styleChevron: "Ok (Varsayılan)",
+        styleDots: "Noktalar",
+        styleEye: "Göz (Gizli)",
+        styleSlash: "Çapraz Çizgi",
+        resetPositionsButton: "Ayırıcı Konumlarını Sıfırla",
+        resetPositionsSuccess: "Konumlar sıfırlandı!",
+        resetPositionsCaption: "Ayırıcılar veya geçiş simgesi karışırsa varsayılan düzeni geri yükler.",
+        shortcutSection: "Kısayol",
+        shortcutToggle: "Gizli simgeleri aç/kapat",
+        contextMenuExpand: "Simgeleri Genişlet",
+        contextMenuCollapse: "Simgeleri Daralt",
+        contextMenuShowAll: "Tüm Simgeleri Göster",
+        contextMenuHideAlways: "Her Zaman Gizli Simgeleri Gizle",
+        contextMenuSettings: "Tercihler..."
+    )
+
+    static let ru = MenuBarHiderStrings(
+        pageTitle: "Скрытие значков строки меню",
+        hubDescription: "Скрывайте и показывайте значки строки меню одним кликом или сочетанием клавиш, чтобы сохранить порядок.",
+        enable: "Включить скрытие значков строки меню",
+        enableCaption: "Добавляет значки переключателя и разделителя в строку меню. Удерживайте ⌘ и перетаскивайте значки левеer разделителя для скрытия.",
+        howToUseTitle: "Как использовать",
+        howToUseStep1: "Удерживайте ⌘ (Command) и перетаскивайте значки строки меню левее разделителя ( | ).",
+        howToUseStep2: "Нажмите на переключатель ( > ) для скрытия/показа или дважды кликните для показа всегда скрытых.",
+        howToUseStep3: "Значки справа от переключателя всегда остаются видимыми.",
+        alwaysHiddenSection: "Раздел «Всегда скрытые»",
+        alwaysHiddenEnable: "Включить раздел «Всегда скрытые»",
+        alwaysHiddenCaption: "Добавляет второй разделитель ( ‖ ). Значки слева от него остаются скрытыми при обычном переключении.",
+        autoCollapseSection: "Автоматическое скрытие",
+        autoCollapseEnable: "Автоматически скрывать после паузы",
+        autoCollapseDelay: "Задержка скрытия",
+        secondsFormat: "%d секунд",
+        interactionSection: "Взаимодействие",
+        expandOnHover: "Раскрывать при наведении курсора",
+        expandOnHoverCaption: "Автоматически показывает скрытые значки при наведении курсора мыши на переключатель.",
+        scrollToToggle: "Скрытие/показ прокруткой трекпада/мыши",
+        scrollToToggleCaption: "Проведите двумя пальцами или прокрутите колесико над кнопкой для быстрого скрытия/показа.",
+        hapticFeedback: "Тактильный отклик на трекпаде",
+        hapticFeedbackCaption: "Срабатывает мягкий щелчок трекпада при скрытии, показе или открытии всегда скрытых значков.",
+        iconStyleTitle: "Стиль значка переключателя",
+        styleChevron: "Шеврон (По умолчанию)",
+        styleDots: "Точки",
+        styleEye: "Глаз (Скрытный)",
+        styleSlash: "Диагональная линия",
+        resetPositionsButton: "Сбросить положение разделителей",
+        resetPositionsSuccess: "Положения сброшены!",
+        resetPositionsCaption: "Восстанавливает стандартный порядок переключателя и разделителей при их смещении.",
+        shortcutSection: "Сочетание клавиш",
+        shortcutToggle: "Скрыть/показать значки",
+        contextMenuExpand: "Показать значки",
+        contextMenuCollapse: "Скрыть значки",
+        contextMenuShowAll: "Показать все значки",
+        contextMenuHideAlways: "Скрыть всегда скрытые",
+        contextMenuSettings: "Настройки..."
+    )
+
+    static let es = MenuBarHiderStrings(
+        pageTitle: "Ocultador de Barra de Menú",
+        hubDescription: "Oculta y muestra iconos de la barra de menú con un clic o atajo para mantenerla limpia y organizada.",
+        enable: "Activar Ocultador de Barra de Menú",
+        enableCaption: "Añade iconos de control y separador a la barra de menú. Mantén pulsado ⌘ y arrastra los iconos a la izquierda del separador para ocultarlos.",
+        howToUseTitle: "Cómo usarlo",
+        howToUseStep1: "Mantén pulsado ⌘ (Command) y arrastra los iconos de la barra de menú a la izquierda del separador ( | ).",
+        howToUseStep2: "Haz clic en el botón ( > ) para plegar/mostrar, o doble clic para alternar los siempre ocultos.",
+        howToUseStep3: "Los iconos a la derecha del botón permanecen visibles en todo momento.",
+        alwaysHiddenSection: "Sección Siempre Ocultos",
+        alwaysHiddenEnable: "Activar sección separada Siempre Ocultos",
+        alwaysHiddenCaption: "Añade un segundo separador ( ‖ ). Los iconos situados a su izquierda permanecen ocultos en la alternancia habitual.",
+        autoCollapseSection: "Auto-ocultado",
+        autoCollapseEnable: "Plegar automáticamente tras inactividad",
+        autoCollapseDelay: "Tiempo para plegar",
+        secondsFormat: "%d segundos",
+        interactionSection: "Interacción",
+        expandOnHover: "Desplegar al pasar el cursor por encima",
+        expandOnHoverCaption: "Muestra los iconos ocultos automáticamente cuando el cursor del ratón pasa sobre el icono de control.",
+        scrollToToggle: "Alternar con desplazamiento de trackpad/ratón",
+        scrollToToggleCaption: "Desliza con dos dedos o usa la rueda sobre el botón para plegar o mostrar iconos rápidamente.",
+        hapticFeedback: "Respuesta háptica en el trackpad",
+        hapticFeedbackCaption: "Emite un clic táctil sutil al plegar, desplegar o revelar los iconos siempre ocultos.",
+        iconStyleTitle: "Estilo del icono de control",
+        styleChevron: "Chevron (Por defecto)",
+        styleDots: "Puntos",
+        styleEye: "Ojo Sigiloso",
+        styleSlash: "Línea Diagonal",
+        resetPositionsButton: "Restablecer posición de separadores",
+        resetPositionsSuccess: "¡Posiciones restauradas!",
+        resetPositionsCaption: "Restaura el orden y disposición original de los separadores si se han descolocado.",
+        shortcutSection: "Atajo",
+        shortcutToggle: "Alternar iconos ocultos",
+        contextMenuExpand: "Desplegar iconos",
+        contextMenuCollapse: "Plegar iconos",
+        contextMenuShowAll: "Mostrar todos los iconos",
+        contextMenuHideAlways: "Ocultar siempre ocultos",
+        contextMenuSettings: "Preferencias..."
+    )
+
+    static let de = MenuBarHiderStrings(
+        pageTitle: "Menüleisten-Ausblender",
+        hubDescription: "Symbole in der Menüleiste per Klick oder Tastenkürzel ein- und ausblenden, um die Leiste aufgeräumt zu halten.",
+        enable: "Menüleisten-Ausblender aktivieren",
+        enableCaption: "Fügt Schalter- und Trennsymbole zur Menüleiste hinzu. ⌘ gedrückt halten und Symbole hinter die Trennlinie ziehen, um sie auszublenden.",
+        howToUseTitle: "Verwendung",
+        howToUseStep1: "Halte ⌘ (Command) gedrückt und ziehe Menüleistensymbole links von die Trennlinie ( | ).",
+        howToUseStep2: "Klicke auf den Umschalter ( > ) zum Ein-/Ausklappen oder doppelklicke, um immer ausgeblendete Symbole umzuschalten.",
+        howToUseStep3: "Symbole rechts vom Schalter bleiben jederzeit sichtbar.",
+        alwaysHiddenSection: "Abschnitt «Immer ausgeblendet»",
+        alwaysHiddenEnable: "Separaten Abschnitt «Immer ausgeblendet» aktivieren",
+        alwaysHiddenCaption: "Fügt eine zweite Trennlinie ( ‖ ) hinzu. Symbole links davon bleiben beim normalen Umschalten verborgen.",
+        autoCollapseSection: "Automatisches Einklappen",
+        autoCollapseEnable: "Nach Inaktivität automatisch einklappen",
+        autoCollapseDelay: "Verzögerung",
+        secondsFormat: "%d Sekunden",
+        interactionSection: "Interaktion",
+        expandOnHover: "Beim Darüberbewegen der Maus aufklappen",
+        expandOnHoverCaption: "Zeigt verborgene Symbole automatisch an, sobald der Mauszeiger über das Umschaltsymbol bewegt wird.",
+        scrollToToggle: "Mit Trackpad-/Maus-Scrollen umschalten",
+        scrollToToggleCaption: "Mit zwei Fingern wischen oder über dem Schalter scrollen, um Symbole schnell ein- oder auszuklappen.",
+        hapticFeedback: "Haptisches Feedback auf dem Trackpad",
+        hapticFeedbackCaption: "Gibt einen dezenten taktilen Klick beim Ein-, Ausklappen oder Anzeigen immer ausgeblendeter Symbole.",
+        iconStyleTitle: "Stil des Umschaltsymbols",
+        styleChevron: "Winkel (Standard)",
+        styleDots: "Punkte",
+        styleEye: "Auge (Tarnmodus)",
+        styleSlash: "Diagonale Linie",
+        resetPositionsButton: "Trennlinien-Positionen zurücksetzen",
+        resetPositionsSuccess: "Positionen wiederhergestellt!",
+        resetPositionsCaption: "Stellt die Standardanordnung für Schalter und Trennlinien wieder her.",
+        shortcutSection: "Tastenkürzel",
+        shortcutToggle: "Verborgene Symbole umschalten",
+        contextMenuExpand: "Symbole ausklappen",
+        contextMenuCollapse: "Symbole einklappen",
+        contextMenuShowAll: "Alle Symbole anzeigen",
+        contextMenuHideAlways: "Immer ausgeblendete Symbole verbergen",
+        contextMenuSettings: "Einstellungen..."
+    )
+
+    static let fr = MenuBarHiderStrings(
+        pageTitle: "Masqueur de barre des menus",
+        hubDescription: "Masquez et affichez les icônes de la barre des menus d'un clic ou raccourci pour garder une barre épurée.",
+        enable: "Activer le masqueur de barre des menus",
+        enableCaption: "Ajoute des icônes de bascule et de séparateur à la barre des menus. Maintenez ⌘ et glissez les icônes derrière le séparateur pour les masquer.",
+        howToUseTitle: "Mode d'emploi",
+        howToUseStep1: "Maintenez ⌘ (Commande) et glissez les icônes de la barre des menus à gauche du séparateur ( | ).",
+        howToUseStep2: "Cliquez sur la bascule ( > ) pour replier/déplier, ou double-cliquez pour basculer les toujours masqués.",
+        howToUseStep3: "Les icônes à droite du bouton restent visibles en permanence.",
+        alwaysHiddenSection: "Section Toujours masqués",
+        alwaysHiddenEnable: "Activer une section Toujours masqués séparée",
+        alwaysHiddenCaption: "Ajoute un second séparateur ( ‖ ). Les icônes à sa gauche restent masquées lors d'une bascule normale.",
+        autoCollapseSection: "Repli automatique",
+        autoCollapseEnable: "Replier automatiquement après inactivité",
+        autoCollapseDelay: "Délai de repli",
+        secondsFormat: "%d secondes",
+        interactionSection: "Interaction",
+        expandOnHover: "Déplier au survol de la souris",
+        expandOnHoverCaption: "Révèle automatiquement les icônes masquées dès que le curseur survole l'icône de bascule.",
+        scrollToToggle: "Basculer avec le défilement du trackpad/souris",
+        scrollToToggleCaption: "Glissez à deux doigts ou faites défiler sur le bouton pour replier ou afficher rapidement les icônes.",
+        hapticFeedback: "Retour haptique sur le trackpad",
+        hapticFeedbackCaption: "Émet un clic tactile subtil lors du repli, du déploiement ou de l'affichage des icônes toujours masquées.",
+        iconStyleTitle: "Style de l'icône de bascule",
+        styleChevron: "Chevron (Par défaut)",
+        styleDots: "Points",
+        styleEye: "Œil Furtif",
+        styleSlash: "Ligne Diagonale",
+        resetPositionsButton: "Réinitialiser la position des séparateurs",
+        resetPositionsSuccess: "Positions restaurées !",
+        resetPositionsCaption: "Rétablit l'agencement par défaut si les séparateurs ou la bascule sont désordonnés.",
+        shortcutSection: "Raccourci",
+        shortcutToggle: "Basculer les icônes masquées",
+        contextMenuExpand: "Déplier les icônes",
+        contextMenuCollapse: "Replier les icônes",
+        contextMenuShowAll: "Afficher toutes les icônes",
+        contextMenuHideAlways: "Masquer les icônes toujours masquées",
+        contextMenuSettings: "Préférences..."
+    )
+
+    static let it = MenuBarHiderStrings(
+        pageTitle: "Nascondi icone barra dei menu",
+        hubDescription: "Nascondi e mostra le icone della barra dei menu con un clic o una scorciatoia per tenerla pulita e ordinata.",
+        enable: "Attiva Nascondi icone barra dei menu",
+        enableCaption: "Aggiunge icone di comando e separatore alla barra dei menu. Tieni premuto ⌘ e trascina le icone a sinistra del separatore per nasconderle.",
+        howToUseTitle: "Come si usa",
+        howToUseStep1: "Tieni premuto ⌘ (Comando) e trascina le icone della barra dei menu a sinistra del separatore ( | ).",
+        howToUseStep2: "Fai clic sul pulsante ( > ) per comprimere/mostrare o fai doppio clic per mostrare le sempre nascoste.",
+        howToUseStep3: "Le icone a destra del pulsante rimangono sempre visibili.",
+        alwaysHiddenSection: "Sezione Sempre nascoste",
+        alwaysHiddenEnable: "Attiva sezione separata Sempre nascoste",
+        alwaysHiddenCaption: "Aggiunge un secondo separador ( ‖ ). Le icone alla sua sinistra rimangono nascoste con il comando normale.",
+        autoCollapseSection: "Compressione automatica",
+        autoCollapseEnable: "Comprimi automaticamente dopo inattività",
+        autoCollapseDelay: "Ritardo compressione",
+        secondsFormat: "%d secondi",
+        interactionSection: "Interazione",
+        expandOnHover: "Espandi al passaggio del mouse",
+        expandOnHoverCaption: "Mostra automaticamente le icone nascoste quando il cursore del mouse passa sopra l'icona di controllo.",
+        scrollToToggle: "Comprimi/espandi con lo scorrimento del trackpad/mouse",
+        scrollToToggleCaption: "Scorri con due dita o usa la rotellina sul pulsante per comprimere o mostrare rapidamente le icone.",
+        hapticFeedback: "Feedback aptico sul trackpad",
+        hapticFeedbackCaption: "Emette un tocco tattile leggero durante la compressione, espansione o visualizzazione delle icone sempre nascoste.",
+        iconStyleTitle: "Stile icona di controllo",
+        styleChevron: "Chevron (Predefinito)",
+        styleDots: "Punti",
+        styleEye: "Occhio Furtivo",
+        styleSlash: "Linea Diagonale",
+        resetPositionsButton: "Ripristina posizione separatori",
+        resetPositionsSuccess: "Posizioni ripristinate!",
+        resetPositionsCaption: "Ripristina la disposizione originale per controllo e separatori in caso di disordine.",
+        shortcutSection: "Scorciatoia",
+        shortcutToggle: "Mostra/nascondi icone nascoste",
+        contextMenuExpand: "Espandi icone",
+        contextMenuCollapse: "Comprimi icone",
+        contextMenuShowAll: "Mostra tutte le icone",
+        contextMenuHideAlways: "Nascondi sempre nascoste",
+        contextMenuSettings: "Preferenze..."
+    )
+
+    static let ja = MenuBarHiderStrings(
+        pageTitle: "メニューバーアイコン非表示",
+        hubDescription: "クリックやショートカットでメニューバーのアイコンを折りたたんで整理します。",
+        enable: "メニューバーアイコン非表示を有効にする",
+        enableCaption: "メニューバーに切り替えボタンと仕切り線を追加します。⌘キーを押しながらアイコンを仕切り線の左へドラッグすると非表示にできます。",
+        howToUseTitle: "使い方",
+        howToUseStep1: "⌘（Command）キーを押しながらメニューバーアイコンを仕切り線（ | ）の左側へドラッグします。",
+        howToUseStep2: "切り替えアイコン（ > ）をクリックして展開/折りたたみ、ダブルクリックで常に非表示のアイコンを切り替えます。",
+        howToUseStep3: "切り替えアイコンより右側にあるアイコンは常に表示されます。",
+        alwaysHiddenSection: "「常に非表示」セクション",
+        alwaysHiddenEnable: "「常に非表示」セクションを有効にする",
+        alwaysHiddenCaption: "2つ目の仕切り線（ ‖ ）を追加します。その左側に置いたアイコンは通常の展開時も非表示のままになります。",
+        autoCollapseSection: "自動折りたたみ",
+        autoCollapseEnable: "一定時間後に自動で折りたたむ",
+        autoCollapseDelay: "折りたたみまでの時間",
+        secondsFormat: "%d秒",
+        interactionSection: "操作",
+        expandOnHover: "マウスオーバーで展開する",
+        expandOnHoverCaption: "切り替えアイコンの上にマウスカーソルを重ねると自動で非表示アイコンを展開します。",
+        scrollToToggle: "トラックパッド/マウスのスクロールで切り替え",
+        scrollToToggleCaption: "切り替えアイコンの上で2本指スワイプまたはスクロールして素早く展開・折りたたみます。",
+        hapticFeedback: "トラックパッドの触覚フィードバック",
+        hapticFeedbackCaption: "折りたたみ、展開、または常に非表示のアイコンを表示するときに微細な触覚フィードバックを返します。",
+        iconStyleTitle: "切り替えアイコンのスタイル",
+        styleChevron: "シェブロン（デフォルト）",
+        styleDots: "ドット",
+        styleEye: "ステルスアイ",
+        styleSlash: "斜線",
+        resetPositionsButton: "仕切り線の位置をリセット",
+        resetPositionsSuccess: "位置を復元しました！",
+        resetPositionsCaption: "仕切り線や切り替えアイコンの位置が乱れた場合にデフォルトの配置に復元します。",
+        shortcutSection: "ショートカット",
+        shortcutToggle: "非表示アイコンを切り替える",
+        contextMenuExpand: "アイコンを展開",
+        contextMenuCollapse: "アイコンを折りたたむ",
+        contextMenuShowAll: "すべてのアイコンを表示",
+        contextMenuHideAlways: "常に非表示のアイコンを隠す",
+        contextMenuSettings: "設定..."
+    )
+
+    static let ko = MenuBarHiderStrings(
+        pageTitle: "메뉴 막대 아이콘 숨기기",
+        hubDescription: "클릭이나 단축키로 메뉴 막대 아이콘을 접고 펼쳐 메뉴 막대를 깔끔하게 유지합니다.",
+        enable: "메뉴 막대 아이콘 숨기기 켜기",
+        enableCaption: "메뉴 막대에 토글 버튼과 구분선을 추가합니다. ⌘ 키를 누른 채 아이콘을 구분선 왼쪽으로 드래그하면 숨겨집니다.",
+        howToUseTitle: "사용 방법",
+        howToUseStep1: "⌘(Command) 키를 누른 상태에서 메뉴 막대 아이콘을 구분선( | ) 왼쪽으로 드래그합니다.",
+        howToUseStep2: "토글 버튼( > )을 클릭하여 접거나 펼치고, 더블 클릭하여 항상 숨김 아이콘을 표시합니다.",
+        howToUseStep3: "토글 버튼 오른쪽에 있는 아이콘은 항상 표시됩니다.",
+        alwaysHiddenSection: "항상 숨김 구역",
+        alwaysHiddenEnable: "별도의 항상 숨김 구역 사용",
+        alwaysHiddenCaption: "두 번째 구분선( ‖ )을 추가합니다. 구분선 왼쪽에 놓인 아이콘은 일반 토글 시에도 숨겨진 상태를 유지합니다.",
+        autoCollapseSection: "자동 접기",
+        autoCollapseEnable: "일정 시간 후 자동으로 접기",
+        autoCollapseDelay: "접기 지연 시간",
+        secondsFormat: "%d초",
+        interactionSection: "상호작용",
+        expandOnHover: "토글 버튼 위에 마우스를 올리면 펼치기",
+        expandOnHoverCaption: "마우스 커서를 토글 아이콘 위에 올리면 숨겨진 아이콘을 자동으로 펼칩니다.",
+        scrollToToggle: "트랙패드/마우스 스크롤로 토글",
+        scrollToToggleCaption: "토글 버튼 위에서 두 손가락으로 스와이프하거나 스크롤하여 아이콘을 빠르게 접거나 펼칩니다.",
+        hapticFeedback: "트랙패드 햅틱 피드백",
+        hapticFeedbackCaption: "아이콘을 접거나 펼치고, 항상 숨김 아이콘을 표시할 때 미세한 햅틱 클릭을 제공합니다.",
+        iconStyleTitle: "토글 아이콘 스타일",
+        styleChevron: "셰브런 (기본값)",
+        styleDots: "점",
+        styleEye: "스텔스 눈",
+        styleSlash: "대각선",
+        resetPositionsButton: "구분선 위치 초기화",
+        resetPositionsSuccess: "위치가 복원되었습니다!",
+        resetPositionsCaption: "구분선이나 토글 버튼의 위치가 흐트러졌을 때 기본 레이아웃으로 복원합니다.",
+        shortcutSection: "단축키",
+        shortcutToggle: "숨겨진 아이콘 토글",
+        contextMenuExpand: "아이콘 펼치기",
+        contextMenuCollapse: "아이콘 접기",
+        contextMenuShowAll: "모든 아이콘 표시",
+        contextMenuHideAlways: "항상 숨김 아이콘 감추기",
+        contextMenuSettings: "환경설정..."
+    )
+
+    static let zhHans = MenuBarHiderStrings(
+        pageTitle: "菜单栏图标隐藏",
+        hubDescription: "点击或使用快捷键折叠与展开菜单栏图标，让菜单栏保持整洁。",
+        enable: "启用菜单栏图标隐藏",
+        enableCaption: "在菜单栏添加切换按钮与分隔线。按住 ⌘ 键并将图标拖动到分隔线左侧即可将其隐藏。",
+        howToUseTitle: "使用方法",
+        howToUseStep1: "按住 ⌘ (Command) 键并将菜单栏图标拖动到分隔线 ( | ) 的左侧。",
+        howToUseStep2: "点击切换按钮 ( > ) 折叠/展开，或双击切换始终隐藏的图标。",
+        howToUseStep3: "切换按钮右侧的图标将始终保持可见。",
+        alwaysHiddenSection: "“始终隐藏”区域",
+        alwaysHiddenEnable: "启用独立的“始终隐藏”区域",
+        alwaysHiddenCaption: "添加第二条分隔线 ( ‖ )。放置在其左侧的图标在常规展开时仍保持隐藏。",
+        autoCollapseSection: "自动折叠",
+        autoCollapseEnable: "无操作后自动折叠",
+        autoCollapseDelay: "折叠延迟",
+        secondsFormat: "%d 秒",
+        interactionSection: "交互",
+        expandOnHover: "鼠标悬停在按钮上时自动展开",
+        expandOnHoverCaption: "当鼠标光标悬停在切换图标上时，自动展开已隐藏的图标。",
+        scrollToToggle: "使用触控板/鼠标滚轮滑动切换",
+        scrollToToggleCaption: "在切换按钮上双指滑动或滚动滚轮，快速折叠或展开图标。",
+        hapticFeedback: "触控板触觉反馈",
+        hapticFeedbackCaption: "折叠、展开或显示始终隐藏的图标时提供轻微的触觉反馈。",
+        iconStyleTitle: "切换图标样式",
+        styleChevron: "箭头 (默认)",
+        styleDots: "圆点",
+        styleEye: "隐身之眼",
+        styleSlash: "斜线",
+        resetPositionsButton: "重置分隔线位置",
+        resetPositionsSuccess: "已恢复默认位置！",
+        resetPositionsCaption: "如果切换按钮或分隔线位置混乱，可将其恢复为默认布局。",
+        shortcutSection: "快捷键",
+        shortcutToggle: "切换隐藏图标",
+        contextMenuExpand: "展开图标",
+        contextMenuCollapse: "折叠图标",
+        contextMenuShowAll: "显示所有图标",
+        contextMenuHideAlways: "隐藏始终隐藏的图标",
+        contextMenuSettings: "偏好设置..."
+    )
+
+    static let zhTW = MenuBarHiderStrings(
+        pageTitle: "選單列圖示隱藏",
+        hubDescription: "按一下或使用快捷鍵摺疊與展開選單列圖示，讓選單列保持乾淨整潔。",
+        enable: "啟用選單列圖示隱藏",
+        enableCaption: "在選單列加入切換按鈕與分隔線。按住 ⌘ 鍵並將圖示拖移到分隔線左側即可將其隱藏。",
+        howToUseTitle: "使用方法",
+        howToUseStep1: "按住 ⌘ (Command) 鍵並將選單列圖示拖移到分隔線 ( | ) 的左側。",
+        howToUseStep2: "按一下切換按鈕 ( > ) 摺疊/展開，或按兩下切換始終隱藏的圖示。",
+        howToUseStep3: "切換按鈕右側的圖示將始終保持可見。",
+        alwaysHiddenSection: "「始終隱藏」區塊",
+        alwaysHiddenEnable: "啟用獨立的「始終隱藏」區塊",
+        alwaysHiddenCaption: "加入第二條分隔線 ( ‖ )。放置在其左側的圖示在一般展開時仍保持隱藏。",
+        autoCollapseSection: "自動摺疊",
+        autoCollapseEnable: "無動作後自動摺疊",
+        autoCollapseDelay: "摺疊延遲",
+        secondsFormat: "%d 秒",
+        interactionSection: "互動",
+        expandOnHover: "滑鼠懸停於按鈕上時自動展開",
+        expandOnHoverCaption: "當滑鼠游標懸停在切換圖示上時，自動展開已隱藏的圖示。",
+        scrollToToggle: "使用觸控板/滑鼠滾輪滑動切換",
+        scrollToToggleCaption: "在切換按鈕上以雙指滑動或滾動滾輪，快速摺疊或展開圖示。",
+        hapticFeedback: "觸控板觸覺回饋",
+        hapticFeedbackCaption: "摺疊、展開或顯示始終隱藏的圖示時提供輕微的觸覺回饋。",
+        iconStyleTitle: "切換圖示樣式",
+        styleChevron: "箭頭 (預設)",
+        styleDots: "圓點",
+        styleEye: "隱身之眼",
+        styleSlash: "斜線",
+        resetPositionsButton: "重設分隔線位置",
+        resetPositionsSuccess: "已恢復預設位置！",
+        resetPositionsCaption: "如果切換按鈕或分隔線位置混亂，可將其恢復為預設版面配置。",
+        shortcutSection: "快捷鍵",
+        shortcutToggle: "切換隱藏圖示",
+        contextMenuExpand: "展開圖示",
+        contextMenuCollapse: "摺疊圖示",
+        contextMenuShowAll: "顯示所有圖示",
+        contextMenuHideAlways: "隱藏始終隱藏的圖示",
+        contextMenuSettings: "偏好設定..."
+    )
+
+    static let zhHK = MenuBarHiderStrings(
+        pageTitle: "選單列圖示隱藏",
+        hubDescription: "按一下或使用快捷鍵摺疊與展開選單列圖示，讓選單列保持乾淨整潔。",
+        enable: "啟用選單列圖示隱藏",
+        enableCaption: "在選單列加入切換按鈕及分隔線。按住 ⌘ 鍵並將圖示拖移到分隔線左側即可將其隱藏。",
+        howToUseTitle: "使用方法",
+        howToUseStep1: "按住 ⌘ (Command) 鍵並將選單列圖示拖移到分隔線 ( | ) 的左側。",
+        howToUseStep2: "按一下切換按鈕 ( > ) 摺疊/展開，或按兩下切換始終隱藏的圖示。",
+        howToUseStep3: "切換按鈕右側的圖示將始終保持可見。",
+        alwaysHiddenSection: "「始終隱藏」區域",
+        alwaysHiddenEnable: "啟用獨立的「始終隱藏」區域",
+        alwaysHiddenCaption: "加入第二條分隔線 ( ‖ )。放置在其左側的圖示在一般展開時仍保持隱藏。",
+        autoCollapseSection: "自動摺疊",
+        autoCollapseEnable: "無動作後自動摺疊",
+        autoCollapseDelay: "摺疊延遲",
+        secondsFormat: "%d 秒",
+        interactionSection: "互動",
+        expandOnHover: "滑鼠懸停於按鈕上時自動展開",
+        expandOnHoverCaption: "當滑鼠游標懸停在切換圖示上時，自動展開已隱藏的圖示。",
+        scrollToToggle: "使用觸控板/滑鼠滾輪滑動切換",
+        scrollToToggleCaption: "在切換按鈕上以雙指滑動或滾動滾輪，快速摺疊或展開圖示。",
+        hapticFeedback: "觸控板觸覺回饋",
+        hapticFeedbackCaption: "摺疊、展開或顯示始終隱藏的圖示時提供輕微的觸覺回饋。",
+        iconStyleTitle: "切換圖示樣式",
+        styleChevron: "箭頭 (預設)",
+        styleDots: "圓點",
+        styleEye: "隱身之眼",
+        styleSlash: "斜線",
+        resetPositionsButton: "重設分隔線位置",
+        resetPositionsSuccess: "已恢復預設位置！",
+        resetPositionsCaption: "如果切換按鈕或分隔線位置混亂，可將其恢復為預設版面配置。",
+        shortcutSection: "快捷鍵",
+        shortcutToggle: "切換隱藏圖示",
+        contextMenuExpand: "展開圖示",
+        contextMenuCollapse: "摺疊圖示",
+        contextMenuShowAll: "顯示所有圖示",
+        contextMenuHideAlways: "隱藏始終隱藏的圖示",
+        contextMenuSettings: "偏好設定..."
+    )
+}
+
+

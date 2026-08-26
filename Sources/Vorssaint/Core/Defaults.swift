@@ -583,6 +583,19 @@ enum DefaultsKey {
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
     static let radialMenuProfiles = "radialMenuProfiles"  // Data: [RadialMenuProfile] JSON
 
+    // Menu Bar Hider
+    static let menuBarHiderEnabled = "menuBarHiderEnabled"
+    static let menuBarHiderCollapsed = "menuBarHiderCollapsed"
+    static let menuBarHiderAlwaysHiddenEnabled = "menuBarHiderAlwaysHiddenEnabled"
+    static let menuBarHiderAutoCollapse = "menuBarHiderAutoCollapse"
+    static let menuBarHiderAutoCollapseDelay = "menuBarHiderAutoCollapseDelay"
+    static let menuBarHiderExpandOnHover = "menuBarHiderExpandOnHover"
+    static let menuBarHiderScrollToToggle = "menuBarHiderScrollToToggle"
+    static let menuBarHiderHapticFeedback = "menuBarHiderHapticFeedback"
+    static let menuBarHiderIconStyle = "menuBarHiderIconStyle"
+    static let menuBarHiderShortcutEnabled = "menuBarHiderShortcutEnabled"
+    static let menuBarHiderShortcut = "menuBarHiderShortcut"
+
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
     static let simulateBetaUI = "simulateBetaUI"
@@ -947,6 +960,17 @@ enum Defaults {
         DefaultsKey.panelControlCutPaste: true,
         DefaultsKey.panelControlAutoQuit: true,
         DefaultsKey.panelControlShelf: true,
+        DefaultsKey.menuBarHiderEnabled: true,
+        DefaultsKey.menuBarHiderCollapsed: false,
+        DefaultsKey.menuBarHiderAlwaysHiddenEnabled: true,
+        DefaultsKey.menuBarHiderAutoCollapse: false,
+        DefaultsKey.menuBarHiderAutoCollapseDelay: MenuBarHiderSupport.defaultAutoCollapseDelay,
+        DefaultsKey.menuBarHiderExpandOnHover: false,
+        DefaultsKey.menuBarHiderScrollToToggle: true,
+        DefaultsKey.menuBarHiderHapticFeedback: true,
+        DefaultsKey.menuBarHiderIconStyle: MenuBarHiderIconStyle.chevron.rawValue,
+        DefaultsKey.menuBarHiderShortcutEnabled: false,
+        DefaultsKey.menuBarHiderShortcut: GlobalShortcut.menuBarHiderDefault.storageValue,
         DefaultsKey.panelControlWindowMaximize: true,
         DefaultsKey.panelControlKeyDebounce: true,
         DefaultsKey.panelControlDockClick: true,

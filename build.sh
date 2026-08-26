@@ -207,6 +207,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BatteryTimeStrings.swift \
         Sources/Vorssaint/Core/KeepAwakeStrings.swift \
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift \
+        Sources/Vorssaint/Core/MenuBarHiderStrings.swift \
+        Sources/Vorssaint/Services/MenuBarHider/MenuBarHiderSupport.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Core/FanControlStrings.swift \
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
