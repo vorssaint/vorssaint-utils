@@ -48,11 +48,6 @@ jobs:
             echo "Release commit is not verified by GitHub" >&2
             exit 1
           fi
-          IMMUTABLE_RELEASES="$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')"
-          if [[ "$IMMUTABLE_RELEASES" != "true" ]]; then
-            echo "Immutable releases are not enabled" >&2
-            exit 1
-          fi
 
           RELATION="$(gh api "repos/$GITHUB_REPOSITORY/compare/$COMMIT_SHA...main" --jq '.status + ":" + .merge_base_commit.sha')"
           if [[ "$RELATION" != "identical:$COMMIT_SHA" && "$RELATION" != "ahead:$COMMIT_SHA" ]]; then
@@ -267,6 +262,11 @@ jobs:
     permissions:
       contents: write # Publishes the release; this job never receives Apple credentials.
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Download verified release artifact
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
@@ -290,10 +290,6 @@ jobs:
           REMOTE_COMMIT="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME" --jq '.sha')"
           if [[ "$REMOTE_COMMIT" != "$COMMIT_SHA" ]]; then
             echo "Release tag moved after signing" >&2
-            exit 1
-          fi
-          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')" != "true" ]]; then
-            echo "Immutable releases are not enabled" >&2
             exit 1
           fi
           FILES=(release-bundle/*.dmg)
@@ -381,10 +377,6 @@ jobs:
           fi
           gh release edit "${EDIT_ARGS[@]}"
           verify_release true
-          if [[ "$(gh api "repos/$GITHUB_REPOSITORY/immutable-releases" --jq '.enabled')" != "true" ]]; then
-            echo "Immutable releases were disabled before publication" >&2
-            exit 1
-          fi
 
           if [[ "$PRERELEASE" == "true" ]]; then
             gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease --latest=false

@@ -48,14 +48,14 @@ struct PanelWindowLayoutView: View {
             }
         }
         .onAppear {
-            PanelInteractionState.shared.keepsPopoverOpen = true
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
             refreshSystemTilingState()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSystemTilingState()
         }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
 
     private var header: some View {

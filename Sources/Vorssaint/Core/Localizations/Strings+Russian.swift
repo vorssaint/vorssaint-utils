@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "О программе",
         tabReleaseNotes: "Что нового",
         releaseNotesOnUpdateToggle: "Показывать изменения после обновления",
-        whatsNewDontShowAgain: "Больше не показывать",
         previewSizeLabel: "Размер превью",
         previewSizeNormal: "Обычный",
         previewSizeLarge: "Большой",

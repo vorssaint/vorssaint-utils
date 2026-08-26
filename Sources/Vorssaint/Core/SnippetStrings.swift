@@ -43,6 +43,31 @@ struct SnippetFeatureStrings {
     let folderPlaceholder: String
     let showInLibraryLabel: String
     let variablesFormatCaption: String
+    let editorFormatCaption: String
+    let dateTimeInsertButton: String
+    let dateTimeEditButton: String
+    let dateTimeTypeLabel: String
+    let dateTimeKindDate: String
+    let dateTimeKindTime: String
+    let dateTimeKindDateTime: String
+    let dateTimeStyleLabel: String
+    let dateTimeStyleShort: String
+    let dateTimeStyleMedium: String
+    let dateTimeStyleLong: String
+    let dateTimeStyleFull: String
+    let dateTimeStyleISO8601: String
+    let dateTimeStyleCustom: String
+    let dateTimeStyleLocaleNote: String
+    let dateTimeTimezoneLabel: String
+    let dateTimeTimezoneDeviceDefault: String
+    let dateTimeTimezoneValid: String
+    let dateTimeTimezoneInvalid: String
+    let dateTimeTimezoneClear: String
+    let dateTimeTimezoneSearchPlaceholder: String
+    let dateTimePatternLabel: String
+    let dateTimePreviewLabel: String
+    let dateTimeConfirmInsert: String
+    let dateTimeConfirmUpdate: String
 }
 
 extension FeatureStrings {
@@ -102,7 +127,32 @@ extension SnippetFeatureStrings {
         folderLabel: "폴더",
         folderPlaceholder: "업무",
         showInLibraryLabel: "빠른 메뉴에 표시",
-        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}"
+        variablesFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}. 시간대는 {{date-tz(America/New_York):yyyy-MM-dd}}처럼 -tz(...)로 지정합니다.",
+        editorFormatCaption: "콜론 뒤에 형식을 적으면 원하는 모양이 됩니다. 예: {{date:yyyy-MM-dd}}. 또는 위의 날짜/시간 버튼을 사용하세요. 시간대는 {{date-tz(America/New_York):yyyy-MM-dd}}처럼 -tz(...)로 지정합니다.",
+        dateTimeInsertButton: "날짜/시간 삽입",
+        dateTimeEditButton: "날짜/시간 편집",
+        dateTimeTypeLabel: "유형",
+        dateTimeKindDate: "날짜",
+        dateTimeKindTime: "시간",
+        dateTimeKindDateTime: "날짜시간",
+        dateTimeStyleLabel: "스타일",
+        dateTimeStyleShort: "짧게",
+        dateTimeStyleMedium: "보통",
+        dateTimeStyleLong: "길게",
+        dateTimeStyleFull: "전체",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "사용자 지정",
+        dateTimeStyleLocaleNote: "이름이 있는 형식은 Mac의 지역 표기를 지금 그대로 저장합니다.",
+        dateTimeTimezoneLabel: "시간대",
+        dateTimeTimezoneDeviceDefault: "기기 기본값",
+        dateTimeTimezoneValid: "유효한 시간대",
+        dateTimeTimezoneInvalid: "인식할 수 없는 시간대",
+        dateTimeTimezoneClear: "시간대 지우기",
+        dateTimeTimezoneSearchPlaceholder: "시간대 검색",
+        dateTimePatternLabel: "패턴",
+        dateTimePreviewLabel: "미리보기",
+        dateTimeConfirmInsert: "삽입",
+        dateTimeConfirmUpdate: "업데이트"
     )
 }
 
@@ -143,7 +193,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Folder",
         folderPlaceholder: "Work",
         showInLibraryLabel: "Show in the quick menu",
-        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}. A -tz(...) part sets the timezone, like {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}, or use the date/time button above. A -tz(...) part sets the timezone, like {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insert date/time",
+        dateTimeEditButton: "Edit date/time",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Date",
+        dateTimeKindTime: "Time",
+        dateTimeKindDateTime: "DateTime",
+        dateTimeStyleLabel: "Style",
+        dateTimeStyleShort: "Short",
+        dateTimeStyleMedium: "Medium",
+        dateTimeStyleLong: "Long",
+        dateTimeStyleFull: "Full",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Custom",
+        dateTimeStyleLocaleNote: "A named style saves the format your Mac's region uses right now.",
+        dateTimeTimezoneLabel: "Timezone",
+        dateTimeTimezoneDeviceDefault: "Device default",
+        dateTimeTimezoneValid: "Valid timezone",
+        dateTimeTimezoneInvalid: "Unrecognized timezone",
+        dateTimeTimezoneClear: "Clear timezone",
+        dateTimeTimezoneSearchPlaceholder: "Search timezones",
+        dateTimePatternLabel: "Pattern",
+        dateTimePreviewLabel: "Preview",
+        dateTimeConfirmInsert: "Insert",
+        dateTimeConfirmUpdate: "Update"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -182,7 +257,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Pasta",
         folderPlaceholder: "Trabalho",
         showInLibraryLabel: "Mostrar no menu rápido",
-        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}. Uma parte -tz(...) define o fuso horário, como {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Um formato depois de dois pontos escolhe a aparência, como {{date:yyyy-MM-dd}}, ou use o botão de data/hora acima. Uma parte -tz(...) define o fuso horário, como {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Inserir data/hora",
+        dateTimeEditButton: "Editar data/hora",
+        dateTimeTypeLabel: "Tipo",
+        dateTimeKindDate: "Data",
+        dateTimeKindTime: "Hora",
+        dateTimeKindDateTime: "Data e hora",
+        dateTimeStyleLabel: "Estilo",
+        dateTimeStyleShort: "Curto",
+        dateTimeStyleMedium: "Médio",
+        dateTimeStyleLong: "Longo",
+        dateTimeStyleFull: "Completo",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalizado",
+        dateTimeStyleLocaleNote: "Um estilo nomeado salva o formato que a região do seu Mac usa agora.",
+        dateTimeTimezoneLabel: "Fuso horário",
+        dateTimeTimezoneDeviceDefault: "Padrão do dispositivo",
+        dateTimeTimezoneValid: "Fuso horário válido",
+        dateTimeTimezoneInvalid: "Fuso horário não reconhecido",
+        dateTimeTimezoneClear: "Limpar fuso horário",
+        dateTimeTimezoneSearchPlaceholder: "Buscar fusos horários",
+        dateTimePatternLabel: "Padrão",
+        dateTimePreviewLabel: "Pré-visualização",
+        dateTimeConfirmInsert: "Inserir",
+        dateTimeConfirmUpdate: "Atualizar"
     )
 
     static let tr = SnippetFeatureStrings(
@@ -221,7 +321,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Klasör",
         folderPlaceholder: "İş",
         showInLibraryLabel: "Hızlı menüde göster",
-        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}. -tz(...) bölümü saat dilimini belirler, örneğin {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "İki noktadan sonra yazılan biçim görünümü belirler, örneğin {{date:yyyy-MM-dd}}, veya yukarıdaki tarih/saat düğmesini kullanın. -tz(...) bölümü saat dilimini belirler, örneğin {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Tarih/saat ekle",
+        dateTimeEditButton: "Tarih/saati düzenle",
+        dateTimeTypeLabel: "Tür",
+        dateTimeKindDate: "Tarih",
+        dateTimeKindTime: "Saat",
+        dateTimeKindDateTime: "Tarih ve saat",
+        dateTimeStyleLabel: "Stil",
+        dateTimeStyleShort: "Kısa",
+        dateTimeStyleMedium: "Orta",
+        dateTimeStyleLong: "Uzun",
+        dateTimeStyleFull: "Tam",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Özel",
+        dateTimeStyleLocaleNote: "Adlandırılmış bir biçem, Mac'inizin bölge gösterimini şu anki haliyle kaydeder.",
+        dateTimeTimezoneLabel: "Saat dilimi",
+        dateTimeTimezoneDeviceDefault: "Cihaz varsayılanı",
+        dateTimeTimezoneValid: "Geçerli saat dilimi",
+        dateTimeTimezoneInvalid: "Tanınmayan saat dilimi",
+        dateTimeTimezoneClear: "Saat dilimini temizle",
+        dateTimeTimezoneSearchPlaceholder: "Saat dilimi ara",
+        dateTimePatternLabel: "Desen",
+        dateTimePreviewLabel: "Önizleme",
+        dateTimeConfirmInsert: "Ekle",
+        dateTimeConfirmUpdate: "Güncelle"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -260,7 +385,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Папка",
         folderPlaceholder: "Работа",
         showInLibraryLabel: "Показывать в быстром меню",
-        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}. Часть -tz(...) задаёт часовой пояс, например {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Формат после двоеточия задаёт вид, например {{date:yyyy-MM-dd}}, или используйте кнопку даты и времени выше. Часть -tz(...) задаёт часовой пояс, например {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Вставить дату/время",
+        dateTimeEditButton: "Изменить дату/время",
+        dateTimeTypeLabel: "Тип",
+        dateTimeKindDate: "Дата",
+        dateTimeKindTime: "Время",
+        dateTimeKindDateTime: "Дата и время",
+        dateTimeStyleLabel: "Стиль",
+        dateTimeStyleShort: "Короткий",
+        dateTimeStyleMedium: "Средний",
+        dateTimeStyleLong: "Длинный",
+        dateTimeStyleFull: "Полный",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Свой",
+        dateTimeStyleLocaleNote: "Именованный стиль сохраняет формат, который регион вашего Mac использует сейчас.",
+        dateTimeTimezoneLabel: "Часовой пояс",
+        dateTimeTimezoneDeviceDefault: "По умолчанию на устройстве",
+        dateTimeTimezoneValid: "Допустимый часовой пояс",
+        dateTimeTimezoneInvalid: "Нераспознанный часовой пояс",
+        dateTimeTimezoneClear: "Очистить часовой пояс",
+        dateTimeTimezoneSearchPlaceholder: "Поиск часовых поясов",
+        dateTimePatternLabel: "Шаблон",
+        dateTimePreviewLabel: "Предпросмотр",
+        dateTimeConfirmInsert: "Вставить",
+        dateTimeConfirmUpdate: "Обновить"
     )
 
     static let es = SnippetFeatureStrings(
@@ -299,7 +449,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Carpeta",
         folderPlaceholder: "Trabajo",
         showInLibraryLabel: "Mostrar en el menú rápido",
-        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}. Una parte -tz(...) define la zona horaria, como {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Un formato después de dos puntos elige la apariencia, como {{date:yyyy-MM-dd}}, o usa el botón de fecha/hora de arriba. Una parte -tz(...) define la zona horaria, como {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insertar fecha/hora",
+        dateTimeEditButton: "Editar fecha/hora",
+        dateTimeTypeLabel: "Tipo",
+        dateTimeKindDate: "Fecha",
+        dateTimeKindTime: "Hora",
+        dateTimeKindDateTime: "Fecha y hora",
+        dateTimeStyleLabel: "Estilo",
+        dateTimeStyleShort: "Corto",
+        dateTimeStyleMedium: "Medio",
+        dateTimeStyleLong: "Largo",
+        dateTimeStyleFull: "Completo",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalizado",
+        dateTimeStyleLocaleNote: "Un estilo con nombre guarda el formato que usa la región de tu Mac ahora mismo.",
+        dateTimeTimezoneLabel: "Zona horaria",
+        dateTimeTimezoneDeviceDefault: "Predeterminada del dispositivo",
+        dateTimeTimezoneValid: "Zona horaria válida",
+        dateTimeTimezoneInvalid: "Zona horaria no reconocida",
+        dateTimeTimezoneClear: "Borrar zona horaria",
+        dateTimeTimezoneSearchPlaceholder: "Buscar zonas horarias",
+        dateTimePatternLabel: "Patrón",
+        dateTimePreviewLabel: "Vista previa",
+        dateTimeConfirmInsert: "Insertar",
+        dateTimeConfirmUpdate: "Actualizar"
     )
 
     static let de = SnippetFeatureStrings(
@@ -338,7 +513,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Ordner",
         folderPlaceholder: "Arbeit",
         showInLibraryLabel: "Im Schnellmenü zeigen",
-        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}. Ein -tz(...)-Teil legt die Zeitzone fest, etwa {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Ein Format nach einem Doppelpunkt bestimmt das Aussehen, etwa {{date:yyyy-MM-dd}}, oder verwende die Datum/Uhrzeit-Schaltfläche oben. Ein -tz(...)-Teil legt die Zeitzone fest, etwa {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Datum/Uhrzeit einfügen",
+        dateTimeEditButton: "Datum/Uhrzeit bearbeiten",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Datum",
+        dateTimeKindTime: "Uhrzeit",
+        dateTimeKindDateTime: "Datum und Uhrzeit",
+        dateTimeStyleLabel: "Stil",
+        dateTimeStyleShort: "Kurz",
+        dateTimeStyleMedium: "Mittel",
+        dateTimeStyleLong: "Lang",
+        dateTimeStyleFull: "Vollständig",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Benutzerdefiniert",
+        dateTimeStyleLocaleNote: "Ein benannter Stil speichert das Format, das die Region deines Mac jetzt verwendet.",
+        dateTimeTimezoneLabel: "Zeitzone",
+        dateTimeTimezoneDeviceDefault: "Gerätestandard",
+        dateTimeTimezoneValid: "Gültige Zeitzone",
+        dateTimeTimezoneInvalid: "Unbekannte Zeitzone",
+        dateTimeTimezoneClear: "Zeitzone löschen",
+        dateTimeTimezoneSearchPlaceholder: "Zeitzonen suchen",
+        dateTimePatternLabel: "Muster",
+        dateTimePreviewLabel: "Vorschau",
+        dateTimeConfirmInsert: "Einfügen",
+        dateTimeConfirmUpdate: "Aktualisieren"
     )
 
     static let fr = SnippetFeatureStrings(
@@ -377,7 +577,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Dossier",
         folderPlaceholder: "Travail",
         showInLibraryLabel: "Afficher dans le menu rapide",
-        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}. Une partie -tz(...) définit le fuseau horaire, par exemple {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Un format après deux-points choisit l'apparence, par exemple {{date:yyyy-MM-dd}}, ou utilisez le bouton date/heure ci-dessus. Une partie -tz(...) définit le fuseau horaire, par exemple {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insérer date/heure",
+        dateTimeEditButton: "Modifier date/heure",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Date",
+        dateTimeKindTime: "Heure",
+        dateTimeKindDateTime: "Date et heure",
+        dateTimeStyleLabel: "Style",
+        dateTimeStyleShort: "Court",
+        dateTimeStyleMedium: "Moyen",
+        dateTimeStyleLong: "Long",
+        dateTimeStyleFull: "Complet",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personnalisé",
+        dateTimeStyleLocaleNote: "Un style nommé enregistre le format utilisé par la région de votre Mac.",
+        dateTimeTimezoneLabel: "Fuseau horaire",
+        dateTimeTimezoneDeviceDefault: "Par défaut de l'appareil",
+        dateTimeTimezoneValid: "Fuseau horaire valide",
+        dateTimeTimezoneInvalid: "Fuseau horaire non reconnu",
+        dateTimeTimezoneClear: "Effacer le fuseau horaire",
+        dateTimeTimezoneSearchPlaceholder: "Rechercher un fuseau horaire",
+        dateTimePatternLabel: "Motif",
+        dateTimePreviewLabel: "Aperçu",
+        dateTimeConfirmInsert: "Insérer",
+        dateTimeConfirmUpdate: "Mettre à jour"
     )
 
     static let it = SnippetFeatureStrings(
@@ -416,7 +641,32 @@ extension SnippetFeatureStrings {
         folderLabel: "Cartella",
         folderPlaceholder: "Lavoro",
         showInLibraryLabel: "Mostra nel menu rapido",
-        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}."
+        variablesFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}. Una parte -tz(...) imposta il fuso orario, ad esempio {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Un formato dopo i due punti sceglie l'aspetto, ad esempio {{date:yyyy-MM-dd}}, oppure usa il pulsante data/ora qui sopra. Una parte -tz(...) imposta il fuso orario, ad esempio {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Inserisci data/ora",
+        dateTimeEditButton: "Modifica data/ora",
+        dateTimeTypeLabel: "Tipo",
+        dateTimeKindDate: "Data",
+        dateTimeKindTime: "Ora",
+        dateTimeKindDateTime: "Data e ora",
+        dateTimeStyleLabel: "Stile",
+        dateTimeStyleShort: "Breve",
+        dateTimeStyleMedium: "Medio",
+        dateTimeStyleLong: "Lungo",
+        dateTimeStyleFull: "Completo",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalizzato",
+        dateTimeStyleLocaleNote: "Uno stile con nome salva il formato usato ora dalla regione del tuo Mac.",
+        dateTimeTimezoneLabel: "Fuso orario",
+        dateTimeTimezoneDeviceDefault: "Predefinito del dispositivo",
+        dateTimeTimezoneValid: "Fuso orario valido",
+        dateTimeTimezoneInvalid: "Fuso orario non riconosciuto",
+        dateTimeTimezoneClear: "Cancella fuso orario",
+        dateTimeTimezoneSearchPlaceholder: "Cerca fusi orari",
+        dateTimePatternLabel: "Modello",
+        dateTimePreviewLabel: "Anteprima",
+        dateTimeConfirmInsert: "Inserisci",
+        dateTimeConfirmUpdate: "Aggiorna"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -455,7 +705,32 @@ extension SnippetFeatureStrings {
         folderLabel: "フォルダ",
         folderPlaceholder: "仕事",
         showInLibraryLabel: "クイックメニューに表示",
-        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}"
+        variablesFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}。-tz(...) で時間帯を指定できます。例: {{date-tz(America/New_York):yyyy-MM-dd}}",
+        editorFormatCaption: "コロンの後に形式を書くと表示を選べます。例: {{date:yyyy-MM-dd}}。または上の日付/時刻ボタンを使ってください。-tz(...) で時間帯を指定できます。例: {{date-tz(America/New_York):yyyy-MM-dd}}",
+        dateTimeInsertButton: "日付/時刻を挿入",
+        dateTimeEditButton: "日付/時刻を編集",
+        dateTimeTypeLabel: "種類",
+        dateTimeKindDate: "日付",
+        dateTimeKindTime: "時刻",
+        dateTimeKindDateTime: "日付と時刻",
+        dateTimeStyleLabel: "スタイル",
+        dateTimeStyleShort: "短い",
+        dateTimeStyleMedium: "標準",
+        dateTimeStyleLong: "長い",
+        dateTimeStyleFull: "完全",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "カスタム",
+        dateTimeStyleLocaleNote: "名前付きの形式は、Macの地域の表記をそのまま保存します。",
+        dateTimeTimezoneLabel: "タイムゾーン",
+        dateTimeTimezoneDeviceDefault: "デバイスの既定値",
+        dateTimeTimezoneValid: "有効なタイムゾーン",
+        dateTimeTimezoneInvalid: "認識できないタイムゾーン",
+        dateTimeTimezoneClear: "タイムゾーンを消去",
+        dateTimeTimezoneSearchPlaceholder: "タイムゾーンを検索",
+        dateTimePatternLabel: "パターン",
+        dateTimePreviewLabel: "プレビュー",
+        dateTimeConfirmInsert: "挿入",
+        dateTimeConfirmUpdate: "更新"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -494,7 +769,32 @@ extension SnippetFeatureStrings {
         folderLabel: "文件夹",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷菜单中显示",
-        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}。用 -tz(...) 指定时区，例如 {{date-tz(America/New_York):yyyy-MM-dd}}。",
+        editorFormatCaption: "冒号后加上格式就能自定样式，例如 {{date:yyyy-MM-dd}}，或使用上方的日期/时间按钮。用 -tz(...) 指定时区，例如 {{date-tz(America/New_York):yyyy-MM-dd}}。",
+        dateTimeInsertButton: "插入日期/时间",
+        dateTimeEditButton: "编辑日期/时间",
+        dateTimeTypeLabel: "类型",
+        dateTimeKindDate: "日期",
+        dateTimeKindTime: "时间",
+        dateTimeKindDateTime: "日期和时间",
+        dateTimeStyleLabel: "样式",
+        dateTimeStyleShort: "简短",
+        dateTimeStyleMedium: "中等",
+        dateTimeStyleLong: "较长",
+        dateTimeStyleFull: "完整",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "自定义",
+        dateTimeStyleLocaleNote: "命名样式会保存 Mac 地区此刻使用的格式。",
+        dateTimeTimezoneLabel: "时区",
+        dateTimeTimezoneDeviceDefault: "设备默认",
+        dateTimeTimezoneValid: "有效时区",
+        dateTimeTimezoneInvalid: "无法识别的时区",
+        dateTimeTimezoneClear: "清除时区",
+        dateTimeTimezoneSearchPlaceholder: "搜索时区",
+        dateTimePatternLabel: "格式",
+        dateTimePreviewLabel: "预览",
+        dateTimeConfirmInsert: "插入",
+        dateTimeConfirmUpdate: "更新"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -533,7 +833,32 @@ extension SnippetFeatureStrings {
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷選單中顯示",
-        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}}。用 -tz(...) 指定時區,例如 {{date-tz(America/New_York):yyyy-MM-dd}}。",
+        editorFormatCaption: "冒號後加上格式就能自訂樣式,例如 {{date:yyyy-MM-dd}},或使用上方的日期/時間按鈕。用 -tz(...) 指定時區,例如 {{date-tz(America/New_York):yyyy-MM-dd}}。",
+        dateTimeInsertButton: "插入日期/時間",
+        dateTimeEditButton: "編輯日期/時間",
+        dateTimeTypeLabel: "類型",
+        dateTimeKindDate: "日期",
+        dateTimeKindTime: "時間",
+        dateTimeKindDateTime: "日期和時間",
+        dateTimeStyleLabel: "樣式",
+        dateTimeStyleShort: "簡短",
+        dateTimeStyleMedium: "中等",
+        dateTimeStyleLong: "較長",
+        dateTimeStyleFull: "完整",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "自訂",
+        dateTimeStyleLocaleNote: "命名樣式會儲存 Mac 地區此刻使用的格式。",
+        dateTimeTimezoneLabel: "時區",
+        dateTimeTimezoneDeviceDefault: "裝置預設",
+        dateTimeTimezoneValid: "有效時區",
+        dateTimeTimezoneInvalid: "無法辨識的時區",
+        dateTimeTimezoneClear: "清除時區",
+        dateTimeTimezoneSearchPlaceholder: "搜尋時區",
+        dateTimePatternLabel: "格式",
+        dateTimePreviewLabel: "預覽",
+        dateTimeConfirmInsert: "插入",
+        dateTimeConfirmUpdate: "更新"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -572,6 +897,31 @@ extension SnippetFeatureStrings {
         folderLabel: "檔案夾",
         folderPlaceholder: "工作",
         showInLibraryLabel: "在快捷選單中顯示",
-        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。"
+        variablesFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}}。用 -tz(...) 指定時區,例如 {{date-tz(America/New_York):yyyy-MM-dd}}。",
+        editorFormatCaption: "喺冒號後加上格式就可以自訂樣式,例如 {{date:yyyy-MM-dd}},或者用返上面嘅日期/時間掣。用 -tz(...) 指定時區,例如 {{date-tz(America/New_York):yyyy-MM-dd}}。",
+        dateTimeInsertButton: "插入日期/時間",
+        dateTimeEditButton: "編輯日期/時間",
+        dateTimeTypeLabel: "類型",
+        dateTimeKindDate: "日期",
+        dateTimeKindTime: "時間",
+        dateTimeKindDateTime: "日期和時間",
+        dateTimeStyleLabel: "樣式",
+        dateTimeStyleShort: "簡短",
+        dateTimeStyleMedium: "中等",
+        dateTimeStyleLong: "較長",
+        dateTimeStyleFull: "完整",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "自訂",
+        dateTimeStyleLocaleNote: "命名樣式會儲存 Mac 地區而家用緊嘅格式。",
+        dateTimeTimezoneLabel: "時區",
+        dateTimeTimezoneDeviceDefault: "裝置預設",
+        dateTimeTimezoneValid: "有效時區",
+        dateTimeTimezoneInvalid: "無法辨識嘅時區",
+        dateTimeTimezoneClear: "清除時區",
+        dateTimeTimezoneSearchPlaceholder: "搜尋時區",
+        dateTimePatternLabel: "格式",
+        dateTimePreviewLabel: "預覽",
+        dateTimeConfirmInsert: "插入",
+        dateTimeConfirmUpdate: "更新"
     )
 }

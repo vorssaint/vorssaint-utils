@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "Informazioni",
         tabReleaseNotes: "Novità",
         releaseNotesOnUpdateToggle: "Mostra le novità dopo l'aggiornamento",
-        whatsNewDontShowAgain: "Non mostrare più",
         previewSizeLabel: "Dimensione anteprime",
         previewSizeNormal: "Normale",
         previewSizeLarge: "Grande",

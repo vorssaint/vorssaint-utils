@@ -1140,12 +1140,17 @@ enum CommandBarCatalog {
         return (free, UInt64(total))
     }
 
+    /// The HUD travels with the write rather than racing it: it says the value
+    /// is on the clipboard, so it appears once it is. The bar itself is never
+    /// held up — the lane can be wedged behind an app that promised pasteboard
+    /// content and stopped answering (issue #887).
     private static func copyAnswer(_ value: String) {
-        GeneralPasteboardAccess.shared.sync {
+        GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(value, forType: .string)
-        }
-        QuickToolHUD.show(icon: "doc.on.doc", message: value)
+        }, then: {
+            QuickToolHUD.show(icon: "doc.on.doc", message: value)
+        })
     }
 
     // MARK: - Emoji
@@ -1230,27 +1235,43 @@ enum CommandBarCatalog {
         }
         // Everything below opens something, so the bar is done. A row that
         // takes a query is still on screen; one that does not was already
-        // hidden, and hiding twice costs nothing.
-        defer { service.hide() }
+        // hidden, and hiding twice costs nothing. It goes now, not when the
+        // clipboard answers, which may be never.
         let date = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .none)
-        let copied = GeneralPasteboardAccess.shared.sync {
-            NSPasteboard.general.string(forType: .string)
-        } ?? ""
-        let expanded = CommandBarLinks.expand(link.destination,
-                                              kind: link.kind,
-                                              query: argument,
-                                              clipboard: copied,
-                                              selection: service.selectionWhenRun,
-                                              date: date)
-        guard let url = CommandBarLinks.url(for: link, expanded: expanded) else {
-            NSSound.beep()
+        let selection = service.selectionWhenRun
+        service.hide()
+        withClipboard(neededBy: link.destination) { copied in
+            let expanded = CommandBarLinks.expand(link.destination,
+                                                  kind: link.kind,
+                                                  query: argument,
+                                                  clipboard: copied,
+                                                  selection: selection,
+                                                  date: date)
+            guard let url = CommandBarLinks.url(for: link, expanded: expanded) else {
+                NSSound.beep()
+                return
+            }
+            if link.kind == .place, !FileManager.default.fileExists(atPath: url.path) {
+                QuickToolHUD.show(icon: "folder.badge.questionmark", message: link.name)
+                return
+            }
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    /// The general pasteboard, handed back on the main queue. A destination
+    /// without the clipboard placeholder never reads it at all, and one that
+    /// does reads it on the shared lane, so a stalled pasteboard provider
+    /// delays this one row rather than freezing the app (issue #887).
+    private static func withClipboard(neededBy destination: String,
+                                      _ body: @escaping (String) -> Void) {
+        guard destination.contains(CommandBarLinkPlaceholder.clipboard.token) else {
+            body("")
             return
         }
-        if link.kind == .place, !FileManager.default.fileExists(atPath: url.path) {
-            QuickToolHUD.show(icon: "folder.badge.questionmark", message: link.name)
-            return
-        }
-        NSWorkspace.shared.open(url)
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.string(forType: .string) ?? ""
+        }, then: body)
     }
 
     /// Return pressed before a script's debounced run has answered yet: runs
@@ -1531,28 +1552,35 @@ enum CommandBarCatalog {
         appDelegate()?.openSettingsWindow()
     }
 
+    /// Reads through the shared lane like every other clipboard row: a direct
+    /// main-thread read races the lane's readers and freezes the app on a
+    /// promised flavour nobody is left to render (issue #887).
     private static func cleanClipboardURL() {
-        let s = L10n.shared.s
-        guard let raw = NSPasteboard.general.string(forType: .string),
-              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            QuickToolHUD.show(icon: "link", message: s.urlCleanerNoURL)
-            return
-        }
-        let cleaned = URLCleanerService.shared.clean(raw)
-        switch URLCleaning.outcome(for: cleaned, input: raw) {
-        case .notAURL:
-            QuickToolHUD.show(icon: "link", message: s.urlCleanerNoURL)
-        case .unchanged:
-            QuickToolHUD.show(icon: "checkmark.circle", message: s.urlCleanerNoChange)
-        case .rewritten:
-            cleaned.map { URLCleanerService.shared.copy($0.url) }
-            QuickToolHUD.show(icon: "link", message: s.urlCleanerCleaned)
-        case .removed(let names):
-            cleaned.map { URLCleanerService.shared.copy($0.url) }
-            QuickToolHUD.show(icon: "link",
-                              message: String(format: s.urlCleanerRemovedFormat,
-                                              names.joined(separator: ", ")))
-        }
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.string(forType: .string)
+        }, then: { raw in
+            let s = L10n.shared.s
+            guard let raw,
+                  !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                QuickToolHUD.show(icon: "link", message: s.urlCleanerNoURL)
+                return
+            }
+            let cleaned = URLCleanerService.shared.clean(raw)
+            switch URLCleaning.outcome(for: cleaned, input: raw) {
+            case .notAURL:
+                QuickToolHUD.show(icon: "link", message: s.urlCleanerNoURL)
+            case .unchanged:
+                QuickToolHUD.show(icon: "checkmark.circle", message: s.urlCleanerNoChange)
+            case .rewritten:
+                cleaned.map { URLCleanerService.shared.copy($0.url) }
+                QuickToolHUD.show(icon: "link", message: s.urlCleanerCleaned)
+            case .removed(let names):
+                cleaned.map { URLCleanerService.shared.copy($0.url) }
+                QuickToolHUD.show(icon: "link",
+                                  message: String(format: s.urlCleanerRemovedFormat,
+                                                  names.joined(separator: ", ")))
+            }
+        })
     }
 
     /// Brightness lands on the display under the pointer, the screen where

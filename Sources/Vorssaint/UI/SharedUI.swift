@@ -145,6 +145,7 @@ struct HUDBackdrop: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
 
     private var materialOpacity: Double {
         reduceTransparency ? 1 : min(max(opacity, 0), 1)
@@ -162,6 +163,25 @@ struct HUDBackdrop: View {
     }
 
     var body: some View {
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *), liquidGlassEnabled, !reduceTransparency {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.clear)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 0.8)
+                )
+        } else {
+            classicBackdrop
+        }
+#else
+        classicBackdrop
+#endif
+    }
+
+    @ViewBuilder
+    private var classicBackdrop: some View {
         HUDBackdropMaterial(cornerRadius: cornerRadius, opacity: materialOpacity)
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -204,29 +224,6 @@ private struct HUDBackdropMaterial: NSViewRepresentable {
         view.layer?.cornerRadius = cornerRadius
         view.layer?.cornerCurve = .continuous
         view.layer?.masksToBounds = true
-    }
-}
-
-/// Plays an animated image. SwiftUI's Image shows only the first frame of a
-/// GIF, so anything that has to move goes through AppKit.
-struct AnimatedGIFView: NSViewRepresentable {
-    let image: NSImage
-
-    func makeNSView(context: Context) -> NSImageView {
-        let view = NSImageView()
-        view.imageAlignment = .alignCenter
-        view.imageScaling = .scaleProportionallyUpOrDown
-        view.animates = true
-        view.wantsLayer = true
-        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-        return view
-    }
-
-    func updateNSView(_ view: NSImageView, context: Context) {
-        guard view.image !== image else { return }
-        view.image = image
-        view.animates = true
     }
 }
 

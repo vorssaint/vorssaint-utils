@@ -23,6 +23,16 @@ struct SuperKeyMapping: Equatable {
     let destination: UInt64
 }
 
+/// Why the key mapping could not be applied. Every refusal carries one, so
+/// the feature can say what stopped it instead of switching itself back off
+/// with nothing on screen.
+enum SuperKeyMappingFailure: Equatable, CaseIterable {
+    /// Another app's key mapping is in the way.
+    case foreignMapping
+    /// hidutil refused the read, the write, or the readback.
+    case systemRefused
+}
+
 /// The pure half of the super key: which keys are involved, how the mapping
 /// table is read and written, and the small state machine that decides what to
 /// do with each key event while the key is held.
@@ -61,13 +71,10 @@ enum SuperKeySupport {
 
     /// HID usage values (page 7, keyboard) of the two keys involved.
     static let capsLockUsage: UInt64 = 0x700000039
-    /// Modifier Keys represents “No Action” with this sentinel.
-    static let noActionUsage = UInt64.max
     /// F18 is the destination: a key defined by the standard, so the system
     /// delivers it like any other, and one no portable keyboard carries.
     static let triggerUsage: UInt64 = 0x70000006D
     static let userMappingProperty = "UserKeyMapping"
-    static let modifierMappingProperty = "HIDKeyboardModifierMappingPairs"
 
     /// Virtual key codes of the same two keys, as they arrive in key events.
     static let triggerKeyCode: Int64 = 79
@@ -80,18 +87,13 @@ enum SuperKeySupport {
     /// removed when it is turned off.
     static func mappings(enablingSuperKey enabled: Bool,
                          existing: [SuperKeyMapping],
-                         includeNoAction: Bool = false,
                          ownsExistingMapping: Bool = false) -> [SuperKeyMapping] {
         guard enabled || ownsExistingMapping else { return existing }
         let others = existing.filter { !isOwnedMapping($0) }
         guard enabled else { return others }
         guard !hasMappingConflict(in: existing, ownsExistingMapping: ownsExistingMapping)
         else { return existing }
-        var owned = [SuperKeyMapping(source: capsLockUsage, destination: triggerUsage)]
-        if includeNoAction, !others.contains(where: { $0.source == noActionUsage }) {
-            owned.append(SuperKeyMapping(source: noActionUsage, destination: triggerUsage))
-        }
-        return owned + others
+        return [SuperKeyMapping(source: capsLockUsage, destination: triggerUsage)] + others
     }
 
     /// Caps Lock can have only one destination. A mapping shaped like ours is
@@ -100,11 +102,8 @@ enum SuperKeySupport {
     static func hasMappingConflict(in mappings: [SuperKeyMapping],
                                    ownsExistingMapping: Bool) -> Bool {
         mappings.contains {
-            ($0.source == capsLockUsage
-                && ($0.destination != triggerUsage || !ownsExistingMapping))
-                || ($0.source == noActionUsage
-                    && $0.destination == triggerUsage
-                    && !ownsExistingMapping)
+            $0.source == capsLockUsage
+                && ($0.destination != triggerUsage || !ownsExistingMapping)
         }
     }
 
@@ -163,25 +162,6 @@ enum SuperKeySupport {
         readbackConfirmed ? false : previous
     }
 
-    /// “No Action” has one shared sentinel after Modifier Keys. It is safe to
-    /// recover only when Caps Lock is the sole modifier using that sentinel.
-    static func canMapNoAction(from modifierMappings: [SuperKeyMapping]) -> Bool {
-        let disabledSources = Set(
-            modifierMappings.lazy
-                .filter { $0.destination == noActionUsage }
-                .map(\.source)
-        )
-        return disabledSources == [capsLockUsage]
-    }
-
-    /// A Modifier Keys rule runs before UserKeyMapping. Caps Lock may proceed
-    /// only when it has no such rule, or when its sole rule is the supported
-    /// no-action sentinel that can be recovered without affecting another key.
-    static func modifierMappingsAllowSuperKey(_ mappings: [SuperKeyMapping]) -> Bool {
-        !mappings.contains { $0.source == capsLockUsage }
-            || canMapNoAction(from: mappings)
-    }
-
     /// The mapping table as the command line takes it.
     static func mappingArgument(_ mappings: [SuperKeyMapping]) -> String {
         let entries = mappings.map {
@@ -206,8 +186,7 @@ enum SuperKeySupport {
     }
 
     private static func isOwnedMapping(_ mapping: SuperKeyMapping) -> Bool {
-        (mapping.source == capsLockUsage && mapping.destination == triggerUsage)
-            || (mapping.source == noActionUsage && mapping.destination == triggerUsage)
+        mapping.source == capsLockUsage && mapping.destination == triggerUsage
     }
 
     private static func number(after field: String, in body: String) -> UInt64? {

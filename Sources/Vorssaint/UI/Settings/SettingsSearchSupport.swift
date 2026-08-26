@@ -81,4 +81,49 @@ enum SettingsWindowSupport {
         let height = min(preferredContentHeight, max(availableHeight, minContentHeight))
         return (minContentWidth, height)
     }
+
+    static func panelPlacement(preferredFrame: CGRect,
+                               panelFrame: CGRect,
+                               visibleFrame: CGRect) -> (frame: CGRect, closesPanel: Bool) {
+        let avoidedFrame = frame(preferredFrame, avoiding: panelFrame, in: visibleFrame)
+        let closesPanel = avoidedFrame.intersects(panelFrame)
+        return (closesPanel ? clamped(preferredFrame, to: visibleFrame) : avoidedFrame,
+                closesPanel)
+    }
+
+    private static func frame(_ frame: CGRect, avoiding panelFrame: CGRect,
+                              in visibleFrame: CGRect) -> CGRect {
+        let gap: CGFloat = 28
+        let margin: CGFloat = 20
+        var adjusted = frame
+
+        let leftX = panelFrame.minX - gap - frame.width
+        let rightX = panelFrame.maxX + gap
+        if panelFrame.midX >= visibleFrame.midX, leftX >= visibleFrame.minX + margin {
+            adjusted.origin.x = min(frame.origin.x, leftX)
+        } else if panelFrame.midX < visibleFrame.midX,
+                  rightX + frame.width <= visibleFrame.maxX - margin {
+            adjusted.origin.x = max(frame.origin.x, rightX)
+        } else {
+            let belowY = panelFrame.minY - gap - frame.height
+            let aboveY = panelFrame.maxY + gap
+            if belowY >= visibleFrame.minY + margin {
+                adjusted.origin.y = min(frame.origin.y, belowY)
+            } else if aboveY + frame.height <= visibleFrame.maxY - margin {
+                adjusted.origin.y = max(frame.origin.y, aboveY)
+            }
+        }
+
+        return clamped(adjusted, to: visibleFrame)
+    }
+
+    private static func clamped(_ frame: CGRect, to visibleFrame: CGRect) -> CGRect {
+        let margin: CGFloat = 20
+        var clamped = frame
+        clamped.origin.x = min(max(clamped.origin.x, visibleFrame.minX + margin),
+                               visibleFrame.maxX - frame.width - margin)
+        clamped.origin.y = min(max(clamped.origin.y, visibleFrame.minY + margin),
+                               visibleFrame.maxY - frame.height - margin)
+        return clamped
+    }
 }

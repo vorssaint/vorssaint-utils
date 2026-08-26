@@ -15,12 +15,6 @@ enum AutoQuitWindowEvent: Equatable {
     case other
 }
 
-enum AutoQuitCloseSignal: Equatable {
-    case closeButton
-    case commandW
-    case programmatic
-}
-
 enum AutoQuitSupport {
     private static let hostBundleIdentifierKey = "CrBundleIdentifier"
     /// Some guest-app windows run as generated helper apps outside their

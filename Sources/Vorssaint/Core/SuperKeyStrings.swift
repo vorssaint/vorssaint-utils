@@ -19,6 +19,17 @@ struct SuperKeyStrings {
     let panelCaptionFormat: String
     let manageButton: String
     let soloInputSource: String
+    let mappingForeignMapping: String
+    let mappingSystemRefused: String
+
+    /// What to show when the key mapping was refused. Every refusal names one
+    /// thing to change; none of them is visible in the key itself.
+    func mappingFailure(_ failure: SuperKeyMappingFailure) -> String {
+        switch failure {
+        case .foreignMapping: return mappingForeignMapping
+        case .systemRefused: return mappingSystemRefused
+        }
+    }
 }
 
 extension FeatureStrings {
@@ -57,7 +68,9 @@ extension SuperKeyStrings {
         activeNow: "Working now",
         panelCaptionFormat: "Caps Lock holds %@.",
         manageButton: "Set up…",
-        soloInputSource: "Switch input source; hold for Caps Lock"
+        soloInputSource: "Switch input source; hold for Caps Lock",
+        mappingForeignMapping: "Another app's key mapping holds Caps Lock. Remove it in that app: quitting it is not enough.",
+        mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again."
     )
 
     static let ptBR = SuperKeyStrings(
@@ -75,7 +88,9 @@ extension SuperKeyStrings {
         activeNow: "Funcionando agora",
         panelCaptionFormat: "O Caps Lock segura %@.",
         manageButton: "Configurar…",
-        soloInputSource: "Trocar fonte de entrada; segure para Caps Lock"
+        soloInputSource: "Trocar fonte de entrada; segure para Caps Lock",
+        mappingForeignMapping: "O mapeamento de teclas de outro app está com o Caps Lock. Remova-o naquele app: sair dele não basta.",
+        mappingSystemRefused: "O macOS recusou o mapeamento de teclas. Reconecte o teclado ou reinicie o Mac e ligue isto de novo."
     )
 
     static let tr = SuperKeyStrings(
@@ -93,7 +108,9 @@ extension SuperKeyStrings {
         activeNow: "Şu anda çalışıyor",
         panelCaptionFormat: "Caps Lock %@ tuşlarını basılı tutar.",
         manageButton: "Ayarla…",
-        soloInputSource: "Giriş kaynağını değiştir; Caps Lock için basılı tut"
+        soloInputSource: "Giriş kaynağını değiştir; Caps Lock için basılı tut",
+        mappingForeignMapping: "Başka bir uygulamanın tuş eşlemesi Caps Lock’u tutuyor. Eşlemeyi o uygulamada kaldırın: çıkmak yetmez.",
+        mappingSystemRefused: "macOS tuş eşlemesini kabul etmedi. Klavyeyi yeniden bağlayın veya Mac’i yeniden başlatın, sonra bunu tekrar açın."
     )
 
     static let ru = SuperKeyStrings(
@@ -111,7 +128,9 @@ extension SuperKeyStrings {
         activeNow: "Работает",
         panelCaptionFormat: "Caps Lock удерживает %@.",
         manageButton: "Настроить…",
-        soloInputSource: "Сменить источник ввода; удерживать для Caps Lock"
+        soloInputSource: "Сменить источник ввода; удерживать для Caps Lock",
+        mappingForeignMapping: "Caps Lock занят переназначением из другой программы. Удалите его в той программе: завершить её недостаточно.",
+        mappingSystemRefused: "macOS отклонил переназначение клавиш. Переподключите клавиатуру или перезапустите Mac и включите это снова."
     )
 
     static let es = SuperKeyStrings(
@@ -129,7 +148,9 @@ extension SuperKeyStrings {
         activeNow: "Funcionando ahora",
         panelCaptionFormat: "Bloq Mayús mantiene %@.",
         manageButton: "Configurar…",
-        soloInputSource: "Cambiar fuente de entrada; mantener para Bloq Mayús"
+        soloInputSource: "Cambiar fuente de entrada; mantener para Bloq Mayús",
+        mappingForeignMapping: "La reasignación de teclas de otra app ocupa Bloq Mayús. Elimínala en esa app: salir de ella no basta.",
+        mappingSystemRefused: "macOS rechazó la reasignación de teclas. Vuelve a conectar el teclado o reinicia el Mac y activa esto de nuevo."
     )
 
     static let de = SuperKeyStrings(
@@ -147,7 +168,9 @@ extension SuperKeyStrings {
         activeNow: "Läuft gerade",
         panelCaptionFormat: "Die Feststelltaste hält %@.",
         manageButton: "Einrichten…",
-        soloInputSource: "Eingabequelle wechseln; für Feststelltaste halten"
+        soloInputSource: "Eingabequelle wechseln; für Feststelltaste halten",
+        mappingForeignMapping: "Die Tastenbelegung einer anderen App hält die Feststelltaste. Entferne sie in dieser App: Beenden reicht nicht.",
+        mappingSystemRefused: "macOS hat die Tastenbelegung abgelehnt. Schließe die Tastatur neu an oder starte den Mac neu und schalte dies wieder ein."
     )
 
     static let fr = SuperKeyStrings(
@@ -165,7 +188,9 @@ extension SuperKeyStrings {
         activeNow: "Actif maintenant",
         panelCaptionFormat: "Verr. Maj maintient %@.",
         manageButton: "Configurer…",
-        soloInputSource: "Changer de source d’entrée ; maintenir pour Verr. Maj"
+        soloInputSource: "Changer de source d’entrée ; maintenir pour Verr. Maj",
+        mappingForeignMapping: "Le remappage d’une autre app occupe Verr. Maj. Supprimez-le dans cette app : la quitter ne suffit pas.",
+        mappingSystemRefused: "macOS a refusé le remappage. Rebranchez le clavier ou redémarrez le Mac, puis réactivez ceci."
     )
 
     static let it = SuperKeyStrings(
@@ -183,7 +208,9 @@ extension SuperKeyStrings {
         activeNow: "Attivo ora",
         panelCaptionFormat: "Blocco Maiuscole tiene premuti %@.",
         manageButton: "Configura…",
-        soloInputSource: "Cambia sorgente di input; tieni premuto per Blocco Maiuscole"
+        soloInputSource: "Cambia sorgente di input; tieni premuto per Blocco Maiuscole",
+        mappingForeignMapping: "La rimappatura di un’altra app occupa Blocco Maiuscole. Rimuovila in quell’app: chiuderla non basta.",
+        mappingSystemRefused: "macOS ha rifiutato la rimappatura. Ricollega la tastiera o riavvia il Mac, poi riattiva questa funzione."
     )
 
     static let ja = SuperKeyStrings(
@@ -201,7 +228,9 @@ extension SuperKeyStrings {
         activeNow: "動作中",
         panelCaptionFormat: "Caps Lock が %@ を押した状態にします。",
         manageButton: "設定…",
-        soloInputSource: "入力ソースを切り替え（長押しで Caps Lock）"
+        soloInputSource: "入力ソースを切り替え（長押しで Caps Lock）",
+        mappingForeignMapping: "他のアプリのキー割り当てが Caps Lock を使っています。そのアプリで割り当てを削除してください。終了するだけでは残ります。",
+        mappingSystemRefused: "macOS がキー割り当てを受け付けませんでした。キーボードを接続し直すか Mac を再起動してから、もう一度オンにしてください。"
     )
 
     static let ko = SuperKeyStrings(
@@ -219,7 +248,9 @@ extension SuperKeyStrings {
         activeNow: "지금 작동 중",
         panelCaptionFormat: "Caps Lock이 %@를 누른 상태로 만듭니다.",
         manageButton: "설정…",
-        soloInputSource: "입력 소스 전환(길게 눌러 Caps Lock)"
+        soloInputSource: "입력 소스 전환(길게 눌러 Caps Lock)",
+        mappingForeignMapping: "다른 앱의 키 매핑이 Caps Lock을 차지하고 있습니다. 그 앱에서 매핑을 지우세요. 종료만으로는 사라지지 않습니다.",
+        mappingSystemRefused: "macOS가 키 매핑을 거부했습니다. 키보드를 다시 연결하거나 Mac을 재시동한 뒤 이 기능을 켜세요."
     )
 
     static let zhHans = SuperKeyStrings(
@@ -237,7 +268,9 @@ extension SuperKeyStrings {
         activeNow: "正在运行",
         panelCaptionFormat: "大写锁定键会按住 %@。",
         manageButton: "设置…",
-        soloInputSource: "切换输入法；长按开关大写锁定"
+        soloInputSource: "切换输入法；长按开关大写锁定",
+        mappingForeignMapping: "另一个 App 的按键映射占用了大写锁定。请在那个 App 里删除映射：仅退出它并不够。",
+        mappingSystemRefused: "macOS 拒绝了按键映射。请重新连接键盘或重启 Mac，然后重新打开此功能。"
     )
 
     static let zhTW = SuperKeyStrings(
@@ -255,7 +288,9 @@ extension SuperKeyStrings {
         activeNow: "正在運作",
         panelCaptionFormat: "大寫鎖定鍵會按住 %@。",
         manageButton: "設定…",
-        soloInputSource: "切換輸入法；長按切換大寫鎖定"
+        soloInputSource: "切換輸入法；長按切換大寫鎖定",
+        mappingForeignMapping: "另一個 App 的按鍵對應佔用了大寫鎖定。請在那個 App 裡移除對應：只結束它並不夠。",
+        mappingSystemRefused: "macOS 拒絕了按鍵對應。請重新連接鍵盤或重新啟動 Mac，然後重新開啟此功能。"
     )
 
     static let zhHK = SuperKeyStrings(
@@ -273,6 +308,8 @@ extension SuperKeyStrings {
         activeNow: "正在運作",
         panelCaptionFormat: "大寫鎖定鍵會按住 %@。",
         manageButton: "設定…",
-        soloInputSource: "切換輸入法；長撳切換大寫鎖定"
+        soloInputSource: "切換輸入法；長撳切換大寫鎖定",
+        mappingForeignMapping: "另一個 App 嘅按鍵對應霸咗大寫鎖定。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
+        mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。"
     )
 }
