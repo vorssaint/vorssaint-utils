@@ -294,7 +294,8 @@ final class TextSnippetService {
                 expand(matched,
                        deleteCount: matched.trigger.count,
                        trailingKeyCode: CGKeyCode(keyCode),
-                       trailingFlags: event.flags)
+                       trailingFlags: event.flags,
+                       trailingText: typed)
                 return nil
             }
             return Unmanaged.passUnretained(event)
@@ -325,7 +326,8 @@ final class TextSnippetService {
     private func expand(_ snippet: TextSnippet,
                         deleteCount: Int,
                         trailingKeyCode: CGKeyCode?,
-                        trailingFlags: CGEventFlags) {
+                        trailingFlags: CGEventFlags,
+                        trailingText: String = "") {
         let post = {
             let text = TextSnippetSupport.expand(
                 snippet.replacement,
@@ -335,7 +337,8 @@ final class TextSnippetService {
             Self.postExpansion(deleteCount: deleteCount,
                                text: text,
                                trailingKeyCode: trailingKeyCode,
-                               trailingFlags: trailingFlags)
+                               trailingFlags: trailingFlags,
+                               trailingText: trailingText)
         }
         if Thread.isMainThread {
             post()
@@ -349,7 +352,8 @@ final class TextSnippetService {
     static func postExpansion(deleteCount: Int,
                               text: String,
                               trailingKeyCode: CGKeyCode?,
-                              trailingFlags: CGEventFlags) {
+                              trailingFlags: CGEventFlags,
+                              trailingText: String = "") {
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = syntheticMarker
 
@@ -366,6 +370,27 @@ final class TextSnippetService {
 
         for _ in 0..<deleteCount {
             postKey(CGKeyCode(kVK_Delete))
+        }
+
+        // A newline cannot travel inside a keyboard event's unicode string: the
+        // receiving app inserts only the text before the first newline and drops
+        // the rest of that event's string. With the chunking below that silently
+        // swallows whole fragments of any multi-line snippet, so those go through
+        // the pasteboard, which preserves the text exactly.
+        if text.contains(where: \.isNewline) {
+            // A delimiter that is a real character can ride inside the pasted
+            // string, which keeps it behind the replacement without a race. One
+            // that carries an action instead — Return, Tab — cannot: pasted, it
+            // becomes a character, so Return stops sending in a chat composer and
+            // Tab stops moving focus. Those are posted after the paste lands.
+            let delimiterIsPrintable = !trailingText.isEmpty
+                && trailingText.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+            TransientPaste.shared.paste(delimiterIsPrintable ? text + trailingText : text) {
+                if !delimiterIsPrintable, let trailingKeyCode {
+                    postKey(trailingKeyCode, flags: trailingFlags)
+                }
+            }
+            return
         }
 
         // Typed injection instead of pasting: the clipboard stays untouched.
