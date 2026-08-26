@@ -50,6 +50,12 @@ name: Issue fix status
 # notify nobody, and a label per release would grow the repository's label list
 # without ever telling anyone anything.
 #
+# A `summary` issue is never touched by any of this, wherever it turns up: a
+# long-lived index has no reporter waiting on a build, and a pull request that
+# fixes one line of a fifty-line audit has not fixed the audit. They are also
+# the issues most often referenced, so the number that reaches these jobs most
+# is the one that must never be labelled or closed by them.
+#
 # Both labels and both comments are addressed to the person who filed the
 # report, and most of them are not developers. Nothing in what they read says
 # `main`, a commit, or a merge: the change is in the development build, and it
@@ -93,6 +99,7 @@ env:
   GH_REPO: ${{ github.repository }}
   PENDING_LABEL: fixed (pending release)
   CONFIRM_LABEL: please confirm
+  SKIP_LABEL: summary
   CONFIRM_DAYS: 14
 
 jobs:
@@ -135,6 +142,10 @@ jobs:
             }
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            if jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              echo "#$number: $SKIP_LABEL, left alone"
+              continue
+            fi
             jq -e --arg l "$PENDING_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
 
             # POST /labels creates the label if the repository has not seen it
@@ -227,6 +238,7 @@ jobs:
             issue=$(gh api "repos/$GH_REPO/issues/$number" 2>/dev/null) || continue
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
             printf '%s\t%s\n' "$number" "$(jq -r '.title' <<<"$issue")" >> hits.txt
           done
 
@@ -328,7 +340,10 @@ jobs:
 
           # `gh issue list` never returns pull requests.
           gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
-            --json number,author --jq '.[] | "\(.number) \(.author.login)"' > pending.txt
+            --json number,author,labels \
+            | jq -r --arg l "$SKIP_LABEL" \
+                '.[] | select(any(.labels[]; .name == $l) | not) | "\(.number) \(.author.login)"' \
+            > pending.txt
 
           # Everything waiting moves, including labels applied by hand. Waiting
           # means the fix is on main and no stable release had gone out since;
@@ -375,7 +390,10 @@ jobs:
           echo "closing checks asked before $cutoff"
 
           gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
-            --json number --jq '.[].number' > waiting.txt
+            --json number,labels \
+            | jq -r --arg l "$SKIP_LABEL" \
+                '.[] | select(any(.labels[]; .name == $l) | not) | .number' \
+            > waiting.txt
 
           while read -r number; do
             [ -n "$number" ] || continue
