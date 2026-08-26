@@ -31,7 +31,7 @@ enum SettingsDirectory {
                                keywords: item.keywords)
         }
         let hub = FeatureStrings.hub(language)
-        let featureItems = SettingsSearchSupport.featureItems { feature in
+        let featureItems = SettingsSearchSupport.featureItems(language: language) { feature in
             feature.hubTitle(s, hub: hub)
         }
         return SettingsSearchSupport.combinedItems(pageItems: pageItems,

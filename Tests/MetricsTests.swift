@@ -7061,7 +7061,7 @@ struct MetricsTests {
             .micMute: "Mic Mute",
             .diskImageInstaller: "Disk Image Installer",
         ]
-        let featureSearchItems = SettingsSearchSupport.featureItems { feature in
+        let featureSearchItems = SettingsSearchSupport.featureItems(language: .enUS) { feature in
             settingsFeatureTitles[feature] ?? feature.rawValue
         }
         let expectedFeatureSearchDestinations: [(AppFeature, FeatureSettingsDestination)] = [
@@ -7082,6 +7082,26 @@ struct MetricsTests {
                 && Set(featureSearchItems.map(\.id)).count == AppFeature.allCases.count,
                "generated Settings feature results have one stable identity per feature")
 
+        for language in AppLanguage.allCases {
+            let pageTitle = FeatureStrings.clipboard(language).title
+            let clipboardPage = SettingsSearchItem(
+                id: .page(.clipboard), destination: FeatureSettingsDestination(.clipboard),
+                title: pageTitle, icon: "doc.on.clipboard")
+            let featureItems = SettingsSearchSupport.featureItems(language: language) {
+                $0 == .clipboardHistory ? pageTitle : $0.rawValue
+            }
+            let items = SettingsSearchSupport.combinedItems(
+                pageItems: [clipboardPage], featureItems: featureItems)
+            let clipboardHistory = items.first { $0.id == .feature(.clipboardHistory) }
+            expect(clipboardHistory?.title == FeatureStrings.commandBar(language).sourceClipboard
+                    && clipboardHistory?.destination
+                        == FeatureSettingsDestination(.clipboard, sectionAnchor: .clipboardHistory),
+                   "\(language.rawValue) labels and routes Clipboard history as a section result")
+            expect(items.contains { $0.id == .page(.clipboard) }
+                    && clipboardPage.title != clipboardHistory?.title,
+                   "\(language.rawValue) distinguishes Clipboard page and history search labels")
+        }
+
         // MARK: Settings search structural deduplication
         let structuralPage = SettingsSearchItem(
             id: .page(.homebrew), destination: FeatureSettingsDestination(.homebrew),
@@ -7101,7 +7121,7 @@ struct MetricsTests {
         let monitorPage = SettingsSearchItem(id: .page(.monitor),
                                              destination: FeatureSettingsDestination(.monitor),
                                              title: "Monitor", icon: "display")
-        let monitorCPUFeature = SettingsSearchSupport.featureItems {
+        let monitorCPUFeature = SettingsSearchSupport.featureItems(language: .enUS) {
             $0 == .monitorCPU ? "Generated CPU Monitor" : $0.rawValue
         }.first { $0.id == .feature(.monitorCPU) }!
         let multiFeatureMerged = SettingsSearchSupport.combinedItems(
@@ -7121,7 +7141,7 @@ struct MetricsTests {
             SettingsSearchItem(id: .page(page), destination: FeatureSettingsDestination(page),
                                title: "Dedicated \(feature.rawValue) Page", icon: "gearshape")
         }
-        let actionCoveredFeatures = SettingsSearchSupport.featureItems {
+        let actionCoveredFeatures = SettingsSearchSupport.featureItems(language: .enUS) {
             "Generated \($0.rawValue) Feature"
         }.filter { item in
             actionCoveredMappings.contains { _, feature in item.id == .feature(feature) }

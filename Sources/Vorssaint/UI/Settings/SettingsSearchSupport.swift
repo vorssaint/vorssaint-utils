@@ -32,13 +32,17 @@ enum SettingsSearchSupport {
         case keyword
     }
 
-    /// Every feature contributes its localized hub name and exact Settings
-    /// destination. The feature case remains the stable result identity.
-    static func featureItems(title: (AppFeature) -> String) -> [SettingsSearchItem] {
+    /// Every feature contributes a localized label and exact Settings
+    /// destination. Clipboard History uses its section name so it stays
+    /// distinguishable from the containing Clipboard page.
+    static func featureItems(language: AppLanguage,
+                             title: (AppFeature) -> String) -> [SettingsSearchItem] {
         AppFeature.allCases.map { feature in
             SettingsSearchItem(id: .feature(feature),
                                destination: feature.settingsDestination,
-                               title: title(feature),
+                               title: feature == .clipboardHistory
+                                   ? FeatureStrings.commandBar(language).sourceClipboard
+                                   : title(feature),
                                icon: feature.symbolName,
                                feature: feature)
         }
