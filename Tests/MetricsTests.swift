@@ -6961,22 +6961,74 @@ struct MetricsTests {
                 && Set(featureSearchItems.map(\.id)).count == AppFeature.allCases.count,
                "generated Settings feature results have one stable identity per feature")
 
+        // MARK: Settings search structural deduplication
+        let structuralPage = SettingsSearchItem(
+            id: .page(.homebrew), destination: FeatureSettingsDestination(.homebrew),
+            title: "Dedicated Packages Page", icon: "shippingbox", keywords: ["Formulae"])
+        let structuralFeature = SettingsSearchItem(
+            id: .feature(.homebrew), destination: FeatureSettingsDestination(.homebrew),
+            title: "Generated Homebrew Feature", icon: "externaldrive", feature: .homebrew)
+        let structurallyMerged = SettingsSearchSupport.combinedItems(
+            pageItems: [structuralPage], featureItems: [structuralFeature])
+        expect(structurallyMerged.map(\.id) == [.page(.homebrew)]
+                && structurallyMerged.first?.title == "Dedicated Packages Page"
+                && structurallyMerged.first?.icon == "shippingbox"
+                && structurallyMerged.first?.keywords == ["Formulae"]
+                && structurallyMerged.first?.feature == .homebrew,
+               "differently titled Homebrew rows merge into the stable page row")
+
+        let monitorPage = SettingsSearchItem(id: .page(.monitor),
+                                             destination: FeatureSettingsDestination(.monitor),
+                                             title: "Monitor", icon: "display")
+        let monitorCPUFeature = SettingsSearchSupport.featureItems {
+            $0 == .monitorCPU ? "Generated CPU Monitor" : $0.rawValue
+        }.first { $0.id == .feature(.monitorCPU) }!
+        let multiFeatureMerged = SettingsSearchSupport.combinedItems(
+            pageItems: [monitorPage], featureItems: [monitorCPUFeature])
+        expect(monitorPage.destination == monitorCPUFeature.destination
+                && monitorCPUFeature.destination == AppFeature.monitorCPU.settingsDestination
+                && monitorCPUFeature.destination.sectionAnchor == nil
+                && multiFeatureMerged.map(\.id) == [.page(.monitor), .feature(.monitorCPU)],
+               "the real shared Monitor destination does not merge a multi-feature page")
+
+        let actionCoveredMappings: [(SettingsPage, AppFeature)] = [
+            (.cleaner, .cleaner),
+            (.uninstaller, .uninstaller),
+            (.appUpdates, .appUpdates),
+        ]
+        let actionCoveredPages = actionCoveredMappings.map { page, feature in
+            SettingsSearchItem(id: .page(page), destination: FeatureSettingsDestination(page),
+                               title: "Dedicated \(feature.rawValue) Page", icon: "gearshape")
+        }
+        let actionCoveredFeatures = SettingsSearchSupport.featureItems {
+            "Generated \($0.rawValue) Feature"
+        }.filter { item in
+            actionCoveredMappings.contains { _, feature in item.id == .feature(feature) }
+        }
+        let actionCoveredItems = SettingsSearchSupport.combinedItems(
+            pageItems: actionCoveredPages, featureItems: actionCoveredFeatures)
+        for (page, feature) in actionCoveredMappings {
+            expect(actionCoveredItems.first { $0.id == .page(page) }?.feature == feature
+                    && !actionCoveredItems.contains { $0.id == .feature(feature) },
+                   "the differently titled \(feature.rawValue) rows keep only the page identity")
+        }
+
         let dedicatedSettingsItems = [
             SettingsSearchItem(id: .page(.features),
-                               destination: FeatureSettingsDestination(.features),
-                               title: "Features", icon: "square.grid.2x2",
-                               keywords: ["Homebrew", "Camera Preview"]),
+                                destination: FeatureSettingsDestination(.features),
+                                title: "Features", icon: "square.grid.2x2",
+                                keywords: ["Homebrew", "Camera Preview"]),
             SettingsSearchItem(id: .page(.appUpdates),
-                               destination: FeatureSettingsDestination(.appUpdates),
-                               title: "App Updates", icon: "arrow.down.app",
-                               keywords: ["Homebrew"]),
+                                destination: FeatureSettingsDestination(.appUpdates),
+                                title: "App Updates", icon: "arrow.down.app",
+                                keywords: ["Homebrew"]),
             SettingsSearchItem(id: .page(.quickTools),
-                               destination: FeatureSettingsDestination(.quickTools),
-                               title: "Quick Tools", icon: "wand.and.rays",
-                               keywords: ["Camera Preview"]),
+                                destination: FeatureSettingsDestination(.quickTools),
+                                title: "Quick Tools", icon: "wand.and.rays",
+                                keywords: ["Camera Preview"]),
             SettingsSearchItem(id: .page(.homebrew),
-                               destination: FeatureSettingsDestination(.homebrew),
-                               title: "Homebrew", icon: "shippingbox"),
+                                destination: FeatureSettingsDestination(.homebrew),
+                                title: "Homebrew", icon: "shippingbox"),
         ]
         let combinedSettingsItems = SettingsSearchSupport.combinedItems(
             pageItems: dedicatedSettingsItems,
@@ -6986,12 +7038,17 @@ struct MetricsTests {
         }.count == 1
                 && combinedSettingsItems.contains { $0.id == .page(.homebrew) },
                "the explicit Homebrew page result replaces its equivalent generated result")
+        expect(combinedSettingsItems.filter {
+            $0.destination == FeatureSettingsDestination(.appUpdates)
+        }.count == 1
+                && combinedSettingsItems.contains { $0.id == .page(.appUpdates) },
+               "a structurally one-to-one App Updates result is deduplicated to the page")
         expect(combinedSettingsItems.contains { $0.id == .feature(.diskImageInstaller) },
                "a differently named feature remains discoverable through its Features fallback")
         expect(combinedSettingsItems.first { $0.id == .page(.homebrew) }?.feature == .homebrew,
                "a deduplicated Homebrew page result keeps its feature identity")
-        expect(combinedSettingsItems.first { $0.id == .page(.appUpdates) }?.feature == nil,
-               "a generic page result that did not merge with a feature carries no feature identity")
+        expect(combinedSettingsItems.first { $0.id == .page(.features) }?.feature == nil,
+               "a generic page result that does not merge with a feature carries no feature identity")
         expect(combinedSettingsItems.first { $0.id == .feature(.diskImageInstaller) }?.feature
                 == .diskImageInstaller,
                "a feature-only result carries its own feature identity")

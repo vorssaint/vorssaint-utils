@@ -44,18 +44,15 @@ enum SettingsSearchSupport {
         }
     }
 
-    /// A dedicated page row wins over a generated feature row only when both
-    /// its visible name and full destination are equivalent. This keeps a
-    /// single explicit Homebrew result while preserving differently named
-    /// fallbacks such as Disk Image Installer -> Features. The winning page
-    /// result still carries the feature's identity forward, so a page whose
-    /// gating feature becomes unavailable is not stuck with no way back to
-    /// its exact Feature Hub row.
+    /// A dedicated page row wins over a generated feature row only when their
+    /// IDs, full destinations, and the page's one-to-one feature mapping all
+    /// agree. The winning page keeps its stable identity and presentation while
+    /// carrying the feature identity needed for unavailable-feature routing.
     static func combinedItems(pageItems: [SettingsSearchItem],
-                              featureItems: [SettingsSearchItem]) -> [SettingsSearchItem] {
+                               featureItems: [SettingsSearchItem]) -> [SettingsSearchItem] {
         let mergedPageItems = pageItems.map { pageItem -> SettingsSearchItem in
             guard let match = featureItems.first(where: {
-                $0.destination == pageItem.destination && fold($0.title) == fold(pageItem.title)
+                shouldMerge(pageItem: pageItem, featureItem: $0)
             }) else { return pageItem }
             var merged = pageItem
             merged.feature = match.feature
@@ -63,11 +60,20 @@ enum SettingsSearchSupport {
         }
         let dedupedFeatureItems = featureItems.filter { featureItem in
             !pageItems.contains { pageItem in
-                pageItem.destination == featureItem.destination
-                    && fold(pageItem.title) == fold(featureItem.title)
+                shouldMerge(pageItem: pageItem, featureItem: featureItem)
             }
         }
         return mergedPageItems + dedupedFeatureItems
+    }
+
+    private static func shouldMerge(pageItem: SettingsSearchItem,
+                                    featureItem: SettingsSearchItem) -> Bool {
+        guard case .page(let page) = pageItem.id,
+              page == pageItem.destination.page,
+              case .feature(let feature) = featureItem.id,
+              featureItem.feature == feature,
+              pageItem.destination == featureItem.destination else { return false }
+        return FeatureVisibilitySupport.features(for: page) == [feature]
     }
 
     /// Where a search or command-bar result should route right now. A
