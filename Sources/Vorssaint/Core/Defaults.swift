@@ -393,6 +393,14 @@ enum DefaultsKey {
     static let mediaImagePreserveModificationDate = "mediaImagePreserveModificationDate"
     static let mediaImageProfiles = "mediaImageProfiles"
     static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
+    static let mediaPDFQuality = "mediaPDFQuality"
+    static let mediaPDFPageRange = "mediaPDFPageRange"
+    static let mediaPDFRotation = "mediaPDFRotation"
+    static let mediaPDFOutputFormat = "mediaPDFOutputFormat"
+    static let mediaPDFSizing = "mediaPDFSizing"
+    static let mediaPDFTargetMegabytes = "mediaPDFTargetMegabytes"
+    static let mediaImageSizing = "mediaImageSizing"
+    static let mediaImageTargetMegabytes = "mediaImageTargetMegabytes"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
@@ -1089,6 +1097,14 @@ enum Defaults {
         DefaultsKey.mediaImagePreserveModificationDate: false,
         DefaultsKey.mediaImageProfiles: "[]",
         DefaultsKey.mediaImageSelectedProfileID: "",
+        DefaultsKey.mediaPDFQuality: 0.7,
+        DefaultsKey.mediaPDFPageRange: "",
+        DefaultsKey.mediaPDFRotation: 0,
+        DefaultsKey.mediaPDFOutputFormat: "pdf",
+        DefaultsKey.mediaPDFSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaPDFTargetMegabytes: 5,
+        DefaultsKey.mediaImageSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaImageTargetMegabytes: 2,
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,

@@ -4,6 +4,7 @@
 import AppKit
 import AVFoundation
 import ImageIO
+import PDFKit
 import UniformTypeIdentifiers
 import Vision
 
@@ -94,6 +95,7 @@ enum MediaFailure: Equatable {
     case imageTooLarge
     case gifTooLong(maxSeconds: Int)
     case targetTooSmall
+    case pageSelectionEmpty
     case watermarkUnavailable
     case cancelled
     case failed(String)
@@ -181,6 +183,13 @@ final class MediaService: ObservableObject {
         }
     }
 
+    func combineImagesIntoPDF(inputURLs: [URL], outputURL: URL, options: MediaImageOptions) {
+        run(.imageCompressor) { [weak self] id, token in
+            try self?.combineImagesWork(inputURLs: inputURLs, outputURL: outputURL,
+                                        options: options, operationID: id, token: token)
+        }
+    }
+
     func processImages(inputURLs: [URL], outputDirectory: URL, options: MediaImageOptions) {
         run(.imageCompressor) { [weak self] id, token in
             try self?.processImagesWork(inputURLs: inputURLs,
@@ -189,6 +198,13 @@ final class MediaService: ObservableObject {
                                         options: options,
                                         operationID: id,
                                         token: token)
+        }
+    }
+
+    func processPDF(inputURL: URL, outputURL: URL, options: MediaPDFOptions) {
+        run(.imageCompressor) { [weak self] id, token in
+            try self?.processPDFWork(inputURL: inputURL, outputURL: outputURL, options: options,
+                                     operationID: id, token: token)
         }
     }
 
@@ -493,6 +509,223 @@ final class MediaService: ObservableObject {
         guard CGImageDestinationFinalize(destination) else { throw MediaFailureBox(.unsupported) }
     }
 
+    private func processPDFWork(inputURL: URL, outputURL: URL, options: MediaPDFOptions,
+                                operationID: UUID, token: MediaCancellationToken) throws {
+        let started = Date()
+        let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+        guard let document = PDFDocument(url: inputURL), document.pageCount > 0 else {
+            throw MediaFailureBox(.unsupported)
+        }
+        guard let indexes = MediaSupport.pdfPageIndexes(from: options.pageRange,
+                                                        pageCount: document.pageCount)
+        else { throw MediaFailureBox(.pageSelectionEmpty) }
+
+        if let format = options.imageFormat {
+            try exportPDFPages(document: document,
+                               indexes: indexes,
+                               format: format,
+                               options: options,
+                               inputURL: inputURL,
+                               outputURL: outputURL,
+                               started: started,
+                               operationID: operationID,
+                               token: token)
+            return
+        }
+
+        // A document is rebuilt at a quality, measured, and rebuilt lower when a
+        // ceiling was asked for. A PDF already under it keeps its quality.
+        var quality = options.quality
+        for _ in 0..<5 {
+            let output = PDFDocument()
+            for (position, index) in indexes.enumerated() {
+                try checkCancellation(token)
+                guard let page = document.page(at: index)?.copy() as? PDFPage else { continue }
+                let rebuilt = recompressedPage(page, quality: quality) ?? page
+                rebuilt.rotation += options.rotation
+                output.insert(rebuilt, at: output.pageCount)
+                publish(.running(progress: Double(position + 1) / Double(indexes.count),
+                                 message: "pdf"),
+                        operationID: operationID)
+            }
+            guard output.pageCount > 0 else { throw MediaFailureBox(.unsupported) }
+            if options.stripMetadata {
+                output.documentAttributes = [:]
+            }
+            guard output.write(to: stagedOutputURL) else {
+                throw MediaFailureBox(.failed("The PDF could not be written."))
+            }
+            guard options.targetBytes > 0,
+                  let next = MediaSupport.retryQuality(current: quality,
+                                                       actualBytes: fileSize(stagedOutputURL),
+                                                       targetBytes: options.targetBytes)
+            else { break }
+            quality = next
+        }
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
+        MediaSupport.makeVisibleIfNeeded(outputURL)
+        let result = MediaResult(tool: .imageCompressor,
+                                 inputURL: inputURL,
+                                 outputURL: outputURL,
+                                 originalBytes: fileSize(inputURL),
+                                 outputBytes: fileSize(outputURL),
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil)
+        publish(.completed(result), operationID: operationID)
+    }
+
+    /// Pages leave as images when a picture format is chosen. One page leaves
+    /// as that picture; several leave as one archive, because handing someone
+    /// twelve loose files is not an answer to "export this document".
+    private func exportPDFPages(document: PDFDocument,
+                                indexes: [Int],
+                                format: MediaImageFormat,
+                                options: MediaPDFOptions,
+                                inputURL: URL,
+                                outputURL: URL,
+                                started: Date,
+                                operationID: UUID,
+                                token: MediaCancellationToken) throws {
+        let workshop = try MediaSupport.temporaryOutputURL(for: outputURL)
+            .deletingPathExtension()
+        try FileManager.default.createDirectory(at: workshop, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workshop) }
+
+        let base = MediaSupport.visibleOutputBaseName(for: inputURL)
+        var written: [URL] = []
+        for (position, index) in indexes.enumerated() {
+            try checkCancellation(token)
+            guard let page = document.page(at: index)?.copy() as? PDFPage else { continue }
+            page.rotation += options.rotation
+            let bounds = page.bounds(for: .mediaBox)
+            guard let rendered = rasterizedPage(page, bounds: bounds) else { continue }
+            let name = String(format: "%@-%03d", base, index + 1)
+            let pageURL = workshop.appendingPathComponent(name)
+                .appendingPathExtension(format.fileExtension)
+            guard let destination = CGImageDestinationCreateWithURL(
+                pageURL as CFURL, typeIdentifier(for: format) as CFString, 1, nil) else { continue }
+            CGImageDestinationAddImage(destination, rendered, [
+                kCGImageDestinationLossyCompressionQuality: MediaSupport.sanitizedQuality(options.quality),
+            ] as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else { continue }
+            written.append(pageURL)
+            publish(.running(progress: Double(position + 1) / Double(indexes.count), message: "pdf"),
+                    operationID: operationID)
+        }
+        guard let first = written.first else { throw MediaFailureBox(.unsupported) }
+
+        let finalURL: URL
+        if written.count == 1 {
+            finalURL = MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-page",
+                                                    fileExtension: format.fileExtension)
+            try? FileManager.default.removeItem(at: finalURL)
+            try FileManager.default.moveItem(at: first, to: finalURL)
+        } else {
+            finalURL = MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-pages",
+                                                    fileExtension: "zip")
+            try archive(written, into: finalURL, operationID: operationID, token: token)
+        }
+        MediaSupport.makeVisibleIfNeeded(finalURL)
+        let result = MediaResult(tool: .imageCompressor,
+                                 inputURL: inputURL,
+                                 outputURL: finalURL,
+                                 originalBytes: fileSize(inputURL),
+                                 outputBytes: fileSize(finalURL),
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil)
+        publish(.completed(result), operationID: operationID)
+    }
+
+    private func archive(_ files: [URL], into destination: URL,
+                         operationID: UUID, token: MediaCancellationToken) throws {
+        try? FileManager.default.removeItem(at: destination)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/zip")
+        // -j drops the staging folder from the archive, so the pages sit at
+        // its root rather than inside a temporary directory name.
+        process.arguments = ["-j", "-q", destination.path] + files.map(\.path)
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try launch(process: process, operationID: operationID, token: token)
+        while process.isRunning {
+            try checkCancellation(token)
+            Thread.sleep(forTimeInterval: 0.05)
+        }
+        guard process.terminationStatus == 0 else {
+            throw MediaFailureBox(.failed("The pages could not be archived."))
+        }
+    }
+
+    /// A scanned page carries all of its weight in one image and nothing else,
+    /// so it is re-encoded at the chosen quality. A page that holds text is
+    /// returned untouched: rasterizing it would trade searchable words for
+    /// pixels, which is the very thing that makes Preview's own "reduce file
+    /// size" unusable on real documents.
+    private func recompressedPage(_ page: PDFPage, quality: Double) -> PDFPage? {
+        let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard text.isEmpty else { return nil }
+        let bounds = page.bounds(for: .mediaBox)
+        guard bounds.width >= 1, bounds.height >= 1,
+              let rendered = rasterizedPage(page, bounds: bounds),
+              let jpeg = jpegEncoded(rendered, quality: quality)
+        else { return nil }
+
+        var mediaBox = CGRect(origin: .zero, size: bounds.size)
+        let data = NSMutableData()
+        guard let consumer = CGDataConsumer(data: data),
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil)
+        else { return nil }
+        context.beginPDFPage(nil)
+        context.draw(jpeg, in: mediaBox)
+        context.endPDFPage()
+        context.closePDF()
+        guard let rebuilt = PDFDocument(data: data as Data), let newPage = rebuilt.page(at: 0) else {
+            return nil
+        }
+        return newPage
+    }
+
+    private func rasterizedPage(_ page: PDFPage, bounds: CGRect) -> CGImage? {
+        // 150 dpi is what a scan needs to stay readable on screen and in print
+        // at reading size, and it is usually a fraction of what a phone or a
+        // flatbed produced.
+        let scale = 150.0 / 72.0
+        let width = Int((bounds.width * scale).rounded())
+        let height = Int((bounds.height * scale).rounded())
+        guard width > 0, height > 0,
+              MediaSupport.imageRenderSizeIsSafe(CGSize(width: width, height: height)),
+              let context = CGContext(data: nil,
+                                      width: width,
+                                      height: height,
+                                      bitsPerComponent: 8,
+                                      bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { return nil }
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.scaleBy(x: scale, y: scale)
+        context.translateBy(x: -bounds.minX, y: -bounds.minY)
+        page.draw(with: .mediaBox, to: context)
+        return context.makeImage()
+    }
+
+    /// Quartz embeds a JPEG backed image into a PDF as the stream it already
+    /// is, so encoding here is what actually decides the page's weight.
+    private func jpegEncoded(_ image: CGImage, quality: Double) -> CGImage? {
+        let data = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            data, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, [
+            kCGImageDestinationLossyCompressionQuality: MediaSupport.sanitizedQuality(quality),
+        ] as CFDictionary)
+        guard CGImageDestinationFinalize(destination),
+              let source = CGImageSourceCreateWithData(data, nil)
+        else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
+
     private func processImagesWork(inputURLs: [URL],
                                    outputDirectory: URL,
                                    explicitOutputURL: URL?,
@@ -589,6 +822,78 @@ final class MediaService: ObservableObject {
         publish(.completed(result), operationID: operationID)
     }
 
+    /// Several images asked for as a PDF are one document, not a pile of
+    /// one-page files: that is what "make a PDF of these" means to the person
+    /// scanning an ID card in two shots.
+    private func combineImagesWork(inputURLs: [URL],
+                                   outputURL: URL,
+                                   options: MediaImageOptions,
+                                   operationID: UUID,
+                                   token: MediaCancellationToken) throws {
+        let started = Date()
+        let inputs = inputURLs.filter { !$0.path.isEmpty }
+        guard inputs.count > 1 else { throw MediaFailureBox(.noInput) }
+        let stagedOutputURL = try MediaSupport.temporaryOutputURL(for: outputURL)
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+
+        let watermarkLogo: CGImage?
+        if options.watermark.usesLogo {
+            guard let logo = MediaSupport.watermarkLogo(atPath: options.watermark.logoPath) else {
+                throw MediaFailureBox(.watermarkUnavailable)
+            }
+            watermarkLogo = logo
+        } else {
+            watermarkLogo = nil
+        }
+
+        let document = PDFDocument()
+        var originalBytes: Int64 = 0
+        for (offset, inputURL) in inputs.enumerated() {
+            try checkCancellation(token)
+            originalBytes += fileSize(inputURL)
+            let prepared = try makeProcessedImage(inputURL: inputURL,
+                                                  options: options,
+                                                  watermarkLogo: watermarkLogo,
+                                                  token: token)
+            guard let page = pdfPage(from: prepared.image,
+                                     quality: MediaSupport.sanitizedQuality(options.quality))
+            else { continue }
+            document.insert(page, at: document.pageCount)
+            publish(.running(progress: Double(offset + 1) / Double(inputs.count), message: "image"),
+                    operationID: operationID)
+        }
+        guard document.pageCount > 0 else { throw MediaFailureBox(.unsupported) }
+        guard document.write(to: stagedOutputURL) else {
+            throw MediaFailureBox(.failed("The PDF could not be written."))
+        }
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
+        MediaSupport.makeVisibleIfNeeded(outputURL)
+        let result = MediaResult(tool: .imageCompressor,
+                                 inputURL: inputs[0],
+                                 outputURL: outputURL,
+                                 originalBytes: originalBytes,
+                                 outputBytes: fileSize(outputURL),
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil)
+        publish(.completed(result), operationID: operationID)
+    }
+
+    /// One page holding one image, at the page size the image asks for, with
+    /// the picture embedded as the JPEG stream it was just encoded into.
+    private func pdfPage(from image: CGImage, quality: Double) -> PDFPage? {
+        guard let encoded = jpegEncoded(image, quality: quality) else { return nil }
+        var mediaBox = CGRect(x: 0, y: 0, width: CGFloat(image.width), height: CGFloat(image.height))
+        let data = NSMutableData()
+        guard let consumer = CGDataConsumer(data: data),
+              let context = CGContext(consumer: consumer, mediaBox: &mediaBox, nil)
+        else { return nil }
+        context.beginPDFPage(nil)
+        context.draw(encoded, in: mediaBox)
+        context.endPDFPage()
+        context.closePDF()
+        return PDFDocument(data: data as Data)?.page(at: 0)
+    }
+
     private struct PreparedImage {
         let image: CGImage
         let properties: [CFString: Any]
@@ -645,10 +950,30 @@ final class MediaService: ObservableObject {
                              size: CGSize(width: image.width, height: image.height))
     }
 
+    /// Writes the image, then, when a ceiling was asked for, writes it again at
+    /// a lower quality until it fits. A file already under the ceiling is left
+    /// at the quality it was given: a JPEG that weighs 400 KB on its own has no
+    /// business being degraded because someone typed 20 MB.
     private func writeImage(_ image: CGImage,
                             properties: [CFString: Any],
                             outputURL: URL,
                             options: MediaImageOptions) throws {
+        var attempt = options
+        for _ in 0..<6 {
+            try encodeImage(image, properties: properties, outputURL: outputURL, options: attempt)
+            guard options.targetBytes > 0,
+                  let next = MediaSupport.retryQuality(current: attempt.quality,
+                                                       actualBytes: fileSize(outputURL),
+                                                       targetBytes: options.targetBytes)
+            else { return }
+            attempt.quality = next
+        }
+    }
+
+    private func encodeImage(_ image: CGImage,
+                             properties: [CFString: Any],
+                             outputURL: URL,
+                             options: MediaImageOptions) throws {
         if options.format == .pdf {
             try writePDF(image: image, outputURL: outputURL,
                          quality: MediaSupport.sanitizedQuality(options.quality))

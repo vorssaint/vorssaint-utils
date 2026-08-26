@@ -4913,6 +4913,33 @@ struct MetricsTests {
                 && MediaSupport.gifLoopCount(loops: false) == nil,
                "GIF limits are actionable and non-looping output omits repeat metadata")
 
+        // MARK: PDF page selection
+
+        expect(MediaSupport.pdfPageIndexes(from: "", pageCount: 4) == [0, 1, 2, 3]
+                && MediaSupport.pdfPageIndexes(from: "   ", pageCount: 2) == [0, 1],
+               "an empty page selection keeps the whole document")
+        expect(MediaSupport.pdfPageIndexes(from: "1-3", pageCount: 10) == [0, 1, 2]
+                && MediaSupport.pdfPageIndexes(from: "2,5-7", pageCount: 10) == [1, 4, 5, 6]
+                && MediaSupport.pdfPageIndexes(from: "4-", pageCount: 6) == [3, 4, 5],
+               "page selections read the way an upload form asks for them")
+        expect(MediaSupport.pdfPageIndexes(from: "3,1", pageCount: 5) == [2, 0],
+               "pages come out in the order they were asked for, so a selection can reorder")
+        expect(MediaSupport.pdfPageIndexes(from: "2,2,2", pageCount: 5) == [1],
+               "a page named twice is kept once")
+        expect(MediaSupport.pdfPageIndexes(from: "8-12", pageCount: 10) == [7, 8, 9],
+               "a selection running past the end stops at the last page")
+        expect(MediaSupport.pdfPageIndexes(from: "0", pageCount: 5) == nil
+                && MediaSupport.pdfPageIndexes(from: "5-2", pageCount: 9) == nil
+                && MediaSupport.pdfPageIndexes(from: "abc", pageCount: 9) == nil
+                && MediaSupport.pdfPageIndexes(from: "1-2-3", pageCount: 9) == nil
+                && MediaSupport.pdfPageIndexes(from: "20", pageCount: 5) == nil,
+               "a selection that names nothing usable is refused, never silently emptied")
+        expect(MediaSupport.sanitizedRotation(90) == 90
+                && MediaSupport.sanitizedRotation(450) == 90
+                && MediaSupport.sanitizedRotation(-90) == 270
+                && MediaSupport.sanitizedRotation(0) == 0,
+               "rotation folds into the four quarter turns a page can take")
+
         // MARK: Media size targets
 
         expect(MediaSizingMode.sanitized("targetSize") == .targetSize
@@ -13547,7 +13574,7 @@ struct MetricsTests {
                     == [.select, .arrow, .pixelate, .crop, .text, .sticker,
                         .rect, .highlight, .freehand],
                "the screenshot rail leads with the nine most useful numbered tools")
-        let customScreenshotTools = ScreenshotSupport.Tool.ordered(
+                let customScreenshotTools = ScreenshotSupport.Tool.ordered(
             from: "crop,arrow,arrow,invalid")
         expect(Array(customScreenshotTools.prefix(2)) == [.crop, .arrow]
                 && customScreenshotTools.count == 13
@@ -13833,7 +13860,9 @@ struct MetricsTests {
             pixelSize: CGSize(width: 1200, height: 800),
             pointSize: CGSize(width: 600, height: 800)) == 1,
                "copied images with inconsistent metadata safely use 1x")
-        expect(ScreenshotSupport.editorAcceptsImage(pixelSize: CGSize(width: 4_000, height: 3_000))
+                
+                        
+                        expect(ScreenshotSupport.editorAcceptsImage(pixelSize: CGSize(width: 4_000, height: 3_000))
                 && ScreenshotSupport.editorAcceptsImage(
                     pixelSize: CGSize(width: 10_000, height: 6_000)),
                "an imported image up to the capture ceiling opens in the editor")

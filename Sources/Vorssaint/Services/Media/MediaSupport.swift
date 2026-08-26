@@ -13,6 +13,29 @@ enum MediaTool: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+struct MediaPDFOptions: Equatable {
+    var quality: Double
+    var pageRange: String
+    var rotation: Int
+    var stripMetadata: Bool
+    /// `nil` keeps the document a PDF. Any other format renders the selected
+    /// pages as images instead.
+    var imageFormat: MediaImageFormat?
+    /// Bytes the result must fit under, or 0 to follow the quality picker.
+    var targetBytes: Int64
+
+    init(quality: Double, pageRange: String, rotation: Int, stripMetadata: Bool = false,
+         imageFormat: MediaImageFormat? = nil,
+         targetBytes: Int64 = 0) {
+        self.imageFormat = imageFormat
+        self.targetBytes = Swift.max(0, targetBytes)
+        self.quality = MediaSupport.sanitizedQuality(quality)
+        self.pageRange = pageRange
+        self.rotation = MediaSupport.sanitizedRotation(rotation)
+        self.stripMetadata = stripMetadata
+    }
+}
+
 enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
     case jpeg, heic, png, pdf
 
@@ -272,6 +295,9 @@ struct MediaImageRenamePattern: Codable, Equatable {
 }
 
 struct MediaImageOptions: Codable, Equatable {
+    /// Bytes the encoded image must fit under, or 0 to follow the quality
+    /// picker. Not part of a saved profile: it belongs to one job.
+    var targetBytes: Int64 = 0
     var quality: Double
     var maxDimension: Int
     var format: MediaImageFormat
@@ -442,6 +468,60 @@ enum MediaSupport {
         loops ? 0 : nil
     }
 
+    static func isPDF(at url: URL) -> Bool {
+        if let type = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType {
+            return type.conforms(to: .pdf)
+        }
+        return url.pathExtension.lowercased() == "pdf"
+    }
+
+    static func sanitizedRotation(_ value: Int) -> Int {
+        let turns = ((value / 90) % 4 + 4) % 4
+        return turns * 90
+    }
+
+    /// Reads a page selection the way it is written on an upload form: "1-3",
+    /// "2,5-7", "4-" for everything from the fourth page on. Returns page
+    /// indexes in the order they were asked for, or every page when the
+    /// selection is empty. A selection that names nothing valid returns nil,
+    /// so the caller can say so instead of writing an empty document.
+    static func pdfPageIndexes(from specification: String, pageCount: Int) -> [Int]? {
+        guard pageCount > 0 else { return nil }
+        let trimmed = specification.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return Array(0..<pageCount) }
+
+        var indexes: [Int] = []
+        var seen = Set<Int>()
+        for piece in trimmed.split(separator: ",") {
+            let part = piece.trimmingCharacters(in: .whitespaces)
+            guard !part.isEmpty else { continue }
+            let bounds = part.split(separator: "-", omittingEmptySubsequences: false)
+            let first: Int?
+            let last: Int?
+            switch bounds.count {
+            case 1:
+                first = Int(bounds[0].trimmingCharacters(in: .whitespaces))
+                last = first
+            case 2:
+                let lower = bounds[0].trimmingCharacters(in: .whitespaces)
+                let upper = bounds[1].trimmingCharacters(in: .whitespaces)
+                first = lower.isEmpty ? 1 : Int(lower)
+                last = upper.isEmpty ? pageCount : Int(upper)
+            default:
+                return nil
+            }
+            guard let start = first, let end = last, start >= 1, end >= start else { return nil }
+            // A selection that begins past the last page contributes nothing
+            // rather than forming an inverted range.
+            guard start <= pageCount else { continue }
+            for page in start...Swift.min(end, pageCount) where !seen.contains(page - 1) {
+                seen.insert(page - 1)
+                indexes.append(page - 1)
+            }
+        }
+        return indexes.isEmpty ? nil : indexes
+    }
+
     static func sanitizedTargetMegabytes(_ value: Int) -> Int {
         Swift.min(maximumTargetMegabytes, Swift.max(minimumTargetMegabytes, value))
     }
@@ -518,6 +598,16 @@ enum MediaSupport {
         guard sourceWidth.isFinite, sourceWidth > 0 else { return maximumTargetGIFWidth }
         return Swift.max(minimumTargetGIFWidth,
                          Swift.min(maximumTargetGIFWidth, Int(sourceWidth.rounded())))
+    }
+
+    /// Quality to try next when an encode came out heavier than the ceiling.
+    /// A pass already under it is never retried, so an image that is naturally
+    /// light keeps its quality instead of being degraded to hit a number.
+    static func retryQuality(current: Double, actualBytes: Int64, targetBytes: Int64) -> Double? {
+        guard targetBytes > 0, actualBytes > targetBytes, current > 0.16 else { return nil }
+        let ratio = Double(targetBytes) / Double(actualBytes)
+        let next = current * Swift.max(0.55, Swift.min(0.9, ratio))
+        return next.isFinite ? Swift.max(0.15, next) : nil
     }
 
     /// A GIF has no bitrate to aim at: its weight is frames times pixels, so

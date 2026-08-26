@@ -92,6 +92,14 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImageProfiles) private var imageProfilesRaw = "[]"
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
 
+    @AppStorage(DefaultsKey.mediaPDFQuality) private var pdfQuality = 0.7
+    @AppStorage(DefaultsKey.mediaPDFPageRange) private var pdfPageRange = ""
+    @AppStorage(DefaultsKey.mediaPDFRotation) private var pdfRotation = 0
+    @AppStorage(DefaultsKey.mediaPDFOutputFormat) private var pdfOutputFormatRaw = "pdf"
+    @AppStorage(DefaultsKey.mediaPDFSizing) private var pdfSizingRaw = MediaSizingMode.resolution.rawValue
+    @AppStorage(DefaultsKey.mediaPDFTargetMegabytes) private var pdfTargetMegabytes = 5
+    @AppStorage(DefaultsKey.mediaImageSizing) private var imageSizingRaw = MediaSizingMode.resolution.rawValue
+    @AppStorage(DefaultsKey.mediaImageTargetMegabytes) private var imageTargetMegabytes = 2
     @AppStorage(DefaultsKey.mediaTextAccurate) private var textAccurate = true
 
     @State private var inputURLs: [URL] = []
@@ -125,7 +133,7 @@ struct MediaWorkspaceView: View {
             cancelVideoImport()
             toolRaw = newValue.rawValue
             inputImageSize = newValue == .imageCompressor
-                ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
+                ? inputURL.flatMap { MediaSupport.isPDF(at: $0) ? nil : MediaSupport.imageDisplaySize(at: $0) }
                 : nil
             outputURL = defaultOutputURL(for: inputURLs, tool: newValue)
             outputWasChosenManually = false
@@ -331,6 +339,35 @@ struct MediaWorkspaceView: View {
                     .toggleStyle(.checkbox)
             }
             .panelCard()
+        case .imageCompressor where inputIsPDF:
+            VStack(alignment: .leading, spacing: 10) {
+                Picker(l10n.s.mediaFormat, selection: $pdfOutputFormatRaw) {
+                    Text("PDF").tag("pdf")
+                    Text("JPEG").tag(MediaImageFormat.jpeg.rawValue)
+                    Text("PNG").tag(MediaImageFormat.png.rawValue)
+                    Text("HEIC").tag(MediaImageFormat.heic.rawValue)
+                }
+                .pickerStyle(.segmented)
+                sizingPicker(selection: $pdfSizingRaw)
+                if pdfSizing == .resolution {
+                    compressionRow(value: $pdfQuality)
+                } else {
+                    targetSizeRow(value: $pdfTargetMegabytes)
+                }
+                pageRangeRow
+                Picker(l10n.s.mediaRotation, selection: $pdfRotation) {
+                    Text("0°").tag(0)
+                    Text("90°").tag(90)
+                    Text("180°").tag(180)
+                    Text("270°").tag(270)
+                }
+                .pickerStyle(.segmented)
+                Text(l10n.s.mediaPDFHint)
+                    .font(.system(size: compact ? 9.5 : 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .panelCard()
         case .imageCompressor:
             VStack(alignment: .leading, spacing: 10) {
                 imageQuickPresetsRow
@@ -342,8 +379,13 @@ struct MediaWorkspaceView: View {
                     Text("PDF").tag(MediaImageFormat.pdf.rawValue)
                 }
                 .pickerStyle(.segmented)
-                compressionRow(value: $imageQuality)
-                imageResizeSection
+                sizingPicker(selection: $imageSizingRaw)
+                if imageSizing == .resolution {
+                    compressionRow(value: $imageQuality)
+                    imageResizeSection
+                } else {
+                    targetSizeRow(value: $imageTargetMegabytes)
+                }
                 DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded) {
                     Text(imageText.moreOptions)
                     Spacer()
@@ -405,13 +447,13 @@ struct MediaWorkspaceView: View {
 
             // The editor belongs to the screenshot feature, so the button is
             // absent rather than inert when that feature is turned off.
-            if selectedTool == .imageCompressor, AppFeature.screenshot.isAvailable {
+            if selectedTool == .imageCompressor, AppFeature.screenshot.isAvailable, !inputIsPDF {
                 Button {
                     openImageEditor()
                 } label: {
                     Label(screenshotText.editButton, systemImage: "crop")
                 }
-                .disabled(inputURLs.count != 1 || isRunning)
+                .disabled(inputURLs.isEmpty || isRunning)
             }
 
             if isRunning {
@@ -850,6 +892,45 @@ struct MediaWorkspaceView: View {
         }
     }
 
+    /// The image tab answers for PDFs too: they arrive through the same drop
+    /// zone and are recognised from the file rather than from a tab of their
+    /// own, which keeps the tool row at four entries.
+    /// `nil` means the PDF leaves as a PDF; anything else renders its pages.
+    /// The format the result will be written in, spelled the way the picker
+    /// spells it.
+    private var outputFormatName: String {
+        if inputIsPDF {
+            return (pdfOutputFormat?.fileExtension ?? "pdf").uppercased()
+        }
+        return MediaImageFormat.sanitized(imageFormatRaw).fileExtension.uppercased()
+    }
+
+    private var inputKeepsItsFormat: Bool {
+        guard let inputURL else { return true }
+        let source = inputURL.pathExtension.lowercased()
+        let target = outputFormatName.lowercased()
+        if source == target { return true }
+        // The two spellings of the same thing.
+        return (source == "jpeg" && target == "jpg") || (source == "jpg" && target == "jpeg")
+    }
+
+    private var pdfSizing: MediaSizingMode {
+        MediaSizingMode.sanitized(pdfSizingRaw)
+    }
+
+    private var imageSizing: MediaSizingMode {
+        MediaSizingMode.sanitized(imageSizingRaw)
+    }
+
+    private var pdfOutputFormat: MediaImageFormat? {
+        pdfOutputFormatRaw == "pdf" ? nil : MediaImageFormat.sanitized(pdfOutputFormatRaw)
+    }
+
+    private var inputIsPDF: Bool {
+        guard selectedTool == .imageCompressor, let inputURL else { return false }
+        return MediaSupport.isPDF(at: inputURL)
+    }
+
     private var videoSizing: MediaSizingMode {
         MediaSizingMode.sanitized(videoSizingRaw)
     }
@@ -876,6 +957,29 @@ struct MediaWorkspaceView: View {
                 .font(.system(size: compact ? 9.5 : 10.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var pageRangeRow: some View {
+        HStack(spacing: 5) {
+            Text(l10n.s.mediaPages)
+                .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: compact ? 58 : 72, alignment: .leading)
+            TextField("1-3, 5, 7-", text: $pdfPageRange)
+                .textFieldStyle(.plain)
+                .font(.system(size: compact ? 12 : 13, design: .monospaced))
+                .padding(.horizontal, 9)
+                .frame(height: compact ? 28 : 30)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(PanelSurface.controlFill(for: colorScheme))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
+                )
         }
     }
 
@@ -1039,7 +1143,7 @@ struct MediaWorkspaceView: View {
     }
 
     private var currentImageOptions: MediaImageOptions {
-        MediaImageOptions(quality: imageQuality,
+        var options = MediaImageOptions(quality: imageQuality,
                           maxDimension: imageMaxDimension,
                           format: MediaImageFormat.sanitized(imageFormatRaw),
                           stripMetadata: imageStripMetadata,
@@ -1048,6 +1152,13 @@ struct MediaWorkspaceView: View {
                           renamePattern: MediaImageRenamePattern(imageRenamePattern),
                           background: MediaImageBackground.sanitized(imageBackgroundRaw),
                           preserveModificationDate: imagePreserveModificationDate)
+        if imageSizing == .targetSize {
+            // Aiming at a weight starts from a high quality and comes down
+            // only as far as it must, so a light image stays untouched.
+            options.quality = 0.92
+            options.targetBytes = MediaSupport.targetBytes(megabytes: imageTargetMegabytes)
+        }
+        return options
     }
 
     private var imageProfiles: [MediaImageProfile] {
@@ -1132,11 +1243,15 @@ struct MediaWorkspaceView: View {
         case .videoCompressor: return l10n.s.mediaStartVideo
         case .gifMaker: return l10n.s.mediaStartGIF
         case .imageCompressor:
-            // Choosing PDF changes the file's kind, so the button says what
-            // will actually happen instead of promising compression.
-            return MediaImageFormat.sanitized(imageFormatRaw) == .pdf
-                ? l10n.s.mediaStartConvertPDF
-                : l10n.s.mediaStartImage
+            // The button says what will actually happen: a file staying in its
+            // own format is compressed, one changing format is converted, and
+            // a conversion can legitimately come out heavier than it went in.
+            let target = outputFormatName
+            if inputKeepsItsFormat {
+                return String(format: l10n.s.mediaStartCompressFormat, target)
+            }
+            return String(format: l10n.s.mediaStartConvertFormat, target)
+
         case .textExtractor: return l10n.s.mediaStartText
         }
     }
@@ -1270,8 +1385,9 @@ struct MediaWorkspaceView: View {
 
     private func setInputs(_ urls: [URL]) {
         cancelVideoImport()
-        inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
-        inputImageSize = selectedTool == .imageCompressor
+        let holdsPDF = urls.first.map { MediaSupport.isPDF(at: $0) } ?? false
+        inputURLs = selectedTool == .imageCompressor && !holdsPDF ? urls : Array(urls.prefix(1))
+        inputImageSize = selectedTool == .imageCompressor && !holdsPDF
             ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
             : nil
         outputURL = defaultOutputURL(for: inputURLs, tool: selectedTool)
@@ -1326,10 +1442,16 @@ struct MediaWorkspaceView: View {
     /// than on a file it has to own.
     private func openImageEditor() {
         guard AppFeature.mediaTools.isAvailable, AppFeature.screenshot.isAvailable,
-              let url = inputURL, inputURLs.count == 1
+              !inputURLs.isEmpty
         else { return }
         localMessage = nil
-        if !ScreenshotService.shared.openEditor(imageAt: url) {
+        // A batch opens one editor per image, capped so a careless drop of a
+        // hundred files cannot bury the screen in windows.
+        var opened = 0
+        for url in inputURLs.prefix(8) where ScreenshotService.shared.openEditor(imageAt: url) {
+            opened += 1
+        }
+        if opened == 0 {
             localMessage = l10n.s.mediaErrorUnsupported
         }
     }
@@ -1419,6 +1541,21 @@ struct MediaWorkspaceView: View {
                                                    sizing: gifSizing,
                                                    targetBytes: MediaSupport.targetBytes(
                                                        megabytes: gifTargetMegabytes)))
+        case .imageCompressor where inputIsPDF:
+            media.processPDF(inputURL: inputURL, outputURL: outputURL,
+                             options: MediaPDFOptions(quality: pdfQuality,
+                                                      pageRange: pdfPageRange,
+                                                      rotation: pdfRotation,
+                                                      imageFormat: pdfOutputFormat,
+                                                      targetBytes: pdfSizing == .targetSize
+                                                          ? MediaSupport.targetBytes(
+                                                              megabytes: pdfTargetMegabytes)
+                                                          : 0))
+        case .imageCompressor where inputURLs.count > 1
+                && MediaImageFormat.sanitized(imageFormatRaw) == .pdf:
+            media.combineImagesIntoPDF(inputURLs: inputURLs,
+                                       outputURL: outputURL,
+                                       options: currentImageOptions)
         case .imageCompressor:
             if inputURLs.count > 1 {
                 media.processImages(inputURLs: inputURLs,
@@ -1441,12 +1578,15 @@ struct MediaWorkspaceView: View {
         switch selectedTool {
         case .videoCompressor, .gifMaker:
             return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
-        case .imageCompressor, .textExtractor:
+        case .imageCompressor:
+            return [.image, .pdf]
+        case .textExtractor:
             return [.image]
         }
     }
 
     private var outputType: UTType {
+        if inputIsPDF { return .pdf }
         switch selectedTool {
         case .videoCompressor: return .mpeg4Movie
         case .gifMaker: return .gif
@@ -1463,6 +1603,15 @@ struct MediaWorkspaceView: View {
 
     private func defaultOutputURL(for inputURLs: [URL], tool: MediaTool) -> URL? {
         guard let inputURL = inputURLs.first else { return nil }
+        if tool == .imageCompressor, inputURLs.count > 1,
+           MediaImageFormat.sanitized(imageFormatRaw) == .pdf {
+            return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-pages",
+                                                fileExtension: "pdf")
+        }
+        if tool == .imageCompressor, MediaSupport.isPDF(at: inputURL) {
+            return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-compressed",
+                                                fileExtension: "pdf")
+        }
         switch tool {
         case .videoCompressor:
             return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-compressed", fileExtension: "mp4")
@@ -1494,6 +1643,7 @@ struct MediaWorkspaceView: View {
             return String(format: FeatureStrings.recorder(l10n.language).gifTooLongFormat,
                           maxSeconds)
         case .targetTooSmall: return l10n.s.mediaErrorTargetTooSmall
+        case .pageSelectionEmpty: return l10n.s.mediaErrorPageSelection
         case .watermarkUnavailable: return imageText.noLogo
         case .cancelled: return l10n.s.mediaCancelled
         case let .failed(message): return message.isEmpty ? l10n.s.mediaErrorUnsupported : message

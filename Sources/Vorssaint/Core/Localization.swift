@@ -570,6 +570,13 @@ struct Strings {
     let mediaTargetSizeHint: String
     let mediaErrorTargetTooSmall: String
     let mediaMegabytesSuffix: String
+    let mediaStartPDF: String
+    let mediaPages: String
+    let mediaRotation: String
+    let mediaErrorPageSelection: String
+    let mediaPDFHint: String
+    let mediaStartCompressFormat: String
+    let mediaStartConvertFormat: String
     let mediaWidth: String
     let mediaFPS: String
     let mediaKeepAudio: String
@@ -1559,6 +1566,13 @@ extension Strings {
         mediaTargetSizeHint: "A resolução se ajusta para ficar abaixo do limite.",
         mediaErrorTargetTooSmall: "Tamanho alvo pequeno demais para este clipe. Encurte-o ou aumente o limite.",
         mediaMegabytesSuffix: " MB",
+        mediaStartPDF: "Comprimir PDF",
+        mediaPages: "Páginas",
+        mediaRotation: "Rotação",
+        mediaErrorPageSelection: "Essa seleção de páginas não corresponde a nenhuma página deste documento.",
+        mediaPDFHint: "Páginas digitalizadas são recodificadas. Páginas com texto ficam exatamente como estão.",
+        mediaStartCompressFormat: "Comprimir o %@",
+        mediaStartConvertFormat: "Converter para %@",
         mediaWidth: "Largura",
         mediaFPS: "FPS",
         mediaKeepAudio: "Manter áudio",
@@ -2527,6 +2541,13 @@ extension Strings {
         mediaTargetSizeHint: "Resolution adapts to stay under the limit.",
         mediaErrorTargetTooSmall: "Target size too small for this clip. Trim it or raise the limit.",
         mediaMegabytesSuffix: " MB",
+        mediaStartPDF: "Compress PDF",
+        mediaPages: "Pages",
+        mediaRotation: "Rotation",
+        mediaErrorPageSelection: "That page selection matches no page in this document.",
+        mediaPDFHint: "Scanned pages are re-encoded. Pages that hold text are kept exactly as they are.",
+        mediaStartCompressFormat: "Compress the %@",
+        mediaStartConvertFormat: "Convert to %@",
         mediaWidth: "Width",
         mediaFPS: "FPS",
         mediaKeepAudio: "Keep audio",
