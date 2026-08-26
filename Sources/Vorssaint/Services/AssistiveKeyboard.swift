@@ -65,8 +65,20 @@ enum AssistiveKeyboard {
         let cached = cachedPID
         lock.unlock()
 
-        // The hot path: still the process we know about.
-        if let cached, kill(cached, 0) == 0 { return cached }
+        // The hot path. `kill(pid, 0)` answers "some process has this pid",
+        // not "the keyboard does" — pids are recycled, and once one is reused
+        // this would match an unrelated process's windows forever, silently.
+        // So a live pid is still re-resolved in the background, which the floor
+        // below keeps to one lookup every `minLookupInterval`; staleness is
+        // bounded rather than permanent, at no extra syscall.
+        //
+        // EPERM means the process exists but cannot be signalled. Treating that
+        // as dead would clear the cache on every call and re-resolve the same
+        // unsignallable pid forever.
+        if let cached, kill(cached, 0) == 0 || errno == EPERM {
+            scheduleLookup(force: false)
+            return cached
+        }
 
         if cached != nil {
             lock.lock()
@@ -103,8 +115,18 @@ enum AssistiveKeyboard {
         }
     }
 
-    /// Whether the Accessibility Keyboard is running. Cheap enough for an event
-    /// tap: a lock and, at most, one `kill(pid, 0)`.
+    /// Whether the Accessibility Keyboard is running.
+    ///
+    /// Cheap enough for an event tap, but not free: a live pid costs two locks
+    /// and one `kill(pid, 0)`, and either answer may schedule a background
+    /// resolution — at most one per `minLookupInterval`, never on the calling
+    /// thread.
+    ///
+    /// Also the warm-up. The first call resolves asynchronously and answers
+    /// "not running" while it does, so somewhere that runs at startup should
+    /// touch this: a caller with no second chance — the switcher has already
+    /// cancelled its session by the time a click is judged — would otherwise
+    /// get one wrong answer per launch.
     static var isRunning: Bool { livePID() != nil }
 
     /// True when `point` lands on the Accessibility Keyboard's own panel, i.e.
