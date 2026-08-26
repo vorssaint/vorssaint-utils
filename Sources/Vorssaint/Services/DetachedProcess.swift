@@ -15,23 +15,36 @@ import Foundation
 /// property that makes the child survive, and setsid(2) is the only way to
 /// get it.
 enum DetachedProcess {
-    /// posix_spawn with POSIX_SPAWN_SETSID: the kernel makes the child its own
-    /// session leader before it execs, so there is no window where it belongs
-    /// to us. Returns the child pid. Throws the spawn errno so callers can
-    /// report the failure the same way `Process.run()` let them.
+    /// POSIX_SPAWN_SETSID: the kernel makes the child its own session leader
+    /// before it execs, so there is no window where it belongs to us.
+    /// CLOEXEC_DEFAULT keeps this app's other descriptors out of a child that
+    /// outlives it, as `Process` already did for the children it spawned.
+    /// Returns the child pid, or throws the spawn errno.
     @discardableResult
     static func spawn(_ executablePath: String, _ arguments: [String]) throws -> pid_t {
         var attributes: posix_spawnattr_t?
         posix_spawnattr_init(&attributes)
         defer { posix_spawnattr_destroy(&attributes) }
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID))
+        posix_spawnattr_setflags(&attributes,
+                                 Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
+
+        // CLOEXEC_DEFAULT closes 0/1/2 as well, and the child's first open()
+        // would take one of them — stdout landing inside a data file. Give
+        // those three /dev/null, the stdio the elevated command redirects to
+        // itself.
+        var fileActions: posix_spawn_file_actions_t?
+        posix_spawn_file_actions_init(&fileActions)
+        defer { posix_spawn_file_actions_destroy(&fileActions) }
+        posix_spawn_file_actions_addopen(&fileActions, 0, "/dev/null", O_RDONLY, 0)
+        posix_spawn_file_actions_addopen(&fileActions, 1, "/dev/null", O_WRONLY, 0)
+        posix_spawn_file_actions_addopen(&fileActions, 2, "/dev/null", O_WRONLY, 0)
 
         let argv: [UnsafeMutablePointer<CChar>?] =
             ([executablePath] + arguments).map { strdup($0) } + [nil]
         defer { for argument in argv { free(argument) } }
 
         var pid: pid_t = 0
-        let status = posix_spawn(&pid, executablePath, nil, &attributes, argv, environ)
+        let status = posix_spawn(&pid, executablePath, &fileActions, &attributes, argv, environ)
         guard status == 0 else {
             throw NSError(domain: NSPOSIXErrorDomain, code: Int(status),
                           userInfo: [NSLocalizedDescriptionKey: String(cString: strerror(status))])

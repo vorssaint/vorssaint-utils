@@ -7591,12 +7591,10 @@ struct MetricsTests {
                 .split(separator: "\n").count ?? 0
         }
         for _ in 0..<300 where detachedRunCount() == 0 { usleep(10_000) }
-        usleep(500_000)   // a rerun follows the first run immediately; wait it out
-        let detachedRuns = detachedRunCount()
-        expect(detachedRuns == 1,
-               "a detached command runs its payload once whatever the payload exits with "
-               + "(ran \(detachedRuns) time(s))")
-        try? FileManager.default.removeItem(at: detachRoot)
+        expect(detachedRunCount() == 1, "a detached command starts its payload once")
+        // The rerun is counted again at the very end of this suite instead of
+        // after a fixed wait here: a second run arriving late must not read as
+        // a pass.
 
         // A detached spawn is only detached if the child really is its own
         // session leader; `nohup` alone leaves it in ours.
@@ -7612,6 +7610,43 @@ struct MetricsTests {
         } catch {
             expect(false, "detached spawn failed: \(error.localizedDescription)")
         }
+
+        // A child built to outlive this app must not carry this app's open
+        // descriptors with it: the app is gone before the child does its work,
+        // so anything it inherited is held open by a process nobody can see or
+        // close. `Process` gave its children a clean table; these children get
+        // the same. 0/1/2 must still be open (on /dev/null), or the child's
+        // first open() takes stdout's slot.
+        let fdRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VorssaintDetachFDTests-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: fdRoot, withIntermediateDirectories: true)
+        let fdHolder = fdRoot.appendingPathComponent("holder")
+        let fdReport = fdRoot.appendingPathComponent("report")
+        // Opened WITHOUT O_CLOEXEC, the way a plain open() anywhere in the app
+        // leaves it — that is the descriptor that must not travel.
+        let holderDescriptor = open(fdHolder.path, O_RDWR | O_CREAT | O_TRUNC, 0o644)
+        expect(holderDescriptor >= 3, "fd probe holds a descriptor above stdio")
+        do {
+            let probe = "{ /bin/echo leaked >&\(holderDescriptor); } 2>/dev/null; INHERITED=$?; "
+                + "{ /bin/echo stdio; } 2>/dev/null; STDIO=$?; "
+                + "/bin/echo \"$INHERITED $STDIO\" > \(UpdateInstallerSupport.shellSingleQuoted(fdReport.path))"
+            let child = try DetachedProcess.spawn("/bin/sh", ["-c", probe])
+            var reaped: Int32 = 0
+            waitpid(child, &reaped, 0)
+            let report = ((try? String(contentsOf: fdReport, encoding: .utf8)) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let status = report.split(separator: " ").map(String.init)
+            expect(status.count == 2 && status[0] != "0",
+                   "a detached child does not inherit this app's open descriptors (probe: \"\(report)\")")
+            expect(((try? String(contentsOf: fdHolder, encoding: .utf8)) ?? "").isEmpty,
+                   "a detached child cannot write through a descriptor this app opened")
+            expect(status.count == 2 && status[1] == "0",
+                   "a detached child still has stdout open (probe: \"\(report)\")")
+        } catch {
+            expect(false, "detached fd probe failed: \(error.localizedDescription)")
+        }
+        close(holderDescriptor)
+        try? FileManager.default.removeItem(at: fdRoot)
 
         // MARK: - UpdateServiceSupport & SemVer channel reconciliation
 
@@ -19206,6 +19241,16 @@ struct MetricsTests {
         }
         expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+
+        // MARK: Detached command reruns (counted last, so a late rerun still fails)
+        // The `||` form reran the whole installer — as root — on every non-zero
+        // payload exit. Counting here rather than after a fixed wait leaves the
+        // check no window a second run can arrive behind.
+        let detachedRuns = detachedRunCount()
+        expect(detachedRuns == 1,
+               "a detached command runs its payload once whatever the payload exits with "
+               + "(ran \(detachedRuns) time(s))")
+        try? FileManager.default.removeItem(at: detachRoot)
 
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
