@@ -18,7 +18,9 @@ struct MouseButtonShortcutsSection: View {
     @AppStorage(DefaultsKey.mouseSpacesGestureFollowsDrag) private var spacesFollowsDrag = false
 
     @State private var mappings = MouseButtonShortcutSupport.decode(
-        UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String])
+        shortcuts: UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String],
+        actions: UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonActions) as? [String: String])
+    @State private var repeatingActions = Set<Int64>()
     /// A button that was just captured and is waiting for its first key
     /// combination. Nothing persists until the combination lands, so backing
     /// out leaves no half-made row behind.
@@ -55,10 +57,10 @@ struct MouseButtonShortcutsSection: View {
                         .foregroundStyle(.secondary)
                 }
                 ForEach(MouseButtonShortcutSupport.sortedButtons(mappings), id: \.self) { button in
-                    mappingRow(button, shortcut: mappings[button])
+                    mappingRow(button, action: mappings[button])
                 }
                 if let pendingButton {
-                    mappingRow(pendingButton, shortcut: nil)
+                    mappingRow(pendingButton, action: nil)
                 }
                 captureRow
             }
@@ -104,27 +106,41 @@ struct MouseButtonShortcutsSection: View {
             stopCapture()
             stopSpacesCapture()
         }
+        .onAppear {
+            repeatingActions = MouseButtonShortcutSupport.decodeRepeatingActions(
+                UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonActionRepeats) as? [String: Bool],
+                mappings: mappings)
+        }
     }
 
     // MARK: - Rows
 
-    private func mappingRow(_ button: Int64, shortcut: GlobalShortcut?) -> some View {
+    private func mappingRow(_ button: Int64, action: MouseButtonAction?) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 8) {
                 Text(MouseButtonShortcutSupport.buttonName(for: button, strings: text))
                 Spacer()
-                ShortcutRecorderButton(shortcut: shortcut ?? GlobalShortcut.keepAwakeDefault,
-                                       isEnabled: true,
-                                       waitingTitle: l10n.s.shortcutPressKeys,
-                                       emptyTitle: shortcut == nil ? text.setShortcutButton : nil,
-                                       notCapturedAction: { setRecordError(l10n.s.shortcutNotCaptured, button) },
-                                       recordingChanged: { recording in
-                                           recordingButton = recording ? button : nil
-                                           if recording { setRecordError(nil, button) }
-                                       },
-                                       invalidAction: { setRecordError(l10n.s.shortcutInvalid, button) },
-                                       captureAction: { save(button: button, shortcut: $0) })
-                    .frame(width: 108)
+                Picker(text.actionLabel, selection: actionBinding(for: button, action: action)) {
+                    ForEach(MouseButtonAction.allCases, id: \.self) { choice in
+                        Text(choice.title(in: text)).tag(choice)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                if action == nil || action == .shortcut {
+                    ShortcutRecorderButton(shortcut: shortcut(for: button) ?? GlobalShortcut.keepAwakeDefault,
+                                           isEnabled: true,
+                                           waitingTitle: l10n.s.shortcutPressKeys,
+                                           emptyTitle: shortcut(for: button) == nil ? text.setShortcutButton : nil,
+                                           notCapturedAction: { setRecordError(l10n.s.shortcutNotCaptured, button) },
+                                           recordingChanged: { recording in
+                                               recordingButton = recording ? button : nil
+                                               if recording { setRecordError(nil, button) }
+                                           },
+                                           invalidAction: { setRecordError(l10n.s.shortcutInvalid, button) },
+                                           captureAction: { save(button: button, shortcut: $0) })
+                        .frame(width: 108)
+                }
                 Button {
                     remove(button)
                 } label: {
@@ -145,7 +161,12 @@ struct MouseButtonShortcutsSection: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            if shortcut != nil, RadialMenuSupport.claimsMouseButton(button) {
+            if action?.repeatsWhileHeld == true {
+                Toggle(text.repeatWhileHeld, isOn: repeatBinding(for: button))
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
+            if action != nil, RadialMenuSupport.claimsMouseButton(button) {
                 Text(text.rowWheelNote)
                     .font(.caption)
                     .foregroundStyle(.orange)
@@ -334,7 +355,10 @@ struct MouseButtonShortcutsSection: View {
     }
 
     private func save(button: Int64, shortcut: GlobalShortcut) {
-        mappings[button] = shortcut
+        mappings[button] = .shortcut
+        var shortcuts = UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String] ?? [:]
+        shortcuts[String(button)] = shortcut.storageValue
+        UserDefaults.standard.set(shortcuts, forKey: DefaultsKey.mouseButtonShortcuts)
         if pendingButton == button { pendingButton = nil }
         setRecordError(nil, button)
         persist()
@@ -347,12 +371,58 @@ struct MouseButtonShortcutsSection: View {
             return
         }
         mappings.removeValue(forKey: button)
+        repeatingActions.remove(button)
+        var shortcuts = UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String] ?? [:]
+        shortcuts.removeValue(forKey: String(button))
+        UserDefaults.standard.set(shortcuts, forKey: DefaultsKey.mouseButtonShortcuts)
         persist()
     }
 
     private func persist() {
-        UserDefaults.standard.set(MouseButtonShortcutSupport.encode(mappings),
-                                  forKey: DefaultsKey.mouseButtonShortcuts)
+        UserDefaults.standard.set(MouseButtonShortcutSupport.encodeActions(mappings),
+                                  forKey: DefaultsKey.mouseButtonActions)
+        UserDefaults.standard.set(MouseButtonShortcutSupport.encodeRepeatingActions(repeatingActions,
+                                                                                     mappings: mappings),
+                                  forKey: DefaultsKey.mouseButtonActionRepeats)
         MouseButtonShortcutService.shared.syncWithPreferences()
+    }
+
+    private func shortcut(for button: Int64) -> GlobalShortcut? {
+        MouseButtonShortcutSupport.shortcut(
+            for: button,
+            in: UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String])
+    }
+
+    private func actionBinding(for button: Int64, action _: MouseButtonAction?) -> Binding<MouseButtonAction> {
+        Binding(
+            get: { mappings[button] ?? .shortcut },
+            set: { selected in
+                if selected == .shortcut {
+                    mappings.removeValue(forKey: button)
+                    repeatingActions.remove(button)
+                    pendingButton = button
+                    persist()
+                } else {
+                    mappings[button] = selected
+                    pendingButton = nil
+                    var shortcuts = UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String] ?? [:]
+                    shortcuts.removeValue(forKey: String(button))
+                    UserDefaults.standard.set(shortcuts, forKey: DefaultsKey.mouseButtonShortcuts)
+                    persist()
+                }
+            })
+    }
+
+    private func repeatBinding(for button: Int64) -> Binding<Bool> {
+        Binding(
+            get: { repeatingActions.contains(button) },
+            set: { repeats in
+                if repeats {
+                    repeatingActions.insert(button)
+                } else {
+                    repeatingActions.remove(button)
+                }
+                persist()
+            })
     }
 }

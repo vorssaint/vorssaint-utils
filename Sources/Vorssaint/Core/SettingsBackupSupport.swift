@@ -298,6 +298,7 @@ enum SettingsBackupSupport {
         case is String: return value is String
         case is [String]: return value is [String]
         case is [String: String]: return value is [String: String]
+        case is [String: Bool]: return value is [String: Bool]
         case is [Any]: return value is [Any]
         case is [String: Any]: return value is [String: Any]
         default: return true

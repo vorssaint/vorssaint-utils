@@ -1,7 +1,203 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
+import Darwin
 import Foundation
+
+enum MouseButtonAction: String, CaseIterable, Hashable {
+    case shortcut
+    case volumeUp
+    case volumeDown
+    case volumeMute
+    case mediaPlayPause
+    case mediaPrevious
+    case mediaNext
+    case mediaFastForward
+    case mediaRewind
+    case displayBrightnessUp
+    case displayBrightnessDown
+    case keyboardBrightnessUp
+    case keyboardBrightnessDown
+    case missionControl
+    case appExpose
+    case launchpad
+    case showDesktop
+    case spaceLeft
+    case spaceRight
+    case scrollUp
+    case scrollDown
+    case scrollLeft
+    case scrollRight
+
+    var repeatsWhileHeld: Bool {
+        switch self {
+        case .volumeUp, .volumeDown, .displayBrightnessUp, .displayBrightnessDown,
+             .keyboardBrightnessUp, .keyboardBrightnessDown: return true
+        default: return false
+        }
+    }
+
+    func title(in strings: MouseButtonFeatureStrings) -> String {
+        switch self {
+        case .shortcut: return strings.actionShortcut
+        case .volumeUp: return strings.actionVolumeUp
+        case .volumeDown: return strings.actionVolumeDown
+        case .volumeMute: return strings.actionVolumeMute
+        case .mediaPlayPause: return strings.actionMediaPlayPause
+        case .mediaPrevious: return strings.actionMediaPrevious
+        case .mediaNext: return strings.actionMediaNext
+        case .mediaFastForward: return strings.actionMediaFastForward
+        case .mediaRewind: return strings.actionMediaRewind
+        case .displayBrightnessUp: return strings.actionDisplayBrightnessUp
+        case .displayBrightnessDown: return strings.actionDisplayBrightnessDown
+        case .keyboardBrightnessUp: return strings.actionKeyboardBrightnessUp
+        case .keyboardBrightnessDown: return strings.actionKeyboardBrightnessDown
+        case .missionControl: return strings.actionMissionControl
+        case .appExpose: return strings.actionAppExpose
+        case .launchpad: return strings.actionLaunchpad
+        case .showDesktop: return strings.actionShowDesktop
+        case .spaceLeft: return strings.actionSpaceLeft
+        case .spaceRight: return strings.actionSpaceRight
+        case .scrollUp: return strings.actionScrollUp
+        case .scrollDown: return strings.actionScrollDown
+        case .scrollLeft: return strings.actionScrollLeft
+        case .scrollRight: return strings.actionScrollRight
+        }
+    }
+}
+
+/// The system-defined media-key values macOS uses for the controls exposed in
+/// this picker. They match the documented NX_KEYTYPE ordering used by macOS.
+enum MouseButtonSystemKey: Int32 {
+    case volumeUp = 0
+    case volumeDown = 1
+    case displayBrightnessUp = 2
+    case displayBrightnessDown = 3
+    case mute = 7
+    case playPause = 16
+    case next = 17
+    case previous = 18
+    case fastForward = 19
+    case rewind = 20
+    case keyboardBrightnessUp = 21
+    case keyboardBrightnessDown = 22
+}
+
+/// Desktop navigation belongs to the Dock and WindowServer rather than to a
+/// fixed set of function keys. Sending F3/F4 or Control+Arrow directly is
+/// fragile: the user may have changed the bindings, and a synthetic key event
+/// without matching modifier transitions is not always recognised as a system
+/// hot key. Resolve the system entry points at runtime so these actions retain
+/// the same behaviour as their native macOS counterparts.
+enum MouseButtonDesktopAction {
+    case missionControl
+    case appExpose
+    case launchpad
+    case showDesktop
+    case spaceLeft
+    case spaceRight
+
+    private enum SymbolicHotKey: UInt32 {
+        case spaceLeft = 79
+        case spaceRight = 81
+    }
+
+    private typealias DockNotification = @convention(c) (CFString, Int32) -> Int32
+    private typealias GetSymbolicHotKey = @convention(c) (
+        UInt32,
+        UnsafeMutablePointer<UInt16>,
+        UnsafeMutablePointer<UInt16>,
+        UnsafeMutablePointer<UInt32>
+    ) -> Int32
+    private typealias IsSymbolicHotKeyEnabled = @convention(c) (UInt32) -> Bool
+    private typealias SetSymbolicHotKeyEnabled = @convention(c) (UInt32, Bool) -> Int32
+
+    private static let applicationServicesHandle = dlopen(
+        "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY)
+
+    private static let sendDockNotification: DockNotification? = symbol("CoreDockSendNotification")
+    private static let getSymbolicHotKey: GetSymbolicHotKey? = symbol("CGSGetSymbolicHotKeyValue")
+    private static let isSymbolicHotKeyEnabled: IsSymbolicHotKeyEnabled? = symbol("CGSIsSymbolicHotKeyEnabled")
+    private static let setSymbolicHotKeyEnabled: SetSymbolicHotKeyEnabled? = symbol("CGSSetSymbolicHotKeyEnabled")
+
+    static func perform(_ action: MouseButtonDesktopAction) {
+        switch action {
+        case .missionControl:
+            _ = sendDockNotification?("com.apple.expose.awake" as CFString, 0)
+        case .appExpose:
+            _ = sendDockNotification?("com.apple.expose.front.awake" as CFString, 0)
+        case .launchpad:
+            _ = sendDockNotification?("com.apple.launchpad.toggle" as CFString, 0)
+        case .showDesktop:
+            _ = sendDockNotification?("com.apple.showdesktop.awake" as CFString, 0)
+        case .spaceLeft:
+            postSymbolicHotKey(.spaceLeft)
+        case .spaceRight:
+            postSymbolicHotKey(.spaceRight)
+        }
+    }
+
+    private static func postSymbolicHotKey(_ hotKey: SymbolicHotKey) {
+        guard let getSymbolicHotKey else { return }
+        var keyEquivalent: UInt16 = 0
+        var keyCode: UInt16 = 0
+        var rawFlags: UInt32 = 0
+        guard getSymbolicHotKey(hotKey.rawValue, &keyEquivalent, &keyCode, &rawFlags) == 0 else { return }
+
+        let wasEnabled = isSymbolicHotKeyEnabled?(hotKey.rawValue) ?? true
+        if !wasEnabled {
+            _ = setSymbolicHotKeyEnabled?(hotKey.rawValue, true)
+        }
+        postKey(CGKeyCode(keyCode), flags: CGEventFlags(rawValue: UInt64(rawFlags)))
+
+        // The WindowServer consumes posted events before this main-loop turn
+        // completes. Restoring an intentionally disabled hot key on the next
+        // turn therefore preserves the user's preference without racing it.
+        if !wasEnabled {
+            DispatchQueue.main.async {
+                _ = setSymbolicHotKeyEnabled?(hotKey.rawValue, false)
+            }
+        }
+    }
+
+    private static func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags) {
+        let modifierKeyCodes: [(CGEventFlags, CGKeyCode)] = [
+            (.maskShift, 0x38),
+            (.maskControl, 0x3B),
+            (.maskAlternate, 0x3A),
+            (.maskCommand, 0x37)
+        ]
+        let activeModifiers = modifierKeyCodes.filter { flags.contains($0.0) }
+        var accumulated = CGEventFlags()
+        for (flag, modifierKeyCode) in activeModifiers {
+            accumulated.insert(flag)
+            guard let event = CGEvent(keyboardEventSource: nil, virtualKey: modifierKeyCode, keyDown: true) else { continue }
+            event.type = .flagsChanged
+            event.flags = accumulated
+            event.post(tap: .cgSessionEventTap)
+        }
+        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else { return }
+        down.flags = flags
+        up.flags = flags
+        down.post(tap: .cgSessionEventTap)
+        up.post(tap: .cgSessionEventTap)
+        for (flag, modifierKeyCode) in activeModifiers.reversed() {
+            accumulated.remove(flag)
+            guard let event = CGEvent(keyboardEventSource: nil, virtualKey: modifierKeyCode, keyDown: false) else { continue }
+            event.type = .flagsChanged
+            event.flags = accumulated
+            event.post(tap: .cgSessionEventTap)
+        }
+    }
+
+    private static func symbol<T>(_ name: String) -> T? {
+        guard let applicationServicesHandle,
+              let pointer = dlsym(applicationServicesHandle, name) else { return nil }
+        return unsafeBitCast(pointer, to: T.self)
+    }
+}
 
 /// The pure half of the mouse button shortcuts feature: which buttons can
 /// carry a shortcut, how the mappings persist and who owns a button when two
@@ -107,28 +303,82 @@ enum MouseButtonShortcutSupport {
     /// storage form every other shortcut in the app uses. Anything that does
     /// not parse (a hand-edited plist, an imported backup from a newer
     /// version) is dropped rather than trusted.
-    static func decode(_ raw: [String: String]?) -> [Int64: GlobalShortcut] {
-        guard let raw else { return [:] }
-        var mappings: [Int64: GlobalShortcut] = [:]
-        for (key, value) in raw {
+    /// Existing shortcut mappings remain in their original preference. The
+    /// second dictionary only records direct actions, so older versions still
+    /// understand every shortcut they created.
+    static func decode(shortcuts rawShortcuts: [String: String]?,
+                       actions rawActions: [String: String]?) -> [Int64: MouseButtonAction] {
+        var mappings: [Int64: MouseButtonAction] = [:]
+        for (key, value) in rawShortcuts ?? [:] {
             guard let button = Int64(key), canMap(button),
-                  let shortcut = GlobalShortcut(storageValue: value) else { continue }
-            mappings[button] = shortcut
+                  GlobalShortcut(storageValue: value) != nil else { continue }
+            mappings[button] = .shortcut
+        }
+        for (key, value) in rawActions ?? [:] {
+            guard let button = Int64(key), canMap(button),
+                  let action = MouseButtonAction(rawValue: value), action != .shortcut else { continue }
+            mappings[button] = action
         }
         return mappings
     }
 
+    static func shortcut(for button: Int64, in raw: [String: String]?) -> GlobalShortcut? {
+        guard let stored = raw?[String(button)] else { return nil }
+        return GlobalShortcut(storageValue: stored)
+    }
+
+    static func encodeActions(_ mappings: [Int64: MouseButtonAction]) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: mappings.compactMap { button, action in
+            guard canMap(button), action != .shortcut else { return nil }
+            return (String(button), action.rawValue)
+        })
+    }
+
+    static func decodeRepeatingActions(_ raw: [String: Bool]?,
+                                       mappings: [Int64: MouseButtonAction]) -> Set<Int64> {
+        Set((raw ?? [:]).compactMap { button, repeats in
+            guard repeats, let input = Int64(button),
+                  mappings[input]?.repeatsWhileHeld == true else { return nil }
+            return input
+        })
+    }
+
+    static func encodeRepeatingActions(_ buttons: Set<Int64>,
+                                       mappings: [Int64: MouseButtonAction]) -> [String: Bool] {
+        Dictionary(uniqueKeysWithValues: buttons.compactMap { button in
+            guard mappings[button]?.repeatsWhileHeld == true else { return nil }
+            return (String(button), true)
+        })
+    }
+
+    // Kept for callers and tests of the original shortcut-only persistence.
+    static func decode(_ raw: [String: String]?) -> [Int64: GlobalShortcut] {
+        Dictionary(uniqueKeysWithValues: (raw ?? [:]).compactMap { key, value in
+            guard let button = Int64(key), canMap(button),
+                  let shortcut = GlobalShortcut(storageValue: value) else { return nil }
+            return (button, shortcut)
+        })
+    }
+
     static func encode(_ mappings: [Int64: GlobalShortcut]) -> [String: String] {
-        var raw: [String: String] = [:]
-        for (button, shortcut) in mappings where canMap(button) {
-            raw[String(button)] = shortcut.storageValue
-        }
-        return raw
+        Dictionary(uniqueKeysWithValues: mappings.compactMap { button, shortcut in
+            guard canMap(button) else { return nil }
+            return (String(button), shortcut.storageValue)
+        })
     }
 
     /// Whether a button fires its shortcut right now, given plain readers so
     /// the rule is testable without touching real defaults. The radial menu
     /// keeps its summoner: a wheel button never doubles as a shortcut.
+    static func action(for button: Int64,
+                       isAvailable: Bool,
+                       isEnabled: Bool,
+                       mappings: [Int64: MouseButtonAction],
+                       claimedByWheel: (Int64) -> Bool) -> MouseButtonAction? {
+        guard isAvailable, isEnabled, !claimedByWheel(button) else { return nil }
+        return mappings[button]
+    }
+
     static func firesShortcut(for button: Int64,
                               isAvailable: Bool,
                               isEnabled: Bool,
@@ -151,7 +401,7 @@ enum MouseButtonShortcutSupport {
         // Runs inside a HID tap callback during side-button drags: look up
         // just this button's entry instead of decoding the whole dictionary.
         guard canMap(button) else { return false }
-        return hasActiveShortcut(button, defaults) || spacesGestureButton(defaults) == button
+        return hasActiveAction(button, defaults) || spacesGestureButton(defaults) == button
     }
 
     /// The button the Spaces and Mission Control drag is bound to right now,
@@ -163,22 +413,22 @@ enum MouseButtonShortcutSupport {
             isAvailable: defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
             isEnabled: defaults.bool(forKey: DefaultsKey.mouseSpacesGestureEnabled),
             button: Int64(defaults.integer(forKey: DefaultsKey.mouseSpacesGestureButton)),
-            hasShortcut: { hasActiveShortcut($0, defaults) },
+            hasShortcut: { hasActiveAction($0, defaults) },
             claimedByWheel: RadialMenuSupport.claimsMouseButton)
     }
 
-    /// A stored shortcut that would really fire. A mapping left behind while
-    /// the shortcut switch is off is inert, so it holds no claim on a button.
-    private static func hasActiveShortcut(_ button: Int64, _ defaults: UserDefaults) -> Bool {
+    /// A stored action that would really fire. A mapping left behind while
+    /// the switch is off is inert, so it holds no claim on a button.
+    private static func hasActiveAction(_ button: Int64, _ defaults: UserDefaults) -> Bool {
         guard defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled) else { return false }
-        let raw = defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String]
-        guard let stored = raw?[String(button)] else { return false }
-        return GlobalShortcut(storageValue: stored) != nil
+        let shortcuts = defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String]
+        let actions = defaults.dictionary(forKey: DefaultsKey.mouseButtonActions) as? [String: String]
+        return decode(shortcuts: shortcuts, actions: actions)[button] != nil
     }
 
     /// The rows in Settings sort by button number so the list never reorders
     /// itself between visits.
-    static func sortedButtons(_ mappings: [Int64: GlobalShortcut]) -> [Int64] {
+    static func sortedButtons<Value>(_ mappings: [Int64: Value]) -> [Int64] {
         mappings.keys.sorted()
     }
 

@@ -58,6 +58,9 @@ enum DefaultsKey {
     static let mouseClickDebounceWindowMs = "mouseClickDebounceWindowMs"
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
+    static let mouseButtonActions = "mouseButtonActions" // [button number: MouseButtonAction raw value]
+    static let mouseButtonActionRepeats = "mouseButtonActionRepeats" // [button number: Bool], direct actions repeat while held
+    static let superKeyEnabled = "superKeyEnabled"        // Caps Lock holds the chosen modifiers (issue #330)
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
     static let superKeySoloAction = "superKeySoloAction"  // SuperKeySoloAction raw value
     // Machine state, never exported: whether the keyboard mapping is in place
@@ -886,6 +889,8 @@ enum Defaults {
         DefaultsKey.mouseSpacesGestureFollowsDrag: false,
         DefaultsKey.mouseClickDebounceEnabled: false,
         DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
+        DefaultsKey.mouseButtonActions: [String: String](),
+        DefaultsKey.mouseButtonActionRepeats: [String: Bool](),
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,

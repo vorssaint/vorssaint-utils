@@ -41,7 +41,11 @@ final class MouseButtonShortcutService: ObservableObject {
     /// opening the wheel. Main thread only, like the taps that read it.
     private(set) static var isCaptureActive = false
 
-    private var mappings: [Int64: GlobalShortcut] = [:]
+    private var mappings: [Int64: MouseButtonAction] = [:]
+    private var shortcuts: [Int64: GlobalShortcut] = [:]
+    private var repeatingActions: Set<Int64> = []
+    private var repeatDelayTimers: [Int64: Timer] = [:]
+    private var repeatTimers: [Int64: Timer] = [:]
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var tapIncludesSideWheel = false
@@ -103,8 +107,14 @@ final class MouseButtonShortcutService: ObservableObject {
         let defaults = UserDefaults.standard
         let enabled = AppFeature.mouseButtonShortcuts.isAvailable
             && defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)
+        let rawShortcuts = defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String]
         mappings = MouseButtonShortcutSupport.decode(
-            defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String])
+            shortcuts: rawShortcuts,
+            actions: defaults.dictionary(forKey: DefaultsKey.mouseButtonActions) as? [String: String])
+        shortcuts = MouseButtonShortcutSupport.decode(rawShortcuts)
+        repeatingActions = MouseButtonShortcutSupport.decodeRepeatingActions(
+            defaults.dictionary(forKey: DefaultsKey.mouseButtonActionRepeats) as? [String: Bool],
+            mappings: mappings)
         wantsSideWheelEvents = enabled && (isCapturing
             || mappings[MouseButtonShortcutSupport.sideWheelLeftInput] != nil
             || mappings[MouseButtonShortcutSupport.sideWheelRightInput] != nil)
@@ -251,6 +261,7 @@ final class MouseButtonShortcutService: ObservableObject {
     }
 
     private func stop() {
+        cancelAllRepeats()
         Self.hasActiveSideWheelInterest = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
         restartAfterDrain = false
@@ -269,6 +280,7 @@ final class MouseButtonShortcutService: ObservableObject {
     }
 
     private func tearDownTap(replayPendingSpacesPress: Bool = true) {
+        cancelAllRepeats()
         Self.hasActiveSideWheelInterest = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
         // A press still held back has to go back to the app before the tap
@@ -300,6 +312,11 @@ final class MouseButtonShortcutService: ObservableObject {
 
     private func handle(proxy: CGEventTapProxy?, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // A disabled tap can miss the matching mouse-up. Stop repeats
+            // before reenabling, so a lost release can never leave volume
+            // changing indefinitely in the background.
+            cancelAllRepeats()
+            consumedButtons.removeAll()
             sideWheelGesture.reset()
             preflightedSideWheelTimestamp = nil
             preflightedSideWheelInput = nil
@@ -376,7 +393,7 @@ final class MouseButtonShortcutService: ObservableObject {
             if button == spacesButton {
                 return armSpacesGesture(event, button: button)
             }
-            guard let shortcut = MouseButtonShortcutSupport.firesShortcut(
+            guard let action = MouseButtonShortcutSupport.action(
                 for: button,
                 isAvailable: AppFeature.mouseButtonShortcuts.isAvailable,
                 isEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled),
@@ -384,7 +401,10 @@ final class MouseButtonShortcutService: ObservableObject {
                 claimedByWheel: RadialMenuSupport.claimsMouseButton)
             else { return Unmanaged.passUnretained(event) }
             consumedButtons.insert(button)
-            post(shortcut)
+            perform(action, for: button)
+            if repeatingActions.contains(button) {
+                beginRepeating(action, for: button)
+            }
             return nil
         }
 
@@ -416,6 +436,7 @@ final class MouseButtonShortcutService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if type == .otherMouseUp {
+            cancelRepeat(for: button)
             consumedButtons.remove(button)
             // The drain existed only for this release; finishing outside the
             // callback keeps the mach port teardown off the tap's own stack.
@@ -533,7 +554,7 @@ final class MouseButtonShortcutService: ObservableObject {
             }
             return nil
         }
-        guard let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
+        guard let action = mappings[input] else { return Unmanaged.passUnretained(event) }
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         if !wasPreflighted,
            MouseAppExceptions.shared.excludesActionTarget(
@@ -542,7 +563,7 @@ final class MouseButtonShortcutService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         guard sideWheelGesture.shouldFire(input, at: timestamp) else { return nil }
-        post(shortcut)
+        perform(action, for: input)
         return nil
     }
 
@@ -603,5 +624,102 @@ final class MouseButtonShortcutService: ObservableObject {
         up.flags = flags
         down.post(tap: .cghidEventTap)
         up.post(tap: .cghidEventTap)
+    }
+
+    private func perform(_ action: MouseButtonAction, for button: Int64) {
+        switch action {
+        case .shortcut:
+            if let shortcut = shortcuts[button] {
+                post(shortcut)
+            }
+        case .volumeUp:
+            postSystemKey(.volumeUp)
+        case .volumeDown:
+            postSystemKey(.volumeDown)
+        case .volumeMute:
+            postSystemKey(.mute)
+        case .mediaPlayPause:
+            postSystemKey(.playPause)
+        case .mediaPrevious:
+            postSystemKey(.previous)
+        case .mediaNext:
+            postSystemKey(.next)
+        case .mediaFastForward:
+            postSystemKey(.fastForward)
+        case .mediaRewind:
+            postSystemKey(.rewind)
+        case .displayBrightnessUp:
+            postSystemKey(.displayBrightnessUp)
+        case .displayBrightnessDown:
+            postSystemKey(.displayBrightnessDown)
+        case .keyboardBrightnessUp:
+            postSystemKey(.keyboardBrightnessUp)
+        case .keyboardBrightnessDown:
+            postSystemKey(.keyboardBrightnessDown)
+        case .missionControl:
+            MouseButtonDesktopAction.perform(.missionControl)
+        case .appExpose:
+            MouseButtonDesktopAction.perform(.appExpose)
+        case .launchpad:
+            MouseButtonDesktopAction.perform(.launchpad)
+        case .showDesktop:
+            MouseButtonDesktopAction.perform(.showDesktop)
+        case .spaceLeft:
+            MouseButtonDesktopAction.perform(.spaceLeft)
+        case .spaceRight:
+            MouseButtonDesktopAction.perform(.spaceRight)
+        case .scrollUp:
+            postScroll(horizontal: 0, vertical: 3)
+        case .scrollDown:
+            postScroll(horizontal: 0, vertical: -3)
+        case .scrollLeft:
+            postScroll(horizontal: 3, vertical: 0)
+        case .scrollRight:
+            postScroll(horizontal: -3, vertical: 0)
+        }
+    }
+
+    /// Mirrors the user's normal keyboard-repeat delay and cadence. Only
+    /// direct volume actions can opt in; a keyboard shortcut remains a single
+    /// press, avoiding accidental repeated commands in foreground apps.
+    private func beginRepeating(_ action: MouseButtonAction, for button: Int64) {
+        guard action.repeatsWhileHeld else { return }
+        cancelRepeat(for: button)
+        let delay = NSEvent.keyRepeatDelay
+        let interval = NSEvent.keyRepeatInterval
+        guard delay > 0, interval > 0 else { return }
+        repeatDelayTimers[button] = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            guard let self, self.consumedButtons.contains(button) else { return }
+            self.perform(action, for: button)
+            self.repeatTimers[button] = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+                guard let self, self.consumedButtons.contains(button) else { return }
+                self.perform(action, for: button)
+            }
+        }
+    }
+
+    private func cancelRepeat(for button: Int64) {
+        repeatDelayTimers.removeValue(forKey: button)?.invalidate()
+        repeatTimers.removeValue(forKey: button)?.invalidate()
+    }
+
+    private func cancelAllRepeats() {
+        for button in Set(repeatDelayTimers.keys).union(repeatTimers.keys) {
+            cancelRepeat(for: button)
+        }
+    }
+
+    private func postSystemKey(_ key: MouseButtonSystemKey) {
+        PreciseVolumeRollerService.postSystemDefinedKey(key.rawValue, optionShift: false)
+    }
+
+    private func postScroll(horizontal: Int32, vertical: Int32) {
+        guard let event = CGEvent(scrollWheelEvent2Source: nil,
+                                  units: .line,
+                                  wheelCount: 2,
+                                  wheel1: vertical,
+                                  wheel2: horizontal,
+                                  wheel3: 0) else { return }
+        event.post(tap: .cghidEventTap)
     }
 }
