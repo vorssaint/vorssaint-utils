@@ -32,21 +32,28 @@ final class TransientPaste {
 
     /// Pastes `text`, then restores the previous contents.
     ///
-    /// `completion` runs on the main queue once ⌘V has been posted — which is
-    /// the point at which a trailing keystroke can safely follow the pasted
-    /// text instead of racing ahead of it.
-    func paste(_ text: String, completion: (() -> Void)? = nil) {
+    /// Returns `false` when a previous paste is still in flight and this one is
+    /// dropped, so a caller that destroys something first — deleting a typed
+    /// trigger before replacing it — can check before doing the destroying.
+    ///
+    /// `willPostShortcut` and `didPostShortcut` bracket the synthetic ⌘V on the
+    /// main queue. A caller whose own global shortcut *is* ⌘V has to unregister
+    /// it across that window, or it catches the synthetic press itself and the
+    /// target app never sees a paste.
+    @discardableResult
+    func paste(_ text: String,
+               willPostShortcut: (() -> Void)? = nil,
+               didPostShortcut: (() -> Void)? = nil) -> Bool {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async { self.paste(text, completion: completion) }
-            return
+            DispatchQueue.main.async {
+                self.paste(text, willPostShortcut: willPostShortcut, didPostShortcut: didPostShortcut)
+            }
+            return true
         }
         // A second expansion while the first is still in flight would photograph
         // the first one's text as "the original" and then restore it over the
         // second. Let the first finish and put its own snapshot back.
-        guard !isPerforming else {
-            completion?()
-            return
-        }
+        guard !isPerforming else { return false }
         isPerforming = true
 
         let previous = pendingRestore
@@ -66,21 +73,26 @@ final class TransientPaste {
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
             let changeCount = pasteboard.changeCount
+            // Registered here rather than after a hop to main: the history poll
+            // could otherwise land between the write and the ignore and record
+            // text the user never copied.
+            ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
 
             DispatchQueue.main.async {
-                ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
                 self.pendingRestore = (snapshot, changeCount)
                 // The user may still be holding the key that completed the
                 // trigger. ⌘V posted on top of a held Shift or Option is a
                 // different combination and the target app will not treat it as
                 // paste, so wait for a clean keyboard first.
-                Self.postPasteWhenModifiersReleased(attempt: 0) {
+                Self.postPasteWhenModifiersReleased(attempt: 0,
+                                                    willPost: willPostShortcut,
+                                                    didPost: didPostShortcut) {
                     self.isPerforming = false
-                    completion?()
                     self.scheduleRestore(snapshot: snapshot, changeCount: changeCount)
                 }
             }
         }
+        return true
     }
 
     private func scheduleRestore(snapshot: [NSPasteboardItem], changeCount: Int) {
@@ -97,10 +109,7 @@ final class TransientPaste {
                 guard pasteboard.changeCount == changeCount, !snapshot.isEmpty else { return }
                 pasteboard.clearContents()
                 pasteboard.writeObjects(snapshot)
-                let restored = pasteboard.changeCount
-                DispatchQueue.main.async {
-                    ClipboardHistoryService.shared.ignoreNextChange(upTo: restored)
-                }
+                ClipboardHistoryService.shared.ignoreNextChange(upTo: pasteboard.changeCount)
             }
         }
         restoreWork = work
@@ -121,31 +130,54 @@ final class TransientPaste {
     /// to ~1.5 s. Someone still holding a key after that gets the paste anyway:
     /// by then the merge race is over for most hands, and never pasting is worse.
     private static func postPasteWhenModifiersReleased(attempt: Int,
+                                                       willPost: (() -> Void)?,
+                                                       didPost: (() -> Void)?,
                                                        completion: @escaping () -> Void) {
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                postPasteShortcut()
-                completion()
+                willPost?()
+                postPasteShortcut {
+                    didPost?()
+                    completion()
+                }
             }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
-            postPasteWhenModifiersReleased(attempt: attempt + 1, completion: completion)
+            postPasteWhenModifiersReleased(attempt: attempt + 1,
+                                           willPost: willPost,
+                                           didPost: didPost,
+                                           completion: completion)
         }
     }
 
-    private static func postPasteShortcut() {
+    private static func postPasteShortcut(completion: @escaping () -> Void) {
         // No explicit event source: one tied to the HID state inherits whatever
         // the hardware still reports, which can re-poison the flags this just
         // waited out.
-        for down in [true, false] {
-            guard let event = CGEvent(keyboardEventSource: nil,
-                                      virtualKey: CGKeyCode(kVK_ANSI_V),
-                                      keyDown: down) else { continue }
-            event.flags = .maskCommand
-            event.post(tap: .cghidEventTap)
+        guard let keyDown = CGEvent(keyboardEventSource: nil,
+                                    virtualKey: CGKeyCode(kVK_ANSI_V),
+                                    keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil,
+                                  virtualKey: CGKeyCode(kVK_ANSI_V),
+                                  keyDown: false)
+        else {
+            completion()
+            return
+        }
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        // No keyboardSetUnicodeString here: a forced character string on the
+        // event breaks menu key equivalent dispatch (verified empirically),
+        // which is exactly the ⌘V we are trying to trigger.
+        keyDown.post(tap: .cghidEventTap)
+        // A beat between down and up mirrors a real key press; some apps skip
+        // equivalents delivered as a zero-length tap.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            keyUp.post(tap: .cghidEventTap)
+            completion()
         }
     }
 }

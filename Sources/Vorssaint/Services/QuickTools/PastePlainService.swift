@@ -73,7 +73,23 @@ final class PastePlainService: ObservableObject {
         // here for the same reason it always did: the user is still holding the
         // shortcut's modifiers, and with the default ⌥⇧⌘V the merged chord can
         // re-trigger this very hotkey (issue #186).
-        TransientPaste.shared.paste(plain)
+        // A person whose paste-plain shortcut *is* plain ⌘V would have this
+        // app's own global hotkey catch the synthetic ⌘V, so the target app
+        // never receives a paste at all (issue #186). Release it across the
+        // press and register it again after.
+        var mustReleaseHotkey = false
+        TransientPaste.shared.paste(
+            plain,
+            willPostShortcut: { [weak self] in
+                guard let self else { return }
+                let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
+                                                    fallback: .pastePlainDefault)
+                mustReleaseHotkey = shortcut.isStandardPasteCommand
+                if mustReleaseHotkey { self.hotkey.unregister() }
+            },
+            didPostShortcut: { [weak self] in
+                if mustReleaseHotkey { self?.syncWithPreferences() }
+            })
     }
 
 

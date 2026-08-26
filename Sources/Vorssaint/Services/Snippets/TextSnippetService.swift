@@ -368,29 +368,33 @@ final class TextSnippetService {
             }
         }
 
-        for _ in 0..<deleteCount {
-            postKey(CGKeyCode(kVK_Delete))
-        }
-
         // A newline cannot travel inside a keyboard event's unicode string: the
         // receiving app inserts only the text before the first newline and drops
         // the rest of that event's string. With the chunking below that silently
         // swallows whole fragments of any multi-line snippet, so those go through
         // the pasteboard, which preserves the text exactly.
         if text.contains(where: \.isNewline) {
-            // A delimiter that is a real character can ride inside the pasted
-            // string, which keeps it behind the replacement without a race. One
-            // that carries an action instead — Return, Tab — cannot: pasted, it
-            // becomes a character, so Return stops sending in a chat composer and
-            // Tab stops moving focus. Those are posted after the paste lands.
-            let delimiterIsPrintable = !trailingText.isEmpty
-                && trailingText.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
-            TransientPaste.shared.paste(delimiterIsPrintable ? text + trailingText : text) {
-                if !delimiterIsPrintable, let trailingKeyCode {
-                    postKey(trailingKeyCode, flags: trailingFlags)
-                }
-            }
+            // The delimiter rides inside the pasted string; nothing is posted
+            // afterwards. Posting a key after ⌘V does not mean it arrives after
+            // the paste — a plain key is handled while the front app is still
+            // working through the pasteboard, so Return could reach a chat
+            // composer ahead of the text and send it empty. Carried inside, the
+            // whole insertion is one ordered event.
+            //
+            // The trade: Return arrives as a newline in the inserted text rather
+            // than as a send. For a multi-line snippet that is also the more
+            // useful reading of what the person asked for.
+            let payload = text + trailingText.replacingOccurrences(of: "\r", with: "\n")
+            // Check before destroying anything. A paste dropped because another
+            // is still in flight would otherwise leave the trigger deleted, no
+            // replacement, and the delimiter swallowed by the tap.
+            guard TransientPaste.shared.paste(payload) else { return }
+            for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
             return
+        }
+
+        for _ in 0..<deleteCount {
+            postKey(CGKeyCode(kVK_Delete))
         }
 
         // Typed injection instead of pasting: the clipboard stays untouched.
