@@ -183,6 +183,11 @@ enum FanControlPolicy {
             && level.isMultiple(of: coolingLevelStep)
     }
 
+    static func targetRPMMatches(target: Double, expected: Double) -> Bool {
+        target.isFinite && expected.isFinite
+            && abs(target - expected) <= max(2, expected * 0.001)
+    }
+
     static func coolingTargetRPM(minimum: Double, maximum: Double,
                                  level: Int) -> Double? {
         guard validBounds(minimum: minimum, maximum: maximum),
