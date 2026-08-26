@@ -533,10 +533,11 @@ enum WindowLayoutGeometry {
 
         // Scaling by each screen's size stretches a laptop window across an
         // ultrawide and squashes it onto a portrait panel. Keep the current
-        // size, only shrinking to fit, and keep the same alignment in the
-        // leftover space. A window that already fills the source still fills
-        // the destination, so Maximize stays Maximize. 8pt matches the
-        // settle tolerance used when judging a placement as stuck.
+        // size, only shrinking to fit, and keep the same edge insets rather
+        // than spreading leftover space. A window that already fills the
+        // source still fills the destination, so Maximize stays Maximize.
+        // 8pt matches the settle tolerance used when judging a placement
+        // as stuck.
         let fillTolerance: CGFloat = 8
         if current.width >= sourceVisibleFrame.width - fillTolerance,
            current.height >= sourceVisibleFrame.height - fillTolerance {
@@ -545,20 +546,22 @@ enum WindowLayoutGeometry {
 
         let width = min(destinationVisibleFrame.width, max(1, current.width))
         let height = min(destinationVisibleFrame.height, max(1, current.height))
-        let x = alignedOrigin(sourceMin: sourceVisibleFrame.minX,
-                              sourceSpan: sourceVisibleFrame.width,
-                              currentMin: current.minX,
-                              currentSpan: current.width,
-                              destinationMin: destinationVisibleFrame.minX,
-                              destinationSpan: destinationVisibleFrame.width,
-                              size: width)
-        let y = alignedOrigin(sourceMin: sourceVisibleFrame.minY,
-                              sourceSpan: sourceVisibleFrame.height,
-                              currentMin: current.minY,
-                              currentSpan: current.height,
-                              destinationMin: destinationVisibleFrame.minY,
-                              destinationSpan: destinationVisibleFrame.height,
-                              size: height)
+        let x = unscaledOrigin(sourceMin: sourceVisibleFrame.minX,
+                               sourceMax: sourceVisibleFrame.maxX,
+                               currentMin: current.minX,
+                               currentMax: current.maxX,
+                               destinationMin: destinationVisibleFrame.minX,
+                               destinationMax: destinationVisibleFrame.maxX,
+                               size: width,
+                               preferMax: false)
+        let y = unscaledOrigin(sourceMin: sourceVisibleFrame.minY,
+                               sourceMax: sourceVisibleFrame.maxY,
+                               currentMin: current.minY,
+                               currentMax: current.maxY,
+                               destinationMin: destinationVisibleFrame.minY,
+                               destinationMax: destinationVisibleFrame.maxY,
+                               size: height,
+                               preferMax: true)
         let clampedX = min(max(x, destinationVisibleFrame.minX),
                            destinationVisibleFrame.maxX - width)
         let clampedY = min(max(y, destinationVisibleFrame.minY),
@@ -566,21 +569,33 @@ enum WindowLayoutGeometry {
         return CGRect(x: clampedX, y: clampedY, width: width, height: height).integral
     }
 
-    /// Maps a window's inset along one axis so left/right (or top/bottom)
-    /// alignment is preserved when the size stays the same.
-    private static func alignedOrigin(sourceMin: CGFloat,
-                                      sourceSpan: CGFloat,
-                                      currentMin: CGFloat,
-                                      currentSpan: CGFloat,
-                                      destinationMin: CGFloat,
-                                      destinationSpan: CGFloat,
-                                      size: CGFloat) -> CGFloat {
-        let sourceSlack = sourceSpan - currentSpan
-        if sourceSlack <= 0 {
-            return destinationMin
+    /// Keeps the inset from the leading edge of an axis, unless the window is
+    /// already flush with the trailing one. Horizontal placement prefers the
+    /// left so a window in the middle of a laptop does not fly to the middle
+    /// of an ultrawide; a right-half stays on the right. Vertical placement
+    /// prefers the top (AppKit maxY, under the menu bar) so a full-height
+    /// window is not dropped onto the dock of a taller display.
+    private static func unscaledOrigin(sourceMin: CGFloat,
+                                       sourceMax: CGFloat,
+                                       currentMin: CGFloat,
+                                       currentMax: CGFloat,
+                                       destinationMin: CGFloat,
+                                       destinationMax: CGFloat,
+                                       size: CGFloat,
+                                       preferMax: Bool) -> CGFloat {
+        let minInset = currentMin - sourceMin
+        let maxInset = sourceMax - currentMax
+        let flushTolerance: CGFloat = 8
+        if preferMax {
+            if minInset <= flushTolerance, minInset < maxInset {
+                return destinationMin + minInset
+            }
+            return destinationMax - maxInset - size
         }
-        let t = (currentMin - sourceMin) / sourceSlack
-        return destinationMin + (destinationSpan - size) * t
+        if maxInset <= flushTolerance, maxInset < minInset {
+            return destinationMax - maxInset - size
+        }
+        return destinationMin + minInset
     }
 
     static func adjacentDisplayIndex(currentIndex: Int,
