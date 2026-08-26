@@ -129,13 +129,41 @@ enum SettingsSearchSupport {
     }
 
     private static func matchRank(foldedQuery: String,
-                                  title: String,
-                                  keywords: [String]) -> MatchRank? {
+                                   title: String,
+                                   keywords: [String]) -> MatchRank? {
         let foldedTitle = fold(title)
         if foldedTitle == foldedQuery { return .exactTitle }
         if foldedTitle.contains(foldedQuery) { return .title }
         if keywords.contains(where: { fold($0).contains(foldedQuery) }) { return .keyword }
         return nil
+    }
+
+    /// Returns the next selection index with deterministic wrapping.
+    static func moveSelection(index: Int?, delta: Int, count: Int) -> Int? {
+        guard count > 0 else { return nil }
+        let current = clampedSelection(index: index, count: count)
+            ?? (delta >= 0 ? count - 1 : 0)
+        let remainder = (current + delta % count) % count
+        return remainder >= 0 ? remainder : remainder + count
+    }
+
+    static func clampedSelection(index: Int?, count: Int) -> Int? {
+        guard count > 0, let index else { return nil }
+        return min(max(index, 0), count - 1)
+    }
+
+    /// Keeps the same result selected if it moved, otherwise clamps its old
+    /// position to the new result count.
+    static func reconciledSelection<ID: Equatable>(index: Int?,
+                                                    previousIDs: [ID],
+                                                    resultIDs: [ID]) -> Int? {
+        guard !resultIDs.isEmpty else { return nil }
+        guard let index else { return 0 }
+        if previousIDs.indices.contains(index),
+           let movedIndex = resultIDs.firstIndex(of: previousIDs[index]) {
+            return movedIndex
+        }
+        return clampedSelection(index: index, count: resultIDs.count)
     }
 }
 
