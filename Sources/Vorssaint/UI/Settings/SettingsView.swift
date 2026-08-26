@@ -17,13 +17,19 @@ struct SettingsView: View {
 
     private struct SearchResultsSnapshot: Equatable {
         let query: String
-        let items: [SettingsSearchItem]
+        let groups: [SettingsSearchGroup]
 
         var isBlank: Bool {
             query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
 
-        var ids: [SettingsSearchItem.ID] { items.map(\.id) }
+        var items: [SettingsSearchSuggestion] {
+            groups.flatMap { group in
+                (group.parentMatches ? [group.parentSuggestion] : []) + group.suggestions
+            }
+        }
+
+        var ids: [SettingsSearchSuggestion.ID] { items.map(\.id) }
 
         static func == (lhs: Self, rhs: Self) -> Bool {
             lhs.query == rhs.query && lhs.ids == rhs.ids
@@ -38,9 +44,10 @@ struct SettingsView: View {
     var body: some View {
         let searchResults = SearchResultsSnapshot(
             query: searchQuery,
-            items: SettingsSearchSupport.matchingItems(
+            groups: SettingsSearchSupport.groupedMatchingItems(
                 query: searchQuery,
-                items: SettingsDirectory.searchItems(l10n.s, language: l10n.language))
+                items: SettingsDirectory.searchItems(l10n.s, language: l10n.language),
+                isAvailable: { features.isAvailable($0) })
         )
 
         NavigationSplitView {
@@ -148,26 +155,11 @@ struct SettingsView: View {
     private func searchResultsList(_ searchResults: SearchResultsSnapshot) -> some View {
         ScrollViewReader { proxy in
             List {
-                ForEach(searchResults.items.indices, id: \.self) { index in
-                    let item = searchResults.items[index]
-                    let isSelected = activeSearchIndex == index
-                    Button {
-                        requestSearchItem(item)
-                    } label: {
-                        Label(item.title, systemImage: item.icon)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .padding(.vertical, 4)
-                            .padding(.horizontal, 6)
-                            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                            .background {
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(isSelected ? Color.accentColor.opacity(0.18) : .clear)
-                            }
+                ForEach(searchResults.groups) { group in
+                    searchPageRow(group, searchResults: searchResults)
+                    ForEach(group.suggestions) { suggestion in
+                        searchSuggestionRow(suggestion, searchResults: searchResults)
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
-                    .id(item.id)
                 }
             }
             .listStyle(.sidebar)
@@ -188,8 +180,41 @@ struct SettingsView: View {
         }
     }
 
+    private func searchPageRow(_ group: SettingsSearchGroup,
+                               searchResults: SearchResultsSnapshot) -> some View {
+        let suggestion = group.parentSuggestion
+        let selectionIndex = searchResults.items.firstIndex { $0.id == suggestion.id }
+        let isSelected = selectionIndex == activeSearchIndex
+        return Button {
+            requestSearchItem(suggestion)
+        } label: {
+            Label(group.pageItem.title, systemImage: group.pageItem.icon)
+                .fontWeight(.semibold)
+                .searchResultRowStyle(isSelected: isSelected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .id(suggestion.id)
+    }
+
+    private func searchSuggestionRow(_ suggestion: SettingsSearchSuggestion,
+                                     searchResults: SearchResultsSnapshot) -> some View {
+        let selectionIndex = searchResults.items.firstIndex { $0.id == suggestion.id }
+        let isSelected = selectionIndex == activeSearchIndex
+        return Button {
+            requestSearchItem(suggestion)
+        } label: {
+            Label(suggestion.title, systemImage: suggestion.icon)
+                .searchResultRowStyle(isSelected: isSelected)
+                .padding(.leading, 18)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .id(suggestion.id)
+    }
+
     private func handleSearchKey(_ keyCode: UInt16,
-                                 searchResults: [SettingsSearchItem]) -> Bool {
+                                  searchResults: [SettingsSearchSuggestion]) -> Bool {
         switch keyCode {
         case 126: // Up
             guard !searchResults.isEmpty else { return false }
@@ -296,9 +321,9 @@ struct SettingsView: View {
         }
     }
 
-    private func requestSearchItem(_ item: SettingsSearchItem) {
+    private func requestSearchItem(_ suggestion: SettingsSearchSuggestion) {
         activeSearchIndex = nil
-        let routed = SettingsSearchSupport.route(for: item)
+        let routed = SettingsSearchSupport.route(for: suggestion)
         router.request(routed.destination, targetFeature: routed.targetFeature)
     }
 
@@ -1867,5 +1892,19 @@ private struct SidebarSearchField: View {
         .padding(.horizontal, 10)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+}
+
+private extension View {
+    func searchResultRowStyle(isSelected: Bool) -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor.opacity(0.18) : .clear)
+            }
     }
 }

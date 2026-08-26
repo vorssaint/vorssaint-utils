@@ -7158,7 +7158,8 @@ struct MetricsTests {
             SettingsSearchItem(id: .page(.features),
                                 destination: FeatureSettingsDestination(.features),
                                 title: "Features", icon: "square.grid.2x2",
-                                keywords: ["Homebrew", "Camera Preview"]),
+                                keywords: ["Homebrew", "Camera Preview"],
+                                keywordFeatures: [.homebrew, .cameraPreview]),
             SettingsSearchItem(id: .page(.appUpdates),
                                 destination: FeatureSettingsDestination(.appUpdates),
                                 title: "App Updates", icon: "arrow.down.app",
@@ -7279,6 +7280,98 @@ struct MetricsTests {
         expect(SettingsSearchSupport.matchingItems(query: "  \n", items: tiedTitleMatches)
                 .map(\.id) == tiedTitleMatches.map(\.id),
                "a blank Settings query preserves every item in source order")
+
+        // MARK: Grouped Settings search suggestions
+        let cameraGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "Camera Preview", items: combinedSettingsItems,
+            isAvailable: { _ in true })
+        expect(cameraGroups.map(\.id) == [.quickTools, .features]
+                && cameraGroups.first?.pageItem.title == "Quick Tools",
+               "an exact utility match puts its main Settings page first")
+        expect(cameraGroups.first?.parentMatches == false
+                && cameraGroups.first?.suggestions.map(\.title) == ["Camera Preview"]
+                && cameraGroups.first?.suggestions.first?.item.destination
+                    == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview),
+               "a grouped utility row retains its exact anchored destination")
+        expect(cameraGroups.last?.suggestions.map(\.title) == ["Camera Preview"],
+               "every other main page containing the query remains represented")
+        let installedCameraHubRoute = cameraGroups.last?.suggestions.first.map {
+            SettingsSearchSupport.route(for: $0, isAvailable: { _ in true })
+        }
+        expect(installedCameraHubRoute?.destination == FeatureSettingsDestination(.features)
+                && installedCameraHubRoute?.targetFeature == .cameraPreview,
+               "an installed utility's Features result reveals its exact uninstall row")
+
+        let homebrewGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "Homebrew", items: combinedSettingsItems,
+            isAvailable: { _ in true })
+        expect(homebrewGroups.map(\.id) == [.homebrew, .features, .appUpdates]
+                && homebrewGroups.first?.parentMatches == true
+                && homebrewGroups.first?.suggestions.isEmpty == true,
+               "a matching main page is shown once before grouped keyword matches")
+
+        let settingPage = SettingsSearchItem(
+            id: .page(.energy), destination: FeatureSettingsDestination(.energy),
+            title: "Energy", icon: "bolt.fill",
+            keywords: ["Keep awake", "Show countdown", "Show remaining duration"])
+        let settingGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "show", items: [settingPage], isAvailable: { _ in true })
+        expect(settingGroups.count == 1
+                && settingGroups[0].id == .energy
+                && !settingGroups[0].parentMatches
+                && settingGroups[0].suggestions.map(\.title)
+                    == ["Show countdown", "Show remaining duration"],
+               "all matching setting labels are listed beneath their main page")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: " \n ", items: [settingPage],
+                    isAvailable: { _ in true }).isEmpty,
+               "a blank query does not replace the normal Settings sidebar with groups")
+
+        let availabilityPage = SettingsSearchItem(
+            id: .page(.quickTools), destination: FeatureSettingsDestination(.quickTools),
+            title: "Quick Tools", icon: "wand.and.rays",
+            keywords: ["Camera Preview", "Open camera automatically", "Scratchpad Notes"],
+            keywordFeatures: [.cameraPreview, .cameraPreview, .scratchpad])
+        let availabilityHub = SettingsSearchItem(
+            id: .page(.features), destination: FeatureSettingsDestination(.features),
+            title: "Features", icon: "square.grid.2x2",
+            keywords: ["Camera Preview", "scratchpad"],
+            keywordFeatures: [.cameraPreview, .scratchpad])
+        let availabilityFeatures = featureSearchItems.filter {
+            $0.id == .feature(.cameraPreview) || $0.id == .feature(.scratchpad)
+        }
+        let availabilityItems = [availabilityHub, availabilityPage] + availabilityFeatures
+        let onlyScratchpadAvailable: (AppFeature) -> Bool = { $0 == .scratchpad }
+        let unavailableCameraGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "camera", items: availabilityItems,
+            isAvailable: onlyScratchpadAvailable)
+        let unavailableCameraSuggestion = unavailableCameraGroups.first?.suggestions.first
+        let groupedUnavailableCameraRoute = unavailableCameraSuggestion.map {
+            SettingsSearchSupport.route(for: $0.item, isAvailable: onlyScratchpadAvailable)
+        }
+        expect(unavailableCameraGroups.count == 1
+                && unavailableCameraGroups[0].id == .features
+                && unavailableCameraGroups[0].suggestions.map(\.title) == ["Camera Preview"]
+                && groupedUnavailableCameraRoute?.destination == FeatureSettingsDestination(.features)
+                && groupedUnavailableCameraRoute?.targetFeature == .cameraPreview,
+               "an unavailable utility remains navigable through its exact Features row")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: "automatically", items: availabilityItems,
+                    isAvailable: onlyScratchpadAvailable).isEmpty,
+               "setting fields owned by an unavailable utility stay out of suggestions")
+        let availableScratchpadGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "scratchpad", items: availabilityItems,
+            isAvailable: onlyScratchpadAvailable)
+        expect(availableScratchpadGroups.first?.id == .quickTools
+                && availableScratchpadGroups[0].suggestions.map(\.title)
+                    == ["scratchpad", "Scratchpad Notes"]
+                && availableScratchpadGroups[0].suggestions.first?.item.destination
+                    == FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad),
+               "an installed utility remains searchable on a shared Settings page")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: "Quick Tools", items: availabilityItems,
+                    isAvailable: { _ in false }).isEmpty,
+               "a main page with no installed utilities is not suggested")
 
         let freshSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
                                                                  availableHeight: 1200)
