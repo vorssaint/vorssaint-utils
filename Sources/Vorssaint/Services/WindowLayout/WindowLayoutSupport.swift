@@ -531,19 +531,56 @@ enum WindowLayoutGeometry {
               destinationVisibleFrame.height > 0
         else { return current.integral }
 
-        let widthRatio = min(max(current.width / sourceVisibleFrame.width, 0.08), 1)
-        let heightRatio = min(max(current.height / sourceVisibleFrame.height, 0.08), 1)
-        let xRatio = (current.minX - sourceVisibleFrame.minX) / sourceVisibleFrame.width
-        let yRatio = (current.minY - sourceVisibleFrame.minY) / sourceVisibleFrame.height
+        // Scaling by each screen's size stretches a laptop window across an
+        // ultrawide and squashes it onto a portrait panel. Keep the current
+        // size, only shrinking to fit, and keep the same alignment in the
+        // leftover space. A window that already fills the source still fills
+        // the destination, so Maximize stays Maximize. 8pt matches the
+        // settle tolerance used when judging a placement as stuck.
+        let fillTolerance: CGFloat = 8
+        if current.width >= sourceVisibleFrame.width - fillTolerance,
+           current.height >= sourceVisibleFrame.height - fillTolerance {
+            return destinationVisibleFrame.integral
+        }
 
-        let width = min(destinationVisibleFrame.width, max(1, destinationVisibleFrame.width * widthRatio))
-        let height = min(destinationVisibleFrame.height, max(1, destinationVisibleFrame.height * heightRatio))
-        let unclampedX = destinationVisibleFrame.minX + destinationVisibleFrame.width * xRatio
-        let unclampedY = destinationVisibleFrame.minY + destinationVisibleFrame.height * yRatio
-        let x = min(max(unclampedX, destinationVisibleFrame.minX), destinationVisibleFrame.maxX - width)
-        let y = min(max(unclampedY, destinationVisibleFrame.minY), destinationVisibleFrame.maxY - height)
+        let width = min(destinationVisibleFrame.width, max(1, current.width))
+        let height = min(destinationVisibleFrame.height, max(1, current.height))
+        let x = alignedOrigin(sourceMin: sourceVisibleFrame.minX,
+                              sourceSpan: sourceVisibleFrame.width,
+                              currentMin: current.minX,
+                              currentSpan: current.width,
+                              destinationMin: destinationVisibleFrame.minX,
+                              destinationSpan: destinationVisibleFrame.width,
+                              size: width)
+        let y = alignedOrigin(sourceMin: sourceVisibleFrame.minY,
+                              sourceSpan: sourceVisibleFrame.height,
+                              currentMin: current.minY,
+                              currentSpan: current.height,
+                              destinationMin: destinationVisibleFrame.minY,
+                              destinationSpan: destinationVisibleFrame.height,
+                              size: height)
+        let clampedX = min(max(x, destinationVisibleFrame.minX),
+                           destinationVisibleFrame.maxX - width)
+        let clampedY = min(max(y, destinationVisibleFrame.minY),
+                           destinationVisibleFrame.maxY - height)
+        return CGRect(x: clampedX, y: clampedY, width: width, height: height).integral
+    }
 
-        return CGRect(x: x, y: y, width: width, height: height).integral
+    /// Maps a window's inset along one axis so left/right (or top/bottom)
+    /// alignment is preserved when the size stays the same.
+    private static func alignedOrigin(sourceMin: CGFloat,
+                                      sourceSpan: CGFloat,
+                                      currentMin: CGFloat,
+                                      currentSpan: CGFloat,
+                                      destinationMin: CGFloat,
+                                      destinationSpan: CGFloat,
+                                      size: CGFloat) -> CGFloat {
+        let sourceSlack = sourceSpan - currentSpan
+        if sourceSlack <= 0 {
+            return destinationMin
+        }
+        let t = (currentMin - sourceMin) / sourceSlack
+        return destinationMin + (destinationSpan - size) * t
     }
 
     static func adjacentDisplayIndex(currentIndex: Int,

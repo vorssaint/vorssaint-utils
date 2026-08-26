@@ -4339,14 +4339,31 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rectForDisplay(current: rightHalfWindow,
                                                    sourceVisibleFrame: visibleFrame,
                                                    destinationVisibleFrame: nextDisplayFrame)
-               == CGRect(x: 2400, y: 80, width: 960, height: 1000),
-               "window layout display transfer preserves relative placement and size")
+               == CGRect(x: 2640, y: 80, width: 720, height: 860),
+               "window layout display transfer keeps the window size and right alignment")
         let oversizedWindow = CGRect(x: -40, y: 0, width: 2000, height: 1200)
         expect(WindowLayoutGeometry.rectForDisplay(current: oversizedWindow,
                                                    sourceVisibleFrame: visibleFrame,
                                                    destinationVisibleFrame: nextDisplayFrame)
                == nextDisplayFrame,
                "window layout display transfer clamps oversized windows to the destination visible frame")
+        expect(WindowLayoutGeometry.rectForDisplay(current: visibleFrame,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "display transfer fills the destination when the window already fills the source")
+        let almostFilled = CGRect(x: 4, y: 44, width: 1432, height: 852)
+        expect(WindowLayoutGeometry.rectForDisplay(current: almostFilled,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "display transfer treats a window within settle tolerance of maximize as filling the destination")
+        let ultrawideFrame = CGRect(x: 1440, y: 0, width: 3440, height: 1400)
+        expect(WindowLayoutGeometry.rectForDisplay(current: currentWindow,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 2265, y: 400, width: 800, height: 500),
+               "display transfer does not stretch a laptop window across an ultrawide")
         let horizontalDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: -1200, y: -200, width: 1200, height: 1920),
@@ -4384,12 +4401,12 @@ struct MetricsTests {
         let scaledWindow = WindowLayoutGeometry.rectForDisplay(current: portraitWindow,
                                                                sourceVisibleFrame: portraitFrame,
                                                                destinationVisibleFrame: scaledFrame)
-        expect(scaledWindow == CGRect(x: 1940, y: 350, width: 1000, height: 500)
+        expect(scaledWindow == CGRect(x: 2140, y: 150, width: 600, height: 900)
                 && WindowLayoutGeometry.rectForDisplay(current: scaledWindow,
                                                        sourceVisibleFrame: scaledFrame,
                                                        destinationVisibleFrame: portraitFrame)
                     == portraitWindow,
-               "display transfer preserves relative size and placement across rotated and scaled frames")
+               "display transfer keeps size and alignment across rotated frames")
         expect(WindowLayoutAction.shortcutActions.count == WindowLayoutAction.allCases.count,
                "every window layout action can register a global shortcut")
         expect(WindowLayoutAction.shortcutActions.contains(.previousDisplay)
