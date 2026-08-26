@@ -1230,16 +1230,17 @@ final class ShelfService: ObservableObject {
                 if case let .batch(children) = items[index].payload {
                     var mutable = children
                     if replace(in: &mutable) {
-                        // Mirrors batchItem's own icon derivation (first
-                        // child's icon) so a pile whose first child just
-                        // patched in a video thumbnail shows it too, instead
-                        // of keeping the icon from when the batch was built.
+                        // Re-derives the pile's face from its children the way
+                        // batchItem does, so a pile whose first child just
+                        // patched in a thumbnail shows it too instead of
+                        // keeping the icon from when the batch was built.
                         // Title is intentionally left untouched here.
+                        let face = Self.batchFace(of: mutable)
                         items[index] = Item(id: items[index].id, payload: .batch(mutable),
                                             title: items[index].title,
-                                            icon: mutable.first?.icon ?? symbol("doc.on.doc"),
+                                            icon: face.icon ?? symbol("doc.on.doc"),
                                             isImage: items[index].isImage,
-                                            hasContentThumbnail: mutable.first?.hasContentThumbnail ?? false)
+                                            hasContentThumbnail: face.hasContentThumbnail)
                         return true
                     }
                 }
@@ -1356,6 +1357,10 @@ final class ShelfService: ObservableObject {
         // Only a genuinely external drop counts as an add: mergeInternalDrag
         // reaches the shared merge below too, but that path is a removal
         // plus a reparent of an existing tile, not new content arriving.
+        // Thumbnails follow the same line: a reparented tile was enrolled
+        // when it first arrived, and keeps its id, so a decode still in
+        // flight finds it again through the batch it just moved into.
+        startContentThumbnails(for: additions)
         lastAddedID = dragItems(for: additions).last?.id
         addSerial &+= 1
         return true
@@ -1410,20 +1415,18 @@ final class ShelfService: ObservableObject {
         case video
     }
 
-    /// `deferImageThumbnail` moves an image's decode off the main thread, at
-    /// the cost of the tile wearing its fallback icon for a moment. A single
-    /// interactive drop keeps the inline decode, which is one file's worth of
-    /// work and shows the real thumbnail immediately; restore, which can
-    /// rebuild a whole saved shelf at once, defers instead of holding launch
-    /// for the sum of every image on it.
+    /// `deferImageThumbnail` skips the inline decode and leaves the tile
+    /// wearing its fallback icon until `startContentThumbnails` gets to it.
+    /// Restore sets it, since it can rebuild a whole saved shelf at once and
+    /// should not hold launch for the sum of every image on it. A single
+    /// interactive drop decodes inline instead, which is one file's worth of
+    /// work and shows the real thumbnail immediately, unless the file is one
+    /// `decodesCheaplyInline` rules out.
     private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil,
                           bookmark: Data? = nil, deferImageThumbnail: Bool = false) -> Item {
-        let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "heif", "tiff", "bmp", "webp"]
-        let videoExtensions: Set<String> = ["mp4", "mov", "m4v", "avi", "mkv", "webm", "wmv", "mpg", "mpeg", "3gp"]
-        let isImage = imageExtensions.contains(url.pathExtension.lowercased())
-        let isVideo = videoExtensions.contains(url.pathExtension.lowercased())
+        let isImage = Self.contentThumbnailKind(for: url) == .image
         let fallbackIcon = NSWorkspace.shared.icon(forFile: url.path)
-        let inlineThumbnail = isImage && !deferImageThumbnail
+        let inlineThumbnail = isImage && !deferImageThumbnail && Self.decodesCheaplyInline(url)
             ? ImageThumbnailer.thumbnail(for: url, pointSize: Self.contentThumbnailPointSize)
             : nil
         let icon = inlineThumbnail
@@ -1433,15 +1436,51 @@ final class ShelfService: ObservableObject {
         // so a later move or rename of the file cannot orphan the tile.
         // The flag tracks the icon actually in hand, so an unreadable image
         // (or one still decoding) is not sized as though it had a thumbnail.
-        let item = Item(id: id, payload: .file(url), title: title ?? url.lastPathComponent,
-                        icon: icon, isImage: isImage, hasContentThumbnail: inlineThumbnail != nil,
-                        bookmark: bookmark ?? (try? url.bookmarkData()))
-        if isImage, deferImageThumbnail {
-            patchContentThumbnail(for: url, id: id, kind: .image)
-        } else if isVideo {
-            patchContentThumbnail(for: url, id: id, kind: .video)
+        return Item(id: id, payload: .file(url), title: title ?? url.lastPathComponent,
+                    icon: icon, isImage: isImage, hasContentThumbnail: inlineThumbnail != nil,
+                    bookmark: bookmark ?? (try? url.bookmarkData()))
+    }
+
+    /// Starts a real thumbnail decode for anything shelved wearing a fallback
+    /// icon. Called once an item is actually in `items`, never from
+    /// `fileItem`: a mixed-provider batch (see acceptMixedBatch) does not
+    /// append anything until its slowest provider resolves, so a decode
+    /// started at build time can finish while its own item is still nowhere
+    /// to be found and have nothing to patch.
+    private func startContentThumbnails(for newItems: [Item]) {
+        for item in newItems {
+            switch item.payload {
+            case let .batch(children):
+                startContentThumbnails(for: children)
+            case let .file(url):
+                guard !item.hasContentThumbnail,
+                      let kind = Self.contentThumbnailKind(for: url) else { continue }
+                patchContentThumbnail(for: url, id: item.id, kind: kind)
+            default:
+                continue
+            }
         }
-        return item
+    }
+
+    /// Nil for anything with no frame worth decoding. Classified by UTType
+    /// rather than an extension list: it is the same question NSWorkspace
+    /// already answers to pick the fallback icon, and a hand-kept list both
+    /// misses container types (m2ts, mxf, ogv) and has to be maintained.
+    private static func contentThumbnailKind(for url: URL) -> ContentThumbnailKind? {
+        guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return nil }
+        if type.conforms(to: .image) { return .image }
+        if type.conforms(to: .movie) { return .video }
+        return nil
+    }
+
+    /// Whether an image is cheap enough to decode on the drop itself. Raw
+    /// camera files are not: they come off the sensor needing demosaicing
+    /// rather than the subsampled downscale ImageIO gives a JPEG or a TIFF,
+    /// and a drop should not wait on one. They take the async path instead,
+    /// so the tile wears its generic icon for a moment and patches in.
+    private static func decodesCheaplyInline(_ url: URL) -> Bool {
+        guard let type = UTType(filenameExtension: url.pathExtension.lowercased()) else { return false }
+        return !type.conforms(to: .rawImage)
     }
 
     /// Decodes a real thumbnail off the main thread and swaps it in when it
@@ -1455,25 +1494,11 @@ final class ShelfService: ObservableObject {
             case .image: decoded = await ImageThumbnailer.thumbnail(for: url, pointSize: size)
             case .video: decoded = await VideoThumbnailer.thumbnail(for: url, pointSize: size)
             }
-            guard let decoded, let self else { return }
-            func patch(_ current: Item) {
-                self.replaceItem(Item(id: current.id, payload: current.payload,
-                                      title: current.title, icon: decoded,
-                                      isImage: current.isImage, hasContentThumbnail: true,
-                                      bookmark: current.bookmark))
-            }
-            if let current = self.item(withID: id) {
-                patch(current)
-                return
-            }
-            // In a mixed-provider batch (see acceptMixedBatch), a slower
-            // sibling provider can delay this item's append past the point
-            // where the decode already finished. Give the batch one run-loop
-            // turn to catch up before giving up on the thumbnail, rather
-            // than silently discarding it.
-            try? await Task.sleep(for: .milliseconds(50))
-            guard let current = self.item(withID: id) else { return }
-            patch(current)
+            guard let decoded, let self, let current = self.item(withID: id) else { return }
+            self.replaceItem(Item(id: current.id, payload: current.payload,
+                                  title: current.title, icon: decoded,
+                                  isImage: current.isImage, hasContentThumbnail: true,
+                                  bookmark: current.bookmark))
         }
     }
 
@@ -1535,6 +1560,7 @@ final class ShelfService: ObservableObject {
             return false
         }
         items.append(item)
+        startContentThumbnails(for: [item])
         lastAddedID = item.id
         addSerial &+= 1
         noteInteraction()
@@ -1549,19 +1575,26 @@ final class ShelfService: ObservableObject {
             return false
         }
         items.append(contentsOf: additions)
+        startContentThumbnails(for: additions)
         return true
+    }
+
+    /// What a pile shows: its first child's icon, and that child's thumbnail
+    /// flag along with it. The two travel together because the flag drives
+    /// the tile's image inset, and a real thumbnail drawn at the generic-icon
+    /// inset is visibly undersized. Shared with `replaceItem`, which re-derives
+    /// the same face after patching a child in place.
+    private static func batchFace(of children: [Item]) -> (icon: NSImage?, hasContentThumbnail: Bool) {
+        (children.first?.icon, children.first?.hasContentThumbnail ?? false)
     }
 
     private func batchItem(id: UUID = UUID(), children: [Item]) -> Item {
         let total = children.reduce(0) { $0 + $1.leafCount }
         let title = children.first.map { "\($0.title) +\(max(0, total - 1))" } ?? ""
-        let icon = children.first?.icon ?? symbol("doc.on.doc")
-        // The pile wears its first child's icon, so it has to inherit that
-        // child's thumbnail flag too: the flag drives the tile's image inset,
-        // and a real thumbnail shown at the generic-icon inset is visibly
-        // undersized.
-        return Item(id: id, payload: .batch(children), title: title, icon: icon, isImage: false,
-                    hasContentThumbnail: children.first?.hasContentThumbnail ?? false)
+        let face = Self.batchFace(of: children)
+        return Item(id: id, payload: .batch(children), title: title,
+                    icon: face.icon ?? symbol("doc.on.doc"), isImage: false,
+                    hasContentThumbnail: face.hasContentThumbnail)
     }
 
     private func items(from pasteboard: NSPasteboard) -> [Item] {
@@ -1969,6 +2002,7 @@ final class ShelfService: ObservableObject {
                         return true
                     }
                     self.items = keptRestored + self.items
+                    self.startContentThumbnails(for: keptRestored)
                 }
                 if ShelfPersistenceSupport.needsPersistAfterRestore(
                     restoredIsEmpty: restored.isEmpty,

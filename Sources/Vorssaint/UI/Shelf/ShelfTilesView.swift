@@ -320,7 +320,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
         iconWell.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
         addSubview(iconWell)
 
-        let hasThumbnail = item.isImage || item.hasContentThumbnail
+        // Not `isImage`: an image whose thumbnail has not been decoded yet
+        // (or could not be) is still wearing the generic fallback icon, and
+        // that wants the generic inset until the real frame arrives.
+        let hasThumbnail = item.hasContentThumbnail
         let imageView = NSImageView(frame: iconWell.bounds.insetBy(dx: hasThumbnail ? 4 : 13,
                                                                    dy: hasThumbnail ? 4 : 8))
         imageView.image = item.icon
