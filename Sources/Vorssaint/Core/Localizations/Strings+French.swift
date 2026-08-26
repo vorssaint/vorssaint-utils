@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "À propos",
         tabReleaseNotes: "Nouveautés",
         releaseNotesOnUpdateToggle: "Afficher les nouveautés après mise à jour",
-        whatsNewDontShowAgain: "Ne plus afficher",
         previewSizeLabel: "Taille des aperçus",
         previewSizeNormal: "Normale",
         previewSizeLarge: "Grande",
@@ -749,6 +748,8 @@ extension Strings {
         speedTestFailed: "Échec du test",
 
         monitorShowInPanel: "Afficher dans le panneau",
+        disclosureExpanded: "Développé",
+        disclosureCollapsed: "Réduit",
         panelHideItem: "Masquer du panneau",
         panelShowItem: "Afficher dans le panneau",
         panelHiddenItem: "Masqué",

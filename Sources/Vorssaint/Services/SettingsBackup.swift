@@ -40,7 +40,7 @@ enum SettingsBackup {
     /// Shows the open panel; nil = user cancelled.
     static func runImportPanel() -> URL? {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.propertyList]
+        panel.allowedContentTypes = [.propertyList, .xml]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         NSApp.activate(ignoringOtherApps: true)
@@ -50,7 +50,19 @@ enum SettingsBackup {
 
     /// Reads and validates a backup; nil when the file is not one of ours.
     static func readSettings(at url: URL) -> [String: Any]? {
-        guard let data = try? Data(contentsOf: url),
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer {
+            if accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+        var coordinatedData: Data?
+        let coordinator = NSFileCoordinator()
+        var error: NSError?
+        coordinator.coordinate(readingItemAt: url, options: .withoutChanges, error: &error) { readURL in
+            coordinatedData = try? Data(contentsOf: readURL)
+        }
+        guard let data = coordinatedData ?? (try? Data(contentsOf: url)),
               let payload = try? PropertyListSerialization.propertyList(from: data,
                                                                         options: [],
                                                                         format: nil) as? [String: Any]

@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "情報",
         tabReleaseNotes: "新機能",
         releaseNotesOnUpdateToggle: "アップデート後に新機能を表示",
-        whatsNewDontShowAgain: "今後表示しない",
         previewSizeLabel: "プレビューのサイズ",
         previewSizeNormal: "標準",
         previewSizeLarge: "大",
@@ -749,6 +748,8 @@ extension Strings {
         speedTestFailed: "テストに失敗しました",
 
         monitorShowInPanel: "パネルに表示",
+        disclosureExpanded: "展開済み",
+        disclosureCollapsed: "折りたたみ済み",
         panelHideItem: "パネルで非表示",
         panelShowItem: "パネルに表示",
         panelHiddenItem: "非表示",

@@ -342,9 +342,11 @@ enum SwitcherSupport {
     }
 
     /// The simple switcher follows the existing one-entry-per-app choice.
-    /// With grouping off, its icon row represents windows directly.
-    static func usesWindowRow(simpleMode: Bool, mergeWindowsByApp: Bool) -> Bool {
-        simpleMode && !mergeWindowsByApp
+    /// With grouping off or a window-scoped session, its row represents windows directly.
+    static func usesWindowRow(simpleMode: Bool,
+                              mergeWindowsByApp: Bool,
+                              sessionScope: SwitcherSessionScope) -> Bool {
+        simpleMode && (!mergeWindowsByApp || sessionScope == .frontmostApp)
     }
 
     static func usesAppGroupsForMainShortcut(iconRowLayout: Bool,
@@ -795,6 +797,11 @@ enum SwitcherSupport {
         if delta < 0 { return first }
         return min(itemCount - 1, first + min(visible, itemCount) - 1)
     }
+
+    /// A Tab this close behind a Shift-press step is the same physical chord
+    /// and must not step again; later Tabs during the Shift hold keep walking
+    /// the list (issue #784).
+    static let shiftBackChordWindow: TimeInterval = 0.35
 
     static func selectedPreviewPlacement(appCount rawAppCount: Int,
                                          selectedAppIndex rawSelectedAppIndex: Int,

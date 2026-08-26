@@ -10,13 +10,17 @@ struct ShortcutsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
-    @State private var expandedFeatures: Set<AppFeature> = []
+    @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
     private var availableRoles: [GlobalShortcutRole] {
         GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable })
+    }
+
+    private var captureRoles: [GlobalShortcutRole] {
+        GlobalShortcutRole.captureRoles(in: availableRoles)
     }
 
     private var visibleGroups: [FeatureGroup] {
@@ -37,7 +41,9 @@ struct ShortcutsSettings: View {
             ForEach(visibleGroups, id: \.self) { group in
                 Section(groupTitle(group)) {
                     ForEach(featuresWithShortcuts(in: group), id: \.self) { feature in
-                        if feature == .soundOutputSwitcher {
+                        if feature == .screenshot {
+                            captureGroupRows
+                        } else if feature == .soundOutputSwitcher {
                             featureRows(feature)
                                 .settingsSectionAnchor(.soundOutputSwitcher)
                         } else {
@@ -52,8 +58,31 @@ struct ShortcutsSettings: View {
 
     private func featuresWithShortcuts(in group: FeatureGroup) -> [AppFeature] {
         AppFeature.features(in: group).filter { feature in
-            (feature.isAvailable || availableRoles.contains { $0.feature == feature })
+            // The screenshot slot anchors the combined capture group; the
+            // other capture tools render inside it instead of on their own.
+            if feature == .screenshot { return !captureRoles.isEmpty }
+            if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
+            return (feature.isAvailable || availableRoles.contains { $0.feature == feature })
                 && (feature == .windowLayout || availableRoles.contains { $0.feature == feature })
+        }
+    }
+
+    /// One group for every capture tool's shortcut. Rows keep each tool's own
+    /// icon; the group carries the shared page's name and symbol.
+    @ViewBuilder
+    private var captureGroupRows: some View {
+        let roles = captureRoles
+        disclosureHeader(
+            title: FeatureStrings.screenshot(l10n.language).screenCaptureTitle,
+            symbolName: AppFeature.screenshot.symbolName,
+            isActive: featureHasActiveShortcut(.screenshot, roles: roles),
+            count: roles.count,
+            isExpanded: expansionBinding(for: .screenshot))
+        if expandedFeatures.contains(.screenshot) {
+            ForEach(roles) { role in
+                roleRow(role, showsFeatureContext: false)
+                    .disclosureIndent()
+            }
         }
     }
 
@@ -62,7 +91,13 @@ struct ShortcutsSettings: View {
         let roles = availableRoles.filter { $0.feature == feature }
         let count = feature == .windowLayout ? WindowLayoutAction.shortcutActions.count : roles.count
         if count > 1 {
-            DisclosureGroup(isExpanded: expansionBinding(for: feature)) {
+            disclosureHeader(
+                title: feature.hubTitle(l10n.s, hub: hub),
+                symbolName: feature.symbolName,
+                isActive: featureHasActiveShortcut(feature, roles: roles),
+                count: count,
+                isExpanded: expansionBinding(for: feature))
+            if expandedFeatures.contains(feature) {
                 if feature == .windowLayout {
                     ForEach(WindowLayoutAction.shortcutActions) { action in
                         CentralWindowLayoutShortcutRow(
@@ -73,29 +108,13 @@ struct ShortcutsSettings: View {
                             superKeyModifiers: superKey.modifiers,
                             text: text
                         )
+                        .disclosureIndent()
                     }
                 } else {
                     ForEach(roles) { role in
                         roleRow(role, showsFeatureContext: false)
+                            .disclosureIndent()
                     }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    ShortcutRowLabel(
-                        title: feature.hubTitle(l10n.s, hub: hub),
-                        symbolName: feature.symbolName,
-                        contextLabel: nil,
-                        statusText: featureHasActiveShortcut(feature, roles: roles)
-                            ? text.active : text.inactive,
-                        statusIsActive: featureHasActiveShortcut(feature, roles: roles)
-                    )
-                    Spacer()
-                    Text("\(count)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.primary.opacity(0.06)))
                 }
             }
         } else if let role = roles.first {
@@ -103,12 +122,33 @@ struct ShortcutsSettings: View {
         }
     }
 
+    private func disclosureHeader(title: String,
+                                  symbolName: String,
+                                  isActive: Bool,
+                                  count: Int,
+                                  isExpanded: Binding<Bool>) -> some View {
+        DisclosureHeaderRow(isExpanded: isExpanded) {
+            ShortcutRowLabel(
+                title: title,
+                symbolName: symbolName,
+                contextLabel: nil,
+                statusText: isActive ? text.active : text.inactive,
+                statusIsActive: isActive
+            )
+            Spacer()
+            Text("\(count)")
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(Color.primary.opacity(0.06)))
+        }
+    }
+
     private func roleRow(_ role: GlobalShortcutRole,
                          showsFeatureContext: Bool = true) -> some View {
         let title = role.title(l10n.s)
-        let featureTitle = role == .screenshot
-            ? title
-            : role.feature.hubTitle(l10n.s, hub: hub)
+        let featureTitle = role.feature.hubTitle(l10n.s, hub: hub)
         let active = role.requiredEnableKeys.allSatisfy {
             UserDefaults.standard.bool(forKey: $0)
         }
@@ -127,11 +167,7 @@ struct ShortcutsSettings: View {
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
             },
             onChange: {
-                if role == .screenshot {
-                    ScreenCaptureService.shared.syncWithPreferences()
-                } else {
-                    FeatureRuntime.shared.sync([role.feature])
-                }
+                FeatureRuntime.shared.sync([role.feature])
             }
         )
     }

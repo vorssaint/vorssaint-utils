@@ -275,6 +275,23 @@ enum CommandBarPreferences {
         pins.filter { available.contains($0) }
     }
 
+    /// Settings lists the same pins the empty bar would, except an app or
+    /// folder that is not on this Mac right now still appears so it can be
+    /// taken off. A hub feature that was uninstalled does not: its row is
+    /// gone, and leaving the id behind reads as a broken pin.
+    static func listedPins(_ pins: [String], present: Set<String>) -> [String] {
+        pins.filter { present.contains($0) || !isHubOwned($0) }
+    }
+
+    private static func isHubOwned(_ rowID: String) -> Bool {
+        switch source(ofRowID: rowID) {
+        case .actions, .settingsPages, .snippets: return true
+        case .apps, .menus, .windows, .quitApps, .macSettings, .clipboard, .emoji,
+             .folders, .answers, .calculator, .selection, .links, .files, .killProcess:
+            return false
+        }
+    }
+
     // MARK: - Rows the person never wants to see
 
     static func decodeHidden(_ raw: String) -> Set<String> {

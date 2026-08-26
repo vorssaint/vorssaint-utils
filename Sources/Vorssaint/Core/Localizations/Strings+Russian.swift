@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "О программе",
         tabReleaseNotes: "Что нового",
         releaseNotesOnUpdateToggle: "Показывать изменения после обновления",
-        whatsNewDontShowAgain: "Больше не показывать",
         previewSizeLabel: "Размер превью",
         previewSizeNormal: "Обычный",
         previewSizeLarge: "Большой",
@@ -750,6 +749,8 @@ extension Strings {
         speedTestFailed: "Тест не удался",
 
         monitorShowInPanel: "Показывать в панели",
+        disclosureExpanded: "Развёрнуто",
+        disclosureCollapsed: "Свёрнуто",
         panelHideItem: "Скрыть из панели",
         panelShowItem: "Показать в панели",
         panelHiddenItem: "Скрыто",

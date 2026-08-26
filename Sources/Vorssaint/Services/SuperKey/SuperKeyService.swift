@@ -24,6 +24,9 @@ final class SuperKeyService: ObservableObject {
 
     /// True while the key is actually working: tap up and mapping applied.
     @Published private(set) var isRunning = false
+    /// What stopped the mapping, while it is stopped. The feature has several
+    /// reasons to refuse, and none of them is visible in the key itself.
+    @Published private(set) var mappingFailure: SuperKeyMappingFailure?
     @Published private(set) var modifiers = SuperKeySupport.defaultModifiers
 
     /// Read by the shortcut recording tap, which sits ahead of this one while a
@@ -45,6 +48,23 @@ final class SuperKeyService: ObservableObject {
     // window enumeration and every other main-thread task.
     private let lifecycleLock = NSLock()
     private var tap: CFMachPort?
+    private var mouseTap: CFMachPort?
+    /// How many times in a row the mouse tap was asked for and refused. A
+    /// refusal is otherwise indistinguishable from never having asked, and the
+    /// keyboard half would keep working with drag chords quietly still broken.
+    /// Only the first one counts as a dead tap: the cure is a full rebuild, and
+    /// that takes the healthy keyboard tap down with it, dropping held-key
+    /// state and letting events through untapped for the gap. A system that
+    /// refuses once refuses the retry too, so one is all it is worth — after
+    /// that the mouse half stays broken and the keyboard half is left alone.
+    /// Back to zero only when a tap is actually created, so a refusal after a
+    /// working stretch is a new episode with its own single retry.
+    private var mouseTapRefusals = 0
+    /// The presses the mouse tap watches, one list for both the tap mask and
+    /// classify, so a button added later is added in one place.
+    private static let mouseDownTypes: [CGEventType] = [
+        .leftMouseDown, .rightMouseDown, .otherMouseDown,
+    ]
     private var tapRunLoop: CFRunLoop?
     private var tapThread: Thread?
     private var shouldStopTapThread = false
@@ -104,7 +124,17 @@ final class SuperKeyService: ObservableObject {
         }
         // A tap the system disabled (Accessibility revoked and granted again)
         // never revives on its own; rebuild it instead of keeping the corpse.
-        if let tap = lifecycleLock.withLock({ tap }), !CGEvent.tapIsEnabled(tap: tap) {
+        // A mouse tap the system refused counts as dead too, or it would stay
+        // missing for the rest of the run with nothing to notice — but only
+        // the first refusal does, or every sync from here on would tear the
+        // working keyboard tap down to ask a question already answered.
+        let deadTap = lifecycleLock.withLock { () -> Bool in
+            let keyboardDead = tap.map { !CGEvent.tapIsEnabled(tap: $0) } ?? false
+            let mouseDead = mouseTap.map { !CGEvent.tapIsEnabled(tap: $0) }
+                ?? (mouseTapRefusals == 1)
+            return keyboardDead || mouseDead
+        }
+        if deadTap {
             stop()
         }
         start()
@@ -147,12 +177,13 @@ final class SuperKeyService: ObservableObject {
 
     private func stop(synchronously: Bool = false) {
         let snapshot = lifecycleLock.withLock {
-            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
+            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, mouseTap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
             pendingTapRestart = false
-            return (tapRunLoop, tap, tapThread != nil)
+            return (tapRunLoop, tap, mouseTap, tapThread != nil)
         }
         if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let mouseTap = snapshot.mouseTap { CGEvent.tapEnable(tap: mouseTap, enable: false) }
         if let runLoop = snapshot.runLoop {
             CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
                 CFRunLoopStop(runLoop)
@@ -172,6 +203,7 @@ final class SuperKeyService: ObservableObject {
         }
         clearLeftoverMapping(synchronously: synchronously)
         isRunning = false
+        setMappingFailure(nil)
     }
 
     private func runEventTap() {
@@ -218,9 +250,49 @@ final class SuperKeyService: ObservableObject {
             CFRunLoopAddSource(runLoop, source, .commonModes)
             CGEvent.tapEnable(tap: tap, enable: true)
 
+            // Mouse button presses need the modifiers too — a drag chord like
+            // "move and resize by dragging" reads them off the mouse-down, not
+            // off any keyboard event (#888). They are stamped from a separate
+            // tap at the HID stage, which runs before every session tap
+            // regardless of creation order, so consumers in this process and
+            // clicks delivered to other apps both see the held modifiers.
+            // Moves and drags stay out of the mask: chords are read on the
+            // press, and per-move tap work is a known stutter source. Middle,
+            // back and forward are in: their consumers read the button number
+            // and set their own flags on anything they send on, so a stamped
+            // press changes nothing for them and every mouse shortcut is
+            // reached by the same chord as every other click.
+            let mouseMask = Self.mouseDownTypes.reduce(CGEventMask(0)) {
+                $0 | (CGEventMask(1) << $1.rawValue)
+            }
+            let mouseTap = CGEvent.tapCreate(
+                tap: .cghidEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: mouseMask,
+                callback: { _, type, event, userInfo in
+                    guard let userInfo else { return Unmanaged.passUnretained(event) }
+                    let service = Unmanaged<SuperKeyService>.fromOpaque(userInfo)
+                        .takeUnretainedValue()
+                    return service.handle(type: type, event: event)
+                },
+                userInfo: Unmanaged.passUnretained(self).toOpaque()
+            )
+            var mouseSource: CFRunLoopSource?
+            lifecycleLock.withLock {
+                self.mouseTap = mouseTap
+                self.mouseTapRefusals = mouseTap == nil ? self.mouseTapRefusals + 1 : 0
+            }
+            if let mouseTap {
+                mouseSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, mouseTap, 0)
+                CFRunLoopAddSource(runLoop, mouseSource, .commonModes)
+                CGEvent.tapEnable(tap: mouseTap, enable: true)
+            }
+
             DispatchQueue.main.async { [weak self] in self?.tapDidStart(tap) }
             if lifecycleLock.withLock({ shouldStopTapThread }) {
                 CGEvent.tapEnable(tap: tap, enable: false)
+                if let mouseTap { CGEvent.tapEnable(tap: mouseTap, enable: false) }
             } else {
                 CFRunLoopRun()
             }
@@ -228,6 +300,11 @@ final class SuperKeyService: ObservableObject {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
             CFMachPortInvalidate(tap)
+            if let mouseTap {
+                CGEvent.tapEnable(tap: mouseTap, enable: false)
+                if let mouseSource { CFRunLoopRemoveSource(runLoop, mouseSource, .commonModes) }
+                CFMachPortInvalidate(mouseTap)
+            }
             if clearEventTapThread() { startOnMain() }
         }
     }
@@ -236,6 +313,10 @@ final class SuperKeyService: ObservableObject {
         lifecycleLock.withLock {
             let shouldRestart = pendingTapRestart
             tap = nil
+            mouseTap = nil
+            // mouseTapRefusals deliberately stays: it has to outlive the
+            // teardown its own count asked for, or the rebuild it triggers
+            // would clear the count and ask again for the rest of the run.
             tapRunLoop = nil
             tapThread = nil
             shouldStopTapThread = false
@@ -291,7 +372,7 @@ final class SuperKeyService: ObservableObject {
 
     private func applyMapping(_ enabled: Bool,
                               synchronously: Bool = false,
-                              completion: ((Bool) -> Void)? = nil) {
+                              completion: ((SuperKeyMappingFailure?) -> Void)? = nil) {
         stateLock.withLock {
             lastMappingAt = ProcessInfo.processInfo.systemUptime
             if enabled { pendingMappingEnableCount += 1 }
@@ -300,14 +381,14 @@ final class SuperKeyService: ObservableObject {
             guard let self else { return }
             let defaults = UserDefaults.standard
             let previousMarker = defaults.bool(forKey: DefaultsKey.superKeyMappingApplied)
-            let confirmed = self.performMapping(
+            let failure = self.performMapping(
                 enabled,
                 ownsExistingMapping: previousMarker
             )
             if !enabled {
                 let marker = SuperKeySupport.mappingMarkerAfterClear(
                     previous: previousMarker,
-                    readbackConfirmed: confirmed
+                    readbackConfirmed: failure == nil
                 )
                 defaults.set(marker, forKey: DefaultsKey.superKeyMappingApplied)
             }
@@ -315,7 +396,7 @@ final class SuperKeyService: ObservableObject {
                 self.stateLock.withLock { self.pendingMappingEnableCount -= 1 }
             }
             if let completion {
-                DispatchQueue.main.async { completion(confirmed) }
+                DispatchQueue.main.async { completion(failure) }
             }
         }
         if synchronously {
@@ -325,49 +406,37 @@ final class SuperKeyService: ObservableObject {
         }
     }
 
-    private func performMapping(_ enabled: Bool, ownsExistingMapping: Bool) -> Bool {
-        let includeNoAction: Bool
-        if enabled {
-            let modifierReport = Shell.run(
-                hidutilPath,
-                ["property", "--matching", keyboardMatch,
-                 "--get", SuperKeySupport.modifierMappingProperty]
-            )
-            guard modifierReport.status == 0 else { return false }
-            guard let modifierMappings = SuperKeySupport.consistentMappings(
-                modifierReport.output,
-                property: SuperKeySupport.modifierMappingProperty
-            ) else { return false }
-            guard SuperKeySupport.modifierMappingsAllowSuperKey(modifierMappings)
-            else { return false }
-            includeNoAction = SuperKeySupport.canMapNoAction(from: modifierMappings)
-        } else {
-            includeNoAction = false
-        }
+    /// Applies or clears the mapping, and answers with the reason it could not
+    /// be done, or nil when it was.
+    ///
+    /// The Modifier Keys rules are not read: hidd keeps
+    /// `HIDKeyboardModifierMappingPairs` per client connection, so asking for
+    /// it from here answers null whatever the user set in System Settings.
+    private func performMapping(_ enabled: Bool,
+                                ownsExistingMapping: Bool) -> SuperKeyMappingFailure? {
         let report = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
-        guard report.status == 0 else { return false }
+        guard report.status == 0 else { return .systemRefused }
         guard let existing = SuperKeySupport.consistentMappings(
             report.output,
             property: SuperKeySupport.userMappingProperty,
             ownsExistingMapping: ownsExistingMapping
-        ) else { return false }
+        ) else { return .foreignMapping }
         guard !enabled || !SuperKeySupport.hasMappingConflict(
             in: existing,
             ownsExistingMapping: ownsExistingMapping
         )
-        else { return false }
+        else { return .foreignMapping }
         let wanted = SuperKeySupport.mappings(
             enablingSuperKey: enabled,
             existing: existing,
-            includeNoAction: includeNoAction,
             ownsExistingMapping: ownsExistingMapping
         )
         if !enabled, !ownsExistingMapping,
-           SuperKeySupport.mappingsMatch(existing, wanted) { return true }
+           SuperKeySupport.mappingsMatch(existing, wanted) { return nil }
         if enabled {
             // Recovery is write-ahead only after every external-mapping check
             // passed. A crash after the command starts must leave the next
@@ -379,34 +448,55 @@ final class SuperKeyService: ObservableObject {
             ["property", "--matching", keyboardMatch,
              "--set", SuperKeySupport.mappingArgument(wanted)]
         )
-        guard write.status == 0 else { return false }
+        guard write.status == 0 else { return .systemRefused }
         let readback = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
-        guard readback.status == 0 else { return false }
+        guard readback.status == 0 else { return .systemRefused }
         return SuperKeySupport.mappingReportConfirms(readback.output, expected: wanted)
+            ? nil
+            : .systemRefused
     }
 
     private func confirmMapping(for expectedTap: CFMachPort, publishingRunState: Bool) {
-        applyMapping(true) { [weak self] confirmed in
+        applyMapping(true) { [weak self] failure in
             guard let self else { return }
             let active = self.lifecycleLock.withLock {
                 self.tap === expectedTap && !self.shouldStopTapThread
             }
             guard active else { return }
-            guard confirmed else {
-                if publishingRunState { self.stop() }
+            guard let failure else {
+                self.setMappingFailure(nil)
+                if publishingRunState || !self.isRunning { self.finishStart() }
                 return
             }
-            guard publishingRunState else { return }
-            // Caps Lock left on would have no way back once the key stops locking.
-            self.setCapsLock(false)
-            self.observeWake()
-            self.isRunning = true
-            Self.isEngaged = true
+            // A repair that fails leaves the tap up so the next keystroke can
+            // try again. The key is not working, so isRunning goes false and
+            // the page can show the reason. stop() would clear that reason.
+            if publishingRunState {
+                self.stop()
+            } else {
+                self.isRunning = false
+            }
+            self.setMappingFailure(failure)
         }
+    }
+
+    private func finishStart() {
+        // Caps Lock left on would have no way back once the key stops locking.
+        setCapsLock(false)
+        observeWake()
+        isRunning = true
+        Self.isEngaged = true
+    }
+
+    /// Repair runs every few seconds while typing; republishing an unchanged
+    /// reason would redraw Settings just as often.
+    private func setMappingFailure(_ failure: SuperKeyMappingFailure?) {
+        guard mappingFailure != failure else { return }
+        mappingFailure = failure
     }
 
     /// A keyboard that arrives after the mapping was applied still locks; the
@@ -430,13 +520,15 @@ final class SuperKeyService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            let currentTaps = lifecycleLock.withLock {
+                shouldStopTapThread ? (nil, nil) : (tap, mouseTap)
+            }
+            if let currentTap = currentTaps.0 { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            if let currentMouseTap = currentTaps.1 { CGEvent.tapEnable(tap: currentMouseTap, enable: true) }
             forgetHeldKey()
             return Unmanaged.passUnretained(event)
         }
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
-        let event0 = SuperKeyService.classify(type: type, keyCode: keyCode, event: event)
+        let event0 = SuperKeyService.classify(type: type, event: event)
         let decision = stateLock.withLock { state.decide(event0) }
         // Only the key's own events say it is still down: the first press and
         // the repeats the system sends while it is held. Keys pressed meanwhile
@@ -528,7 +620,14 @@ final class SuperKeyService: ObservableObject {
         }
     }
 
-    private static func classify(type: CGEventType, keyCode: Int64, event: CGEvent) -> SuperKeySupport.Event {
+    private static func classify(type: CGEventType, event: CGEvent) -> SuperKeySupport.Event {
+        // A mouse press while the key is held behaves like any other key: the
+        // modifiers ride along and the press cancels the solo action. Answered
+        // above the keycode read on purpose: a mouse event carries no keycode
+        // and the field reads back as 0 on one, which is the keycode for A.
+        // Kept here, no caller can hand that phantom key to anything.
+        if mouseDownTypes.contains(type) { return .otherKey }
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .flagsChanged {
             return keyCode == SuperKeySupport.capsLockKeyCode ? .capsLock : .otherModifier
         }

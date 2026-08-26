@@ -39,7 +39,9 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionIndex = 0
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
-    @Published private(set) var quickPreviewPresented = false
+    @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
+        forKey: DefaultsKey.clipboardHistoryQuickPreview
+    )
 
     private var timer: Timer?
     private var lastChangeCount = 0
@@ -95,81 +97,101 @@ final class ClipboardHistoryService: ObservableObject {
         lastChangeCount = max(lastChangeCount, changeCount)
     }
 
-    @discardableResult
-    func copy(_ entry: ClipboardHistoryEntry) -> Bool {
-        guard writeToPasteboard([entry]) else { return false }
-        touch([entry.id])
-        return true
+    func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
+        writeToPasteboard([entry]) { [weak self] copied in
+            if copied { self?.touch([entry.id]) }
+            completion(copied)
+        }
     }
 
-    @discardableResult
-    func copy(_ selectedEntries: [ClipboardHistoryEntry]) -> Bool {
-        guard !selectedEntries.isEmpty, writeToPasteboard(selectedEntries) else { return false }
-        touch(selectedEntries.map(\.id))
-        return true
+    func copy(_ selectedEntries: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
+        guard !selectedEntries.isEmpty else {
+            completion(false)
+            return
+        }
+        writeToPasteboard(selectedEntries) { [weak self] copied in
+            if copied { self?.touch(selectedEntries.map(\.id)) }
+            completion(copied)
+        }
     }
 
-    /// Resolves the payload before touching the pasteboard: a stale entry
-    /// (image purged from the store, files deleted or on an ejected volume)
-    /// must abort with the user's current clipboard intact, not after a
-    /// clearContents() already destroyed it.
-    private func writeToPasteboard(_ list: [ClipboardHistoryEntry]) -> Bool {
-        GeneralPasteboardAccess.shared.sync {
+    /// Puts the entries on the general pasteboard through the shared lane and
+    /// reports on the main queue. The caller never waits: a lane wedged behind
+    /// an app that promised pasteboard content and stopped answering delays
+    /// the copy instead of freezing the app (issue #887).
+    private func writeToPasteboard(_ list: [ClipboardHistoryEntry],
+                                   completion: @escaping (Bool) -> Void) {
+        guard let write = Self.plannedWrite(for: list) else {
+            completion(false)
+            return
+        }
+        GeneralPasteboardAccess.shared.async({ () -> Int in
             let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            write(pasteboard)
+            return pasteboard.changeCount
+        }, then: { [weak self] changeCount in
+            // lastChangeCount stays owned by the main queue, where the capture
+            // poll compares against it. Assigning it on the lane would let a
+            // copy's own change count land after the poll had already read the
+            // old one, and history would record the app's own write as a new
+            // copy by the user.
+            if let self { self.lastChangeCount = max(self.lastChangeCount, changeCount) }
+            completion(true)
+        })
+    }
 
-            if list.count == 1, let entry = list.first {
-                switch entry.kind {
-                case .text:
-                    pasteboard.clearContents()
-                    pasteboard.setString(entry.text, forType: .string)
-                case .image:
-                    guard let name = entry.imageFile,
-                          let data = ClipboardImageStore.imageData(named: name) else { return false }
-                    pasteboard.clearContents()
+    /// What to put on the pasteboard once it is cleared, or nil when the
+    /// content is gone (image purged from the store, files deleted or on an
+    /// ejected volume) and the copy must abort with the user's clipboard
+    /// intact. Resolving on the caller's thread also keeps the AppKit work a
+    /// write may need — RTFD attachments, TIFF rendering — on the main thread
+    /// it has always run on; only the pasteboard calls move to the lane.
+    private static func plannedWrite(for list: [ClipboardHistoryEntry])
+        -> ((NSPasteboard) -> Void)? {
+        if list.count == 1, let entry = list.first {
+            switch entry.kind {
+            case .text:
+                return { $0.setString(entry.text, forType: .string) }
+            case .image:
+                guard let name = entry.imageFile,
+                      let data = ClipboardImageStore.imageData(named: name) else { return nil }
+                // TIFF alongside PNG: some paste targets only take TIFF.
+                let tiff = NSBitmapImageRep(data: data)?.tiffRepresentation
+                return { pasteboard in
                     pasteboard.setData(data, forType: .png)
-                    // TIFF alongside PNG: some paste targets only take TIFF.
-                    if let tiff = NSBitmapImageRep(data: data)?.tiffRepresentation {
-                        pasteboard.setData(tiff, forType: .tiff)
-                    }
-                case .files:
-                    let urls = entry.filePaths
-                        .map { URL(fileURLWithPath: $0) }
-                        .filter { FileManager.default.fileExists(atPath: $0.path) }
-                    guard !urls.isEmpty else { return false }
-                    pasteboard.clearContents()
-                    pasteboard.writeObjects(urls as [NSURL])
+                    if let tiff { pasteboard.setData(tiff, forType: .tiff) }
                 }
-                lastChangeCount = pasteboard.changeCount
-                return true
-            }
-
-            // Batches: an all-files selection pastes as the files themselves; a
-            // selection with images pastes as rich text with the images embedded;
-            // anything else combines as text (files contribute paths).
-            switch ClipboardHistoryBatch.pasteMode(for: list) {
-            case let .files(paths):
-                let urls = paths.map { URL(fileURLWithPath: $0) }
+            case .files:
+                let urls = entry.filePaths
+                    .map { URL(fileURLWithPath: $0) }
                     .filter { FileManager.default.fileExists(atPath: $0.path) }
-                guard !urls.isEmpty else { return false }
-                pasteboard.clearContents()
-                pasteboard.writeObjects(urls as [NSURL])
-            case let .text(combined):
-                pasteboard.clearContents()
-                pasteboard.setString(combined, forType: .string)
-            case let .rich(parts):
-                guard let rich = Self.richBatchAttributedString(parts) else { return false }
-                pasteboard.clearContents()
-                pasteboard.writeObjects([rich])
-                let plain = ClipboardHistoryBatch.richPlainText(parts)
-                if !plain.isEmpty {
-                    pasteboard.setString(plain, forType: .string)
-                }
-            case nil:
-                guard let first = list.first else { return false }
-                return writeToPasteboard([first])
+                guard !urls.isEmpty else { return nil }
+                return { $0.writeObjects(urls as [NSURL]) }
             }
-            lastChangeCount = pasteboard.changeCount
-            return true
+        }
+
+        // Batches: an all-files selection pastes as the files themselves; a
+        // selection with images pastes as rich text with the images embedded;
+        // anything else combines as text (files contribute paths).
+        switch ClipboardHistoryBatch.pasteMode(for: list) {
+        case let .files(paths):
+            let urls = paths.map { URL(fileURLWithPath: $0) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+            guard !urls.isEmpty else { return nil }
+            return { $0.writeObjects(urls as [NSURL]) }
+        case let .text(combined):
+            return { $0.setString(combined, forType: .string) }
+        case let .rich(parts):
+            guard let rich = richBatchAttributedString(parts) else { return nil }
+            let plain = ClipboardHistoryBatch.richPlainText(parts)
+            return { pasteboard in
+                pasteboard.writeObjects([rich])
+                if !plain.isEmpty { pasteboard.setString(plain, forType: .string) }
+            }
+        case nil:
+            guard let first = list.first else { return nil }
+            return plannedWrite(for: [first])
         }
     }
 
@@ -438,34 +460,41 @@ final class ClipboardHistoryService: ObservableObject {
         quickSelectionIndex = min(max(quickSelectionIndex + delta, 0), count - 1)
     }
 
+    /// The window leaves the screen at once; the paste waits for the write,
+    /// because pasting before it lands would paste whatever the user had
+    /// copied before. A stale entry leaves the clipboard untouched and pastes
+    /// nothing at all.
     func copyQuickEntry(_ entry: ClipboardHistoryEntry) {
-        let copied = copy(entry)
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
-        // A stale entry leaves the clipboard untouched; pasting now would
-        // paste whatever the user had copied before, out of nowhere.
-        guard copied else { return }
-        pasteIntoPreviousApp(target)
+        copy(entry) { [weak self] copied in
+            guard copied else { return }
+            self?.pasteIntoPreviousApp(target)
+        }
     }
 
     func copyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
-        let copied = copy(selectedEntries)
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
-        guard copied else { return }
-        pasteIntoPreviousApp(target)
+        copy(selectedEntries) { [weak self] copied in
+            guard copied else { return }
+            self?.pasteIntoPreviousApp(target)
+        }
     }
 
+    /// No paste follows these two, so nothing has to wait for the write: the
+    /// window closes now and a stale entry simply leaves the clipboard as the
+    /// user left it.
     func copyOnlyQuickEntry(_ entry: ClipboardHistoryEntry) {
-        copy(entry)
+        copy(entry) { _ in }
         hideHistoryWindow()
         pasteTargetApp = nil
     }
 
     func copyOnlyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
-        copy(selectedEntries)
+        copy(selectedEntries) { _ in }
         hideHistoryWindow()
         pasteTargetApp = nil
     }
@@ -951,6 +980,7 @@ final class ClipboardHistoryService: ObservableObject {
     func setQuickPreviewPresented(_ presented: Bool) {
         guard presented != quickPreviewPresented else { return }
         quickPreviewPresented = presented
+        UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         guard let panel, panel.isVisible else { return }
         resize(panel,
                to: presented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize,
@@ -972,7 +1002,6 @@ final class ClipboardHistoryService: ObservableObject {
         quickQuery = ""
         clearQuickBatchSelection()
         resetQuickSelection()
-        quickPreviewPresented = false
         position(panel)
         installKeyMonitor(for: panel)
         installDismissMonitors(for: panel)
@@ -986,7 +1015,6 @@ final class ClipboardHistoryService: ObservableObject {
         removeDismissMonitors()
         panel?.orderOut(nil)
         clearQuickBatchSelection()
-        quickPreviewPresented = false
     }
 
     private func rememberPasteTarget() {
@@ -1027,7 +1055,8 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: Self.quickPanelCompactSize),
+        let initialSize = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
+        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: initialSize),
                             styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
                             backing: .buffered,
                             defer: false)
@@ -1051,14 +1080,14 @@ final class ClipboardHistoryService: ObservableObject {
         // to the panel height a second time.
         host.sizingOptions = []
         panel.contentViewController = host
-        panel.setFrame(NSRect(origin: .zero, size: Self.quickPanelCompactSize),
+        panel.setFrame(NSRect(origin: .zero, size: initialSize),
                        display: false)
         self.panel = panel
         return panel
     }
 
     private func position(_ panel: NSPanel) {
-        let size = Self.quickPanelCompactSize
+        let size = quickPreviewPresented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize
         let screen = NSScreen.pointerVisibleFrame
         let x = screen.midX - size.width / 2
         let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
@@ -1098,14 +1127,9 @@ final class ClipboardHistoryService: ObservableObject {
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
             if event.keyCode == UInt16(kVK_Escape) {
-                // Esc backs out one layer at a time: preview, selection,
-                // then the window.
-                if self.quickPreviewPresented {
-                    self.setQuickPreviewPresented(false)
-                } else if self.quickBatchCount > 0 {
-                    self.clearQuickBatchSelection()
-                } else {
-                    self.hideHistoryWindow()
+                switch ClipboardHistoryEscape.action(batchCount: self.quickBatchCount) {
+                case .clearBatchSelection: self.clearQuickBatchSelection()
+                case .hideWindow: self.hideHistoryWindow()
                 }
                 return nil
             }
@@ -1328,6 +1352,61 @@ enum ClipboardImageStore {
         thumbnails.setObject(image, forKey: name as NSString,
                              cost: cgImage.bytesPerRow * cgImage.height)
         return image
+    }
+
+    static func isImageFile(atPath path: String) -> Bool {
+        ClipboardHistoryImageSupport.isImageFilePath(path)
+    }
+
+    /// Downsampled preview for a copied image file on disk, cached.
+    static func fileThumbnail(atPath path: String, maxPixelSize: CGFloat = 480) -> NSImage? {
+        let key = "file:\(path):\(Int(maxPixelSize))" as NSString
+        if let cached = thumbnails.object(forKey: key) {
+            return cached
+        }
+        guard isImageFile(atPath: path) else { return nil }
+        let url = URL(fileURLWithPath: path)
+        let options = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ] as CFDictionary
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options)
+        else { return nil }
+        let image = NSImage(cgImage: cgImage, size: .zero)
+        thumbnails.setObject(image, forKey: key,
+                             cost: cgImage.bytesPerRow * cgImage.height)
+        return image
+    }
+
+    static func imageDimensions(atPath path: String) -> (width: Int, height: Int)? {
+        guard isImageFile(atPath: path) else { return nil }
+        let url = URL(fileURLWithPath: path)
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        else { return nil }
+        guard let rawWidth = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+              let rawHeight = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue,
+              rawWidth > 0, rawHeight > 0
+        else { return nil }
+        let orientation = (properties[kCGImagePropertyOrientation] as? NSNumber)?.uint32Value ?? 1
+        if (5...8).contains(orientation) {
+            return (rawHeight, rawWidth)
+        }
+        return (rawWidth, rawHeight)
+    }
+
+    static func imageDimensionsLabel(atPath path: String) -> String? {
+        guard let dim = imageDimensions(atPath: path) else { return nil }
+        return "\(dim.width)×\(dim.height)"
+    }
+
+    static func fileSizeString(atPath path: String) -> String? {
+        guard let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]),
+              let bytes = values.fileSize, bytes >= 0 else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
     static func cleanup(keeping names: Set<String>) {

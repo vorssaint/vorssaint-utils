@@ -42,7 +42,12 @@ struct SuperKeySettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 diagram
-                if enabled, superKey.isRunning {
+                if enabled, let failure = superKey.mappingFailure {
+                    Label(text.mappingFailure(failure),
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if enabled, superKey.isRunning {
                     Label(text.activeNow, systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)

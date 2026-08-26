@@ -159,8 +159,17 @@ final class AutoQuitService: ObservableObject {
         // it: typing dies system wide (issue #189). Give up fast and retry
         // with growing spacing until the app services its run loop again.
         AXUIElementSetMessagingTimeout(appElement, 0.35)
-        var role: CFTypeRef?
-        if AXUIElementCopyAttributeValue(appElement, kAXRoleAttribute as CFString, &role) == .cannotComplete {
+        // The probe asks for windows rather than the application's role. A
+        // Chromium app (Electron, and the browsers) answers a role query on its
+        // application element by switching its renderers into full
+        // accessibility mode, and from then on it rebuilds and ships an
+        // accessibility tree on every DOM change for the life of the process —
+        // a few percent of a core, forever, in an app this feature only ever
+        // needed a window count from (issue #953). Windows are the same
+        // liveness signal, are what the refresh below reads anyway, and leave
+        // that mode alone; WindowEnumerator probes the same way.
+        var windows: CFTypeRef?
+        if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windows) == .cannotComplete {
             guard attempt < 6 else { retryingApps.remove(pid); return }
             retryingApps.insert(pid)
             let delay = 5.0 * pow(2.0, Double(attempt))
@@ -696,7 +705,23 @@ final class AutoQuitService: ObservableObject {
         return element
     }
 
+
+    /// An application element answers a role query by switching a Chromium app's
+    /// renderers into full accessibility mode for the rest of the process's life
+    /// (issue #953), so it must never be asked for one. Its own pid names it:
+    /// the element built from that pid is the same element, since Accessibility
+    /// compares by value rather than by identity. Asking each element for its
+    /// own pid also keeps this right where a parent chain crosses processes,
+    /// which a sentinel built once from the starting element would miss.
+    private static func isApplicationElement(_ element: AXUIElement) -> Bool {
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        guard pid != 0 else { return false }
+        return CFEqual(element, AXUIElementCreateApplication(pid))
+    }
+
     private static func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
+        guard !isApplicationElement(element) else { return nil }
         if role(of: element) == (kAXWindowRole as String) { return element }
         if let window = windowAttribute(element, kAXWindowAttribute as String),
            role(of: window) == (kAXWindowRole as String) {
@@ -707,9 +732,16 @@ final class AutoQuitService: ObservableObject {
             return window
         }
 
+        // The chain above a window is the application element itself, so an
+        // element that never yields a window — a menu bar item, a detached
+        // palette — walks onto it. Asking that element for a role is what puts
+        // a Chromium app's renderers into full accessibility mode for the rest
+        // of the process's life (issue #953), so stop there instead: the walk
+        // already ends with no window in that case.
         var current = element
         for _ in 0..<8 {
             guard let parent = windowAttribute(current, kAXParentAttribute as String) else { return nil }
+            if isApplicationElement(parent) { return nil }
             if role(of: parent) == (kAXWindowRole as String) { return parent }
             current = parent
         }

@@ -12,6 +12,11 @@ enum QuickToolHUD {
     private static var scrollingPanel: ScrollingCapturePanel?
     private static var scrollingModel: ScrollingCaptureHUDModel?
     private static var dismissWork: DispatchWorkItem?
+    /// How wide a message is allowed to get, on either of this file's two
+    /// message panels. A confirmation is read at a
+    /// glance, so anything past this is a preview rather than the whole value;
+    /// a short one still sizes to itself and is not padded out to this width.
+    fileprivate static let messageWidthLimit: CGFloat = 360
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
     private static var generation = 0
@@ -51,6 +56,19 @@ enum QuickToolHUD {
             }
             Text(message)
                 .font(.system(size: 12, weight: .semibold))
+                // What was copied can be a whole paragraph, and the panel is
+                // laid out at whatever the text asks for. Unbounded, one long
+                // line measures wider than the screen and the panel, centred on
+                // that width, hangs off both edges with nothing readable left.
+                //
+                // Truncating at the tail rather than the middle so that the
+                // ellipsis is always drawn: a value whose first paragraph ends
+                // on the second line is cut at a line break, not inside one,
+                // and middle truncation leaves no mark at all there — the
+                // preview then reads as the whole of what was copied.
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: messageWidthLimit, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
@@ -272,6 +290,11 @@ private struct ScrollingCaptureHUDView: View {
                 Text(model.message)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(2)
+                    // Same panel geometry as the confirmation above, so the
+                    // same bound: this one is laid out from fittingSize and
+                    // centred on it too.
+                    .truncationMode(.tail)
+                    .frame(maxWidth: QuickToolHUD.messageWidthLimit, alignment: .leading)
                 Text("\(model.height) px")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)

@@ -9,6 +9,7 @@ import Foundation
 enum DefaultsKey {
     static let language = "appLanguage"                   // AppLanguage.rawValue
     static let appearance = "appAppearance"               // AppAppearance.rawValue
+    static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass visual styling on macOS 26+
     static let clamshellPreferred = "clamshellPreferred"  // apply closed-lid mode to every session
     static let onboardingStep = "onboardingStep"          // resume point if onboarding is interrupted
     static let featuresOnboardingVersion = "featuresOnboardingVersion" // last feature-tour marker handled
@@ -326,11 +327,13 @@ enum DefaultsKey {
     // System monitor — optional notifications for sustained or actionable conditions.
     static let monitorAlertCPU = "monitorAlertCPU"
     static let monitorAlertCPUTemperature = "monitorAlertCPUTemperature"
+    static let monitorAlertBatteryTemperature = "monitorAlertBatteryTemperature"
     static let monitorAlertMemory = "monitorAlertMemory"
     static let monitorAlertDisk = "monitorAlertDisk"
     static let monitorAlertBattery = "monitorAlertBattery"
     static let monitorAlertCPUThreshold = "monitorAlertCPUThreshold"
     static let monitorAlertCPUTemperatureThreshold = "monitorAlertCPUTemperatureThreshold"
+    static let monitorAlertBatteryTemperatureThreshold = "monitorAlertBatteryTemperatureThreshold"
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
@@ -400,6 +403,7 @@ enum DefaultsKey {
     static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
+    static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
 
     // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
     // Deliberately outside the clipboardHistory family, since it clears the
@@ -470,6 +474,7 @@ enum DefaultsKey {
     static let screenshotShortcut = "screenshotShortcut"
     static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
     static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
+    static let orphanedCaptureShortcutMigrated = "orphanedCaptureShortcutMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
@@ -572,6 +577,7 @@ enum DefaultsKey {
     static let radialMenuMouseButton = "radialMenuMouseButton" // RadialMenuMouseTrigger.rawValue
     static let radialMenuActivationMode = "radialMenuActivationMode" // RadialMenuActivationMode.rawValue
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
+    static let radialMenuProfiles = "radialMenuProfiles"  // Data: [RadialMenuProfile] JSON
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
@@ -757,6 +763,7 @@ enum Defaults {
 
     static let registeredDefaults: [String: Any] = [
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
+        DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
@@ -1034,11 +1041,13 @@ enum Defaults {
         DefaultsKey.monitorPwrHealth: true,
         DefaultsKey.monitorAlertCPU: false,
         DefaultsKey.monitorAlertCPUTemperature: false,
+        DefaultsKey.monitorAlertBatteryTemperature: false,
         DefaultsKey.monitorAlertMemory: false,
         DefaultsKey.monitorAlertDisk: false,
         DefaultsKey.monitorAlertBattery: false,
         DefaultsKey.monitorAlertCPUThreshold: 90,
         DefaultsKey.monitorAlertCPUTemperatureThreshold: 90,
+        DefaultsKey.monitorAlertBatteryTemperatureThreshold: 40,
         DefaultsKey.monitorAlertDiskFreePercent: 10,
         DefaultsKey.monitorAlertBatteryPercent: 15,
         DefaultsKey.monitorAlertCooldownMinutes: 15,
@@ -1087,6 +1096,7 @@ enum Defaults {
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
+        DefaultsKey.clipboardHistoryQuickPreview: false,
         DefaultsKey.clipboardAutoClearOnDelay: false,
         DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
         DefaultsKey.clipboardAutoClearOnSleep: false,
@@ -1241,6 +1251,7 @@ enum Defaults {
         migrateScreenshotOpenEditorDirectly(in: defaults)
         migrateUnifiedScreenCaptureShortcut(in: defaults)
         migrateRestoredScreenCaptureShortcuts(in: defaults)
+        migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
     }
@@ -1380,6 +1391,49 @@ enum Defaults {
             defaults.bool(forKey: enabledKey)
                 && defaults.string(forKey: shortcutKey) == generalShortcut
         }) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
+    }
+
+    /// The general capture shortcut now belongs to the screenshot tool, so on
+    /// an install without that tool a saved combination would register
+    /// nothing. Move it once onto the first available tool that has no
+    /// shortcut of its own, so the combination keeps opening the chooser.
+    /// A tool whose shortcut is switched off but was customized still counts
+    /// as having its own, so its saved combination is never overwritten.
+    /// Availability is read from the passed defaults — the same key
+    /// `isAvailable` reads from the standard ones — to stay testable.
+    static func migrateOrphanedCaptureShortcut(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.orphanedCaptureShortcutMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              !defaults.bool(forKey: AppFeature.screenshot.availabilityKey)
+        else { return }
+        let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+            ?? GlobalShortcut.screenshotDefault.storageValue
+
+        let candidates: [(feature: AppFeature, enabled: String,
+                          shortcut: String, unset: String)] = [
+            (.screenRecorder, DefaultsKey.recorderShortcutEnabled,
+             DefaultsKey.recorderShortcut,
+             GlobalShortcut.screenRecorderDefault.storageValue),
+            (.screenOCR, DefaultsKey.screenOCRShortcutEnabled,
+             DefaultsKey.screenOCRShortcut,
+             GlobalShortcut.screenOCRDefault.storageValue),
+            (.colorPicker, DefaultsKey.colorPickerShortcutEnabled,
+             DefaultsKey.colorPickerShortcut,
+             GlobalShortcut.colorPickerDefault.storageValue),
+        ]
+        guard let target = candidates.first(where: {
+            defaults.bool(forKey: $0.feature.availabilityKey)
+                && !defaults.bool(forKey: $0.enabled)
+                && (defaults.string(forKey: $0.shortcut) ?? $0.unset) == $0.unset
+        }) else { return }
+        defaults.set(true, forKey: target.enabled)
+        defaults.set(shortcut, forKey: target.shortcut)
         defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
     }
 

@@ -574,16 +574,18 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             let bounds = CGRect(origin: .zero, size: imageSize)
             if let handle = activeHandle, let origin = cropResizeOrigin {
                 let rect = ScreenshotSupport.resizedRect(origin, dragging: handle, to: point)
-                let clamped = ScreenshotSupport.clamp(rect, to: bounds)
-                cropDraft = clamped
-                cropLoupePoint = handle.position(in: clamped)
+                let snapped = ScreenshotSupport.pixelSnappedCropRect(rect, within: bounds)
+                cropDraft = snapped
+                cropLoupePoint = handle.position(in: snapped)
             } else if cropSelectionOrigin != nil {
-                cropDraft = ScreenshotSupport.clamp(
+                cropDraft = ScreenshotSupport.pixelSnappedCropRect(
                     ScreenshotSupport.selectionRect(from: dragStart, to: point),
-                    to: bounds)
+                    within: bounds)
             } else if let origin = cropMoveOrigin {
                 let delta = CGPoint(x: point.x - dragStart.x, y: point.y - dragStart.y)
-                cropDraft = ScreenshotSupport.movedRect(origin, by: delta, within: bounds)
+                cropDraft = ScreenshotSupport.pixelSnappedCropRect(
+                    ScreenshotSupport.movedRect(origin, by: delta, within: bounds),
+                    within: bounds)
             }
         case .arrow, .line:
             updateDraft { $0.points = [dragStart, point] }
@@ -892,9 +894,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             tool = .select
             return
         }
-        let cropRect = ScreenshotSupport.clamp(
-            draft.integral,
-            to: CGRect(origin: .zero, size: imageSize))
+        let cropRect = ScreenshotSupport.pixelSnappedCropRect(
+            draft,
+            within: CGRect(origin: .zero, size: imageSize))
         guard cropRect.width >= 8, cropRect.height >= 8,
               let cropped = baseImage.cropping(to: cropRect)
         else {

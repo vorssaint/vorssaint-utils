@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "Hakkında",
         tabReleaseNotes: "Yenilikler",
         releaseNotesOnUpdateToggle: "Güncellemeden sonra yenilikleri göster",
-        whatsNewDontShowAgain: "Bir daha gösterme",
         previewSizeLabel: "Önizleme boyutu",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Büyük",
@@ -749,6 +748,8 @@ extension Strings {
         speedTestFailed: "Test başarısız",
 
         monitorShowInPanel: "Panelde göster",
+        disclosureExpanded: "Genişletildi",
+        disclosureCollapsed: "Daraltıldı",
         panelHideItem: "Panelden gizle",
         panelShowItem: "Panelde göster",
         panelHiddenItem: "Gizli",
