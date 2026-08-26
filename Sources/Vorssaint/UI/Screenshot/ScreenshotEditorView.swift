@@ -6,6 +6,21 @@ import UniformTypeIdentifiers
 
 /// Screenshot annotation editor with a tool rail, actions, contextual styles
 /// and a shared renderer for the canvas and exported image.
+/// Carries the hovered tool button's frame up to the root, so its label can be
+/// drawn outside the scroll view that holds the rail.
+private struct ToolAnchor: Equatable {
+    let tool: ScreenshotSupport.Tool
+    let bounds: Anchor<CGRect>
+}
+
+private struct ToolAnchorKey: PreferenceKey {
+    static let defaultValue: ToolAnchor? = nil
+
+    static func reduce(value: inout ToolAnchor?, nextValue: () -> ToolAnchor?) {
+        value = nextValue() ?? value
+    }
+}
+
 struct ScreenshotEditorView: View {
     @ObservedObject var model: ScreenshotEditorModel
     let controller: ScreenshotEditorController
@@ -18,6 +33,10 @@ struct ScreenshotEditorView: View {
     @State private var appeared = false
     @State private var backdropPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
+    @State private var isDropTargeted = false
+    @State private var lastTapAt: Date?
+    @State private var lastTapPoint: CGPoint = .zero
+    @State private var editingCounterText = ""
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
@@ -58,8 +77,36 @@ struct ScreenshotEditorView: View {
                     .padding(.top, 6)
                     .padding(.bottom, 10)
             }
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.accentColor.opacity(0.75), lineWidth: 2)
+                    .padding(6)
+                    .allowsHitTesting(false)
+            }
         }
         .ignoresSafeArea()
+        // The system tooltip waits a second, says only the name, and is turned
+        // off entirely on the newest macOS. This one answers the moment the
+        // pointer lands, and it is drawn at the root so the tool rail's scroll
+        // view cannot clip it.
+        .overlayPreferenceValue(ToolAnchorKey.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor {
+                    let frame = proxy[anchor.bounds]
+                    toolHoverLabel(anchor.tool)
+                        .fixedSize()
+                        // Positioned by its leading edge: centring it on the
+                        // button's right edge made it straddle the icon.
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .offset(x: frame.maxX + 10, y: frame.midY - 13)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+            acceptDroppedImage(providers)
+        }
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
@@ -215,6 +262,9 @@ struct ScreenshotEditorView: View {
             textEditorOverlay(zoom: zoom)
         }
         .overlay(alignment: .topLeading) {
+            counterEditorOverlay(zoom: zoom)
+        }
+        .overlay(alignment: .topLeading) {
             cropLoupeOverlay(zoom: zoom, canvasSize: canvasSize)
         }
     }
@@ -344,6 +394,24 @@ struct ScreenshotEditorView: View {
             .onEnded { value in
                 dragInFlight = false
                 let point = imagePoint(from: value.location, zoom: zoom)
+                // A second click on a counter opens its number rather than
+                // dropping another badge next to it.
+                let now = Date()
+                let repeated = lastTapAt.map {
+                    now.timeIntervalSince($0) <= NSEvent.doubleClickInterval
+                        && hypot(value.location.x - lastTapPoint.x,
+                                 value.location.y - lastTapPoint.y) < 6
+                } ?? false
+                lastTapAt = now
+                lastTapPoint = value.location
+                if repeated, model.beginCounterEditing(at: point) {
+                    lastTapAt = nil
+                    return
+                }
+                if repeated, model.beginTextEditing(at: point) {
+                    lastTapAt = nil
+                    return
+                }
                 // A click is a click in screen points, whatever the zoom.
                 let isTap = hypot(value.location.x - dragStartView.x,
                                   value.location.y - dragStartView.y) < 7
@@ -450,6 +518,9 @@ struct ScreenshotEditorView: View {
 
     private func drawSelectionChrome(_ cg: CGContext) {
         guard let selectedID = model.selectedID,
+              // A text being typed already sits inside a bordered field; the
+              // selection box on top of it was two frames around one thing.
+              selectedID != model.editingTextID,
               let selected = model.annotations.first(where: { $0.id == selectedID })
         else { return }
         let scale = model.scale
@@ -472,8 +543,11 @@ struct ScreenshotEditorView: View {
         cg.stroke(box)
         cg.setLineDash(phase: 0, lengths: [])
         if selected.tool.resizesWithHandles {
-            for handle in ScreenshotSupport.Handle.allCases {
-                let position = handle.position(in: selected.rect)
+            let handleBox = selected.tool == .counter
+                ? counterBox(selected).insetBy(dx: 3, dy: 3)
+                : selected.rect
+            for handle in selected.tool.resizeHandles {
+                let position = handle.position(in: handleBox)
                 let dot = CGRect(x: position.x - 3.5 * scale, y: position.y - 3.5 * scale,
                                  width: 7 * scale, height: 7 * scale)
                 cg.setFillColor(CGColor(gray: 1, alpha: 1))
@@ -484,7 +558,8 @@ struct ScreenshotEditorView: View {
     }
 
     private func counterBox(_ annotation: ScreenshotSupport.Annotation) -> CGRect {
-        let diameter = ScreenshotSupport.counterDiameter(for: model.imageSize, scale: 1)
+        let diameter = ScreenshotSupport.counterDiameter(for: annotation,
+                                                         imageSize: model.imageSize)
         return CGRect(x: annotation.rect.midX - diameter / 2,
                       y: annotation.rect.midY - diameter / 2,
                       width: diameter,
@@ -519,18 +594,45 @@ struct ScreenshotEditorView: View {
     // MARK: - Inline text editing
 
     @ViewBuilder
+    private func counterEditorOverlay(zoom: CGFloat) -> some View {
+        if let editingID = model.editingCounterID,
+           let annotation = model.annotations.first(where: { $0.id == editingID }) {
+            let pad = model.backdropPaddingPixels
+            TextField("", text: $editingCounterText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .multilineTextAlignment(.center)
+                .frame(width: 46, height: 24)
+                .background(.black.opacity(0.45), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.8), lineWidth: 1))
+                .offset(x: (annotation.rect.midX + pad) * zoom - 23,
+                        y: (annotation.rect.midY + pad) * zoom - 12)
+                .onAppear { editingCounterText = "\(annotation.number)" }
+                .onSubmit { model.commitCounterEditing(editingID, number: Int(editingCounterText)) }
+                .onExitCommand { model.commitCounterEditing(editingID, number: nil) }
+        }
+    }
+
+    @ViewBuilder
     private func textEditorOverlay(zoom: CGFloat) -> some View {
         if let editingID = model.editingTextID,
            let annotation = model.annotations.first(where: { $0.id == editingID }) {
-            let fontSize = max(11, ScreenshotRenderer.fontSize(for: annotation.stroke,
-                                                               scale: model.scale) * zoom)
+            let fontSize = max(11, ScreenshotRenderer.textFont(annotation,
+                                                               scale: model.scale).pointSize * zoom)
             let pad = model.backdropPaddingPixels
             TextField(strings.textPlaceholder, text: $editingText)
                 .textFieldStyle(.plain)
-                .font(.system(size: fontSize, weight: .semibold))
+                // The field shows the face the mark carries, so a chosen font
+                // is visible while typing rather than only after leaving.
+                .font(annotation.fontName.map { Font.custom($0, size: fontSize) }
+                        ?? .system(size: fontSize, weight: .semibold))
                 .foregroundStyle(Color(nsColor: ScreenshotRenderer.nsColor(annotation.color)))
                 .focused($textFieldFocused)
-                .frame(minWidth: 130)
+                // The field takes its width from what is typed, not from the
+                // canvas it sits on: left to itself it stretched to the far
+                // edge of the window and stopped answering to the text.
+                .frame(minWidth: 44, alignment: .leading)
+                .fixedSize(horizontal: true, vertical: false)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(.black.opacity(0.35),
@@ -554,13 +656,70 @@ struct ScreenshotEditorView: View {
         }
     }
 
+    /// A dropped image opens an editor of its own rather than replacing the
+    /// one under the pointer, whose annotations are someone's work in progress.
+    private func acceptDroppedImage(_ providers: [NSItemProvider]) -> Bool {
+        let identifier = UTType.fileURL.identifier
+        guard let provider = providers.first(where: {
+            $0.hasItemConformingToTypeIdentifier(identifier)
+        }) else { return false }
+        provider.loadItem(forTypeIdentifier: identifier, options: nil) { item, _ in
+            let url: URL?
+            if let itemURL = item as? URL {
+                url = itemURL
+            } else if let data = item as? Data {
+                url = URL(dataRepresentation: data, relativeTo: nil)
+            } else {
+                url = nil
+            }
+            guard let url else { return }
+            DispatchQueue.main.async {
+                ScreenshotService.shared.openEditor(imageAt: url)
+            }
+        }
+        return true
+    }
+
+    /// Everything that takes the pointer elsewhere goes through here, so a
+    /// number or a text left mid-edit is kept rather than needing Return.
     private func commitEditingTextIfNeeded() {
         if let editingID = model.editingTextID {
             model.commitText(editingID, text: editingText)
         }
+        if let counterID = model.editingCounterID {
+            model.commitCounterEditing(counterID, number: Int(editingCounterText))
+        }
     }
 
     // MARK: - Tool rail
+
+    private func toolHoverLabel(_ tool: ScreenshotSupport.Tool) -> some View {
+        let shortcutNumber = ScreenshotSupport.Tool.shortcutNumber(
+            for: tool,
+            orderRaw: toolOrderRaw,
+            enabled: toolShortcutsEnabled)
+        return HStack(spacing: 5) {
+            Text(tool.screenshotTitle(strings))
+                .font(.system(size: 11, weight: .medium))
+            if let shortcutNumber {
+                Text("\(shortcutNumber)")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.primary.opacity(0.1), in: Capsule())
+            }
+        }
+        .lineLimit(1)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .overlay(
+            Capsule(style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+    }
 
     private var orderedTools: [ScreenshotSupport.Tool] {
         ScreenshotSupport.Tool.ordered(from: toolOrderRaw)
@@ -642,6 +801,9 @@ struct ScreenshotEditorView: View {
                 }
         }
         .buttonStyle(.borderless)
+        .anchorPreference(key: ToolAnchorKey.self, value: .bounds) { anchor in
+            hoveredTool == tool ? ToolAnchor(tool: tool, bounds: anchor) : nil
+        }
         .onHover { inside in
             withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                 hoveredTool = inside ? tool : (hoveredTool == tool ? nil : hoveredTool)
@@ -697,6 +859,12 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
+            // The window's key monitor claims ⌘Z first and swallows it, but it
+            // steps aside whenever a text field holds the responder chain, and
+            // the editor answered nothing at all in that state. The buttons
+            // carry the standard shortcut so the window behaves like any other
+            // Mac window whichever path the key takes, and they commit a text
+            // being typed before undoing it out of existence.
             Button {
                 commitEditingTextIfNeeded()
                 model.undo()
@@ -706,6 +874,7 @@ struct ScreenshotEditorView: View {
             }
             .buttonStyle(.borderless)
             .disabled(!model.canUndo)
+            .keyboardShortcut("z", modifiers: .command)
             Button {
                 commitEditingTextIfNeeded()
                 model.redo()
@@ -715,6 +884,7 @@ struct ScreenshotEditorView: View {
             }
             .buttonStyle(.borderless)
             .disabled(!model.canRedo)
+            .keyboardShortcut("z", modifiers: [.command, .shift])
 
             if model.qrReading != nil {
                 Divider().frame(height: 16).padding(.horizontal, 3)
@@ -811,17 +981,105 @@ struct ScreenshotEditorView: View {
 
     private var showsColorControls: Bool {
         switch model.tool {
-        case .arrow, .line, .rect, .ellipse, .freehand, .highlight, .text, .counter, .redact:
+        case .arrow, .line, .rect, .ellipse, .ellipseFilled, .freehand, .highlight,
+             .text, .counter, .redact:
             return true
         case .select:
             guard let selectedID = model.selectedID,
                   let selected = model.annotations.first(where: { $0.id == selectedID })
             else { return false }
             return selected.tool != .sticker
-                && selected.tool != .pixelate
-        case .sticker, .pixelate, .crop:
+        case .pixelate:
+            return true
+        case .sticker, .crop:
             return false
         }
+    }
+
+    /// The tool the style bar is speaking for: the active one, or the shape
+    /// that is selected while the pointer tool is in hand.
+    private var styledTool: ScreenshotSupport.Tool? {
+        guard model.tool == .select else { return model.tool }
+        guard let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return nil }
+        return selected.tool
+    }
+
+    /// A text mark reads its size from its own handles now, so the width picker
+    /// gives up its place to the face the glyphs are drawn with.
+    private var showsFontControls: Bool {
+        styledTool == .text || styledTool == .counter
+    }
+
+    /// Families installed on this Mac, the system font first so the default is
+    /// one click away rather than buried in the alphabet.
+    private var fontFamilies: [String] {
+        NSFontManager.shared.availableFontFamilies.sorted()
+    }
+
+    private var fontMenu: some View {
+        Menu {
+            Button(systemFontLabel) {
+                model.applyTextFont(nil)
+            }
+            Divider()
+            ForEach(fontFamilies, id: \.self) { family in
+                Button(family) { model.applyTextFont(family) }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "textformat")
+                    .font(.system(size: 10, weight: .semibold))
+                Text(model.textFontName ?? systemFontLabel)
+                    .font(.system(size: 10.5))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: 110)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private var systemFontLabel: String {
+        NSFont.systemFont(ofSize: 12).familyName ?? "System"
+    }
+
+    /// An arrow is the one mark whose ends mean something, so where its heads
+    /// sit belongs in the bar rather than in a preference nobody would find.
+    private var showsArrowControls: Bool {
+        styledTool == .arrow
+    }
+
+    private func arrowHeadButton(_ heads: ScreenshotSupport.ArrowHeads) -> some View {
+        let selected = model.arrowHeads == heads
+        return Button {
+            model.applyArrowHeads(heads)
+        } label: {
+            Image(systemName: heads.symbolName)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 24, height: 20)
+                .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.75))
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.16) : .clear)
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        }
+        .buttonStyle(.borderless)
+    }
+
+    /// The pixelate mark has no outline but it does have a coarseness, so the
+    /// width picker's place is taken by the strength that mark actually reads.
+    private var showsBlurControls: Bool {
+        styledTool == .pixelate
+    }
+
+    /// A width picker that changes nothing is worse than no picker, so it only
+    /// appears for the tools that actually draw an outline.
+    private var showsStrokeControls: Bool {
+        guard let styledTool else { return false }
+        return styledTool.usesStroke
     }
 
     /// Depth only means something once a shape is picked, and only when there
@@ -891,12 +1149,42 @@ struct ScreenshotEditorView: View {
                     }
                 }
                 Divider().frame(height: 16)
-                HStack(spacing: 3) {
-                    ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
-                        strokeGlyph(stroke)
-                    }
+                if showsFontControls {
+                    fontMenu
+                    Divider().frame(height: 16)
                 }
-                Divider().frame(height: 16)
+                if showsArrowControls {
+                    HStack(spacing: 3) {
+                        ForEach(ScreenshotSupport.ArrowHeads.allCases, id: \.self) { heads in
+                            arrowHeadButton(heads)
+                        }
+                    }
+                    Divider().frame(height: 16)
+                }
+                if showsBlurControls {
+                    HStack(spacing: 6) {
+                        Image(systemName: "circle.dotted")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Slider(value: Binding(get: { model.pixelateStrength },
+                                              set: { model.applyPixelateStrength($0) }),
+                               in: 0...1)
+                            .frame(width: 96)
+                        Text("\(Int(model.pixelateStrength * 100))%")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, alignment: .trailing)
+                    }
+                    Divider().frame(height: 16)
+                }
+                if showsStrokeControls {
+                    HStack(spacing: 3) {
+                        ForEach(ScreenshotSupport.StrokeID.allCases, id: \.self) { stroke in
+                            strokeGlyph(stroke)
+                        }
+                    }
+                    Divider().frame(height: 16)
+                }
             }
             if showsLayerControls {
                 layerButton(.backward, symbol: "square.2.layers.3d.bottom.filled",
@@ -1301,6 +1589,7 @@ extension ScreenshotSupport.Tool {
         case .counter: return "1.circle"
         case .pixelate: return "aqi.medium"
         case .redact: return "rectangle.fill"
+        case .ellipseFilled: return "circle.fill"
         case .crop: return "crop"
         }
     }
@@ -1319,6 +1608,7 @@ extension ScreenshotSupport.Tool {
         case .counter: return strings.toolCounter
         case .pixelate: return strings.toolPixelate
         case .redact: return strings.toolRedact
+        case .ellipseFilled: return strings.toolEllipseFilled
         case .crop: return strings.toolCrop
         }
     }

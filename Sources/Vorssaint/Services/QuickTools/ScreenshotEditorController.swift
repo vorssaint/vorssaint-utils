@@ -100,7 +100,18 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var isDirty = false
 
     let scale: CGFloat
-    private(set) var pixelated: CGImage?
+    private(set) var pixelated: [Int: CGImage] = [:]
+    /// Strength given to the next pixelate mark, and to the selected one while
+    /// the slider moves.
+    @Published var pixelateStrength: Double = 0.5
+    /// Head style given to the next arrow, and to the selected one while the
+    /// picker is used.
+    @Published var arrowHeads: ScreenshotSupport.ArrowHeads = .end
+    /// Type face given to the next text mark, and to the selected one while the
+    /// picker is used. Nil is the system font.
+    @Published var textFontName: String?
+    /// The counter whose number is being typed, if any.
+    @Published private(set) var editingCounterID: UUID?
 
     private var undoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
     private var redoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
@@ -116,6 +127,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var moveOrigin: CGRect = .zero
     private var movePoints: [CGPoint] = []
     private var activeHandle: ScreenshotSupport.Handle?
+    private var moveFontSize: Double = 0
     private var cropResizeOrigin: CGRect?
     private var cropMoveOrigin: CGRect?
     private var cropSelectionOrigin: CGRect?
@@ -152,7 +164,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         backdropStyle = ScreenshotSupport.BackdropStyle.decoded(rawStyle)
         backdropPresets = ScreenshotSupport.decodedBackdropPresets(
             defaults.string(forKey: DefaultsKey.screenshotBackdropPresets))
-        pixelated = nil
+        pixelated = [:]
         reloadBackdropImageIfNeeded()
         recordCleanState()
     }
@@ -365,6 +377,92 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Undo
 
+    /// Opens the number of the counter under the pointer for editing. Returns
+    /// false when there is no counter there, so the caller can fall through to
+    /// its usual handling.
+    /// A second click on a text that is already selected opens it, the way a
+    /// design tool does: one click to grab its corners, two to type in it.
+    @discardableResult
+    func beginTextEditing(at point: CGPoint) -> Bool {
+        guard let hit = annotations.reversed().first(where: { annotation in
+            annotation.tool == .text && annotation.rect.insetBy(dx: -6, dy: -6).contains(point)
+        }) else { return false }
+        selectedID = hit.id
+        editingTextID = hit.id
+        return true
+    }
+
+    @discardableResult
+    func beginCounterEditing(at point: CGPoint) -> Bool {
+        guard let hit = annotations.reversed().first(where: { annotation in
+            annotation.tool == .counter && counterBounds(annotation).contains(point)
+        }) else { return false }
+        selectedID = hit.id
+        editingCounterID = hit.id
+        return true
+    }
+
+    func commitCounterEditing(_ id: UUID, number: Int?) {
+        editingCounterID = nil
+        guard let index = annotations.firstIndex(where: { $0.id == id }),
+              let number, number != annotations[index].number
+        else { return }
+        registerUndo()
+        annotations[index].number = max(0, min(999, number))
+        annotations[index].manualNumber = true
+    }
+
+    private func counterBounds(_ annotation: ScreenshotSupport.Annotation) -> CGRect {
+        let diameter = ScreenshotSupport.counterDiameter(for: annotation, imageSize: imageSize)
+        return CGRect(x: annotation.rect.midX - diameter / 2,
+                      y: annotation.rect.midY - diameter / 2,
+                      width: diameter, height: diameter)
+    }
+
+    func applyTextFont(_ name: String?) {
+        textFontName = name
+        guard let selectedID,
+              let index = annotations.firstIndex(where: { $0.id == selectedID }),
+              annotations[index].tool == .text || annotations[index].tool == .counter
+        else { return }
+        guard annotations[index].tool == .text else {
+            registerUndo()
+            annotations[index].fontName = name
+            return
+        }
+        registerUndo()
+        annotations[index].fontName = name
+        annotations[index].rect = ScreenshotRenderer.textBounds(
+            annotations[index].text,
+            at: annotations[index].rect.origin,
+            stroke: annotations[index].stroke,
+            scale: scale,
+            fontName: name,
+            fontSize: annotations[index].fontSize)
+    }
+
+    func applyArrowHeads(_ heads: ScreenshotSupport.ArrowHeads) {
+        arrowHeads = heads
+        guard let selectedID,
+              let index = annotations.firstIndex(where: { $0.id == selectedID }),
+              annotations[index].points.count >= 2
+        else { return }
+        registerUndo()
+        annotations[index].heads = heads
+    }
+
+    /// Moving the slider retunes the selected mark, or sets the strength the
+    /// next one will be drawn with.
+    func applyPixelateStrength(_ value: Double) {
+        pixelateStrength = ScreenshotSupport.clampedStrength(value)
+        guard let selectedID,
+              let index = annotations.firstIndex(where: { $0.id == selectedID }),
+              annotations[index].tool == .pixelate
+        else { return }
+        annotations[index].strength = pixelateStrength
+        ensurePixelated()
+    }
+
     private func registerUndo() {
         undoStack.append((baseImage, annotations))
         if undoStack.count > Self.undoLimit {
@@ -390,7 +488,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private func restore(_ state: (image: CGImage, annotations: [ScreenshotSupport.Annotation])) {
         if state.image !== baseImage {
             baseImage = state.image
-            pixelated = nil
+            pixelated = [:]
             clearTextSelection()
             recognizeText()
             recognizeQRCodes()
@@ -399,7 +497,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         if annotations.contains(where: { $0.tool == .pixelate }) {
             ensurePixelated()
         } else {
-            pixelated = nil
+            pixelated = [:]
         }
         selectedID = nil
         editingTextID = nil
@@ -450,7 +548,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 annotations[index].text,
                 at: annotations[index].rect.origin,
                 stroke: stroke,
-                scale: scale)
+                scale: scale,
+                fontName: annotations[index].fontName,
+                fontSize: annotations[index].fontSize)
         }
     }
 
@@ -497,7 +597,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             registerUndo()
             dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
-                tool: tool, points: [point, point], color: color, stroke: stroke)
+                tool: tool, points: [point, point], color: color, stroke: stroke,
+                heads: tool == .line ? .bare : arrowHeads)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
@@ -507,14 +608,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 tool: tool, points: [point], color: color, stroke: stroke)
             annotations.append(annotation)
             draftID = annotation.id
-        case .rect, .ellipse, .highlight, .pixelate, .redact:
-            if tool == .pixelate { ensurePixelated() }
+        case .rect, .ellipse, .ellipseFilled, .highlight, .pixelate, .redact:
             registerUndo()
             dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, rect: CGRect(origin: point, size: .zero),
-                color: color, stroke: stroke)
+                color: color, stroke: stroke, strength: pixelateStrength)
             annotations.append(annotation)
+            // The twin for this strength has to exist before the first frame is
+            // drawn, otherwise the mark renders as nothing at all until the
+            // slider is touched.
+            if tool == .pixelate { ensurePixelated() }
             draftID = annotation.id
         case .text, .sticker, .counter:
             break
@@ -525,11 +629,16 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         if let selectedID,
            let selected = annotations.first(where: { $0.id == selectedID }) {
             let tolerance = 12 * scale
+            let grabBox = selected.tool == .counter ? counterBounds(selected) : selected.rect
             if selected.tool.resizesWithHandles,
-               let handle = ScreenshotSupport.handle(at: point, rect: selected.rect,
-                                                     tolerance: tolerance) {
+               let handle = ScreenshotSupport.handle(at: point, rect: grabBox,
+                                                     tolerance: tolerance,
+                                                     corners: selected.tool.resizeHandles) {
                 activeHandle = handle
-                moveOrigin = selected.rect
+                moveOrigin = grabBox
+                moveFontSize = selected.fontSize > 0
+                    ? selected.fontSize
+                    : Double(ScreenshotRenderer.fontSize(for: selected.stroke, scale: 1))
                 return
             }
             if selected.points.count >= 2 {
@@ -553,6 +662,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 self.selectedID = selectedID
             }
             moveOrigin = hit.rect
+            moveFontSize = hit.fontSize > 0
+                ? hit.fontSize
+                : Double(ScreenshotRenderer.fontSize(for: hit.stroke, scale: 1))
             movePoints = hit.points
             clearTextSelection()
         } else if let word = wordIndex(at: point) {
@@ -591,8 +703,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             updateDraft { $0.points = [dragStart, point] }
         case .freehand:
             updateDraft { $0.points.append(point) }
-        case .rect, .ellipse, .highlight, .pixelate, .redact:
-            updateDraft { $0.rect = ScreenshotSupport.selectionRect(from: dragStart, to: point) }
+        case .rect, .ellipse, .ellipseFilled, .highlight, .pixelate, .redact:
+            // The capture overlay already reads these two modifiers while a
+            // region is being drawn, so the editor's shapes answer the same
+            // gesture rather than ignoring it.
+            let flags = NSEvent.modifierFlags
+            updateDraft {
+                $0.rect = ScreenshotSupport.selectionRect(from: dragStart,
+                                                          to: point,
+                                                          square: flags.contains(.shift),
+                                                          fromCenter: flags.contains(.option))
+            }
         case .text, .sticker, .counter:
             break
         }
@@ -611,6 +732,35 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             registerUndo()
             dragRegistered = true
         }
+        if let handle = activeHandle, annotations[index].tool == .counter {
+            let resized = ScreenshotSupport.resizedRect(moveOrigin, dragging: handle, to: point)
+            let base = moveFontSize > 0
+                ? moveFontSize
+                : Double(ScreenshotSupport.counterDiameter(for: imageSize, scale: 1))
+            let ratio = moveOrigin.height > 1 ? Double(resized.height / moveOrigin.height) : 1
+            annotations[index].fontSize = min(600, max(14, base * ratio))
+            return
+        }
+        if let handle = activeHandle, annotations[index].tool == .text {
+            // A text has no box of its own to stretch: the handle sets a point
+            // size, the box is measured back from the glyphs, and the corner
+            // opposite the one being dragged is what stays put.
+            let resized = ScreenshotSupport.resizedRect(moveOrigin, dragging: handle, to: point)
+            let ratio = moveOrigin.height > 1 ? Double(resized.height / moveOrigin.height) : 1
+            annotations[index].fontSize = min(400, max(6, moveFontSize * ratio))
+            let measured = ScreenshotRenderer.textBounds(
+                annotations[index].text,
+                at: .zero,
+                stroke: annotations[index].stroke,
+                scale: scale,
+                fontName: annotations[index].fontName,
+                fontSize: annotations[index].fontSize)
+            let anchored = ScreenshotSupport.anchoredRect(size: measured.size,
+                                                          within: resized,
+                                                          dragging: handle)
+            annotations[index].rect = anchored
+            return
+        }
         if let handle = activeHandle {
             if annotations[index].points.count >= 2 {
                 var points = movePoints
@@ -618,7 +768,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 annotations[index].points = points
             } else {
                 annotations[index].rect = ScreenshotSupport.resizedRect(
-                    moveOrigin, dragging: handle, to: point)
+                    moveOrigin, dragging: handle, to: point,
+                    square: annotations[index].tool.dragsRect
+                        && NSEvent.modifierFlags.contains(.shift))
             }
             return
         }
@@ -657,7 +809,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             registerUndo()
             var annotation = ScreenshotSupport.Annotation(
                 tool: .text, color: color, stroke: stroke)
-            annotation.rect = ScreenshotRenderer.textBounds("", at: point, stroke: stroke, scale: scale)
+            annotation.fontName = textFontName
+            annotation.rect = ScreenshotRenderer.textBounds("", at: point, stroke: stroke,
+                                                            scale: scale,
+                                                            fontName: textFontName)
             annotations.append(annotation)
             newTextID = annotation.id
             selectedID = annotation.id
@@ -689,7 +844,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             annotations.append(annotation)
             annotations = ScreenshotSupport.renumberingCounters(annotations)
             selectedID = annotation.id
-        case .arrow, .line, .rect, .ellipse, .highlight, .pixelate, .redact, .freehand:
+        case .arrow, .line, .rect, .ellipse, .ellipseFilled, .highlight, .pixelate,
+             .redact, .freehand:
             if isTap {
                 // A tap never leaves a degenerate shape behind; treat it as
                 // picking whatever is under the cursor instead.
@@ -718,8 +874,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         else { return false }
         let tolerance = 12 * scale
         if selected.tool.resizesWithHandles,
-           ScreenshotSupport.handle(at: point, rect: selected.rect,
-                                    tolerance: tolerance) != nil {
+           ScreenshotSupport.handle(at: point,
+                                    rect: selected.tool == .counter
+                                        ? counterBounds(selected) : selected.rect,
+                                    tolerance: tolerance,
+                                    corners: selected.tool.resizeHandles) != nil {
             return true
         }
         if selected.points.prefix(2).contains(where: {
@@ -734,11 +893,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         textSelectionAnchor = nil
         guard isTap, !dragRegistered else { return }
         selectedID = hitTest(point)
-        if let selectedID,
-           let hit = annotations.first(where: { $0.id == selectedID }),
-           hit.tool == .text {
-            editingTextID = selectedID
-        } else if selectedID == nil, let word = wordIndex(at: point) {
+        if selectedID == nil, let word = wordIndex(at: point) {
             selectedWordIndexes = [word]
         } else if selectedID == nil {
             clearTextSelection()
@@ -762,7 +917,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
         }
         selectedID = hitID
-        editingTextID = hit.tool == .text ? hitID : nil
+        editingTextID = nil
         clearTextSelection()
         tool = .select
         return true
@@ -797,12 +952,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                     return annotation.id
                 }
             case .counter:
-                let radius = ScreenshotSupport.counterDiameter(for: imageSize, scale: 1) / 2
+                let radius = ScreenshotSupport.counterDiameter(for: annotation,
+                                                               imageSize: imageSize) / 2
                 if hypot(point.x - annotation.rect.midX, point.y - annotation.rect.midY)
                     <= radius + 4 * scale {
                     return annotation.id
                 }
-        case .rect, .ellipse, .highlight, .pixelate, .redact:
+        case .rect, .ellipse, .ellipseFilled, .highlight, .pixelate, .redact:
                 let outer = annotation.rect.insetBy(dx: -tolerance / 2, dy: -tolerance / 2)
                 guard outer.contains(point) else { continue }
                 if includeShapeInteriors {
@@ -885,7 +1041,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             trimmed,
             at: annotations[index].rect.origin,
             stroke: annotations[index].stroke,
-            scale: scale)
+            scale: scale,
+            fontName: annotations[index].fontName,
+            fontSize: annotations[index].fontSize)
         newTextID = nil
     }
 
@@ -905,7 +1063,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         }
         registerUndo()
         baseImage = cropped
-        pixelated = nil
+        pixelated = [:]
         clearTextSelection()
         textWords = textWords.compactMap { word in
             let moved = word.rect.offsetBy(dx: -cropRect.minX, dy: -cropRect.minY)
@@ -951,8 +1109,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     }
 
     private func ensurePixelated() {
-        guard pixelated == nil else { return }
-        pixelated = ScreenshotRenderer.pixelatedImage(from: baseImage)
+        let sizes = Set(annotations.filter { $0.tool == .pixelate }.map {
+            ScreenshotSupport.pixelBlockSize(for: imageSize, strength: $0.strength)
+        })
+        for block in sizes where pixelated[block] == nil {
+            pixelated[block] = ScreenshotRenderer.pixelatedImage(from: baseImage, block: block)
+        }
+        // A strength nobody uses any more stops costing memory.
+        pixelated = pixelated.filter { sizes.contains($0.key) }
     }
 }
 

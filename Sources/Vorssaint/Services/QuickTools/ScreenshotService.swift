@@ -693,7 +693,7 @@ final class ScreenshotService: ObservableObject {
         ScreenshotRenderer.renderExport(
             baseImage: capture.image,
             annotations: [],
-            pixelated: nil,
+            pixelated: [:],
             scale: capture.scale,
             annotationShadowsEnabled: false,
             style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),

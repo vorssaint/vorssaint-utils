@@ -32,12 +32,30 @@ enum ScreenshotRenderer {
         }
     }
 
+    /// The face and size a text mark is drawn with. A mark that carries none
+    /// falls back to the system font at the stroke picker's size, which is what
+    /// every text made before this was configurable still asks for.
+    static func textFont(_ annotation: ScreenshotSupport.Annotation, scale: CGFloat) -> NSFont {
+        let size = annotation.fontSize > 0
+            ? CGFloat(annotation.fontSize) * scale
+            : fontSize(for: annotation.stroke, scale: scale)
+        if let name = annotation.fontName, let font = NSFont(name: name, size: size) {
+            return font
+        }
+        return NSFont.systemFont(ofSize: size, weight: .semibold)
+    }
+
     /// Measures a text annotation's box for hit-testing and the inline editor.
     static func textBounds(_ text: String,
                            at origin: CGPoint,
                            stroke: ScreenshotSupport.StrokeID,
-                           scale: CGFloat) -> CGRect {
-        let font = NSFont.systemFont(ofSize: fontSize(for: stroke, scale: scale), weight: .semibold)
+                           scale: CGFloat,
+                           fontName: String? = nil,
+                           fontSize pointSize: Double = 0) -> CGRect {
+        let font = textFont(ScreenshotSupport.Annotation(tool: .text, stroke: stroke,
+                                                         fontName: fontName,
+                                                         fontSize: pointSize),
+                            scale: scale)
         let measured = (text.isEmpty ? " " : text).size(withAttributes: [.font: font])
         return CGRect(origin: origin,
                       size: CGSize(width: ceil(measured.width) + 4, height: ceil(measured.height)))
@@ -50,7 +68,7 @@ enum ScreenshotRenderer {
     /// skipped so the live field is the only visible copy.
     static func drawAnnotations(_ annotations: [ScreenshotSupport.Annotation],
                                 in context: CGContext,
-                                pixelated: CGImage?,
+                                pixelated: [Int: CGImage],
                                 imageSize: CGSize,
                                 scale: CGFloat,
                                 annotationShadowsEnabled: Bool,
@@ -62,6 +80,9 @@ enum ScreenshotRenderer {
             case .redact:
                 context.setFillColor(color(annotation.color))
                 context.fill(annotation.rect)
+            case .ellipseFilled:
+                context.setFillColor(color(annotation.color))
+                context.fillEllipse(in: annotation.rect)
             case .highlight:
                 context.saveGState()
                 context.setBlendMode(.multiply)
@@ -131,7 +152,10 @@ enum ScreenshotRenderer {
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
 
-        guard arrow else {
+        // The tool decides whether a head is possible; the mark decides where
+        // they actually sit, so a "line" is an arrow with no head at all.
+        let heads = arrow ? annotation.heads : .bare
+        guard heads != .bare else {
             context.setStrokeColor(color(annotation.color))
             context.setLineWidth(width)
             context.setLineCap(.round)
@@ -144,10 +168,22 @@ enum ScreenshotRenderer {
         }
 
         context.setFillColor(color(annotation.color))
-        context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
+        let shaftStart = heads == .both
+            ? ScreenshotSupport.arrowShaftStart(from: start, to: end, strokeWidth: width)
+            : start
+        context.addPath(ScreenshotSupport.arrowSilhouette(from: shaftStart,
                                                           to: end,
                                                           strokeWidth: width))
         context.fillPath()
+        if heads == .both {
+            let tail = ScreenshotSupport.arrowHead(from: end, to: start, strokeWidth: width)
+            context.beginPath()
+            context.move(to: start)
+            context.addLine(to: tail.left)
+            context.addLine(to: tail.right)
+            context.closePath()
+            context.fillPath()
+        }
         context.restoreGState()
     }
 
@@ -184,8 +220,7 @@ enum ScreenshotRenderer {
                                  scale: CGFloat,
                                  shadowsEnabled: Bool) {
         guard !annotation.text.isEmpty else { return }
-        let font = NSFont.systemFont(ofSize: fontSize(for: annotation.stroke, scale: scale),
-                                     weight: .semibold)
+        let font = textFont(annotation, scale: scale)
         var attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: nsColor(annotation.color),
@@ -212,7 +247,7 @@ enum ScreenshotRenderer {
                                     imageSize: CGSize,
                                     scale: CGFloat,
                                     shadowsEnabled: Bool) {
-        let diameter = ScreenshotSupport.counterDiameter(for: imageSize, scale: 1)
+        let diameter = ScreenshotSupport.counterDiameter(for: annotation, imageSize: imageSize)
         let rect = CGRect(x: annotation.rect.midX - diameter / 2,
                           y: annotation.rect.midY - diameter / 2,
                           width: diameter,
@@ -227,7 +262,8 @@ enum ScreenshotRenderer {
         context.restoreGState()
 
         let label = "\(annotation.number)"
-        let font = NSFont.systemFont(ofSize: diameter * 0.52, weight: .bold)
+        let font = annotation.fontName.flatMap { NSFont(name: $0, size: diameter * 0.52) }
+            ?? NSFont.systemFont(ofSize: diameter * 0.52, weight: .bold)
         let textColor: NSColor = annotation.color == .white
             ? NSColor(srgbRed: 0.09, green: 0.09, blue: 0.11, alpha: 1) : .white
         let attributes: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: textColor]
@@ -244,6 +280,7 @@ enum ScreenshotRenderer {
                                     scale: CGFloat,
                                     shadowsEnabled: Bool) {
         let sticker = ScreenshotSupport.StickerID.sanitized(annotation.text)
+        let glyph = sticker.glyph
         let fontSize = max(10 * scale, min(annotation.rect.width, annotation.rect.height) * 0.82)
         let font = NSFont(name: "Apple Color Emoji", size: fontSize)
             ?? NSFont.systemFont(ofSize: fontSize)
@@ -255,7 +292,6 @@ enum ScreenshotRenderer {
             shadow.shadowOffset = NSSize(width: 0, height: -1 * scale)
             attributes[.shadow] = shadow
         }
-        let glyph = sticker.glyph
         let size = glyph.size(withAttributes: attributes)
         let origin = CGPoint(x: annotation.rect.midX - size.width / 2,
                              y: annotation.rect.midY - size.height / 2)
@@ -267,16 +303,18 @@ enum ScreenshotRenderer {
 
     private static func drawPixelate(_ annotation: ScreenshotSupport.Annotation,
                                      in context: CGContext,
-                                     pixelated: CGImage?,
+                                     pixelated: [Int: CGImage],
                                      imageSize: CGSize) {
-        guard let pixelated else { return }
+        let block = ScreenshotSupport.pixelBlockSize(for: imageSize,
+                                                     strength: annotation.strength)
+        guard let twin = pixelated[block] else { return }
         context.saveGState()
         context.clip(to: annotation.rect)
         // The pixelated twin is drawn full-size under the clip; flip locally
         // because CGContext.draw expects an unflipped space.
         context.translateBy(x: 0, y: imageSize.height)
         context.scaleBy(x: 1, y: -1)
-        context.draw(pixelated, in: CGRect(origin: .zero, size: imageSize))
+        context.draw(twin, in: CGRect(origin: .zero, size: imageSize))
         context.restoreGState()
     }
 
@@ -292,9 +330,7 @@ enum ScreenshotRenderer {
     // MARK: - Pixelation source
 
     /// A low-resolution mosaic with per-block color variation.
-    static func pixelatedImage(from image: CGImage) -> CGImage? {
-        let block = ScreenshotSupport.pixelBlockSize(
-            for: CGSize(width: image.width, height: image.height))
+    static func pixelatedImage(from image: CGImage, block: Int) -> CGImage? {
         let smallWidth = max(1, image.width / block)
         let smallHeight = max(1, image.height / block)
         guard let small = CGContext(data: nil,
@@ -354,7 +390,7 @@ enum ScreenshotRenderer {
     /// downscaled to 1x.
     static func renderExport(baseImage: CGImage,
                              annotations: [ScreenshotSupport.Annotation],
-                             pixelated: CGImage?,
+                             pixelated: [Int: CGImage],
                              scale: CGFloat,
                              annotationShadowsEnabled: Bool,
                              style: ScreenshotSupport.BackdropStyle,
@@ -414,7 +450,7 @@ enum ScreenshotRenderer {
 
     private static func renderFlattened(baseImage: CGImage,
                                         annotations: [ScreenshotSupport.Annotation],
-                                        pixelated: CGImage?,
+                                        pixelated: [Int: CGImage],
                                         scale: CGFloat,
                                         annotationShadowsEnabled: Bool) -> CGImage? {
         let width = baseImage.width

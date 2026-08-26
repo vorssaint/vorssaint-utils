@@ -13542,16 +13542,18 @@ struct MetricsTests {
                 && ScreenshotSupport.joinedWords(recognizedWords, selected: []).isEmpty,
                "out of range or empty selections copy nothing")
         let defaultScreenshotTools = ScreenshotSupport.Tool.allCases
-        expect(defaultScreenshotTools.count == 13
+        expect(defaultScreenshotTools.count == 14
                 && Array(defaultScreenshotTools.prefix(9))
                     == [.select, .arrow, .pixelate, .crop, .text, .sticker,
                         .rect, .highlight, .freehand],
                "the screenshot rail leads with the nine most useful numbered tools")
+        expect(defaultScreenshotTools.last == .ellipseFilled,
+               "a tool added later lands past the numbered nine, so no shortcut moves")
         let customScreenshotTools = ScreenshotSupport.Tool.ordered(
             from: "crop,arrow,arrow,invalid")
         expect(Array(customScreenshotTools.prefix(2)) == [.crop, .arrow]
-                && customScreenshotTools.count == 13
-                && Set(customScreenshotTools).count == 13,
+                && customScreenshotTools.count == 14
+                && Set(customScreenshotTools).count == 14,
                "a saved screenshot tool order drops invalid duplicates and appends missing tools")
         expect(ScreenshotSupport.Tool.shortcutTool(number: 1,
                                                    orderRaw: nil,
@@ -13833,6 +13835,39 @@ struct MetricsTests {
             pixelSize: CGSize(width: 1200, height: 800),
             pointSize: CGSize(width: 600, height: 800)) == 1,
                "copied images with inconsistent metadata safely use 1x")
+        let squaredResize = ScreenshotSupport.resizedRect(
+            CGRect(x: 10, y: 10, width: 100, height: 40),
+            dragging: .bottomRight, to: CGPoint(x: 210, y: 60), square: true)
+        expect(squaredResize == CGRect(x: 10, y: 10, width: 200, height: 200),
+               "shift squares a placed shape from the corner opposite the handle")
+        let squaredFromTopLeft = ScreenshotSupport.resizedRect(
+            CGRect(x: 10, y: 10, width: 100, height: 40),
+            dragging: .topLeft, to: CGPoint(x: 60, y: 30), square: true)
+        expect(squaredFromTopLeft.width == squaredFromTopLeft.height
+                && squaredFromTopLeft.maxX == 110 && squaredFromTopLeft.maxY == 50,
+               "squaring from the top left keeps the bottom right where it was")
+
+        expect(ScreenshotSupport.pixelBlockSize(for: CGSize(width: 1_600, height: 1_000),
+                                                strength: 0.5)
+                == ScreenshotSupport.pixelBlockSize(for: CGSize(width: 1_600, height: 1_000)),
+               "the default blur strength keeps the block the editor always used")
+        expect(ScreenshotSupport.pixelBlockSize(for: CGSize(width: 1_600, height: 1_000), strength: 0)
+                < ScreenshotSupport.pixelBlockSize(for: CGSize(width: 1_600, height: 1_000), strength: 1),
+               "a stronger blur means a coarser block")
+        expect(ScreenshotSupport.pixelBlockSize(for: CGSize(width: 40, height: 30), strength: 0) >= 4
+                && ScreenshotSupport.clampedStrength(.nan) == 0.5
+                && ScreenshotSupport.clampedStrength(-3) == 0
+                && ScreenshotSupport.clampedStrength(9) == 1,
+               "block size and strength stay inside usable bounds whatever they are handed")
+
+        expect(ScreenshotSupport.Tool.allCases.filter(\.usesStroke).map(\.rawValue).sorted()
+                == ["arrow", "ellipse", "freehand", "line", "rect"],
+               "only the tools that draw an outline offer a stroke width, and text now sizes itself")
+        expect(ScreenshotSupport.selectionRect(from: CGPoint(x: 10, y: 10),
+                                               to: CGPoint(x: 110, y: 40),
+                                               square: true)
+                == CGRect(x: 10, y: 10, width: 100, height: 100),
+               "a shift-constrained shape follows its longer side, the way the capture overlay does")
         expect(ScreenshotSupport.editorAcceptsImage(pixelSize: CGSize(width: 4_000, height: 3_000))
                 && ScreenshotSupport.editorAcceptsImage(
                     pixelSize: CGSize(width: 10_000, height: 6_000)),

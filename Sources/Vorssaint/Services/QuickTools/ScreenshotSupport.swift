@@ -1126,7 +1126,7 @@ enum ScreenshotSupport {
         // Case order is the default rail order and therefore the default
         // mapping for keys 1 through 9. Put the common actions first.
         case select, arrow, pixelate, crop, text, sticker, rect, highlight,
-             freehand, line, ellipse, counter, redact
+             freehand, line, ellipse, counter, redact, ellipseFilled
 
         static let shortcutLimit = 9
 
@@ -1137,7 +1137,7 @@ enum ScreenshotSupport {
         /// Tools that create an annotation by dragging a rectangle.
         var dragsRect: Bool {
             switch self {
-            case .rect, .ellipse, .highlight, .pixelate, .redact: return true
+            case .rect, .ellipse, .ellipseFilled, .highlight, .pixelate, .redact: return true
             case .select, .arrow, .line, .freehand, .text, .sticker, .counter, .crop:
                 return false
             }
@@ -1145,7 +1145,25 @@ enum ScreenshotSupport {
 
         /// Existing rectangular marks with visible resize grips.
         var resizesWithHandles: Bool {
-            dragsRect || self == .sticker
+            dragsRect || self == .sticker || self == .text || self == .counter
+        }
+
+        /// A text is sized by its glyphs, so only its corners scale it; a box
+        /// tool keeps every handle, edges included.
+        var resizeHandles: [Handle] {
+            self == .text || self == .counter ? Handle.corners : Handle.allCases
+        }
+
+        /// Tools that draw an outline, and therefore the only ones a stroke
+        /// width changes anything for. Highlight and redact fill their rect,
+        /// pixelate covers it, and a counter sizes itself from the image.
+        var usesStroke: Bool {
+            switch self {
+            case .arrow, .line, .rect, .ellipse, .freehand: return true
+            case .highlight, .pixelate, .redact, .ellipseFilled, .sticker, .counter,
+                 .text, .select, .crop:
+                return false
+            }
         }
 
         /// Saved ids first, then any tools added by a later version in the
@@ -1227,6 +1245,24 @@ enum ScreenshotSupport {
         }
     }
 
+    /// Which ends of an arrow carry a head. `bare` is a plain segment, which
+    /// is what the line tool draws.
+    enum ArrowHeads: String, CaseIterable {
+        case end, both, bare
+
+        static func sanitized(_ raw: String?) -> ArrowHeads {
+            ArrowHeads(rawValue: raw ?? "") ?? .end
+        }
+
+        var symbolName: String {
+            switch self {
+            case .end: return "arrow.right"
+            case .both: return "arrow.left.and.right"
+            case .bare: return "minus"
+            }
+        }
+    }
+
     enum StrokeID: String, CaseIterable {
         case small, medium, large
 
@@ -1300,6 +1336,19 @@ enum ScreenshotSupport {
         var color: ColorID
         var stroke: StrokeID
         var number: Int
+        /// How coarse a pixelate mark is, from barely blurred to unreadable.
+        /// Other tools ignore it.
+        var strength: Double
+        /// Which ends of an arrow or line carry a head.
+        var heads: ArrowHeads
+        /// A counter whose number was typed by hand keeps it: the automatic
+        /// pass renumbers the others around it rather than overwriting it.
+        var manualNumber: Bool
+        /// Type face for a text mark, or nil for the system font.
+        var fontName: String?
+        /// Point size for a text mark at 1x, or 0 to follow the stroke picker
+        /// the way every text drawn before this existed does.
+        var fontSize: Double
 
         init(id: UUID = UUID(),
              tool: Tool,
@@ -1308,7 +1357,12 @@ enum ScreenshotSupport {
              text: String = "",
              color: ColorID = .red,
              stroke: StrokeID = .medium,
-             number: Int = 0) {
+             number: Int = 0,
+             strength: Double = 0.5,
+             heads: ArrowHeads = .end,
+             manualNumber: Bool = false,
+             fontName: String? = nil,
+             fontSize: Double = 0) {
             self.id = id
             self.tool = tool
             self.rect = rect
@@ -1317,6 +1371,11 @@ enum ScreenshotSupport {
             self.color = color
             self.stroke = stroke
             self.number = number
+            self.strength = ScreenshotSupport.clampedStrength(strength)
+            self.heads = heads
+            self.manualNumber = manualNumber
+            self.fontName = fontName
+            self.fontSize = fontSize.isFinite ? Swift.max(0, fontSize) : 0
         }
     }
 
@@ -1355,6 +1414,7 @@ enum ScreenshotSupport {
         var next = 1
         return annotations.map { annotation in
             guard annotation.tool == .counter else { return annotation }
+            guard !annotation.manualNumber else { return annotation }
             var updated = annotation
             updated.number = next
             next += 1
@@ -1364,14 +1424,34 @@ enum ScreenshotSupport {
 
     /// Counter badge diameter for an image, scaling with capture resolution
     /// so badges stay readable without swallowing small screenshots.
+    /// A badge that was resized by hand keeps the size it was given; the others
+    /// follow the capture's own scale.
+    static func counterDiameter(for annotation: Annotation, imageSize: CGSize) -> CGFloat {
+        annotation.fontSize > 0
+            ? CGFloat(annotation.fontSize)
+            : counterDiameter(for: imageSize, scale: 1)
+    }
+
     static func counterDiameter(for imageSize: CGSize, scale: CGFloat) -> CGFloat {
         max(22, min(imageSize.width, imageSize.height) / 24) * scale
     }
 
     // MARK: - Selection handles
 
+    /// Places a measured box inside the rect a drag produced, keeping the
+    /// corner opposite the dragged handle where it already was.
+    static func anchoredRect(size: CGSize, within rect: CGRect, dragging handle: Handle) -> CGRect {
+        let keepsLeft = handle == .topRight || handle == .right || handle == .bottomRight
+        let keepsTop = handle == .bottomLeft || handle == .bottom || handle == .bottomRight
+        let x = keepsLeft ? rect.minX : rect.maxX - size.width
+        let y = keepsTop ? rect.minY : rect.maxY - size.height
+        return CGRect(origin: CGPoint(x: x, y: y), size: size)
+    }
+
     enum Handle: CaseIterable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
+
+        static let corners: [Handle] = [.topLeft, .topRight, .bottomRight, .bottomLeft]
 
         func position(in rect: CGRect) -> CGPoint {
             switch self {
@@ -1387,8 +1467,9 @@ enum ScreenshotSupport {
         }
     }
 
-    static func handle(at point: CGPoint, rect: CGRect, tolerance: CGFloat) -> Handle? {
-        Handle.allCases.first { handle in
+    static func handle(at point: CGPoint, rect: CGRect, tolerance: CGFloat,
+                       corners: [Handle] = Handle.allCases) -> Handle? {
+        corners.first { handle in
             let position = handle.position(in: rect)
             return abs(position.x - point.x) <= tolerance && abs(position.y - point.y) <= tolerance
         }
@@ -1396,7 +1477,8 @@ enum ScreenshotSupport {
 
     /// The rectangle after dragging `handle` to `point`. Width and height are
     /// kept non-negative by swapping edges when a drag crosses over.
-    static func resizedRect(_ rect: CGRect, dragging handle: Handle, to point: CGPoint) -> CGRect {
+    static func resizedRect(_ rect: CGRect, dragging handle: Handle, to point: CGPoint,
+                            square: Bool = false) -> CGRect {
         var minX = rect.minX, minY = rect.minY, maxX = rect.maxX, maxY = rect.maxY
         switch handle {
         case .topLeft: minX = point.x; minY = point.y
@@ -1408,8 +1490,17 @@ enum ScreenshotSupport {
         case .bottomLeft: minX = point.x; maxY = point.y
         case .left: minX = point.x
         }
-        return CGRect(x: min(minX, maxX), y: min(minY, maxY),
-                      width: abs(maxX - minX), height: abs(maxY - minY))
+        let resized = CGRect(x: min(minX, maxX), y: min(minY, maxY),
+                             width: abs(maxX - minX), height: abs(maxY - minY))
+        guard square else { return resized }
+        // The shift key keeps its promise after the shape is placed too: the
+        // longer side wins and the edges the handle does not touch stay put.
+        let side = Swift.max(resized.width, resized.height)
+        let keepsLeft = handle == .topRight || handle == .right || handle == .bottomRight
+        let keepsTop = handle == .bottomLeft || handle == .bottom || handle == .bottomRight
+        return CGRect(x: keepsLeft ? resized.minX : resized.maxX - side,
+                      y: keepsTop ? resized.minY : resized.maxY - side,
+                      width: side, height: side)
     }
 
     /// Moves an existing crop without resizing it, stopping cleanly at the
@@ -1537,6 +1628,17 @@ enum ScreenshotSupport {
     /// One continuous outline for the complete arrow. Keeping the shaft,
     /// round tail and head on the same contour avoids winding-rule cutouts
     /// where independently filled shapes would overlap.
+    /// Where the shaft starts when the tail carries a head of its own: pulled
+    /// back to the head's base, so the rounded cap cannot poke out past the
+    /// point of the arrow.
+    static func arrowShaftStart(from tail: CGPoint,
+                                to tip: CGPoint,
+                                strokeWidth: CGFloat) -> CGPoint {
+        let head = arrowHead(from: tip, to: tail, strokeWidth: strokeWidth)
+        return CGPoint(x: (head.left.x + head.right.x) / 2,
+                       y: (head.left.y + head.right.y) / 2)
+    }
+
     static func arrowSilhouette(from tail: CGPoint,
                                 to tip: CGPoint,
                                 strokeWidth: CGFloat) -> CGPath {
@@ -1587,8 +1689,22 @@ enum ScreenshotSupport {
     /// Pixelation block size in image pixels: coarse enough that the mosaic
     /// carries no legible detail, scaled to the capture so small crops and
     /// full screens redact equally well.
+    static func clampedStrength(_ value: Double) -> Double {
+        guard value.isFinite else { return 0.5 }
+        return Swift.min(1, Swift.max(0, value))
+    }
+
     static func pixelBlockSize(for imageSize: CGSize) -> Int {
         max(10, Int(min(imageSize.width, imageSize.height) / 55))
+    }
+
+    /// The strength slider stretches the default block from a light mosaic to
+    /// one that destroys the content outright. The default sits at the block
+    /// size the editor has always used, so an untouched mark looks unchanged.
+    static func pixelBlockSize(for imageSize: CGSize, strength: Double) -> Int {
+        let base = Double(pixelBlockSize(for: imageSize))
+        let clamped = ScreenshotSupport.clampedStrength(strength)
+        return Swift.max(4, Int((base * (0.35 + clamped * 1.3)).rounded()))
     }
 
     // MARK: - Export
