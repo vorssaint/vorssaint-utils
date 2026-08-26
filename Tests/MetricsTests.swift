@@ -6046,6 +6046,64 @@ struct MetricsTests {
                == .stalled(recheckAfter: 1.5),
                "a clock that jumps backwards waits a full window before judging")
 
+        // The wedged tap that verdict tears down is also the one whose
+        // `AudioHardwareDestroyProcessTap` parks inside the HAL. Serialized,
+        // that one parked call held every later engine's aggregate and tap
+        // alive behind it; unbounded, each one strands a worker of the shared
+        // pool, which is issue #971's exhaustion. Read as source text because
+        // the engine lives in a file the test target does not compile.
+        let mixerCode = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+            encoding: .utf8)) ?? ""
+        let teardownQueueSetup = mixerCode.range(of: "let teardownQueue").flatMap { start in
+            mixerCode.range(of: "}()", range: start.upperBound..<mixerCode.endIndex)
+                .map { String(mixerCode[start.upperBound..<$0.lowerBound]) }
+        } ?? ""
+        expect(teardownQueueSetup.contains("maxConcurrentOperationCount"),
+               "engine teardown runs on a queue with a concurrency bound, not one thread and not one per engine")
+
+        // The IO callback's two exits, read the same way: a cycle that never
+        // found its tap must hand the device silence rather than what the HAL
+        // left in the buffer (issue #326), and must leave without counting
+        // itself alive — a callback that resolved no tap has done nothing for
+        // the app that a callback which never ran would not have done, and
+        // `tapChannels` is read once when the engine is built, so input that
+        // never carried that shape never will. Ordering alone would not say
+        // that: a count inside the missed-tap branch also reads as "after the
+        // lookup". The branch is cut out by brace matching and the two halves
+        // are checked apart.
+        let mixerBody = mixerCode
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let missedTapBrace = mixerBody
+            .range(of: "MixerRender.tapBufferIndex(in: inputBuffers")
+            .flatMap { mixerBody.range(of: "else {", range: $0.upperBound..<mixerBody.endIndex) }
+        var missedTapBranch = ""
+        var afterMissedTap = ""
+        if let missedTapBrace {
+            var depth = 1
+            var index = missedTapBrace.upperBound
+            while index < mixerBody.endIndex, depth > 0 {
+                if mixerBody[index] == "{" { depth += 1 }
+                if mixerBody[index] == "}" { depth -= 1 }
+                index = mixerBody.index(after: index)
+            }
+            if depth == 0 {
+                missedTapBranch = String(mixerBody[missedTapBrace.upperBound..<mixerBody.index(before: index)])
+                afterMissedTap = String(mixerBody[index...])
+            }
+        }
+        expect(missedTapBranch.contains("MixerRender.silence(outputBuffers)")
+               && missedTapBranch.contains("return"),
+               "a callback that finds no tap silences the output before it leaves")
+        expect(!missedTapBranch.isEmpty && !missedTapBranch.contains("cycles.increment()"),
+               "a callback that finds no tap leaves without counting a cycle")
+        let framesGuard = afterMissedTap.range(of: "guard frames > 0 else")?.upperBound
+        let cycleCount = afterMissedTap.range(of: "cycles.increment()")?.lowerBound
+        expect(framesGuard != nil && cycleCount != nil && framesGuard! < cycleCount!,
+               "a cycle is counted only once the engine has handed the device audio")
+
         let identifiedRow = MixerRoutingSupport.rowIdentity(bundleIdentifier: "com.example.Player",
                                                            ownerPid: 501,
                                                            displayName: "Player")
