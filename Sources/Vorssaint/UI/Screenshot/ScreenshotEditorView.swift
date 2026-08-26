@@ -373,9 +373,14 @@ struct ScreenshotEditorView: View {
     @ViewBuilder
     private func cropLoupeOverlay(zoom: CGFloat, canvasSize: CGSize) -> some View {
         if let point = model.cropLoupePoint {
+            // A crop edge sits between pixels, not on one, so this loupe wants an
+            // even sample side to put that edge in the middle of the frame — the
+            // opposite of what the capture loupe's color read needs.
             let sourceRect = ScreenshotSupport.cropLoupeSampleRect(
                 around: point,
-                imageSize: model.imageSize)
+                imageSize: model.imageSize,
+                sideLength: 14,
+                centredOnPixel: false)
             if let sample = model.baseImage.cropping(to: sourceRect) {
                 let size = Self.cropLoupeSize
                 let crossX = min(max((point.x - sourceRect.minX) / sourceRect.width * size, 0.5),

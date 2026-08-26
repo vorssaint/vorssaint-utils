@@ -24,8 +24,8 @@ struct QuickTogglesSection: View {
             // Events, the Trash confirmation), which would dismiss the panel
             // mid-flow; holding it open keeps a toggle-back one click away.
             // The status icon and switching tabs still close as always.
-            .onAppear { PanelInteractionState.shared.keepsPopoverOpen = true }
-            .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+            .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
+            .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
         }
     }
 }

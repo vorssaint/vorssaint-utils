@@ -59,18 +59,24 @@ enum BoundedProcessRunner {
             }
         }
 
+        // The child is watched through its termination handler. A blocking
+        // `waitUntilExit()` has to be parked on a thread of its own, and the
+        // timeout below makes `run` walk away from it while it still holds one
+        // worker of the shared 64-thread pool. Those abandoned waits pile up
+        // faster than they drain, and a full pool starves every later user of
+        // it, the main thread's window walk included (issue #971). It also
+        // starves this runner, which then reports timeouts for commands that
+        // exited at once and abandons another wait doing it. A termination
+        // handler occupies no thread, so none of that accumulates.
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+
         do {
             try process.run()
         } catch {
             reader.readabilityHandler = nil
             try? reader.close()
             return Result(status: -1, output: Data(), timedOut: false)
-        }
-
-        let finished = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async {
-            process.waitUntilExit()
-            finished.signal()
         }
 
         var didFinish = finished.wait(timeout: .now() + max(0, timeout)) == .success

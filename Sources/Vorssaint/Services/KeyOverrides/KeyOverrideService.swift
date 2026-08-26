@@ -46,6 +46,14 @@ final class KeyOverrideService: ObservableObject {
             : []
         let active = overrides.filter(\.isEnabled)
 
+        // The mic-mute action needs the Microphone Mute feature, whichever
+        // path the list arrived by — a row added in Settings or a restored
+        // backup. Installing here keeps the hub state a function of the list.
+        if active.contains(where: { $0.action.kind == .micMute }),
+           !AppFeature.micMute.isAvailable {
+            FeatureRuntime.shared.setAvailable(.micMute, true)
+        }
+
         syncHotkeys(for: active)
 
         syncGeneration += 1
@@ -189,7 +197,7 @@ final class KeyOverrideService: ObservableObject {
         }
     }
 
-    /// Runs on mappingQueue. Reads, composes, writes, and reads back. Refuses a table that another tool remaps.
+    /// Runs on mappingQueue. Reads and composes; writes and reads back only when the table differs. Refuses a table that another tool remaps.
     private func performMapping(reclaiming keys: [KeyOverrideKey],
                                 ownsExistingMapping: Bool) -> Bool {
         let report = Shell.run(
@@ -198,9 +206,16 @@ final class KeyOverrideService: ObservableObject {
              "--get", SuperKeySupport.userMappingProperty]
         )
         guard report.status == 0 else { return false }
+        // The Super key's entries ride along only while its marker says a
+        // confirmed write made them; an unmarked entry of that shape is
+        // external and stays the user's.
+        let partnerApplied = UserDefaults.standard.bool(
+            forKey: DefaultsKey.superKeyMappingApplied
+        )
         guard let existing = KeyOverrideSupport.consistentMappings(
             report.output,
-            ownsExistingMapping: ownsExistingMapping
+            ownsExistingMapping: ownsExistingMapping,
+            partnerMappingApplied: partnerApplied
         ) else { return false }
         guard keys.isEmpty || !KeyOverrideSupport.hasMappingConflict(
             in: existing, reclaiming: keys
@@ -211,6 +226,12 @@ final class KeyOverrideService: ObservableObject {
         if !keys.isEmpty {
             // Set the marker before the write. After a crash, the next launch can then remove a partial mapping.
             UserDefaults.standard.set(true, forKey: DefaultsKey.keyOverridesMappingApplied)
+            // Every keyboard already carrying the wanted table makes the write
+            // and its readback pure cost: ending a shortcut recording re-syncs
+            // this path on every capture, escape, focus loss and window close.
+            if SuperKeySupport.mappingReportConfirms(report.output, expected: wanted) {
+                return true
+            }
         }
         let write = Shell.run(
             hidutilPath,

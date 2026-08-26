@@ -211,7 +211,8 @@ struct SwitcherView: View {
 
     private var usesWindowRow: Bool {
         SwitcherSupport.usesWindowRow(simpleMode: simpleMode,
-                                      mergeWindowsByApp: mergeWindowsByApp)
+                                      mergeWindowsByApp: mergeWindowsByApp,
+                                      sessionScope: switcher.sessionScope)
     }
 
     private var shortcutHintBar: some View {

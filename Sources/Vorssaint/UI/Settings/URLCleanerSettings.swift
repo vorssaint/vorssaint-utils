@@ -17,6 +17,7 @@ struct URLCleanerSettings: View {
     @State private var input = ""
     @State private var output = ""
     @State private var message: String?
+    @State private var showingAddSite = false
     private var canClearInput: Bool { !input.isEmpty || !output.isEmpty || message != nil }
     private var rules: URLCleaning.Rules {
         URLCleaning.rules(globalNames: globalNames,
@@ -80,8 +81,13 @@ struct URLCleanerSettings: View {
                         }
                     }
                 }
-                DisclosureGroup(l10n.s.urlCleanerRulesAddSite) {
+                DisclosureHeaderRow(isExpanded: $showingAddSite) {
+                    Text(l10n.s.urlCleanerRulesAddSite)
+                    Spacer()
+                }
+                if showingAddSite {
                     addSiteRow
+                        .disclosureIndent()
                 }
                 Text(l10n.s.urlCleanerRulesCaption)
                     .font(.caption)
@@ -307,9 +313,16 @@ struct URLCleanerSettings: View {
         }
     }
 
+    /// Through the shared lane: a direct read here would both race the
+    /// clipboard services on AppKit's pasteboard cache and hang the button
+    /// (and with it the app) on a promised flavour nobody renders any more.
     private func paste() {
-        input = NSPasteboard.general.string(forType: .string) ?? ""
-        clean()
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.string(forType: .string) ?? ""
+        }, then: { pasted in
+            self.input = pasted
+            self.clean()
+        })
     }
 
     private func clean() {

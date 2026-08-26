@@ -34,14 +34,14 @@ struct FeatureHubSettings: View {
                 if tab == .features {
                     HStack(spacing: 8) {
                         Text(String(format: hub.activeCountFormat,
-                                    features.availableCount, AppFeature.allCases.count))
+                                    features.availableCount, features.installableCount))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                         Spacer(minLength: 8)
                         Button(hub.installAllButton) {
                             FeatureRuntime.shared.setAllAvailable(true)
                         }
-                        .disabled(features.availableCount == AppFeature.allCases.count)
+                        .disabled(features.availableCount == features.installableCount)
                         Button(hub.uninstallAllButton) {
                             FeatureRuntime.shared.setAllAvailable(false)
                         }
@@ -225,6 +225,11 @@ private struct FeatureHubRow: View {
 
     private var installed: Bool { feature.isAvailable }
 
+    /// Set only while this Mac cannot run the feature and it is not yet
+    /// installed, so an install that predates the check keeps an ordinary
+    /// row with its settings and Uninstall reachable.
+    private var unsupportedReason: String? { feature.installBlockedReason }
+
     private var accessibilityTitle: String {
         let title = feature.hubTitle(l10n.s, hub: hub)
         return feature.isBeta ? "\(title). \(l10n.s.betaFeatureWarning)" : title
@@ -258,6 +263,8 @@ private struct FeatureHubRow: View {
                 rowContent(showsChevron: false)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                    .opacity(unsupportedReason == nil ? 1 : 0.4)
+                    .saturation(unsupportedReason == nil ? 1 : 0)
             }
             if working {
                 ProgressView()
@@ -267,6 +274,18 @@ private struct FeatureHubRow: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
+            } else if let reason = unsupportedReason {
+                // .help() never fires on a disabled control, so the tooltip
+                // has to sit on this wrapper. Flattening it loses the only
+                // place the reason is shown.
+                HStack(spacing: 0) {
+                    Button(hub.installButton) { flip(to: true) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(true)
+                        .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(reason)")
+                }
+                .help(reason)
             } else {
                 Button(hub.installButton) { flip(to: true) }
                     .buttonStyle(.borderedProminent)

@@ -96,7 +96,10 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         switch kind {
         case .text: return text
         case .image: return "\(imageLabel) png \(imageDimensionsLabel)"
-        case .files: return fileNames.joined(separator: " ")
+        case .files:
+            let names = fileNames.joined(separator: " ")
+            let hasImage = filePaths.contains { ClipboardHistoryImageSupport.isImageFileName($0) }
+            return hasImage ? "\(imageLabel) \(names)" : names
         }
     }
 
@@ -274,6 +277,24 @@ enum ClipboardHistorySelection {
 enum ClipboardHistoryPreview {
     static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
         selectionIsVisible && !hasModifiers
+    }
+}
+
+enum ClipboardHistoryEscape {
+    enum Action: Equatable {
+        case clearBatchSelection
+        case hideWindow
+    }
+
+    /// Esc backs out one layer at a time - selection, then the window.
+    /// Preview is a persistent view setting, not a layer: only clicking its
+    /// own toggle turns it off (or Space, but only once arrow-key navigation
+    /// has made a row's selection visible - see `ClipboardHistoryPreview
+    /// .handlesSpace`; while the search field has focus, Space just types),
+    /// so a keystroke meant to close the panel can never silently re-hide
+    /// it first.
+    static func action(batchCount: Int) -> Action {
+        batchCount > 0 ? .clearBatchSelection : .hideWindow
     }
 }
 
@@ -473,3 +494,20 @@ enum ClipboardHistorySensitiveText {
         return true
     }
 }
+
+enum ClipboardHistoryImageSupport {
+    static let imageExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "webp", "bmp", "ico", "icns", "svg", "avif"
+    ]
+
+    static func isImageFileName(_ name: String) -> Bool {
+        let ext = (name as NSString).pathExtension.lowercased()
+        return imageExtensions.contains(ext)
+    }
+
+    static func isImageFilePath(_ path: String, fileManager: FileManager = .default) -> Bool {
+        guard isImageFileName(path) else { return false }
+        return fileManager.fileExists(atPath: path)
+    }
+}
+

@@ -227,13 +227,14 @@ enum KeyOverrideSupport {
         return existing.contains { sources.contains($0.source) && !isOwnedMapping($0) }
     }
 
-    /// Returns one table only when all keyboards report the same external mappings, through the Super key's shared core. The Super key's entries are the partner shape: ignored for the comparison, carried along in the write.
+    /// Returns one table only when all keyboards report the same external mappings, through the Super key's shared core. The Super key's entries are the partner shape: ignored for the comparison, carried along in the write — but only when its marker says a confirmed write made them, or an external entry of that shape would be claimed and spread onto every keyboard.
     static func consistentMappings(_ report: String,
-                                   ownsExistingMapping: Bool) -> [SuperKeyMapping]? {
+                                   ownsExistingMapping: Bool,
+                                   partnerMappingApplied: Bool) -> [SuperKeyMapping]? {
         SuperKeySupport.consistentMappings(
             report,
             property: SuperKeySupport.userMappingProperty,
             settingAside: ownsExistingMapping ? isOwnedMapping : { _ in false },
-            propagating: SuperKeySupport.isOwnedMapping)
+            propagating: partnerMappingApplied ? SuperKeySupport.isOwnedMapping : { _ in false })
     }
 }

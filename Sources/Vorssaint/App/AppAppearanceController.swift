@@ -23,10 +23,18 @@ final class AppAppearanceController: ObservableObject {
         }
     }
 
+    @Published var liquidGlassEnabled: Bool {
+        didSet {
+            guard liquidGlassEnabled != oldValue else { return }
+            UserDefaults.standard.set(liquidGlassEnabled, forKey: DefaultsKey.liquidGlassEnabled)
+        }
+    }
+
     private init() {
         appearance = AppAppearance.sanitized(
             UserDefaults.standard.string(forKey: DefaultsKey.appearance)
         )
+        liquidGlassEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.liquidGlassEnabled)
     }
 
     /// The panel is a popover anchored to the menu bar item, so it takes its

@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "关于",
         tabReleaseNotes: "新功能",
         releaseNotesOnUpdateToggle: "更新后显示新功能",
-        whatsNewDontShowAgain: "不再显示",
         previewSizeLabel: "预览大小",
         previewSizeNormal: "正常",
         previewSizeLarge: "大",
@@ -749,6 +748,8 @@ extension Strings {
         speedTestFailed: "测试失败",
 
         monitorShowInPanel: "在面板中显示",
+        disclosureExpanded: "已展开",
+        disclosureCollapsed: "已折叠",
         panelHideItem: "从面板隐藏",
         panelShowItem: "在面板中显示",
         panelHiddenItem: "隐藏",

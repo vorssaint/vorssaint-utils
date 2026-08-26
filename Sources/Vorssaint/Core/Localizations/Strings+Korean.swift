@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "정보",
         tabReleaseNotes: "새로운 기능",
         releaseNotesOnUpdateToggle: "업데이트 후 새로운 기능 보기",
-        whatsNewDontShowAgain: "다시 표시하지 않기",
         previewSizeLabel: "미리보기 크기",
         previewSizeNormal: "보통",
         previewSizeLarge: "크게",
@@ -750,6 +749,8 @@ extension Strings {
         speedTestFailed: "테스트에 실패했습니다",
 
         monitorShowInPanel: "패널에 표시",
+        disclosureExpanded: "펼쳐짐",
+        disclosureCollapsed: "접힘",
         panelHideItem: "패널에서 숨기기",
         panelShowItem: "패널에 표시",
         panelHiddenItem: "숨김",

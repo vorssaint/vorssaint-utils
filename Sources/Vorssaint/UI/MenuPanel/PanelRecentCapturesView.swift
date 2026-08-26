@@ -9,9 +9,9 @@ struct PanelRecentCapturesView: View {
     var body: some View {
         RecentCapturesView(onClose: onClose)
         .onAppear {
-            PanelInteractionState.shared.keepsPopoverOpen = true
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
         }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
 }
 

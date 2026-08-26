@@ -158,17 +158,9 @@ struct KeyOverrideSettings: View {
     private var commonSetButton: some View {
         Button(text.commonSetButton) {
             overrides = KeyOverrideSupport.sanitized(KeyOverrideSupport.commonOverrides())
-            installMicMuteIfNeeded()
             save()
         }
         .help(text.commonSetCaption)
-    }
-
-    /// Installs the Microphone Mute feature when an override needs it.
-    private func installMicMuteIfNeeded() {
-        if !features.isAvailable(.micMute) {
-            features.setAvailable(.micMute, true)
-        }
     }
 
     // MARK: - Names
@@ -230,7 +222,6 @@ struct KeyOverrideSettings: View {
             let shortcut = kind == .pressShortcut
                 ? override.wrappedValue.action.shortcut : nil
             override.wrappedValue.action = KeyOverrideAction(kind: kind, shortcut: shortcut)
-            if kind == .micMute { installMicMuteIfNeeded() }
             save()
         }
     }
@@ -261,7 +252,6 @@ struct KeyOverrideSettings: View {
 
     private func add(_ key: KeyOverrideKey) {
         let action: KeyOverrideAction = key == .dictation ? .micMute : .remapOnly
-        if action.kind == .micMute { installMicMuteIfNeeded() }
         overrides.append(KeyOverride(key: key, action: action))
         save()
     }

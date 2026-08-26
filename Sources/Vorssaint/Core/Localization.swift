@@ -218,7 +218,6 @@ struct Strings {
     let tabAbout: String
     let tabReleaseNotes: String
     let releaseNotesOnUpdateToggle: String
-    let whatsNewDontShowAgain: String
     let previewSizeLabel: String
     let previewSizeNormal: String
     let previewSizeLarge: String
@@ -885,6 +884,8 @@ struct Strings {
 
     // MARK: Per-item panel config (Settings + onboarding)
     let monitorShowInPanel: String
+    let disclosureExpanded: String
+    let disclosureCollapsed: String
     let panelHideItem: String
     let panelShowItem: String
     let panelHiddenItem: String
@@ -1217,7 +1218,6 @@ extension Strings {
         tabAbout: "Sobre",
         tabReleaseNotes: "Novidades",
         releaseNotesOnUpdateToggle: "Mostrar novidades ao atualizar",
-        whatsNewDontShowAgain: "Não mostrar novamente",
         previewSizeLabel: "Tamanho dos previews",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Grande",
@@ -1858,6 +1858,8 @@ extension Strings {
         speedTestFailed: "Falha no teste",
 
         monitorShowInPanel: "Mostrar no painel",
+        disclosureExpanded: "Expandido",
+        disclosureCollapsed: "Recolhido",
         panelHideItem: "Ocultar do painel",
         panelShowItem: "Mostrar no painel",
         panelHiddenItem: "Oculto",
@@ -2183,7 +2185,6 @@ extension Strings {
         tabAbout: "About",
         tabReleaseNotes: "What's New",
         releaseNotesOnUpdateToggle: "Show what's new after updating",
-        whatsNewDontShowAgain: "Don't show again",
         previewSizeLabel: "Preview size",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Large",
@@ -2824,6 +2825,8 @@ extension Strings {
         speedTestFailed: "Test failed",
 
         monitorShowInPanel: "Show in panel",
+        disclosureExpanded: "Expanded",
+        disclosureCollapsed: "Collapsed",
         panelHideItem: "Hide from panel",
         panelShowItem: "Show in panel",
         panelHiddenItem: "Hidden",

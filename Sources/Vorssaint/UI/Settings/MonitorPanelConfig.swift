@@ -105,20 +105,17 @@ struct MonitorPanelConfig: View {
                                       title: String,
                                       master: Binding<Bool>,
                                       @ViewBuilder _ items: @escaping () -> Content) -> some View {
-        DisclosureGroup(isExpanded: expansionBinding(for: id)) {
-            Toggle(l10n.s.monitorShowInPanel, isOn: master)
-            items()
-                .disabled(!master.wrappedValue)
-        } label: {
-            HStack {
-                Text(title)
-                Spacer(minLength: 0)
+        DisclosureHeaderRow(isExpanded: expansionBinding(for: id)) {
+            Text(title)
+            Spacer()
+        }
+        if expandedBlocks.contains(id) {
+            Group {
+                Toggle(l10n.s.monitorShowInPanel, isOn: master)
+                items()
+                    .disabled(!master.wrappedValue)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                toggle(id)
-            }
+            .disclosureIndent()
         }
     }
 
@@ -135,13 +132,6 @@ struct MonitorPanelConfig: View {
         )
     }
 
-    private func toggle(_ id: PanelConfigBlock) {
-        if expandedBlocks.contains(id) {
-            expandedBlocks.remove(id)
-        } else {
-            expandedBlocks.insert(id)
-        }
-    }
 }
 
 private enum PanelConfigBlock: Hashable {
