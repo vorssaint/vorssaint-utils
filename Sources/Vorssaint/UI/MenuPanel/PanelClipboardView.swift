@@ -31,8 +31,8 @@ struct PanelClipboardView: View {
             controls
             entriesList
         }
-        .onAppear { PanelInteractionState.shared.keepsPopoverOpen = true }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
 
     private var header: some View {
@@ -230,8 +230,12 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
                 Button {
-                    history.copy(entry)
-                    copiedID = entry.id
+                    // The tick means "it is on the clipboard", so it waits for
+                    // the write instead of announcing one still queued behind
+                    // a stalled pasteboard provider.
+                    history.copy(entry) { copied in
+                        if copied { copiedID = entry.id }
+                    }
                 } label: {
                     Label(copiedID == entry.id ? text.copied : text.copy,
                           systemImage: copiedID == entry.id ? "checkmark" : "doc.on.doc")

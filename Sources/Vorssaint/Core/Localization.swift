@@ -218,7 +218,6 @@ struct Strings {
     let tabAbout: String
     let tabReleaseNotes: String
     let releaseNotesOnUpdateToggle: String
-    let whatsNewDontShowAgain: String
     let previewSizeLabel: String
     let previewSizeNormal: String
     let previewSizeLarge: String
@@ -1219,7 +1218,6 @@ extension Strings {
         tabAbout: "Sobre",
         tabReleaseNotes: "Novidades",
         releaseNotesOnUpdateToggle: "Mostrar novidades ao atualizar",
-        whatsNewDontShowAgain: "Não mostrar novamente",
         previewSizeLabel: "Tamanho dos previews",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Grande",
@@ -2187,7 +2185,6 @@ extension Strings {
         tabAbout: "About",
         tabReleaseNotes: "What's New",
         releaseNotesOnUpdateToggle: "Show what's new after updating",
-        whatsNewDontShowAgain: "Don't show again",
         previewSizeLabel: "Preview size",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Large",

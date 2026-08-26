@@ -20,6 +20,7 @@ final class StatusItemController {
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
+    private var heldMicBadgeActive: Bool?
     /// A settings reply already waiting for the next turn of the run loop.
     private var settingsSyncScheduled = false
     /// How many readings in a row each metric has failed to render, so an
@@ -58,8 +59,13 @@ final class StatusItemController {
 
     func containsStatusItem(at screenPoint: NSPoint) -> Bool {
         let buttons = ([statusItem?.button] + metricStatusItems.values.map(\.button)).compactMap { $0 }
+        // Bound once for the whole scan: a default argument is evaluated per
+        // call, so leaving it to the default would rebuild this per button.
+        let screenFrames = NSScreen.screens.map(\.frame)
         return buttons.contains { button in
-            guard let frame = button.window?.frame else { return false }
+            guard let frame = button.window?.frame,
+                  StatusItemAnchorSupport.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
+            else { return false }
             return frame.insetBy(dx: -4, dy: -8).contains(screenPoint)
         }
     }
@@ -214,6 +220,28 @@ final class StatusItemController {
         titleTimer = timer
     }
 
+    private var currentMicBadgeActive: Bool {
+        MicMuteService.shared.isMuted
+            && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+    }
+
+    private var renderedMicBadgeActive: Bool {
+        heldMicBadgeActive ?? currentMicBadgeActive
+    }
+
+    /// Keeps the variable-width mic badge unchanged while any status item is
+    /// anchoring an open panel. The current state is rendered after it closes.
+    func setMicBadgeHeld(_ held: Bool) {
+        if held {
+            guard heldMicBadgeActive == nil else { return }
+            heldMicBadgeActive = currentMicBadgeActive
+            return
+        }
+        guard heldMicBadgeActive != nil else { return }
+        heldMicBadgeActive = nil
+        updateIconAppearance()
+    }
+
     /// Reflects keep-awake state and an available update in the icon. Updates
     /// keep the blue attention glyph; an active session uses the chosen icon.
     /// With the mute indicator option on, a red slashed mic joins the glyph
@@ -230,8 +258,7 @@ final class StatusItemController {
         } else {
             updateAvailable = false
         }
-        let micBadgeActive = MicMuteService.shared.isMuted
-            && defaults.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+        let micBadgeActive = renderedMicBadgeActive
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
         let signal = updateAvailable || micBadgeActive
@@ -383,8 +410,7 @@ final class StatusItemController {
             } else {
                 updateAvailable = false
             }
-            let micBadgeActive = MicMuteService.shared.isMuted
-                && defaults.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+            let micBadgeActive = renderedMicBadgeActive
             let glyphHidden = MenuBarSpacingSupport.shouldHideStatusIcon(
                 optionEnabled: defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
                 separateMetrics: separateMetrics,

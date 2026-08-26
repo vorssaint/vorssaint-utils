@@ -754,12 +754,16 @@ enum HomebrewParser {
     private static func parseFormula(_ item: [String: Any]) -> HomebrewPackage? {
         guard let name = item["name"] as? String,
               HomebrewCommandBuilder.isValidToken(name) else { return nil }
+        let fullName = item["full_name"] as? String
+        let identifier = fullName.flatMap { fullName in
+            HomebrewCommandBuilder.isValidToken(fullName) ? fullName : nil
+        } ?? name
         let installed = item["installed"] as? [[String: Any]] ?? []
         let installedVersions = installed.compactMap { $0["version"] as? String }
         let stable = (item["versions"] as? [String: Any])?["stable"] as? String
         return HomebrewPackage(kind: .formula,
-                               name: name,
-                               displayName: item["full_name"] as? String ?? name,
+                               name: identifier,
+                               displayName: fullName ?? name,
                                desc: item["desc"] as? String,
                                installedVersion: installedVersions.isEmpty ? nil : installedVersions.joined(separator: ", "),
                                stableVersion: stable,

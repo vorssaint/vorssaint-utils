@@ -190,12 +190,3 @@ private struct QRResultView: View {
         )
     }
 }
-
-/// Erases the two button styles used above so they can share one modifier.
-private struct AnyButtonStyle: PrimitiveButtonStyle {
-    private let make: (Configuration) -> AnyView
-    init(_ style: some PrimitiveButtonStyle) {
-        make = { AnyView(Button($0).buttonStyle(style)) }
-    }
-    func makeBody(configuration: Configuration) -> some View { make(configuration) }
-}

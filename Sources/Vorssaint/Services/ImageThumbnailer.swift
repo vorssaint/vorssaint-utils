@@ -41,7 +41,7 @@ enum ImageThumbnailer {
     }
 
     static func thumbnail(for image: NSImage, pointSize: CGFloat = defaultPointSize) -> NSImage? {
-        let pixels = pixelSize(for: pointSize)
+        let pixels = pixelSize(for: pointSize, scale: backingScale)
         guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil,
                                          pixelsWide: pixels,
                                          pixelsHigh: pixels,
@@ -84,7 +84,7 @@ enum ImageThumbnailer {
     }
 
     static func estimatedBitmapCost(pointSize: CGFloat = defaultPointSize) -> Int {
-        let pixels = pixelSize(for: pointSize)
+        let pixels = pixelSize(for: pointSize, scale: backingScale)
         return pixels * pixels * 4
     }
 
@@ -92,7 +92,11 @@ enum ImageThumbnailer {
         max(1, NSScreen.main?.backingScaleFactor ?? 2)
     }
 
-    private static func pixelSize(for pointSize: CGFloat, scale: CGFloat = backingScale) -> Int {
+    /// Takes `scale` rather than defaulting to `backingScale` so that every
+    /// caller's dependency on an `NSScreen` read is visible where it happens.
+    /// It does not move the read: the two callers that used the default now
+    /// pass `backingScale` themselves, on the same thread as before.
+    private static func pixelSize(for pointSize: CGFloat, scale: CGFloat) -> Int {
         max(16, Int((pointSize * scale).rounded(.up)))
     }
 }

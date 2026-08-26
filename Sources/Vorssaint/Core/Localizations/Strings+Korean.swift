@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "정보",
         tabReleaseNotes: "새로운 기능",
         releaseNotesOnUpdateToggle: "업데이트 후 새로운 기능 보기",
-        whatsNewDontShowAgain: "다시 표시하지 않기",
         previewSizeLabel: "미리보기 크기",
         previewSizeNormal: "보통",
         previewSizeLarge: "크게",

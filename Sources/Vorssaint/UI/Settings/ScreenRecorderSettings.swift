@@ -55,6 +55,7 @@ struct ScreenRecordingCaptureSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
+                ToolShortcutRows(tool: .recording)
                 if !permissions.screenRecording {
                     PermissionRow(kind: .screenRecording)
                 }

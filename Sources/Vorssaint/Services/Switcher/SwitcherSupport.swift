@@ -342,9 +342,11 @@ enum SwitcherSupport {
     }
 
     /// The simple switcher follows the existing one-entry-per-app choice.
-    /// With grouping off, its icon row represents windows directly.
-    static func usesWindowRow(simpleMode: Bool, mergeWindowsByApp: Bool) -> Bool {
-        simpleMode && !mergeWindowsByApp
+    /// With grouping off or a window-scoped session, its row represents windows directly.
+    static func usesWindowRow(simpleMode: Bool,
+                              mergeWindowsByApp: Bool,
+                              sessionScope: SwitcherSessionScope) -> Bool {
+        simpleMode && (!mergeWindowsByApp || sessionScope == .frontmostApp)
     }
 
     static func usesAppGroupsForMainShortcut(iconRowLayout: Bool,

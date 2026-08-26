@@ -4,113 +4,42 @@
 import SwiftUI
 
 /// One Settings destination for every tool that starts from the screen. The
-/// segmented control at the top changes the feature-specific options shown
-/// below it, and the top section also carries the selected tool's own
-/// shortcut where the old shared shortcut lived.
+/// tools are four modes of one chooser rather than four features, so the page
+/// leads with the chooser itself and then gives every installed tool a section
+/// of its own, each carrying the shortcut that opens the chooser on that mode.
+/// Sections side by side is how the rest of Settings reads, and it lets the
+/// section anchors be reached without a switcher having to move first.
 struct ScreenCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @State private var selectedTool = ScreenCaptureTool.screenshot
-
-    private var strings: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(l10n.language)
-    }
 
     private var availableTools: [ScreenCaptureTool] {
         ScreenCaptureTool.available()
     }
 
-    private var currentTool: ScreenCaptureTool {
-        availableTools.contains(selectedTool) ? selectedTool : availableTools.first ?? .screenshot
-    }
-
     var body: some View {
         Form {
-            if !availableTools.isEmpty {
-                Section {
-                    if availableTools.count > 1 {
-                        Picker(strings.screenCaptureTitle, selection: toolSelection) {
-                            ForEach(availableTools, id: \.self) { tool in
-                                Label(tool.settingsTitle(l10n.s, language: l10n.language),
-                                      systemImage: tool.systemImageName)
-                                    .tag(tool)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .controlSize(.large)
-                    }
-                    ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
-                        .id(currentTool)
-                } header: {
-                    Text(strings.screenCaptureTitle)
-                }
+            ForEach(availableTools, id: \.self) { tool in
+                settings(for: tool)
             }
-
-            selectedSettings
         }
         .formStyle(.grouped)
-        .onAppear { reconcileSelection(withDestination: true) }
-        .onChange(of: features.revision) { _, _ in
-            reconcileSelection(withDestination: false)
-        }
-        .onChange(of: router.requestID) { _, _ in
-            reconcileSelection(withDestination: true)
-        }
-    }
-
-    private var toolSelection: Binding<ScreenCaptureTool> {
-        Binding(get: { currentTool }, set: { selectedTool = $0 })
     }
 
     @ViewBuilder
-    private var selectedSettings: some View {
-        if availableTools.isEmpty {
-            EmptyView()
-        } else {
-            switch currentTool {
-            case .screenshot:
-                ScreenshotCaptureSettings()
-            case .recording:
-                ScreenRecordingCaptureSettings()
-            case .text:
-                ScreenTextCaptureSettings()
-            case .color:
-                ColorCaptureSettings()
-            }
-        }
-    }
-
-    private func reconcileSelection(withDestination: Bool) {
-        if withDestination,
-           let anchor = router.destination.sectionAnchor,
-           let requestedTool = anchor.screenCaptureTool,
-           availableTools.contains(requestedTool) {
-            selectedTool = requestedTool
-            return
-        }
-        if !availableTools.contains(selectedTool), let first = availableTools.first {
-            selectedTool = first
+    private func settings(for tool: ScreenCaptureTool) -> some View {
+        switch tool {
+        case .screenshot: ScreenshotCaptureSettings()
+        case .recording: ScreenRecordingCaptureSettings()
+        case .text: ScreenTextCaptureSettings()
+        case .color: ColorCaptureSettings()
         }
     }
 }
 
-private extension SettingsSectionAnchor {
-    var screenCaptureTool: ScreenCaptureTool? {
-        switch self {
-        case .screenshot: return .screenshot
-        case .screenRecorder: return .recording
-        case .screenOCR: return .text
-        case .colorPicker: return .color
-        default: return nil
-        }
-    }
-}
-
-/// The shortcut that opens the chooser straight on one tool, shown in the
-/// page's top section under the tool's own name while that tool is selected.
-private struct ToolShortcutRows: View {
+/// The shortcut that opens the chooser straight on one tool, shown inside
+/// that tool's own section.
+struct ToolShortcutRows: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ScreenCaptureService.shared
     @AppStorage private var enabled: Bool
@@ -118,7 +47,8 @@ private struct ToolShortcutRows: View {
     private let tool: ScreenCaptureTool
     private let keys: ScreenCaptureTool.DedicatedShortcut
 
-    init(tool: ScreenCaptureTool, keys: ScreenCaptureTool.DedicatedShortcut) {
+    init(tool: ScreenCaptureTool) {
+        let keys = tool.dedicatedShortcut
         self.tool = tool
         self.keys = keys
         _enabled = AppStorage(wrappedValue: false, keys.enabledKey)
@@ -155,6 +85,7 @@ private struct ScreenTextCaptureSettings: View {
             Text(l10n.s.ocrCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            ToolShortcutRows(tool: .text)
             Toggle(l10n.s.ocrQRToggle, isOn: $detectsQRCodes)
             Text(l10n.s.ocrQRCaption)
                 .font(.caption)
@@ -184,6 +115,7 @@ private struct ColorCaptureSettings: View {
             Text(l10n.s.colorPickerCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            ToolShortcutRows(tool: .color)
             Picker(l10n.s.colorPickerFormatLabel, selection: $format) {
                 ForEach(ColorCopyFormat.allCases) { format in
                     Text(format.label).tag(format.rawValue)
