@@ -47,6 +47,7 @@ All notable changes to this project are documented here. The format follows
 - Super key now shows why it could not remap Caps Lock, instead of staying on with a key that still only toggles capitals. Thanks to @PathGao.
 - Holding Super key now also moves and resizes windows by dragging. Thanks to @iltonandrew and @felixblaschke.
 - Shelf drop zone and menu bar icon hit testing no longer use off-screen coordinates when the menu bar is hidden in full screen. Thanks to @iltonandrew.
+- Settings backup import now coordinates file reading for cloud files and accepts XML backup files.
 
 ## [3.3.3-beta.2] - 2026-08-22
 

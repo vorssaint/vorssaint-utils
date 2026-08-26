@@ -15136,6 +15136,20 @@ struct MetricsTests {
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),
         ]) == nil, "a future format version is rejected")
+        expect(SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: 1]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: NSNumber(value: 1)]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: "1"]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: " 1 \n"]) == 1
+                && SettingsBackupSupport.formatVersion(from: [SettingsBackupSupport.formatVersionKey: "invalid"]) == nil,
+               "backup format version accepts integer, NSNumber and string representations")
+        let stringVersionBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: "1",
+            SettingsBackupSupport.settingsKey: [
+                DefaultsKey.smoothScrollStep: 60,
+            ] as [String: Any],
+        ]
+        expect(SettingsBackupSupport.sanitizedSettings(from: stringVersionBackup)?[DefaultsKey.smoothScrollStep] as? Int == 60,
+               "a backup with a string-encoded format version restores correctly")
 
         // A backup file can be edited by hand, and a value of the wrong shape
         // would reach code that trusts its own settings.
