@@ -16,6 +16,9 @@ struct RadialMenuView: View {
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var items: [RadialMenuItem] { service.stack.last ?? [] }
+    private var profileColor: Color {
+        service.activeProfile?.color.color(for: colorScheme) ?? .accentColor
+    }
 
     var body: some View {
         ZStack {
@@ -25,7 +28,7 @@ struct RadialMenuView: View {
                                  sliceAngle: 2 * .pi / Double(items.count),
                                  innerRadius: RadialMenuLayout.deadZoneRadius,
                                  outerRadius: RadialMenuLayout.wheelDiameter / 2 - 4)
-                    .fill(Color.accentColor.opacity(colorScheme == .light ? 0.16 : 0.24))
+                    .fill(profileColor.opacity(colorScheme == .light ? 0.16 : 0.24))
             }
             ring.id(service.stack.count)
             hub
@@ -78,7 +81,8 @@ struct RadialMenuView: View {
                            name: item.displayName(text, nowPlayingState: service.nowPlayingState),
                            nowPlayingState: service.nowPlayingState,
                            highlighted: service.highlightedIndex == index,
-                           reduceMotion: reduceMotion)
+                           reduceMotion: reduceMotion,
+                           profileColor: profileColor)
                 .offset(x: unit.dx * RadialMenuLayout.ringRadius,
                         y: -unit.dyUp * RadialMenuLayout.ringRadius)
                 .accessibilityLabel(item.displayName(text, nowPlayingState: service.nowPlayingState))
@@ -125,12 +129,13 @@ private struct RadialChipView: View {
     let nowPlayingState: RadialNowPlayingState
     let highlighted: Bool
     let reduceMotion: Bool
+    let profileColor: Color
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(highlighted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(PanelSurface.controlFill(for: colorScheme)))
+                .fill(highlighted ? AnyShapeStyle(profileColor) : AnyShapeStyle(PanelSurface.controlFill(for: colorScheme)))
                 .overlay(Circle().strokeBorder(PanelSurface.border(for: colorScheme),
                                                lineWidth: highlighted ? 0 : 0.7))
             icon
@@ -154,6 +159,11 @@ private struct RadialChipView: View {
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(highlighted ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             }
+        } else if item.symbolName.isEmpty, let customImage = RadialMenuIconStore.customIcon(for: item) {
+            Image(nsImage: customImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 34, height: 34)
         } else if item.usesFileIcon {
             Image(nsImage: RadialMenuIconStore.fileIcon(for: item.payload))
                 .resizable()
@@ -195,6 +205,7 @@ struct RadialWedgeShape: Shape {
 enum RadialMenuIconStore {
     private static var icons: [String: NSImage] = [:]
     private static var names: [String: String] = [:]
+    private static var customIcons: [UUID: NSImage] = [:]
 
     static func fileIcon(for payload: String) -> NSImage {
         if let cached = icons[payload] { return cached }
@@ -203,6 +214,15 @@ enum RadialMenuIconStore {
         icon.size = NSSize(width: 34, height: 34)
         icons[payload] = icon
         return icon
+    }
+
+    static func customIcon(for item: RadialMenuItem) -> NSImage? {
+        guard let data = item.customIconData else { return nil }
+        if let cached = customIcons[item.id] { return cached }
+        guard let image = NSImage(data: data) else { return nil }
+        image.size = NSSize(width: 34, height: 34)
+        customIcons[item.id] = image
+        return image
     }
 
     static func fileName(for payload: String) -> String {
@@ -216,6 +236,12 @@ enum RadialMenuIconStore {
     static func invalidate(_ payload: String) {
         icons.removeValue(forKey: payload)
         names.removeValue(forKey: payload)
+    }
+
+    static func invalidate(item: RadialMenuItem) {
+        icons.removeValue(forKey: item.payload)
+        names.removeValue(forKey: item.payload)
+        customIcons.removeValue(forKey: item.id)
     }
 }
 

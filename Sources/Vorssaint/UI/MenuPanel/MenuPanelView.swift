@@ -1584,9 +1584,7 @@ struct QuickControlsSection: View {
             // Only wheels that press keys for the user (shortcut or media
             // slices) or watch a side button involve Accessibility.
             let needsAccessibility = RadialMenuSupport.needsAccessibility(
-                RadialMenuSupport.decode(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuItems)))
-                || RadialMenuMouseTrigger.sanitized(
-                    UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) != .off
+                RadialMenuSupport.decodeProfiles(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles)))
             PanelToggleRow(title: radialStrings.pageTitle,
                            caption: radialMenuEnabled && needsAccessibility && !permissions.accessibility
                                ? missingPermission(l10n.s.permissionAccessibility)

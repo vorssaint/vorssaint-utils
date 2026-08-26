@@ -32,6 +32,7 @@ enum SettingsBackupSupport {
         DefaultsKey.textSnippets,
         DefaultsKey.scratchpadDocument,
         DefaultsKey.radialMenuItems,
+        DefaultsKey.radialMenuProfiles,
         DefaultsKey.commandBarLinks,
         DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
