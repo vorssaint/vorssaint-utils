@@ -13,28 +13,12 @@ struct ScreenCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
 
-    private var strings: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(l10n.language)
-    }
-
     private var availableTools: [ScreenCaptureTool] {
         ScreenCaptureTool.available()
     }
 
     var body: some View {
         Form {
-            if !availableTools.isEmpty {
-                Section {
-                    Button {
-                        ScreenCaptureService.shared.capture()
-                    } label: {
-                        Label(strings.screenCaptureTitle, systemImage: "camera.viewfinder")
-                    }
-                } header: {
-                    Text(strings.screenCaptureTitle)
-                }
-            }
-
             ForEach(availableTools, id: \.self) { tool in
                 settings(for: tool)
             }

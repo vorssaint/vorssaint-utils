@@ -13342,9 +13342,10 @@ struct MetricsTests {
         expect(captureSettingsSources[0].contains("ForEach(availableTools")
                 && !captureSettingsSources[0].contains("selectedTool"),
                "the capture page shows every installed tool instead of one at a time")
-        let shortcutRows = captureSettingsSources
-            .reduce(0) { $0 + $1.components(separatedBy: "ToolShortcutRows(tool: .").count - 1 }
-        expect(shortcutRows == ScreenCaptureTool.allCases.count,
+        let shortcutTools = Set(captureSettingsSources.joined(separator: "\n")
+            .components(separatedBy: "ToolShortcutRows(tool: .").dropFirst()
+            .map { String($0.prefix { $0.isLetter }) })
+        expect(shortcutTools == Set(ScreenCaptureTool.allCases.map { "\($0)" }),
                "every capture tool carries its own shortcut in its own section")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
