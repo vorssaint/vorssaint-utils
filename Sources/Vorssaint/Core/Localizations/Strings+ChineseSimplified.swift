@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "平滑滚动",
         smoothScrollCaption: "把鼠标滚轮的每一格变成短暂顺滑的滑动。触控板不受影响。",
         smoothScrollStepLabel: "每格滚动距离",
+        mouseAccelerationName: "关闭鼠标加速",
+        mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
         mouseNavigationSection: "导航",
         mouseNavigationEnable: "使用侧键后退和前进",
         mouseNavigationCaption: "将鼠标的后退和前进按钮转换为 Finder、浏览器和兼容 App 的导航命令。",

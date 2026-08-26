@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "平滑捲動",
         smoothScrollCaption: "把滑鼠滾輪的每一格變成短暫順暢的滑動。觸控式軌跡板不受影響。",
         smoothScrollStepLabel: "每格捲動距離",
+        mouseAccelerationName: "關閉滑鼠加速",
+        mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原先前的設定。",
         mouseNavigationSection: "導覽",
         mouseNavigationEnable: "使用側鍵返回與前進",
         mouseNavigationCaption: "將滑鼠的返回與前進按鈕轉成 Finder、瀏覽器和相容 App 的導覽指令。",

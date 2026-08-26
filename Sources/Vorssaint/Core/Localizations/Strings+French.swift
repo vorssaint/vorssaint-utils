@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "Défilement fluide",
         smoothScrollCaption: "Transforme chaque cran de la molette de la souris en un court glissement fluide. Le trackpad ne change pas.",
         smoothScrollStepLabel: "Distance par cran",
+        mouseAccelerationName: "Désactiver l’accélération de la souris",
+        mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint.",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Utiliser les boutons latéraux pour Précédent et Suivant",
         mouseNavigationCaption: "Transforme les boutons Précédent et Suivant de la souris en commandes de navigation dans le Finder, les navigateurs et les apps compatibles.",

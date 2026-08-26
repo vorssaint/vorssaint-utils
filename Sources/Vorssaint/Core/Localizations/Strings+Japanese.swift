@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "スムーズスクロール",
         smoothScrollCaption: "マウスホイールの1目盛りを短くなめらかなスライドに変えます。トラックパッドは変わりません。",
         smoothScrollStepLabel: "1目盛りの距離",
+        mouseAccelerationName: "マウス加速を無効にする",
+        mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
         mouseNavigationSection: "ナビゲーション",
         mouseNavigationEnable: "サイドボタンで戻ると進むを操作",
         mouseNavigationCaption: "マウスの戻るボタンと進むボタンを、Finder、ブラウザ、対応アプリのナビゲーション操作に変換します。",

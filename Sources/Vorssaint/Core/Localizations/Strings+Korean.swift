@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "부드러운 스크롤",
         smoothScrollCaption: "마우스 휠 한 칸을 짧고 부드러운 슬라이드로 바꿉니다. 트랙패드는 변경되지 않습니다.",
         smoothScrollStepLabel: "한 칸 이동 거리",
+        mouseAccelerationName: "마우스 가속 끄기",
+        mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
         mouseNavigationSection: "탐색",
         mouseNavigationEnable: "사이드 버튼으로 뒤로 및 앞으로 이동",
         mouseNavigationCaption: "마우스의 뒤로 및 앞으로 버튼을 Finder, 브라우저 및 지원 앱의 탐색 동작으로 바꿉니다.",

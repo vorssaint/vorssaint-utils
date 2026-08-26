@@ -677,6 +677,7 @@ struct MouseSettings: View {
         FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
+    @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
@@ -763,6 +764,18 @@ struct MouseSettings: View {
                 }
                 .settingsSectionAnchor(.smoothScroll)
             }
+            if AppFeature.mouseAcceleration.isAvailable {
+                Section(l10n.s.mouseAccelerationName) {
+                    Toggle(l10n.s.mouseAccelerationName, isOn: $mouseAccelerationDisabled)
+                    .onChange(of: mouseAccelerationDisabled) { _, _ in
+                        MouseAccelerationService.shared.syncWithPreferences()
+                    }
+                    Text(l10n.s.mouseAccelerationCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                .settingsSectionAnchor(.mouseAcceleration)
+            }
             if AppFeature.mouseNavigation.isAvailable {
                 Section(l10n.s.mouseNavigationSection) {
                     Toggle(l10n.s.mouseNavigationEnable, isOn: $mouseNavigationEnabled)
@@ -837,6 +850,7 @@ struct MouseSettings: View {
         let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
+            || (mouseAccelerationDisabled && AppFeature.mouseAcceleration.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)

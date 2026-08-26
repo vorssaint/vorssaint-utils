@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "Desplazamiento suave",
         smoothScrollCaption: "Convierte cada paso de la rueda del ratón en un deslizamiento corto y suave. El trackpad no cambia.",
         smoothScrollStepLabel: "Distancia por paso",
+        mouseAccelerationName: "Desactivar la aceleración del ratón",
+        mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
         mouseNavigationSection: "Navegación",
         mouseNavigationEnable: "Usar los botones laterales para Atrás y Adelante",
         mouseNavigationCaption: "Convierte los botones Atrás y Adelante del ratón en comandos de navegación para Finder, navegadores y apps compatibles.",

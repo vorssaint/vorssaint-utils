@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "Scorrimento fluido",
         smoothScrollCaption: "Trasforma ogni scatto della rotellina del mouse in una breve scivolata fluida. Il trackpad non cambia.",
         smoothScrollStepLabel: "Distanza per scatto",
+        mouseAccelerationName: "Disattiva l’accelerazione del mouse",
+        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
         mouseNavigationSection: "Navigazione",
         mouseNavigationEnable: "Usa i pulsanti laterali per Indietro e Avanti",
         mouseNavigationCaption: "Trasforma i pulsanti Indietro e Avanti del mouse in comandi di navigazione per Finder, browser e app compatibili.",

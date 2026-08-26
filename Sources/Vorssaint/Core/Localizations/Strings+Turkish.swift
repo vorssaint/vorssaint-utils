@@ -156,6 +156,8 @@ extension Strings {
         smoothScrollName: "Akıcı kaydırma",
         smoothScrollCaption: "Fare tekerleğinin her adımını kısa ve yumuşak bir kaymaya dönüştürür. İzleme dörtgeni değişmez.",
         smoothScrollStepLabel: "Adım başına mesafe",
+        mouseAccelerationName: "Fare hızlandırmasını kapat",
+        mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
         mouseNavigationSection: "Gezinme",
         mouseNavigationEnable: "Geri ve İleri için yan düğmeleri kullan",
         mouseNavigationCaption: "Farenin Geri ve İleri düğmelerini Finder, tarayıcılar ve uyumlu uygulamalarda gezinme komutlarına dönüştürür.",

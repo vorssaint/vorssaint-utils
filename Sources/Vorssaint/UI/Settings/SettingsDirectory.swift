@@ -63,7 +63,7 @@ enum SettingsDirectory {
                                       keywords: [s.invertMouseScroll, s.invertVerticalScroll,
                                                  s.invertHorizontalScroll, s.middleClickTapPicker,
                                                  s.focusFollowsMouseName, s.focusFollowsMouseDelay,
-                                                 s.smoothScrollName, s.mouseNavigationEnable,
+                                                 s.smoothScrollName, s.mouseAccelerationName, s.mouseNavigationEnable,
                                                  FeatureStrings.mouseButtons(language).pageTitle,
                                                  FeatureStrings.mouseButtons(language).sideWheelLeftName,
                                                  FeatureStrings.mouseButtons(language).sideWheelRightName,
