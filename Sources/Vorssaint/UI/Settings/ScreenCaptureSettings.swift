@@ -73,6 +73,7 @@ struct ToolShortcutRows: View {
 private struct ScreenTextCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.screenOCRRemoveLineBreaks) private var removesLineBreaks = false
     @AppStorage(DefaultsKey.screenOCRDetectQRCodes) private var detectsQRCodes = true
 
     var body: some View {
@@ -86,6 +87,10 @@ private struct ScreenTextCaptureSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ToolShortcutRows(tool: .text)
+            Toggle(l10n.s.ocrRemoveLineBreaksToggle, isOn: $removesLineBreaks)
+            Text(l10n.s.ocrRemoveLineBreaksCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
             Toggle(l10n.s.ocrQRToggle, isOn: $detectsQRCodes)
             Text(l10n.s.ocrQRCaption)
                 .font(.caption)

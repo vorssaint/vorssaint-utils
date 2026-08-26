@@ -905,6 +905,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Ouvrir les réglages de notifications…",
         launchAtLoginNeedsApplications: "L'app s'exécute depuis un emplacement qui ne permet pas l'ouverture à la connexion. Glissez Vorssaint dans le dossier Applications, ouvrez l'app depuis ce dossier et réactivez l'option.",
         launchAtLoginNeedsApproval: "L'élément d'ouverture est enregistré, mais il reste désactivé dans les Réglages Système. Ouvrez Réglages Système › Général › Ouverture et extensions, puis activez Vorssaint sous « Ouvrir à la session ».",
+        ocrRemoveLineBreaksToggle: "Supprimer les sauts de ligne",
+        ocrRemoveLineBreaksCaption: "Réunit les lignes reconnues avec des espaces afin que le texte copié soit collé en un seul paragraphe.",
         ocrQRToggle: "Lire les codes QR",
         ocrQRCaption: "Si la zone contient un code QR, son contenu s'affiche pour le copier ou l'ouvrir.",
         ocrQRCopied: "Code QR copié",

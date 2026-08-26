@@ -906,6 +906,8 @@ extension Strings {
         cleanerNotifOpenSettings: "알림 설정 열기…",
         launchAtLoginNeedsApplications: "로그인 시 열 수 없는 위치에서 앱이 실행되고 있습니다. Vorssaint를 응용 프로그램 폴더로 드래그한 다음 거기에서 열고 이 옵션을 다시 켜 주세요.",
         launchAtLoginNeedsApproval: "로그인 항목은 등록되었지만 시스템 설정에서는 여전히 꺼져 있습니다. 시스템 설정 › 일반 › 로그인 항목 및 확장 프로그램을 열고 ‘로그인 시 열기’에서 Vorssaint를 켜 주세요.",
+        ocrRemoveLineBreaksToggle: "줄바꿈 제거",
+        ocrRemoveLineBreaksCaption: "인식한 줄을 공백으로 연결하여 복사한 텍스트를 한 문단으로 붙여 넣습니다.",
         ocrQRToggle: "QR 코드 읽기",
         ocrQRCaption: "영역에 QR 코드가 있으면 그 내용을 복사하거나 열 수 있도록 보여 줍니다.",
         ocrQRCopied: "QR 코드를 복사했습니다",

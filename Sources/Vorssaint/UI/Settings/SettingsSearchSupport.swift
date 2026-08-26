@@ -39,6 +39,7 @@ enum SettingsSearchSupport {
             recorder.microphoneToggle,
             recorder.qualityLabel,
             recorder.frameRateLabel,
+            strings.ocrRemoveLineBreaksToggle,
             strings.ocrQRToggle,
             strings.colorPickerFormatLabel,
         ]

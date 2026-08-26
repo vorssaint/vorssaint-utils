@@ -131,7 +131,8 @@ enum QuickToolsSupport {
 
     /// Joins recognized lines in natural reading order: top to bottom, left
     /// to right within the same visual row. Empty lines are dropped.
-    static func joinedRecognizedText(_ lines: [RecognizedLine]) -> String {
+    static func joinedRecognizedText(_ lines: [RecognizedLine],
+                                     removingLineBreaks: Bool) -> String {
         lines
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .sorted {
@@ -143,7 +144,7 @@ enum QuickToolsSupport {
                 return $0.x < $1.x
             }
             .map(\.text)
-            .joined(separator: "\n")
+            .joined(separator: removingLineBreaks ? " " : "\n")
     }
 
     // MARK: - QR codes

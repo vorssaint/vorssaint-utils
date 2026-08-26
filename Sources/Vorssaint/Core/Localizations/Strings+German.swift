@@ -905,6 +905,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Mitteilungseinstellungen öffnen…",
         launchAtLoginNeedsApplications: "Die App läuft von einem Ort, der das Öffnen bei der Anmeldung nicht erlaubt. Ziehe Vorssaint in den Ordner Programme, öffne die App von dort und schalte die Option wieder ein.",
         launchAtLoginNeedsApproval: "Das Anmeldeobjekt ist registriert, in den Systemeinstellungen aber weiterhin aus. Öffne Systemeinstellungen › Allgemein › Anmeldeobjekte & Erweiterungen und schalte Vorssaint unter „Bei der Anmeldung öffnen“ ein.",
+        ocrRemoveLineBreaksToggle: "Zeilenumbrüche entfernen",
+        ocrRemoveLineBreaksCaption: "Verbindet erkannte Zeilen mit Leerzeichen, damit kopierter Text als ein Absatz eingefügt wird.",
         ocrQRToggle: "QR-Codes lesen",
         ocrQRCaption: "Enthält der Bereich einen QR-Code, wird sein Inhalt zum Kopieren oder Öffnen gezeigt.",
         ocrQRCopied: "QR-Code kopiert",
