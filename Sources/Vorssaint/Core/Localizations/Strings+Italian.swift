@@ -547,6 +547,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d link",
         shelfActionOpen: "Apri",
         shelfActionOpenWith: "Apri con",
+        shelfActionQuickLook: "Occhiata",
         shelfActionShare: "Condividi",
 
         breakdownMeasuring: "Misurazione…",

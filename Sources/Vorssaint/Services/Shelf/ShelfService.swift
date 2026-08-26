@@ -1023,7 +1023,26 @@ final class ShelfService: ObservableObject {
             return super.performKeyEquivalent(with: event)
         }
 
+        /// Space previews rather than performKeyEquivalent, which only sees
+        /// modifier-bearing keys reliably; an unmodified Space arrives here.
+        override func keyDown(with event: NSEvent) {
+            let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            if ShelfQuickLookSupport.isTogglePreviewShortcut(
+                keyCode: event.keyCode,
+                hasSelectionModifiers: !modifiers.isEmpty
+            ), ShelfQuickLookController.shared.toggle(urls: ShelfService.shared.quickLookURLs()) {
+                return
+            }
+            super.keyDown(with: event)
+        }
+
         override func cancelOperation(_ sender: Any?) {
+            // A preview on top of the Shelf takes Escape first, so closing it
+            // does not also drop the selection the preview was showing.
+            if ShelfQuickLookController.shared.isPreviewing {
+                ShelfQuickLookController.shared.close()
+                return
+            }
             ShelfService.shared.clearSelection()
         }
     }
@@ -1285,6 +1304,21 @@ final class ShelfService: ObservableObject {
             guard case let .file(url) = entry.payload else { return nil }
             return url
         }
+    }
+
+    /// The files Space previews. Unlike fileURLsForActions there is no tile
+    /// under the cursor to start from, so an empty selection means the whole
+    /// shelf: pressing Space without clicking first should still show
+    /// something. Healing runs the same way, so a renamed file still previews.
+    func quickLookURLs() -> [URL] {
+        let roots = selection.isEmpty ? visibleItems : selectedItems()
+        let leaves = livingDragItems(in: dragItems(for: roots))
+        return ShelfQuickLookSupport.previewURLs(candidates: leaves.map { item in
+            guard case let .file(url) = item.payload else {
+                return ShelfQuickLookCandidate(id: item.id, url: nil)
+            }
+            return ShelfQuickLookCandidate(id: item.id, url: url)
+        })
     }
 
     func beginInternalDrag(ids: [UUID], from window: NSWindow?) {

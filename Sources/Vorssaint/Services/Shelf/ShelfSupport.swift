@@ -25,6 +25,48 @@ enum ShelfSelectionSupport {
     }
 }
 
+/// A Shelf leaf reduced to what QuickLook needs: identity and the file it
+/// stands for, if any. A pure stand-in for the service's item tree, like
+/// ShelfRevealNode below, so the rules stay in the unit harness.
+struct ShelfQuickLookCandidate: Equatable {
+    let id: UUID
+    /// nil for the payloads QuickLook cannot show: notes and links.
+    let url: URL?
+
+    init(id: UUID, url: URL?) {
+        self.id = id
+        self.url = url
+    }
+}
+
+enum ShelfQuickLookSupport {
+    /// Space previews, matching Finder. Modifier-bearing variants stay
+    /// available so this does not swallow future shortcuts, the same way
+    /// ShelfSelectionSupport leaves Escape's variants alone.
+    static func isTogglePreviewShortcut(keyCode: UInt16,
+                                        hasSelectionModifiers: Bool) -> Bool {
+        keyCode == 49 && !hasSelectionModifiers
+    }
+
+    /// The previewable files among already-resolved Shelf leaves. Notes and
+    /// links drop out rather than opening an empty panel, and shelf order is
+    /// preserved so the panel's arrow keys walk the tiles in the order they
+    /// are shown. Which leaves arrive here — the selection, or the whole shelf
+    /// — is the caller's decision, the same split fileURLsForActions makes.
+    static func previewURLs(candidates: [ShelfQuickLookCandidate]) -> [URL] {
+        var seen = Set<URL>()
+        return candidates.compactMap(\.url).filter { seen.insert($0).inserted }
+    }
+
+    /// Where the panel should open. Anchoring on the first previewable tile of
+    /// the selection keeps Space on a single tile showing that tile, rather
+    /// than restarting at the front of the shelf.
+    static func initialIndex(urls: [URL], anchorURL: URL?) -> Int {
+        guard let anchorURL, let index = urls.firstIndex(of: anchorURL) else { return 0 }
+        return index
+    }
+}
+
 /// A Shelf item reduced to what revealing needs: identity and nesting. A pure
 /// stand-in for the service's item tree, like ShelfEdgeScreen is for NSScreen,
 /// so the rules below stay in the unit harness.

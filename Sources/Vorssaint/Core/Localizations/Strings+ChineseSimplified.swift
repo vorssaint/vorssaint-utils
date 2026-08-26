@@ -547,6 +547,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d 个链接",
         shelfActionOpen: "打开",
         shelfActionOpenWith: "打开方式",
+        shelfActionQuickLook: "快速查看",
         shelfActionShare: "共享",
 
         breakdownMeasuring: "测量中…",

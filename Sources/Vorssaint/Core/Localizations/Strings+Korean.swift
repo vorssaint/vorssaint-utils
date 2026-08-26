@@ -548,6 +548,7 @@ extension Strings {
         shelfTooltipLinkPlural: "%d개 링크",
         shelfActionOpen: "열기",
         shelfActionOpenWith: "다음으로 열기",
+        shelfActionQuickLook: "훑어보기",
         shelfActionShare: "공유",
 
         breakdownMeasuring: "측정 중…",
