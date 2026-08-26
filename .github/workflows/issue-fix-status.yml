@@ -85,10 +85,6 @@ on:
 permissions:
   contents: read
   issues: write
-  # `gh pr comment` is the GraphQL addComment mutation, which is checked
-  # against this and not against `issues`. Without it the hint job below fails
-  # at its last line, every time it has something to say.
-  pull-requests: write
 
 concurrency:
   group: issue-fix-status-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
@@ -175,6 +171,15 @@ jobs:
 
   reference-hint:
     name: Point out a reference that will not reach the reporter
+    # The only job here that writes to a pull request, and the only one that
+    # gets to. `gh pr comment` is the GraphQL addComment mutation, which is
+    # checked against `pull-requests` and not against `issues`; without this
+    # the job fails at its last line every time it has something to say. It
+    # needs no write on issues -- it reads them and says nothing to them.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
     if: >-
       github.event_name == 'pull_request_target'
       && github.event.action != 'closed'
@@ -238,7 +243,14 @@ jobs:
             issue=$(gh api "repos/$GH_REPO/issues/$number" 2>/dev/null) || continue
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
-            jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
+            # A summary issue is never referenced -- but a closing keyword
+            # aimed at one is the worst case in this file, not an exempt one:
+            # GitHub closes a long-lived index on merge and nothing here would
+            # have said a word. The skip belongs to the `missing` form alone.
+            if [ "$form" != closing ] \
+               && jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              continue
+            fi
             printf '%s\t%s\n' "$number" "$(jq -r '.title' <<<"$issue")" >> hits.txt
           done
 
