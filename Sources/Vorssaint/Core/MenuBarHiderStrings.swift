@@ -44,6 +44,15 @@ struct MenuBarHiderStrings {
     let contextMenuShowAll: String
     let contextMenuHideAlways: String
     let contextMenuSettings: String
+    let tooltipExpand: String
+    let tooltipCollapse: String
+    let tooltipCollapseShowAll: String
+    let tooltipCollapseHideAlways: String
+    let tooltipSeparator: String
+    let tooltipAlwaysHidden: String
+    let diagramAlwaysHidden: String
+    let diagramHidden: String
+    let diagramVisible: String
 }
 
 extension FeatureStrings {
@@ -104,7 +113,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Collapse Icons",
         contextMenuShowAll: "Show All Icons",
         contextMenuHideAlways: "Hide Always-Hidden Icons",
-        contextMenuSettings: "Preferences..."
+        contextMenuSettings: "Preferences...",
+        tooltipExpand: "Vorssaint: Click to expand hidden icons",
+        tooltipCollapse: "Vorssaint: Click to collapse hidden icons",
+        tooltipCollapseShowAll: "Vorssaint: Click to collapse (double-click or right-click to show all)",
+        tooltipCollapseHideAlways: "Vorssaint: Click to collapse (double-click or right-click to hide the always-hidden icons)",
+        tooltipSeparator: "Vorssaint: Menu bar separator (⌘-drag icons to its left to hide them)",
+        tooltipAlwaysHidden: "Vorssaint: Always-hidden separator",
+        diagramAlwaysHidden: "Always Hidden",
+        diagramHidden: "Hidden Icons",
+        diagramVisible: "Visible"
     )
 
     static let ptBR = MenuBarHiderStrings(
@@ -144,7 +162,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Recolher Ícones",
         contextMenuShowAll: "Mostrar Todos os Ícones",
         contextMenuHideAlways: "Ocultar Ícones Sempre Ocultos",
-        contextMenuSettings: "Preferências..."
+        contextMenuSettings: "Preferências...",
+        tooltipExpand: "Vorssaint: Clique para exibir os ícones ocultos",
+        tooltipCollapse: "Vorssaint: Clique para recolher os ícones ocultos",
+        tooltipCollapseShowAll: "Vorssaint: Clique para recolher (clique duplo ou com o botão direito para ver todos)",
+        tooltipCollapseHideAlways: "Vorssaint: Clique para recolher (clique duplo ou com o botão direito para ocultar os sempre ocultos)",
+        tooltipSeparator: "Vorssaint: Separador da barra de menus (⌘-arraste ícones para a esquerda dele para ocultá-los)",
+        tooltipAlwaysHidden: "Vorssaint: Separador dos sempre ocultos",
+        diagramAlwaysHidden: "Sempre Ocultos",
+        diagramHidden: "Ícones Ocultos",
+        diagramVisible: "Visíveis"
     )
 
     static let tr = MenuBarHiderStrings(
@@ -184,14 +211,23 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Simgeleri Daralt",
         contextMenuShowAll: "Tüm Simgeleri Göster",
         contextMenuHideAlways: "Her Zaman Gizli Simgeleri Gizle",
-        contextMenuSettings: "Tercihler..."
+        contextMenuSettings: "Tercihler...",
+        tooltipExpand: "Vorssaint: Gizli simgeleri göstermek için tıklayın",
+        tooltipCollapse: "Vorssaint: Gizli simgeleri daraltmak için tıklayın",
+        tooltipCollapseShowAll: "Vorssaint: Daraltmak için tıklayın (tümünü göstermek için çift tıklayın veya sağ tıklayın)",
+        tooltipCollapseHideAlways: "Vorssaint: Daraltmak için tıklayın (her zaman gizlileri gizlemek için çift tıklayın veya sağ tıklayın)",
+        tooltipSeparator: "Vorssaint: Menü çubuğu ayırıcısı (simgeleri gizlemek için ⌘ ile soluna sürükleyin)",
+        tooltipAlwaysHidden: "Vorssaint: Her zaman gizli ayırıcısı",
+        diagramAlwaysHidden: "Her Zaman Gizli",
+        diagramHidden: "Gizli Simgeler",
+        diagramVisible: "Görünür"
     )
 
     static let ru = MenuBarHiderStrings(
         pageTitle: "Скрытие значков строки меню",
         hubDescription: "Скрывайте и показывайте значки строки меню одним кликом или сочетанием клавиш, чтобы сохранить порядок.",
         enable: "Включить скрытие значков строки меню",
-        enableCaption: "Добавляет значки переключателя и разделителя в строку меню. Удерживайте ⌘ и перетаскивайте значки левеer разделителя для скрытия.",
+        enableCaption: "Добавляет значки переключателя и разделителя в строку меню. Удерживайте ⌘ и перетаскивайте значки левее разделителя для скрытия.",
         howToUseTitle: "Как использовать",
         howToUseStep1: "Удерживайте ⌘ (Command) и перетаскивайте значки строки меню левее разделителя ( | ).",
         howToUseStep2: "Нажмите на переключатель ( > ) для скрытия/показа или дважды кликните для показа всегда скрытых.",
@@ -224,7 +260,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Скрыть значки",
         contextMenuShowAll: "Показать все значки",
         contextMenuHideAlways: "Скрыть всегда скрытые",
-        contextMenuSettings: "Настройки..."
+        contextMenuSettings: "Настройки...",
+        tooltipExpand: "Vorssaint: Нажмите, чтобы показать скрытые значки",
+        tooltipCollapse: "Vorssaint: Нажмите, чтобы скрыть значки",
+        tooltipCollapseShowAll: "Vorssaint: Нажмите, чтобы скрыть (двойной клик или правый клик — показать все)",
+        tooltipCollapseHideAlways: "Vorssaint: Нажмите, чтобы скрыть (двойной клик или правый клик — спрятать всегда скрытые)",
+        tooltipSeparator: "Vorssaint: Разделитель строки меню (перетащите значки левее с зажатой ⌘, чтобы скрыть их)",
+        tooltipAlwaysHidden: "Vorssaint: Разделитель всегда скрытых значков",
+        diagramAlwaysHidden: "Всегда скрытые",
+        diagramHidden: "Скрытые значки",
+        diagramVisible: "Видимые"
     )
 
     static let es = MenuBarHiderStrings(
@@ -264,7 +309,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Plegar iconos",
         contextMenuShowAll: "Mostrar todos los iconos",
         contextMenuHideAlways: "Ocultar siempre ocultos",
-        contextMenuSettings: "Preferencias..."
+        contextMenuSettings: "Preferencias...",
+        tooltipExpand: "Vorssaint: Haz clic para mostrar los iconos ocultos",
+        tooltipCollapse: "Vorssaint: Haz clic para plegar los iconos ocultos",
+        tooltipCollapseShowAll: "Vorssaint: Haz clic para plegar (doble clic o clic derecho para mostrar todos)",
+        tooltipCollapseHideAlways: "Vorssaint: Haz clic para plegar (doble clic o clic derecho para ocultar los siempre ocultos)",
+        tooltipSeparator: "Vorssaint: Separador de la barra de menú (⌘-arrastra iconos a su izquierda para ocultarlos)",
+        tooltipAlwaysHidden: "Vorssaint: Separador de siempre ocultos",
+        diagramAlwaysHidden: "Siempre Ocultos",
+        diagramHidden: "Iconos Ocultos",
+        diagramVisible: "Visibles"
     )
 
     static let de = MenuBarHiderStrings(
@@ -304,7 +358,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Symbole einklappen",
         contextMenuShowAll: "Alle Symbole anzeigen",
         contextMenuHideAlways: "Immer ausgeblendete Symbole verbergen",
-        contextMenuSettings: "Einstellungen..."
+        contextMenuSettings: "Einstellungen...",
+        tooltipExpand: "Vorssaint: Klicken, um verborgene Symbole aufzuklappen",
+        tooltipCollapse: "Vorssaint: Klicken, um Symbole einzuklappen",
+        tooltipCollapseShowAll: "Vorssaint: Klicken zum Einklappen (Doppelklick oder Rechtsklick zeigt alle an)",
+        tooltipCollapseHideAlways: "Vorssaint: Klicken zum Einklappen (Doppelklick oder Rechtsklick verbirgt die immer ausgeblendeten)",
+        tooltipSeparator: "Vorssaint: Menüleisten-Trennlinie (Symbole mit ⌘ nach links ziehen, um sie auszublenden)",
+        tooltipAlwaysHidden: "Vorssaint: Trennlinie für immer ausgeblendete Symbole",
+        diagramAlwaysHidden: "Immer ausgeblendet",
+        diagramHidden: "Verborgene Symbole",
+        diagramVisible: "Sichtbar"
     )
 
     static let fr = MenuBarHiderStrings(
@@ -344,7 +407,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Replier les icônes",
         contextMenuShowAll: "Afficher toutes les icônes",
         contextMenuHideAlways: "Masquer les icônes toujours masquées",
-        contextMenuSettings: "Préférences..."
+        contextMenuSettings: "Préférences...",
+        tooltipExpand: "Vorssaint : Cliquez pour déplier les icônes masquées",
+        tooltipCollapse: "Vorssaint : Cliquez pour replier les icônes masquées",
+        tooltipCollapseShowAll: "Vorssaint : Cliquez pour replier (double-clic ou clic droit pour tout afficher)",
+        tooltipCollapseHideAlways: "Vorssaint : Cliquez pour replier (double-clic ou clic droit pour masquer les toujours masqués)",
+        tooltipSeparator: "Vorssaint : Séparateur de la barre des menus (⌘-glissez les icônes à sa gauche pour les masquer)",
+        tooltipAlwaysHidden: "Vorssaint : Séparateur des toujours masqués",
+        diagramAlwaysHidden: "Toujours masqués",
+        diagramHidden: "Icônes masquées",
+        diagramVisible: "Visibles"
     )
 
     static let it = MenuBarHiderStrings(
@@ -358,7 +430,7 @@ extension MenuBarHiderStrings {
         howToUseStep3: "Le icone a destra del pulsante rimangono sempre visibili.",
         alwaysHiddenSection: "Sezione Sempre nascoste",
         alwaysHiddenEnable: "Attiva sezione separata Sempre nascoste",
-        alwaysHiddenCaption: "Aggiunge un secondo separador ( ‖ ). Le icone alla sua sinistra rimangono nascoste con il comando normale.",
+        alwaysHiddenCaption: "Aggiunge un secondo separatore ( ‖ ). Le icone alla sua sinistra rimangono nascoste con il comando normale.",
         autoCollapseSection: "Compressione automatica",
         autoCollapseEnable: "Comprimi automaticamente dopo inattività",
         autoCollapseDelay: "Ritardo compressione",
@@ -384,7 +456,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "Comprimi icone",
         contextMenuShowAll: "Mostra tutte le icone",
         contextMenuHideAlways: "Nascondi sempre nascoste",
-        contextMenuSettings: "Preferenze..."
+        contextMenuSettings: "Preferenze...",
+        tooltipExpand: "Vorssaint: Fai clic per espandere le icone nascoste",
+        tooltipCollapse: "Vorssaint: Fai clic per comprimere le icone nascoste",
+        tooltipCollapseShowAll: "Vorssaint: Fai clic per comprimere (doppio clic o clic destro per mostrare tutte)",
+        tooltipCollapseHideAlways: "Vorssaint: Fai clic per comprimere (doppio clic o clic destro per nascondere le sempre nascoste)",
+        tooltipSeparator: "Vorssaint: Separatore della barra dei menu (trascina le icone alla sua sinistra con ⌘ per nasconderle)",
+        tooltipAlwaysHidden: "Vorssaint: Separatore delle sempre nascoste",
+        diagramAlwaysHidden: "Sempre nascoste",
+        diagramHidden: "Icone nascoste",
+        diagramVisible: "Visibili"
     )
 
     static let ja = MenuBarHiderStrings(
@@ -424,7 +505,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "アイコンを折りたたむ",
         contextMenuShowAll: "すべてのアイコンを表示",
         contextMenuHideAlways: "常に非表示のアイコンを隠す",
-        contextMenuSettings: "設定..."
+        contextMenuSettings: "設定...",
+        tooltipExpand: "Vorssaint: クリックで非表示アイコンを展開",
+        tooltipCollapse: "Vorssaint: クリックでアイコンを折りたたむ",
+        tooltipCollapseShowAll: "Vorssaint: クリックで折りたたむ（ダブルクリックまたは右クリックですべて表示）",
+        tooltipCollapseHideAlways: "Vorssaint: クリックで折りたたむ（ダブルクリックまたは右クリックで常に非表示のアイコンを隠す）",
+        tooltipSeparator: "Vorssaint: メニューバーの仕切り線（⌘キーを押しながらアイコンを左へドラッグすると非表示になります）",
+        tooltipAlwaysHidden: "Vorssaint: 「常に非表示」の仕切り線",
+        diagramAlwaysHidden: "常に非表示",
+        diagramHidden: "非表示アイコン",
+        diagramVisible: "表示中"
     )
 
     static let ko = MenuBarHiderStrings(
@@ -464,7 +554,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "아이콘 접기",
         contextMenuShowAll: "모든 아이콘 표시",
         contextMenuHideAlways: "항상 숨김 아이콘 감추기",
-        contextMenuSettings: "환경설정..."
+        contextMenuSettings: "환경설정...",
+        tooltipExpand: "Vorssaint: 클릭하여 숨겨진 아이콘 펼치기",
+        tooltipCollapse: "Vorssaint: 클릭하여 아이콘 접기",
+        tooltipCollapseShowAll: "Vorssaint: 클릭하여 접기 (더블 클릭 또는 마우스 오른쪽 클릭으로 모두 표시)",
+        tooltipCollapseHideAlways: "Vorssaint: 클릭하여 접기 (더블 클릭 또는 마우스 오른쪽 클릭으로 항상 숨김 아이콘 감추기)",
+        tooltipSeparator: "Vorssaint: 메뉴 막대 구분선 (⌘ 키를 누른 채 아이콘을 왼쪽으로 드래그하면 숨겨집니다)",
+        tooltipAlwaysHidden: "Vorssaint: 항상 숨김 구분선",
+        diagramAlwaysHidden: "항상 숨김",
+        diagramHidden: "숨겨진 아이콘",
+        diagramVisible: "표시됨"
     )
 
     static let zhHans = MenuBarHiderStrings(
@@ -504,7 +603,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "折叠图标",
         contextMenuShowAll: "显示所有图标",
         contextMenuHideAlways: "隐藏始终隐藏的图标",
-        contextMenuSettings: "偏好设置..."
+        contextMenuSettings: "偏好设置...",
+        tooltipExpand: "Vorssaint：点击以展开隐藏图标",
+        tooltipCollapse: "Vorssaint：点击以折叠图标",
+        tooltipCollapseShowAll: "Vorssaint：点击以折叠（双击或右键点击可显示全部）",
+        tooltipCollapseHideAlways: "Vorssaint：点击以折叠（双击或右键点击可隐藏始终隐藏的图标）",
+        tooltipSeparator: "Vorssaint：菜单栏分隔线（按住 ⌘ 将图标拖到其左侧即可隐藏）",
+        tooltipAlwaysHidden: "Vorssaint：“始终隐藏”分隔线",
+        diagramAlwaysHidden: "始终隐藏",
+        diagramHidden: "隐藏图标",
+        diagramVisible: "可见"
     )
 
     static let zhTW = MenuBarHiderStrings(
@@ -544,7 +652,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "摺疊圖示",
         contextMenuShowAll: "顯示所有圖示",
         contextMenuHideAlways: "隱藏始終隱藏的圖示",
-        contextMenuSettings: "偏好設定..."
+        contextMenuSettings: "偏好設定...",
+        tooltipExpand: "Vorssaint：按一下以展開隱藏圖示",
+        tooltipCollapse: "Vorssaint：按一下以摺疊圖示",
+        tooltipCollapseShowAll: "Vorssaint：按一下以摺疊（按兩下或按右鍵可顯示全部）",
+        tooltipCollapseHideAlways: "Vorssaint：按一下以摺疊（按兩下或按右鍵可隱藏始終隱藏的圖示）",
+        tooltipSeparator: "Vorssaint：選單列分隔線（按住 ⌘ 將圖示拖移到其左側即可隱藏）",
+        tooltipAlwaysHidden: "Vorssaint：「始終隱藏」分隔線",
+        diagramAlwaysHidden: "始終隱藏",
+        diagramHidden: "隱藏圖示",
+        diagramVisible: "可見"
     )
 
     static let zhHK = MenuBarHiderStrings(
@@ -584,7 +701,16 @@ extension MenuBarHiderStrings {
         contextMenuCollapse: "摺疊圖示",
         contextMenuShowAll: "顯示所有圖示",
         contextMenuHideAlways: "隱藏始終隱藏的圖示",
-        contextMenuSettings: "偏好設定..."
+        contextMenuSettings: "偏好設定...",
+        tooltipExpand: "Vorssaint：按一下以展開隱藏圖示",
+        tooltipCollapse: "Vorssaint：按一下以摺疊圖示",
+        tooltipCollapseShowAll: "Vorssaint：按一下以摺疊（按兩下或按右鍵可顯示全部）",
+        tooltipCollapseHideAlways: "Vorssaint：按一下以摺疊（按兩下或按右鍵可隱藏始終隱藏的圖示）",
+        tooltipSeparator: "Vorssaint：選單列分隔線（按住 ⌘ 將圖示拖移到其左側即可隱藏）",
+        tooltipAlwaysHidden: "Vorssaint：「始終隱藏」分隔線",
+        diagramAlwaysHidden: "始終隱藏",
+        diagramHidden: "隱藏圖示",
+        diagramVisible: "可見"
     )
 }
 

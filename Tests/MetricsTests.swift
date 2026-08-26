@@ -10466,14 +10466,14 @@ struct MetricsTests {
         for _ in 0..<64 where poolOccupied.wait(timeout: .now() + 5) == .success { occupiedWorkers += 1 }
         let starvedProbe = DispatchSemaphore(value: 0)
         DispatchQueue.global(qos: .utility).async { starvedProbe.signal() }
-        _ = starvedProbe.wait(timeout: .now() + 0.5)
+        let poolIsStarved = starvedProbe.wait(timeout: .now() + 0.5) == .timedOut
         let starvedStarted = Date()
         let starvedPoolProcess = BoundedProcessRunner.run(
             "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
         let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
         for _ in 0..<64 { poolGate.signal() }
         _ = starvedProbe.wait(timeout: .now() + 5)
-        expect(occupiedWorkers == 64,
+        expect(occupiedWorkers == 64 && poolIsStarved,
                "the dispatch pool starvation this check needs was actually reached")
         expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
                 && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
@@ -18766,16 +18766,30 @@ struct MetricsTests {
         expect(MenuBarHiderSupport.sanitizeAutoCollapseDelay(99) == MenuBarHiderSupport.defaultAutoCollapseDelay, "invalid auto-collapse delay resets to default")
         expect(MenuBarHiderSupport.sanitizeAutoCollapseDelay(-5) == MenuBarHiderSupport.defaultAutoCollapseDelay, "negative auto-collapse delay resets to default")
 
-        expect(MenuBarHiderSupport.expansionLength(for: 1920) >= 10000.0, "expansion length exceeds minimum width")
-        expect(MenuBarHiderSupport.expansionLength(for: nil) >= 10000.0, "expansion length handles nil screen width")
+        // The expansion covers the strip the items live in and no more. A 14"
+        // MacBook Pro has 790 pt left of the notch on an 1800 pt display, so
+        // sizing off the full screen asks for an item far wider than its bar.
+        expect(MenuBarHiderSupport.expansionLength(for: 790) > 790,
+               "expansion clears the usable width it was given")
+        expect(MenuBarHiderSupport.expansionLength(for: 790) < 1800,
+               "expansion off a notched strip stays under the full screen width")
+        expect(MenuBarHiderSupport.expansionLength(for: 1920) == 1920 + MenuBarHiderSupport.expansionMargin,
+               "expansion is the usable width plus the margin")
+        expect(MenuBarHiderSupport.expansionLength(for: nil)
+                == MenuBarHiderSupport.fallbackUsableWidth + MenuBarHiderSupport.expansionMargin,
+               "expansion falls back when no width can be measured")
+        expect(MenuBarHiderSupport.expansionLength(for: -50) == MenuBarHiderSupport.expansionMargin,
+               "a nonsensical negative width cannot produce a negative length")
 
-        expect(MenuBarHiderSupport.separatorLength(state: .collapsed, screenWidth: 1920) >= 10000.0, "collapsed separator is expanded")
-        expect(MenuBarHiderSupport.separatorLength(state: .expanded, screenWidth: 1920) == MenuBarHiderSupport.normalSeparatorWidth, "expanded separator has normal width")
-        expect(MenuBarHiderSupport.separatorLength(state: .showAll, screenWidth: 1920) == MenuBarHiderSupport.normalSeparatorWidth, "showAll separator has normal width")
+        expect(MenuBarHiderSupport.separatorLength(state: .collapsed, usableWidth: 790)
+                == MenuBarHiderSupport.expansionLength(for: 790), "collapsed separator is expanded")
+        expect(MenuBarHiderSupport.separatorLength(state: .expanded, usableWidth: 1920) == MenuBarHiderSupport.normalSeparatorWidth, "expanded separator has normal width")
+        expect(MenuBarHiderSupport.separatorLength(state: .showAll, usableWidth: 1920) == MenuBarHiderSupport.normalSeparatorWidth, "showAll separator has normal width")
 
-        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .showAll, screenWidth: 1920, isEnabled: false) == 0.0, "disabled always-hidden item has zero length")
-        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .expanded, screenWidth: 1920, isEnabled: true) >= 10000.0, "always-hidden stays collapsed during normal expansion")
-        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .showAll, screenWidth: 1920, isEnabled: true) == MenuBarHiderSupport.normalAlwaysHiddenWidth, "always-hidden shows normal width on showAll")
+        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .showAll, usableWidth: 1920, isEnabled: false) == 0.0, "disabled always-hidden item has zero length")
+        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .expanded, usableWidth: 790, isEnabled: true)
+                == MenuBarHiderSupport.expansionLength(for: 790), "always-hidden stays collapsed during normal expansion")
+        expect(MenuBarHiderSupport.alwaysHiddenLength(state: .showAll, usableWidth: 1920, isEnabled: true) == MenuBarHiderSupport.normalAlwaysHiddenWidth, "always-hidden shows normal width on showAll")
 
         expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: true, style: .chevron) == "chevron.left", "collapsed chevron toggle shows chevron.left")
         expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: false, style: .chevron) == "chevron.right", "expanded chevron toggle shows chevron.right")
@@ -18783,9 +18797,48 @@ struct MetricsTests {
         expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: false, style: .dots) == "ellipsis.circle.fill", "expanded dots toggle shows ellipsis.circle.fill")
         expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: true, style: .eye) == "eye.slash", "collapsed eye toggle shows eye.slash")
         expect(MenuBarHiderSupport.toggleSymbolName(isCollapsed: false, style: .eye) == "eye", "expanded eye toggle shows eye")
-        expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: true, isShowingAll: false, alwaysHiddenEnabled: false).contains("expand"), "collapsed tooltip contains expand")
-        expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: false, alwaysHiddenEnabled: false).contains("collapse"), "expanded tooltip contains collapse")
-        expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: false, alwaysHiddenEnabled: true).contains("show all"), "always hidden enabled mentions show all")
+        // The tooltip picks a localized string rather than building English, so
+        // the check is which field each state selects, in every language.
+        for lang in AppLanguage.allCases {
+            let t = FeatureStrings.menuBarHider(lang)
+            expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: true, isShowingAll: false, alwaysHiddenEnabled: false, strings: t) == t.tooltipExpand,
+                   "collapsed toggle uses the expand tooltip for \(lang)")
+            expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: true, isShowingAll: false, alwaysHiddenEnabled: true, strings: t) == t.tooltipExpand,
+                   "collapsed toggle uses the expand tooltip with always-hidden on for \(lang)")
+            expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: false, alwaysHiddenEnabled: false, strings: t) == t.tooltipCollapse,
+                   "expanded toggle uses the plain collapse tooltip for \(lang)")
+            expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: false, alwaysHiddenEnabled: true, strings: t) == t.tooltipCollapseShowAll,
+                   "expanded toggle offers show-all when always-hidden is on for \(lang)")
+            expect(MenuBarHiderSupport.toggleTooltip(isCollapsed: false, isShowingAll: true, alwaysHiddenEnabled: true, strings: t) == t.tooltipCollapseHideAlways,
+                   "showing-all toggle offers hiding the always-hidden section for \(lang)")
+        }
+
+        // The reveal gesture must be tighter than the system double-click
+        // interval, which is a comfort setting that can sit far above the speed
+        // of an actual double click.
+        expect(MenuBarHiderSupport.revealGestureInterval(systemDoubleClickInterval: 0.5)
+                == MenuBarHiderSupport.revealGestureCeiling,
+               "a roomy system interval is capped at the reveal ceiling")
+        expect(MenuBarHiderSupport.revealGestureInterval(systemDoubleClickInterval: 1.2)
+                == MenuBarHiderSupport.revealGestureCeiling,
+               "the slowest system interval is still capped")
+        expect(MenuBarHiderSupport.revealGestureInterval(systemDoubleClickInterval: 0.18) == 0.18,
+               "a system interval below the ceiling wins, since AppKit will not report past it")
+        expect(MenuBarHiderSupport.revealGestureInterval(systemDoubleClickInterval: -1) == 0,
+               "a nonsensical system interval cannot produce a negative window")
+        expect(MenuBarHiderSupport.revealGestureCeiling < 0.5,
+               "the ceiling is meaningfully tighter than the macOS default interval")
+
+        // Every style's symbols must resolve on the running system: a nil image
+        // leaves the variable-length toggle with no image and no title, which
+        // collapses it to zero width and makes the button disappear.
+        for style in MenuBarHiderIconStyle.allCases {
+            for collapsed in [true, false] {
+                let name = MenuBarHiderSupport.toggleSymbolName(isCollapsed: collapsed, style: style)
+                expect(NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil,
+                       "toggle symbol \(name) exists for style \(style.rawValue) collapsed=\(collapsed)")
+            }
+        }
 
         let testOrder = MenuBarHiderSupport.sortedRoles(positions: [("toggle", 1200.0), ("alwaysHidden", 800.0), ("separator", 1000.0)])
         expect(testOrder == ["alwaysHidden", "separator", "toggle"], "items are sorted left-to-right by horizontal position")
@@ -18818,6 +18871,15 @@ struct MetricsTests {
             expect(!hiderStrings.contextMenuShowAll.isEmpty, "menu bar hider contextMenuShowAll is localized for \(lang)")
             expect(!hiderStrings.contextMenuHideAlways.isEmpty, "menu bar hider contextMenuHideAlways is localized for \(lang)")
             expect(!hiderStrings.contextMenuSettings.isEmpty, "menu bar hider contextMenuSettings is localized for \(lang)")
+            expect(!hiderStrings.tooltipExpand.isEmpty, "menu bar hider tooltipExpand is localized for \(lang)")
+            expect(!hiderStrings.tooltipCollapse.isEmpty, "menu bar hider tooltipCollapse is localized for \(lang)")
+            expect(!hiderStrings.tooltipCollapseShowAll.isEmpty, "menu bar hider tooltipCollapseShowAll is localized for \(lang)")
+            expect(!hiderStrings.tooltipCollapseHideAlways.isEmpty, "menu bar hider tooltipCollapseHideAlways is localized for \(lang)")
+            expect(!hiderStrings.tooltipSeparator.isEmpty, "menu bar hider tooltipSeparator is localized for \(lang)")
+            expect(!hiderStrings.tooltipAlwaysHidden.isEmpty, "menu bar hider tooltipAlwaysHidden is localized for \(lang)")
+            expect(!hiderStrings.diagramAlwaysHidden.isEmpty, "menu bar hider diagramAlwaysHidden is localized for \(lang)")
+            expect(!hiderStrings.diagramHidden.isEmpty, "menu bar hider diagramHidden is localized for \(lang)")
+            expect(!hiderStrings.diagramVisible.isEmpty, "menu bar hider diagramVisible is localized for \(lang)")
             expect(hiderStrings.secondsFormat.contains("%d"), "menu bar hider secondsFormat contains %d for \(lang)")
         }
 

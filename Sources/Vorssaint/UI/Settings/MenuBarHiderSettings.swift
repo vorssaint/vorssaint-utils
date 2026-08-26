@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 struct MenuBarHiderSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = MenuBarHiderService.shared
 
-    @AppStorage(DefaultsKey.menuBarHiderEnabled) private var enabled = true
-    @AppStorage(DefaultsKey.menuBarHiderAlwaysHiddenEnabled) private var alwaysHiddenEnabled = false
+    @AppStorage(DefaultsKey.menuBarHiderEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.menuBarHiderAlwaysHiddenEnabled) private var alwaysHiddenEnabled = true
     @AppStorage(DefaultsKey.menuBarHiderAutoCollapse) private var autoCollapse = false
     @AppStorage(DefaultsKey.menuBarHiderAutoCollapseDelay) private var autoCollapseDelay = MenuBarHiderSupport.defaultAutoCollapseDelay
     @AppStorage(DefaultsKey.menuBarHiderExpandOnHover) private var expandOnHover = false
@@ -162,6 +163,13 @@ struct MenuBarHiderSettings: View {
         .onDisappear {
             MenuBarHiderService.shared.endConfigurationMode()
         }
+        // Belt and braces: configuration mode holds the bar open and suppresses
+        // both collapse timers, and onDisappear is not guaranteed to run when
+        // the Settings window is closed outright. Leaving it latched on stops
+        // the bar ever closing again, so the window going away ends it too.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { _ in
+            MenuBarHiderService.shared.endConfigurationMode()
+        }
     }
 
     private func triggerResetPositions() {
@@ -192,12 +200,12 @@ struct MenuBarHiderSettings: View {
     private var guideDiagram: some View {
         HStack(spacing: 8) {
             if alwaysHiddenEnabled {
-                diagramBlock(title: "Always Hidden", icon: "lock.slash", color: .purple)
+                diagramBlock(title: text.diagramAlwaysHidden, icon: "lock.slash", color: .purple)
                 Text("‖")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-            diagramBlock(title: "Hidden Icons", icon: "eye.slash", color: .orange)
+            diagramBlock(title: text.diagramHidden, icon: "eye.slash", color: .orange)
             Text("|")
                 .font(.system(size: 14, weight: .bold, design: .monospaced))
                 .foregroundStyle(.secondary)
@@ -206,7 +214,7 @@ struct MenuBarHiderSettings: View {
                 .foregroundStyle(Color.accentColor)
                 .padding(4)
                 .background(Circle().fill(Color.accentColor.opacity(0.15)))
-            diagramBlock(title: "Visible", icon: "eye", color: .green)
+            diagramBlock(title: text.diagramVisible, icon: "eye", color: .green)
         }
         .opacity(enabled ? 1 : 0.4)
         .animation(.easeInOut(duration: 0.2), value: enabled)

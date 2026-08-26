@@ -20,11 +20,17 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
     private var alwaysHiddenItem: NSStatusItem?
 
     private var autoCollapseTimer: Timer?
+    private var hoverWatchdogTimer: Timer?
+    private var didExpandFromHover = false
+    private var pointerLeftToggleAt: TimeInterval?
     private let hotkey = QuickToolHotkey(id: 30)
     private var isShowingAll: Bool = false
     private var trackingArea: NSTrackingArea?
+    private weak var trackingButton: NSStatusBarButton?
     private var scrollMonitor: Any?
     private var lastScrollToggleTime: TimeInterval = 0
+    private var lastToggleClickTimestamp: TimeInterval = 0
+    private var didRevealInClickSequence = false
 
     override private init() {
         super.init()
@@ -68,6 +74,13 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
         if enabled {
             installOrUpdateItems()
             setupScrollMonitor()
+            // Arm the idle timer for the state we are actually in. Installing
+            // the items does not do it, so a relaunch that restores an expanded
+            // bar never collapsed, and switching auto-collapse on only took
+            // effect after the next manual expand.
+            if !isCollapsed {
+                restartAutoCollapseTimerIfNeeded()
+            }
         } else {
             teardown()
         }
@@ -95,6 +108,7 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
 
     private func installOrUpdateItems() {
         let alwaysHiddenEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHiderAlwaysHiddenEnabled)
+        var didCreateToggle = false
 
         // 1. Toggle Item
         if toggleItem == nil {
@@ -103,6 +117,7 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
             item.behavior = []
             item.isVisible = true
             toggleItem = item
+            didCreateToggle = true
         }
 
         // 2. Main Separator Item
@@ -128,6 +143,14 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
                 NSStatusBar.system.removeStatusItem(alwaysHiddenItem)
                 self.alwaysHiddenItem = nil
             }
+        }
+
+        // Pick the collapse state back up from the previous run, but only when
+        // the items were just created: syncWithPreferences() runs on every
+        // settings change and must not clobber the state on screen right now.
+        if didCreateToggle {
+            isCollapsed = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHiderCollapsed)
+            isShowingAll = false
         }
 
         configureItemButtons()
@@ -171,6 +194,7 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
 
     private func configureItemButtons() {
         let style = currentIconStyle
+        let strings = FeatureStrings.menuBarHider(L10n.shared.language)
         let alwaysHiddenEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHiderAlwaysHiddenEnabled)
 
         // 1. Toggle button (Always on the right)
@@ -179,16 +203,27 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
             toggleButton.target = self
             toggleButton.action = #selector(toggleClicked)
             toggleButton.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            toggleButton.title = ""
+            // A symbol name the running system does not ship resolves to nil,
+            // and a variable-length item with neither image nor title collapses
+            // to zero width — the toggle would simply vanish. Fall back to the
+            // chevron, and to a text glyph if even that is unavailable.
             let symbolName = MenuBarHiderSupport.toggleSymbolName(isCollapsed: isCollapsed, style: style)
-            if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Menu Bar Hider") {
+            let fallbackName = MenuBarHiderSupport.toggleSymbolName(isCollapsed: isCollapsed, style: .chevron)
+            let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: strings.pageTitle)
+                ?? NSImage(systemSymbolName: fallbackName, accessibilityDescription: strings.pageTitle)
+            if let image {
                 image.isTemplate = true
                 toggleButton.image = image
+                toggleButton.title = ""
+            } else {
+                toggleButton.image = nil
+                toggleButton.title = isCollapsed ? "‹" : "›"
             }
             toggleButton.toolTip = MenuBarHiderSupport.toggleTooltip(
                 isCollapsed: isCollapsed,
                 isShowingAll: isShowingAll,
-                alwaysHiddenEnabled: alwaysHiddenEnabled
+                alwaysHiddenEnabled: alwaysHiddenEnabled,
+                strings: strings
             )
             setupTrackingArea()
         }
@@ -200,7 +235,7 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
             separatorButton.sendAction(on: [.leftMouseUp])
             separatorButton.image = nil
             separatorButton.title = ""
-            separatorButton.toolTip = "Vorssaint: Menu bar separator (⌘-drag items to the left)"
+            separatorButton.toolTip = strings.tooltipSeparator
 
             var drawView = separatorButton.subviews.first(where: { $0 is MenuBarHiderSeparatorView }) as? MenuBarHiderSeparatorView
             if drawView == nil {
@@ -220,7 +255,7 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
             alwaysHiddenButton.sendAction(on: [.leftMouseUp])
             alwaysHiddenButton.image = nil
             alwaysHiddenButton.title = ""
-            alwaysHiddenButton.toolTip = "Vorssaint: Always-hidden separator"
+            alwaysHiddenButton.toolTip = strings.tooltipAlwaysHidden
 
             var drawView = alwaysHiddenButton.subviews.first(where: { $0 is MenuBarHiderSeparatorView }) as? MenuBarHiderSeparatorView
             if drawView == nil {
@@ -248,6 +283,8 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
 
     private func teardown() {
         stopAutoCollapseTimer()
+        stopHoverWatchdog()
+        didExpandFromHover = false
         removeTrackingArea()
         removeScrollMonitor()
         if let toggleItem {
@@ -285,10 +322,12 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
     }
 
     func expand(startTimer: Bool = true) {
+        didExpandFromHover = false
         let wasCollapsed = isCollapsed
         isCollapsed = false
         isShowingAll = false
         updateItemAppearances()
+        persistCollapsedState()
         if wasCollapsed {
             triggerHapticFeedback()
         }
@@ -303,18 +342,23 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
     func collapse() {
         let wasExpanded = !isCollapsed || isShowingAll
         stopAutoCollapseTimer()
+        stopHoverWatchdog()
+        didExpandFromHover = false
         isCollapsed = true
         isShowingAll = false
         updateItemAppearances()
+        persistCollapsedState()
         if wasExpanded {
             triggerHapticFeedback()
         }
     }
 
     func showAll(startTimer: Bool = true) {
+        didExpandFromHover = false
         isCollapsed = false
         isShowingAll = true
         updateItemAppearances()
+        persistCollapsedState()
         triggerHapticFeedback()
 
         if startTimer && !isConfiguring {
@@ -342,6 +386,13 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
         }
     }
 
+    /// Carries the collapse state across relaunches. `isShowingAll` deliberately
+    /// does not persist: revealing the always-hidden section is a momentary
+    /// action, not a layout the app should come back in.
+    private func persistCollapsedState() {
+        UserDefaults.standard.set(isCollapsed, forKey: DefaultsKey.menuBarHiderCollapsed)
+    }
+
     private var currentIconStyle: MenuBarHiderIconStyle {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarHiderIconStyle) ?? ""
         return MenuBarHiderIconStyle(rawValue: raw) ?? .chevron
@@ -354,9 +405,18 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
         return isCollapsed ? .collapsed : .expanded
     }
 
-    private var screenWidth: Double {
-        let screen = toggleItem?.button?.window?.screen ?? NSScreen.main
-        return Double(screen?.frame.width ?? 2560.0)
+    /// Width of the menu bar strip the status items actually occupy. On a
+    /// notched Mac that is the area left of the notch, which is far narrower
+    /// than the screen; sizing the separators off `frame.width` there asks for
+    /// an item many times wider than the bar it lives in.
+    private var usableMenuBarWidth: Double {
+        guard let screen = toggleItem?.button?.window?.screen ?? NSScreen.main else {
+            return MenuBarHiderSupport.fallbackUsableWidth
+        }
+        if let leftOfNotch = screen.auxiliaryTopLeftArea {
+            return Double(leftOfNotch.width)
+        }
+        return Double(screen.frame.width)
     }
 
     private func updateItemAppearances() {
@@ -364,18 +424,23 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
         configureItemButtons()
 
         let state = currentDisplayState
-        let width = screenWidth
+        let width = usableMenuBarWidth
         let alwaysHiddenEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHiderAlwaysHiddenEnabled)
+
+        // The toggle can have inherited a role whose length was expanded to
+        // 10,000 px, so it has to be reset alongside the separators or a ⌘-drag
+        // reorder leaves it eating the whole menu bar.
+        toggleItem?.length = NSStatusItem.variableLength
 
         // Update main separator length
         if let separatorItem {
-            let length = MenuBarHiderSupport.separatorLength(state: state, screenWidth: width)
+            let length = MenuBarHiderSupport.separatorLength(state: state, usableWidth: width)
             separatorItem.length = CGFloat(length)
         }
 
         // Update always-hidden separator length
         if let alwaysHiddenItem {
-            let length = MenuBarHiderSupport.alwaysHiddenLength(state: state, screenWidth: width, isEnabled: alwaysHiddenEnabled)
+            let length = MenuBarHiderSupport.alwaysHiddenLength(state: state, usableWidth: width, isEnabled: alwaysHiddenEnabled)
             alwaysHiddenItem.length = CGFloat(length)
         }
     }
@@ -388,6 +453,12 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
 
     private func setupTrackingArea() {
         guard let button = toggleItem?.button else { return }
+        // Rebuilding this on every appearance update tore the area down with the
+        // cursor inside it and installed a fresh one, which AppKit does not
+        // consider entered — so the matching mouseExited never arrived and a
+        // hover-expanded bar stayed open. The area tracks `inVisibleRect`, so it
+        // follows the button through length changes on its own.
+        if trackingArea != nil, trackingButton === button { return }
         removeTrackingArea()
         let area = NSTrackingArea(rect: button.bounds,
                                   options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
@@ -395,28 +466,87 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
                                   userInfo: nil)
         button.addTrackingArea(area)
         trackingArea = area
+        trackingButton = button
     }
 
     private func removeTrackingArea() {
-        if let trackingArea, let button = toggleItem?.button {
-            button.removeTrackingArea(trackingArea)
-            self.trackingArea = nil
+        // Not toggleItem?.button: auto-healing may have rebound the toggle to a
+        // different status item since the area was installed, and the area
+        // belongs to whichever button actually received it.
+        if let trackingArea, let trackingButton {
+            trackingButton.removeTrackingArea(trackingArea)
         }
+        trackingArea = nil
+        trackingButton = nil
     }
 
     override func mouseEntered(with event: NSEvent) {
         guard isEnabled else { return }
+        // Deliberately does not stop the watchdog: re-entering a bar that hover
+        // already opened would otherwise leave it with nothing watching, and it
+        // would never close again. The watchdog clears its own timestamp when it
+        // sees the pointer back inside.
         let expandOnHover = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHiderExpandOnHover)
         if expandOnHover, isCollapsed {
             expand(startTimer: true)
+            // Set after expanding: expand() clears the flag so that a bar opened
+            // any other way is not closed by the cursor wandering off.
+            didExpandFromHover = true
+            startHoverWatchdog()
         }
     }
 
     override func mouseExited(with event: NSEvent) {
         guard isEnabled else { return }
-        if !isCollapsed && !isConfiguring {
-            restartAutoCollapseTimerIfNeeded()
+        guard !isCollapsed, !isConfiguring else { return }
+        if didExpandFromHover { return }
+        restartAutoCollapseTimerIfNeeded()
+    }
+
+    /// Watches where the pointer actually is while the bar is open on hover.
+    ///
+    /// Opening on hover has to close on leave, and mouseExited alone cannot
+    /// carry that: expanding changes the status item lengths, and AppKit is free
+    /// to rebuild the item windows underneath, so the exit event for the button
+    /// the cursor started on may never arrive. Asking for the pointer position
+    /// does not depend on any of that. It runs only while a hover-opened bar is
+    /// showing and stops the moment it closes.
+    private func startHoverWatchdog() {
+        stopHoverWatchdog()
+        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.collapseIfPointerLeftToggle() }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        hoverWatchdogTimer = timer
+    }
+
+    private func collapseIfPointerLeftToggle() {
+        guard isEnabled, didExpandFromHover, !isConfiguring, !isCollapsed else {
+            stopHoverWatchdog()
+            return
+        }
+        guard let window = toggleItem?.button?.window else { return }
+        if window.frame.contains(NSEvent.mouseLocation) {
+            pointerLeftToggleAt = nil
+            return
+        }
+        let now = Date().timeIntervalSince1970
+        guard let leftAt = pointerLeftToggleAt else {
+            pointerLeftToggleAt = now
+            return
+        }
+        // Grace period so brushing past on the way somewhere else does not
+        // snap the bar shut.
+        if now - leftAt >= MenuBarHiderSupport.hoverCollapseDelay {
+            stopHoverWatchdog()
+            collapse()
+        }
+    }
+
+    private func stopHoverWatchdog() {
+        hoverWatchdogTimer?.invalidate()
+        hoverWatchdogTimer = nil
+        pointerLeftToggleAt = nil
     }
 
     // MARK: - Scroll to Toggle
@@ -488,22 +618,67 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
             return
         }
 
-        // 3. Double-click or Option+Click -> Toggle Always Hidden section
         let alwaysHiddenEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHiderAlwaysHiddenEnabled)
-        if alwaysHiddenEnabled && (event.clickCount >= 2 || event.modifierFlags.contains(.option)) {
-            if isShowingAll {
-                collapse()
-            } else {
-                showAll()
-            }
+
+        // 3. Option+Click reveals the always-hidden section outright. It stays
+        //    out of the click-sequence bookkeeping below: it is a complete
+        //    gesture on its own, and a plain click right after it should still
+        //    collapse rather than be swallowed as a gesture tail.
+        if alwaysHiddenEnabled && event.modifierFlags.contains(.option) {
+            lastToggleClickTimestamp = event.timestamp
+            toggleAlwaysHiddenSection()
             return
         }
 
-        // 4. Normal click
+        // 4. The button sends one action per mouse-up, so a double click cannot
+        //    be told from the first half of one without either holding every
+        //    single click for the double-click interval or letting the second
+        //    click supersede the first. Holding taxes the gesture people make
+        //    constantly, so this acts immediately and escalates instead: no
+        //    click ever waits, and the first click's outcome is a state the
+        //    person asked for rather than a guess that has to be undone.
+        //
+        //    The sequence comes from `clickCount`, which AppKit resets only
+        //    after the interval passes with no further click; timing the pairing
+        //    here instead re-armed it on every click, so a rapid burst escalated
+        //    on every second one. The gap is checked as well, because AppKit
+        //    counts against the system double-click interval and that is far
+        //    wider than the gesture: two deliberate collapse/expand presses fall
+        //    inside it and must stay two toggles, not one reveal.
+        let gap = event.timestamp - lastToggleClickTimestamp
+        lastToggleClickTimestamp = event.timestamp
+        let withinGesture = gap <= MenuBarHiderSupport.revealGestureInterval(
+            systemDoubleClickInterval: NSEvent.doubleClickInterval)
+
+        if event.clickCount <= 1 {
+            didRevealInClickSequence = false
+            performSingleClickToggle()
+            return
+        }
+        // Once a sequence has revealed, further clicks in it are the tail of a
+        // gesture already carried out.
+        guard !didRevealInClickSequence else { return }
+        if event.clickCount == 2, alwaysHiddenEnabled, !isShowingAll, withinGesture {
+            didRevealInClickSequence = true
+            showAll()
+            return
+        }
+        performSingleClickToggle()
+    }
+
+    private func performSingleClickToggle() {
         if isShowingAll {
             collapse()
         } else {
             toggle()
+        }
+    }
+
+    private func toggleAlwaysHiddenSection() {
+        if isShowingAll {
+            collapse()
+        } else {
+            showAll()
         }
     }
 
@@ -520,21 +695,13 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
 
     @objc private func alwaysHiddenClicked(_ sender: NSStatusBarButton) {
         guard let event = NSApp.currentEvent else {
-            if isShowingAll {
-                collapse()
-            } else {
-                showAll()
-            }
+            toggleAlwaysHiddenSection()
             return
         }
         if event.modifierFlags.contains(.command) {
             return
         }
-        if isShowingAll {
-            collapse()
-        } else {
-            showAll()
-        }
+        toggleAlwaysHiddenSection()
     }
 
     private func showContextMenu(from sender: NSStatusBarButton) {
