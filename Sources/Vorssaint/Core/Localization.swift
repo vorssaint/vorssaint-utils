@@ -324,6 +324,8 @@ struct Strings {
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
     let switcherWindowShortcutCaption: String
+    let switcherAppearanceDelay: String
+    let switcherAppearanceDelayCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -1319,6 +1321,8 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
         switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor de apps aberto, pula entre as janelas do app selecionado.",
+        switcherAppearanceDelay: "Atraso de exibição",
+        switcherAppearanceDelayCaption: "Quanto tempo o atalho precisa ficar pressionado antes de o alternador aparecer. Toques rápidos ainda alternam sem mostrá-lo.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -2287,6 +2291,8 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
         switcherWindowShortcutCaption: "Opens a switcher for the frontmost app's windows. While the Apps switcher is open, jumps between the selected app's windows.",
+        switcherAppearanceDelay: "Appearance delay",
+        switcherAppearanceDelayCaption: "How long the shortcut must be held before the switcher appears. Quick taps still switch without showing it.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app's windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",

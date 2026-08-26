@@ -877,6 +877,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
+    @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
@@ -919,6 +920,20 @@ struct SwitcherSettings: View {
                                 GlobalShortcutRole.switcher.savedShortcut.displayString))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    HStack {
+                        Text(l10n.s.switcherAppearanceDelay)
+                        Slider(value: switcherAppearanceDelayBinding,
+                               in: Double(SwitcherSupport.appearanceDelayMillisecondsRange.lowerBound)
+                                   ... Double(SwitcherSupport.appearanceDelayMillisecondsRange.upperBound),
+                               step: 25)
+                            .disabled(!switcherEnabled)
+                        Text("\(sanitizedSwitcherAppearanceDelay) ms")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 72, alignment: .trailing)
+                    }
+                    SettingsCaptionText(l10n.s.switcherAppearanceDelayCaption)
 
                     Toggle(l10n.s.switcherSearchPin, isOn: $switcherSearchPinEnabled)
                         .disabled(!switcherEnabled)
@@ -1130,6 +1145,20 @@ struct SwitcherSettings: View {
         Binding(
             get: { DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) },
             set: { dockPreviewBackgroundOpacity = DockPreviewSupport.sanitizedBackgroundOpacity($0) }
+        )
+    }
+
+    private var sanitizedSwitcherAppearanceDelay: Int {
+        SwitcherSupport.sanitizedAppearanceDelay(milliseconds: switcherAppearanceDelay)
+    }
+
+    private var switcherAppearanceDelayBinding: Binding<Double> {
+        Binding(
+            get: { Double(sanitizedSwitcherAppearanceDelay) },
+            set: {
+                switcherAppearanceDelay = SwitcherSupport.sanitizedAppearanceDelay(
+                    milliseconds: Int($0.rounded()))
+            }
         )
     }
 

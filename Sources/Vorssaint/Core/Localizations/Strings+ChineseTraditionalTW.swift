@@ -209,6 +209,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
         switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
+        switcherAppearanceDelay: "顯示延遲",
+        switcherAppearanceDelayCaption: "按住快速鍵多久後顯示切換器。快速按下再放開仍會直接切換，而不顯示切換器。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將一個 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",

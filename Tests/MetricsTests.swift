@@ -1813,6 +1813,22 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.switcherShowShortcutHints] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowShortcutHints),
                "App Switcher keeps shortcut hints visible by default and carries the choice in backups")
+        expect(registeredDefaults[DefaultsKey.switcherAppearanceDelay] as? Int
+               == SwitcherSupport.defaultAppearanceDelayMilliseconds
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
+               "App Switcher keeps the current appearance delay by default and carries the choice in backups")
+        expect(SwitcherSupport.appearanceDelayMillisecondsRange
+               .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
+               "the default App Switcher appearance delay is one the slider accepts")
+        expect(SwitcherSupport.sanitizedAppearanceDelay(milliseconds: 0) == 0,
+               "the App Switcher can appear immediately when requested")
+        expect(SwitcherSupport.sanitizedAppearanceDelay(milliseconds: -1)
+               == SwitcherSupport.appearanceDelayMillisecondsRange.lowerBound
+               && SwitcherSupport.sanitizedAppearanceDelay(milliseconds: 9_000)
+               == SwitcherSupport.appearanceDelayMillisecondsRange.upperBound,
+               "an App Switcher appearance delay outside the range is clamped to it")
+        expectClose(SwitcherSupport.appearanceDelay(milliseconds: 125), 0.125,
+                    "the stored App Switcher milliseconds drive the panel timer in seconds")
         expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
                "App Switcher simple mode always uses the app icon row")
         expect(SwitcherSupport.usesWindowRow(simpleMode: true,
@@ -9744,6 +9760,11 @@ struct MetricsTests {
                    && !strings.switcherShowShortcutHints.contains("—")
                    && !strings.switcherShowShortcutHintsCaption.contains("—"),
                    "\(prefix) App Switcher shortcut-hint labels are present without em dash")
+            expect(!strings.switcherAppearanceDelay.isEmpty
+                   && !strings.switcherAppearanceDelayCaption.isEmpty
+                   && !strings.switcherAppearanceDelay.contains("—")
+                   && !strings.switcherAppearanceDelayCaption.contains("—"),
+                   "\(prefix) App Switcher appearance-delay labels are present without em dash")
             expect(!strings.switcherWindowlessApps.isEmpty
                    && !strings.switcherWindowlessApps.contains("—"),
                    "\(prefix) App Switcher windowless apps title is present without em dash")
