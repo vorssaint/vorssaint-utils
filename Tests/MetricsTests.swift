@@ -14160,6 +14160,30 @@ struct MetricsTests {
         ]
         expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
                "the scratchpad tab bar and header controls keep their full padded hit targets")
+        let scratchpadServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
+            encoding: .utf8)) ?? ""
+        let scratchpadPanelShortcutContracts = [
+            "NSEvent.addLocalMonitorForEvents(matching: .keyDown)",
+            "ScratchpadSupport.panelKeyDecision(",
+        ]
+        let scratchpadShortcutHelpContracts = [
+            "text.newPad + \"  (⌘T)\"",
+            "text.closePad + \"  (⌘W)\"",
+        ]
+        let scratchpadViewCode = scratchpadViewSource
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(scratchpadPanelShortcutContracts.allSatisfy { scratchpadServiceSource.contains($0) }
+                && scratchpadViewSource.contains(".onReceive(service.closePadRequests)")
+                && !scratchpadViewCode.contains(".keyboardShortcut(\"t\"")
+                && !scratchpadViewCode.contains(".keyboardShortcut(\"w\"")
+                && scratchpadShortcutHelpContracts.allSatisfy { scratchpadViewSource.contains($0) },
+               "the scratchpad panel monitor owns Command-T and Command-W while the view presents their help")
+        expect(scratchpadViewSource.components(
+            separatedBy: "text.closePad + \"  (⌘W)\"").count == 2,
+               "only the selected scratchpad action advertises Command-W")
         // An unpinned borderless Menu claims the free width of its row on
         // macOS 15 and starves whatever shares that row (issue #569), so the
         // rule is checked for every borderless menu in the app rather than for
@@ -14366,13 +14390,17 @@ struct MetricsTests {
         let threePads = twoPads?.addingPad(defaultName: "Scratchpad", id: thirdPadID)
         expect(threePads?.pads.map(\.name) == ["Scratchpad 1", "Scratchpad 2", "Scratchpad 3"]
                 && threePads?.pads.map(\.id) == [firstPadID, secondPadID, thirdPadID]
+                && threePads?.pads.allSatisfy { !$0.nameWasEdited } == true
                 && threePads?.selectedID == thirdPadID,
                "new scratchpads append in order, receive clear names and become selected")
         expect(ScratchpadSupport.nextPadName(defaultName: "Scratchpad",
                                              existingNames: ["Scratchpad"]) == "Scratchpad 2",
                "an existing unnumbered scratchpad still occupies the first numbered slot")
         let renamedPad = threePads?.renaming(secondPadID, to: "  Work\nideas  ")
+        let generatedLookingRename = threePads?.renaming(secondPadID, to: "Scratchpad 12")
         expect(renamedPad?.pads[1].name == "Work ideas"
+                && renamedPad?.pads[1].nameWasEdited == true
+                && generatedLookingRename?.pads[1].nameWasEdited == true
                 && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 50)).count
                     == ScratchpadDocument.maximumNameLength
                 && threePads?.renaming(secondPadID, to: "   ") == nil,
@@ -14385,9 +14413,39 @@ struct MetricsTests {
         expect(migratedScratchpad.removing(firstPadID) == nil,
                "the last scratchpad cannot be closed")
         expect(ScratchpadSupport.requiresCloseConfirmation(migratedScratchpad.pads[0])
+                && ScratchpadSupport.requiresCloseConfirmation(renamedPad!.pads[1])
+                && ScratchpadSupport.requiresCloseConfirmation(generatedLookingRename!.pads[1])
                 && !ScratchpadSupport.requiresCloseConfirmation(
-                    ScratchpadDocument.initial(defaultName: "Scratchpad").pads[0]),
-               "only closing a scratchpad with content needs destructive confirmation")
+                    ScratchpadDocument.initial(defaultName: "Scratchpad").pads[0])
+                && !ScratchpadSupport.requiresCloseConfirmation(threePads!.pads[2]),
+               "closing preserves user-authored text or names without prompting for untouched pads")
+        let legacyNamedPadData = """
+        {"pads":[{"id":"00000000-0000-0000-0000-000000000002","name":"Scratchpad 2","text":""}],"selectedID":"00000000-0000-0000-0000-000000000002"}
+        """.data(using: .utf8)!
+        let legacyNamedPad = ScratchpadDocument.decoded(legacyNamedPadData,
+                                                         defaultName: "Scratchpad")
+        expect(legacyNamedPad?.pads[0].nameWasEdited == true
+                && ScratchpadSupport.requiresCloseConfirmation(legacyNamedPad!.pads[0]),
+               "older documents conservatively protect names whose origin was not recorded")
+        let commandOnly = NSEvent.ModifierFlags.command
+        expect(ScratchpadSupport.panelKeyDecision(
+            keyCode: Int(kVK_ANSI_T), modifierFlags: commandOnly, modalInteractionActive: false
+        ) == .perform(.newPad)
+            && ScratchpadSupport.panelKeyDecision(
+                keyCode: Int(kVK_ANSI_W), modifierFlags: commandOnly, modalInteractionActive: false
+            ) == .perform(.closePad)
+            && ScratchpadSupport.panelKeyDecision(
+                keyCode: Int(kVK_ANSI_T),
+                modifierFlags: [.command, .shift],
+                modalInteractionActive: false
+            ) == .passThrough
+            && ScratchpadSupport.panelKeyDecision(
+                keyCode: Int(kVK_ANSI_W), modifierFlags: commandOnly, modalInteractionActive: true
+            ) == .consume
+            && ScratchpadSupport.panelKeyDecision(
+                keyCode: Int(kVK_ANSI_W), modifierFlags: [], modalInteractionActive: false
+            ) == .passThrough,
+               "the scratchpad claims only exact Command-T and Command-W and consumes them during a modal")
         var limitedScratchpads = migratedScratchpad
         for _ in 2...ScratchpadDocument.maximumPadCount {
             limitedScratchpads = limitedScratchpads.addingPad(defaultName: "Scratchpad")!

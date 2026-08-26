@@ -36,8 +36,9 @@ struct ScratchpadView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .overlay(alignment: .topLeading) {
-            closeShortcut
+        .onReceive(service.closePadRequests) { padID in
+            guard let pad = service.pads.first(where: { $0.id == padID }) else { return }
+            requestClose(pad)
         }
         .alert(dialogTitle, isPresented: dialogIsPresented) {
             switch dialog {
@@ -98,10 +99,9 @@ struct ScratchpadView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .keyboardShortcut("t", modifiers: .command)
             .disabled(!service.canCreatePad)
             .help(service.canCreatePad
-                ? text.newPad
+                ? text.newPad + "  (⌘T)"
                 : String(format: text.padLimitFormat, ScratchpadDocument.maximumPadCount))
             .accessibilityLabel(text.newPad)
 
@@ -109,7 +109,7 @@ struct ScratchpadView: View {
                 if let selectedPad {
                     Button(text.renamePad) { presentRename(selectedPad) }
                     Button(text.closePad, role: .destructive) { requestClose(selectedPad) }
-                        .keyboardShortcut("w", modifiers: .command)
+                        .help(text.closePad + "  (⌘W)")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -157,7 +157,6 @@ struct ScratchpadView: View {
         .contextMenu {
             Button(text.renamePad) { presentRename(pad) }
             Button(text.closePad, role: .destructive) { requestClose(pad) }
-                .disabled(!service.canClosePad)
         }
         .accessibilityLabel(pad.name)
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -165,22 +164,6 @@ struct ScratchpadView: View {
 
     private var selectedPad: ScratchpadPad? {
         service.pads.first(where: { $0.id == service.selectedPadID })
-    }
-
-    /// A shortcut inside the actions menu loses to the app's standard
-    /// Command-W while the menu is closed, so this control stays in the panel's
-    /// active view hierarchy without adding another visible close button.
-    private var closeShortcut: some View {
-        Button {
-            guard let selectedPad else { return }
-            requestClose(selectedPad)
-        } label: {
-            Color.clear
-        }
-        .buttonStyle(.plain)
-        .keyboardShortcut("w", modifiers: .command)
-        .frame(width: 0, height: 0)
-        .accessibilityHidden(true)
     }
 
     private var dialogTitle: String {

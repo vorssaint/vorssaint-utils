@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
+import Carbon.HIToolbox
 import Foundation
 
 /// How long each scratchpad keeps text that nobody edits. The check runs only
@@ -53,6 +55,49 @@ struct ScratchpadPad: Codable, Equatable, Identifiable {
     var name: String
     var text: String
     var modifiedAt: Date?
+    var nameWasEdited: Bool
+
+    init(id: UUID,
+         name: String,
+         text: String,
+         modifiedAt: Date?,
+         nameWasEdited: Bool = false) {
+        self.id = id
+        self.name = name
+        self.text = text
+        self.modifiedAt = modifiedAt
+        self.nameWasEdited = nameWasEdited
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case text
+        case modifiedAt
+        case nameWasEdited
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(UUID.self, forKey: .id)
+        name = try values.decode(String.self, forKey: .name)
+        text = try values.decode(String.self, forKey: .text)
+        modifiedAt = try values.decodeIfPresent(Date.self, forKey: .modifiedAt)
+        // Older documents cannot prove that a generated-looking name was
+        // untouched, so require confirmation rather than risk losing it.
+        nameWasEdited = try values.decodeIfPresent(Bool.self, forKey: .nameWasEdited) ?? true
+    }
+}
+
+enum ScratchpadPanelShortcut: Equatable {
+    case newPad
+    case closePad
+}
+
+enum ScratchpadPanelKeyDecision: Equatable {
+    case passThrough
+    case consume
+    case perform(ScratchpadPanelShortcut)
 }
 
 /// The whole scratchpad state travels as one small document. Stable ids keep
@@ -99,7 +144,8 @@ struct ScratchpadDocument: Codable, Equatable {
             cleanPads.append(ScratchpadPad(id: pad.id,
                                            name: name.isEmpty ? fallback : name,
                                            text: pad.text,
-                                           modifiedAt: pad.text.isEmpty ? nil : pad.modifiedAt))
+                                           modifiedAt: pad.text.isEmpty ? nil : pad.modifiedAt,
+                                           nameWasEdited: pad.nameWasEdited))
         }
         guard !cleanPads.isEmpty else { return .initial(defaultName: defaultName) }
         let selection = cleanPads.contains(where: { $0.id == selectedID })
@@ -129,6 +175,7 @@ struct ScratchpadDocument: Codable, Equatable {
         guard !name.isEmpty, let index = pads.firstIndex(where: { $0.id == id }) else { return nil }
         var next = self
         next.pads[index].name = name
+        next.pads[index].nameWasEdited = true
         return next
     }
 
@@ -171,6 +218,22 @@ enum ScratchpadSupport {
 
     static func dismissesOnOutsideClick(isPinned: Bool, exportModalActive: Bool) -> Bool {
         !isPinned && !exportModalActive
+    }
+
+    static func panelKeyDecision(keyCode: Int,
+                                 modifierFlags: NSEvent.ModifierFlags,
+                                 modalInteractionActive: Bool) -> ScratchpadPanelKeyDecision {
+        let shortcutModifiers: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
+        guard modifierFlags.intersection(shortcutModifiers) == .command else {
+            return .passThrough
+        }
+        let shortcut: ScratchpadPanelShortcut
+        switch keyCode {
+        case kVK_ANSI_T: shortcut = .newPad
+        case kVK_ANSI_W: shortcut = .closePad
+        default: return .passThrough
+        }
+        return modalInteractionActive ? .consume : .perform(shortcut)
     }
 
     /// Rendering is on demand and never changes the stored plain text. Native
@@ -306,7 +369,7 @@ enum ScratchpadSupport {
     }
 
     static func requiresCloseConfirmation(_ pad: ScratchpadPad) -> Bool {
-        !pad.text.isEmpty
+        !pad.text.isEmpty || pad.nameWasEdited
     }
 
     /// Whether the saved text expired: it only clears when a retention period

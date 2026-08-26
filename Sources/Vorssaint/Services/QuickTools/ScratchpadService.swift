@@ -3,6 +3,7 @@
 
 import AppKit
 import Carbon.HIToolbox
+import Combine
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -20,6 +21,10 @@ final class ScratchpadService: ObservableObject {
     @Published private(set) var isPreviewing = false
     @Published private(set) var pads: [ScratchpadPad] = []
     @Published private(set) var selectedPadID: UUID?
+    private let closePadRequestSubject = PassthroughSubject<ScratchpadPad.ID, Never>()
+    var closePadRequests: AnyPublisher<ScratchpadPad.ID, Never> {
+        closePadRequestSubject.eraseToAnyPublisher()
+    }
     @Published var text = "" {
         didSet {
             guard hasLoaded, !isReplacingText, var document else { return }
@@ -423,6 +428,16 @@ final class ScratchpadService: ObservableObject {
                                                   exportModalActive: modalInteractionActive)
     }
 
+    private func performPanelShortcut(_ shortcut: ScratchpadPanelShortcut) {
+        switch shortcut {
+        case .newPad:
+            createPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
+        case .closePad:
+            guard let selectedPadID else { return }
+            closePadRequestSubject.send(selectedPadID)
+        }
+    }
+
     private func installMonitors(for panel: NSPanel) {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
@@ -435,7 +450,19 @@ final class ScratchpadService: ObservableObject {
                 self.hide()
                 return nil
             }
-            return event
+            switch ScratchpadSupport.panelKeyDecision(
+                keyCode: Int(event.keyCode),
+                modifierFlags: event.modifierFlags,
+                modalInteractionActive: self.modalInteractionActive
+            ) {
+            case .passThrough:
+                return event
+            case .consume:
+                return nil
+            case .perform(let shortcut):
+                self.performPanelShortcut(shortcut)
+                return nil
+            }
         }
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
