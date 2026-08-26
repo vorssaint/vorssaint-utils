@@ -298,17 +298,8 @@ struct SettingsView: View {
 
     private func requestSearchItem(_ item: SettingsSearchItem) {
         activeSearchIndex = nil
-        if case let .feature(feature) = item.id, !feature.isAvailable {
-            router.request(FeatureSettingsDestination(.features))
-            return
-        }
-        let destination = item.destination
-        if FeatureVisibilitySupport.isPageVisible(destination.page,
-                                                   isAvailable: { $0.isAvailable }) {
-            router.request(destination)
-        } else {
-            router.request(FeatureSettingsDestination(.features))
-        }
+        let routed = SettingsSearchSupport.route(for: item)
+        router.request(routed.destination, targetFeature: routed.targetFeature)
     }
 
     /// The selected page can leave the sidebar when its last feature is

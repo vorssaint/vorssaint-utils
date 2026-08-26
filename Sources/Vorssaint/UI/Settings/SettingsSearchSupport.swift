@@ -16,6 +16,11 @@ struct SettingsSearchItem: Identifiable {
     let title: String
     let icon: String
     var keywords: [String] = []
+    /// The hub feature this result represents, when it corresponds to exactly
+    /// one `AppFeature` — including a dedicated page result such as Homebrew,
+    /// whose `id` stays `.page(...)` for identity stability. `nil` for a
+    /// purely generic page (Features itself, General, ...).
+    var feature: AppFeature?
 }
 
 /// Pure filtering for the Settings sidebar search field, so the matching
@@ -34,22 +39,60 @@ enum SettingsSearchSupport {
             SettingsSearchItem(id: .feature(feature),
                                destination: feature.settingsDestination,
                                title: title(feature),
-                               icon: feature.symbolName)
+                               icon: feature.symbolName,
+                               feature: feature)
         }
     }
 
     /// A dedicated page row wins over a generated feature row only when both
     /// its visible name and full destination are equivalent. This keeps a
     /// single explicit Homebrew result while preserving differently named
-    /// fallbacks such as Disk Image Installer -> Features.
+    /// fallbacks such as Disk Image Installer -> Features. The winning page
+    /// result still carries the feature's identity forward, so a page whose
+    /// gating feature becomes unavailable is not stuck with no way back to
+    /// its exact Feature Hub row.
     static func combinedItems(pageItems: [SettingsSearchItem],
                               featureItems: [SettingsSearchItem]) -> [SettingsSearchItem] {
-        pageItems + featureItems.filter { featureItem in
+        let mergedPageItems = pageItems.map { pageItem -> SettingsSearchItem in
+            guard let match = featureItems.first(where: {
+                $0.destination == pageItem.destination && fold($0.title) == fold(pageItem.title)
+            }) else { return pageItem }
+            var merged = pageItem
+            merged.feature = match.feature
+            return merged
+        }
+        let dedupedFeatureItems = featureItems.filter { featureItem in
             !pageItems.contains { pageItem in
                 pageItem.destination == featureItem.destination
                     && fold(pageItem.title) == fold(featureItem.title)
             }
         }
+        return mergedPageItems + dedupedFeatureItems
+    }
+
+    /// Where a search or command-bar result should route right now. A
+    /// feature-backed result that is unavailable, or whose intentional
+    /// destination is the Features hub itself, opens Features with an
+    /// explicit target feature so the hub can reveal that exact row; every
+    /// other result opens its own destination unchanged. Shared by the
+    /// Settings sidebar search and the Command Bar so neither duplicates the
+    /// other's fallback logic.
+    static func route(for item: SettingsSearchItem,
+                      isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
+        -> (destination: FeatureSettingsDestination, targetFeature: AppFeature?) {
+        if let feature = item.feature {
+            guard isAvailable(feature) else {
+                return (FeatureSettingsDestination(.features), feature)
+            }
+            if item.destination.page == .features {
+                return (item.destination, feature)
+            }
+            return (item.destination, nil)
+        }
+        guard FeatureVisibilitySupport.isPageVisible(item.destination.page, isAvailable: isAvailable) else {
+            return (FeatureSettingsDestination(.features), nil)
+        }
+        return (item.destination, nil)
     }
 
     /// Case-, diacritic- and width-insensitive containment: "métr" finds

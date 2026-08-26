@@ -794,7 +794,10 @@ enum CommandBarCatalog {
                 subtitle: s.settingsTitle,
                 keywords: item.keywords.joined(separator: " "),
                 icon: .symbol(item.icon),
-                run: { _ in openSettings(at: item.destination) })
+                run: { _ in
+                    let routed = SettingsSearchSupport.route(for: item)
+                    openSettings(at: routed.destination, targetFeature: routed.targetFeature)
+                })
         }
     }
 
@@ -1538,8 +1541,9 @@ enum CommandBarCatalog {
         openSettings(at: FeatureSettingsDestination(page))
     }
 
-    private static func openSettings(at destination: FeatureSettingsDestination) {
-        SettingsRouter.shared.request(destination)
+    private static func openSettings(at destination: FeatureSettingsDestination,
+                                     targetFeature: AppFeature? = nil) {
+        SettingsRouter.shared.request(destination, targetFeature: targetFeature)
         appDelegate()?.openSettingsWindow()
     }
 
