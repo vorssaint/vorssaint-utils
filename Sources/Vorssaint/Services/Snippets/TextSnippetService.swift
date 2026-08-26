@@ -201,7 +201,15 @@ final class TextSnippetService {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] note in
+            // Not when the Accessibility Keyboard itself comes forward: pressing
+            // one of its keys is typing into the app you were already in, so the
+            // buffer has to survive it. Otherwise this clears what the mouse-down
+            // branch above just took care to keep.
+            if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+               app.bundleIdentifier == AssistiveKeyboard.bundleID {
+                return
+            }
             self?.resetBuffer()
         }
     }
@@ -219,9 +227,12 @@ final class TextSnippetService {
             return Unmanaged.passUnretained(event)
         }
         // Clicks move the caret somewhere unknown; the half-typed trigger is
-        // no longer where the deletes would land.
+        // no longer where the deletes would land. A click on the Accessibility
+        // Keyboard is the exception: there the mouse is how a key is pressed,
+        // so the click types a character and leaves the caret alone. That check
+        // costs a nil test unless that keyboard is actually running.
         if type == .leftMouseDown || type == .rightMouseDown {
-            resetBuffer()
+            if !AssistiveKeyboard.ownsPoint(event.location) { resetBuffer() }
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }
