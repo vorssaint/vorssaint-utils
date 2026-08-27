@@ -128,6 +128,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var movePoints: [CGPoint] = []
     private var activeHandle: ScreenshotSupport.Handle?
     private var moveFontSize: Double = 0
+    private var strengthDragRegistered = false
     private var cropResizeOrigin: CGRect?
     private var cropMoveOrigin: CGRect?
     private var cropSelectionOrigin: CGRect?
@@ -454,13 +455,26 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// Moving the slider retunes the selected mark, or sets the strength the
     /// next one will be drawn with.
     func applyPixelateStrength(_ value: Double) {
-        pixelateStrength = ScreenshotSupport.clampedStrength(value)
+        let clamped = ScreenshotSupport.clampedStrength(value)
+        guard clamped != pixelateStrength else { return }
+        pixelateStrength = clamped
         guard let selectedID,
               let index = annotations.firstIndex(where: { $0.id == selectedID }),
               annotations[index].tool == .pixelate
         else { return }
+        // One undo entry for a drag, not one per pixel of travel: the first
+        // change registers, the rest of the same gesture amends it.
+        if !strengthDragRegistered {
+            registerUndo()
+            strengthDragRegistered = true
+        }
         annotations[index].strength = pixelateStrength
         ensurePixelated()
+    }
+
+    /// Ends the grouping above, so the next drag is its own undo step.
+    func endPixelateStrengthDrag() {
+        strengthDragRegistered = false
     }
 
     private func registerUndo() {
@@ -636,9 +650,15 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                                                      corners: selected.tool.resizeHandles) {
                 activeHandle = handle
                 moveOrigin = grabBox
-                moveFontSize = selected.fontSize > 0
-                    ? selected.fontSize
-                    : Double(ScreenshotRenderer.fontSize(for: selected.stroke, scale: 1))
+                // A counter's fallback is the badge it draws, not a text point
+                // size: they are different numbers, and a fresh badge would
+                // jump to the wrong one on its first corner drag.
+                moveFontSize = selected.tool == .counter
+                    ? Double(ScreenshotSupport.counterDiameter(for: selected,
+                                                               imageSize: imageSize))
+                    : (selected.fontSize > 0
+                        ? selected.fontSize
+                        : Double(ScreenshotRenderer.fontSize(for: selected.stroke, scale: 1)))
                 return
             }
             if selected.points.count >= 2 {
@@ -662,9 +682,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 self.selectedID = selectedID
             }
             moveOrigin = hit.rect
-            moveFontSize = hit.fontSize > 0
-                ? hit.fontSize
-                : Double(ScreenshotRenderer.fontSize(for: hit.stroke, scale: 1))
+            moveFontSize = hit.tool == .counter
+                ? Double(ScreenshotSupport.counterDiameter(for: hit, imageSize: imageSize))
+                : (hit.fontSize > 0
+                    ? hit.fontSize
+                    : Double(ScreenshotRenderer.fontSize(for: hit.stroke, scale: 1)))
             movePoints = hit.points
             clearTextSelection()
         } else if let word = wordIndex(at: point) {

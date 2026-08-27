@@ -1704,7 +1704,11 @@ enum ScreenshotSupport {
     static func pixelBlockSize(for imageSize: CGSize, strength: Double) -> Int {
         let base = Double(pixelBlockSize(for: imageSize))
         let clamped = ScreenshotSupport.clampedStrength(strength)
-        return Swift.max(4, Int((base * (0.35 + clamped * 1.3)).rounded()))
+        // Rounded to a step: sweeping the slider then asks for a handful of
+        // pixelated twins rather than one per position it passes through.
+        let raw = base * (0.35 + clamped * 1.3)
+        let step = Swift.max(2.0, base / 8)
+        return Swift.max(4, Int((raw / step).rounded() * step))
     }
 
     // MARK: - Export

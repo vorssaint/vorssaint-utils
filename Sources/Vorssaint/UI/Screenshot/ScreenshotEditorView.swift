@@ -988,10 +988,8 @@ struct ScreenshotEditorView: View {
             guard let selectedID = model.selectedID,
                   let selected = model.annotations.first(where: { $0.id == selectedID })
             else { return false }
-            return selected.tool != .sticker
-        case .pixelate:
-            return true
-        case .sticker, .crop:
+            return selected.tool != .sticker && selected.tool != .pixelate
+        case .sticker, .pixelate, .crop:
             return false
         }
     }
@@ -1142,6 +1140,25 @@ struct ScreenshotEditorView: View {
                 stickerMenu
                 Divider().frame(height: 16)
             }
+            if showsBlurControls {
+                HStack(spacing: 6) {
+                    Image(systemName: "circle.dotted")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Slider(value: Binding(get: { model.pixelateStrength },
+                                          set: { model.applyPixelateStrength($0) }),
+                           in: 0...1,
+                           onEditingChanged: { editing in
+                               if !editing { model.endPixelateStrengthDrag() }
+                           })
+                        .frame(width: 96)
+                    Text("\(Int(model.pixelateStrength * 100))%")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 30, alignment: .trailing)
+                }
+                Divider().frame(height: 16)
+            }
             if showsColorControls {
                 HStack(spacing: 4) {
                     ForEach(ScreenshotSupport.ColorID.allCases, id: \.self) { colorID in
@@ -1158,22 +1175,6 @@ struct ScreenshotEditorView: View {
                         ForEach(ScreenshotSupport.ArrowHeads.allCases, id: \.self) { heads in
                             arrowHeadButton(heads)
                         }
-                    }
-                    Divider().frame(height: 16)
-                }
-                if showsBlurControls {
-                    HStack(spacing: 6) {
-                        Image(systemName: "circle.dotted")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Slider(value: Binding(get: { model.pixelateStrength },
-                                              set: { model.applyPixelateStrength($0) }),
-                               in: 0...1)
-                            .frame(width: 96)
-                        Text("\(Int(model.pixelateStrength * 100))%")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 30, alignment: .trailing)
                     }
                     Divider().frame(height: 16)
                 }
