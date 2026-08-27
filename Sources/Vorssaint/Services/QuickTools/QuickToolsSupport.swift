@@ -151,16 +151,26 @@ enum QuickToolsSupport {
                 joined = line
                 return
             }
-            let joinsTightly = joined.unicodeScalars.last.map(tightScripts.contains) == true
-                && line.unicodeScalars.first.map(tightScripts.contains) == true
+            let joinsTightly = joined.unicodeScalars.last.map(isTightScriptScalar) == true
+                && line.unicodeScalars.first.map(isTightScriptScalar) == true
             joined.append(joinsTightly ? "" : " ")
             joined.append(line)
         }
     }
 
-    // CJK punctuation, kana, Han. Hangul (AC00-D7AF) stays out on purpose:
-    // Korean keeps its word spaces.
-    private static let tightScripts = CharacterSet(charactersIn: "\u{3000}"..."\u{9FFF}")
+    // CJK punctuation, kana, Han. Hangul syllables and halfwidth Hangul jamo
+    // stay out on purpose because Korean keeps its word spaces.
+    private static func isTightScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3000...0x9FFF,
+             0xF900...0xFAFF,
+             0xFF01...0xFF9F,
+             0x20000...0x2FA1F:
+            return true
+        default:
+            return false
+        }
+    }
 
     // MARK: - QR codes
 
