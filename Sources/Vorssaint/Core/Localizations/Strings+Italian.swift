@@ -908,7 +908,7 @@ extension Strings {
         launchAtLoginNeedsApplications: "L'app è in esecuzione da una posizione che non consente l'apertura all'accesso. Trascina Vorssaint nella cartella Applicazioni, aprila da lì e riattiva l'opzione.",
         launchAtLoginNeedsApproval: "L'elemento di login è registrato, ma in Impostazioni di Sistema resta disattivato. Apri Impostazioni di Sistema › Generali › Elementi login ed estensioni e attiva Vorssaint sotto «Apri all'accesso».",
         ocrRemoveLineBreaksToggle: "Rimuovi interruzioni di riga",
-        ocrRemoveLineBreaksCaption: "Unisce le righe riconosciute con spazi, così il testo copiato viene incollato come un unico paragrafo.",
+        ocrRemoveLineBreaksCaption: "Rimuove le interruzioni di riga, così il testo copiato viene incollato come un unico paragrafo.",
         ocrQRToggle: "Leggi i codici QR",
         ocrQRCaption: "Se l'area contiene un codice QR, il suo contenuto viene mostrato per copiarlo o aprirlo.",
         ocrQRCopied: "Codice QR copiato",

@@ -909,7 +909,7 @@ extension Strings {
         launchAtLoginNeedsApplications: "App 正從無法在登入時開啟的位置執行。請將 Vorssaint 拖到「應用程式」檔案夾，從那裡開啟後再重新開啟此選項。",
         launchAtLoginNeedsApproval: "登入項目已註冊，但系統設定中仍是關閉的。請打開「系統設定 › 一般 › 登入項目與延伸功能」，在「登入時打開」中開啟 Vorssaint。",
         ocrRemoveLineBreaksToggle: "移除換行",
-        ocrRemoveLineBreaksCaption: "以空格連接辨識出的各行，讓拷貝的文字貼上為單一段落。",
+        ocrRemoveLineBreaksCaption: "移除辨識文字中的換行，讓拷貝的內容貼上為單一段落。",
         ocrQRToggle: "讀取 QR 碼",
         ocrQRCaption: "如果所選區域包含 QR 碼，會顯示它的內容以便拷貝或打開。",
         ocrQRCopied: "QR 碼已拷貝",

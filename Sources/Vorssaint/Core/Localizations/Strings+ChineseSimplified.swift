@@ -908,7 +908,7 @@ extension Strings {
         launchAtLoginNeedsApplications: "应用正从一个无法在登录时打开的位置运行。请将 Vorssaint 拖到“应用程序”文件夹，从那里打开后再重新开启此选项。",
         launchAtLoginNeedsApproval: "登录项已注册，但系统设置里仍处于关闭状态。请打开“系统设置 › 通用 › 登录项与扩展”，在“登录时打开”中开启 Vorssaint。",
         ocrRemoveLineBreaksToggle: "移除换行",
-        ocrRemoveLineBreaksCaption: "使用空格连接识别出的各行，使复制的文本粘贴为一个段落。",
+        ocrRemoveLineBreaksCaption: "移除识别文本中的换行，使复制的内容粘贴为一个段落。",
         ocrQRToggle: "读取二维码",
         ocrQRCaption: "如果所选区域包含二维码，会显示它的内容以便拷贝或打开。",
         ocrQRCopied: "二维码已拷贝",

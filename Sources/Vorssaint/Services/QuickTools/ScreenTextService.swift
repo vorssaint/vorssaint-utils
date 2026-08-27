@@ -85,7 +85,7 @@ final class ScreenTextService: ObservableObject {
     /// to exercise directly on a known image.
     static func outcome(for image: CGImage,
                         detectQRCodes: Bool,
-                        removeLineBreaks: Bool = false,
+                        removeLineBreaks: Bool,
                         fallbackLanguages: [String] = ["en-US"]) -> Outcome {
         if detectQRCodes, let reading = BarcodeDetector.read(image) {
             return .qr(reading)

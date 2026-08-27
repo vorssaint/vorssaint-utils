@@ -908,7 +908,7 @@ extension Strings {
         launchAtLoginNeedsApplications: "La app se está ejecutando desde un lugar que no permite abrirse al iniciar sesión. Arrastra Vorssaint a la carpeta Aplicaciones, ábrelo desde ahí y actívalo de nuevo.",
         launchAtLoginNeedsApproval: "El ítem de inicio está registrado, pero sigue desactivado en Ajustes del Sistema. Abre Ajustes del Sistema › General › Ítems de inicio y extensiones y activa Vorssaint en «Abrir al iniciar sesión».",
         ocrRemoveLineBreaksToggle: "Eliminar saltos de línea",
-        ocrRemoveLineBreaksCaption: "Une las líneas reconocidas con espacios para que el texto copiado se pegue como un solo párrafo.",
+        ocrRemoveLineBreaksCaption: "Elimina los saltos de línea para que el texto copiado se pegue como un solo párrafo.",
         ocrQRToggle: "Leer códigos QR",
         ocrQRCaption: "Si el área tiene un código QR, se muestra su contenido para copiar o abrir.",
         ocrQRCopied: "Código QR copiado",

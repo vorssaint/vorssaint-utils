@@ -908,7 +908,7 @@ extension Strings {
         launchAtLoginNeedsApplications: "Uygulama, oturum açılırken açılmaya izin vermeyen bir konumdan çalışıyor. Vorssaint'i Uygulamalar klasörüne sürükleyin, oradan açın ve bu seçeneği yeniden açın.",
         launchAtLoginNeedsApproval: "Giriş ögesi kayıtlı, ancak Sistem Ayarları'nda hâlâ kapalı. Sistem Ayarları › Genel › Giriş Ögeleri ve Uzantılar'ı açın ve «Oturum açılırken aç» altında Vorssaint'i açın.",
         ocrRemoveLineBreaksToggle: "Satır sonlarını kaldır",
-        ocrRemoveLineBreaksCaption: "Tanınan satırları boşluklarla birleştirir; böylece kopyalanan metin tek paragraf olarak yapıştırılır.",
+        ocrRemoveLineBreaksCaption: "Satır sonlarını kaldırarak kopyalanan metnin tek paragraf olarak yapıştırılmasını sağlar.",
         ocrQRToggle: "QR kodlarını oku",
         ocrQRCaption: "Alanda bir QR kodu varsa içeriği kopyalamak veya açmak için gösterilir.",
         ocrQRCopied: "QR kodu kopyalandı",

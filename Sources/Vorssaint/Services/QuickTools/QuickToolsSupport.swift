@@ -133,7 +133,7 @@ enum QuickToolsSupport {
     /// to right within the same visual row. Empty lines are dropped.
     static func joinedRecognizedText(_ lines: [RecognizedLine],
                                      removingLineBreaks: Bool) -> String {
-        lines
+        let texts = lines
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .sorted {
                 // Vision's y grows upward; bucket rows so tiny baseline
@@ -144,7 +144,32 @@ enum QuickToolsSupport {
                 return $0.x < $1.x
             }
             .map(\.text)
-            .joined(separator: removingLineBreaks ? " " : "\n")
+        guard removingLineBreaks else { return texts.joined(separator: "\n") }
+
+        return texts.reduce(into: "") { joined, line in
+            guard !joined.isEmpty else {
+                joined = line
+                return
+            }
+            let joinsTightly = joined.unicodeScalars.last.map(isTightScriptScalar) == true
+                && line.unicodeScalars.first.map(isTightScriptScalar) == true
+            joined.append(joinsTightly ? "" : " ")
+            joined.append(line)
+        }
+    }
+
+    /// CJK text meets without a word space, while Hangul syllables stay out
+    /// because Korean already carries spaces between words.
+    private static func isTightScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3000...0x9FFF,
+             0xF900...0xFAFF,
+             0xFF01...0xFF60,
+             0x20000...0x2FA1F:
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - QR codes
