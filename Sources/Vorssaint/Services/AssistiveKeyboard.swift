@@ -31,6 +31,12 @@ enum AssistiveKeyboard {
     private static let minLookupInterval: TimeInterval = 2
 
     /// Seeds the cache and installs the observers. Runs once, on first use.
+    ///
+    /// Registering `NSWorkspace` observers happens on whichever thread gets here
+    /// first, which is the main thread only because `applicationDidFinishLaunching`
+    /// touches `isRunning` before any tap can. That warm-up is load-bearing for
+    /// two separate reasons — this one and the cold first answer — so do not
+    /// remove it as a redundant optimization.
     private static let bootstrap: Void = {
         scheduleLookup(force: true)
         let center = NSWorkspace.shared.notificationCenter
@@ -157,10 +163,27 @@ enum AssistiveKeyboard {
                   CGRect(x: x, y: y, width: width, height: height).contains(point)
             else { continue }
             // A fully transparent layer cannot have been clicked; the click
-            // went through it to whatever is behind.
+            // went through it to whatever is behind. Worth keeping for foreign
+            // windows, but it is not enough on its own — see below.
             if let alpha = window[kCGWindowAlpha as String] as? CGFloat, alpha <= 0 { continue }
             let owner = window[kCGWindowOwnerPID as String] as? pid_t
-            return owner == pid
+            if owner == pid { return true }
+            // Our own windows never block the answer. Several are click-through
+            // (`ignoresMouseEvents`), and `CGWindowListCopyWindowInfo` cannot
+            // report that; they also leave `alphaValue` alone, so they arrive
+            // here looking like ordinary opaque windows. One of them is
+            // full-screen at shielding level for as long as Extra Brightness is
+            // boosting, which would put it above every point of the display and
+            // make this answer false everywhere — every call site silently back
+            // to the bug it fixes.
+            //
+            // The trade: one of our windows that *does* take clicks, overlapping
+            // the keyboard, now reads as a keystroke. That is a false positive —
+            // a buffer that survives, a panel that stays open — against a false
+            // negative that disables the feature outright. The rarer and milder
+            // of the two.
+            if owner == ProcessInfo.processInfo.processIdentifier { continue }
+            return false
         }
         return false
     }
