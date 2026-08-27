@@ -8,6 +8,7 @@ struct SuperKeySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var superKey = SuperKeyService.shared
     @AppStorage(DefaultsKey.superKeyEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.superKeyMode) private var modeRaw = SuperKeyMode.hyper.rawValue
     @AppStorage(DefaultsKey.superKeySoloAction) private var soloActionRaw = SuperKeySoloAction.none.rawValue
 
     private var text: SuperKeyStrings { FeatureStrings.superKey(l10n.language) }
@@ -32,6 +33,18 @@ struct SuperKeySettings: View {
                         .foregroundStyle(.green)
                 }
             }
+
+            Section("Modifier set") {
+                Picker("Modifier set", selection: modeBinding) {
+                    Text("Hyper (⇧⌃⌥⌘)").tag(SuperKeyMode.hyper)
+                    Text("Meh (⇧⌃⌥)").tag(SuperKeyMode.meh)
+                }
+                .pickerStyle(.radioGroup)
+                Text("Choose which modifier chord Caps Lock sends while held.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .disabled(!enabled)
 
             Section(text.soloSection) {
                 Picker(text.soloSection, selection: soloBinding) {
@@ -72,7 +85,7 @@ struct SuperKeySettings: View {
                 .foregroundStyle(.tertiary)
                 .padding(.bottom, 14)
             HStack(spacing: 5) {
-                ForEach(["⇧", "⌃", "⌥", "⌘"], id: \.self) { glyph in
+                ForEach(mode == .meh ? ["⇧", "⌃", "⌥"] : ["⇧", "⌃", "⌥", "⌘"], id: \.self) { glyph in
                     keyCap(glyph, symbol: nil, wide: false)
                 }
             }
@@ -111,6 +124,17 @@ struct SuperKeySettings: View {
             SuperKeySoloAction.sanitized(soloActionRaw)
         } set: { action in
             soloActionRaw = action.rawValue
+            SuperKeyService.shared.syncWithPreferences()
+        }
+    }
+
+    private var mode: SuperKeyMode { SuperKeyMode.sanitized(modeRaw) }
+
+    private var modeBinding: Binding<SuperKeyMode> {
+        Binding {
+            SuperKeyMode.sanitized(modeRaw)
+        } set: { value in
+            modeRaw = value.rawValue
             SuperKeyService.shared.syncWithPreferences()
         }
     }

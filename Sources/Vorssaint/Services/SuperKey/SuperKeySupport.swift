@@ -2,6 +2,20 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreGraphics
+
+/// The two common modifier chords that can be made from one held key.
+/// Hyper is the original behavior; Meh is Shift+Control+Option without Command.
+enum SuperKeyMode: String, CaseIterable, Identifiable {
+    case hyper, meh
+
+    var id: String { rawValue }
+
+    static func sanitized(_ raw: String?) -> SuperKeyMode {
+        guard let raw, let mode = SuperKeyMode(rawValue: raw) else { return .hyper }
+        return mode
+    }
+}
 
 /// What a tap of the super key on its own does, when no other key was pressed
 /// while it was held.
@@ -32,6 +46,14 @@ struct SuperKeyMapping: Equatable {
 /// go down and up. The mapping table below turns it into an ordinary key
 /// first, which is what makes holding it possible at all.
 enum SuperKeySupport {
+    static func modifiers(for mode: SuperKeyMode) -> GlobalShortcutModifiers {
+        mode == .meh ? [.shift, .control, .option] : .validMask
+    }
+
+    static func eventFlags(for mode: SuperKeyMode) -> CGEventFlags {
+        modifiers(for: mode).cgFlags
+    }
+
     /// HID usage values (page 7, keyboard) of the two keys involved.
     static let capsLockUsage: UInt64 = 0x700000039
     /// F18 is the destination: a key defined by the standard, so the system

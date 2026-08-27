@@ -30,6 +30,10 @@ final class SuperKeyService: ObservableObject {
     /// of the combination it stands for. Main thread only, like both taps.
     private(set) static var isEngaged = false
 
+    static var currentMode: SuperKeyMode {
+        SuperKeyMode.sanitized(UserDefaults.standard.string(forKey: DefaultsKey.superKeyMode))
+    }
+
     /// A held gesture can follow this virtual modifier. True means the key was
     /// released; false means the hold was cancelled by teardown or recovery.
     var onHoldEnded: ((_ released: Bool) -> Void)?
@@ -43,6 +47,7 @@ final class SuperKeyService: ObservableObject {
     private var runLoopSource: CFRunLoopSource?
     private var state = SuperKeySupport.State()
     private var soloAction: SuperKeySoloAction = .none
+    private var mode: SuperKeyMode = .hyper
     private var wakeObserver: NSObjectProtocol?
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
@@ -73,6 +78,7 @@ final class SuperKeyService: ObservableObject {
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
         soloAction = SuperKeySoloAction.sanitized(defaults.string(forKey: DefaultsKey.superKeySoloAction))
+        mode = SuperKeyMode.sanitized(defaults.string(forKey: DefaultsKey.superKeyMode))
         let enabled = AppFeature.superKey.isAvailable
             && defaults.bool(forKey: DefaultsKey.superKeyEnabled)
         guard enabled else {
@@ -248,7 +254,7 @@ final class SuperKeyService: ObservableObject {
         case .swallow:
             return nil
         case .addModifiers:
-            event.flags = event.flags.union(SuperKeyService.superFlags)
+            event.flags = event.flags.union(SuperKeySupport.eventFlags(for: mode))
             return Unmanaged.passUnretained(event)
         case .soloTap:
             performSoloAction()
@@ -291,10 +297,6 @@ final class SuperKeyService: ObservableObject {
         }
         return .triggerUp
     }
-
-    private static let superFlags: CGEventFlags = [
-        .maskShift, .maskControl, .maskAlternate, .maskCommand,
-    ]
 
     // MARK: - Tapped on its own
 

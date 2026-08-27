@@ -9720,6 +9720,9 @@ struct MetricsTests {
 
         expect(Defaults.registeredDefaults[DefaultsKey.superKeyEnabled] as? Bool == false,
                "the super key ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.superKeyMode] as? String
+                == SuperKeyMode.hyper.rawValue,
+               "Hyper remains the default super-key mode")
         expect(Defaults.registeredDefaults[DefaultsKey.superKeySoloAction] as? String
                 == SuperKeySoloAction.none.rawValue,
                "a tap on its own does nothing until the user picks something")
@@ -9744,6 +9747,21 @@ struct MetricsTests {
                 && SuperKeySoloAction.sanitized("nonsense") == SuperKeySoloAction.none
                 && SuperKeySoloAction.sanitized(nil) == SuperKeySoloAction.none,
                "a stored solo action is trusted only when the app still knows it")
+        expect(SuperKeyMode.sanitized("hyper") == .hyper
+                && SuperKeyMode.sanitized("meh") == .meh
+                && SuperKeyMode.sanitized("unknown") == .hyper
+                && SuperKeyMode.sanitized(nil) == .hyper,
+               "a stored super-key mode falls back safely")
+        expect(SuperKeySupport.modifiers(for: .hyper) == .validMask
+                && SuperKeySupport.modifiers(for: .meh) == [.shift, .control, .option],
+               "Hyper includes Command while Meh excludes it")
+        expect(SuperKeySupport.eventFlags(for: .hyper)
+                == [.maskShift, .maskControl, .maskAlternate, .maskCommand]
+                && SuperKeySupport.eventFlags(for: .meh)
+                == [.maskShift, .maskControl, .maskAlternate],
+               "the emitted event flags match the selected mode")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyMode),
+               "the selected super-key mode travels in a settings backup")
 
         let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
                                           destination: SuperKeySupport.triggerUsage)
