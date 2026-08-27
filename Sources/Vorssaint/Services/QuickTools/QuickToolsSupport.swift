@@ -162,7 +162,8 @@ enum QuickToolsSupport {
     // stay out on purpose because Korean keeps its word spaces.
     private static func isTightScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
         switch scalar.value {
-        case 0x3000...0x9FFF,
+        case 0x3000...0x312F,
+             0x3190...0x9FFF,
              0xF900...0xFAFF,
              0xFF01...0xFF9F,
              0x20000...0x2FA1F:
