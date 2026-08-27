@@ -10767,7 +10767,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10780,7 +10780,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "selectionActions",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -10791,9 +10791,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.selectionActions.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .selectionActions
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -10839,6 +10840,30 @@ struct MetricsTests {
                 && AppFeature.fanControl.isBeta
                 && !AppFeature.monitorPower.isBeta,
                "fan control is an on-demand beta with no broad permission")
+
+        // MARK: Selection Actions
+
+        expect(CurrencyDetector.detect(in: "$100")?.currencyCode == "USD"
+                && CurrencyDetector.detect(in: "$100")?.amount == 100,
+               "a leading currency symbol is detected with its amount")
+        // Literal, not built from Locale.current: parseAmount reads the
+        // convention the TEXT carries, not this Mac's - a round trip through
+        // this machine's own formatter would only prove the same-convention
+        // case, not the cross-convention one Convert Currency exists for.
+        // Both of these must parse the same way regardless of which locale
+        // runs the test.
+        expect(CurrencyDetector.detect(in: "$1,234.56")?.currencyCode == "USD"
+                && CurrencyDetector.detect(in: "$1,234.56")?.amount == 1234.56,
+               "an en-convention amount (comma grouping, period decimal) parses the same under any running locale")
+        expect(CurrencyDetector.detect(in: "19,50 EUR")?.currencyCode == "EUR"
+                && CurrencyDetector.detect(in: "19,50 EUR")?.amount == 19.50,
+               "a de-convention amount (comma decimal, no grouping) parses the same under any running locale")
+        expect(CurrencyDetector.detect(in: "THE 100") == nil,
+               "a three-letter word next to a number is not mistaken for an unknown currency code")
+        expect(CurrencyDetector.detect(in: "hello world") == nil,
+               "text with no amount detects nothing")
+        expect(Set(CurrencyDetector.symbolToCode.values).isSubset(of: CurrencyDetector.knownCodes),
+               "every currency reachable by symbol must also be a currency Convert Currency can convert to")
 
         // MARK: Hardware-gated installs
 
@@ -11420,6 +11445,13 @@ struct MetricsTests {
         expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
         expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
+        expect(activeSet(.automationTerminal, on: [DefaultsKey.selectionActionsEnabled]) == [.homebrew],
+               "Selection Actions being on does not by itself use Terminal automation")
+        expect(activeSet(.automationTerminal,
+                         on: [DefaultsKey.selectionActionsEnabled],
+                         strings: [DefaultsKey.selectionActionsEnabledActions: "runInTerminal"])
+                == [.homebrew, .selectionActions],
+               "Run in Terminal only uses Terminal automation once that action is switched on")
         expect(activeSet(.appManagement) == [.homebrew, .appUpdates, .diskImageInstaller],
                "package, update and disk-image installs declare App Management access")
         expect(AppFeature.homebrew.permissions == [.automationTerminal, .appManagement],

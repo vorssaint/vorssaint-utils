@@ -40,8 +40,8 @@ enum CommandBarMenus {
         let app = AXUIElementCreateApplication(pid)
         // A hung app must not hold the walk: the AX timeout is process wide,
         // so every call here is on a short leash.
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        guard let menuBar = copyElement(app, kAXMenuBarAttribute) else { return [] }
+        AXUIElementSetMessagingTimeout(app, AXCopy.messagingTimeout)
+        guard let menuBar = AXCopy.element(app, kAXMenuBarAttribute) else { return [] }
 
         var collected: [CommandBarMenuItem] = []
         for menu in children(of: menuBar) {
@@ -98,34 +98,22 @@ enum CommandBarMenus {
     // MARK: - Accessibility reading
 
     private static func children(of element: AXUIElement) -> [AXUIElement] {
-        guard let raw = copyValue(element, kAXChildrenAttribute) else { return [] }
+        guard let raw = AXCopy.value(element, kAXChildrenAttribute) else { return [] }
         // The type has to be checked before the cast: a wrong cast on an AX
         // value is a crash, not a nil.
         guard CFGetTypeID(raw) == CFArrayGetTypeID() else { return [] }
         return (raw as? [AXUIElement]) ?? []
     }
 
-    private static func copyElement(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
-        guard let raw = copyValue(element, attribute),
-              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-        return (raw as! AXUIElement)
-    }
-
+    /// Menu titles carry trailing whitespace on some apps' menus - trimmed
+    /// here rather than in the shared `AXCopy.string`, which every other
+    /// caller expects to return a value exactly as Accessibility reports it.
     private static func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
-        guard let raw = copyValue(element, attribute),
-              CFGetTypeID(raw) == CFStringGetTypeID() else { return nil }
-        return (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private static func copyValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success
-        else { return nil }
-        return value
+        AXCopy.string(element, attribute)?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func isEnabled(_ element: AXUIElement) -> Bool {
-        guard let raw = copyValue(element, kAXEnabledAttribute),
+        guard let raw = AXCopy.value(element, kAXEnabledAttribute),
               CFGetTypeID(raw) == CFBooleanGetTypeID() else { return true }
         return (raw as? Bool) ?? true
     }
@@ -136,7 +124,7 @@ enum CommandBarMenus {
         guard let character = copyString(element, "AXMenuItemCmdChar"), !character.isEmpty
         else { return nil }
         var modifiers = 0
-        if let raw = copyValue(element, "AXMenuItemCmdModifiers"),
+        if let raw = AXCopy.value(element, "AXMenuItemCmdModifiers"),
            CFGetTypeID(raw) == CFNumberGetTypeID() {
             modifiers = (raw as? Int) ?? 0
         }
