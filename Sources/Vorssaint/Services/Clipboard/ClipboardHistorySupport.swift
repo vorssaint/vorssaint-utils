@@ -13,7 +13,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     let id: UUID
     /// The content for text entries; empty for images and files, whose display
     /// strings are derived so they never go stale in storage.
-    let text: String
+    var text: String
     var copiedAt: Date
     var pinnedAt: Date?
     let kind: ClipboardHistoryEntryKind
@@ -65,11 +65,13 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     var preview: String {
         switch kind {
         case .text:
-            let collapsed = text
+            let prefix = text.prefix(ClipboardHistoryEditing.previewCharacters)
+            let collapsed = prefix
                 .replacingOccurrences(of: "\n", with: " ")
                 .replacingOccurrences(of: "\t", with: " ")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            return collapsed.isEmpty ? text : collapsed
+            let visible = collapsed.isEmpty ? String(prefix) : collapsed
+            return prefix.endIndex == text.endIndex ? visible : visible + "…"
         case .image:
             return imageDimensionsLabel
         case .files:
@@ -94,7 +96,10 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         switch kind {
         case .text: return text
         case .image: return "\(imageLabel) png \(imageDimensionsLabel)"
-        case .files: return fileNames.joined(separator: " ")
+        case .files:
+            let names = fileNames.joined(separator: " ")
+            let hasImage = filePaths.contains { ClipboardHistoryImageSupport.isImageFileName($0) }
+            return hasImage ? "\(imageLabel) \(names)" : names
         }
     }
 
@@ -115,6 +120,62 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageHash = try container.decodeIfPresent(String.self, forKey: .imageHash)
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
+    }
+}
+
+enum ClipboardHistoryEditing {
+    /// A copied document should stay available, while a pathological
+    /// pasteboard payload still has a firm in-memory and on-disk bound.
+    static let maxCharacters = 1_000_000
+    static let maxStoredTextUTF8Bytes = 64 * 1_024 * 1_024
+    static let maxEncodedHistoryBytes = 96 * 1_024 * 1_024
+    /// Rows only need enough text to fill their three visible lines. Keeping
+    /// this bounded prevents a very large saved document from being copied
+    /// again merely to draw its list preview.
+    static let previewCharacters = 2_000
+
+    static func storableText(_ text: String) -> String? {
+        guard text.count <= maxCharacters,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return text
+    }
+
+    static func canSave(original: String, draft: String) -> Bool {
+        guard let text = storableText(draft) else { return false }
+        return text != original
+    }
+
+    static func retainedEntries(_ entries: [ClipboardHistoryEntry],
+                                recentLimit: Int,
+                                textByteLimit: Int = maxStoredTextUTF8Bytes) -> [ClipboardHistoryEntry] {
+        var remainingBytes = max(0, textByteLimit)
+        func retained(_ candidates: [ClipboardHistoryEntry], limit: Int?) -> [ClipboardHistoryEntry] {
+            var result: [ClipboardHistoryEntry] = []
+            for entry in candidates {
+                if let limit, result.count >= limit { break }
+                let byteCount = entry.kind == .text ? entry.text.utf8.count : 0
+                guard byteCount <= remainingBytes else { continue }
+                remainingBytes -= byteCount
+                result.append(entry)
+            }
+            return result
+        }
+        let pinned = retained(entries.filter(\.isPinned), limit: nil)
+        let recentLimitOrNil = recentLimit <= 0 ? nil : recentLimit
+        let recent = retained(entries.filter { !$0.isPinned }, limit: recentLimitOrNil)
+        return pinned + recent
+    }
+
+    static func preservesPinnedEntries(from original: [ClipboardHistoryEntry],
+                                       in retained: [ClipboardHistoryEntry]) -> Bool {
+        let retainedIDs = Set(retained.map(\.id))
+        return original.lazy.filter(\.isPinned).allSatisfy { retainedIDs.contains($0.id) }
+    }
+
+    static func canLoadEncodedHistory(byteCount: Int?) -> Bool {
+        guard let byteCount else { return false }
+        return byteCount >= 0 && byteCount <= maxEncodedHistoryBytes
     }
 }
 
@@ -214,6 +275,30 @@ enum ClipboardHistorySelection {
     }
 }
 
+enum ClipboardHistoryPreview {
+    static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
+        selectionIsVisible && !hasModifiers
+    }
+}
+
+enum ClipboardHistoryEscape {
+    enum Action: Equatable {
+        case clearBatchSelection
+        case hideWindow
+    }
+
+    /// Esc backs out one layer at a time - selection, then the window.
+    /// Preview is a persistent view setting, not a layer: only clicking its
+    /// own toggle turns it off (or Space, but only once arrow-key navigation
+    /// has made a row's selection visible - see `ClipboardHistoryPreview
+    /// .handlesSpace`; while the search field has focus, Space just types),
+    /// so a keystroke meant to close the panel can never silently re-hide
+    /// it first.
+    static func action(batchCount: Int) -> Action {
+        batchCount > 0 ? .clearBatchSelection : .hideWindow
+    }
+}
+
 enum ClipboardHistoryBatch {
     static func combinedText(_ texts: [String]) -> String {
         texts.joined(separator: "\n")
@@ -292,6 +377,14 @@ enum ClipboardHistoryBatch {
             if case let .text(text) = part { return text }
             return nil
         })
+    }
+}
+
+enum ClipboardHistoryCapturePolicy {
+    static func isCopiedScreenshot(_ paths: [String], in directory: URL?) -> Bool {
+        guard paths.count == 1,
+              let directory else { return false }
+        return ScreenshotSupport.isCopiedScreenshot(URL(fileURLWithPath: paths[0]), in: directory)
     }
 }
 
@@ -402,3 +495,20 @@ enum ClipboardHistorySensitiveText {
         return true
     }
 }
+
+enum ClipboardHistoryImageSupport {
+    static let imageExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "heic", "heif", "tiff", "tif", "gif", "webp", "bmp", "ico", "icns", "svg", "avif"
+    ]
+
+    static func isImageFileName(_ name: String) -> Bool {
+        let ext = (name as NSString).pathExtension.lowercased()
+        return imageExtensions.contains(ext)
+    }
+
+    static func isImageFilePath(_ path: String, fileManager: FileManager = .default) -> Bool {
+        guard isImageFileName(path) else { return false }
+        return fileManager.fileExists(atPath: path)
+    }
+}
+

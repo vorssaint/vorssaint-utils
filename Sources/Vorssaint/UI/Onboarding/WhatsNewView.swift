@@ -5,61 +5,6 @@ import AppKit
 import AVKit
 import SwiftUI
 
-/// Shown once, automatically, to a user who skipped one or more releases between
-/// updates (e.g. 3.0.2 → 3.0.5), so the changes they missed — not only the
-/// current version — are surfaced. Clean installs, single-step updates and
-/// normal relaunches never see it.
-struct WhatsNewView: View {
-    let releases: [ReleaseNotes]
-    var onClose: () -> Void
-    var onDontShowAgain: () -> Void
-
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            ScrollView {
-                ReleaseNotesContent(releases: releases)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 22)
-            }
-            Divider()
-            footer
-        }
-        .frame(width: 640, height: 600)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var header: some View {
-        HStack {
-            Text(l10n.s.tabReleaseNotes)
-                .font(.system(size: 22, weight: .bold))
-            Spacer()
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
-    }
-
-    private var footer: some View {
-        HStack {
-            Button(l10n.s.whatsNewDontShowAgain) {
-                onDontShowAgain()
-            }
-            Spacer()
-            Button(l10n.s.menuClose) {
-                onClose()
-            }
-            .keyboardShortcut(.defaultAction)
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(16)
-    }
-}
-
 /// Pre-install preview window content: shows the next version's full changelog —
 /// the same notes that ship with the release — so the user can decide before any
 /// download starts. Opened from both the Settings install button and the menu
@@ -121,7 +66,6 @@ struct UpdateShowcaseIntroView: View {
 
     @StateObject private var mediaLoader = UpdateShowcaseMediaLoader()
     @ObservedObject private var l10n = L10n.shared
-    @Environment(\.openURL) private var openURL
     @State private var step: Step = .demo
 
     private enum Step {
@@ -212,50 +156,7 @@ struct UpdateShowcaseIntroView: View {
     }
 
     private var supportContent: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Theme.spaceGradient)
-                    .frame(width: 74, height: 74)
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-
-            Text(l10n.s.supportIntroTitle)
-                .font(.system(size: 22, weight: .bold))
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(l10n.s.supportIntroMessage)
-                .font(.system(size: 13.5))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 430)
-
-            HStack(spacing: 10) {
-                Button {
-                    openURL(AppInfo.repositoryURL)
-                } label: {
-                    Label(l10n.s.supportIntroStarButton, systemImage: "star.fill")
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button {
-                    openURL(AppInfo.donateURL)
-                } label: {
-                    Label(l10n.s.supportIntroSponsorButton, systemImage: "heart.fill")
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.top, 4)
-
-            Text(l10n.s.donateThanks)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .padding(.top, 2)
-        }
+        UpdateSupportContent()
     }
 }
 
@@ -268,7 +169,7 @@ struct UpdateSupportIntroView: View {
     @State private var step: SupportUpdateIntroStep
     @State private var isMovingForward = true
 
-    init(initialStep: SupportUpdateIntroStep = .community,
+    init(initialStep: SupportUpdateIntroStep = .discord,
          onFinish: @escaping () -> Void) {
         self.onFinish = onFinish
         _step = State(initialValue: initialStep)
@@ -277,10 +178,14 @@ struct UpdateSupportIntroView: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                if step == .community {
-                    communityContent
+                switch step {
+                case .discord:
+                    discordContent
                         .transition(pageTransition)
-                } else {
+                case .social:
+                    socialContent
+                        .transition(pageTransition)
+                case .support:
                     supportContent
                         .transition(pageTransition)
                 }
@@ -313,7 +218,79 @@ struct UpdateSupportIntroView: View {
         }
     }
 
-    private var communityContent: some View {
+    private var discordContent: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(red: 0.42, green: 0.48, blue: 1.0),
+                                     Color(red: 0.29, green: 0.34, blue: 0.88)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 74, height: 74)
+                    .shadow(color: Color(red: 0.29, green: 0.34, blue: 0.88).opacity(0.28),
+                            radius: 12, y: 5)
+                DiscordMark(width: 42)
+            }
+
+            Text(l10n.s.discordIntroTitle)
+                .font(.system(size: 22, weight: .bold))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(l10n.s.discordIntroMessage)
+                .font(.system(size: 13.5))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 450)
+
+            VStack(alignment: .leading, spacing: 9) {
+                discordBenefit(l10n.s.discordIntroBenefitHelp,
+                               systemImage: "questionmark.bubble.fill")
+                discordBenefit(l10n.s.discordIntroBenefitFeedback,
+                               systemImage: "lightbulb.fill")
+                discordBenefit(l10n.s.discordIntroBenefitPreviews,
+                               systemImage: "sparkles")
+            }
+            .frame(maxWidth: 430, alignment: .leading)
+            .padding(.vertical, 2)
+
+            Button {
+                openURL(AppInfo.discordURL)
+            } label: {
+                HStack(spacing: 8) {
+                    DiscordMark(width: 19)
+                    Text(l10n.s.discordIntroJoinButton)
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .tint(Color(red: 0.35, green: 0.40, blue: 0.94))
+
+            Text(AppInfo.discordURL.absoluteString
+                .replacingOccurrences(of: "https://", with: ""))
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func discordBenefit(_ text: String, systemImage: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 18)
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var socialContent: some View {
         VStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 17, style: .continuous)
@@ -342,7 +319,7 @@ struct UpdateSupportIntroView: View {
                 .frame(maxWidth: 440)
 
             Button {
-                openURL(AppInfo.communityURL)
+                openURL(AppInfo.socialURL)
             } label: {
                 HStack(spacing: 8) {
                     XLogoShape()
@@ -354,7 +331,7 @@ struct UpdateSupportIntroView: View {
             .buttonStyle(XFollowButtonStyle())
             .padding(.top, 4)
 
-            Text(AppInfo.communityURL.absoluteString
+            Text(AppInfo.socialURL.absoluteString
                 .replacingOccurrences(of: "https://", with: ""))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
@@ -363,7 +340,56 @@ struct UpdateSupportIntroView: View {
     }
 
     private var supportContent: some View {
-        VStack(spacing: 14) {
+        UpdateSupportContent()
+    }
+
+    private var footer: some View {
+        ZStack {
+            HStack {
+                if let previous = step.previous {
+                    Button(l10n.s.obBack) {
+                        move(to: previous, forward: false)
+                    }
+                }
+                Spacer()
+                if let next = step.next {
+                    Button(l10n.s.obContinue) {
+                        move(to: next, forward: true)
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                } else {
+                    Button(l10n.s.supportIntroDoneButton) {
+                        onFinish()
+                    }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                }
+            }
+
+            HStack(spacing: 6) {
+                ForEach(SupportUpdateIntroStep.allCases, id: \.self) { candidate in
+                    Circle()
+                        .fill(candidate == step
+                              ? Color.accentColor
+                              : Color.secondary.opacity(0.24))
+                        .frame(width: 6, height: 6)
+                }
+            }
+            .accessibilityHidden(true)
+        }
+        .padding(16)
+    }
+}
+
+private struct UpdateSupportContent: View {
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(spacing: 13) {
             ZStack {
                 Circle()
                     .fill(Theme.spaceGradient)
@@ -383,64 +409,36 @@ struct UpdateSupportIntroView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: 430)
-
-            HStack(spacing: 10) {
-                Button {
-                    openURL(AppInfo.repositoryURL)
-                } label: {
-                    Label(l10n.s.supportIntroStarButton, systemImage: "star.fill")
-                }
-                .buttonStyle(.borderedProminent)
-
-                Button {
-                    openURL(AppInfo.donateURL)
-                } label: {
-                    Label(l10n.s.supportIntroSponsorButton, systemImage: "heart.fill")
-                }
-                .buttonStyle(.bordered)
-            }
-            .padding(.top, 4)
+                .frame(maxWidth: 440)
 
             Button {
                 openURL(AppInfo.coffeeURL)
             } label: {
-                Label(l10n.s.keepAwakeActiveIconCoffee, systemImage: "cup.and.saucer.fill")
+                Label(l10n.s.supportIntroCoffeeButton,
+                      systemImage: "cup.and.saucer.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+
+            Text(l10n.s.supportIntroStarMessage)
+                .font(.system(size: 13.5, weight: .medium))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 440)
+                .padding(.top, 2)
+
+            Button {
+                openURL(AppInfo.repositoryURL)
+            } label: {
+                Label(l10n.s.supportIntroStarButton, systemImage: "star.fill")
             }
             .buttonStyle(.bordered)
+            .controlSize(.large)
 
             Text(l10n.s.donateThanks)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-                .padding(.top, 2)
         }
-    }
-
-    private var footer: some View {
-        HStack {
-            if let previous = step.previous {
-                Button(l10n.s.obBack) {
-                    move(to: previous, forward: false)
-                }
-            }
-            Spacer()
-            if let next = step.next {
-                Button(l10n.s.obContinue) {
-                    move(to: next, forward: true)
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            } else {
-                Button(l10n.s.supportIntroDoneButton) {
-                    onFinish()
-                }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-            }
-        }
-        .padding(16)
     }
 }
 

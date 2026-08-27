@@ -110,6 +110,20 @@ struct RecorderFeatureStrings {
     let createAutomaticZooms: String
     let typingZoomToggle: String
     let typingZoomCaption: String
+    let microphoneToggle: String
+    let microphoneCaption: String
+    let systemAudioTrackLabel: String
+    let microphoneTrackLabel: String
+    let audioVolumeLabel: String
+    let removeAudio: String
+    let restoreAudio: String
+    let microphoneUnavailableHUD: String
+    let microphonePermissionName: String
+    let microphonePermissionExplain: String
+    let automaticZoomToggle: String
+    let automaticZoomCaption: String
+    let pauseButton: String
+    let resumeButton: String
 }
 
 extension FeatureStrings {
@@ -141,7 +155,7 @@ extension RecorderFeatureStrings {
         stopButton: "Stop recording",
         fileNamePrefix: "Recording",
         selectionPurpose: "Choose what to record",
-        indicatorTooltip: "Recording. Click to stop.",
+        indicatorTooltip: "Recording controls",
         countdownLabel: "Countdown",
         countdownOff: "Off",
         countdownSecondsFormat: "%d s",
@@ -239,6 +253,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Create automatic zooms",
         typingZoomToggle: "Keep zoomed in while typing",
         typingZoomCaption: "After a click, typing keeps the automatic zoom on that spot.",
+        microphoneToggle: "Record the microphone",
+        microphoneCaption: "Your voice goes into its own track and stays adjustable in the editor.",
+        systemAudioTrackLabel: "Mac sound",
+        microphoneTrackLabel: "Microphone",
+        audioVolumeLabel: "Volume",
+        removeAudio: "Remove",
+        restoreAudio: "Restore",
+        microphoneUnavailableHUD: "Microphone unavailable",
+        microphonePermissionName: "Microphone",
+        microphonePermissionExplain: "Lets screen recordings include your voice when you turn it on.",
+        automaticZoomToggle: "Add zooms automatically",
+        automaticZoomCaption: "Turn this off to start new recordings without zooms. You can still add them in the editor.",
+        pauseButton: "Pause recording",
+        resumeButton: "Resume recording"
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -249,7 +277,7 @@ extension RecorderFeatureStrings {
         stopButton: "Parar a gravação",
         fileNamePrefix: "Gravação",
         selectionPurpose: "Escolha o que gravar",
-        indicatorTooltip: "Gravando. Clique para parar.",
+        indicatorTooltip: "Controles da gravação",
         countdownLabel: "Contagem regressiva",
         countdownOff: "Desligada",
         countdownSecondsFormat: "%d s",
@@ -347,6 +375,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Criar zooms automáticos",
         typingZoomToggle: "Manter o zoom ao digitar",
         typingZoomCaption: "Depois de um clique, a digitação mantém o zoom automático naquele ponto.",
+        microphoneToggle: "Gravar o microfone",
+        microphoneCaption: "Sua voz entra em uma faixa separada e pode ser ajustada no editor.",
+        systemAudioTrackLabel: "Som do Mac",
+        microphoneTrackLabel: "Microfone",
+        audioVolumeLabel: "Volume",
+        removeAudio: "Remover",
+        restoreAudio: "Restaurar",
+        microphoneUnavailableHUD: "Microfone indisponível",
+        microphonePermissionName: "Microfone",
+        microphonePermissionExplain: "Permite incluir sua voz nas gravações de tela quando você ativar.",
+        automaticZoomToggle: "Adicionar zooms automaticamente",
+        automaticZoomCaption: "Desative para começar novas gravações sem zooms. Você ainda pode adicioná-los no editor.",
+        pauseButton: "Pausar gravação",
+        resumeButton: "Retomar gravação"
     )
 
     static let tr = RecorderFeatureStrings(
@@ -357,7 +399,7 @@ extension RecorderFeatureStrings {
         stopButton: "Kaydı durdur",
         fileNamePrefix: "Kayıt",
         selectionPurpose: "Neyi kaydedeceğinizi seçin",
-        indicatorTooltip: "Kaydediliyor. Durdurmak için tıklayın.",
+        indicatorTooltip: "Kayıt denetimleri",
         countdownLabel: "Geri sayım",
         countdownOff: "Kapalı",
         countdownSecondsFormat: "%d sn",
@@ -455,6 +497,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Otomatik yakınlaştırmalar oluştur",
         typingZoomToggle: "Yazarken yakınlaştırmayı koru",
         typingZoomCaption: "Bir tıklamadan sonra yazmak, otomatik yakınlaştırmayı o noktada tutar.",
+        microphoneToggle: "Mikrofonu kaydet",
+        microphoneCaption: "Sesiniz ayrı bir parçaya kaydedilir ve düzenleyicide ayarlanabilir.",
+        systemAudioTrackLabel: "Mac sesi",
+        microphoneTrackLabel: "Mikrofon",
+        audioVolumeLabel: "Ses düzeyi",
+        removeAudio: "Kaldır",
+        restoreAudio: "Geri yükle",
+        microphoneUnavailableHUD: "Mikrofon kullanılamıyor",
+        microphonePermissionName: "Mikrofon",
+        microphonePermissionExplain: "Açtığınızda ekran kayıtlarına sesinizi ekler.",
+        automaticZoomToggle: "Yakınlaştırmaları otomatik ekle",
+        automaticZoomCaption: "Yeni kayıtları yakınlaştırmasız başlatmak için kapatın. Düzenleyicide yine ekleyebilirsiniz.",
+        pauseButton: "Kaydı duraklat",
+        resumeButton: "Kayda devam et"
     )
 
     static let ru = RecorderFeatureStrings(
@@ -465,7 +521,7 @@ extension RecorderFeatureStrings {
         stopButton: "Остановить запись",
         fileNamePrefix: "Запись",
         selectionPurpose: "Выберите, что записать",
-        indicatorTooltip: "Идёт запись. Нажмите, чтобы остановить.",
+        indicatorTooltip: "Управление записью",
         countdownLabel: "Обратный отсчёт",
         countdownOff: "Выкл.",
         countdownSecondsFormat: "%d с",
@@ -563,6 +619,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Создать автоматические масштабы",
         typingZoomToggle: "Сохранять масштаб при наборе",
         typingZoomCaption: "После щелчка набор текста удерживает автоматический масштаб в этой точке.",
+        microphoneToggle: "Записывать микрофон",
+        microphoneCaption: "Ваш голос записывается на отдельную дорожку и настраивается в редакторе.",
+        systemAudioTrackLabel: "Звук Mac",
+        microphoneTrackLabel: "Микрофон",
+        audioVolumeLabel: "Громкость",
+        removeAudio: "Удалить",
+        restoreAudio: "Вернуть",
+        microphoneUnavailableHUD: "Микрофон недоступен",
+        microphonePermissionName: "Микрофон",
+        microphonePermissionExplain: "Добавляет ваш голос в запись экрана, когда вы это включаете.",
+        automaticZoomToggle: "Добавлять масштабирование автоматически",
+        automaticZoomCaption: "Отключите, чтобы новые записи начинались без масштабирования. Его можно добавить в редакторе.",
+        pauseButton: "Приостановить запись",
+        resumeButton: "Продолжить запись"
     )
 
     static let es = RecorderFeatureStrings(
@@ -573,7 +643,7 @@ extension RecorderFeatureStrings {
         stopButton: "Detener grabación",
         fileNamePrefix: "Grabación",
         selectionPurpose: "Elige qué grabar",
-        indicatorTooltip: "Grabando. Haz clic para detener.",
+        indicatorTooltip: "Controles de grabación",
         countdownLabel: "Cuenta atrás",
         countdownOff: "Desactivada",
         countdownSecondsFormat: "%d s",
@@ -671,6 +741,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Crear zooms automáticos",
         typingZoomToggle: "Mantener el zoom al escribir",
         typingZoomCaption: "Después de un clic, escribir mantiene el zoom automático en ese punto.",
+        microphoneToggle: "Grabar el micrófono",
+        microphoneCaption: "Tu voz va a una pista separada y se puede ajustar en el editor.",
+        systemAudioTrackLabel: "Sonido del Mac",
+        microphoneTrackLabel: "Micrófono",
+        audioVolumeLabel: "Volumen",
+        removeAudio: "Quitar",
+        restoreAudio: "Restaurar",
+        microphoneUnavailableHUD: "Micrófono no disponible",
+        microphonePermissionName: "Micrófono",
+        microphonePermissionExplain: "Permite incluir tu voz en las grabaciones de pantalla al activarlo.",
+        automaticZoomToggle: "Añadir zooms automáticamente",
+        automaticZoomCaption: "Desactívalo para iniciar nuevas grabaciones sin zooms. Aún puedes añadirlos en el editor.",
+        pauseButton: "Pausar grabación",
+        resumeButton: "Reanudar grabación"
     )
 
     static let de = RecorderFeatureStrings(
@@ -681,7 +765,7 @@ extension RecorderFeatureStrings {
         stopButton: "Aufnahme stoppen",
         fileNamePrefix: "Bildschirmaufnahme",
         selectionPurpose: "Wähle aus, was du aufnehmen möchtest",
-        indicatorTooltip: "Aufnahme läuft. Zum Stoppen klicken.",
+        indicatorTooltip: "Aufnahmesteuerung",
         countdownLabel: "Countdown",
         countdownOff: "Aus",
         countdownSecondsFormat: "%d s",
@@ -779,6 +863,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Automatische Zooms erstellen",
         typingZoomToggle: "Beim Tippen eingezoomt bleiben",
         typingZoomCaption: "Nach einem Klick hält das Tippen den automatischen Zoom an dieser Stelle.",
+        microphoneToggle: "Mikrofon aufnehmen",
+        microphoneCaption: "Deine Stimme kommt auf eine eigene Spur und bleibt im Editor anpassbar.",
+        systemAudioTrackLabel: "Mac-Ton",
+        microphoneTrackLabel: "Mikrofon",
+        audioVolumeLabel: "Lautstärke",
+        removeAudio: "Entfernen",
+        restoreAudio: "Wiederherstellen",
+        microphoneUnavailableHUD: "Mikrofon nicht verfügbar",
+        microphonePermissionName: "Mikrofon",
+        microphonePermissionExplain: "Nimmt deine Stimme auf Wunsch in Bildschirmaufnahmen auf.",
+        automaticZoomToggle: "Zooms automatisch hinzufügen",
+        automaticZoomCaption: "Deaktivieren, um neue Aufnahmen ohne Zooms zu beginnen. Im Editor kannst du sie weiterhin hinzufügen.",
+        pauseButton: "Aufnahme pausieren",
+        resumeButton: "Aufnahme fortsetzen"
     )
 
     static let fr = RecorderFeatureStrings(
@@ -789,7 +887,7 @@ extension RecorderFeatureStrings {
         stopButton: "Arrêter l’enregistrement",
         fileNamePrefix: "Enregistrement",
         selectionPurpose: "Choisissez ce que vous voulez enregistrer",
-        indicatorTooltip: "Enregistrement en cours. Cliquez pour arrêter.",
+        indicatorTooltip: "Commandes d’enregistrement",
         countdownLabel: "Compte à rebours",
         countdownOff: "Aucun",
         countdownSecondsFormat: "%d s",
@@ -887,6 +985,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Créer des zooms automatiques",
         typingZoomToggle: "Garder le zoom pendant la saisie",
         typingZoomCaption: "Après un clic, la saisie maintient le zoom automatique sur cet endroit.",
+        microphoneToggle: "Enregistrer le micro",
+        microphoneCaption: "Votre voix va sur une piste séparée et reste réglable dans l’éditeur.",
+        systemAudioTrackLabel: "Son du Mac",
+        microphoneTrackLabel: "Micro",
+        audioVolumeLabel: "Volume",
+        removeAudio: "Retirer",
+        restoreAudio: "Restaurer",
+        microphoneUnavailableHUD: "Microphone indisponible",
+        microphonePermissionName: "Microphone",
+        microphonePermissionExplain: "Permet d’ajouter votre voix aux enregistrements d’écran si vous l’activez.",
+        automaticZoomToggle: "Ajouter les zooms automatiquement",
+        automaticZoomCaption: "Désactivez cette option pour commencer sans zoom. Vous pourrez toujours en ajouter dans l’éditeur.",
+        pauseButton: "Mettre l’enregistrement en pause",
+        resumeButton: "Reprendre l’enregistrement"
     )
 
     static let it = RecorderFeatureStrings(
@@ -897,7 +1009,7 @@ extension RecorderFeatureStrings {
         stopButton: "Interrompi registrazione",
         fileNamePrefix: "Registrazione",
         selectionPurpose: "Scegli cosa registrare",
-        indicatorTooltip: "Registrazione in corso. Fai clic per interrompere.",
+        indicatorTooltip: "Controlli di registrazione",
         countdownLabel: "Conto alla rovescia",
         countdownOff: "Disattivato",
         countdownSecondsFormat: "%d s",
@@ -995,6 +1107,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "Crea zoom automatici",
         typingZoomToggle: "Mantieni lo zoom mentre scrivi",
         typingZoomCaption: "Dopo un clic, la digitazione mantiene lo zoom automatico su quel punto.",
+        microphoneToggle: "Registra il microfono",
+        microphoneCaption: "La tua voce va su una traccia separata e resta regolabile nell’editor.",
+        systemAudioTrackLabel: "Audio del Mac",
+        microphoneTrackLabel: "Microfono",
+        audioVolumeLabel: "Volume",
+        removeAudio: "Rimuovi",
+        restoreAudio: "Ripristina",
+        microphoneUnavailableHUD: "Microfono non disponibile",
+        microphonePermissionName: "Microfono",
+        microphonePermissionExplain: "Include la tua voce nelle registrazioni dello schermo quando lo attivi.",
+        automaticZoomToggle: "Aggiungi zoom automaticamente",
+        automaticZoomCaption: "Disattiva per iniziare le nuove registrazioni senza zoom. Puoi comunque aggiungerli nell’editor.",
+        pauseButton: "Metti in pausa la registrazione",
+        resumeButton: "Riprendi la registrazione"
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1005,7 +1131,7 @@ extension RecorderFeatureStrings {
         stopButton: "収録を停止",
         fileNamePrefix: "画面収録",
         selectionPurpose: "収録する対象を選択",
-        indicatorTooltip: "収録中。クリックで停止します。",
+        indicatorTooltip: "収録コントロール",
         countdownLabel: "カウントダウン",
         countdownOff: "オフ",
         countdownSecondsFormat: "%d秒",
@@ -1103,6 +1229,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "自動ズームを作成",
         typingZoomToggle: "入力中はズームを維持",
         typingZoomCaption: "クリック後に入力すると、その位置の自動ズームが続きます。",
+        microphoneToggle: "マイクを収録",
+        microphoneCaption: "声は別のトラックに収録され、エディタで調整できます。",
+        systemAudioTrackLabel: "Macの音",
+        microphoneTrackLabel: "マイク",
+        audioVolumeLabel: "音量",
+        removeAudio: "削除",
+        restoreAudio: "復元",
+        microphoneUnavailableHUD: "マイクを使用できません",
+        microphonePermissionName: "マイク",
+        microphonePermissionExplain: "オンにすると画面収録に声を含められます。",
+        automaticZoomToggle: "ズームを自動的に追加",
+        automaticZoomCaption: "オフにすると、新しい収録はズームなしで始まります。エディタで後から追加できます。",
+        pauseButton: "収録を一時停止",
+        resumeButton: "収録を再開"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1113,7 +1253,7 @@ extension RecorderFeatureStrings {
         stopButton: "기록 중단",
         fileNamePrefix: "화면 기록",
         selectionPurpose: "기록할 대상 선택",
-        indicatorTooltip: "기록 중입니다. 클릭하면 중단됩니다.",
+        indicatorTooltip: "화면 기록 제어",
         countdownLabel: "카운트다운",
         countdownOff: "끔",
         countdownSecondsFormat: "%d초",
@@ -1211,6 +1351,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "자동 확대 만들기",
         typingZoomToggle: "입력하는 동안 확대 유지",
         typingZoomCaption: "클릭 후 입력하면 자동 확대가 그 위치에 유지됩니다.",
+        microphoneToggle: "마이크 녹음",
+        microphoneCaption: "음성이 별도 트랙에 녹음되며 편집기에서 조절할 수 있습니다.",
+        systemAudioTrackLabel: "Mac 소리",
+        microphoneTrackLabel: "마이크",
+        audioVolumeLabel: "음량",
+        removeAudio: "제거",
+        restoreAudio: "복원",
+        microphoneUnavailableHUD: "마이크를 사용할 수 없습니다",
+        microphonePermissionName: "마이크",
+        microphonePermissionExplain: "켜면 화면 녹화에 음성을 포함합니다.",
+        automaticZoomToggle: "확대 효과 자동 추가",
+        automaticZoomCaption: "끄면 새 화면 기록이 확대 효과 없이 시작됩니다. 편집기에서 나중에 추가할 수 있습니다.",
+        pauseButton: "화면 기록 일시 정지",
+        resumeButton: "화면 기록 계속"
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1221,7 +1375,7 @@ extension RecorderFeatureStrings {
         stopButton: "停止录制",
         fileNamePrefix: "屏幕录制",
         selectionPurpose: "选择要录制的内容",
-        indicatorTooltip: "正在录制。点按可停止。",
+        indicatorTooltip: "录制控制",
         countdownLabel: "倒计时",
         countdownOff: "关闭",
         countdownSecondsFormat: "%d 秒",
@@ -1286,7 +1440,7 @@ extension RecorderFeatureStrings {
         shapeWide: "宽屏",
         shapeSquare: "方形",
         shapeVertical: "竖屏",
-        noPointerNote: "这段录制没有跟踪指针，所以没有可以平滑或放大的内容。",
+        noPointerNote: "这段录制没有跟踪指针，所以没有可以平滑的内容。手动放置的缩放仍然有效。",
         zoomLaneEmptyHint: "点按此处添加缩放",
         removeZoom: "移除",
         thisZoomLabel: "当前缩放",
@@ -1319,6 +1473,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "创建自动缩放",
         typingZoomToggle: "输入时保持缩放",
         typingZoomCaption: "点击后继续输入，会让自动缩放停留在该位置。",
+        microphoneToggle: "录制麦克风",
+        microphoneCaption: "你的声音会进入独立音轨，并可在编辑器中调整。",
+        systemAudioTrackLabel: "Mac 声音",
+        microphoneTrackLabel: "麦克风",
+        audioVolumeLabel: "音量",
+        removeAudio: "移除",
+        restoreAudio: "恢复",
+        microphoneUnavailableHUD: "麦克风不可用",
+        microphonePermissionName: "麦克风",
+        microphonePermissionExplain: "开启后可在屏幕录制中加入你的声音。",
+        automaticZoomToggle: "自动添加缩放",
+        automaticZoomCaption: "关闭后，新录制将不带缩放。你仍可在编辑器中添加缩放。",
+        pauseButton: "暂停录制",
+        resumeButton: "继续录制"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1329,7 +1497,7 @@ extension RecorderFeatureStrings {
         stopButton: "停止錄製",
         fileNamePrefix: "螢幕錄製",
         selectionPurpose: "選擇要錄製的內容",
-        indicatorTooltip: "錄製中。按一下即可停止。",
+        indicatorTooltip: "錄製控制",
         countdownLabel: "倒數計時",
         countdownOff: "關閉",
         countdownSecondsFormat: "%d 秒",
@@ -1427,6 +1595,20 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "建立自動縮放",
         typingZoomToggle: "輸入時保持縮放",
         typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。",
+        microphoneToggle: "錄製麥克風",
+        microphoneCaption: "你的聲音會進入獨立音軌，並可在編輯器中調整。",
+        systemAudioTrackLabel: "Mac 聲音",
+        microphoneTrackLabel: "麥克風",
+        audioVolumeLabel: "音量",
+        removeAudio: "移除",
+        restoreAudio: "還原",
+        microphoneUnavailableHUD: "麥克風無法使用",
+        microphonePermissionName: "麥克風",
+        microphonePermissionExplain: "開啟後可在螢幕錄製中加入你的聲音。",
+        automaticZoomToggle: "自動加入縮放",
+        automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
+        pauseButton: "暫停錄製",
+        resumeButton: "繼續錄製"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1437,7 +1619,7 @@ extension RecorderFeatureStrings {
         stopButton: "停止錄製",
         fileNamePrefix: "螢幕錄製",
         selectionPurpose: "選擇要錄製的內容",
-        indicatorTooltip: "錄製中。按一下停止。",
+        indicatorTooltip: "錄製控制",
         countdownLabel: "倒數",
         countdownOff: "關閉",
         countdownSecondsFormat: "%d 秒",
@@ -1535,5 +1717,19 @@ extension RecorderFeatureStrings {
         createAutomaticZooms: "建立自動縮放",
         typingZoomToggle: "輸入時保持縮放",
         typingZoomCaption: "點按後繼續輸入，會讓自動縮放停留在該位置。",
+        microphoneToggle: "錄低咪高風",
+        microphoneCaption: "你把聲會放入獨立音軌，並可在編輯器調校。",
+        systemAudioTrackLabel: "Mac 聲音",
+        microphoneTrackLabel: "咪高風",
+        audioVolumeLabel: "音量",
+        removeAudio: "移除",
+        restoreAudio: "還原",
+        microphoneUnavailableHUD: "麥克風無法使用",
+        microphonePermissionName: "咪高風",
+        microphonePermissionExplain: "開啟後可在螢幕錄製加入你的聲音。",
+        automaticZoomToggle: "自動加入縮放",
+        automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
+        pauseButton: "暫停錄製",
+        resumeButton: "繼續錄製"
     )
 }

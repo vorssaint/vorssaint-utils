@@ -38,7 +38,7 @@ struct PanelWindowLayoutView: View {
             ])
             actionGroup(title: text.corners, actions: [.topLeft, .topRight, .bottomLeft, .bottomRight])
             actionGroup(title: text.other, actions: [
-                .maximize, .fullScreen, .center, .previousDisplay, .nextDisplay, .restore,
+                .maximize, .marginMaximize, .fullScreen, .center, .previousDisplay, .nextDisplay, .restore,
             ])
             if let message = resultMessage {
                 Label(message, systemImage: resultSymbol)
@@ -48,14 +48,14 @@ struct PanelWindowLayoutView: View {
             }
         }
         .onAppear {
-            PanelInteractionState.shared.keepsPopoverOpen = true
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
             refreshSystemTilingState()
         }
         .onReceive(NotificationCenter.default.publisher(
             for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshSystemTilingState()
         }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
 
     private var header: some View {

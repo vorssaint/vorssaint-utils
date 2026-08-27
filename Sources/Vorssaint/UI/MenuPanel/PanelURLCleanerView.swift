@@ -21,8 +21,8 @@ struct PanelURLCleanerView: View {
             autoCleanToggle
             manualCleaner
         }
-        .onAppear { PanelInteractionState.shared.keepsPopoverOpen = true }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
 
     private var header: some View {
@@ -128,20 +128,28 @@ struct PanelURLCleanerView: View {
         }
     }
 
+    /// Through the shared lane: a direct read here would both race the
+    /// clipboard services on AppKit's pasteboard cache and hang the button
+    /// (and with it the app) on a promised flavour nobody renders any more.
     private func paste() {
-        input = NSPasteboard.general.string(forType: .string) ?? ""
-        clean()
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.string(forType: .string) ?? ""
+        }, then: { pasted in
+            self.input = pasted
+            self.clean()
+        })
     }
 
     private func clean() {
-        guard let cleaned = cleaner.clean(input) else {
-            output = ""
-            message = l10n.s.urlCleanerNoURL
-            return
+        let result = cleaner.clean(input)
+        output = result?.url ?? ""
+        switch URLCleaning.outcome(for: result, input: input) {
+        case .notAURL: message = l10n.s.urlCleanerNoURL
+        case .unchanged: message = l10n.s.urlCleanerNoChange
+        case .rewritten: message = l10n.s.urlCleanerCleaned
+        case .removed(let names):
+            message = String(format: l10n.s.urlCleanerRemovedFormat, names.joined(separator: ", "))
         }
-        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        output = cleaned
-        message = cleaned == trimmed ? l10n.s.urlCleanerNoChange : l10n.s.urlCleanerCleaned
     }
 
     private func copy() {

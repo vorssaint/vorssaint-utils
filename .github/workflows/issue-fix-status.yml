@@ -1,0 +1,456 @@
+name: Issue fix status
+
+# Four mechanical steps, no judgement in any of them.
+#
+#   a merged pull request that references an issue  ->  the issue gets
+#   `fixed (pending release)`, with the merge commit recorded in the bot's
+#   comment
+#
+#   the next stable release                         ->  every issue still
+#   carrying that label becomes `please confirm`, and its reporter is asked
+#   to check that release
+#
+#   two weeks of silence after that                 ->  the issue is closed,
+#   after a comment saying so and how to reopen it
+#
+#   a description that closes its issue with a    ->  one comment on the pull
+#   keyword, or mentions one and references none        request, before it merges
+#
+# The fourth one is the only part of this that runs before a merge, and it is
+# the only part that changes nothing: it comments once and never touches the
+# issue. It exists because the first step is silent when a reference is
+# missing -- the run logs `references no issue` and nobody reads a green log.
+# The reference is the whole tie to the reporter, and the moment to notice it
+# is missing is while the author is still here.
+#
+# A closing keyword is the worse of the two and the quieter one. GitHub closes
+# the issue itself on merge, and the first step above skips closed issues, so
+# the reporter is never told anything at all. Of the merged pull requests that
+# used one, that is what happened to every single issue they named.
+#
+# It never guesses which issue is meant. A mention is not a reference, and most
+# of the numbers in a description here are prose -- `since #927 merged`,
+# `landed in #919 after this branch`. Widening the parser to treat those as
+# references was measured against sixty merged pull requests: it would have
+# labelled thirteen open reports as fixed. So the comment asks the author and
+# stops there.
+#
+# Neither of the first two decides that anything is fixed. A human decided that
+# when they merged. The label only says where the change is, and the release
+# that follows a merge is the one that carries it, so the second step moves
+# every issue that is waiting rather than looking each commit up in the tag.
+# What that gives up is the pull request merged after the tag was cut and
+# before the release finished building: its reporter is asked one release
+# early, and their answer settles it either way. The third step decides
+# nothing either: one word from anyone stops it, and it never reads what that
+# word says.
+#
+# `please confirm` carries no version. The version lives in the comment, which
+# is the only part of this the reporter ever sees -- labels are silent, they
+# notify nobody, and a label per release would grow the repository's label list
+# without ever telling anyone anything.
+#
+# A `summary` issue is never touched by any of this, wherever it turns up: a
+# long-lived index has no reporter waiting on a build, and a pull request that
+# fixes one line of a fifty-line audit has not fixed the audit. They are also
+# the issues most often referenced, so the number that reaches these jobs most
+# is the one that must never be labelled or closed by them.
+#
+# Both labels and both comments are addressed to the person who filed the
+# report, and most of them are not developers. Nothing in what they read says
+# `main`, a commit, or a merge: the change is in the development build, and it
+# is not on their Mac until a release says it is.
+#
+# Everything below runs through `gh`, which is preinstalled on the runners,
+# rather than through `actions/github-script`. The repository only allows
+# `actions/checkout`, `actions/upload-artifact` and `actions/download-artifact`,
+# so a workflow that reaches for anything else fails before a job starts. `gh`
+# covers the whole issues/labels/comments/releases surface without asking for
+# that list to be widened, and this is the shape any later bot here should take.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, edited, closed]
+  workflow_run:
+    # Not `release: published`. The release is created by `gh release create`
+    # with the built-in token, and an event raised by that token does not start
+    # another workflow, so a `release` trigger here would never fire once.
+    workflows: [Release]
+    types: [completed]
+  schedule:
+    # Once a day is enough for a two-week clock.
+    - cron: '23 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-fix-status-${{ github.event.pull_request.number || github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  PENDING_LABEL: fixed (pending release)
+  CONFIRM_LABEL: please confirm
+  SKIP_LABEL: summary
+  CONFIRM_DAYS: 14
+
+jobs:
+  fixed-on-main:
+    name: Label the issues a merged PR referenced
+    if: >-
+      github.event_name == 'pull_request_target'
+      && github.event.action == 'closed'
+      && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No checkout. This job runs with write access in the base repository
+      # context, so it must never execute anything from the pull request. The
+      # body is read through the API into a file and only ever grepped -- no
+      # part of it is interpolated into a command.
+      - name: Label the referenced issues
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          set -euo pipefail
+
+          gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '.body // ""' > pr-body.txt
+
+          # Every form people actually use here. `Closes`/`Fixes` already closed
+          # the issue on merge, and closed issues are skipped below, so matching
+          # them costs nothing and catches the rest.
+          refs=$(grep -oiE '(refs?|references?|related to|fixes|fixed|closes?|resolves?)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
+                   | grep -oE '[0-9]+$' | sort -un) || true
+          if [ -z "$refs" ]; then
+            echo "#$PR_NUMBER references no issue, nothing to do"
+            exit 0
+          fi
+
+          for number in $refs; do
+            issue=$(gh api "repos/$GH_REPO/issues/$number") || {
+              echo "#$number: not readable, left alone"
+              continue
+            }
+            [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
+            [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            if jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              echo "#$number: $SKIP_LABEL, left alone"
+              continue
+            fi
+            jq -e --arg l "$PENDING_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
+
+            # POST /labels creates the label if the repository has not seen it
+            # yet, which `gh issue edit --add-label` does not.
+            gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$PENDING_LABEL" --silent
+
+            # One fix status at a time. An issue its reporter sent back is still
+            # carrying `please confirm` from the last release, and a new fix puts
+            # it behind the next one.
+            if jq -e --arg l "$CONFIRM_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              gh issue edit "$number" --remove-label "$CONFIRM_LABEL"
+            fi
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          A fix for this was added in #$PR_NUMBER and will be included in a future release.
+
+          Nothing has changed on your Mac yet, and your issue is not considered fixed. When the release is available, you'll get a comment on this issue with the version to install. After that, you'll have two weeks to let us know if it solved the problem.
+
+          If it only fixes part of the issue, tell us what still doesn't work. A report can include multiple problems, and we need to know which ones remain.
+
+          <!-- vorssaint-fix-status sha=$MERGE_SHA pr=$PR_NUMBER -->
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            echo "#$number: labelled $PENDING_LABEL ($MERGE_SHA)"
+          done
+
+  reference-hint:
+    name: Point out a reference that will not reach the reporter
+    # The only job here that writes to a pull request, and the only one that
+    # gets to. `gh pr comment` is the GraphQL addComment mutation, which is
+    # checked against `pull-requests` and not against `issues`; without this
+    # the job fails at its last line every time it has something to say. It
+    # needs no write on issues -- it reads them and says nothing to them.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    if: >-
+      github.event_name == 'pull_request_target'
+      && github.event.action != 'closed'
+      && github.event.pull_request.user.type != 'Bot'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # No checkout, for the same reason as the merge job: this runs with write
+      # access in the base repository context and must never execute anything
+      # from the pull request. The body is read through the API into a file and
+      # only ever grepped.
+      - name: Comment on a description that leaves the reporter out
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          gh api "repos/$GH_REPO/pulls/$PR_NUMBER" --jq '.body // ""' > pr-body.txt
+
+          # Wider than the merge job's pattern on purpose: this is GitHub's own
+          # closing-keyword list, and a form the merge job does not recognise
+          # still closes the issue. That is the worst case, not a lesser one --
+          # GitHub closes it and this bot never sees it.
+          closing=$(grep -oiE '(close[sd]?|fix(es|ed)?|resolve[sd]?)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
+                      | grep -oE '[0-9]+$' | sort -un) || true
+
+          plain=$(grep -oiE '(refs?|references?|related to)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
+                    | grep -oE '[0-9]+$' | sort -un) || true
+
+          # A closing keyword is wrong even with a correct reference beside it,
+          # so it is checked first and independently.
+          if [ -n "$closing" ]; then
+            form=closing
+            candidates=$closing
+          elif [ -n "$plain" ]; then
+            echo "#$PR_NUMBER references an issue and closes nothing, nothing to say"
+            exit 0
+          else
+            form=missing
+            candidates=$(grep -oE '#[0-9]+' pr-body.txt | tr -d '#' | sort -un) || true
+            if [ -z "$candidates" ]; then
+              echo "#$PR_NUMBER mentions no number at all, nothing to say"
+              exit 0
+            fi
+          fi
+
+          # Said once per form. An edit to the description fires this again, and
+          # a second copy of the same comment is noise on somebody else's
+          # branch. Per form, because an author who is told about a missing
+          # reference and then adds a closing keyword has earned the other one.
+          if gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" --jq '.[].body' \
+               | grep -q "vorssaint-fix-status hint=.*form=$form"; then
+            echo "#$PR_NUMBER has been told about $form already"
+            exit 0
+          fi
+
+          # Only open reports. A pull request number, a closed issue or a number
+          # that belongs to nothing costs the reporter nothing either way.
+          : > hits.txt
+          for number in $candidates; do
+            issue=$(gh api "repos/$GH_REPO/issues/$number" 2>/dev/null) || continue
+            [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
+            [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            # A summary issue is never referenced -- but a closing keyword
+            # aimed at one is the worst case in this file, not an exempt one:
+            # GitHub closes a long-lived index on merge and nothing here would
+            # have said a word. The skip belongs to the `missing` form alone.
+            if [ "$form" != closing ] \
+               && jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              continue
+            fi
+            printf '%s\t%s\n' "$number" "$(jq -r '.title' <<<"$issue")" >> hits.txt
+          done
+
+          if [ ! -s hits.txt ]; then
+            echo "#$PR_NUMBER points at no open issue, nothing to say"
+            exit 0
+          fi
+
+          # A description that walks through a dozen reports is doing something
+          # other than fixing one, and a comment listing all twelve helps
+          # nobody. Five, and the count of what is not listed.
+          total=$(wc -l < hits.txt | tr -d ' ')
+          head -5 hits.txt > shown.txt
+          numbers=$(cut -f1 hits.txt | paste -sd, -)
+
+          : > lines.md
+          while IFS=$'\t' read -r number title; do
+            printf -- '- **Refs #%s** — %s\n' "$number" "$title" >> lines.md
+          done < shown.txt
+          if [ "$total" -gt 5 ]; then
+            printf -- '- ...and %s more, in the run log\n' "$((total - 5))" >> lines.md
+          fi
+
+          # Expanded heredocs below: keep the text free of backticks and `$`.
+          if [ "$form" = closing ]; then
+            cat > head.md <<COMMENT
+          This closes its issue with a keyword, and that keyword takes the report away from the person who filed it. GitHub closes the issue the moment this merges, before the fix is on anyone's Mac, and the fix-status bot then skips it, because it only speaks to open issues. Every merged pull request here that used one ended that way: the reporter was never told which release carried the fix, and never got to say whether it worked.
+
+          Use the plain reference form instead — the word Refs, one line each:
+
+          COMMENT
+            cat > tail.md <<COMMENT
+
+          The issue then stays open, gets labelled, and its reporter is asked to confirm on the release that actually carries the fix. It closes two weeks later if nobody says otherwise, so nothing stays open forever either.
+
+          <!-- vorssaint-fix-status hint=$numbers form=$form -->
+          COMMENT
+          else
+            cat > head.md <<COMMENT
+          This description mentions an open report but does not reference one, so nothing here is tied to the person who filed it.
+
+          If this pull request fixes any of these, add a line for it to the description — one line each, every line starting with the word Refs:
+
+          COMMENT
+            cat > tail.md <<COMMENT
+
+          On merge that line is what puts the report on the fix track: it gets labelled, its reporter is told which release carries the fix, and it closes two weeks later if nobody says otherwise. Without it the report stays where it is and nobody finds out until the reporter asks.
+
+          If the mention was only a mention, ignore this — a maintainer decides, not this comment, and nothing about it blocks the merge.
+
+          <!-- vorssaint-fix-status hint=$numbers form=$form -->
+          COMMENT
+          fi
+
+          cat head.md lines.md tail.md > comment.md
+          gh pr comment "$PR_NUMBER" --body-file comment.md
+          echo "#$PR_NUMBER: $form, asked about $numbers"
+
+  reporter-check:
+    name: Ask the reporters a stable release reached
+    if: >-
+      github.event_name == 'workflow_run'
+      && github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # No checkout: this reads issues and releases, not the history.
+      - name: Move the label onto the release that carries the fix
+        env:
+          TAG: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          set -euo pipefail
+
+          # A tag-triggered run carries the tag in head_branch.
+          if ! grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$TAG"; then
+            echo "${TAG:-(no tag)} is not a stable version tag, nothing to do"
+            exit 0
+          fi
+
+          # Asking anyone to confirm on a build that is not downloadable is a
+          # wasted trip, so the release has to exist and be the real thing.
+          release=$(gh release view "$TAG" --json isDraft,isPrerelease) || {
+            echo "No release published for $TAG"
+            exit 0
+          }
+          if [ "$(jq '.isDraft or .isPrerelease' <<<"$release")" != false ]; then
+            echo "$TAG is a draft or pre-release, nothing to do"
+            exit 0
+          fi
+
+          version=${TAG#v}
+
+          # Created once, if the repository has never had it. A release does not
+          # mint a label -- the version it carries is in the comment below.
+          gh label create "$CONFIRM_LABEL" --color 7FCFCF \
+            --description "The fix is in a release; the reporter has two weeks to say whether that build fixed it" \
+            || true   # already there
+
+          # `gh issue list` never returns pull requests.
+          gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
+            --json number,author,labels \
+            | jq -r --arg l "$SKIP_LABEL" \
+                '.[] | select(any(.labels[]; .name == $l) | not) | "\(.number) \(.author.login)"' \
+            > pending.txt
+
+          # Everything waiting moves, including labels applied by hand. Waiting
+          # means the fix is on main and no stable release had gone out since;
+          # this is that release. Nothing here reads a commit, so an issue whose
+          # label arrived without one is no longer stuck waiting forever.
+          while read -r number login; do
+            [ -n "$number" ] || continue
+
+            gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$CONFIRM_LABEL" --silent
+            gh issue edit "$number" --remove-label "$PENDING_LABEL" || true
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          The fix for this is out now, in **$version**.
+
+          @$login, could you update to that version and say whether it fixed things
+          on your Mac? We cannot tell from here — yours is the setup that found this.
+
+          Please say **how much of it is fixed**, not only whether it is. If part of what you
+          reported still happens, or something related turned up, say so here and the issue goes
+          back for another look — this is not a last call.
+
+          If nothing arrives in two weeks the issue will be closed as it stands, and a comment
+          reopens it at any point after that.
+
+          <!-- vorssaint-fix-status confirm=$TAG -->
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            echo "#$number: moved to $CONFIRM_LABEL on $TAG"
+          done < pending.txt
+
+  close-unanswered:
+    name: Close the checks nobody answered
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # No checkout: nothing here reads the repository, only issues.
+      - name: Close the checks that went two weeks without a word
+        run: |
+          set -euo pipefail
+
+          cutoff=$(date -u -d "$CONFIRM_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
+          echo "closing checks asked before $cutoff"
+
+          gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
+            --json number,labels \
+            | jq -r --arg l "$SKIP_LABEL" \
+                '.[] | select(any(.labels[]; .name == $l) | not) | .number' \
+            > waiting.txt
+
+          while read -r number; do
+            [ -n "$number" ] || continue
+
+            comments=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
+                         --jq '[.[] | {created_at, login: .user.login, body}]' | jq -s add)
+
+            # The clock starts when the reporter was asked, which is the comment,
+            # not the label -- a label notifies nobody, so an issue labelled by
+            # hand has never actually asked anyone anything. Without that comment
+            # this job leaves the issue alone forever, which is what makes it safe
+            # to point at a repository that has been labelled by hand.
+            ask=$(jq -c '[.[] | select(.body | test("vorssaint-fix-status confirm="))] | last' <<<"$comments")
+            if [ "$ask" = null ]; then
+              echo "::warning::#$number: carries $CONFIRM_LABEL with no recorded ask, left alone"
+              continue
+            fi
+            asked=$(jq -r '.created_at' <<<"$ask")
+            version=$(jq -r '.body | capture("confirm=(?<v>v[0-9]+\\.[0-9]+\\.[0-9]+)") | .v' <<<"$ask")
+
+            if [[ "$asked" > "$cutoff" ]]; then
+              echo "#$number: asked $asked, not $CONFIRM_DAYS days yet"
+              continue
+            fi
+
+            # Anyone, not only the reporter. A second person saying it still
+            # happens is exactly the case where closing would be wrong, and the
+            # bot never reads what any of them said.
+            replies=$(jq --arg t "$asked" \
+              '[.[] | select(.created_at > $t) | select(.login != "github-actions[bot]")] | length' <<<"$comments")
+            if [ "$replies" -gt 0 ]; then
+              echo "#$number: answered since $asked, left for a human"
+              continue
+            fi
+
+            # Expanded heredoc: keep the text free of backticks and `$`.
+            cat > comment.md <<COMMENT
+          No word here in two weeks, so this is being closed as it stands.
+
+          That is bookkeeping and not a verdict. **If $version did not fix it, or fixed only part
+          of what you reported, say so here and the issue opens again** — there is no time limit
+          on that, and you do not need to file a new report.
+          COMMENT
+            gh issue comment "$number" --body-file comment.md
+            gh issue close "$number" --reason completed
+            gh issue edit "$number" --remove-label "$CONFIRM_LABEL"
+            echo "#$number: closed, no answer since $asked ($version)"
+          done < waiting.txt

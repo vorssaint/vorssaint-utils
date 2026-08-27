@@ -17,6 +17,9 @@ final class URLCleanerService: ObservableObject {
 
     @Published private(set) var isRunning = false
     @Published private(set) var lastCleaned: String?
+    /// Names the last automatic clean took out, so Settings can say what the
+    /// silent rewrite did rather than only that it is running.
+    @Published private(set) var lastRemoved: [String] = []
 
     private final class PollToken {
         private let lock = NSLock()
@@ -37,7 +40,7 @@ final class URLCleanerService: ObservableObject {
 
     private struct PollResult {
         let changeCount: Int
-        let cleaned: String?
+        let cleaned: URLCleaning.Result?
     }
 
     private var timer: Timer?
@@ -55,17 +58,23 @@ final class URLCleanerService: ObservableObject {
         }
     }
 
-    func clean(_ text: String) -> String? {
-        URLCleaning.cleanedString(from: text)
+    func clean(_ text: String) -> URLCleaning.Result? {
+        URLCleaning.clean(text, rules: Self.rules)
     }
 
+    /// Writes on the shared lane and settles the change count on the main
+    /// queue, where the poll compares against it. The caller never waits: the
+    /// lane can be wedged behind an app that promised pasteboard content and
+    /// stopped answering (issue #887).
     func copy(_ urlString: String) {
         cancelPoll()
-        let changeCount = GeneralPasteboardAccess.shared.sync {
-            Self.writeToPasteboard(urlString)
-        }
-        lastChangeCount = changeCount
         lastCleaned = urlString
+        GeneralPasteboardAccess.shared.async({
+            Self.writeToPasteboard(urlString)
+        }, then: { [weak self] changeCount in
+            guard let self else { return }
+            self.lastChangeCount = max(self.lastChangeCount, changeCount)
+        })
     }
 
     func stop() {
@@ -127,7 +136,8 @@ final class URLCleanerService: ObservableObject {
                 guard self.isRunning, let result else { return }
                 self.lastChangeCount = result.changeCount
                 if let cleaned = result.cleaned {
-                    self.lastCleaned = cleaned
+                    self.lastCleaned = cleaned.url
+                    self.lastRemoved = cleaned.removed
                 }
             }
         }
@@ -144,20 +154,28 @@ final class URLCleanerService: ObservableObject {
         }
 
         guard let text = pasteboard.string(forType: .string),
-              let cleaned = URLCleaning.cleanedString(from: text),
-              cleaned != text.trimmingCharacters(in: .whitespacesAndNewlines),
+              let cleaned = URLCleaning.clean(text, rules: rules),
+              cleaned.url != text.trimmingCharacters(in: .whitespacesAndNewlines),
               canSafelyRewriteAutomatically(pasteboard),
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
 
-        let rewrittenChangeCount = writeToPasteboard(cleaned)
+        let rewrittenChangeCount = writeToPasteboard(cleaned.url)
         return PollResult(changeCount: rewrittenChangeCount, cleaned: cleaned)
     }
 
     private static func canSafelyRewriteAutomatically(_ pasteboard: NSPasteboard) -> Bool {
         guard let types = pasteboard.types, !types.isEmpty else { return false }
         return Set(types).isSubset(of: automaticRewriteTypes)
+    }
+
+    private static var rules: URLCleaning.Rules {
+        let defaults = UserDefaults.standard
+        return URLCleaning.rules(
+            globalNames: defaults.string(forKey: DefaultsKey.urlCleanerCustomParameters),
+            siteNames: defaults.string(forKey: DefaultsKey.urlCleanerSiteParameters),
+            disabledNames: defaults.string(forKey: DefaultsKey.urlCleanerDisabledParameters))
     }
 
     @discardableResult

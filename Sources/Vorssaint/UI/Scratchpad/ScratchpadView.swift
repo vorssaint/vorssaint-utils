@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 /// The scratchpad card: a slim header, named tabs, the plain-text editor and a
-/// quiet footer with copy, export and clear.
+/// quiet footer with an on-demand formatted preview and file actions.
 struct ScratchpadView: View {
     @ObservedObject private var service = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -13,6 +13,8 @@ struct ScratchpadView: View {
     @State private var copied = false
     @State private var dialog: ScratchpadDialog?
     @State private var renameDraft = ""
+
+    @State private var hoveredPadID: UUID?
 
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
     private var isEmpty: Bool { service.text.isEmpty }
@@ -24,6 +26,7 @@ struct ScratchpadView: View {
             editor
             footer
         }
+        .frame(minWidth: 280, minHeight: 220)
         .background {
             ZStack {
                 HUDBackdrop(cornerRadius: 14)
@@ -36,6 +39,7 @@ struct ScratchpadView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
+        .overlay(ScratchpadResizeOverlay())
         .alert(dialogTitle, isPresented: dialogIsPresented) {
             switch dialog {
             case .rename(let pad):
@@ -73,6 +77,7 @@ struct ScratchpadView: View {
                     }
                     .padding(.vertical, 3)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .onAppear {
                     guard let selected = service.selectedPadID else { return }
                     proxy.scrollTo(selected, anchor: .center)
@@ -91,6 +96,7 @@ struct ScratchpadView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(!service.canCreatePad)
@@ -109,9 +115,15 @@ struct ScratchpadView: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 12, weight: .semibold))
                     .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
+            // A borderless Menu takes every point its row can spare on macOS
+            // 15, which left the tab strip beside it stuck at its old width
+            // while the window grew and cut tab names for no reason (issue
+            // #569). Pinned to its label, the strip gets the rest of the row.
+            .fixedSize()
             .help(text.padActions)
             .accessibilityLabel(text.padActions)
         }
@@ -124,23 +136,50 @@ struct ScratchpadView: View {
 
     private func tabButton(_ pad: ScratchpadPad) -> some View {
         let selected = service.selectedPadID == pad.id
+        let isHovered = hoveredPadID == pad.id
+        let showClose = service.canClosePad && (isHovered || selected)
         return Button {
             service.selectPad(pad.id)
         } label: {
-            Text(pad.name)
-                .font(.system(size: 11, weight: selected ? .semibold : .regular))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(minWidth: 46, maxWidth: 120)
-                .padding(.horizontal, 8)
+            HStack(spacing: 4) {
+                Text(pad.name)
+                    .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if showClose {
+                    Button {
+                        requestClose(pad)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(Color.secondary)
+                            .frame(width: 14, height: 14)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(text.closePad)
+                    .accessibilityLabel(text.closePad)
+                }
+            }
+                .padding(.leading, 8)
+                .padding(.trailing, showClose ? 4 : 8)
+                .frame(minWidth: 46, maxWidth: 130)
                 .frame(height: 24)
                 .foregroundStyle(selected ? Color.primary : Color.secondary)
                 .background {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(selected ? Color.accentColor.opacity(0.16) : Color.clear)
                 }
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            if hovering {
+                hoveredPadID = pad.id
+            } else if hoveredPadID == pad.id {
+                hoveredPadID = nil
+            }
+        }
         .contextMenu {
             Button(text.renamePad) { presentRename(pad) }
             Button(text.closePad, role: .destructive) { requestClose(pad) }
@@ -195,7 +234,8 @@ struct ScratchpadView: View {
             Text(text.pageTitle)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .overlay(ScratchpadDragHandle())
             Button {
@@ -203,7 +243,8 @@ struct ScratchpadView: View {
             } label: {
                 Image(systemName: service.isPinned ? "pin.fill" : "pin")
                     .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 22, height: 20)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .foregroundStyle(service.isPinned ? Color.accentColor : Color.secondary)
@@ -215,33 +256,58 @@ struct ScratchpadView: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help(l10n.s.menuClose)
             .accessibilityLabel(l10n.s.menuClose)
         }
-        .padding(.horizontal, 12)
+        .padding(.trailing, 12)
         .frame(height: 34)
     }
 
+    /// The editor's text inset, shared with the placeholder overlay below
+    /// so the two cannot be moved independently.
+    private static let editorInset = NSSize(width: 7, height: 2)
+
     private var editor: some View {
-        PlainTextEditor(text: $service.text)
-            .overlay(alignment: .topLeading) {
-                if isEmpty {
-                    // NSTextView has no placeholder of its own; this sits at
-                    // the exact spot of the first line and never takes clicks.
-                    Text(text.placeholder)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.tertiary)
-                        .padding(.leading, 12)
-                        .padding(.top, 2)
-                        .allowsHitTesting(false)
+        ZStack {
+            PlainTextEditor(text: $service.text,
+                            textColor: .labelColor,
+                            textContainerInset: Self.editorInset,
+                            onCreate: { ScratchpadService.shared.registerTextView($0) })
+                .opacity(service.isPreviewing ? 0 : 1)
+                .allowsHitTesting(!service.isPreviewing)
+                .accessibilityHidden(service.isPreviewing)
+                .overlay(alignment: .topLeading) {
+                    if isEmpty, !service.isPreviewing {
+                        // NSTextView has no placeholder of its own; this sits at
+                        // the exact spot of the first line and never takes clicks.
+                        Text(text.placeholder)
+                            .font(.system(size: PlainTextEditor.fontSize))
+                            .foregroundStyle(.tertiary)
+                            .padding(.leading,
+                                     Self.editorInset.width + PlainTextEditor.lineFragmentPadding)
+                            .padding(.top, Self.editorInset.height)
+                            .allowsHitTesting(false)
+                    }
                 }
+
+            if service.isPreviewing {
+                MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(service.text))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
     }
 
     private var footer: some View {
         HStack(spacing: 12) {
+            footerButton(service.isPreviewing ? "pencil" : "eye",
+                         service.isPreviewing ? text.editText : text.previewFormatting,
+                         tint: service.isPreviewing ? .accentColor : nil) {
+                service.togglePreview()
+            }
             footerButton(copied ? "checkmark" : "doc.on.doc",
                          copied ? text.copied : text.copyAll,
                          tint: copied ? .green : nil) {
@@ -306,11 +372,172 @@ private struct ScratchpadDragHandle: NSViewRepresentable {
     }
 }
 
-/// An AppKit text view configured as a pure plain-text surface: no smart
-/// quotes or dashes, no substitutions, no rich paste, with undo. SwiftUI's
-/// editor cannot switch all of that off.
-private struct PlainTextEditor: NSViewRepresentable {
-    @Binding var text: String
+/// An invisible border overlay that gives the borderless panel generous resize
+/// hitboxes on all four edges and corners, keeps the resize cursors visible,
+/// and enforces the minimum pad size during interactive dragging.
+private struct ScratchpadResizeOverlay: NSViewRepresentable {
+    func makeNSView(context: Context) -> ResizeBorderOverlayView {
+        ResizeBorderOverlayView()
+    }
+
+    func updateNSView(_ nsView: ResizeBorderOverlayView, context: Context) {}
+
+    final class ResizeBorderOverlayView: NSView {
+        private let borderThickness: CGFloat = 6
+        private let cornerSize: CGFloat = 12
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func resetCursorRects() {
+            guard bounds.width > cornerSize * 2, bounds.height > cornerSize * 2 else { return }
+
+            let bottomLeft = NSRect(x: 0, y: 0, width: cornerSize, height: cornerSize)
+            let bottomRight = NSRect(x: bounds.maxX - cornerSize, y: 0, width: cornerSize, height: cornerSize)
+            let topLeft = NSRect(x: 0, y: bounds.maxY - cornerSize, width: cornerSize, height: cornerSize)
+            let topRight = NSRect(x: bounds.maxX - cornerSize, y: bounds.maxY - cornerSize, width: cornerSize, height: cornerSize)
+
+            let left = NSRect(x: 0, y: cornerSize, width: borderThickness, height: bounds.height - cornerSize * 2)
+            let right = NSRect(x: bounds.maxX - borderThickness, y: cornerSize, width: borderThickness, height: bounds.height - cornerSize * 2)
+            let bottom = NSRect(x: cornerSize, y: 0, width: bounds.width - cornerSize * 2, height: borderThickness)
+            let top = NSRect(x: cornerSize, y: bounds.maxY - borderThickness, width: bounds.width - cornerSize * 2, height: borderThickness)
+
+            addCursorRect(left, cursor: .resizeLeftRight)
+            addCursorRect(right, cursor: .resizeLeftRight)
+            addCursorRect(top, cursor: .resizeUpDown)
+            addCursorRect(bottom, cursor: .resizeUpDown)
+
+            addCursorRect(topLeft, cursor: .resizeLeftRight)
+            addCursorRect(topRight, cursor: .resizeLeftRight)
+            addCursorRect(bottomLeft, cursor: .resizeLeftRight)
+            addCursorRect(bottomRight, cursor: .resizeLeftRight)
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            let local = superview != nil ? convert(point, from: superview) : convert(point, from: nil)
+            guard bounds.contains(local) else { return nil }
+
+            let isLeft = local.x <= borderThickness
+            let isRight = local.x >= bounds.width - borderThickness
+            let isBottom = local.y <= borderThickness
+            let isTop = local.y >= bounds.height - borderThickness
+
+            let isCornerLeft = local.x <= cornerSize
+            let isCornerRight = local.x >= bounds.width - cornerSize
+            let isCornerBottom = local.y <= cornerSize
+            let isCornerTop = local.y >= bounds.height - cornerSize
+
+            let isCorner = (isCornerLeft && (isCornerTop || isCornerBottom))
+                || (isCornerRight && (isCornerTop || isCornerBottom))
+
+            if isLeft || isRight || isBottom || isTop || isCorner {
+                return self
+            }
+            return nil
+        }
+
+        private enum ResizeEdge {
+            case left, right, top, bottom, topLeft, topRight, bottomLeft, bottomRight
+        }
+
+        private func resizeEdge(at point: NSPoint) -> ResizeEdge? {
+            let isLeft = point.x <= borderThickness
+            let isRight = point.x >= bounds.width - borderThickness
+            let isBottom = point.y <= borderThickness
+            let isTop = point.y >= bounds.height - borderThickness
+
+            let isCornerLeft = point.x <= cornerSize
+            let isCornerRight = point.x >= bounds.width - cornerSize
+            let isCornerBottom = point.y <= cornerSize
+            let isCornerTop = point.y >= bounds.height - cornerSize
+
+            if isCornerLeft && isCornerTop { return .topLeft }
+            if isCornerRight && isCornerTop { return .topRight }
+            if isCornerLeft && isCornerBottom { return .bottomLeft }
+            if isCornerRight && isCornerBottom { return .bottomRight }
+
+            if isLeft { return .left }
+            if isRight { return .right }
+            if isTop { return .top }
+            if isBottom { return .bottom }
+
+            return nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            let point = convert(event.locationInWindow, from: nil)
+            guard let window, let edge = resizeEdge(at: point) else {
+                super.mouseDown(with: event)
+                return
+            }
+
+            let initialFrame = window.frame
+            let initialMouse = NSEvent.mouseLocation
+            let minWidth: CGFloat = 280
+            let minHeight: CGFloat = 220
+
+            while true {
+                guard let nextEvent = window.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) else { break }
+                if nextEvent.type == .leftMouseUp { break }
+
+                let currentMouse = NSEvent.mouseLocation
+                let deltaX = currentMouse.x - initialMouse.x
+                let deltaY = currentMouse.y - initialMouse.y
+
+                var newFrame = initialFrame
+
+                switch edge {
+                case .left:
+                    let clampedDeltaX = min(deltaX, initialFrame.width - minWidth)
+                    newFrame.origin.x = initialFrame.origin.x + clampedDeltaX
+                    newFrame.size.width = initialFrame.width - clampedDeltaX
+
+                case .right:
+                    newFrame.size.width = max(minWidth, initialFrame.width + deltaX)
+
+                case .top:
+                    newFrame.size.height = max(minHeight, initialFrame.height + deltaY)
+
+                case .bottom:
+                    let clampedDeltaY = min(deltaY, initialFrame.height - minHeight)
+                    newFrame.origin.y = initialFrame.origin.y + clampedDeltaY
+                    newFrame.size.height = initialFrame.height - clampedDeltaY
+
+                case .topLeft:
+                    let clampedDeltaX = min(deltaX, initialFrame.width - minWidth)
+                    newFrame.origin.x = initialFrame.origin.x + clampedDeltaX
+                    newFrame.size.width = initialFrame.width - clampedDeltaX
+                    newFrame.size.height = max(minHeight, initialFrame.height + deltaY)
+
+                case .topRight:
+                    newFrame.size.width = max(minWidth, initialFrame.width + deltaX)
+                    newFrame.size.height = max(minHeight, initialFrame.height + deltaY)
+
+                case .bottomLeft:
+                    let clampedDeltaX = min(deltaX, initialFrame.width - minWidth)
+                    let clampedDeltaY = min(deltaY, initialFrame.height - minHeight)
+                    newFrame.origin.x = initialFrame.origin.x + clampedDeltaX
+                    newFrame.size.width = initialFrame.width - clampedDeltaX
+                    newFrame.origin.y = initialFrame.origin.y + clampedDeltaY
+                    newFrame.size.height = initialFrame.height - clampedDeltaY
+
+                case .bottomRight:
+                    let clampedDeltaY = min(deltaY, initialFrame.height - minHeight)
+                    newFrame.size.width = max(minWidth, initialFrame.width + deltaX)
+                    newFrame.origin.y = initialFrame.origin.y + clampedDeltaY
+                    newFrame.size.height = initialFrame.height - clampedDeltaY
+                }
+
+                window.setFrame(newFrame, display: true, animate: false)
+            }
+        }
+    }
+}
+
+/// A selectable native preview. NSTextView keeps Markdown links interactive in
+/// the nonactivating scratchpad panel, where SwiftUI's Text link handling does
+/// not receive clicks reliably.
+private struct MarkdownPreview: NSViewRepresentable {
+    let blocks: [ScratchpadMarkdownBlock]
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView()
@@ -320,50 +547,134 @@ private struct PlainTextEditor: NSViewRepresentable {
         guard let textView = scroll.documentView as? NSTextView else { return scroll }
         textView.delegate = context.coordinator
         textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: 13)
-        textView.textColor = .labelColor
-        textView.allowsUndo = true
-        textView.isRichText = false
-        textView.importsGraphics = false
-        textView.usesFontPanel = false
-        textView.isAutomaticQuoteSubstitutionEnabled = false
-        textView.isAutomaticDashSubstitutionEnabled = false
-        textView.isAutomaticTextReplacementEnabled = false
-        textView.isAutomaticSpellingCorrectionEnabled = false
-        textView.isAutomaticLinkDetectionEnabled = false
-        textView.isAutomaticDataDetectionEnabled = false
-        textView.smartInsertDeleteEnabled = false
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.isRichText = true
         textView.textContainerInset = NSSize(width: 7, height: 2)
-        textView.string = text
-        ScratchpadService.shared.registerTextView(textView)
+        textView.linkTextAttributes = [.foregroundColor: NSColor.controlAccentColor]
+        textView.textStorage?.setAttributedString(Self.rendered(blocks))
         return scroll
     }
 
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView,
-              textView.string != text,
-              !textView.hasMarkedText() else { return }
-        textView.string = text
-        // Programmatic replaces (load, retention, restore) invalidate undo
-        // entries recorded against the old storage; replaying one would
-        // resurrect cleared text or throw a range exception.
-        textView.undoManager?.removeAllActions()
+        guard let textView = nsView.documentView as? NSTextView else { return }
+        let content = Self.rendered(blocks)
+        guard !textView.attributedString().isEqual(to: content) else { return }
+        textView.textStorage?.setAttributedString(content)
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator()
+    }
+
+    private static func rendered(_ blocks: [ScratchpadMarkdownBlock]) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        for (index, block) in blocks.enumerated() {
+            if index > 0 {
+                let sameContainer = block.containerID != nil
+                    && block.containerID == blocks[index - 1].containerID
+                result.append(NSAttributedString(string: sameContainer ? "\n" : "\n\n"))
+            }
+            result.append(rendered(block))
+        }
+        return result
+    }
+
+    private static func rendered(_ block: ScratchpadMarkdownBlock) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 2
+        var font = NSFont.systemFont(ofSize: 13)
+        var color = NSColor.labelColor
+        var prefix = ""
+        var text = block.text
+        text.presentationIntent = nil
+
+        switch block.kind {
+        case .heading(let level):
+            let size: CGFloat = level == 1 ? 18 : (level == 2 ? 16 : 14)
+            font = .systemFont(ofSize: size, weight: .semibold)
+        case .unorderedListItem(let depth):
+            prefix = String(repeating: "  ", count: depth - 1) + "• "
+        case .orderedListItem(let ordinal, let depth):
+            prefix = String(repeating: "  ", count: depth - 1) + "\(ordinal). "
+        case .quote(let depth):
+            prefix = String(repeating: "  ", count: depth - 1) + "▏ "
+            color = .secondaryLabelColor
+        case .code:
+            font = .monospacedSystemFont(ofSize: 12, weight: .regular)
+        case .thematicBreak:
+            text = AttributedString(String(repeating: "─", count: 24))
+            color = .secondaryLabelColor
+        case .paragraph:
+            break
+        }
+
+        let result = NSMutableAttributedString()
+        if !prefix.isEmpty {
+            result.append(NSAttributedString(string: prefix, attributes: [
+                .font: font,
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: paragraph
+            ]))
+        }
+
+        let content = NSMutableAttributedString(attributedString: NSAttributedString(text))
+        let fullRange = NSRange(location: 0, length: content.length)
+        content.removeAttribute(NSAttributedString.Key("NSPresentationIntent"), range: fullRange)
+        content.addAttributes([
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ], range: fullRange)
+        if block.kind == .code {
+            content.addAttribute(.backgroundColor,
+                                 value: NSColor.labelColor.withAlphaComponent(0.07),
+                                 range: fullRange)
+        }
+        applyInlineFormatting(to: content, baseFont: font)
+        result.append(content)
+        return result
+    }
+
+    private static func applyInlineFormatting(to content: NSMutableAttributedString,
+                                              baseFont: NSFont) {
+        let fullRange = NSRange(location: 0, length: content.length)
+        var intents: [(InlinePresentationIntent, NSRange)] = []
+        content.enumerateAttribute(.inlinePresentationIntent, in: fullRange) { value, range, _ in
+            guard let rawValue = (value as? NSNumber)?.uintValue else { return }
+            intents.append((InlinePresentationIntent(rawValue: rawValue), range))
+        }
+
+        for (intent, range) in intents {
+            var font = intent.contains(.code)
+                ? NSFont.monospacedSystemFont(ofSize: max(12, baseFont.pointSize - 1), weight: .regular)
+                : baseFont
+            if intent.contains(.stronglyEmphasized) {
+                font = NSFontManager.shared.convert(font, toHaveTrait: .boldFontMask)
+            }
+            if intent.contains(.emphasized) {
+                font = NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
+            }
+            content.addAttribute(.font, value: font, range: range)
+            if intent.contains(.code) {
+                content.addAttribute(.backgroundColor,
+                                     value: NSColor.labelColor.withAlphaComponent(0.07),
+                                     range: range)
+            }
+            if intent.contains(.strikethrough) {
+                content.addAttribute(.strikethroughStyle,
+                                     value: NSUnderlineStyle.single.rawValue,
+                                     range: range)
+            }
+        }
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
-        private let text: Binding<String>
-
-        init(text: Binding<String>) {
-            self.text = text
-        }
-
-        func textDidChange(_ notification: Notification) {
-            guard let textView = notification.object as? NSTextView else { return }
-            text.wrappedValue = textView.string
+        func textView(_ textView: NSTextView,
+                      clickedOnLink link: Any,
+                      at charIndex: Int) -> Bool {
+            guard let url = link as? URL else { return false }
+            return NSWorkspace.shared.open(url)
         }
     }
 }

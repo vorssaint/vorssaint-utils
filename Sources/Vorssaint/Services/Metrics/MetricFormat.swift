@@ -10,6 +10,51 @@ struct NetworkCounters: Equatable {
     var sent: UInt64 = 0
 }
 
+/// Detects the macOS failure mode where outbound interface counters keep moving
+/// while inbound counters stay frozen. The first suspect sample only primes the
+/// process reader; a second consecutive sample is required before using it.
+struct NetworkCounterFallback {
+    private(set) var isActive = false
+    private var missingInboundSamples = 0
+
+    mutating func observe(previous: NetworkCounters,
+                          current: NetworkCounters) -> (sampleProcesses: Bool, useProcessDownload: Bool) {
+        guard current.received >= previous.received,
+              current.sent >= previous.sent else {
+            reset()
+            return (false, false)
+        }
+
+        if current.received > previous.received {
+            reset()
+            return (false, false)
+        }
+
+        let outgoingAdvanced = current.sent > previous.sent
+        if isActive {
+            // Once the inbound interface counter is known to be frozen, lack
+            // of upload says nothing about download. Keep sampling socket
+            // flows until the received counter itself proves recovery.
+            return (true, true)
+        }
+
+        if outgoingAdvanced {
+            missingInboundSamples += 1
+        } else {
+            missingInboundSamples = 0
+        }
+        if missingInboundSamples >= 2 {
+            isActive = true
+        }
+        return (outgoingAdvanced, isActive)
+    }
+
+    mutating func reset() {
+        isActive = false
+        missingInboundSamples = 0
+    }
+}
+
 struct DiskIOCounters: Equatable {
     var read: UInt64 = 0
     var written: UInt64 = 0
@@ -23,22 +68,28 @@ struct DiskIOCounters: Equatable {
 enum MetricFormat {
     // MARK: Memory
 
-    /// Matches Activity Monitor's "Memory Used": physical RAM minus pages that
-    /// are free, speculative, or file-backed cache. The side breakdown
-    /// (App/Wired/Compressed) does not expose every bucket counted in the total.
+    /// Matches Activity Monitor's Memory Used: app memory, wired memory,
+    /// compressed memory and the reserved tagged-memory storage region.
     static func memoryUsed(totalBytes: UInt64,
+                           appBytes: UInt64,
                            pageSize: UInt64,
-                           freePages: UInt64,
-                           speculativePages: UInt64,
-                           fileBackedPages: UInt64) -> UInt64 {
+                           wiredPages: UInt64,
+                           compressorPages: UInt64,
+                           tagStoragePages: UInt64) -> UInt64 {
         guard totalBytes > 0, pageSize > 0 else { return 0 }
-        let freeAndSpeculative = freePages.addingReportingOverflow(speculativePages)
-        guard !freeAndSpeculative.overflow else { return 0 }
-        let availablePages = freeAndSpeculative.partialValue.addingReportingOverflow(fileBackedPages)
-        guard !availablePages.overflow else { return 0 }
-        let availableBytes = availablePages.partialValue.multipliedReportingOverflow(by: pageSize)
-        guard !availableBytes.overflow else { return 0 }
-        return availableBytes.partialValue >= totalBytes ? 0 : totalBytes - availableBytes.partialValue
+        let wiredBytes = wiredPages.multipliedReportingOverflow(by: pageSize)
+        guard !wiredBytes.overflow else { return 0 }
+        let compressedBytes = compressorPages.multipliedReportingOverflow(by: pageSize)
+        guard !compressedBytes.overflow else { return 0 }
+        let tagStorageBytes = tagStoragePages.multipliedReportingOverflow(by: pageSize)
+        guard !tagStorageBytes.overflow else { return 0 }
+        let appAndWired = appBytes.addingReportingOverflow(wiredBytes.partialValue)
+        guard !appAndWired.overflow else { return 0 }
+        let withCompressed = appAndWired.partialValue.addingReportingOverflow(compressedBytes.partialValue)
+        guard !withCompressed.overflow else { return 0 }
+        let usedBytes = withCompressed.partialValue.addingReportingOverflow(tagStorageBytes.partialValue)
+        guard !usedBytes.overflow else { return 0 }
+        return min(usedBytes.partialValue, totalBytes)
     }
 
     /// Purgeable internal pages do not count because the system can reclaim
@@ -53,6 +104,27 @@ enum MetricFormat {
         let activeBytes = activePages.partialValue.multipliedReportingOverflow(by: pageSize)
         guard !activeBytes.overflow else { return 0 }
         return min(activeBytes.partialValue, totalBytes)
+    }
+
+    /// Physical RAM held by the compressor. Already counted inside Memory Used.
+    static func compressedMemory(totalBytes: UInt64,
+                                 pageSize: UInt64,
+                                 compressorPages: UInt64) -> UInt64 {
+        pageBytes(pageCount: compressorPages, pageSize: pageSize, totalBytes: totalBytes)
+    }
+
+    /// File-backed pages the system can drop. Memory Used already excludes them.
+    static func cachedFiles(totalBytes: UInt64,
+                            pageSize: UInt64,
+                            fileBackedPages: UInt64) -> UInt64 {
+        pageBytes(pageCount: fileBackedPages, pageSize: pageSize, totalBytes: totalBytes)
+    }
+
+    private static func pageBytes(pageCount: UInt64, pageSize: UInt64, totalBytes: UInt64) -> UInt64 {
+        guard totalBytes > 0, pageSize > 0 else { return 0 }
+        let bytes = pageCount.multipliedReportingOverflow(by: pageSize)
+        guard !bytes.overflow else { return 0 }
+        return min(bytes.partialValue, totalBytes)
     }
 
     /// Keeps every memory surface on the same persisted choice. Unknown
@@ -180,6 +252,14 @@ enum MetricFormat {
         String(format: "%.0fW", value.rounded())
     }
 
+    static func systemPowerWatts(measured: Double?,
+                                 batteryWatts: Double?,
+                                 externalConnected: Bool) -> Double? {
+        if let measured { return measured }
+        guard !externalConnected, let batteryWatts, batteryWatts < 0 else { return nil }
+        return -batteryWatts
+    }
+
     /// A 0...1 fraction as a rounded percentage, e.g. "12%".
     static func percent(_ fraction: Double) -> String {
         "\(Int((max(0, min(1, fraction)) * 100).rounded()))%"
@@ -294,5 +374,12 @@ struct MetricHistory {
         if values.count > capacity {
             values.removeFirst(values.count - capacity)
         }
+    }
+
+    /// Graph data is useful only while a graph surface is visible. Returning an
+    /// empty publication at rest leaves this ring intact for the next opening
+    /// without making every background sample copy its retained array.
+    func publishedValues(whileVisible visible: Bool) -> [Double] {
+        visible ? values : []
     }
 }

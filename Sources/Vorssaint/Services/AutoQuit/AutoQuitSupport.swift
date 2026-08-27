@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import ApplicationServices
 import Foundation
 
 enum AutoQuitWindowEvent: Equatable {
@@ -15,13 +16,14 @@ enum AutoQuitWindowEvent: Equatable {
     case other
 }
 
-enum AutoQuitCloseSignal: Equatable {
-    case closeButton
-    case commandW
-    case programmatic
-}
-
 enum AutoQuitSupport {
+    private static let hostBundleIdentifierKey = "CrBundleIdentifier"
+    /// Some guest-app windows run as generated helper apps outside their
+    /// container bundle. These identifiers are the only stable relationship
+    /// the host exposes between the helper and the app the user excepted.
+    private static let guestWindowHostBundleIdentifier = "com.parallels.desktop.console"
+    private static let guestWindowBundleIdentifierPrefix = "com.parallels.winapp."
+
     /// QWERTY position of the W key — only a fallback for when the event carries
     /// no typed character; the service matches the layout-resolved character
     /// first (key codes are positional: 13 types "z" on AZERTY).
@@ -45,6 +47,24 @@ enum AutoQuitSupport {
         }
     }
 
+    /// Every found user window requires a registered destroy notification.
+    /// Accessibility-listed windows set that count directly; window-server
+    /// evidence when Accessibility lists none still requires one watch.
+    static func needsWindowWatchRetry(registeredWindows: Int,
+                                      listedWindows: Int,
+                                      foundUserWindow: Bool) -> Bool {
+        foundUserWindow && registeredWindows < max(listedWindows, 1)
+    }
+
+    /// Whether adding a window notification left the observer watching for it.
+    /// Already registered is the ordinary answer, not a failure: every refresh
+    /// registers the windows it is already watching again, and counting those
+    /// as unwatched would zero the count above on every refresh and leave the
+    /// retry firing for as long as the app runs.
+    static func isWindowNotificationRegistered(_ result: AXError) -> Bool {
+        result == .success || result == .notificationAlreadyRegistered
+    }
+
     static func shouldQuitAfterWindowCheck(hadWindows: Bool,
                                            appIsTerminated: Bool,
                                            appIsExcepted: Bool,
@@ -65,6 +85,11 @@ enum AutoQuitSupport {
                            bundleURL: URL?,
                            exceptions: [String]) -> Bool {
         if let bundleIdentifier, exceptions.contains(bundleIdentifier) { return true }
+        if let bundleIdentifier,
+           bundleIdentifier.hasPrefix(guestWindowBundleIdentifierPrefix),
+           exceptions.contains(guestWindowHostBundleIdentifier) {
+            return true
+        }
         guard var url = bundleURL?.standardizedFileURL.deletingLastPathComponent() else { return false }
 
         while url.path != "/" {
@@ -78,6 +103,18 @@ enum AutoQuitSupport {
             url = parent
         }
         return false
+    }
+
+    /// Some standalone apps depend on a separate host process and declare that
+    /// relationship in their bundle metadata. Quitting the host while one of
+    /// those apps is running would close both from a single window close.
+    static func hasDependentApplication(hostBundleIdentifier: String?,
+                                        applicationBundleURLs: [URL]) -> Bool {
+        guard let hostBundleIdentifier, !hostBundleIdentifier.isEmpty else { return false }
+        return applicationBundleURLs.contains { bundleURL in
+            Bundle(url: bundleURL)?.object(forInfoDictionaryKey: hostBundleIdentifierKey) as? String
+                == hostBundleIdentifier
+        }
     }
 
     static func isCommandW(keyCode: Int64, command: Bool, control: Bool) -> Bool {

@@ -128,6 +128,20 @@ enum DockClickSupport {
         }
     }
 
+    /// Whether a captured minimize still speaks for the app's current state.
+    ///
+    /// The capture is written when this feature minimizes an app and consumed
+    /// when it restores one, so anything that brings those windows back some
+    /// other way — the App Switcher, the window menu, the app itself — leaves
+    /// it behind. Acting on a leftover later would claim a minimize this
+    /// feature never performed, which is exactly what `ownsMinimize` exists to
+    /// prevent. The capture holds only while at least one window it named is
+    /// still down.
+    static func capturedMinimizeStillHolds(captured: [CGWindowID],
+                                           stillMinimized: Set<CGWindowID>) -> Bool {
+        captured.contains { stillMinimized.contains($0) }
+    }
+
     static func repeatDecision(lastAction: DockClickAction?,
                                elapsed: TimeInterval?) -> DockClickRepeatDecision {
         guard let lastAction, let elapsed, elapsed < toggleIntentWindow else { return .deriveFromState }
@@ -142,9 +156,14 @@ enum DockClickSupport {
 
     /// Dock click actions for the active app. Hide works at app level, while
     /// minimize acts on visible windows and restores them on the next click.
-    /// Restore when everything the app has is minimized
-    /// (the Dock's native click would activate without unminimizing — Finder
-    /// would even open a brand-new window). Modifier clicks always keep the
+    ///
+    /// Restore only reclaims what this feature itself put away — `ownsMinimize`.
+    /// The toggle it advertises is that pair and nothing else, so a window the
+    /// user minimized some other way (⌘M, the window's own button, the app)
+    /// keeps the Dock's native restore. Taking those over bought nothing: the
+    /// stacking this batch is rebuilt from was never captured for them, which
+    /// the restore walk itself has to paper over by guessing at a front window.
+    /// Modifier clicks always keep the
     /// Dock's native behaviors (⌘ reveals in Finder, ⌥ hides the previous
     /// app, ⌃ opens the menu). Fullscreen windows can't minimize, and restoring
     /// siblings from inside a fullscreen Space would yank the user to another
@@ -170,7 +189,8 @@ enum DockClickSupport {
                        minimizeEnabled: Bool = true,
                        hideEnabled: Bool = false,
                        cycleWindowsEnabled: Bool = false,
-                       unminimizedWindowCount: Int = 0) -> DockClickAction {
+                       unminimizedWindowCount: Int = 0,
+                       ownsMinimize: Bool = false) -> DockClickAction {
         guard !hasModifiers else { return .passThrough }
         if cycleWindowsEnabled, appIsFrontmost, !hasFullscreenWindows, unminimizedWindowCount > 1 {
             return .cycleWindows
@@ -178,7 +198,7 @@ enum DockClickSupport {
         if hideEnabled, appIsFrontmost { return .hide }
         guard !hasFullscreenWindows else { return .passThrough }
         if minimizeEnabled, appIsFrontmost, hasUnminimizedWindows { return .minimize }
-        if minimizeEnabled, !hasUnminimizedWindows, hasMinimizedWindows { return .restore }
+        if minimizeEnabled, ownsMinimize, !hasUnminimizedWindows, hasMinimizedWindows { return .restore }
         return .passThrough
     }
 

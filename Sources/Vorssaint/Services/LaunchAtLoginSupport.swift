@@ -12,6 +12,16 @@ import Foundation
 /// seen dropping third-party items outright. So the app remembers the user's
 /// choice in preferences and redoes a lost registration at startup.
 enum LaunchAtLoginSupport {
+    /// What the system holds for this app. `needsApproval` is a registration
+    /// that exists but is switched off in System Settings › Login Items: only
+    /// the user can turn it back on there, so the app must neither treat it as
+    /// working nor keep registering over it.
+    enum Registration: Equatable {
+        case enabled
+        case needsApproval
+        case off
+    }
+
     enum StartupAction: Equatable {
         /// Leave everything as it is.
         case none
@@ -26,10 +36,18 @@ enum LaunchAtLoginSupport {
     /// What startup reconciliation should do. Startup never disables
     /// anything: turning the item off is always an explicit user action.
     /// Registration is only redone from a stable location, because a record
-    /// made from an unstable one would just die with the mount again.
-    static func startupAction(wanted: Bool, systemEnabled: Bool,
+    /// made from an unstable one would just die with the mount again, and
+    /// never over an item awaiting approval: the record is already there and
+    /// registering again cannot approve it (issue #260).
+    static func startupAction(wanted: Bool, registration: Registration,
                               locationIsUnstable: Bool) -> StartupAction {
-        if systemEnabled { return wanted ? .none : .adoptEnabled }
-        return wanted && !locationIsUnstable ? .register : .none
+        switch registration {
+        case .enabled:
+            return wanted ? .none : .adoptEnabled
+        case .needsApproval:
+            return .none
+        case .off:
+            return wanted && !locationIsUnstable ? .register : .none
+        }
     }
 }

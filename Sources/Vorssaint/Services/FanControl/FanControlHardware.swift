@@ -11,9 +11,9 @@ enum FanControlHardwareError: Error {
 }
 
 /// The only SMC write policy used by Fan Control. It discovers the keys the
-/// hardware actually exposes, accepts only sane reported bounds, and can write
-/// either the reported maximum or automatic mode. There is no arbitrary key or
-/// RPM entry point.
+/// hardware actually exposes, accepts only sane reported bounds, and writes
+/// only a validated cooling level or automatic mode. There is no arbitrary key
+/// or RPM entry point.
 final class FanControlHardware {
     private struct TelemetryFan {
         let index: Int
@@ -31,11 +31,19 @@ final class FanControlHardware {
         let maximumRPM: Double
     }
 
+    private struct TemperatureKeys {
+        let cpu: [SMCClient.Key]
+        let gpu: [SMCClient.Key]
+    }
+
     private let client: SMCClient
     private var controlledFans: [Fan]?
     private var telemetryFans: [TelemetryFan]?
     private var cachedForceTestKey: SMCClient.Key?
     private var didDiscoverForceTestKey = false
+    private var activeTargets: [Double] = []
+    private var temperatureKeys: TemperatureKeys?
+    private let temperaturePlatform = TemperatureSensorSelector.currentPlatform()
 
     init?() {
         guard let client = SMCClient() else { return nil }
@@ -45,7 +53,10 @@ final class FanControlHardware {
     func readOnlySnapshot() throws -> FanControlSnapshot {
         let fans = try discoverControlledFans()
         let snapshot = FanControlSnapshot(fans: try readings(for: fans), isCooling: false,
-                                          endsAt: nil, stopReason: nil)
+                                          endsAt: nil, stopReason: nil,
+                                          coolingLevel: nil,
+                                          configuration: nil,
+                                          temperatures: readTemperatures())
         if let forceTest = forceTestKey(), try byteValue(forceTest) != 0 {
             throw FanControlHardwareError.alreadyControlled
         }
@@ -69,21 +80,37 @@ final class FanControlHardware {
                                     isManuallyControlled: false)
         }
         return FanControlSnapshot(fans: readings, isCooling: false,
-                                  endsAt: nil, stopReason: nil)
+                                  endsAt: nil, stopReason: nil,
+                                  coolingLevel: nil,
+                                  configuration: nil,
+                                  temperatures: nil)
     }
 
-    func startMaximumCooling() throws -> [FanControlFanReading] {
+    func startCooling(level: Int) throws -> [FanControlFanReading] {
         let fans = try discoverControlledFans()
-        guard try fans.allSatisfy({ try modeValue($0.mode) == 0 }) else {
+        guard try fans.allSatisfy({ try FanControlPolicy.isAutomaticMode(modeValue($0.mode)) }) else {
             throw FanControlHardwareError.alreadyControlled
         }
         if let forceTest = forceTestKey(), try byteValue(forceTest) != 0 {
             throw FanControlHardwareError.alreadyControlled
         }
 
+        let targets = try fans.map { fan -> Double in
+            guard let target = FanControlPolicy.coolingTargetRPM(
+                    minimum: fan.minimumRPM,
+                    maximum: fan.maximumRPM,
+                    level: level
+                  ) else {
+                throw FanControlHardwareError.operationFailed
+            }
+            return target
+        }
+
+        // Keep the target write adjacent to manual mode. The thermal controller
+        // can reclaim automatic mode between a separate verification and target.
         var directSucceeded = true
-        for fan in fans where !setMode(1, for: fan, attempts: 1) {
-            directSucceeded = false
+        for (fan, target) in zip(fans, targets) {
+            if !writeManualPair(for: fan, target: target) { directSucceeded = false }
         }
 
         if directSucceeded {
@@ -95,26 +122,65 @@ final class FanControlHardware {
             guard let forceTest = forceTestKey(), setByte(1, for: forceTest, attempts: 20) else {
                 throw FanControlHardwareError.operationFailed
             }
+            // A stopped Apple Silicon fan can reject manual mode until the
+            // automatic controller has accepted a protective maximum target.
+            // Apply the requested level only after manual mode sticks.
+            for fan in fans {
+                guard setValue(fan.maximumRPM, for: fan.target, attempts: 10) else {
+                    throw FanControlHardwareError.operationFailed
+                }
+            }
             Thread.sleep(forTimeInterval: 3)
-            guard fans.allSatisfy({ setMode(1, for: $0, attempts: 30) }) else {
-                throw FanControlHardwareError.operationFailed
+            for fan in fans {
+                let deadline = ProcessInfo.processInfo.systemUptime + 10
+                guard setMode(1, for: fan, untilUptime: deadline) else {
+                    throw FanControlHardwareError.operationFailed
+                }
             }
         }
 
-        for fan in fans {
-            guard setValue(fan.maximumRPM, for: fan.target, attempts: 10) else {
+        if !directSucceeded {
+            for (fan, target) in zip(fans, targets) {
+                guard setTargetRPM(target, for: fan, attempts: 10) else {
+                    throw FanControlHardwareError.operationFailed
+                }
+            }
+        }
+        guard verifyCooling(fans, targets: targets, attempts: 10) else {
+            throw FanControlHardwareError.operationFailed
+        }
+        activeTargets = targets
+        return try readings(for: fans)
+    }
+
+    func updateCooling(level: Int) throws -> [FanControlFanReading] {
+        let fans = try discoverControlledFans()
+        guard FanControlPolicy.validCoolingLevel(level) else {
+            throw FanControlHardwareError.operationFailed
+        }
+        let targets = try fans.map { fan -> Double in
+            guard let target = FanControlPolicy.coolingTargetRPM(
+                minimum: fan.minimumRPM,
+                maximum: fan.maximumRPM,
+                level: level
+            ) else { throw FanControlHardwareError.operationFailed }
+            return target
+        }
+        for (fan, target) in zip(fans, targets) {
+            guard setTargetRPM(target, for: fan, attempts: 10) else {
                 throw FanControlHardwareError.operationFailed
             }
         }
-        guard verifyMaximumCooling(fans) else {
+        guard verifyCooling(fans, targets: targets, attempts: 10) else {
             throw FanControlHardwareError.operationFailed
         }
+        activeTargets = targets
         return try readings(for: fans)
     }
 
     func validateAutomaticControl() throws {
         let fans = try discoverControlledFans()
-        guard try fans.allSatisfy({ try modeValue($0.mode) == 0 }) else {
+        guard try fans.allSatisfy({ try FanControlPolicy.isAutomaticMode(modeValue($0.mode)) }) else {
             throw FanControlHardwareError.alreadyControlled
         }
         if let forceTest = forceTestKey() {
@@ -139,24 +205,40 @@ final class FanControlHardware {
             _ = setByte(0, for: forceTest, attempts: 20)
         }
         let automatic = fans.allSatisfy { fan in
-            (try? modeValue(fan.mode)) == 0
+            (try? modeValue(fan.mode)).map(FanControlPolicy.isAutomaticMode) == true
         }
         let forceTestOff = forceTestKey().map { (try? byteValue($0)) == 0 } ?? true
+        if automatic && forceTestOff { activeTargets.removeAll() }
         return automatic && forceTestOff
     }
 
     func snapshot(isCooling: Bool, endsAt: Date?,
-                  stopReason: FanControlStopReason?) throws -> FanControlSnapshot {
+                  stopReason: FanControlStopReason?,
+                  coolingLevel: Int? = nil,
+                  configuration: FanControlConfiguration? = nil) throws -> FanControlSnapshot {
         let fans = try discoverControlledFans()
         return FanControlSnapshot(fans: try readings(for: fans),
                                   isCooling: isCooling,
                                   endsAt: endsAt,
-                                  stopReason: stopReason)
+                                  stopReason: stopReason,
+                                  coolingLevel: coolingLevel,
+                                  configuration: configuration,
+                                  temperatures: readTemperatures())
     }
 
-    func maximumCoolingIsIntact() -> Bool {
+    func coolingIsIntact() -> Bool {
         guard let fans = try? discoverControlledFans() else { return false }
-        return verifyMaximumCooling(fans)
+        return verifyCooling(fans, targets: activeTargets)
+    }
+
+    func readTemperatures() -> [FanControlTemperatureReading] {
+        let keys = discoverTemperatureKeys()
+        let cpuReadings = temperatureReadings(keys.cpu)
+        return FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: cpuReadings,
+            gpuReadings: temperatureReadings(keys.gpu).map(\.value),
+            platform: temperaturePlatform
+        )
     }
 
     // MARK: - Discovery
@@ -227,6 +309,32 @@ final class FanControlHardware {
         return key
     }
 
+    private func discoverTemperatureKeys() -> TemperatureKeys {
+        if let temperatureKeys { return temperatureKeys }
+        let keys = client.keys { name in
+            TemperatureSensorSelector.isCPUTemperatureKey(name, platform: temperaturePlatform)
+                || name.hasPrefix("Tg")
+        }
+        let result = TemperatureKeys(
+            cpu: keys.filter {
+                TemperatureSensorSelector.isCPUTemperatureKey($0.name,
+                                                              platform: temperaturePlatform)
+            },
+            gpu: keys.filter { $0.name.hasPrefix("Tg") }
+        )
+        temperatureKeys = result
+        return result
+    }
+
+    private func temperatureReadings(_ keys: [SMCClient.Key]) -> [(key: String, value: Double)] {
+        keys.compactMap { key in
+            guard let value = client.readValue(key),
+                  value >= TemperatureSensorSelector.minimumChipTemperature,
+                  FanControlPolicy.validTemperature(value) else { return nil }
+            return (key.name, value)
+        }
+    }
+
     // MARK: - Reads and writes
 
     private func readings(for fans: [Fan]) throws -> [FanControlFanReading] {
@@ -245,16 +353,24 @@ final class FanControlHardware {
                                         minimumRPM: minimum,
                                         maximumRPM: maximum,
                                         targetRPM: max(0, target),
-                                        isManuallyControlled: try modeValue(fan.mode) != 0)
+                                        isManuallyControlled: try !FanControlPolicy.isAutomaticMode(
+                                            modeValue(fan.mode)
+                                        ))
         }
     }
 
-    private func verifyMaximumCooling(_ fans: [Fan]) -> Bool {
-        fans.allSatisfy { fan in
-            guard (try? modeValue(fan.mode)) == 1,
-                  let target = client.readValue(fan.target) else { return false }
-            return abs(target - fan.maximumRPM) <= max(2, fan.maximumRPM * 0.001)
+    private func verifyCooling(_ fans: [Fan], targets: [Double], attempts: Int = 1) -> Bool {
+        guard fans.count == targets.count else { return false }
+        for attempt in 0..<attempts {
+            let matches = zip(fans, targets).allSatisfy { fan, expected in
+                guard (try? modeValue(fan.mode)) == 1,
+                      let target = client.readValue(fan.target) else { return false }
+                return FanControlPolicy.targetRPMMatches(target: target, expected: expected)
+            }
+            if matches { return true }
+            if attempt + 1 < attempts { Thread.sleep(forTimeInterval: 0.05) }
         }
+        return false
     }
 
     private func modeValue(_ key: SMCClient.Key) throws -> UInt8 {
@@ -271,6 +387,39 @@ final class FanControlHardware {
     private func setMode(_ value: UInt8, for fan: Fan, attempts: Int) -> Bool {
         guard setByte(value, for: fan.mode, attempts: attempts) else { return false }
         return (try? modeValue(fan.mode)) == value
+    }
+
+    private func setTargetRPM(_ target: Double, for fan: Fan, attempts: Int) -> Bool {
+        for attempt in 0..<attempts {
+            _ = writeManualPair(for: fan, target: target)
+            if let currentTarget = client.readValue(fan.target),
+               FanControlPolicy.targetRPMMatches(target: currentTarget, expected: target),
+               (try? modeValue(fan.mode)) == 1 {
+                return true
+            }
+            if attempt + 1 < attempts { Thread.sleep(forTimeInterval: 0.05) }
+        }
+        return false
+    }
+
+    private func writeManualPair(for fan: Fan, target: Double) -> Bool {
+        _ = try? client.writeBytes([1], to: fan.mode)
+        do {
+            try client.writeValue(target, to: fan.target)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func setMode(_ value: UInt8, for fan: Fan, untilUptime deadline: TimeInterval) -> Bool {
+        repeat {
+            if setMode(value, for: fan, attempts: 1) { return true }
+            let remaining = deadline - ProcessInfo.processInfo.systemUptime
+            if remaining <= 0 { return false }
+            Thread.sleep(forTimeInterval: min(0.1, remaining))
+        } while ProcessInfo.processInfo.systemUptime < deadline
+        return false
     }
 
     private func setByte(_ value: UInt8, for key: SMCClient.Key, attempts: Int) -> Bool {
@@ -294,4 +443,13 @@ final class FanControlHardware {
         }
         return false
     }
+
+    /// Whether this Mac exposes a fan the app can actually drive. It asks the
+    /// same discovery the control path uses, so "controllable" means the very
+    /// keys a cooling write needs, not merely a reported fan count. Hardware
+    /// does not change under a running process, so the answer is computed once.
+    static let hasControllableFan: Bool = {
+        guard let hardware = FanControlHardware() else { return false }
+        return (try? hardware.discoverControlledFans())?.isEmpty == false
+    }()
 }

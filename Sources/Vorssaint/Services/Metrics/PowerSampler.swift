@@ -47,10 +47,10 @@ final class PowerSampler {
     private var resolvedKeys = false
     private var batteryService: io_service_t = 0
 
-    /// `PSTR` = System Total Power. `PDTR` = DC-In (adapter) Total Power. PSTR is
-    /// also a reasonable system-power fallback if a Mac only exposes PDTR.
-    private static let systemPowerKeys = ["PSTR", "PDTR"]
-    private static let adapterPowerKeys = ["PDTR"]
+    /// `PSTR` = System Total Power. `PDTR` = DC-In (adapter) Total Power.
+    /// They stay separate because adapter input can include connected devices.
+    private static let systemPowerKey = "PSTR"
+    private static let adapterPowerKey = "PDTR"
 
     init(smc: SMCClient?) {
         self.smc = smc
@@ -68,8 +68,8 @@ final class PowerSampler {
         if let smc {
             if !resolvedKeys {
                 resolvedKeys = true
-                systemKey = Self.systemPowerKeys.lazy.compactMap { smc.key(named: $0) }.first
-                adapterKey = Self.adapterPowerKeys.lazy.compactMap { smc.key(named: $0) }.first
+                systemKey = smc.key(named: Self.systemPowerKey)
+                adapterKey = smc.key(named: Self.adapterPowerKey)
             }
             reading.systemWatts = plausibleWatts(systemKey)
             reading.adapterWatts = plausibleWatts(adapterKey)
@@ -122,14 +122,10 @@ final class PowerSampler {
             }
         }
 
-        // Derive a system figure when no SMC key reports one (e.g. older chips).
-        if reading.systemWatts == nil {
-            if reading.externalConnected, let input = reading.adapterWatts {
-                reading.systemWatts = input
-            } else if let flow = reading.batteryWatts, flow < 0 {
-                reading.systemWatts = -flow
-            }
-        }
+        reading.systemWatts = MetricFormat.systemPowerWatts(
+            measured: reading.systemWatts,
+            batteryWatts: reading.batteryWatts,
+            externalConnected: reading.externalConnected)
 
         return reading
     }

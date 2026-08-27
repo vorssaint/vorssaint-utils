@@ -237,7 +237,9 @@ final class DockClickService {
                                              minimizeEnabled: minimizeEnabled,
                                              hideEnabled: hideEnabled,
                                              cycleWindowsEnabled: cycleEnabled,
-                                             unminimizedWindowCount: windows.unminimized.count)
+                                             unminimizedWindowCount: windows.unminimized.count,
+                                             ownsMinimize: ownsMinimize(pid: pid,
+                                                                        minimized: windows.minimized))
         }
 
         // Handled clicks are swallowed (or the Dock would fight us:
@@ -550,6 +552,23 @@ final class DockClickService {
         }
     }
 
+    /// Whether the pending click may reclaim this app's minimized windows.
+    ///
+    /// The capture written at minimize time is the only claim this feature has
+    /// on them. It survives until a restore consumes it, so a user who brought
+    /// the windows back another way leaves it behind; a leftover is dropped
+    /// here rather than carried, so the next click starts from the truth.
+    private func ownsMinimize(pid: pid_t, minimized: [AXUIElement]) -> Bool {
+        guard let captured = minimizeZOrder[pid] else { return false }
+        let stillDown = Set(minimized.compactMap(AXWindowResolver.windowID))
+        guard DockClickSupport.capturedMinimizeStillHolds(captured: captured,
+                                                          stillMinimized: stillDown) else {
+            minimizeZOrder.removeValue(forKey: pid)
+            return false
+        }
+        return true
+    }
+
     /// Brings a minimized batch back rearmost first, so the window that was
     /// frontmost when they went down is the last one to animate in and lands
     /// on top by itself. Nothing is raised or re-stacked afterwards: pulling
@@ -631,10 +650,26 @@ final class DockClickService {
     }
 
     /// Brings an app forward from whatever queue the caller is on.
+    ///
+    /// A bare `activate()` is not enough here. Since macOS 14 an app that is
+    /// not itself frontmost cannot raise another one, and this tap swallowed
+    /// the click precisely so the Dock would not act — so nobody else is going
+    /// to. The restore then half-lands: unminimizing needs no activation
+    /// rights, so the windows come back and are immediately stacked under
+    /// whichever app is still active. Yielding this app's activation first is
+    /// what makes the request cooperative, the same sequence the Switcher,
+    /// Space hop and process list already use.
+    ///
+    /// Options stay empty on purpose: `restoreBackToFront` earns the batch's
+    /// stacking one window at a time, and `.activateAllWindows` would re-raise
+    /// the whole app over it — the flick issue #357 was about.
     private static func activate(pid: pid_t) {
         DispatchQueue.main.async {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-            app.activate()
+            NSApp.yieldActivation(to: app)
+            if !app.activate(from: NSRunningApplication.current, options: []) {
+                app.activate(options: [])
+            }
         }
     }
 

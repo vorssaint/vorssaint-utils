@@ -1,8 +1,190 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Foundation
+import SwiftUI
+
+/// Accent colors available for radial menu profiles.
+enum RadialMenuColor: String, Codable, CaseIterable, Identifiable {
+    case accent, blue, purple, pink, red, orange, yellow, green, mint, cyan, indigo, graphite
+
+    var id: String { rawValue }
+
+    func color(for scheme: ColorScheme) -> Color {
+        switch self {
+        case .accent: return .accentColor
+        case .blue: return scheme == .light ? Color(red: 0.00, green: 0.48, blue: 1.00) : .blue
+        case .purple: return scheme == .light ? Color(red: 0.58, green: 0.20, blue: 0.85) : .purple
+        case .pink: return scheme == .light ? Color(red: 0.88, green: 0.16, blue: 0.45) : .pink
+        case .red: return scheme == .light ? Color(red: 0.85, green: 0.18, blue: 0.18) : .red
+        case .orange: return scheme == .light ? Color(red: 0.95, green: 0.45, blue: 0.00) : .orange
+        case .yellow: return scheme == .light ? Color(red: 0.85, green: 0.65, blue: 0.00) : .yellow
+        case .green: return scheme == .light ? Color(red: 0.18, green: 0.65, blue: 0.25) : .green
+        case .mint: return scheme == .light ? Color(red: 0.00, green: 0.68, blue: 0.60) : .mint
+        case .cyan: return scheme == .light ? Color(red: 0.15, green: 0.65, blue: 0.85) : .cyan
+        case .indigo: return scheme == .light ? Color(red: 0.35, green: 0.35, blue: 0.85) : .indigo
+        case .graphite: return scheme == .light ? Color(white: 0.40) : Color(white: 0.65)
+        }
+    }
+
+    var baseColor: Color {
+        switch self {
+        case .accent: return .accentColor
+        case .blue: return .blue
+        case .purple: return .purple
+        case .pink: return .pink
+        case .red: return .red
+        case .orange: return .orange
+        case .yellow: return .yellow
+        case .green: return .green
+        case .mint: return .mint
+        case .cyan: return .cyan
+        case .indigo: return .indigo
+        case .graphite: return .gray
+        }
+    }
+
+    func title(_ strings: RadialMenuFeatureStrings) -> String {
+        switch self {
+        case .accent: return strings.colorAccent
+        case .blue: return strings.colorBlue
+        case .purple: return strings.colorPurple
+        case .pink: return strings.colorPink
+        case .red: return strings.colorRed
+        case .orange: return strings.colorOrange
+        case .yellow: return strings.colorYellow
+        case .green: return strings.colorGreen
+        case .mint: return strings.colorMint
+        case .cyan: return strings.colorCyan
+        case .indigo: return strings.colorIndigo
+        case .graphite: return strings.colorGraphite
+        }
+    }
+}
+
+/// A complete configuration of the radial menu wheel: its items, color theme,
+/// keyboard shortcut, and mouse button trigger.
+struct RadialMenuProfile: Codable, Identifiable, Equatable {
+    var id: UUID = UUID()
+    var name: String = ""
+    var color: RadialMenuColor = .accent
+    var shortcut: String = ""
+    var mouseButton: String = RadialMenuMouseTrigger.off.rawValue
+    var items: [RadialMenuItem] = []
+
+    func displayName(_ text: RadialMenuFeatureStrings) -> String {
+        name.isEmpty ? text.presetGeneral : name
+    }
+}
+
+extension RadialMenuProfile {
+    private enum CodingKeys: String, CodingKey {
+        case id, name, color, shortcut, mouseButton, items
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(id: try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID(),
+                  name: try container.decodeIfPresent(String.self, forKey: .name) ?? "",
+                  color: try container.decodeIfPresent(RadialMenuColor.self, forKey: .color) ?? .accent,
+                  shortcut: try container.decodeIfPresent(String.self, forKey: .shortcut) ?? "",
+                  mouseButton: try container.decodeIfPresent(String.self, forKey: .mouseButton) ?? RadialMenuMouseTrigger.off.rawValue,
+                  items: try container.decodeIfPresent([FailableRadialMenuItem].self, forKey: .items)?
+                      .compactMap(\.value) ?? [])
+    }
+}
+
+private struct FailableRadialMenuProfile: Decodable {
+    let value: RadialMenuProfile?
+
+    init(from decoder: Decoder) throws {
+        value = try? RadialMenuProfile(from: decoder)
+    }
+}
+
+/// Curated starter presets when creating new profiles.
+enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
+    case general, media, tools, windowLayout, quickToggles, blank
+
+    var id: String { rawValue }
+
+    func title(_ strings: RadialMenuFeatureStrings) -> String {
+        switch self {
+        case .general: return strings.presetGeneral
+        case .media: return strings.presetMedia
+        case .tools: return strings.presetTools
+        case .windowLayout: return strings.presetWindowLayout
+        case .quickToggles: return strings.presetQuickToggles
+        case .blank: return strings.presetBlank
+        }
+    }
+
+    var defaultColor: RadialMenuColor {
+        switch self {
+        case .general: return .accent
+        case .media: return .purple
+        case .tools: return .cyan
+        case .windowLayout: return .orange
+        case .quickToggles: return .mint
+        case .blank: return .graphite
+        }
+    }
+
+    func makeItems() -> [RadialMenuItem] {
+        switch self {
+        case .general:
+            return RadialMenuSupport.starterItems
+        case .media:
+            return [
+                RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.playPause.rawValue),
+                RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.nextTrack.rawValue),
+                RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.nowPlaying.rawValue),
+                RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.previousTrack.rawValue),
+            ]
+        case .tools:
+            return [
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenshot.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.colorPicker.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenOCR.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenRecorder.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.micMute.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.scratchpad.rawValue),
+            ]
+        case .windowLayout:
+            return [
+                RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.maximize.rawValue),
+                RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.rightHalf.rawValue),
+                RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.bottomHalf.rawValue),
+                RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.leftHalf.rawValue),
+                RadialMenuItem(kind: .windowLayout, payload: WindowLayoutAction.topHalf.rawValue),
+            ]
+        case .quickToggles:
+            return [
+                RadialMenuItem(kind: .quickToggle, payload: RadialMenuQuickToggle.darkMode.rawValue),
+                RadialMenuItem(kind: .quickToggle, payload: RadialMenuQuickToggle.desktopIcons.rawValue),
+                RadialMenuItem(kind: .quickToggle, payload: RadialMenuQuickToggle.hiddenFiles.rawValue),
+                RadialMenuItem(kind: .quickToggle, payload: RadialMenuQuickToggle.lockScreen.rawValue),
+                RadialMenuItem(kind: .quickToggle, payload: RadialMenuQuickToggle.emptyTrash.rawValue),
+            ]
+        case .blank:
+            return []
+        }
+    }
+
+    func createProfile(name: String? = nil,
+                       color: RadialMenuColor? = nil,
+                       shortcut: String = "",
+                       mouseButton: String = RadialMenuMouseTrigger.off.rawValue) -> RadialMenuProfile {
+        RadialMenuProfile(id: UUID(),
+                           name: name ?? "",
+                           color: color ?? defaultColor,
+                           shortcut: shortcut,
+                           mouseButton: mouseButton,
+                           items: makeItems())
+    }
+}
 
 /// One action on the wheel. `payload` carries the target: an app or file path,
 /// a link, tool, media or window-layout identifier, or a shortcut storage
@@ -17,6 +199,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
     var name = ""
     var symbolName = ""
     var payload = ""
+    var customIconData: Data? = nil
     var children: [RadialMenuItem] = []
 
     var tool: RadialMenuTool? {
@@ -50,6 +233,7 @@ struct RadialMenuItem: Codable, Identifiable, Equatable {
             switch mediaKey {
             case .previousTrack: return "backward.fill"
             case .nextTrack: return "forward.fill"
+            case .nowPlaying: return "music.note"
             default: return "playpause.fill"
             }
         case .submenu: return "ellipsis.circle"
@@ -90,7 +274,7 @@ enum RadialMenuQuickToggle: String, Codable, CaseIterable, Identifiable {
 // whole menu.
 extension RadialMenuItem {
     private enum CodingKeys: String, CodingKey {
-        case id, kind, name, symbolName, payload, children
+        case id, kind, name, symbolName, payload, customIconData, children
     }
 
     init(from decoder: Decoder) throws {
@@ -100,6 +284,7 @@ extension RadialMenuItem {
                   name: try container.decodeIfPresent(String.self, forKey: .name) ?? "",
                   symbolName: try container.decodeIfPresent(String.self, forKey: .symbolName) ?? "",
                   payload: try container.decodeIfPresent(String.self, forKey: .payload) ?? "",
+                  customIconData: try container.decodeIfPresent(Data.self, forKey: .customIconData),
                   children: try container.decodeIfPresent([FailableRadialMenuItem].self, forKey: .children)?
                       .compactMap(\.value) ?? [])
     }
@@ -116,14 +301,15 @@ private struct FailableRadialMenuItem: Decodable {
 /// Vorssaint tools a slice can trigger. Raw values persist inside the items
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
-    case screenshot, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher, cameraPreview,
-         scratchpad, shelf, cleaningMode, keepAwake
+    case screenshot, screenRecorder, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher,
+         cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake
 
     var id: String { rawValue }
 
     var feature: AppFeature {
         switch self {
         case .screenshot: return .screenshot
+        case .screenRecorder: return .screenRecorder
         case .colorPicker: return .colorPicker
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
@@ -132,6 +318,9 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .shelf: return .shelf
+        case .cleaner: return .cleaner
+        case .uninstaller: return .uninstaller
+        case .appUpdates: return .appUpdates
         case .cleaningMode: return .cleaningMode
         case .keepAwake: return .keepAwake
         }
@@ -149,24 +338,44 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// The optional second summoner: a spare side mouse button. Raw values are
-/// persisted; button numbers follow the HID convention the side buttons
-/// report (3 back, 4 forward).
-enum RadialMenuMouseTrigger: String, CaseIterable, Identifiable {
-    case off, back, forward
+/// The optional second summoner: any extra mouse button. The original raw
+/// values stay stable for existing settings; newer buttons use their
+/// CoreGraphics number, which follows USB order from 3 through 31.
+enum RadialMenuMouseTrigger: Equatable, Identifiable {
+    case off
+    case button(Int64)
+
+    static let back = button(MouseButtonShortcutSupport.backButtonNumber)
+    static let forward = button(MouseButtonShortcutSupport.forwardButtonNumber)
 
     var id: String { rawValue }
 
-    var buttonNumber: Int64? {
+    var rawValue: String {
         switch self {
-        case .off: return nil
-        case .back: return 3
-        case .forward: return 4
+        case .off: return "off"
+        case .button(let number):
+            if number == MouseButtonShortcutSupport.backButtonNumber { return "back" }
+            if number == MouseButtonShortcutSupport.forwardButtonNumber { return "forward" }
+            return "button:\(number)"
         }
     }
 
+    var buttonNumber: Int64? {
+        guard case .button(let number) = self else { return nil }
+        return number
+    }
+
     static func sanitized(_ raw: String?) -> RadialMenuMouseTrigger {
-        RadialMenuMouseTrigger(rawValue: raw ?? "") ?? .off
+        switch raw {
+        case "back": return .back
+        case "forward": return .forward
+        case let value?:
+            guard value.hasPrefix("button:"),
+                  let number = Int64(value.dropFirst("button:".count)),
+                  MouseButtonShortcutSupport.buttonRange.contains(number) else { return .off }
+            return .button(number)
+        default: return .off
+        }
     }
 }
 
@@ -211,32 +420,120 @@ extension RadialMenuSupport {
         modifiersHeld || superKeyHeld
     }
 
-    /// Whether the radial menu currently owns this side button as its
+    /// Whether the radial menu currently owns this extra button as its
     /// summoner. Mouse navigation asks this from its own tap and lets a
     /// claimed button through; pure defaults reads, so asking never wakes
     /// the radial menu service.
     static func claimsMouseButton(_ button: Int64) -> Bool {
-        let defaults = UserDefaults.standard
+        claimsMouseButton(button, defaults: .standard)
+    }
+
+    static func claimsMouseButton(_ button: Int64, defaults: UserDefaults) -> Bool {
         guard defaults.bool(forKey: AppFeature.radialMenu.availabilityKey),
               defaults.bool(forKey: DefaultsKey.radialMenuEnabled) else { return false }
-        return RadialMenuMouseTrigger.sanitized(
-            defaults.string(forKey: DefaultsKey.radialMenuMouseButton)).buttonNumber == button
+        let profiles = decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles), defaults: defaults)
+        return profiles.contains {
+            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == button
+        }
     }
 }
 
 /// Media keys a slice can press, mapped to the aux-button codes the physical
 /// keys post (NX_KEYTYPE_PLAY / FAST / REWIND).
 enum RadialMenuMediaKey: String, Codable, CaseIterable, Identifiable {
-    case playPause, previousTrack, nextTrack
+    case playPause, previousTrack, nextTrack, nowPlaying
 
     var id: String { rawValue }
 
-    var auxKeyType: Int32 {
+    /// Now Playing opens Vorssaint's metadata card rather than posting a key.
+    var auxKeyType: Int32? {
         switch self {
         case .playPause: return 16
         case .previousTrack: return 20
         case .nextTrack: return 19
+        case .nowPlaying: return nil
         }
+    }
+}
+
+struct RadialNowPlayingSnapshot: Equatable {
+    let title: String?
+    let artist: String?
+    let album: String?
+    let artworkData: Data?
+    let appBundleIdentifier: String?
+    let appPID: Int32?
+
+    var radialLabel: String? {
+        let parts = [title, artist].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+}
+
+enum RadialNowPlayingState: Equatable {
+    case loading
+    case nothingPlaying
+    case playing(RadialNowPlayingSnapshot)
+}
+
+enum RadialNowPlayingSupport {
+    static let titleKey = "kMRMediaRemoteNowPlayingInfoTitle"
+    static let artistKey = "kMRMediaRemoteNowPlayingInfoArtist"
+    static let albumKey = "kMRMediaRemoteNowPlayingInfoAlbum"
+    static let artworkDataKey = "kMRMediaRemoteNowPlayingInfoArtworkData"
+    static let playbackRateKey = "kMRMediaRemoteNowPlayingInfoPlaybackRate"
+
+    private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
+    private static let maximumArtworkBytes = 12 * 1_024 * 1_024
+
+    static func playbackIsActive(remoteIsPlaying: Bool?, info: [String: Any]) -> Bool {
+        if let remoteIsPlaying { return remoteIsPlaying }
+        return (info[playbackRateKey] as? NSNumber)?.doubleValue ?? 0 > 0
+    }
+
+    static func snapshot(info: [String: Any],
+                         isPlaying: Bool,
+                         appBundleIdentifier: String?,
+                         appPID: Int32) -> RadialNowPlayingSnapshot? {
+        guard isPlaying else { return nil }
+        let title = sanitizedText(info[titleKey])
+        let artist = sanitizedText(info[artistKey])
+        let album = sanitizedText(info[albumKey])
+        let bundleIdentifier = sanitizedBundleIdentifier(appBundleIdentifier)
+        let pid = appPID > 0 ? appPID : nil
+        let artworkData = sanitizedArtworkData(info[artworkDataKey])
+        guard title != nil || bundleIdentifier != nil || pid != nil else { return nil }
+        return RadialNowPlayingSnapshot(title: title,
+                                        artist: artist,
+                                        album: album,
+                                        artworkData: artworkData,
+                                        appBundleIdentifier: bundleIdentifier,
+                                        appPID: pid)
+    }
+
+    private static func sanitizedText(_ value: Any?) -> String? {
+        guard let value = value as? String else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let clean = String(String.UnicodeScalarView(
+            trimmed.unicodeScalars.filter { !forbiddenScalars.contains($0) }))
+        return clean.isEmpty ? nil : String(clean.prefix(300))
+    }
+
+    private static func sanitizedBundleIdentifier(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 255,
+              !trimmed.unicodeScalars.contains(where: { forbiddenScalars.contains($0) })
+        else { return nil }
+        return trimmed
+    }
+
+    private static func sanitizedArtworkData(_ value: Any?) -> Data? {
+        guard let data = value as? Data, !data.isEmpty, data.count <= maximumArtworkBytes else {
+            return nil
+        }
+        return data
     }
 }
 
@@ -244,6 +541,34 @@ enum RadialMenuSupport {
     static let maxItemsPerWheel = 12
     /// Root plus one submenu level. Deeper nesting turns the wheel into a maze.
     static let maxDepth = 2
+
+    /// Curated built-in symbols for the editor. The picker filters this list
+    /// at runtime so older supported macOS releases only show symbols they own.
+    static let symbolNames = [
+        "star.fill", "heart.fill", "bolt.fill", "flame.fill", "sparkles",
+        "folder.fill", "doc.fill", "tray.full.fill", "terminal.fill", "globe",
+        "envelope.fill", "message.fill", "music.note", "headphones", "camera.fill",
+        "photo.fill", "video.fill", "gamecontroller.fill", "calendar", "clock.fill",
+        "house.fill", "cart.fill", "hammer.fill", "paintbrush.fill", "book.fill",
+        "keyboard", "magnifyingglass", "airplane",
+        "checkmark.circle.fill", "xmark.circle.fill", "plus.circle.fill", "minus.circle.fill",
+        "exclamationmark.triangle.fill", "questionmark.circle.fill", "info.circle.fill",
+        "lock.fill", "lock.open.fill", "key.fill", "person.fill", "person.2.fill",
+        "bell.fill", "flag.fill", "bookmark.fill", "tag.fill",
+        "paperclip", "link", "scissors", "doc.on.clipboard",
+        "square.and.arrow.up", "square.and.arrow.down", "trash.fill", "archivebox.fill",
+        "externaldrive.fill", "internaldrive.fill", "display", "desktopcomputer",
+        "laptopcomputer", "iphone", "ipad", "applewatch",
+        "wifi", "network", "antenna.radiowaves.left.and.right",
+        "speaker.wave.2.fill", "mic.fill", "waveform",
+        "play.fill", "pause.fill", "stop.fill", "backward.fill", "forward.fill",
+        "shuffle", "repeat",
+        "sun.max.fill", "moon.fill", "lightbulb.fill", "battery.100", "power",
+        "eye.fill", "eye.slash.fill", "location.fill", "map.fill",
+        "paperplane.fill", "bubble.left.fill", "phone.fill",
+        "gearshape.fill", "slider.horizontal.3", "switch.2", "command",
+        "printer.fill", "textformat", "number",
+    ]
 
     /// Whether the target can actually run for this kind. The editor blocks
     /// saving what fails here, and `sanitized` drops it, so the two can never
@@ -275,6 +600,11 @@ enum RadialMenuSupport {
             guard isValidPayload(item) else { continue }
             if item.kind == .url, let normalized = normalizedURL(item.payload) {
                 item.payload = normalized
+            }
+            if let customData = item.customIconData {
+                if customData.count > RadialMenuFaviconFetcher.maxStoredIconBytes || NSImage(data: customData) == nil {
+                    item.customIconData = nil
+                }
             }
             if item.kind == .submenu {
                 guard depth + 1 < maxDepth else { continue }
@@ -351,10 +681,78 @@ enum RadialMenuSupport {
     static func needsAccessibility(_ items: [RadialMenuItem]) -> Bool {
         items.contains { item in
             switch item.kind {
-            case .shortcut, .windowLayout, .media: return true
+            case .shortcut, .windowLayout: return true
+            case .media: return item.mediaKey?.auxKeyType != nil
             case .submenu: return needsAccessibility(item.children)
             default: return false
             }
+        }
+    }
+
+    /// True when any profile, at any level, controls keyboard input or windows,
+    /// or claims a mouse button, and therefore needs the Accessibility permission.
+    static func needsAccessibility(_ profiles: [RadialMenuProfile]) -> Bool {
+        profiles.contains { profile in
+            RadialMenuMouseTrigger.sanitized(profile.mouseButton) != .off
+                || needsAccessibility(profile.items)
+        }
+    }
+
+    /// Decodes profiles from JSON blob. If missing, checks for legacy
+    /// items / shortcut / mouse button to migrate existing users, or creates
+    /// the starter profile.
+    static func decodeProfiles(_ data: Data?, defaults: UserDefaults = .standard) -> [RadialMenuProfile] {
+        if let data, let decoded = try? JSONDecoder().decode([FailableRadialMenuProfile].self, from: data) {
+            let sanitized = sanitizedProfiles(decoded.compactMap(\.value))
+            if !sanitized.isEmpty { return sanitized }
+        }
+        // Legacy items migration
+        let legacyItemsData = defaults.data(forKey: DefaultsKey.radialMenuItems)
+        let legacyShortcut = defaults.string(forKey: DefaultsKey.radialMenuShortcut)
+            ?? GlobalShortcut.radialMenuDefault.storageValue
+        let legacyMouseButton = defaults.string(forKey: DefaultsKey.radialMenuMouseButton)
+            ?? RadialMenuMouseTrigger.off.rawValue
+
+        let items = decode(legacyItemsData)
+        let initialProfile = RadialMenuProfile(
+            id: UUID(),
+            name: "",
+            color: .accent,
+            shortcut: legacyShortcut,
+            mouseButton: legacyMouseButton,
+            items: items
+        )
+        return [initialProfile]
+    }
+
+    static func encodeProfiles(_ profiles: [RadialMenuProfile]) -> Data? {
+        try? JSONEncoder().encode(sanitizedProfiles(profiles))
+    }
+
+    static func sanitizedProfiles(_ profiles: [RadialMenuProfile]) -> [RadialMenuProfile] {
+        var seenIDs = Set<UUID>()
+        var result: [RadialMenuProfile] = []
+        for var profile in profiles {
+            guard seenIDs.insert(profile.id).inserted else { continue }
+            profile.name = String(profile.name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(60))
+            profile.items = sanitized(profile.items)
+            profile.shortcut = profile.shortcut.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !profile.shortcut.isEmpty && GlobalShortcut(storageValue: profile.shortcut) == nil {
+                profile.shortcut = ""
+            }
+            profile.mouseButton = RadialMenuMouseTrigger.sanitized(profile.mouseButton).rawValue
+            result.append(profile)
+        }
+        if result.isEmpty {
+            result.append(RadialMenuProfilePreset.general.createProfile(shortcut: GlobalShortcut.radialMenuDefault.storageValue))
+        }
+        return result
+    }
+
+    static func containsNowPlaying(_ items: [RadialMenuItem]) -> Bool {
+        items.contains { item in
+            item.mediaKey == .nowPlaying
+                || (item.kind == .submenu && containsNowPlaying(item.children))
         }
     }
 
@@ -416,5 +814,100 @@ enum RadialMenuGeometry {
         guard itemCount > 0 else { return (0, 1) }
         let theta = 2 * .pi * CGFloat(index) / CGFloat(itemCount)
         return (sin(theta), cos(theta))
+    }
+}
+
+/// On-demand fetcher for website favicons, executed exclusively when explicitly
+/// requested by the user in the Settings editor.
+enum RadialMenuFaviconFetcher {
+    /// Max allowable icon data storage: 64KB
+    static let maxStoredIconBytes = 65536
+
+    /// Fetches the favicon for a URL string on-demand.
+    /// Runs on a background task, calls completion on main queue.
+    static func fetchFavicon(for rawURL: String, completion: @escaping (Result<Data, Error>) -> Void) {
+        guard let normalized = RadialMenuSupport.normalizedURL(rawURL),
+              let url = URL(string: normalized),
+              let host = url.host, !host.isEmpty else {
+            DispatchQueue.main.async {
+                completion(.failure(FaviconError.invalidURL))
+            }
+            return
+        }
+
+        let scheme = url.scheme ?? "https"
+        var candidateURLs: [URL] = []
+
+        // 1. Direct /favicon.ico on host
+        if let rootFavicon = URL(string: "\(scheme)://\(host)/favicon.ico") {
+            candidateURLs.append(rootFavicon)
+        }
+        // 2. High-res favicon fallback service (Google)
+        if let googleFavicon = URL(string: "https://www.google.com/s2/favicons?domain=\(host)&sz=128") {
+            candidateURLs.append(googleFavicon)
+        }
+        // 3. DuckDuckGo favicon service
+        if let ddgFavicon = URL(string: "https://icons.duckduckgo.com/ip3/\(host).ico") {
+            candidateURLs.append(ddgFavicon)
+        }
+
+        tryFetchCandidates(candidates: candidateURLs, index: 0, completion: completion)
+    }
+
+    private static func tryFetchCandidates(candidates: [URL], index: Int, completion: @escaping (Result<Data, Error>) -> Void) {
+        guard index < candidates.count else {
+            DispatchQueue.main.async {
+                completion(.failure(FaviconError.notFound))
+            }
+            return
+        }
+
+        let candidate = candidates[index]
+        var request = URLRequest(url: candidate, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 5.0)
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)", forHTTPHeaderField: "User-Agent")
+
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 5.0
+        config.timeoutIntervalForResource = 5.0
+        let session = URLSession(configuration: config)
+
+        session.dataTask(with: request) { data, response, _ in
+            if let data,
+               let http = response as? HTTPURLResponse,
+               (200...299).contains(http.statusCode),
+               let image = NSImage(data: data),
+               image.size.width > 0, image.size.height > 0,
+               let pngData = scaledPNGData(from: image) {
+                DispatchQueue.main.async {
+                    completion(.success(pngData))
+                }
+                return
+            }
+            tryFetchCandidates(candidates: candidates, index: index + 1, completion: completion)
+        }.resume()
+    }
+
+    static func scaledPNGData(from image: NSImage, targetSize: CGFloat = 64) -> Data? {
+        let size = NSSize(width: targetSize, height: targetSize)
+        let newImage = NSImage(size: size)
+        newImage.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+        image.draw(in: NSRect(origin: .zero, size: size),
+                   from: NSRect(origin: .zero, size: image.size),
+                   operation: .copy,
+                   fraction: 1.0)
+        newImage.unlockFocus()
+
+        guard let tiffData = newImage.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiffData),
+              let png = bitmap.representation(using: .png, properties: [:]) else {
+            return nil
+        }
+        return png.count <= maxStoredIconBytes ? png : nil
+    }
+
+    enum FaviconError: Error {
+        case invalidURL
+        case notFound
     }
 }

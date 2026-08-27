@@ -19,7 +19,6 @@ final class FanControlService: ObservableObject {
     @Published private(set) var snapshot: FanControlSnapshot = .empty
     @Published private(set) var error: FanControlErrorCode?
     @Published private(set) var isWorking = false
-    @Published private(set) var now = Date()
 
     private let probeQueue = DispatchQueue(label: "com.vorssaint.fan-control.probe",
                                            qos: .utility)
@@ -51,10 +50,6 @@ final class FanControlService: ObservableObject {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         connection?.invalidate()
         timer?.invalidate()
-    }
-
-    var remainingSeconds: TimeInterval? {
-        snapshot.endsAt.map { max(0, $0.timeIntervalSince(now)) }
     }
 
     static func recoverIfNeeded() {
@@ -129,13 +124,29 @@ final class FanControlService: ObservableObject {
         startTimerIfNeeded()
     }
 
-    func startMaximumCooling() {
+    func applyConfiguration(_ configuration: FanControlConfiguration) {
+        guard FanControlPolicy.validConfiguration(configuration) else {
+            error = .controlFailed
+            return
+        }
+        if configuration.mode == .system {
+            restoreAutomatic()
+            return
+        }
         guard accessState == .enabled else { authorize(); return }
+        guard let encodedConfiguration = FanControlIPC.encode(configuration) else {
+            error = .controlFailed
+            return
+        }
+        error = nil
+        let retrySnapshot = snapshot
         startObservingSystemState()
         let generation = beginRequest()
         UserDefaults.standard.set(true, forKey: DefaultsKey.fanControlRecoveryNeeded)
         isWorking = true
-        send { proxy, reply in proxy.startMaximumCooling(withReply: reply) } completion: { response in
+        send({ proxy, reply in
+            proxy.applyConfiguration(encodedConfiguration, withReply: reply)
+        }) { response in
             guard self.finishRequest(generation) else { return }
             self.isWorking = false
             guard let response else {
@@ -147,7 +158,9 @@ final class FanControlService: ObservableObject {
             if response.succeeded, response.snapshot.isCooling {
                 self.startTimerIfNeeded()
             } else {
-                self.restoreAutomatic()
+                self.restoreAutomatic(supersedingCurrentRequest: false,
+                                      preserving: response.error ?? .controlFailed,
+                                      retrySnapshot: retrySnapshot)
             }
         }
     }
@@ -156,7 +169,9 @@ final class FanControlService: ObservableObject {
         restoreAutomatic(supersedingCurrentRequest: false)
     }
 
-    private func restoreAutomatic(supersedingCurrentRequest: Bool) {
+    private func restoreAutomatic(supersedingCurrentRequest: Bool,
+                                  preserving failure: FanControlErrorCode? = nil,
+                                  retrySnapshot: FanControlSnapshot? = nil) {
         guard supersedingCurrentRequest || !isWorking else { return }
         refreshAccessState()
         guard accessState == .enabled else { return }
@@ -172,6 +187,10 @@ final class FanControlService: ObservableObject {
             }
             self.apply(response)
             if response.succeeded, !response.snapshot.isCooling {
+                if self.snapshot.fans.isEmpty, let retrySnapshot {
+                    self.snapshot = retrySnapshot
+                }
+                if let failure { self.error = failure }
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
                 if !AppFeature.fanControl.isAvailable {
                     do {
@@ -207,37 +226,56 @@ final class FanControlService: ObservableObject {
     /// Used by the complete-uninstall path from its background queue. The
     /// daemon is removed only after it confirms automatic control, so teardown
     /// can never kill the recovery mechanism while a manual session remains.
-    static func restoreAndUnregisterForRemoval() {
+    ///
+    /// Reports whether the daemon is actually gone. A caller that tells someone
+    /// the app was fully removed has no other way to know: the registration
+    /// outlives the bundle, so a silent failure here reads as success forever.
+    @discardableResult
+    static func restoreAndUnregisterForRemoval() -> Bool {
         let service = appService
         guard service.status == .enabled else {
-            if !UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded),
-               service.status != .notRegistered {
-                try? service.unregister()
-            }
-            return
+            guard service.status != .notRegistered else { return true }
+            // A pending recovery keeps the daemon deliberately: it is the only
+            // thing that can put the fans back. Still not a clean detach.
+            guard !UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+            else { return false }
+            return unregisterForRemoval(service)
         }
         let connection = NSXPCConnection(machServiceName: FanControlIdentifiers.helperID,
                                          options: .privileged)
         connection.remoteObjectInterface = NSXPCInterface(with: FanControlXPCProtocol.self)
         connection.setCodeSigningRequirement(FanControlIdentifiers.helperCodeRequirement)
         let semaphore = DispatchSemaphore(value: 0)
+        let resultLock = NSLock()
         var restored = false
         connection.activate()
         let proxy = connection.remoteObjectProxyWithErrorHandler { _ in semaphore.signal() }
             as? FanControlXPCProtocol
         guard let proxy else {
             connection.invalidate()
-            return
+            return false
         }
         proxy.restoreAutomatic { data in
             if let response = FanControlIPC.decode(data) {
-                restored = response.succeeded && !response.snapshot.isCooling
+                resultLock.withLock {
+                    restored = response.succeeded && !response.snapshot.isCooling
+                }
             }
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 20)
         connection.invalidate()
-        if restored { try? service.unregister() }
+        guard resultLock.withLock({ restored }) else { return false }
+        return unregisterForRemoval(service)
+    }
+
+    private static func unregisterForRemoval(_ service: SMAppService) -> Bool {
+        do {
+            try service.unregister()
+            return true
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Requests
@@ -272,10 +310,12 @@ final class FanControlService: ObservableObject {
                 completion(response)
             }
         }
-        guard let proxy = proxy(errorHandler: { [weak self] in
+        guard let proxy = proxy(errorHandler: { [weak self] failedConnection in
             DispatchQueue.main.async {
-                self?.connection?.invalidate()
-                self?.connection = nil
+                if self?.connection === failedConnection {
+                    failedConnection.invalidate()
+                    self?.connection = nil
+                }
                 finish(nil)
             }
         }) else {
@@ -287,13 +327,19 @@ final class FanControlService: ObservableObject {
         }
     }
 
-    private func proxy(errorHandler: @escaping () -> Void) -> FanControlXPCProtocol? {
+    private func proxy(errorHandler: @escaping (NSXPCConnection) -> Void) -> FanControlXPCProtocol? {
         if connection == nil {
             let connection = NSXPCConnection(machServiceName: FanControlIdentifiers.helperID,
                                              options: .privileged)
             connection.remoteObjectInterface = NSXPCInterface(with: FanControlXPCProtocol.self)
             connection.setCodeSigningRequirement(FanControlIdentifiers.helperCodeRequirement)
-            connection.interruptionHandler = errorHandler
+            connection.interruptionHandler = { [weak self, weak connection] in
+                DispatchQueue.main.async {
+                    guard let connection, self?.connection === connection else { return }
+                    connection.invalidate()
+                    self?.connection = nil
+                }
+            }
             connection.invalidationHandler = { [weak self, weak connection] in
                 DispatchQueue.main.async {
                     guard let connection else { return }
@@ -303,7 +349,8 @@ final class FanControlService: ObservableObject {
             connection.activate()
             self.connection = connection
         }
-        return connection?.remoteObjectProxyWithErrorHandler { _ in errorHandler() }
+        guard let connection else { return nil }
+        return connection.remoteObjectProxyWithErrorHandler { _ in errorHandler(connection) }
             as? FanControlXPCProtocol
     }
 
@@ -327,7 +374,6 @@ final class FanControlService: ObservableObject {
     private func apply(_ response: FanControlResponse) {
         snapshot = response.snapshot
         error = response.error
-        now = Date()
     }
 
     private func beginRequest() -> Int {
@@ -349,7 +395,9 @@ final class FanControlService: ObservableObject {
         case .notRegistered: accessState = .notRegistered
         case .enabled: accessState = .enabled
         case .requiresApproval: accessState = .requiresApproval
-        case .notFound: accessState = .unavailable
+        // A bundled daemon can report notFound before its first registration.
+        // register() then moves it to the user-approval state.
+        case .notFound: accessState = .notRegistered
         @unknown default: accessState = .unavailable
         }
     }
@@ -490,11 +538,11 @@ final class FanControlService: ObservableObject {
         guard timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.now = Date()
             self.tickCount += 1
             if self.snapshot.isCooling {
                 self.heartbeat()
-            } else if self.panelIsVisible, self.tickCount.isMultiple(of: 2) {
+            } else if self.panelIsVisible, self.error != .controlFailed,
+                      self.tickCount.isMultiple(of: 2) {
                 self.refresh()
             }
         }

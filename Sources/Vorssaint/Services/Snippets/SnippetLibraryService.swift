@@ -94,6 +94,7 @@ final class SnippetLibraryService: ObservableObject {
     func show() {
         reloadSnippets()
         let panel = ensurePanel()
+        TextSnippetService.shared.setLibraryVisible(true)
         presentationID = UUID()
         query = ""
         selectedID = rows.first?.id
@@ -111,6 +112,7 @@ final class SnippetLibraryService: ObservableObject {
     func hide() {
         removeMonitors()
         panel?.orderOut(nil)
+        TextSnippetService.shared.setLibraryVisible(false)
     }
 
     // MARK: - Selection
@@ -163,9 +165,12 @@ final class SnippetLibraryService: ObservableObject {
             }
             return
         }
+        let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
+            ? NSPasteboard.general.string(forType: .string)
+            : nil
         let text = TextSnippetSupport.expand(snippet.replacement,
                                              date: Date(),
-                                             clipboard: NSPasteboard.general.string(forType: .string))
+                                             clipboard: clipboard)
         // A beat for the panel to leave the screen; the target app kept focus
         // (the panel never activates), so the caret is exactly where the user
         // left it.

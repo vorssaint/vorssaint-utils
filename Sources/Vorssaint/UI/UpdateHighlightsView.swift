@@ -9,13 +9,15 @@ import SwiftUI
 struct UpdateHighlightsView: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var index = 0
-    @State private var showingSharePrivacy = false
     let onFinish: () -> Void
 
     private var s: Strings { l10n.s }
-    private var screenshot: ScreenshotFeatureStrings { FeatureStrings.screenshot(l10n.language) }
-    private var recorder: RecorderFeatureStrings { FeatureStrings.recorder(l10n.language) }
-    private var feedback: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
+    private var screenshot: ScreenshotFeatureStrings {
+        FeatureStrings.screenshot(l10n.language)
+    }
+    private var clipboard: ClipboardFeatureStrings {
+        FeatureStrings.clipboard(l10n.language)
+    }
 
     private enum Layout {
         static let width: CGFloat = 600
@@ -26,7 +28,7 @@ struct UpdateHighlightsView: View {
 
     private struct Highlight: Identifiable {
         let id: String
-        let kind: UpdateHighlightArtwork.Kind
+        let imageName: String
         let symbol: String
         let title: String
         let caption: String
@@ -36,42 +38,26 @@ struct UpdateHighlightsView: View {
 
     private var highlights: [Highlight] {
         var pages: [Highlight] = []
-        if AppFeature.screenRecorder.isAvailable {
-            pages.append(Highlight(
-                id: "recorder",
-                kind: .recorder,
-                symbol: AppFeature.screenRecorder.symbolName,
-                title: recorder.pageTitle,
-                caption: recorder.hubDescription,
-                actionLabel: s.highlightsConfigure,
-                action: { openSettings(.screenRecorder) }))
-        }
         if AppFeature.screenshot.isAvailable {
             pages.append(Highlight(
-                id: "scrolling-screenshot",
-                kind: .scrolling,
-                symbol: "arrow.down.to.line",
-                title: screenshot.scrollingCaptureTitle,
-                caption: screenshot.scrollingCaptureCaption,
+                id: "capture-palette",
+                imageName: "highlights-capture",
+                symbol: "camera.viewfinder",
+                title: screenshot.screenCaptureTitle,
+                caption: s.highlightsCaptionCapturePalette,
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(.screenshot) }))
-            pages.append(Highlight(
-                id: "temporary-links",
-                kind: .sharing,
-                symbol: "link",
-                title: screenshot.shareSectionTitle,
-                caption: screenshot.shareCaption,
-                actionLabel: s.highlightsTry,
-                action: { showingSharePrivacy = true }))
+                action: { openSettings(AppFeature.screenshot.settingsDestination) }))
         }
-        pages.append(Highlight(
-            id: "feedback",
-            kind: .feedback,
-            symbol: "bubble.left.and.text.bubble.right.fill",
-            title: feedback.sectionTitle,
-            caption: feedback.sectionCaption,
-            actionLabel: feedback.openButton,
-            action: { appDelegate()?.openFeedbackWindow(kind: .feature) }))
+        if AppFeature.clipboardHistory.isAvailable {
+            pages.append(Highlight(
+                id: "clipboard-palette",
+                imageName: "highlights-clipboard",
+                symbol: "doc.on.clipboard",
+                title: s.highlightsTitleClipboardRedesign,
+                caption: s.highlightsCaptionClipboardRedesign,
+                actionLabel: s.highlightsConfigure,
+                action: { openSettings(AppFeature.clipboardHistory.settingsDestination) }))
+        }
         return pages
     }
 
@@ -136,16 +122,11 @@ struct UpdateHighlightsView: View {
             .padding(.bottom, 18)
         }
         .frame(width: Layout.width, height: Layout.height)
-        .sheet(isPresented: $showingSharePrivacy) {
-            ScreenshotSharePrivacyView(actionTitle: screenshot.captureButton) {
-                ScreenshotService.shared.capture()
-            }
-        }
     }
 
     private func page(_ highlight: Highlight) -> some View {
         VStack(spacing: 12) {
-            UpdateHighlightArtwork(kind: highlight.kind)
+            UpdateHighlightArtwork(imageName: highlight.imageName, fallbackSymbol: highlight.symbol)
                 .frame(width: 500, height: 268)
                 .accessibilityHidden(true)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -179,6 +160,11 @@ struct UpdateHighlightsView: View {
         .padding(.horizontal, 24)
     }
 
+    private func openSettings(_ destination: FeatureSettingsDestination) {
+        SettingsRouter.shared.request(destination)
+        appDelegate()?.openSettingsWindow()
+    }
+
     private func openSettings(_ page: SettingsPage) {
         SettingsRouter.shared.page = page
         appDelegate()?.openSettingsWindow()
@@ -186,154 +172,56 @@ struct UpdateHighlightsView: View {
 }
 
 private struct UpdateHighlightArtwork: View {
-    enum Kind {
-        case recorder, scrolling, sharing, feedback
-    }
-
-    let kind: Kind
+    let imageName: String
+    let fallbackSymbol: String
 
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color.accentColor.opacity(0.20), Color.purple.opacity(0.09), Color.primary.opacity(0.025)],
+                colors: [Color.accentColor.opacity(0.18),
+                         Color.purple.opacity(0.08),
+                         Color.primary.opacity(0.025)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing)
 
-            switch kind {
-            case .recorder: recorder
-            case .scrolling: scrolling
-            case .sharing: sharing
-            case .feedback: feedback
-            }
-        }
-    }
-
-    private var recorder: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Circle().fill(.red).frame(width: 13, height: 13)
-                Capsule().fill(.primary.opacity(0.12)).frame(width: 105, height: 8)
-                Spacer()
-                Image(systemName: "mic.fill").foregroundStyle(.secondary)
-            }
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.black.opacity(0.78))
-                Image(systemName: "play.rectangle.fill")
-                    .font(.system(size: 45, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.92))
-            }
-            HStack(spacing: 8) {
-                Capsule().fill(.red.opacity(0.75)).frame(width: 120, height: 7)
-                Capsule().fill(.primary.opacity(0.13)).frame(height: 7)
-                Image(systemName: "scissors").foregroundStyle(.secondary)
-            }
-        }
-        .padding(18)
-        .frame(width: 390, height: 220)
-        .background(card)
-    }
-
-    private var scrolling: some View {
-        ZStack {
-            ForEach(0..<3, id: \.self) { cardIndex in
-                VStack(alignment: .leading, spacing: 9) {
-                    Capsule().fill(Color.accentColor.opacity(0.32)).frame(width: 92, height: 8)
-                    ForEach(0..<4, id: \.self) { line in
-                        Capsule()
-                            .fill(Color.primary.opacity(line == 3 ? 0.09 : 0.16))
-                            .frame(width: CGFloat(210 - line * 20), height: 6)
+            if let image = asset(imageName) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                     }
+                    .shadow(color: .black.opacity(0.24), radius: 10, y: 5)
+                    .padding(14)
+            } else {
+                ZStack {
+                    Theme.spaceGradient
+                    Image(systemName: fallbackSymbol)
+                        .font(.system(size: 44, weight: .medium))
+                        .foregroundStyle(.white)
                 }
-                .padding(16)
-                .frame(width: 280, height: 105, alignment: .topLeading)
-                .background(card)
-                .offset(y: CGFloat(cardIndex * 49 - 49))
             }
-            VStack(spacing: 5) {
-                Image(systemName: "chevron.down")
-                Image(systemName: "chevron.down")
-            }
-            .font(.system(size: 15, weight: .bold))
-            .foregroundStyle(Color.accentColor)
-            .offset(x: 178)
         }
     }
 
-    private var sharing: some View {
-        VStack(spacing: 18) {
-            HStack(spacing: 10) {
-                Image(systemName: "link")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Capsule().fill(.primary.opacity(0.13)).frame(width: 245, height: 9)
-                Image(systemName: "doc.on.doc")
-                    .foregroundStyle(.secondary)
+    private func asset(_ name: String) -> NSImage? {
+        let extensions = ["png", "jpg", "jpeg"]
+        for ext in extensions {
+            if let url = Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Images")
+                ?? Bundle.main.url(forResource: name, withExtension: ext) {
+                if let image = NSImage(contentsOf: url) {
+                    return image
+                }
             }
-            .padding(16)
-            .background(card)
-
-            HStack(spacing: 18) {
-                duration("1h", selected: false)
-                duration("6h", selected: true)
-                duration("24h", selected: false)
-            }
-
-            HStack(spacing: 8) {
-                Image(systemName: "clock.arrow.circlepath")
-                Capsule().fill(.primary.opacity(0.12)).frame(width: 150, height: 7)
-            }
-            .foregroundStyle(.secondary)
         }
-        .frame(width: 390)
-    }
-
-    private func duration(_ text: String, selected: Bool) -> some View {
-        Text(text)
-            .font(.system(size: 14, weight: .semibold, design: .rounded))
-            .foregroundStyle(selected ? Color.white : Color.secondary)
-            .frame(width: 64, height: 38)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(selected ? Color.accentColor : Color.primary.opacity(0.08)))
-    }
-
-    private var feedback: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                feedbackChoice(symbol: "ladybug.fill", selected: false)
-                feedbackChoice(symbol: "sparkles", selected: true)
+        for ext in extensions {
+            let direct = URL(fileURLWithPath: "Resources/Images/\(name).\(ext)")
+            if let image = NSImage(contentsOf: direct) {
+                return image
             }
-            VStack(alignment: .leading, spacing: 9) {
-                Capsule().fill(.primary.opacity(0.11)).frame(width: 270, height: 7)
-                Capsule().fill(.primary.opacity(0.08)).frame(width: 225, height: 7)
-                Capsule().fill(.primary.opacity(0.08)).frame(width: 160, height: 7)
-            }
-            .padding(17)
-            .frame(width: 350, height: 86, alignment: .topLeading)
-            .background(card)
-            HStack {
-                Image(systemName: "checkmark.shield.fill")
-                    .foregroundStyle(.green)
-                Spacer()
-                Image(systemName: "paperplane.fill")
-                    .foregroundStyle(Color.accentColor)
-            }
-            .frame(width: 330)
         }
-    }
-
-    private func feedbackChoice(symbol: String, selected: Bool) -> some View {
-        Image(systemName: symbol)
-            .font(.system(size: 21, weight: .semibold))
-            .foregroundStyle(selected ? Color.white : Color.secondary)
-            .frame(width: 72, height: 52)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selected ? Color.accentColor : Color.primary.opacity(0.08)))
-    }
-
-    private var card: some ShapeStyle {
-        Color(nsColor: .controlBackgroundColor).shadow(.drop(color: .black.opacity(0.10), radius: 8, y: 3))
+        return nil
     }
 }

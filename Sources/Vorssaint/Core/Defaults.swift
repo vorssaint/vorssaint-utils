@@ -9,6 +9,7 @@ import Foundation
 enum DefaultsKey {
     static let language = "appLanguage"                   // AppLanguage.rawValue
     static let appearance = "appAppearance"               // AppAppearance.rawValue
+    static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass visual styling on macOS 26+
     static let clamshellPreferred = "clamshellPreferred"  // apply closed-lid mode to every session
     static let onboardingStep = "onboardingStep"          // resume point if onboarding is interrupted
     static let featuresOnboardingVersion = "featuresOnboardingVersion" // last feature-tour marker handled
@@ -21,6 +22,7 @@ enum DefaultsKey {
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
+    static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
@@ -35,17 +37,22 @@ enum DefaultsKey {
     static let hasOnboarded = "hasOnboarded"
     static let sleepDisabledFlag = "vorssDisabledSleep"   // internal guard for pmset disablesleep
     static let scrollInverterEnabled = "scrollInverterEnabled"
+    static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
+    static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
+    static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
     static let mouseButtonShortcutsEnabled = "mouseButtonShortcutsEnabled" // extra buttons press a key combination (issue #282)
     static let mouseButtonShortcuts = "mouseButtonShortcuts" // [button number: GlobalShortcut storage value]
-    static let superKeyEnabled = "superKeyEnabled"        // Caps Lock holds the four modifiers (issue #330)
-    static let superKeyMode = "superKeyMode"              // SuperKeyMode raw value
+    static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
+    static let superKeySource = "superKeySource"           // SuperKeySource raw value
+    static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
     static let superKeySoloAction = "superKeySoloAction"  // SuperKeySoloAction raw value
-    // Machine state, never exported: whether the keyboard mapping is in place,
-    // so a launch after a crash can take it back out.
+    // Machine state, never exported: whether the keyboard mapping is in place
+    // and which source to take back after a crash.
     static let superKeyMappingApplied = "superKeyMappingApplied"
+    static let superKeyMappedSource = "superKeyMappedSource"
     // One list of bundle ids per mouse feature: apps it leaves alone (issue #358).
     static let smoothScrollExceptions = "smoothScrollExceptions"
     static let scrollInverterExceptions = "scrollInverterExceptions"
@@ -60,10 +67,16 @@ enum DefaultsKey {
     static let switcherMergeTabs = "switcherMergeTabs"     // show one switcher entry per app (collapse all of an app's windows)
     static let switcherShowWindowlessFinder = "switcherShowWindowlessFinder" // replaced by switcherWindowlessApps, kept so the migration can read it
     static let switcherWindowlessApps = "switcherWindowlessApps" // SwitcherWindowlessApps raw value
+    static let switcherMinimizedPlacement = "switcherMinimizedPlacement"
+    static let switcherShowFullscreenWindows = "switcherShowFullscreenWindows" 
     static let switcherAppRules = "switcherAppRules" // [bundle id: SwitcherAppRule raw value]
     static let switcherCurrentSpaceOnly = "switcherCurrentSpaceOnly" // list only windows on the desktop the user is in (issue #337)
+    static let switcherSearchPinEnabled = "switcherSearchPinEnabled" // S pins the search field open, off by default so existing users typing S as a search letter see no change
+    static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
+    static let switcherAppearanceDelay = "switcherAppearanceDelay" // milliseconds the shortcut must be held before the panel appears (SwitcherSupport.appearanceDelayMillisecondsRange)
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
+    static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
     static let dockClickHide = "dockClickHide"            // click the active app's Dock icon to hide the app
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
@@ -71,18 +84,22 @@ enum DefaultsKey {
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
     static let previewSize = "previewSize"                // app switcher + dock preview thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
+    static let includeBetaUpdates = "includeBetaUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerShowFinder = "mixerShowFinder"
+    static let mixerHideInactiveApps = "mixerHideInactiveApps"
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
+    static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
     static let soundOutputSwitcherDeviceUIDs = "soundOutputSwitcherDeviceUIDs"
     static let preferredInputDevice = "preferredInputDevice" // audio input device UID
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
+    static let finderCutPasteShowHUD = "finderCutPasteShowHUD"
     static let finderRenameEnabled = "finderRenameEnabled"
     static let finderRenameShortcut = "finderRenameShortcut"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
@@ -93,6 +110,7 @@ enum DefaultsKey {
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
     static let shelfShakeToOpen = "shelfShakeToOpen"
     static let shelfDropZoneEnabled = "shelfDropZoneEnabled"
+    static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
     static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
     static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
@@ -101,6 +119,10 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    // Per-monitor connection paths that accept brightness writes but never
+    // answer reads. Kept local so wake handling does not repeatedly probe a
+    // sensitive display path.
+    static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
@@ -108,6 +130,11 @@ enum DefaultsKey {
     // healthily for a while, or when it is quit properly. Found still set at
     // the next start, it means the previous one died on the way up.
     static let startupDidNotFinish = "startupDidNotFinish"
+    static let bluetoothSleepEnabled = "bluetoothSleepEnabled"
+    static let bluetoothSleepRestoreOnWake = "bluetoothSleepRestoreOnWake"
+    // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
+    // while asleep still gets it back on the next launch.
+    static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
@@ -118,6 +145,7 @@ enum DefaultsKey {
     static let cleanerLastAutoRun = "cleanerLastAutoRun"                // Double, epoch seconds
     static let cleanerLastAutoFreed = "cleanerLastAutoFreed"            // Int bytes
     // Confirmed WhatsApp downloads in the top level of ~/Downloads.
+    static let whatsAppDownloadsEnabled = "whatsAppDownloadsEnabled"
     static let whatsAppDownloadsAutomaticEnabled = "whatsAppDownloadsAutomaticEnabled"
     static let whatsAppDownloadsCategories = "whatsAppDownloadsCategories" // comma-joined category ids
     static let whatsAppDownloadsRetentionDays = "whatsAppDownloadsRetentionDays"
@@ -149,6 +177,9 @@ enum DefaultsKey {
     static let settingsWindowHeight = "settingsWindowHeight"
     static let shelfItems = "shelfItems"                  // Data: [ShelfPersistedItem] JSON
     static let urlCleanerEnabled = "urlCleanerEnabled"
+    static let urlCleanerCustomParameters = "urlCleanerCustomParameters"
+    static let urlCleanerSiteParameters = "urlCleanerSiteParameters"       // host|name pairs added to one site
+    static let urlCleanerDisabledParameters = "urlCleanerDisabledParameters" // built-in host|name pairs switched off
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
@@ -156,11 +187,17 @@ enum DefaultsKey {
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
+    static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
+    static let killProcessGroupRelated = "killProcessGroupRelated"
+    static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
+    static let killProcessSortAscending = "killProcessSortAscending"
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
     static let appUpdatesCheckFrequency = "appUpdatesCheckFrequency"  // off | daily | weekly
+    static let appUpdatesIncludeHomebrewApps = "appUpdatesIncludeHomebrewApps"
     static let appUpdatesIncludeAppStore = "appUpdatesIncludeAppStore"
+    static let appUpdatesIncludeOnlineCatalog = "appUpdatesIncludeOnlineCatalog"
     static let appUpdatesNotify = "appUpdatesNotify"
     static let appUpdatesLastCheck = "appUpdatesLastCheck"            // Double, epoch seconds
     static let appUpdatesLastCount = "appUpdatesLastCount"
@@ -171,6 +208,7 @@ enum DefaultsKey {
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
     static let panelControlMouseScroll = "panelControlMouseScroll"
+    static let panelControlFocusFollowsMouse = "panelControlFocusFollowsMouse"
     static let panelControlMouseNavigation = "panelControlMouseNavigation"
     static let panelControlSwitcher = "panelControlSwitcher"
     static let panelControlDockPreview = "panelControlDockPreview"
@@ -199,6 +237,7 @@ enum DefaultsKey {
     static let panelShowToggles = "panelShowToggles"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
+    static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
     // Keep the existing storage key so moving the row preserves its visibility choice.
     static let panelToggleMicMute = "panelUtilityMicMute"
     static let panelToggleEmptyTrash = "panelToggleEmptyTrash"
@@ -250,6 +289,9 @@ enum DefaultsKey {
     static let monitorShowPower = "monitorShowPower"
     static let monitorShowMixer = "monitorShowMixer"
     static let panelShowFanControl = "panelShowFanControl"
+    static let fanControlMode = "fanControlMode"
+    static let fanControlCoolingLevel = "fanControlCoolingLevel"
+    static let fanControlCurves = "fanControlCurves"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
     // Machine-only recovery state. A true value means the helper must confirm
@@ -289,11 +331,13 @@ enum DefaultsKey {
     // System monitor — optional notifications for sustained or actionable conditions.
     static let monitorAlertCPU = "monitorAlertCPU"
     static let monitorAlertCPUTemperature = "monitorAlertCPUTemperature"
+    static let monitorAlertBatteryTemperature = "monitorAlertBatteryTemperature"
     static let monitorAlertMemory = "monitorAlertMemory"
     static let monitorAlertDisk = "monitorAlertDisk"
     static let monitorAlertBattery = "monitorAlertBattery"
     static let monitorAlertCPUThreshold = "monitorAlertCPUThreshold"
     static let monitorAlertCPUTemperatureThreshold = "monitorAlertCPUTemperatureThreshold"
+    static let monitorAlertBatteryTemperatureThreshold = "monitorAlertBatteryTemperatureThreshold"
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
@@ -323,16 +367,36 @@ enum DefaultsKey {
     static let mediaVideoFPS = "mediaVideoFPS"
     static let mediaVideoKeepAudio = "mediaVideoKeepAudio"
     static let mediaVideoCodec = "mediaVideoCodec"
+    static let mediaVideoSizing = "mediaVideoSizing"
+    static let mediaVideoTargetMegabytes = "mediaVideoTargetMegabytes"
     static let mediaGIFStart = "mediaGIFStart"
     static let mediaGIFEnd = "mediaGIFEnd"
     static let mediaGIFQuality = "mediaGIFQuality"
     static let mediaGIFWidth = "mediaGIFWidth"
     static let mediaGIFFPS = "mediaGIFFPS"
     static let mediaGIFLoops = "mediaGIFLoops"
+    static let mediaGIFSizing = "mediaGIFSizing"
+    static let mediaGIFTargetMegabytes = "mediaGIFTargetMegabytes"
     static let mediaImageQuality = "mediaImageQuality"
     static let mediaImageMaxDimension = "mediaImageMaxDimension"
     static let mediaImageFormat = "mediaImageFormat"
     static let mediaImageStripMetadata = "mediaImageStripMetadata"
+    static let mediaImageResizeKind = "mediaImageResizeKind"
+    static let mediaImageResizeWidth = "mediaImageResizeWidth"
+    static let mediaImageResizeHeight = "mediaImageResizeHeight"
+    static let mediaImageExactResizeMode = "mediaImageExactResizeMode"
+    static let mediaImageWatermarkKind = "mediaImageWatermarkKind"
+    static let mediaImageWatermarkText = "mediaImageWatermarkText"
+    static let mediaImageWatermarkLogoPath = "mediaImageWatermarkLogoPath"
+    static let mediaImageWatermarkPosition = "mediaImageWatermarkPosition"
+    static let mediaImageWatermarkOpacity = "mediaImageWatermarkOpacity"
+    static let mediaImageWatermarkMargin = "mediaImageWatermarkMargin"
+    static let mediaImageWatermarkScale = "mediaImageWatermarkScale"
+    static let mediaImageRenamePattern = "mediaImageRenamePattern"
+    static let mediaImageBackground = "mediaImageBackground"
+    static let mediaImagePreserveModificationDate = "mediaImagePreserveModificationDate"
+    static let mediaImageProfiles = "mediaImageProfiles"
+    static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
@@ -343,6 +407,17 @@ enum DefaultsKey {
     static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
+    static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
+
+    // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
+    // Deliberately outside the clipboardHistory family, since it clears the
+    // pasteboard without touching saved entries, and runs with capture off.
+    static let clipboardAutoClearOnDelay = "clipboardAutoClearOnDelay"
+    static let clipboardAutoClearDelay = "clipboardAutoClearDelaySeconds" // seconds since the last copy
+    static let clipboardAutoClearOnSleep = "clipboardAutoClearOnSleep"
+    static let clipboardAutoClearOnDisplaySleep = "clipboardAutoClearOnDisplaySleep"
+    static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
+
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause thumbnail capture while these apps are in front
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
@@ -362,6 +437,8 @@ enum DefaultsKey {
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
+    /// Compact mode: an empty field shows nothing but itself. Off by default
+    static let commandBarCompactMode = "commandBarCompactMode"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
@@ -369,6 +446,12 @@ enum DefaultsKey {
     static let commandBarHidden = "commandBarHidden"         // row keys the person never wants offered
     static let commandBarLinks = "commandBarLinks"           // Data: [CommandBarLink] JSON
     static let commandBarRowShortcuts = "commandBarRowShortcuts" // {row key: shortcut}
+    static let commandBarPositionOffset = "commandBarPositionOffset" // "dx,dy" from the default spot
+    // The folders a file search looks in, one per line, written with a tilde
+    // so an exported list still points somewhere on another Mac. Empty means
+    // the bar looks for no files at all, which is the setting out of the box.
+    static let commandBarFileScopes = "commandBarFileScopes"
+    static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -393,10 +476,15 @@ enum DefaultsKey {
     // Screenshot capture and editor.
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
+    static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
+    static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
+    static let orphanedCaptureShortcutMigrated = "orphanedCaptureShortcutMigrated"
     static let screenshotFullScreenShortcutEnabled = "screenshotFullScreenShortcutEnabled"
     static let screenshotFullScreenShortcut = "screenshotFullScreenShortcut"
     static let screenshotLastCaptureShortcutEnabled = "screenshotLastCaptureShortcutEnabled"
     static let screenshotLastCaptureShortcut = "screenshotLastCaptureShortcut"
+    static let screenshotClipboardShortcutEnabled = "screenshotClipboardShortcutEnabled"
+    static let screenshotClipboardShortcut = "screenshotClipboardShortcut"
     static let screenshotFreeze = "screenshotFreeze"
     static let screenshotHideVorssaintWindows = "screenshotHideVorssaintWindows"
     static let screenshotSaveFolder = "screenshotSaveFolder"
@@ -435,15 +523,20 @@ enum DefaultsKey {
     static let recorderQuality = "recorderQuality"
     static let recorderFrameRate = "recorderFrameRate"
     static let recorderSystemAudio = "recorderSystemAudio"
+    static let recorderMicrophone = "recorderMicrophone"
     static let recorderSaveFolder = "recorderSaveFolder"
     static let recorderOpenEditor = "recorderOpenEditor"
+    static let recorderAutomaticZoom = "recorderAutomaticZoom"
     static let recorderGIFSize = "recorderGIFSize"
     static let recorderGIFFrameRate = "recorderGIFFrameRate"
     static let recorderEditorPresets = "recorderEditorPresets"
+    static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
+    static let windowDirectionalEnabled = "windowDirectionalEnabled"
+    static let windowDirectionalShortcut = "windowDirectionalShortcut"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowGestureEnabled = "windowGestureEnabled"
     static let windowGestureModifiers = "windowGestureModifiers"
@@ -457,6 +550,7 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeft = "windowLayoutShortcutBottomLeft"
     static let windowLayoutShortcutBottomRight = "windowLayoutShortcutBottomRight"
     static let windowLayoutShortcutMaximize = "windowLayoutShortcutMaximize"
+    static let windowLayoutShortcutMarginMaximize = "windowLayoutShortcutMarginMaximize"
     static let windowLayoutShortcutCenter = "windowLayoutShortcutCenter"
     static let windowLayoutShortcutRestore = "windowLayoutShortcutRestore"
     static let windowLayoutShortcutLeftThird = "windowLayoutShortcutLeftThird"
@@ -487,9 +581,11 @@ enum DefaultsKey {
     static let radialMenuMouseButton = "radialMenuMouseButton" // RadialMenuMouseTrigger.rawValue
     static let radialMenuActivationMode = "radialMenuActivationMode" // RadialMenuActivationMode.rawValue
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
+    static let radialMenuProfiles = "radialMenuProfiles"  // Data: [RadialMenuProfile] JSON
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
+    static let simulateBetaUI = "simulateBetaUI"
 
     /// Features hub availability layer, one key per AppFeature raw value.
     /// Registered true: unavailable features vanish from every surface and
@@ -512,7 +608,7 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.3.0"
+    static let releaseVersion = "3.3.2"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
@@ -523,28 +619,31 @@ enum SupportUpdateIntroInfo {
     /// The single release whose first launch shows the update intro. It used
     /// to track AppInfo.version, which re-showed the ask on every update; now a
     /// release only shows it when this constant is deliberately bumped.
-    static let releaseVersion = "3.3.0"
+    static let releaseVersion = "3.3.2"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         appVersion == releaseVersion && lastSeenVersion != releaseVersion
     }
 }
 
-enum SupportUpdateIntroStep: Equatable {
-    case community
+enum SupportUpdateIntroStep: CaseIterable, Hashable {
+    case discord
+    case social
     case support
 
     var next: SupportUpdateIntroStep? {
         switch self {
-        case .community: return .support
+        case .discord: return .social
+        case .social: return .support
         case .support: return nil
         }
     }
 
     var previous: SupportUpdateIntroStep? {
         switch self {
-        case .community: return nil
-        case .support: return .community
+        case .discord: return nil
+        case .social: return .discord
+        case .support: return .social
         }
     }
 }
@@ -593,6 +692,17 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Nudge down the menu bar canvas, in points. Symbols carrying their mass
+    /// above the shape's middle — steam over a cup, a bulb over its base — read
+    /// as sitting high when their ink is centered geometrically.
+    var menuBarDrop: CGFloat {
+        switch self {
+        case .coffee: return 1
+        case .light: return 0.5
+        case .vorssaint, .eye, .moon: return 0
+        }
+    }
+
     func title(_ strings: Strings) -> String {
         switch self {
         case .vorssaint: return strings.keepAwakeActiveIconVorssaint
@@ -612,13 +722,17 @@ enum PreviewSizing {
         Defaults.allowedPreviewSizes.contains(value) ? value : "normal"
     }
 
-    static var scale: CGFloat {
-        switch sanitized(UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal") {
+    static func scale(for value: String) -> CGFloat {
+        switch sanitized(value) {
         case "small": return 0.75
         case "large": return 1.4
         case "xlarge": return 1.8
         default: return 1.0
         }
+    }
+
+    static var scale: CGFloat {
+        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal")
     }
 }
 
@@ -646,16 +760,20 @@ enum Defaults {
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
     static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
-    static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000]
+    static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000, 10_000, 0]
+    static let allowedClipboardAutoClearDelayRange = 5...3_600
+    static let defaultClipboardAutoClearDelay = 20
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
 
     static let registeredDefaults: [String: Any] = [
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
+        DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
         DefaultsKey.keepAwakeRightClickToggle: false,
+        DefaultsKey.keepAwakeAllowDisplaySleep: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
@@ -667,19 +785,23 @@ enum Defaults {
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
+        DefaultsKey.scrollInverterHorizontalEnabled: false,
+        DefaultsKey.focusFollowsMouseEnabled: false,
+        DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.mouseNavigationEnabled: false,
         DefaultsKey.mouseButtonShortcutsEnabled: false,
         DefaultsKey.mouseButtonShortcuts: [String: String](),
         DefaultsKey.superKeyEnabled: false,
-        DefaultsKey.superKeyMode: SuperKeyMode.hyper.rawValue,
+        DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
+        DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
-        DefaultsKey.smoothScrollExceptions: [],
-        DefaultsKey.scrollInverterExceptions: [],
-        DefaultsKey.mouseNavigationExceptions: [],
-        DefaultsKey.mouseButtonExceptions: [],
-        DefaultsKey.middleClickExceptions: [],
+        DefaultsKey.smoothScrollExceptions: [String](),
+        DefaultsKey.scrollInverterExceptions: [String](),
+        DefaultsKey.mouseNavigationExceptions: [String](),
+        DefaultsKey.mouseButtonExceptions: [String](),
+        DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
@@ -688,10 +810,16 @@ enum Defaults {
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.switcherWindowlessApps: SwitcherWindowlessApps.fallback.rawValue,
+        DefaultsKey.switcherMinimizedPlacement: WindowSwitchMinimizedPlacement.normal.rawValue,
+        DefaultsKey.switcherShowFullscreenWindows: true,
         DefaultsKey.switcherAppRules: [String: String](),
         DefaultsKey.switcherCurrentSpaceOnly: false,
+        DefaultsKey.switcherSearchPinEnabled: false,
+        DefaultsKey.switcherShowShortcutHints: true,
+        DefaultsKey.switcherAppearanceDelay: SwitcherSupport.defaultAppearanceDelayMilliseconds,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
+        DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,
         DefaultsKey.dockClickMinimize: false,
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
@@ -699,12 +827,15 @@ enum Defaults {
         DefaultsKey.middleClickTapFingers: 0,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
+        DefaultsKey.includeBetaUpdates: false,
         DefaultsKey.releaseNotesOnUpdate: true,
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
+        DefaultsKey.mixerHideInactiveApps: false,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
+        DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
         // Finder never benefits from being "quit" (it just relaunches), so
@@ -717,17 +848,22 @@ enum Defaults {
         // On by default (owner's call): it costs nothing until the shelf itself
         // is on, and then the shelf lives handily under the menu bar icon.
         DefaultsKey.shelfDropZoneEnabled: true,
+        // New Shelf behavior stays opt-in for existing users.
+        DefaultsKey.shelfEdgeDragEnabled: false,
         // Closing after a drop is new behavior, so it arrives OFF for people
         // who already rely on the panel staying put; removing after a drop
         // keeps the value shipped releases always had.
         DefaultsKey.shelfCloseAfterDrop: false,
         DefaultsKey.shelfRemoveAfterDrop: true,
-        DefaultsKey.shelfAutomaticExclusions: [],
+        DefaultsKey.shelfAutomaticExclusions: [String](),
         DefaultsKey.extraBrightnessEnabled: false,
         DefaultsKey.extraBrightnessLevel: 100,
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.bluetoothSleepEnabled: false,
+        DefaultsKey.bluetoothSleepRestoreOnWake: true,
+        DefaultsKey.bluetoothSleepRestorePending: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",
@@ -737,6 +873,7 @@ enum Defaults {
         DefaultsKey.cleanerScheduleNotify: true,
         DefaultsKey.cleanerLastAutoRun: 0.0,
         DefaultsKey.cleanerLastAutoFreed: 0,
+        DefaultsKey.whatsAppDownloadsEnabled: false,
         DefaultsKey.whatsAppDownloadsAutomaticEnabled: false,
         DefaultsKey.whatsAppDownloadsCategories: "image,video,audio",
         DefaultsKey.whatsAppDownloadsRetentionDays: 7,
@@ -749,7 +886,7 @@ enum Defaults {
         DefaultsKey.whatsAppDownloadsLastCleanupBytes: 0,
         DefaultsKey.whatsAppDownloadsLastCleanupFailed: 0,
         DefaultsKey.whatsAppDownloadsLastCleanupAutomatic: false,
-        DefaultsKey.whatsAppDownloadsExclusions: [],
+        DefaultsKey.whatsAppDownloadsExclusions: [String](),
         DefaultsKey.whatsAppDownloadsAccessConfirmed: false,
         DefaultsKey.whatsAppOrganizerEnabled: false,
         DefaultsKey.whatsAppOrganizerDestinationPath: "",
@@ -764,6 +901,9 @@ enum Defaults {
         DefaultsKey.whatsAppOrganizerLastDuplicates: 0,
         DefaultsKey.whatsAppOrganizerLastFailed: 0,
         DefaultsKey.urlCleanerEnabled: false,
+        DefaultsKey.urlCleanerCustomParameters: "",
+        DefaultsKey.urlCleanerSiteParameters: "",
+        DefaultsKey.urlCleanerDisabledParameters: "",
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,
@@ -779,21 +919,28 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
+        DefaultsKey.killProcessCommandBarEnabled: true,
+        DefaultsKey.killProcessGroupRelated: true,
+        DefaultsKey.killProcessSortBy: "cpu",
+        DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityAppUpdates: true,
         // The list itself costs nothing until it is opened; only the
         // background check keeps a timer, so it starts off.
         DefaultsKey.appUpdatesCheckFrequency: AppUpdatesSupport.CheckFrequency.off.rawValue,
+        DefaultsKey.appUpdatesIncludeHomebrewApps: true,
         DefaultsKey.appUpdatesIncludeAppStore: true,
+        DefaultsKey.appUpdatesIncludeOnlineCatalog: true,
         DefaultsKey.appUpdatesNotify: true,
         DefaultsKey.appUpdatesLastCheck: 0.0,
         DefaultsKey.appUpdatesLastCount: 0,
-        DefaultsKey.appUpdatesNotifiedIDs: [],
+        DefaultsKey.appUpdatesNotifiedIDs: [String](),
         DefaultsKey.panelUtilityMedia: true,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,
+        DefaultsKey.panelControlFocusFollowsMouse: true,
         DefaultsKey.panelControlMouseNavigation: true,
         DefaultsKey.panelControlSwitcher: true,
         DefaultsKey.panelControlDockPreview: true,
@@ -819,6 +966,7 @@ enum Defaults {
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
         DefaultsKey.panelToggleDarkMode: true,
+        DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
         DefaultsKey.panelToggleEmptyTrash: true,
         DefaultsKey.panelToggleEjectDisks: true,
@@ -863,6 +1011,9 @@ enum Defaults {
         DefaultsKey.monitorShowPower: true,
         DefaultsKey.monitorShowMixer: true,
         DefaultsKey.panelShowFanControl: true,
+        DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
+        DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
+        DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
         DefaultsKey.panelNavigationEnabled: true,
@@ -897,11 +1048,13 @@ enum Defaults {
         DefaultsKey.monitorPwrHealth: true,
         DefaultsKey.monitorAlertCPU: false,
         DefaultsKey.monitorAlertCPUTemperature: false,
+        DefaultsKey.monitorAlertBatteryTemperature: false,
         DefaultsKey.monitorAlertMemory: false,
         DefaultsKey.monitorAlertDisk: false,
         DefaultsKey.monitorAlertBattery: false,
         DefaultsKey.monitorAlertCPUThreshold: 90,
         DefaultsKey.monitorAlertCPUTemperatureThreshold: 90,
+        DefaultsKey.monitorAlertBatteryTemperatureThreshold: 40,
         DefaultsKey.monitorAlertDiskFreePercent: 10,
         DefaultsKey.monitorAlertBatteryPercent: 15,
         DefaultsKey.monitorAlertCooldownMinutes: 15,
@@ -913,16 +1066,36 @@ enum Defaults {
         DefaultsKey.mediaVideoFPS: 30.0,
         DefaultsKey.mediaVideoKeepAudio: true,
         DefaultsKey.mediaVideoCodec: MediaVideoCodec.h264.rawValue,
+        DefaultsKey.mediaVideoSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaVideoTargetMegabytes: 20,
         DefaultsKey.mediaGIFStart: 0.0,
         DefaultsKey.mediaGIFEnd: 0.0,
         DefaultsKey.mediaGIFQuality: 0.74,
         DefaultsKey.mediaGIFWidth: 720,
         DefaultsKey.mediaGIFFPS: 12.0,
         DefaultsKey.mediaGIFLoops: true,
+        DefaultsKey.mediaGIFSizing: MediaSizingMode.resolution.rawValue,
+        DefaultsKey.mediaGIFTargetMegabytes: 10,
         DefaultsKey.mediaImageQuality: 0.72,
         DefaultsKey.mediaImageMaxDimension: 1600,
         DefaultsKey.mediaImageFormat: MediaImageFormat.jpeg.rawValue,
         DefaultsKey.mediaImageStripMetadata: true,
+        DefaultsKey.mediaImageResizeKind: MediaImageResizeKind.maxDimension.rawValue,
+        DefaultsKey.mediaImageResizeWidth: 1600,
+        DefaultsKey.mediaImageResizeHeight: 1200,
+        DefaultsKey.mediaImageExactResizeMode: MediaImageExactResizeMode.stretch.rawValue,
+        DefaultsKey.mediaImageWatermarkKind: MediaImageWatermarkKind.off.rawValue,
+        DefaultsKey.mediaImageWatermarkText: "",
+        DefaultsKey.mediaImageWatermarkLogoPath: "",
+        DefaultsKey.mediaImageWatermarkPosition: MediaImageWatermarkPosition.bottomRight.rawValue,
+        DefaultsKey.mediaImageWatermarkOpacity: 0.45,
+        DefaultsKey.mediaImageWatermarkMargin: 32,
+        DefaultsKey.mediaImageWatermarkScale: 0.18,
+        DefaultsKey.mediaImageRenamePattern: "",
+        DefaultsKey.mediaImageBackground: MediaImageBackground.transparent.rawValue,
+        DefaultsKey.mediaImagePreserveModificationDate: false,
+        DefaultsKey.mediaImageProfiles: "[]",
+        DefaultsKey.mediaImageSelectedProfileID: "",
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,
@@ -930,6 +1103,13 @@ enum Defaults {
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
+        DefaultsKey.clipboardHistoryQuickPreview: false,
+        DefaultsKey.clipboardAutoClearOnDelay: false,
+        DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
+        DefaultsKey.clipboardAutoClearOnSleep: false,
+        DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
+        DefaultsKey.clipboardAutoClearOnScreenLock: false,
+        DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.pastePlainEnabled: false,
@@ -950,11 +1130,15 @@ enum Defaults {
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
+        DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarDisabledSources: "",
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",
         DefaultsKey.commandBarHidden: "",
+        DefaultsKey.commandBarFileScopes: "",
+        DefaultsKey.commandBarFileIgnores: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
+        DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,
@@ -978,18 +1162,25 @@ enum Defaults {
         DefaultsKey.recorderQuality: RecorderSupport.Quality.balanced.rawValue,
         DefaultsKey.recorderFrameRate: 60,
         DefaultsKey.recorderSystemAudio: true,
+        DefaultsKey.recorderMicrophone: false,
         DefaultsKey.recorderSaveFolder: "",
         DefaultsKey.recorderOpenEditor: true,
+        DefaultsKey.recorderAutomaticZoom: true,
         DefaultsKey.recorderGIFSize: RecorderSupport.GIFSize.medium.rawValue,
         DefaultsKey.recorderGIFFrameRate: 12,
         DefaultsKey.recorderEditorPresets: Data(),
+        DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
+        DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
+        DefaultsKey.restoredScreenCaptureShortcutsMigrated: false,
         DefaultsKey.screenshotFullScreenShortcutEnabled: false,
         DefaultsKey.screenshotFullScreenShortcut: GlobalShortcut.screenshotFullScreenDefault.storageValue,
         DefaultsKey.screenshotLastCaptureShortcutEnabled: false,
         DefaultsKey.screenshotLastCaptureShortcut: GlobalShortcut.screenshotLastCaptureDefault.storageValue,
+        DefaultsKey.screenshotClipboardShortcutEnabled: false,
+        DefaultsKey.screenshotClipboardShortcut: GlobalShortcut.screenshotClipboardDefault.storageValue,
         DefaultsKey.screenshotFreeze: true,
         DefaultsKey.screenshotHideVorssaintWindows: true,
         DefaultsKey.screenshotSaveFolder: "",
@@ -1017,6 +1208,8 @@ enum Defaults {
         DefaultsKey.screenshotSharingEnabled: true,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
+        DefaultsKey.windowDirectionalEnabled: false,
+        DefaultsKey.windowDirectionalShortcut: GlobalShortcut.windowDirectionalDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
@@ -1030,6 +1223,7 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomLeft: GlobalShortcut.windowLayoutBottomLeftDefault.storageValue,
         DefaultsKey.windowLayoutShortcutBottomRight: GlobalShortcut.windowLayoutBottomRightDefault.storageValue,
         DefaultsKey.windowLayoutShortcutMaximize: GlobalShortcut.windowLayoutMaximizeDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutMarginMaximize: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutCenter: GlobalShortcut.windowLayoutCenterDefault.storageValue,
         DefaultsKey.windowLayoutShortcutRestore: GlobalShortcut.windowLayoutRestoreDefault.storageValue,
         DefaultsKey.windowLayoutShortcutLeftThird: GlobalShortcut.windowLayoutLeftThirdDefault.storageValue,
@@ -1051,16 +1245,64 @@ enum Defaults {
     static func register() {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
+        migrateScrollInverterAxes(in: defaults)
+        migrateWhatsAppDownloadsEnabled(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
+        activateBetaChannelIfRunningBeta(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
         migrateUtilityOrderForScreenshot(in: defaults)
         migrateUtilityOrderForAppUpdates(in: defaults)
         migrateScreenshotOpenEditorDirectly(in: defaults)
+        migrateUnifiedScreenCaptureShortcut(in: defaults)
+        migrateRestoredScreenCaptureShortcuts(in: defaults)
+        migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    /// When the user installs or runs a beta pre-release, activate the beta
+    /// channel default once so they seamlessly receive subsequent beta builds.
+    static func activateBetaChannelIfRunningBeta(in defaults: UserDefaults,
+                                                 version: String = AppInfo.version,
+                                                 isBeta: Bool = AppInfo.isBeta) {
+        let isPre = isBeta || {
+            let v = version.lowercased()
+            return v.contains("-beta") || v.contains("-rc") || v.contains("-alpha")
+        }()
+        guard isPre else { return }
+        let markerKey = "betaChannelActivatedFor.\(version)"
+        guard !defaults.bool(forKey: markerKey) else { return }
+        defaults.set(true, forKey: markerKey)
+        defaults.set(true, forKey: DefaultsKey.includeBetaUpdates)
+    }
+
+    /// The downloads cleanup for a messaging app used to sit in Cleaner for
+    /// everyone. Keep it visible only when someone already turned automatic
+    /// cleanup or the organizer on; everyone else gets the new off-by-default
+    /// choice.
+    static func migrateWhatsAppDownloadsEnabled(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.whatsAppDownloadsEnabled) == nil else {
+            return
+        }
+        let alreadyUsing = defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled)
+            || defaults.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled)
+        if alreadyUsing {
+            defaults.set(true, forKey: DefaultsKey.whatsAppDownloadsEnabled)
+        }
+    }
+
+    /// The former single switch also reversed vertical wheel events redirected
+    /// sideways with Shift. Mirror that choice once so updates and older
+    /// settings backups keep the same behavior until the user separates axes.
+    static func migrateScrollInverterAxes(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.scrollInverterHorizontalEnabled) == nil else {
+            return
+        }
+        defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
+                     forKey: DefaultsKey.scrollInverterHorizontalEnabled)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {
@@ -1100,6 +1342,106 @@ enum Defaults {
         guard action.isEmpty else { return }
         defaults.set(ScreenshotDefaultAction.edit.rawValue,
                      forKey: DefaultsKey.screenshotDefaultAction)
+    }
+
+    /// The four screen tools now share the screenshot shortcut. Preserve the
+    /// first dedicated shortcut an existing setup had enabled, while fresh
+    /// installs keep the combined shortcut off by default.
+    static func migrateUnifiedScreenCaptureShortcut(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated)
+        }
+        guard !defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled) else { return }
+
+        let legacyChoices: [(enabled: String, shortcut: String, fallback: GlobalShortcut)] = [
+            (DefaultsKey.recorderShortcutEnabled,
+             DefaultsKey.recorderShortcut,
+             .screenRecorderDefault),
+            (DefaultsKey.screenOCRShortcutEnabled,
+             DefaultsKey.screenOCRShortcut,
+             .screenOCRDefault),
+            (DefaultsKey.colorPickerShortcutEnabled,
+             DefaultsKey.colorPickerShortcut,
+             .colorPickerDefault),
+        ]
+        guard let choice = legacyChoices.first(where: {
+            defaults.bool(forKey: $0.enabled)
+        }) else { return }
+        let shortcut = defaults.string(forKey: choice.shortcut) ?? choice.fallback.storageValue
+        defaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
+        defaults.set(shortcut, forKey: DefaultsKey.screenshotShortcut)
+    }
+
+    /// The unified-capture migration copied an enabled dedicated shortcut to
+    /// the general capture role. Now that dedicated shortcuts are back, keep
+    /// the original role instead of registering the same combination twice.
+    static func migrateRestoredScreenCaptureShortcuts(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              let generalShortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+        else { return }
+
+        let dedicatedKeys = [
+            (DefaultsKey.recorderShortcutEnabled, DefaultsKey.recorderShortcut),
+            (DefaultsKey.screenOCRShortcutEnabled, DefaultsKey.screenOCRShortcut),
+            (DefaultsKey.colorPickerShortcutEnabled, DefaultsKey.colorPickerShortcut),
+        ]
+        guard dedicatedKeys.contains(where: { enabledKey, shortcutKey in
+            defaults.bool(forKey: enabledKey)
+                && defaults.string(forKey: shortcutKey) == generalShortcut
+        }) else { return }
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
+    }
+
+    /// The general capture shortcut now belongs to the screenshot tool, so on
+    /// an install without that tool a saved combination would register
+    /// nothing. Move it once onto the first available tool that has no
+    /// shortcut of its own, so the combination keeps opening the chooser.
+    /// A tool whose shortcut is switched off but was customized still counts
+    /// as having its own, so its saved combination is never overwritten.
+    /// Availability is read from the passed defaults — the same key
+    /// `isAvailable` reads from the standard ones — to stay testable.
+    static func migrateOrphanedCaptureShortcut(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.orphanedCaptureShortcutMigrated) else {
+            return
+        }
+        defer {
+            defaults.set(true, forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
+        }
+        guard defaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
+              !defaults.bool(forKey: AppFeature.screenshot.availabilityKey)
+        else { return }
+        let shortcut = defaults.string(forKey: DefaultsKey.screenshotShortcut)
+            ?? GlobalShortcut.screenshotDefault.storageValue
+
+        let candidates: [(feature: AppFeature, enabled: String,
+                          shortcut: String, unset: String)] = [
+            (.screenRecorder, DefaultsKey.recorderShortcutEnabled,
+             DefaultsKey.recorderShortcut,
+             GlobalShortcut.screenRecorderDefault.storageValue),
+            (.screenOCR, DefaultsKey.screenOCRShortcutEnabled,
+             DefaultsKey.screenOCRShortcut,
+             GlobalShortcut.screenOCRDefault.storageValue),
+            (.colorPicker, DefaultsKey.colorPickerShortcutEnabled,
+             DefaultsKey.colorPickerShortcut,
+             GlobalShortcut.colorPickerDefault.storageValue),
+        ]
+        guard let target = candidates.first(where: {
+            defaults.bool(forKey: $0.feature.availabilityKey)
+                && !defaults.bool(forKey: $0.enabled)
+                && (defaults.string(forKey: $0.shortcut) ?? $0.unset) == $0.unset
+        }) else { return }
+        defaults.set(true, forKey: target.enabled)
+        defaults.set(shortcut, forKey: target.shortcut)
+        defaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
     }
 
     static func migrateLegacySwitcherWindowShortcut(in defaults: UserDefaults) {
@@ -1194,6 +1536,13 @@ enum Defaults {
             : defaultKeyboardDebounceWindowMs
     }
 
+    /// Clamps rather than falling back to the default: a typed 4 becoming 5 is
+    /// the correction the person meant, a typed 4 becoming 20 is not.
+    static func sanitizedClipboardAutoClearDelay(_ seconds: Int) -> Int {
+        min(max(seconds, allowedClipboardAutoClearDelayRange.lowerBound),
+            allowedClipboardAutoClearDelayRange.upperBound)
+    }
+
     static func sanitizedMenuBarPreset(_ preset: String) -> String {
         allowedMenuBarPresets.contains(preset) ? preset : "dense"
     }
@@ -1279,7 +1628,13 @@ enum Defaults {
         var seen = Set<String>()
         var result: [String] = []
         for raw in bundleIDs {
-            let bundleID = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            // A mouse exception list also carries the path of a program that
+            // has no bundle identifier (issue #1009), and a file name may
+            // legally end in a space. Trimming one would store a spelling the
+            // running program never reports, so only an identifier is trimmed.
+            let bundleID = MouseAppExceptionSupport.isExecutablePathIdentity(raw)
+                ? raw
+                : raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !bundleID.isEmpty, !seen.contains(bundleID) else { continue }
             seen.insert(bundleID)
             result.append(bundleID)

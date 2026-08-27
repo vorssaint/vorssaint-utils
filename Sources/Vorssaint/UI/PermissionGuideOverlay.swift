@@ -23,11 +23,13 @@ final class PermissionGuideOverlay {
     private var panel: NSPanel?
     private var grantWatcher: AnyCancellable?
     private var dismissWork: DispatchWorkItem?
+    private let pollingDemandID = UUID()
 
     private init() {}
 
     func show(for kind: PermissionKind) {
         guard !Self.suppressed else { return }
+        Permissions.shared.setActivePermissionSurface(pollingDemandID, visible: false)
         dismissWork?.cancel()
         dismissWork = nil
         grantWatcher = nil
@@ -69,6 +71,7 @@ final class PermissionGuideOverlay {
         panel.contentView = host
         panel.orderFrontRegardless()
         self.panel = panel
+        Permissions.shared.setActivePermissionSurface(pollingDemandID, visible: true)
 
         let publisher = kind == .accessibility
             ? Permissions.shared.$accessibility
@@ -97,6 +100,7 @@ final class PermissionGuideOverlay {
         grantWatcher = nil
         panel?.orderOut(nil)
         panel = nil
+        Permissions.shared.setActivePermissionSurface(pollingDemandID, visible: false)
     }
 }
 

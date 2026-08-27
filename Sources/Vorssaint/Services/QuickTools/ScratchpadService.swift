@@ -12,11 +12,12 @@ import UniformTypeIdentifiers
 /// nothing runs at rest and edits remain available between openings. It steps
 /// aside on a click outside, and an option keeps it floating over other apps
 /// instead.
-final class ScratchpadService: ObservableObject {
+final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     static let shared = ScratchpadService()
 
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var isPinned = false
+    @Published private(set) var isPreviewing = false
     @Published private(set) var pads: [ScratchpadPad] = []
     @Published private(set) var selectedPadID: UUID?
     @Published var text = "" {
@@ -42,7 +43,8 @@ final class ScratchpadService: ObservableObject {
     private var isReplacingText = false
     private var modalInteractionActive = false
 
-    private init() {
+    private override init() {
+        super.init()
         hotkey.onPress = { [weak self] in self?.toggle() }
     }
 
@@ -87,6 +89,7 @@ final class ScratchpadService: ObservableObject {
             focusText()
             return
         }
+        isPreviewing = false
         isPinned = !closesOnClickOutside
         loadApplyingRetention()
         let panel = ensurePanel()
@@ -111,6 +114,7 @@ final class ScratchpadService: ObservableObject {
         removeMonitors()
         panel?.orderOut(nil)
         isPinned = false
+        isPreviewing = false
         modalInteractionActive = false
     }
 
@@ -119,12 +123,7 @@ final class ScratchpadService: ObservableObject {
     /// The former single-buffer file is read once and removed only after the
     /// replacement document has been written and read back successfully.
     private static var legacyStoreURL: URL? {
-        guard let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                                  in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier else { return nil }
-        return base
-            .appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("Scratchpad.txt")
+        PrivateFileStore.containerURL?.appendingPathComponent("Scratchpad.txt")
     }
 
     private func loadApplyingRetention() {
@@ -204,6 +203,7 @@ final class ScratchpadService: ObservableObject {
         isReplacingText = true
         text = selectedText
         isReplacingText = false
+        if text.isEmpty { isPreviewing = false }
         if focus { focusText() }
     }
 
@@ -282,7 +282,21 @@ final class ScratchpadService: ObservableObject {
         } else {
             text = ""
         }
+        if isPreviewing {
+            isPreviewing = false
+            focusText()
+        }
         flushSave()
+    }
+
+    func togglePreview() {
+        guard !text.isEmpty else { return }
+        isPreviewing.toggle()
+        if isPreviewing {
+            panel?.makeFirstResponder(nil)
+        } else {
+            focusText()
+        }
     }
 
     func togglePin() {
@@ -367,6 +381,8 @@ final class ScratchpadService: ObservableObject {
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         panel.contentMinSize = NSSize(width: 280, height: 220)
+        panel.minSize = NSSize(width: 280, height: 220)
+        panel.delegate = self
         let host = NSHostingController(rootView: ScratchpadView())
         // No preferred-size tracking: the pad is user-resizable and the view
         // fills whatever frame the panel has.
@@ -378,6 +394,10 @@ final class ScratchpadService: ObservableObject {
         center(panel)
         self.panel = panel
         return panel
+    }
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        NSSize(width: max(280, frameSize.width), height: max(220, frameSize.height))
     }
 
     private func center(_ panel: NSPanel) {

@@ -3,17 +3,18 @@
 
 import SwiftUI
 
-/// Settings for the screenshot shortcut, capture, save and export behavior.
-struct ScreenshotSettings: View {
+/// Screenshot-specific sections inside the shared screen-capture page.
+struct ScreenshotCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = ScreenshotService.shared
     @ObservedObject private var sharing = ScreenshotShareService.shared
-    @AppStorage(DefaultsKey.screenshotShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFullScreenShortcutEnabled)
     private var fullScreenShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
     private var lastCaptureShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotClipboardShortcutEnabled)
+    private var clipboardShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
     @AppStorage(DefaultsKey.screenshotHideVorssaintWindows) private var hideVorssaintWindows = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
@@ -40,7 +41,7 @@ struct ScreenshotSettings: View {
     }
 
     var body: some View {
-        Form {
+        Group {
             Section {
                 HStack(spacing: 10) {
                     Button {
@@ -61,19 +62,6 @@ struct ScreenshotSettings: View {
                 Text(strings.panelCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle(l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
-                    .onChange(of: shortcutEnabled) { _, _ in
-                        ScreenshotService.shared.syncWithPreferences()
-                    }
-                ShortcutPreferenceRow(role: .screenshot,
-                                      isEnabled: shortcutEnabled) {
-                    ScreenshotService.shared.syncWithPreferences()
-                }
-                if shortcutEnabled, service.shortcutRegistrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
                 Toggle(strings.fullScreenShortcutTitle, isOn: $fullScreenShortcutEnabled)
                     .onChange(of: fullScreenShortcutEnabled) { _, _ in
                         ScreenshotService.shared.syncWithPreferences()
@@ -101,12 +89,26 @@ struct ScreenshotSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                Toggle(strings.editClipboardImage, isOn: $clipboardShortcutEnabled)
+                    .onChange(of: clipboardShortcutEnabled) { _, _ in
+                        ScreenshotService.shared.syncWithPreferences()
+                    }
+                ShortcutPreferenceRow(role: .screenshotClipboard,
+                                      isEnabled: clipboardShortcutEnabled) {
+                    ScreenshotService.shared.syncWithPreferences()
+                }
+                if clipboardShortcutEnabled, service.clipboardShortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
                 if !permissions.screenRecording {
                     PermissionRow(kind: .screenRecording)
                 }
             } header: {
                 Text(strings.pageTitle)
             }
+            .settingsSectionAnchor(.screenshot)
 
             Section {
                 Toggle(strings.freezeToggle, isOn: $freeze)
@@ -184,7 +186,6 @@ struct ScreenshotSettings: View {
                 Text(strings.shareSectionTitle)
             }
         }
-        .formStyle(.grouped)
         .onAppear { sharing.refresh() }
         .sheet(isPresented: $showingSharedLinks) {
             ScreenshotSharedLinksView()

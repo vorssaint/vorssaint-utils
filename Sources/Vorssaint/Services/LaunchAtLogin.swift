@@ -10,8 +10,17 @@ import ServiceManagement
 /// registration never drift apart. `LaunchAtLoginSupport` explains why the
 /// system record alone cannot be trusted across relaunches.
 enum LaunchAtLogin {
+    /// What the system holds for this app right now.
+    static var registration: LaunchAtLoginSupport.Registration {
+        switch SMAppService.mainApp.status {
+        case .enabled: return .enabled
+        case .requiresApproval: return .needsApproval
+        default: return .off
+        }
+    }
+
     /// What the system will actually do at the next login.
-    static var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+    static var isEnabled: Bool { registration == .enabled }
 
     /// Thrown when the app runs from a place whose registration cannot
     /// survive a relaunch; the message tells the user how to fix it.
@@ -19,9 +28,17 @@ enum LaunchAtLogin {
         var errorDescription: String? { L10n.shared.s.launchAtLoginNeedsApplications }
     }
 
+    /// Thrown when the item is registered but System Settings still has it
+    /// switched off. Only the user can approve it there, so the toggle would
+    /// otherwise flip straight back with nothing said (issue #260).
+    struct NeedsApprovalError: LocalizedError {
+        var errorDescription: String? { L10n.shared.s.launchAtLoginNeedsApproval }
+    }
+
     static func setEnabled(_ enabled: Bool) throws {
         if enabled, locationIsUnstable { throw UnstableLocationError() }
         UserDefaults.standard.set(enabled, forKey: DefaultsKey.launchAtLoginWanted)
+        var failure: Error?
         do {
             if enabled {
                 try SMAppService.mainApp.register()
@@ -29,17 +46,23 @@ enum LaunchAtLogin {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
-            // Only surface failures that leave the system out of step with
-            // the user's choice. Unregistering an item that was already gone
-            // reports an error even though the end state is exactly what the
-            // user asked for.
-            if isEnabled != enabled {
-                // The stored intent must match what the user actually got;
-                // keeping the failed wish would make the startup repair
-                // register an item the UI showed as off.
-                UserDefaults.standard.set(isEnabled, forKey: DefaultsKey.launchAtLoginWanted)
-                throw error
-            }
+            failure = error
+        }
+        // Registering over an item the user switched off in System Settings
+        // leaves the app closed at login whether or not the call reports an
+        // error. Only the user can approve it there, so the wish stays stored
+        // and the message says where to finish the job.
+        if enabled, registration == .needsApproval { throw NeedsApprovalError() }
+        // Only surface failures that leave the system out of step with the
+        // user's choice. Unregistering an item that was already gone reports
+        // an error even though the end state is exactly what the user asked
+        // for.
+        if let failure, isEnabled != enabled {
+            // The stored intent must match what the user actually got;
+            // keeping the failed wish would make the startup repair register
+            // an item the UI showed as off.
+            UserDefaults.standard.set(isEnabled, forKey: DefaultsKey.launchAtLoginWanted)
+            throw failure
         }
     }
 
@@ -49,7 +72,7 @@ enum LaunchAtLogin {
         let defaults = UserDefaults.standard
         switch LaunchAtLoginSupport.startupAction(
             wanted: defaults.bool(forKey: DefaultsKey.launchAtLoginWanted),
-            systemEnabled: isEnabled,
+            registration: registration,
             locationIsUnstable: locationIsUnstable) {
         case .none:
             break

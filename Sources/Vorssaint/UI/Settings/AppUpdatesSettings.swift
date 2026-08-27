@@ -9,7 +9,10 @@ struct AppUpdatesSettings: View {
     @AppStorage(DefaultsKey.appUpdatesCheckFrequency)
     private var frequencyRaw = AppUpdatesSupport.CheckFrequency.off.rawValue
     @AppStorage(DefaultsKey.appUpdatesNotify) private var notify = true
+    @AppStorage(DefaultsKey.appUpdatesIncludeHomebrewApps) private var includeHomebrewApps = true
     @AppStorage(DefaultsKey.appUpdatesIncludeAppStore) private var includeAppStore = true
+    @AppStorage(DefaultsKey.appUpdatesIncludeOnlineCatalog)
+    private var includeOnlineCatalog = true
     @AppStorage(DefaultsKey.panelUtilityAppUpdates) private var showInPanel = true
 
     private var text: AppUpdateStrings { FeatureStrings.appUpdates(l10n.language) }
@@ -45,11 +48,31 @@ struct AppUpdatesSettings: View {
                     }
             }
 
-            Section {
+            Section(text.sourcesTitle) {
+                Toggle(text.includeHomebrewToggle, isOn: $includeHomebrewApps)
+                    .disabled(includeHomebrewApps && enabledSourceCount == 1)
+                    .onChange(of: includeHomebrewApps) { _, _ in
+                        updates.sourceSelectionDidChange()
+                    }
                 Toggle(text.includeStoreToggle, isOn: $includeAppStore)
+                    .disabled(includeAppStore && enabledSourceCount == 1)
+                    .onChange(of: includeAppStore) { _, _ in
+                        updates.sourceSelectionDidChange()
+                    }
                 Text(text.includeStoreCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle(text.includeOnlineToggle, isOn: $includeOnlineCatalog)
+                    .disabled(includeOnlineCatalog && enabledSourceCount == 1)
+                    .onChange(of: includeOnlineCatalog) { _, _ in
+                        updates.sourceSelectionDidChange()
+                    }
+                Text(text.includeOnlineCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
                 Toggle(text.showInPanel, isOn: $showInPanel)
             }
         }
@@ -65,6 +88,10 @@ struct AppUpdatesSettings: View {
             AppUpdatesService.shared.syncWithPreferences()
             if frequency != .off, notify { Notifier.requestPermission() }
         }
+    }
+
+    private var enabledSourceCount: Int {
+        [includeHomebrewApps, includeAppStore, includeOnlineCatalog].filter { $0 }.count
     }
 
     private func nextCheckText(_ date: Date) -> String {

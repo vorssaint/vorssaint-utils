@@ -43,6 +43,9 @@ struct RecorderEditDocument: Codable, Equatable {
     var zoomsGenerated: Bool
     /// Lines of text laid over the recording, in the recording's own time.
     var texts: [RecorderTextOverlay]
+    var keepsMicrophone: Bool
+    var systemAudioGain: Double
+    var microphoneGain: Double
 
     init(trimStart: Double = 0,
          trimEnd: Double = 0,
@@ -62,7 +65,10 @@ struct RecorderEditDocument: Codable, Equatable {
          cuts: [RecorderTimeline.Cut] = [],
          zoomSegments: [RecorderTimeline.ZoomSegment] = [],
          zoomsGenerated: Bool = false,
-         texts: [RecorderTextOverlay] = []) {
+         texts: [RecorderTextOverlay] = [],
+         keepsMicrophone: Bool = true,
+         systemAudioGain: Double = 1,
+         microphoneGain: Double = 1) {
         self.trimStart = trimStart
         self.trimEnd = trimEnd
         self.quality = quality
@@ -82,6 +88,9 @@ struct RecorderEditDocument: Codable, Equatable {
         self.zoomSegments = zoomSegments
         self.zoomsGenerated = zoomsGenerated
         self.texts = texts
+        self.keepsMicrophone = keepsMicrophone
+        self.systemAudioGain = systemAudioGain
+        self.microphoneGain = microphoneGain
     }
 
     /// A document written before these fields existed still opens: every one
@@ -112,6 +121,9 @@ struct RecorderEditDocument: Codable, Equatable {
                                                      forKey: .zoomSegments) ?? []
         zoomsGenerated = try container.decodeIfPresent(Bool.self, forKey: .zoomsGenerated) ?? false
         texts = try container.decodeIfPresent([RecorderTextOverlay].self, forKey: .texts) ?? []
+        keepsMicrophone = try container.decodeIfPresent(Bool.self, forKey: .keepsMicrophone) ?? true
+        systemAudioGain = try container.decodeIfPresent(Double.self, forKey: .systemAudioGain) ?? 1
+        microphoneGain = try container.decodeIfPresent(Double.self, forKey: .microphoneGain) ?? 1
     }
 
     // MARK: - Timeline
@@ -259,11 +271,19 @@ struct RecorderEditDocument: Codable, Equatable {
         cuts != other.cuts || trimStart != other.trimStart || trimEnd != other.trimEnd
     }
 
+    func affectsAudio(_ other: RecorderEditDocument) -> Bool {
+        keepsSystemAudio != other.keepsSystemAudio
+            || keepsMicrophone != other.keepsMicrophone
+            || systemAudioGain != other.systemAudioGain
+            || microphoneGain != other.microphoneGain
+    }
+
     /// True once the person has actually changed something worth warning about
     /// before the window closes.
     func isEdited(duration: Double) -> Bool {
         let trim = trim(duration: duration)
         return trim.start > 0.01 || trim.end < duration - 0.01 || !keepsSystemAudio
+            || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
             || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty
     }
 
@@ -281,6 +301,8 @@ struct RecorderEditDocument: Codable, Equatable {
         document.pointerSmoothing = resolvedSmoothing.rawValue
         document.pointerSize = RecorderSupport.sanitizedPointerSize(pointerSize)
         document.zoomAmount = RecorderSupport.sanitizedZoomAmount(zoomAmount)
+        document.systemAudioGain = RecorderSupport.sanitizedAudioGain(systemAudioGain)
+        document.microphoneGain = RecorderSupport.sanitizedAudioGain(microphoneGain)
         let backdropStyle = resolvedBackdrop
         document.backdrop = backdropStyle.kind == .none ? "" : backdropStyle.encoded()
         document.cuts = RecorderTimeline.normalized(cuts: cuts, duration: duration)

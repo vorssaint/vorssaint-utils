@@ -28,6 +28,12 @@ struct PeripheralBatteryDevice: Identifiable, Equatable {
     let kind: PeripheralBatteryKind
 }
 
+struct BluetoothBatteryReading: Equatable {
+    let id: String
+    let name: String
+    let percent: Int
+}
+
 enum PeripheralBatterySupport {
     static let percentKeys = [
         "BatteryPercent",
@@ -186,13 +192,76 @@ enum PeripheralBatterySupport {
     }
 
     static func bluetoothDevices(fromSystemProfilerJSON data: Data) -> [PeripheralBatteryDevice] {
+        var devices: [PeripheralBatteryDevice] = []
+        for (name, properties) in connectedBluetoothEntries(from: data) {
+            guard let percent = bluetoothPercent(in: properties) else { continue }
+            let minorType = string(from: properties["device_minorType"])
+            let kind = kind(product: name,
+                            minorType: minorType,
+                            primaryUsagePage: nil,
+                            primaryUsage: nil,
+                            usagePairs: [])
+            let id = string(from: properties["device_address"])
+                .map { "Bluetooth:\($0)" }
+                ?? "BluetoothName:\(name.lowercased())"
+            devices.append(PeripheralBatteryDevice(id: id,
+                                                   name: name,
+                                                   percent: percent,
+                                                   kind: kind))
+        }
+        return sorted(devices)
+    }
+
+    static func bluetoothKindsByName(fromSystemProfilerJSON data: Data) -> [String: PeripheralBatteryKind] {
+        var result: [String: PeripheralBatteryKind] = [:]
+        for (name, properties) in connectedBluetoothEntries(from: data) {
+            let minorType = string(from: properties["device_minorType"])
+            result[normalizedBluetoothName(name)] = kind(product: name,
+                                                         minorType: minorType,
+                                                         primaryUsagePage: nil,
+                                                         primaryUsage: nil,
+                                                         usagePairs: [])
+        }
+        return result
+    }
+
+    static func mergingBluetoothReadings(_ readings: [BluetoothBatteryReading],
+                                         into devices: [PeripheralBatteryDevice],
+                                         knownKinds: [String: PeripheralBatteryKind]) -> [PeripheralBatteryDevice] {
+        var result = devices
+        var seenIDs = Set(devices.map(\.id))
+        var seenNames = Set(devices.map { normalizedBluetoothName($0.name) })
+
+        for reading in readings {
+            let normalizedName = normalizedBluetoothName(reading.name)
+            let id = "BluetoothGATT:\(reading.id)"
+            guard !normalizedName.isEmpty,
+                  (0...100).contains(reading.percent),
+                  seenIDs.insert(id).inserted,
+                  seenNames.insert(normalizedName).inserted else {
+                continue
+            }
+            let kind = knownKinds[normalizedName]
+                ?? kind(product: reading.name,
+                        primaryUsagePage: nil,
+                        primaryUsage: nil,
+                        usagePairs: [])
+            result.append(PeripheralBatteryDevice(id: id,
+                                                  name: reading.name,
+                                                  percent: reading.percent,
+                                                  kind: kind))
+        }
+        return sorted(result)
+    }
+
+    private static func connectedBluetoothEntries(from data: Data) -> [(String, [String: Any])] {
         guard !data.isEmpty,
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let controllers = root["SPBluetoothDataType"] as? [Any] else {
             return []
         }
 
-        var devices: [PeripheralBatteryDevice] = []
+        var entries: [(String, [String: Any])] = []
         for controllerValue in controllers {
             guard let controller = dictionary(from: controllerValue),
                   let connected = controller["device_connected"] as? [Any] else {
@@ -201,27 +270,16 @@ enum PeripheralBatterySupport {
             for entryValue in connected {
                 guard let entry = dictionary(from: entryValue) else { continue }
                 for (name, propertiesValue) in entry {
-                    guard let properties = dictionary(from: propertiesValue),
-                          let percent = bluetoothPercent(in: properties) else {
-                        continue
-                    }
-                    let minorType = string(from: properties["device_minorType"])
-                    let kind = kind(product: name,
-                                    minorType: minorType,
-                                    primaryUsagePage: nil,
-                                    primaryUsage: nil,
-                                    usagePairs: [])
-                    let id = string(from: properties["device_address"])
-                        .map { "Bluetooth:\($0)" }
-                        ?? "BluetoothName:\(name.lowercased())"
-                    devices.append(PeripheralBatteryDevice(id: id,
-                                                           name: name,
-                                                           percent: percent,
-                                                           kind: kind))
+                    guard let properties = dictionary(from: propertiesValue) else { continue }
+                    entries.append((name, properties))
                 }
             }
         }
-        return sorted(devices)
+        return entries
+    }
+
+    private static func normalizedBluetoothName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private static func bluetoothPercent(in properties: [String: Any]) -> Int? {

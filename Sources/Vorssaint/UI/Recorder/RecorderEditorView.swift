@@ -11,9 +11,23 @@ struct RecorderEditorView: View {
     @ObservedObject var model: RecorderEditorModel
     let controller: RecorderEditorController
     @ObservedObject private var l10n = L10n.shared
+    @State private var sharedRecord: RecordingShareRecord?
+    @AppStorage(DefaultsKey.recorderSharingEnabled) private var sharingEnabled = true
 
     private var strings: RecorderFeatureStrings {
         FeatureStrings.recorder(l10n.language)
+    }
+
+    private var shareStrings: RecorderShareStrings {
+        FeatureStrings.recorderShare(l10n.language)
+    }
+
+    private var screenshotStrings: ScreenshotFeatureStrings {
+        FeatureStrings.screenshot(l10n.language)
+    }
+
+    private var recentCapturesTitle: String {
+        FeatureStrings.recentCaptures(l10n.language).title
     }
 
     var body: some View {
@@ -35,6 +49,11 @@ struct RecorderEditorView: View {
         .animation(.easeOut(duration: 0.18), value: model.isExporting)
         .animation(.easeOut(duration: 0.18), value: model.lastExportedURL)
         .frame(minWidth: 940, minHeight: 560)
+        .sheet(item: $sharedRecord) { record in
+            RecorderSharedLinkView(record: record,
+                                   strings: screenshotStrings,
+                                   close: { sharedRecord = nil })
+        }
     }
 
     // MARK: - Bands
@@ -44,6 +63,14 @@ struct RecorderEditorView: View {
             BrandMark(width: 24, tint: Color(white: 0.92))
             Text(strings.editorTitle)
                 .font(.system(size: 13, weight: .semibold))
+            Button {
+                RecentCaptureService.shared.showHistoryWindow()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .buttonStyle(RecorderToolbarButtonStyle(compact: true))
+            .screenshotSafeHelp(recentCapturesTitle)
+            .accessibilityLabel(recentCapturesTitle)
             Divider().frame(height: 18).padding(.horizontal, 3)
             Button(action: model.undo) {
                 Image(systemName: "arrow.uturn.backward")
@@ -88,6 +115,10 @@ struct RecorderEditorView: View {
                 .screenshotSafeHelp("⌘C")
             }
 
+            if sharingEnabled {
+                shareMenu
+            }
+
             Menu {
                 Button(strings.saveVideoButton, action: controller.saveVideo)
                     .keyboardShortcut("s", modifiers: .command)
@@ -111,6 +142,26 @@ struct RecorderEditorView: View {
         .frame(height: 54)
         .background(.ultraThinMaterial)
         .overlay(alignment: .bottom) { Divider().opacity(0.45) }
+    }
+
+    private var shareMenu: some View {
+        Menu {
+            ForEach(RecordingShareDuration.allCases) { duration in
+                Button(duration.title(screenshotStrings)) {
+                    controller.share(duration) { record in
+                        sharedRecord = record
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "link")
+                .frame(width: 24, height: 24)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .disabled(model.isExporting)
+        .screenshotSafeHelp(screenshotStrings.shareButton)
+        .accessibilityLabel(screenshotStrings.shareButton)
     }
 
     private var presetsMenu: some View {
@@ -217,6 +268,18 @@ struct RecorderEditorView: View {
                         .frame(height: 30)
                 }
             }
+            if model.hasAudio(.system) {
+                timelineRow(strings.systemAudioTrackLabel) {
+                    RecorderAudioLane(model: model, source: .system)
+                        .frame(height: 32)
+                }
+            }
+            if model.hasAudio(.microphone) {
+                timelineRow(strings.microphoneTrackLabel) {
+                    RecorderAudioLane(model: model, source: .microphone)
+                        .frame(height: 32)
+                }
+            }
             timelineRow(strings.editorTitle) {
                 Filmstrip(model: model).frame(height: 54)
             }
@@ -285,17 +348,6 @@ struct RecorderEditorView: View {
 
             Spacer()
 
-            Button(action: model.toggleSound) {
-                Image(systemName: model.document.keepsSystemAudio
-                      ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                    .frame(width: 22, height: 18)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            .tint(model.document.keepsSystemAudio ? .accentColor : nil)
-            .screenshotSafeHelp(strings.systemAudioToggle)
-            .accessibilityLabel(strings.systemAudioToggle)
-
             Menu {
                 Picker(strings.qualityLabel, selection: qualityBinding) {
                     Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)
@@ -361,10 +413,16 @@ struct RecorderEditorView: View {
     /// "this is hard for me", and it is not.
     private var exportProgressChip: some View {
         HStack(spacing: 8) {
-            ProgressView(value: model.exportProgress)
-                .progressViewStyle(.linear)
-                .frame(width: 110)
-            Text(strings.exportingLabel)
+            if model.exportPhase == .uploading {
+                ProgressView()
+                    .controlSize(.small)
+                    .frame(width: 20)
+            } else {
+                ProgressView(value: model.exportProgress)
+                    .progressViewStyle(.linear)
+                    .frame(width: 110)
+            }
+            Text(exportProgressLabel)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(white: 0.8))
             Button(strings.cancelButton) { model.cancelExport() }
@@ -376,6 +434,14 @@ struct RecorderEditorView: View {
         .padding(.vertical, 6)
         .background(.regularMaterial, in: Capsule())
         .transition(.opacity)
+    }
+
+    private var exportProgressLabel: String {
+        switch model.exportPhase {
+        case .saving: strings.exportingLabel
+        case .compressing: shareStrings.compressing
+        case .uploading: shareStrings.uploading
+        }
     }
 
     /// The finished file itself, draggable straight into a chat window and
@@ -401,6 +467,167 @@ struct RecorderEditorView: View {
         .screenshotSafeHelp(l10n.s.cleanerRevealInFinder)
         .onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
         .transition(.opacity)
+    }
+}
+
+private struct RecorderSharedLinkView: View {
+    let record: RecordingShareRecord
+    let strings: ScreenshotFeatureStrings
+    let close: () -> Void
+    @State private var deleting = false
+    @State private var showingDeleteError = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label(strings.sharedLinksTitle, systemImage: "link")
+                    .font(.title3.weight(.semibold))
+                Spacer()
+                Button(strings.done, action: close)
+                    .keyboardShortcut(.defaultAction)
+            }
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(record.url.absoluteString)
+                    .font(.system(.body, design: .rounded))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                HStack(spacing: 4) {
+                    Text(strings.expiresLabel)
+                    Text(record.expiresAt, style: .relative)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.055),
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
+            }
+
+            HStack {
+                Spacer()
+                Button {
+                    if RecordingShareService.shared.copy(record.url) {
+                        QuickToolHUD.show(icon: "link", message: strings.sharedHUD)
+                    } else {
+                        NSSound.beep()
+                    }
+                } label: {
+                    Label(strings.copyLink, systemImage: "doc.on.doc")
+                }
+                .keyboardShortcut("c", modifiers: .command)
+                Button(role: .destructive) {
+                    deleteLink()
+                } label: {
+                    if deleting {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Label(strings.deleteLink, systemImage: "trash")
+                    }
+                }
+                .disabled(deleting)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+        .alert(strings.deleteFailedHUD, isPresented: $showingDeleteError) {
+            Button(strings.done, role: .cancel) {}
+        }
+    }
+
+    private func deleteLink() {
+        deleting = true
+        Task { @MainActor in
+            do {
+                try await RecordingShareService.shared.delete(record)
+                QuickToolHUD.show(icon: "link", message: strings.linkDeletedHUD)
+                close()
+            } catch {
+                deleting = false
+                showingDeleteError = true
+            }
+        }
+    }
+}
+
+// MARK: - Audio timeline
+
+private struct RecorderAudioLane: View {
+    @ObservedObject var model: RecorderEditorModel
+    let source: RecorderAudioSource
+
+    private var strings: RecorderFeatureStrings {
+        FeatureStrings.recorder(L10n.shared.language)
+    }
+
+    private var isKept: Bool { model.keepsAudio(source) }
+    private var gain: Double { model.audioGain(source) }
+    private var tint: Color { source == .system ? .blue : .purple }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            waveform
+                .frame(maxWidth: .infinity)
+                .opacity(isKept ? 1 : 0.3)
+
+            Slider(value: Binding(get: { gain },
+                                  set: { model.setAudioGain($0, for: source) }),
+                   in: RecorderSupport.audioGainRange)
+                .frame(width: 92)
+                .disabled(!isKept)
+                .screenshotSafeHelp(strings.audioVolumeLabel)
+                .accessibilityLabel(strings.audioVolumeLabel)
+
+            Text("\(Int((gain * 100).rounded()))%")
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
+
+            Button { model.toggleAudio(source) } label: {
+                Image(systemName: isKept ? "xmark" : "arrow.uturn.backward")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(isKept ? Color.secondary : tint)
+            .screenshotSafeHelp(isKept ? strings.removeAudio : strings.restoreAudio)
+            .accessibilityLabel(isKept ? strings.removeAudio : strings.restoreAudio)
+        }
+        .padding(.horizontal, 8)
+        .background(tint.opacity(isKept ? 0.11 : 0.04),
+                    in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(tint.opacity(isKept ? 0.28 : 0.1), lineWidth: 1)
+        }
+    }
+
+    private var waveform: some View {
+        let peaks = model.audioWaveforms[source] ?? []
+        return Canvas { context, size in
+            guard !peaks.isEmpty, size.width > 0 else {
+                let line = Path(CGRect(x: 0, y: size.height / 2, width: size.width, height: 1))
+                context.fill(line, with: .color(tint.opacity(0.35)))
+                return
+            }
+            let step = size.width / CGFloat(peaks.count)
+            for (index, peak) in peaks.enumerated() {
+                let height = max(1, CGFloat(peak) * (size.height - 8))
+                let rect = CGRect(x: CGFloat(index) * step,
+                                  y: (size.height - height) / 2,
+                                  width: max(1, step * 0.68),
+                                  height: height)
+                context.fill(Path(roundedRect: rect, cornerRadius: 0.7),
+                             with: .color(tint.opacity(0.8)))
+            }
+        }
     }
 }
 
@@ -473,6 +700,7 @@ private struct Filmstrip: View {
     private enum Handle { case start, end }
 
     private let handleWidth: CGFloat = 12
+    private let coordinateSpace = "recorderFilmstrip"
 
     var body: some View {
         GeometryReader { proxy in
@@ -544,14 +772,17 @@ private struct Filmstrip: View {
                     .offset(x: startX)
                     .allowsHitTesting(false)
 
-                handle(at: startX, height: height)
+                handle(height: height)
+                    .position(x: startX + handleWidth / 2, y: height / 2)
                     .gesture(drag(.start, width: width))
-                handle(at: endX - handleWidth, height: height)
+                handle(height: height)
+                    .position(x: endX - handleWidth / 2, y: height / 2)
                     .gesture(drag(.end, width: width))
 
                 playhead(at: position(model.sourceTime, width: width), height: height)
             }
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .coordinateSpace(.named(coordinateSpace))
         }
     }
 
@@ -571,7 +802,7 @@ private struct Filmstrip: View {
         }
     }
 
-    private func handle(at x: CGFloat, height: CGFloat) -> some View {
+    private func handle(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(Color.accentColor)
             .frame(width: handleWidth, height: height)
@@ -580,7 +811,6 @@ private struct Filmstrip: View {
                     .fill(Color.white.opacity(0.85))
                     .frame(width: 2, height: height * 0.36)
             }
-            .offset(x: max(0, x))
             .contentShape(Rectangle().inset(by: -6))
     }
 
@@ -594,7 +824,7 @@ private struct Filmstrip: View {
     }
 
     private func drag(_ handle: Handle, width: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .named(coordinateSpace))
             .onChanged { value in
                 let time = seconds(at: value.location.x, width: width)
                 switch handle {

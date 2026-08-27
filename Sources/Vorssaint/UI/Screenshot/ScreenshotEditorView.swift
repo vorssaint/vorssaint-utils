@@ -30,6 +30,10 @@ struct ScreenshotEditorView: View {
         FeatureStrings.screenshot(l10n.language)
     }
 
+    private var recentCapturesTitle: String {
+        FeatureStrings.recentCaptures(l10n.language).title
+    }
+
     var body: some View {
         // Real rows and columns, not overlays: the canvas scrolls in its own
         // region, so zoomed content can never slide under the controls.
@@ -258,6 +262,9 @@ struct ScreenshotEditorView: View {
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: -5), blur: 18,
                          color: CGColor(gray: 0, alpha: 0.38))
+            cg.addRect(CGRect(origin: .zero, size: size))
+            cg.addPath(path)
+            cg.clip(using: .evenOdd)
             cg.addPath(path)
             cg.setFillColor(CGColor(gray: 1, alpha: 1))
             cg.fillPath()
@@ -366,9 +373,14 @@ struct ScreenshotEditorView: View {
     @ViewBuilder
     private func cropLoupeOverlay(zoom: CGFloat, canvasSize: CGSize) -> some View {
         if let point = model.cropLoupePoint {
+            // A crop edge sits between pixels, not on one, so this loupe wants an
+            // even sample side to put that edge in the middle of the frame — the
+            // opposite of what the capture loupe's color read needs.
             let sourceRect = ScreenshotSupport.cropLoupeSampleRect(
                 around: point,
-                imageSize: model.imageSize)
+                imageSize: model.imageSize,
+                sideLength: 14,
+                centredOnPixel: false)
             if let sample = model.baseImage.cropping(to: sourceRect) {
                 let size = Self.cropLoupeSize
                 let crossX = min(max((point.x - sourceRect.minX) / sourceRect.width * size, 0.5),
@@ -661,6 +673,18 @@ struct ScreenshotEditorView: View {
 
     private var actionCluster: some View {
         HStack(spacing: 4) {
+            Button {
+                RecentCaptureService.shared.showHistoryWindow()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .screenshotSafeHelp(recentCapturesTitle)
+            .accessibilityLabel(recentCapturesTitle)
+
+            Divider().frame(height: 16).padding(.horizontal, 3)
+
             Button {
                 controller.discardAndClose()
             } label: {
@@ -1165,17 +1189,11 @@ struct ScreenshotEditorView: View {
             .onDrag {
                 commitEditingTextIfNeeded()
                 guard let image = model.exportImage(),
-                      let data = ScreenshotRenderer.pngData(from: image)
+                      let provider = ScreenshotService.dragItemProvider(image: image,
+                                                                        strings: strings)
                 else { return NSItemProvider() }
-                let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
-                do {
-                    try data.write(to: url, options: .atomic)
-                } catch {
-                    return NSItemProvider()
-                }
                 model.markExported()
-                return NSItemProvider(contentsOf: url) ?? NSItemProvider()
+                return provider
             }
             .screenshotSafeHelp(strings.editorTitle)
     }

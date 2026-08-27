@@ -7,6 +7,24 @@ import Foundation
 /// reply parsing, value scaling and the display-to-service match score. No
 /// IOKit here so the unit tests cover every byte.
 enum BrightnessSupport {
+    struct DisplayTopology: Equatable {
+        let online: Set<UInt32>
+        let active: Set<UInt32>
+    }
+
+    /// Opening the panel while a display scan is already running should use
+    /// that scan instead of queuing the same slow DDC work again. A changed
+    /// topology and the wake path still require a fresh rebuild.
+    static func shouldQueueRebuild(topology: DisplayTopology,
+                                   pending: DisplayTopology?,
+                                   force: Bool = false) -> Bool {
+        force || pending != topology
+    }
+
+    static func brightnessAfterRebuild(probed: Double, pending: Double?) -> Double {
+        pending ?? probed
+    }
+
     /// VCP code for luminance in the DDC/CI standard.
     static let luminanceCode: UInt8 = 0x10
     /// 7-bit I2C address DDC displays listen on.
@@ -23,6 +41,24 @@ enum BrightnessSupport {
     static let writeCycles = 2
     static let retryAttempts = 4
     static let replyLength = 11
+
+    /// Discovery keeps the normal number of reply chances but sends only one
+    /// request before each read. The read and retry pauses put every request
+    /// more than 50ms apart instead of sending pairs 10ms apart.
+    static func ddcProbeAttempts() -> Int {
+        retryAttempts + 1
+    }
+
+    static func ddcProbeWriteCycles(classifyingChannel: Bool) -> Int {
+        classifyingChannel ? 1 : writeCycles
+    }
+
+    static let defaultKeyboardLightLevel: Float = 0.5
+
+    static func keyboardLightOnLevel(lastNonzero: Float?) -> Float {
+        guard let lastNonzero, lastNonzero > 0 else { return defaultKeyboardLightLevel }
+        return min(lastNonzero, 1)
+    }
 
     /// The DDC/CI standard also spaces whole commands apart: a host waits at
     /// least 50ms after one command before starting the next. The pauses
@@ -104,13 +140,60 @@ enum BrightnessSupport {
         return writeAccepted ? .writeOnly : .dead
     }
 
+    /// Identifies one physical monitor on one connection path. A monitor may
+    /// answer DDC directly but become write-only behind a particular hub, so
+    /// neither the display fingerprint nor the port is sufficient alone.
+    static func ddcPathKey(displayFingerprint: String,
+                           ioDisplayLocation: String) -> String? {
+        guard !displayFingerprint.isEmpty, !ioDisplayLocation.isEmpty else { return nil }
+        return "\(displayFingerprint)|\(ioDisplayLocation)"
+    }
+
+    /// Keeps recent write-only paths unique and bounded. Re-adding a path
+    /// moves it to the end, while a successful reply or rejected write removes
+    /// it so a changed connection can be classified again.
+    static func updatedWriteOnlyDDCPaths(_ stored: [String],
+                                         path: String,
+                                         isWriteOnly: Bool,
+                                         limit: Int = 16) -> [String] {
+        guard !path.isEmpty, limit > 0 else { return [] }
+        var updated = stored.filter { !$0.isEmpty && $0 != path }
+        if isWriteOnly { updated.append(path) }
+        return Array(updated.suffix(limit))
+    }
+
+    static func shouldProbeDDC(pathKey: String?, writeOnlyPaths: Set<String>) -> Bool {
+        guard let pathKey else { return true }
+        return !writeOnlyPaths.contains(pathKey)
+    }
+
     // MARK: - Display switching
 
     /// Turning off the final drawable display would leave no UI path to turn
     /// it back on. The target must be active and another active display must
     /// remain after the transaction.
-    static func canDisableDisplay(activeDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
-        activeDisplayIDs.contains(target) && activeDisplayIDs.count > 1
+    static func canDisableDisplay(drawableDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
+        drawableDisplayIDs.contains(target) && drawableDisplayIDs.count > 1
+    }
+
+    /// Active display lists can include virtual devices with no picture a
+    /// person can use. Keep only online, active, non-virtual displays when
+    /// deciding whether the Mac has been left without a visible screen.
+    static func drawableDisplayIDs(onlineDisplayIDs: Set<UInt32>,
+                                   activeDisplayIDs: Set<UInt32>,
+                                   virtualDisplayIDs: Set<UInt32>) -> Set<UInt32> {
+        onlineDisplayIDs.intersection(activeDisplayIDs).subtracting(virtualDisplayIDs)
+    }
+
+    /// If a cable removal leaves the Mac with no drawable display, bring back
+    /// one display this app switched off. Prefer the built-in panel so the
+    /// portable Mac recovers without changing any other disabled display.
+    static func headlessRecoveryCandidates(drawableDisplayIDs: Set<UInt32>,
+                                           managedDisabledIDs: Set<UInt32>,
+                                           builtInDisabledIDs: Set<UInt32>) -> [UInt32] {
+        guard drawableDisplayIDs.isEmpty else { return [] }
+        let builtIn = managedDisabledIDs.intersection(builtInDisabledIDs)
+        return builtIn.sorted() + managedDisabledIDs.subtracting(builtIn).sorted()
     }
 
     // MARK: - Software dimming (gamma curve)
@@ -130,6 +213,17 @@ enum BrightnessSupport {
     static func scaledGammaTable(_ table: [Float], factor: Float) -> [Float] {
         guard factor < 1 else { return table }
         return table.map { $0 * factor }
+    }
+
+    /// The gamma scale to put back on a software-dimmed display when the
+    /// routes are rebuilt. Only a dim this app applied itself is ours to
+    /// restore: the session's remembered level is also filled in from a
+    /// monitor's own DDC or system reading, and that is its backlight, not a
+    /// gamma scale. Replaying such a level here darkened a screen that was
+    /// already at exactly that brightness, every time the routes were rebuilt
+    /// (issue #697).
+    static func softwareDimToRestore(remembered: Double?, appliedByApp: Bool) -> Double {
+        appliedByApp ? (remembered ?? 1.0) : 1.0
     }
 
     /// The dim level put back on a display that just returned from a

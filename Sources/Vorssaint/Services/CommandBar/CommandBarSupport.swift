@@ -9,6 +9,105 @@ enum CommandBarClipboardAccess {
     }
 }
 
+/// What an empty field shows. Pure, because the ranking, the panel and the
+/// tests all need the same answer.
+enum CommandBarHome {
+    /// Whether an empty field still draws the browse list and its chips. A
+    /// category is an explicit drill-in and always shows its rows; a peek is
+    /// the person asking for the list anyway.
+    static func showsBrowseList(compact: Bool, hasCategory: Bool, isPeeking: Bool) -> Bool {
+        hasCategory || isPeeking || !compact
+    }
+
+    /// Whether the panel is the field alone, with no divider, list or footer.
+    static func isCollapsed(compact: Bool,
+                            query: String,
+                            hasCategory: Bool,
+                            isPeeking: Bool) -> Bool {
+        guard compact, !hasCategory, !isPeeking else { return false }
+        return query.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+}
+
+/// The bar can be visible before home has finished preparing, but only the
+/// presentation that asked for that work may receive it.
+struct CommandBarPresentationLifecycle {
+    enum Surface: Equatable {
+        case hidden
+        case loadingHome(UUID)
+        case home(UUID)
+    }
+
+    private(set) var surface: Surface = .hidden
+
+    var isLoadingHome: Bool { surface.isLoadingHome }
+
+    mutating func beginHome(_ id: UUID) {
+        surface = .loadingHome(id)
+    }
+
+    mutating func hide() {
+        surface = .hidden
+    }
+
+    func acceptsHomeHydration(_ id: UUID, isVisible: Bool) -> Bool {
+        isVisible && surface == .loadingHome(id)
+    }
+
+    func acceptsHomeUpdates(_ id: UUID, isVisible: Bool) -> Bool {
+        isVisible && surface == .home(id)
+    }
+
+    /// A shared cache is useful to whichever Home is current when its work
+    /// finishes, even when another presentation started that work. A hidden
+    /// panel still rejects the accompanying UI refresh.
+    func acceptsSharedCacheCompletion(startedBy _: UUID,
+                                      currentID: UUID,
+                                      isVisible: Bool) -> Bool {
+        acceptsHomeUpdates(currentID, isVisible: isVisible)
+    }
+
+    @discardableResult
+    mutating func completeHomeHydration(_ id: UUID, isVisible: Bool) -> Bool {
+        guard acceptsHomeHydration(id, isVisible: isVisible) else { return false }
+        surface = .home(id)
+        return true
+    }
+
+}
+
+/// A shortcut that needs the panel waits for Home's deferred hydration before
+/// it enters confirmation, argument or setup mode. Its presentation id keeps
+/// a close or newer opening from running yesterday's request.
+struct CommandBarDeferredRowShortcut {
+    private var pending: (presentationID: UUID, stableKey: String)?
+
+    mutating func schedule(_ stableKey: String, for presentationID: UUID) {
+        pending = (presentationID, stableKey)
+    }
+
+    mutating func cancel() {
+        pending = nil
+    }
+
+    func key(for presentationID: UUID) -> String? {
+        pending?.presentationID == presentationID ? pending?.stableKey : nil
+    }
+
+    mutating func take(for presentationID: UUID) -> String? {
+        guard pending?.presentationID == presentationID else { return nil }
+        defer { pending = nil }
+        return pending?.stableKey
+    }
+}
+
+private extension CommandBarPresentationLifecycle.Surface {
+    var isLoadingHome: Bool {
+        if case .loadingHome = self { return true }
+        return false
+    }
+}
+
 /// One searchable row offered to the command bar's ranking pass. `boost`
 /// carries whatever the caller wants to privilege (usage, pinning) so the
 /// ranking itself stays a pure function of text.
@@ -69,6 +168,36 @@ enum CommandBarSearch {
     /// for the lookup.
     private static func isInvisible(_ scalar: Unicode.Scalar) -> Bool {
         scalar.value >= 0x00AD && scalar.properties.generalCategory == .format
+    }
+
+    /// The Latin spellings an ideographic title also answers to. The pinyin
+    /// comes back run together, the way it is typed, plus its initials. A
+    /// title without a Han character gets nothing because romanizing it would
+    /// only repeat the title.
+    static func pinyinKeywords(_ title: String) -> String {
+        let romanized = NSMutableString(string: title)
+        guard CFStringTransform(romanized, nil, kCFStringTransformMandarinLatin, false),
+              romanized as String != title else { return "" }
+        CFStringTransform(romanized, nil, kCFStringTransformStripDiacritics, false)
+        let syllables = (romanized as String)
+            .split { !$0.isLetter && !$0.isNumber }
+            .map { $0.lowercased() }
+        guard !syllables.isEmpty else { return "" }
+        let joined = syllables.joined()
+        let initials = String(syllables.compactMap(\.first))
+        return joined == initials ? joined : joined + " " + initials
+    }
+
+    static func applicationKeywords(title: String,
+                                    diskName: String,
+                                    alternateNames: [String]) -> String {
+        var names = alternateNames
+        if !diskName.isEmpty, normalized(diskName) != normalized(title) {
+            names.append(diskName)
+        }
+        let pinyin = pinyinKeywords(title)
+        if !pinyin.isEmpty { names.append(pinyin) }
+        return names.joined(separator: " ")
     }
 
     /// Whether the query names the verb of a format like "Quit %@". Used to

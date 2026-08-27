@@ -103,9 +103,34 @@ private struct PanelCardModifier: ViewModifier {
 
 private struct PanelGlassSurface: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
     let cornerRadius: CGFloat
 
     var body: some View {
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *), liquidGlassEnabled, !reduceTransparency {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(Color.clear)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(PanelSurface.baseFill(for: colorScheme).opacity(colorScheme == .light ? 0.35 : 0.45))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
+                )
+        } else {
+            standardSurface
+        }
+#else
+        standardSurface
+#endif
+    }
+
+    @ViewBuilder
+    private var standardSurface: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(.regularMaterial)
             .overlay(
@@ -150,6 +175,26 @@ struct BrandMark: View {
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(tint)
                 .frame(width: width * 0.5)
+        }
+    }
+}
+
+struct DiscordMark: View {
+    var width: CGFloat
+
+    private static let mark: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "discord-symbol",
+                                        withExtension: "svg",
+                                        subdirectory: "Images") else { return nil }
+        return NSImage(contentsOf: url)
+    }()
+
+    var body: some View {
+        if let mark = Self.mark {
+            Image(nsImage: mark)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: width)
         }
     }
 }

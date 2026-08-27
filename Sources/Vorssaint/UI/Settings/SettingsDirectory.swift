@@ -19,7 +19,9 @@ struct SettingsDirectoryItem: Identifiable {
 /// so a page added here is findable everywhere at once.
 enum SettingsDirectory {
     static func sections(_ s: Strings,
-                         language: AppLanguage) -> [(title: String, items: [SettingsDirectoryItem])] {
+                         language: AppLanguage,
+                         superKeySource: SuperKeySource = SuperKeyService.shared.source)
+        -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         return [
             (categories.essentials, [
@@ -46,7 +48,11 @@ enum SettingsDirectory {
                                                  FeatureStrings.brightness(language).osdToggle,
                                                  FeatureStrings.keepAwakeAutomation(language)
                                                      .externalDisplayToggle,
-                                                 FeatureStrings.keepAwakeAutomation(language).powerToggle]),
+                                                 FeatureStrings.keepAwakeAutomation(language).powerToggle,
+                                                 FeatureStrings.keepAwakeDisplaySleep(language)
+                                                     .allowDisplaySleep,
+                                                 FeatureStrings.bluetoothSleep(language).pageTitle,
+                                                 FeatureStrings.bluetoothSleep(language).enable]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
                                                  s.monitorMemoryPressureDot,
@@ -54,7 +60,9 @@ enum SettingsDirectory {
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
-                                      keywords: [s.invertMouseScroll, s.middleClickTapPicker,
+                                      keywords: [s.invertMouseScroll, s.invertVerticalScroll,
+                                                 s.invertHorizontalScroll, s.middleClickTapPicker,
+                                                 s.focusFollowsMouseName, s.focusFollowsMouseDelay,
                                                  s.smoothScrollName, s.mouseNavigationEnable,
                                                  FeatureStrings.mouseButtons(language).pageTitle,
                                                  FeatureStrings.mouseButtons(language).sideWheelLeftName,
@@ -63,6 +71,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                       keywords: [s.switcherEnable, s.dockClickMinimize, s.dockClickHide,
                                                  s.dockClickCycleWindows, s.switcherWindowlessApps,
+                                                 s.switcherShowShortcutHints,
                                                  FeatureStrings.switcherAppRules(language).listTitle,
                                                  FeatureStrings.switcherAppRules(language).showWithoutWindows,
                                                  FeatureStrings.switcherAppRules(language).windowsOnly,
@@ -84,6 +93,10 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.clipboard(language).limit,
                                                  FeatureStrings.clipboard(language).skipSensitive,
                                                  FeatureStrings.clipboard(language).pasteImageAsFile,
+                                                 FeatureStrings.clipboard(language).autoClearEnable,
+                                                 FeatureStrings.clipboard(language).autoClearOnSleep,
+                                                 FeatureStrings.clipboard(language).autoClearOnDisplaySleep,
+                                                 FeatureStrings.clipboard(language).autoClearOnScreenLock,
                                                  FeatureStrings.clipboardIgnoredApps(language).listTitle]),
                 SettingsDirectoryItem(page: .cutPaste,
                                       title: FeatureStrings.finderRename(language).pageTitle,
@@ -91,9 +104,11 @@ enum SettingsDirectory {
                                       keywords: [s.cutPasteEnable,
                                                  FeatureStrings.finderRename(language).enableLabel]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
-                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle]),
+                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle]),
                 SettingsDirectoryItem(page: .media, title: s.mediaName, icon: "photo.on.rectangle.angled",
-                                      keywords: ["PDF", "GIF", s.mediaStartConvertPDF, s.ocrName]),
+                                      keywords: ["PDF", "GIF", "PNG", "JPEG", "convert", "resize", "watermark",
+                                                 "rename", "profile", "fit", "fill", "crop",
+                                                 s.mediaStartConvertPDF, s.ocrName]),
             ]),
             // Everything about the apps installed on the Mac lives together:
             // what is out of date, what is junk and what should go.
@@ -112,6 +127,10 @@ enum SettingsDirectory {
                                                  FeatureStrings.whatsAppDownloads(language).fileTypes]),
                 SettingsDirectoryItem(page: .homebrew, title: s.homebrewName, icon: "shippingbox"),
                 SettingsDirectoryItem(page: .uninstaller, title: s.uninstallerName, icon: "trash"),
+                SettingsDirectoryItem(page: .killProcess,
+                                      title: FeatureStrings.killProcess(language).pageTitle,
+                                      icon: "xmark.octagon",
+                                      keywords: ["force quit", "process", "cpu", "memory", "kill"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .commandBar,
@@ -120,36 +139,27 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.commandBar(language).openButton,
                                                  FeatureStrings.commandBar(language).searchPlaceholder]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
-                                      keywords: [s.launcherName, s.colorPickerName,
-                                                 s.micMuteName, s.ocrName,
-                                                 s.colorPickerBareHexToggle, s.micMuteMenuBarToggle,
+                                      keywords: [s.launcherName, s.micMuteName,
+                                                 s.micMuteMenuBarToggle,
                                                  FeatureStrings.quickToggles(language).pageTitle,
                                                  FeatureStrings.quickToggles(language).darkModeToDark,
                                                  FeatureStrings.quickToggles(language).emptyTrashTitle,
+                                                 FeatureStrings.brightness(language).keyboardLight,
                                                  FeatureStrings.cameraPreview(language).pageTitle,
                                                  FeatureStrings.scratchpad(language).pageTitle]),
                 SettingsDirectoryItem(page: .screenshot,
-                                      title: FeatureStrings.screenshot(language).pageTitle,
+                                      title: FeatureStrings.screenshot(language).screenCaptureTitle,
                                       icon: "camera.viewfinder",
-                                      keywords: [FeatureStrings.screenshot(language).freezeToggle,
-                                                 FeatureStrings.screenshot(language).previewPositionLabel,
-                                                 FeatureStrings.screenshot(language).pinButton,
-                                                 FeatureStrings.screenshot(language).toolPixelate,
-                                                 FeatureStrings.screenshot(language).toolArrow]),
-                SettingsDirectoryItem(page: .screenRecorder,
-                                      title: FeatureStrings.recorder(language).pageTitle,
-                                      icon: "record.circle",
-                                      keywords: [FeatureStrings.recorder(language).startButton,
-                                                 FeatureStrings.recorder(language).systemAudioToggle,
-                                                 FeatureStrings.recorder(language).qualityLabel,
-                                                 FeatureStrings.recorder(language).frameRateLabel]),
+                                      keywords: SettingsSearchSupport.screenCaptureKeywords(
+                                        s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,
-                                      icon: "capslock",
-                                      keywords: [FeatureStrings.superKey(language).capsLockKey,
-                                                 FeatureStrings.superKey(language).enableToggle]),
+                                      icon: superKeySource.systemImage,
+                                      keywords: SuperKeySource.allCases.map {
+                                          FeatureStrings.superKey(language).sourceLabel($0)
+                                      }),
                 SettingsDirectoryItem(page: .textSnippets,
                                       title: FeatureStrings.snippets(language).pageTitle,
                                       icon: "text.append",
@@ -168,9 +178,12 @@ enum SettingsDirectory {
                                       keywords: [s.hotkeyToggle]),
                 SettingsDirectoryItem(page: .advanced, title: s.tabAdvanced, icon: "wrench.and.screwdriver"),
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",
-                                      keywords: [s.reviewIntro]),
+                                      keywords: [s.reviewIntro, s.reviewHighlights]),
                 SettingsDirectoryItem(page: .releaseNotes, title: s.tabReleaseNotes, icon: "sparkles"),
-                SettingsDirectoryItem(page: .support, title: s.tabSupport, icon: "heart.fill"),
+                SettingsDirectoryItem(page: .support, title: s.tabSupport, icon: "heart.fill",
+                                      keywords: [s.donateButton, s.supportIntroStarButton,
+                                                 s.discordIntroJoinButton,
+                                                 s.communityIntroFollowButton]),
             ]),
         ]
     }

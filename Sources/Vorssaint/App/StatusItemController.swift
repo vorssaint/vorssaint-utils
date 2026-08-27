@@ -20,6 +20,7 @@ final class StatusItemController {
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
+    private var heldMicBadgeActive: Bool?
     /// A settings reply already waiting for the next turn of the run loop.
     private var settingsSyncScheduled = false
     /// How many readings in a row each metric has failed to render, so an
@@ -58,8 +59,13 @@ final class StatusItemController {
 
     func containsStatusItem(at screenPoint: NSPoint) -> Bool {
         let buttons = ([statusItem?.button] + metricStatusItems.values.map(\.button)).compactMap { $0 }
+        // Bound once for the whole scan: a default argument is evaluated per
+        // call, so leaving it to the default would rebuild this per button.
+        let screenFrames = NSScreen.screens.map(\.frame)
         return buttons.contains { button in
-            guard let frame = button.window?.frame else { return false }
+            guard let frame = button.window?.frame,
+                  StatusItemAnchorSupport.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
+            else { return false }
             return frame.insetBy(dx: -4, dy: -8).contains(screenPoint)
         }
     }
@@ -67,11 +73,6 @@ final class StatusItemController {
     init() {
         installStatusItem()
         bind()
-
-        titleTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            self?.refresh()
-        }
-        titleTimer?.tolerance = 5
     }
 
     /// Creates the status item and configures its button. The menu bar item is the
@@ -81,13 +82,14 @@ final class StatusItemController {
     /// recovers access (see applicationShouldHandleReopen) and the "Show menu bar
     /// icon" button in Settings rebuilds it.
     private func installStatusItem() {
+        StatusItemPlacementSupport.sanitizeStalePlacement(in: .standard)
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // A stable identity so macOS remembers the item's position across launches
         // and across rebuilds, instead of re-placing it at the crowded default spot.
-        statusItem.autosaveName = Self.mainAutosaveName(in: .standard)
+        statusItem.autosaveName = StatusItemPlacementSupport.mainAutosaveName(in: .standard)
         statusItem.behavior = []
         statusItem.isVisible = true
         if let button = statusItem.button {
@@ -110,49 +112,10 @@ final class StatusItemController {
     /// the same hidden/crowded position that made it unreachable.
     func recreateStatusItem(resetPlacement: Bool = false) {
         if resetPlacement {
-            Self.bumpPlacementGeneration(in: .standard)
-            Self.seedProtectedPlacement(in: .standard)
+            StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
         }
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         installStatusItem()
-    }
-
-    /// Placed with no saved position, a new item lands at the LEFT end of the
-    /// status area, right by the notch, which is the first zone macOS hides
-    /// when the bar runs out of room. That made the recovery useless exactly
-    /// on the crowded bars that lose the icon (issue #167). Seeding a small
-    /// preferred position (distance from the screen's right edge) makes the
-    /// rebuilt item claim a spot beside the clock, the last zone to be hidden.
-    private static let protectedPlacementOffset: Double = 64
-
-    private static func seedProtectedPlacement(in defaults: UserDefaults) {
-        defaults.set(protectedPlacementOffset,
-                     forKey: "NSStatusItem Preferred Position \(mainAutosaveName(in: defaults))")
-    }
-
-    private static func placementGeneration(in defaults: UserDefaults) -> Int {
-        min(max(defaults.integer(forKey: DefaultsKey.statusItemPlacementGeneration), 0),
-            maxPlacementGeneration)
-    }
-
-    private static func mainAutosaveName(in defaults: UserDefaults) -> String {
-        let generation = placementGeneration(in: defaults)
-        guard generation > 0 else { return mainAutosaveName }
-        return "\(mainAutosaveName).\(generation)"
-    }
-
-    private static func bumpPlacementGeneration(in defaults: UserDefaults) {
-        // The abandoned autosave name would otherwise strand macOS's saved
-        // placement keys forever (one pair per recovery).
-        let previousName = mainAutosaveName(in: defaults)
-        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
-        defaults.removeObject(forKey: "NSStatusItem Visible \(previousName)")
-        // The spelling macOS actually uses for the remembered visibility. Left
-        // behind, it also keeps the item marked as hidden, which is the state
-        // the recovery exists to undo.
-        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(previousName)")
-        defaults.set((placementGeneration(in: defaults) % maxPlacementGeneration) + 1,
-                     forKey: DefaultsKey.statusItemPlacementGeneration)
     }
 
     private func bind() {
@@ -236,6 +199,49 @@ final class StatusItemController {
         SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
     }
 
+    private func syncTitleTimer(keepAwakeActive: Bool,
+                                showsCountdown: Bool,
+                                endDate: Date?) {
+        let shouldRun = MenuBarSpacingSupport.needsTitleRefreshTimer(
+            keepAwakeActive: keepAwakeActive,
+            showsCountdown: showsCountdown,
+            hasEndDate: endDate != nil)
+        guard shouldRun else {
+            titleTimer?.invalidate()
+            titleTimer = nil
+            return
+        }
+        guard titleTimer == nil else { return }
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        titleTimer = timer
+    }
+
+    private var currentMicBadgeActive: Bool {
+        MicMuteService.shared.isMuted
+            && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+    }
+
+    private var renderedMicBadgeActive: Bool {
+        heldMicBadgeActive ?? currentMicBadgeActive
+    }
+
+    /// Keeps the variable-width mic badge unchanged while any status item is
+    /// anchoring an open panel. The current state is rendered after it closes.
+    func setMicBadgeHeld(_ held: Bool) {
+        if held {
+            guard heldMicBadgeActive == nil else { return }
+            heldMicBadgeActive = currentMicBadgeActive
+            return
+        }
+        guard heldMicBadgeActive != nil else { return }
+        heldMicBadgeActive = nil
+        updateIconAppearance()
+    }
+
     /// Reflects keep-awake state and an available update in the icon. Updates
     /// keep the blue attention glyph; an active session uses the chosen icon.
     /// With the mute indicator option on, a red slashed mic joins the glyph
@@ -252,8 +258,7 @@ final class StatusItemController {
         } else {
             updateAvailable = false
         }
-        let micBadgeActive = MicMuteService.shared.isMuted
-            && defaults.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+        let micBadgeActive = renderedMicBadgeActive
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
         let signal = updateAvailable || micBadgeActive
@@ -339,6 +344,10 @@ final class StatusItemController {
         let metrics = MenuBarMetric.enabled(in: defaults)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
 
+        syncTitleTimer(keepAwakeActive: manager.isActive,
+                       showsCountdown: defaults.bool(forKey: DefaultsKey.showCountdown),
+                       endDate: manager.endDate)
+
         // Compose the title from the keep-awake countdown (when shown) followed by
         // the pinned live metrics. Built attributed so the memory pressure dot can
         // carry its green/yellow/red color; all other runs stay adaptive.
@@ -401,8 +410,7 @@ final class StatusItemController {
             } else {
                 updateAvailable = false
             }
-            let micBadgeActive = MicMuteService.shared.isMuted
-                && defaults.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+            let micBadgeActive = renderedMicBadgeActive
             let glyphHidden = MenuBarSpacingSupport.shouldHideStatusIcon(
                 optionEnabled: defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics),
                 separateMetrics: separateMetrics,
@@ -486,18 +494,31 @@ final class StatusItemController {
 
             metricStatusItemFocus[group.id] = group.focusMetric
             let item = metricStatusItems[group.id] ?? installMetricStatusItem(for: group)
-            item.length = NSStatusItem.variableLength
+            if item.length != NSStatusItem.variableLength {
+                item.length = NSStatusItem.variableLength
+            }
             guard let button = item.button else { continue }
 
             let full = NSMutableAttributedString(attributedString: title)
+            let font = MenuBarRenderer.statusFont(stacked: false)
             full.addAttribute(.font,
-                              value: MenuBarRenderer.statusFont(stacked: false),
+                              value: font,
                               range: NSRange(location: 0, length: full.length))
-            button.font = MenuBarRenderer.statusFont(stacked: false)
-            button.attributedTitle = full
-            button.image = Self.emptyStatusImage
-            button.imagePosition = .noImage
-            button.toolTip = group.title
+            if button.font?.isEqual(font) != true {
+                button.font = font
+            }
+            if !full.isEqual(to: button.attributedTitle) {
+                button.attributedTitle = full
+            }
+            if button.image !== Self.emptyStatusImage {
+                button.image = Self.emptyStatusImage
+            }
+            if button.imagePosition != .noImage {
+                button.imagePosition = .noImage
+            }
+            if button.toolTip != group.title {
+                button.toolTip = group.title
+            }
         }
     }
 
@@ -621,8 +642,16 @@ final class StatusItemController {
 /// The official mark, bundled as a template image so the idle state adapts to
 /// light and dark menu bars. Active states can use real colors for attention.
 enum BlackHoleGlyph {
-    /// Logical size of the glyph in the menu bar, in points.
-    private static let pointSize = NSSize(width: 20, height: 14)
+    /// Logical size of the glyph in the menu bar, in points. Wide because the
+    /// mark is ~1.97:1 and sized from its height. Tools/MakeIcon.swift writes
+    /// the bundled PNGs at this size; `--selftest` checks the two still agree.
+    static let pointSize = NSSize(width: 26, height: 20)
+
+    /// Requested ink height for the active states' system symbols. A compact
+    /// symbol has to stand taller than the wide mark to read as the same size,
+    /// matching the menu bar's other compact icons at ~15 pt. Antialiasing
+    /// costs about a point of what is asked for here.
+    private static let symbolHeight: CGFloat = 16
 
     /// Both scale representations go into one NSImage — loading the 1x file
     /// alone would render blurry on Retina menu bars.
@@ -651,7 +680,7 @@ enum BlackHoleGlyph {
                             tint: KeepAwakeIconTint = .orange) -> NSImage? {
         let source: NSImage?
         if let symbolName = style.systemSymbolName {
-            source = fixedSizeSymbol(named: symbolName)
+            source = fixedSizeSymbol(named: symbolName, drop: style.menuBarDrop)
         } else {
             source = base
         }
@@ -665,19 +694,26 @@ enum BlackHoleGlyph {
 
     /// System symbols have different natural widths. Center them inside the
     /// same canvas as the app glyph so activation never shifts nearby items.
-    private static func fixedSizeSymbol(named name: String) -> NSImage? {
+    ///
+    /// Sized by the symbol's ink rather than its bounding box: SF Symbols pad
+    /// their box by different amounts, so fitting the box leaves each style a
+    /// different, smaller size than asked for.
+    private static func fixedSizeSymbol(named name: String, drop: CGFloat = 0) -> NSImage? {
         guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold)),
+            .withSymbolConfiguration(.init(pointSize: 15, weight: .semibold)),
               symbol.size.width > 0,
-              symbol.size.height > 0 else { return nil }
-        let available = NSSize(width: pointSize.width - 2, height: pointSize.height)
-        let scale = min(available.width / symbol.size.width,
-                        available.height / symbol.size.height)
+              symbol.size.height > 0,
+              let ink = inkBounds(of: symbol),
+              ink.width > 0, ink.height > 0 else { return nil }
+        let scale = min(symbolHeight / ink.height, (pointSize.width - 2) / ink.width)
         let drawSize = NSSize(width: symbol.size.width * scale,
                               height: symbol.size.height * scale)
+        // Offsets used to center the ink rather than the padded box.
+        let inkOrigin = NSPoint(x: ink.minX * scale, y: ink.minY * scale)
+        let inkSize = NSSize(width: ink.width * scale, height: ink.height * scale)
         let image = NSImage(size: pointSize, flipped: false) { rect in
-            let target = NSRect(x: rect.midX - drawSize.width / 2,
-                                y: rect.midY - drawSize.height / 2,
+            let target = NSRect(x: rect.midX - inkOrigin.x - inkSize.width / 2,
+                                y: rect.midY - inkOrigin.y - inkSize.height / 2 - drop,
                                 width: drawSize.width,
                                 height: drawSize.height)
             symbol.draw(in: target, from: .zero, operation: .sourceOver, fraction: 1)
@@ -685,6 +721,42 @@ enum BlackHoleGlyph {
         }
         image.isTemplate = true
         return image
+    }
+
+    /// Bounding box of an image's visible pixels, in its own (bottom-up) point
+    /// space. Only runs when the menu bar icon changes, so rasterizing is cheap.
+    private static func inkBounds(of image: NSImage) -> NSRect? {
+        let sampling = 2
+        let wide = Int(ceil(image.size.width)) * sampling
+        let high = Int(ceil(image.size.height)) * sampling
+        guard wide > 0, high > 0,
+              let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: wide, pixelsHigh: high,
+                                         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                         isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        // The context comes from the rep's pixel dimensions, so it draws in
+        // pixels; fill the whole bitmap and scale the bounds back down. A
+        // point-sized rect here would only cover a corner of it.
+        image.draw(in: NSRect(x: 0, y: 0, width: CGFloat(wide), height: CGFloat(high)))
+        NSGraphicsContext.restoreGraphicsState()
+
+        var minX = wide, minY = high, maxX = -1, maxY = -1
+        for y in 0..<high {
+            for x in 0..<wide where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.05 {
+                minX = min(minX, x); maxX = max(maxX, x)
+                minY = min(minY, y); maxY = max(maxY, y)
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        // colorAt() reads top-down; NSImage coordinates run bottom-up.
+        let unit = CGFloat(sampling)
+        return NSRect(x: CGFloat(minX) / unit,
+                      y: CGFloat(high - 1 - maxY) / unit,
+                      width: CGFloat(maxX - minX + 1) / unit,
+                      height: CGFloat(maxY - minY + 1) / unit)
     }
 
     /// A blue, full-strength glyph used to flag an available update. Non-template
@@ -703,7 +775,7 @@ enum BlackHoleGlyph {
         guard let underlying else { return nil }
         guard let badge = NSImage(systemSymbolName: "mic.slash.fill",
                                   accessibilityDescription: nil)?
-            .withSymbolConfiguration(.init(pointSize: 11, weight: .semibold)) else { return nil }
+            .withSymbolConfiguration(.init(pointSize: 12, weight: .semibold)) else { return nil }
         let gap: CGFloat = 2
         let badgeSize = badge.size
         let height = max(underlying.size.height, badgeSize.height)

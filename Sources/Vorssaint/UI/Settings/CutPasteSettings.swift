@@ -8,6 +8,7 @@ struct CutPasteSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = FinderCutPaste.shared
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.finderCutPasteShowHUD) private var showHUD = true
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
     @AppStorage(DefaultsKey.finderRenameShortcut) private var renameShortcutRaw =
         GlobalShortcut.finderRenameDefault.storageValue
@@ -38,12 +39,22 @@ struct CutPasteSettings: View {
                     Text(l10n.s.cutPasteEnableCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if enabled {
+                        Toggle(l10n.s.cutPasteShowHUD, isOn: $showHUD)
+                            .onChange(of: showHUD) { _, _ in
+                                FinderCutPaste.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.cutPasteShowHUDCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                     if enabled, service.isRunning {
                         Label(l10n.s.cutPasteActiveNow, systemImage: "checkmark.circle.fill")
                             .font(.caption)
                             .foregroundStyle(.green)
                     }
                 }
+                .settingsSectionAnchor(.finderCutPaste)
 
                 Section(l10n.s.cutPasteHowTitle) {
                     howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
@@ -99,6 +110,7 @@ struct CutPasteSettings: View {
                 } header: {
                     Text(renameText.hubTitle)
                 }
+                .settingsSectionAnchor(.finderRename)
             }
 
             if needsAccessibility, !permissions.accessibility {

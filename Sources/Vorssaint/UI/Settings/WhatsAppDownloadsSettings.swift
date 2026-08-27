@@ -11,6 +11,7 @@ struct WhatsAppDownloadsSettings: View {
     @ObservedObject private var organizer = WhatsAppDownloadOrganizer.shared
     @ObservedObject private var permissions = Permissions.shared
 
+    @AppStorage(DefaultsKey.whatsAppDownloadsEnabled) private var enabled = false
     @AppStorage(DefaultsKey.whatsAppDownloadsAutomaticEnabled) private var automatic = false
     @AppStorage(DefaultsKey.whatsAppDownloadsCategories) private var categoriesRaw = "image,video,audio"
     @AppStorage(DefaultsKey.whatsAppDownloadsRetentionDays) private var retentionDays = 7
@@ -33,6 +34,7 @@ struct WhatsAppDownloadsSettings: View {
     @State private var waitingToEnable = false
     @State private var showingExistingChoice = false
     @State private var showingInvalidDestination = false
+    @State private var showingOrganizerFileTypes = false
 
     private var text: WhatsAppDownloadStrings {
         FeatureStrings.whatsAppDownloads(l10n.language)
@@ -96,6 +98,7 @@ struct WhatsAppDownloadsSettings: View {
 
     private var introductionSection: some View {
         Section {
+            Toggle(text.title, isOn: $enabled)
             Text(organizerEnabled ? organizerText.privacyNote : text.intro)
                 .font(.callout)
             HStack(spacing: 8) {
@@ -269,12 +272,21 @@ struct WhatsAppDownloadsSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                DisclosureGroup(text.fileTypes) {
-                    Toggle(text.allTypes, isOn: allOrganizerCategoriesBinding)
-                        .toggleStyle(.checkbox)
-                    organizerCategoryPair(.image, .video)
-                    organizerCategoryPair(.audio, .document)
-                    organizerCategoryPair(.archive, .other)
+                Group {
+                    DisclosureHeaderRow(isExpanded: $showingOrganizerFileTypes) {
+                        Text(text.fileTypes)
+                        Spacer()
+                    }
+                    if showingOrganizerFileTypes {
+                        Group {
+                            Toggle(text.allTypes, isOn: allOrganizerCategoriesBinding)
+                                .toggleStyle(.checkbox)
+                            organizerCategoryPair(.image, .video)
+                            organizerCategoryPair(.audio, .document)
+                            organizerCategoryPair(.archive, .other)
+                        }
+                        .disclosureIndent()
+                    }
                 }
                 .disabled(organizer.isBusy)
 

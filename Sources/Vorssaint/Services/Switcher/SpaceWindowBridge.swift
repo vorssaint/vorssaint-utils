@@ -45,6 +45,15 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: CopySpacesFunction.self)
     }()
 
+    /// Whether `spaces(of:)` can actually answer in this session. Callers use
+    /// it to tell "this surface belongs to no Space" (the leftover signature)
+    /// apart from "the Space queries are unavailable here", so a macOS that
+    /// drops the private symbol keeps the pre-existing behavior instead of
+    /// misreading every window as a leftover (issue #807).
+    static var canResolveSpaces: Bool {
+        connection != 0 && copySpacesForWindows != nil
+    }
+
     /// Every Space (user desktops and fullscreen Spaces alike) containing the
     /// window. Empty for leftover surfaces, and when the query is unavailable.
     static func spaces(of windowID: CGWindowID) -> [UInt64] {
@@ -66,31 +75,88 @@ enum SpaceWindowBridge {
     }()
 
     struct Topology {
+        struct DisplayInfo {
+            let displayID: CGDirectDisplayID?
+            let spaces: [UInt64]
+            let currentSpace: UInt64?
+        }
+
+        /// Displays in order.
+        let displays: [DisplayInfo]
         /// Space ids in left-to-right order, one row per display.
-        let orderedSpacesPerDisplay: [[UInt64]]
+        var orderedSpacesPerDisplay: [[UInt64]] { displays.map(\.spaces) }
         /// The Space currently showing on each display.
-        let visibleSpaces: Set<UInt64>
+        var visibleSpaces: Set<UInt64> { Set(displays.compactMap(\.currentSpace)) }
     }
 
     static func topology() -> Topology? {
         guard connection != 0, let copyManagedDisplaySpaces,
-              let displays = copyManagedDisplaySpaces(connection)?
+              let displayDicts = copyManagedDisplaySpaces(connection)?
                 .takeRetainedValue() as? [[String: Any]],
-              !displays.isEmpty
+              !displayDicts.isEmpty
         else { return nil }
 
-        var rows: [[UInt64]] = []
-        var visible: Set<UInt64> = []
-        for display in displays {
+        let screenMap: [String: CGDirectDisplayID] = {
+            var map: [String: CGDirectDisplayID] = [:]
+            for screen in NSScreen.screens {
+                guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                      let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
+                      let uuidStr = CFUUIDCreateString(nil, uuid) as String?
+                else { continue }
+                map[uuidStr] = screenNum
+            }
+            return map
+        }()
+
+        var displays: [Topology.DisplayInfo] = []
+        for display in displayDicts {
             let row = (display["Spaces"] as? [[String: Any]])?
                 .compactMap { ($0["id64"] as? NSNumber)?.uint64Value } ?? []
-            if !row.isEmpty { rows.append(row) }
-            if let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber {
-                visible.insert(current.uint64Value)
-            }
+            guard !row.isEmpty else { continue }
+            let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
+            let uuidStr = display["Display Identifier"] as? String
+            let displayID = uuidStr.flatMap { screenMap[$0] }
+            displays.append(Topology.DisplayInfo(displayID: displayID,
+                                                 spaces: row,
+                                                 currentSpace: current?.uint64Value))
         }
-        guard !rows.isEmpty, !visible.isEmpty else { return nil }
-        return Topology(orderedSpacesPerDisplay: rows, visibleSpaces: visible)
+        guard !displays.isEmpty else { return nil }
+        return Topology(displays: displays)
+    }
+
+    private typealias MoveWindowsToSpaceFunction =
+        @convention(c) (ConnectionID, CFArray, UInt64) -> Void
+    private static let moveWindowsToManagedSpace: MoveWindowsToSpaceFunction? = {
+        guard let symbol = symbol("CGSMoveWindowsToManagedSpace") else { return nil }
+        return unsafeBitCast(symbol, to: MoveWindowsToSpaceFunction.self)
+    }()
+
+    /// The Space showing on the display under `pointer`, an AppKit screen
+    /// point. Nil when the Space queries are unavailable, so callers can carry
+    /// on without moving anything rather than guessing at a destination.
+    static func visibleSpace(near pointer: CGPoint) -> UInt64? {
+        guard let topology = topology() else { return nil }
+        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+        if let number = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
+            .uint32Value,
+           let display = topology.displays.first(where: { $0.displayID == number }) {
+            return display.currentSpace
+        }
+        return topology.displays.first?.currentSpace
+    }
+
+    /// Brings one window onto the Space the pointer's display is showing. A
+    /// window dropped from another desktop otherwise takes the position it was
+    /// given and stays where nobody can see it.
+    @discardableResult
+    static func moveToVisibleSpace(_ windowID: CGWindowID, near pointer: CGPoint) -> Bool {
+        guard connection != 0,
+              let moveWindowsToManagedSpace,
+              let destination = visibleSpace(near: pointer)
+        else { return false }
+        guard !spaces(of: windowID).contains(destination) else { return true }
+        moveWindowsToManagedSpace(connection, [NSNumber(value: windowID)] as CFArray, destination)
+        return true
     }
 
     /// Whether the window sits on at least one Space and none of them is

@@ -8,10 +8,26 @@ struct SuperKeySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var superKey = SuperKeyService.shared
     @AppStorage(DefaultsKey.superKeyEnabled) private var enabled = false
-    @AppStorage(DefaultsKey.superKeyMode) private var modeRaw = SuperKeyMode.hyper.rawValue
+    @AppStorage(DefaultsKey.superKeySource) private var sourceRaw = SuperKeySource.capsLock.rawValue
+    @AppStorage(DefaultsKey.superKeyModifiers) private var modifierStorage =
+        SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.superKeySoloAction) private var soloActionRaw = SuperKeySoloAction.none.rawValue
 
     private var text: SuperKeyStrings { FeatureStrings.superKey(l10n.language) }
+
+    private struct ModifierChoice: Identifiable {
+        let modifier: GlobalShortcutModifiers
+        let symbol: String
+        let name: String
+        var id: String { name }
+    }
+
+    private let modifierChoices = [
+        ModifierChoice(modifier: .shift, symbol: "⇧", name: "Shift"),
+        ModifierChoice(modifier: .control, symbol: "⌃", name: "Control"),
+        ModifierChoice(modifier: .option, symbol: "⌥", name: "Option"),
+        ModifierChoice(modifier: .command, symbol: "⌘", name: "Command"),
+    ]
 
     var body: some View {
         Form {
@@ -23,33 +39,35 @@ struct SuperKeySettings: View {
                         permissions.requestAccessibility()
                         permissions.openAccessibilitySettings()
                     }
+                Picker(text.sourceKey, selection: sourceBinding) {
+                    ForEach(SuperKeySource.allCases) { source in
+                        Text(text.sourceLabel(source)).tag(source)
+                    }
+                }
                 Text(text.enableCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Label(text.modifierKeysNote, systemImage: "info.circle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 diagram
-                if enabled, superKey.isRunning {
+                if enabled, let failure = superKey.mappingFailure {
+                    Label(text.mappingFailure(failure),
+                          systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                } else if enabled, superKey.isRunning {
                     Label(text.activeNow, systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
             }
 
-            Section("Modifier set") {
-                Picker("Modifier set", selection: modeBinding) {
-                    Text("Hyper (⇧⌃⌥⌘)").tag(SuperKeyMode.hyper)
-                    Text("Meh (⇧⌃⌥)").tag(SuperKeyMode.meh)
-                }
-                .pickerStyle(.radioGroup)
-                Text("Choose which modifier chord Caps Lock sends while held.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .disabled(!enabled)
-
             Section(text.soloSection) {
                 Picker(text.soloSection, selection: soloBinding) {
                     Text(text.soloNothing).tag(SuperKeySoloAction.none)
                     Text(text.soloCapsLock).tag(SuperKeySoloAction.capsLock)
+                    Text(text.soloInputSource).tag(SuperKeySoloAction.inputSource)
                     Text(text.soloEscape).tag(SuperKeySoloAction.escape)
                 }
                 .labelsHidden()
@@ -69,13 +87,15 @@ struct SuperKeySettings: View {
         .formStyle(.grouped)
     }
 
-    /// The whole feature in one line: the key you hold, and the four keys it
-    /// stands for. Dimmed while the feature is off, so the page reads the same
+    /// The whole feature in one line: the key you hold, and the keys it stands
+    /// for. Dimmed while the feature is off, so the page reads the same
     /// either way without pretending to be active.
     private var diagram: some View {
         HStack(spacing: 10) {
             VStack(spacing: 3) {
-                keyCap(text.capsLockKey, symbol: "capslock", wide: true)
+                keyCap(text.sourceLabel(source),
+                       symbol: source == .capsLock ? "capslock" : nil,
+                       wide: true)
                 Text(text.holdHint)
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
@@ -85,8 +105,8 @@ struct SuperKeySettings: View {
                 .foregroundStyle(.tertiary)
                 .padding(.bottom, 14)
             HStack(spacing: 5) {
-                ForEach(mode == .meh ? ["⇧", "⌃", "⌥"] : ["⇧", "⌃", "⌥", "⌘"], id: \.self) { glyph in
-                    keyCap(glyph, symbol: nil, wide: false)
+                ForEach(modifierChoices) { choice in
+                    modifierKeyCap(choice)
                 }
             }
             .padding(.bottom, 14)
@@ -95,8 +115,6 @@ struct SuperKeySettings: View {
         .animation(.easeInOut(duration: 0.18), value: enabled)
         .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(text.panelCaption)
     }
 
     private func keyCap(_ title: String, symbol: String?, wide: Bool) -> some View {
@@ -119,22 +137,73 @@ struct SuperKeySettings: View {
         )
     }
 
+    private func modifierKeyCap(_ choice: ModifierChoice) -> some View {
+        let selected = selectedModifiers.contains(choice.modifier)
+        return Button {
+            toggle(choice.modifier)
+        } label: {
+            Text(choice.symbol)
+                .font(.system(size: 12, weight: .medium))
+                .frame(minWidth: 30, minHeight: 30)
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(selected
+                            ? Color.accentColor.opacity(0.14)
+                            : Color.primary.opacity(0.04))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(selected
+                            ? Color.accentColor.opacity(0.45)
+                            : Color.primary.opacity(0.1))
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled || (selected && !canRemove(choice.modifier)))
+        .help(choice.name)
+        .accessibilityLabel(choice.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var selectedModifiers: GlobalShortcutModifiers {
+        SuperKeySupport.modifiers(from: modifierStorage)
+    }
+
+    private var source: SuperKeySource { SuperKeySource.sanitized(sourceRaw) }
+
+    private var sourceBinding: Binding<SuperKeySource> {
+        Binding {
+            source
+        } set: { source in
+            sourceRaw = source.rawValue
+            SuperKeyService.shared.syncWithPreferences()
+        }
+    }
+
+    private func toggle(_ modifier: GlobalShortcutModifiers) {
+        var next = selectedModifiers
+        if next.contains(modifier) {
+            next.remove(modifier)
+        } else {
+            next.insert(modifier)
+        }
+        guard next.hasPrimaryModifier else { return }
+        modifierStorage = SuperKeySupport.storageValue(for: next)
+        SuperKeyService.shared.syncWithPreferences()
+    }
+
+    private func canRemove(_ modifier: GlobalShortcutModifiers) -> Bool {
+        var remaining = selectedModifiers
+        remaining.remove(modifier)
+        return remaining.hasPrimaryModifier
+    }
+
     private var soloBinding: Binding<SuperKeySoloAction> {
         Binding {
             SuperKeySoloAction.sanitized(soloActionRaw)
         } set: { action in
             soloActionRaw = action.rawValue
-            SuperKeyService.shared.syncWithPreferences()
-        }
-    }
-
-    private var mode: SuperKeyMode { SuperKeyMode.sanitized(modeRaw) }
-
-    private var modeBinding: Binding<SuperKeyMode> {
-        Binding {
-            SuperKeyMode.sanitized(modeRaw)
-        } set: { value in
-            modeRaw = value.rawValue
             SuperKeyService.shared.syncWithPreferences()
         }
     }

@@ -4,13 +4,20 @@
 import CoreGraphics
 import Foundation
 
+enum WindowLayoutTargetCapability: Equatable {
+    case position
+    case frame
+    case fullScreen
+}
+
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
-    case maximize, fullScreen, center, previousDisplay, nextDisplay, restore
+    case maximize, marginMaximize, fullScreen, center
+    case previousDisplay, nextDisplay, restore
 
     var id: String { rawValue }
 
@@ -20,11 +27,23 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
-        .maximize, .fullScreen, .center, .restore, .previousDisplay, .nextDisplay,
+        .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        .previousDisplay, .nextDisplay,
     ]
 
     var supportsShortcut: Bool {
         Self.shortcutActions.contains(self)
+    }
+
+    var targetCapability: WindowLayoutTargetCapability {
+        switch self {
+        case .center, .restore:
+            return .position
+        case .fullScreen:
+            return .fullScreen
+        default:
+            return .frame
+        }
     }
 
     var shortcutID: UInt32 {
@@ -54,6 +73,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRightSixth: return 52
         case .fullScreen: return 53
         case .previousDisplay: return 54
+        case .marginMaximize: return 55
         }
     }
 
@@ -73,6 +93,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeft: return DefaultsKey.windowLayoutShortcutBottomLeft
         case .bottomRight: return DefaultsKey.windowLayoutShortcutBottomRight
         case .maximize: return DefaultsKey.windowLayoutShortcutMaximize
+        case .marginMaximize: return DefaultsKey.windowLayoutShortcutMarginMaximize
         case .fullScreen: return DefaultsKey.windowLayoutShortcutFullScreen
         case .center: return DefaultsKey.windowLayoutShortcutCenter
         case .restore: return DefaultsKey.windowLayoutShortcutRestore
@@ -92,9 +113,9 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Existing actions keep their established shortcuts. New sixth actions
-    /// start unassigned so enabling Window Layout never claims six extra
-    /// system-wide combinations without an explicit choice.
+    /// Existing actions keep their established shortcuts. New actions start
+    /// unassigned so enabling Window Layout never claims extra system-wide
+    /// combinations without an explicit choice.
     var defaultShortcut: GlobalShortcut? {
         switch self {
         case .leftHalf: return .windowLayoutLeftDefault
@@ -116,7 +137,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                .fullScreen, .previousDisplay:
+                .marginMaximize, .fullScreen, .previousDisplay:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -169,6 +190,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomLeft: return text.bottomLeft
         case .bottomRight: return text.bottomRight
         case .maximize: return text.maximize
+        case .marginMaximize: return text.marginMaximize
         case .fullScreen: return text.fullScreen
         case .center: return text.center
         case .restore: return text.restore
@@ -207,6 +229,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomCenterSixth: return "arrow.down"
         case .bottomRightSixth, .bottomRight: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
+        case .marginMaximize: return "rectangle.inset.filled"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
         case .previousDisplay: return "arrow.left.to.line"
@@ -294,6 +317,9 @@ enum WindowLayoutGeometry {
                           width: halfWidth, height: halfHeight).integral
         case .maximize:
             return visibleFrame.integral
+        case .marginMaximize:
+            return visibleFrame.insetBy(dx: visibleFrame.width * 0.05,
+                                        dy: visibleFrame.height * 0.05).integral
         case .center:
             let width = min(current.width, visibleFrame.width)
             let height = min(current.height, visibleFrame.height)
@@ -375,7 +401,7 @@ enum WindowLayoutGeometry {
         case .bottomRight:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
-        case .center:
+        case .marginMaximize, .center:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
         case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
@@ -480,6 +506,10 @@ enum WindowLayoutGeometry {
                 && overlap > 0.35
         case .maximize:
             return overlap > 0.90
+        case .marginMaximize:
+            return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+                && overlap > 0.82
         case .center:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
