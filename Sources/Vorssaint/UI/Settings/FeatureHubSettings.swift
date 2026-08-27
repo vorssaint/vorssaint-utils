@@ -14,6 +14,8 @@ struct FeatureHubSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
+        SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
     /// Tracks the feature-target request currently being revealed, so a
@@ -206,8 +208,14 @@ struct FeatureHubSettings: View {
         ForEach(FeatureGroup.allCases, id: \.self) { group in
             Section {
                 ForEach(AppFeature.features(in: group), id: \.self) { feature in
-                    FeatureHubRow(feature: feature, hub: hub,
-                                 isHighlighted: highlightedFeature == feature)
+                    FeatureHubRow(
+                        feature: feature,
+                        hub: hub,
+                        symbolName: feature == .superKey
+                            ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
+                            : feature.symbolName,
+                        isHighlighted: highlightedFeature == feature
+                    )
                         .id(feature)
                 }
                 if group == .monitor,
@@ -288,6 +296,7 @@ private struct FeatureHubRow: View {
     @State private var working = false
     let feature: AppFeature
     let hub: FeatureHubStrings
+    let symbolName: String
     var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
@@ -376,7 +385,7 @@ private struct FeatureHubRow: View {
                         : AnyShapeStyle(Color.secondary.opacity(0.22)))
                 .frame(width: 30, height: 30)
                 .overlay(
-                    Image(systemName: feature.symbolName)
+                    Image(systemName: symbolName)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(installed ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                 )

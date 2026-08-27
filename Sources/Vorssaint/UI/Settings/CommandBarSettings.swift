@@ -373,8 +373,9 @@ struct CommandBarSettings: View {
     }
 
     /// A key whose row is not in the catalog right now (an app that was
-    /// removed, a feature switched off in the hub) still shows, by its key, so
-    /// nothing the person set can become invisible and unremovable.
+    /// removed) still shows, by its key, so nothing the person set can become
+    /// invisible and unremovable. An uninstalled hub feature is dropped
+    /// instead: its pin is not a leftover id.
     private func title(forKey key: String) -> String {
         service.entryTitle(forStableKey: key) ?? key
     }
@@ -386,7 +387,9 @@ struct CommandBarSettings: View {
     }
 
     private var pinned: [NamedRow] {
-        CommandBarPreferences.decodePins(pinsRaw)
+        CommandBarPreferences.listedPins(
+            CommandBarPreferences.decodePins(pinsRaw),
+            present: service.presentStableKeys)
             .map { NamedRow(key: $0, title: title(forKey: $0), alias: "") }
     }
 

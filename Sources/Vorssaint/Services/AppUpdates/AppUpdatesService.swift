@@ -7,11 +7,9 @@ import Combine
 /// Finds which of the installed apps have a newer version waiting, in one
 /// list, and updates the ones the person picks.
 ///
-/// Two sources, because those are the two that can answer honestly for an app
-/// somebody else wrote: the package manager (which can also install the
-/// update on the spot) and the App Store (which can only be opened). Apps
-/// that ship their own updater are left alone, since they already do this by
-/// themselves.
+/// Managed apps can be updated in place or handed to the store. Other apps
+/// are compared conservatively with a public online catalog and only opened,
+/// leaving their own updater in control.
 ///
 /// Nothing runs at rest. The scan happens when the person opens the list or
 /// asks for it, and the background check only exists while its schedule is on.
@@ -25,8 +23,10 @@ final class AppUpdatesService: ObservableObject {
     /// Rows the person ticked. New findings arrive ticked, so the common
     /// case is one click.
     @Published var selection: Set<String> = []
-    /// The package manager is missing, so only the store half can answer.
+    /// False means package-managed apps cannot be updated from this list.
     @Published private(set) var packageManagerAvailable = false
+    /// False means the online source failed, so an empty list is incomplete.
+    @Published private(set) var onlineCatalogAvailable = true
     /// A check finished in THIS process. The time of the last check survives
     /// relaunches, but its findings do not, so nothing may claim the Mac is
     /// up to date until a scan has actually run here.
@@ -40,15 +40,23 @@ final class AppUpdatesService: ObservableObject {
         configuration.timeoutIntervalForResource = 20
         return URLSession(configuration: configuration)
     }()
+    private lazy var catalogSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .useProtocolCachePolicy
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
+        return URLSession(configuration: configuration)
+    }()
     private var timer: Timer?
     private var wakeObserver: NSObjectProtocol?
     private var scanGeneration = 0
     private var sourceRefreshPending = false
     private var automaticCheckPending = false
     private var knownIDs = Set<String>()
-    /// The person was sent to the store to finish an update, so the list is
+    /// The person was sent elsewhere to finish an update, so the list is
     /// about to be wrong until it is read again.
-    private(set) var storeHandoffPending = false
+    private(set) var updateHandoffPending = false
+    private var onlineCatalogCache: (loadedAt: Date, entries: [AppUpdatesSupport.CatalogEntry])?
     /// Alive only while an upgrade this service started is running, so the
     /// list refreshes itself even when no window is on screen to notice.
     private var upgradeObserver: AnyCancellable?
@@ -123,8 +131,8 @@ final class AppUpdatesService: ObservableObject {
         }
     }
 
-    /// Scans both sources. `automatic` marks the background pass, which is
-    /// the only one that can post a notification and re-arm the schedule.
+    /// Scans the enabled sources. `automatic` marks the background pass,
+    /// which alone can post a notification and re-arm the schedule.
     func check(automatic: Bool = false) {
         guard AppFeature.appUpdates.isAvailable else { return }
         if isChecking {
@@ -138,25 +146,57 @@ final class AppUpdatesService: ObservableObject {
         let includeHomebrewApps = UserDefaults.standard.bool(
             forKey: DefaultsKey.appUpdatesIncludeHomebrewApps)
         let includeAppStore = UserDefaults.standard.bool(forKey: DefaultsKey.appUpdatesIncludeAppStore)
+        let includeOnlineCatalog = UserDefaults.standard.bool(
+            forKey: DefaultsKey.appUpdatesIncludeOnlineCatalog)
         let country = Locale.current.region?.identifier
 
         workQueue.async { [weak self] in
             guard let self else { return }
             let apps = Self.scanInstalledApps()
-            let packageResult = includeHomebrewApps
-                ? self.packageManagerFindings(apps: apps)
-                : PackageResult(items: [], available: true)
-            let coveredPaths = Set(packageResult.items.compactMap(\.bundlePath))
+            let packageResult = includeHomebrewApps || includeOnlineCatalog
+                ? self.packageManagerFindings(apps: apps, includeUpdates: includeHomebrewApps)
+                : PackageResult(items: [], coveredPaths: [], available: true,
+                                onlineCoverageAvailable: true)
+            let coveredPaths = packageResult.coveredPaths
             let storeCandidates = includeAppStore
                 ? AppUpdatesSupport.appStoreCandidates(
                     apps: apps, coveredPaths: coveredPaths)
                 : []
+            let onlineCandidates = includeOnlineCatalog
+                && packageResult.onlineCoverageAvailable
+                ? AppUpdatesSupport.onlineCatalogCandidates(apps: apps, coveredPaths: coveredPaths)
+                : []
+            let os = ProcessInfo.processInfo.operatingSystemVersion
+            let operatingSystemVersion = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+            let group = DispatchGroup()
+            var storeItems: [AppUpdatesSupport.Item] = []
+            var onlineResult = OnlineCatalogResult(
+                items: [],
+                available: !includeOnlineCatalog || packageResult.onlineCoverageAvailable)
 
-            self.storeFindings(for: storeCandidates, country: country) { storeItems in
+            group.enter()
+            self.storeFindings(for: storeCandidates,
+                               country: country,
+                               operatingSystemVersion: operatingSystemVersion) {
+                storeItems = $0
+                group.leave()
+            }
+            if includeOnlineCatalog, onlineResult.available {
+                group.enter()
+                self.onlineCatalogFindings(for: onlineCandidates,
+                                           operatingSystemVersion: operatingSystemVersion) {
+                    onlineResult = $0
+                    group.leave()
+                }
+            }
+            group.notify(queue: self.workQueue) {
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
-                    self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items, storeItems),
+                    self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items,
+                                                                     storeItems,
+                                                                     onlineResult.items),
                                      packageManagerAvailable: packageResult.available,
+                                     onlineCatalogAvailable: onlineResult.available,
                                      automatic: automatic)
                 }
             }
@@ -165,6 +205,7 @@ final class AppUpdatesService: ObservableObject {
 
     private func finishCheck(items newItems: [AppUpdatesSupport.Item],
                              packageManagerAvailable available: Bool,
+                             onlineCatalogAvailable catalogAvailable: Bool,
                              automatic: Bool) {
         // The feature can be switched off in the hub while a scan is in
         // flight; its findings belong to a surface that no longer exists.
@@ -194,6 +235,7 @@ final class AppUpdatesService: ObservableObject {
         knownIDs = Set(newItems.map(\.id))
         items = newItems
         packageManagerAvailable = available
+        onlineCatalogAvailable = catalogAvailable
         hasCheckedThisSession = true
         isChecking = false
         let now = Date()
@@ -235,16 +277,30 @@ final class AppUpdatesService: ObservableObject {
 
     private struct PackageResult {
         let items: [AppUpdatesSupport.Item]
+        let coveredPaths: Set<String>
         let available: Bool
+        let onlineCoverageAvailable: Bool
     }
 
-    private func packageManagerFindings(apps: [AppUpdatesSupport.InstalledApp]) -> PackageResult {
+    private func packageManagerFindings(apps: [AppUpdatesSupport.InstalledApp],
+                                        includeUpdates: Bool) -> PackageResult {
         guard let brewPath = HomebrewCommandBuilder.candidatePaths.first(where: {
             FileManager.default.isExecutableFile(atPath: $0)
         }) else {
-            return PackageResult(items: [], available: false)
+            return PackageResult(items: [], coveredPaths: [], available: !includeUpdates,
+                                 onlineCoverageAvailable: true)
         }
         let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath))
+        let records = installedOutput.status == 0
+            ? HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
+            : []
+        let coveredPaths = Set(records.compactMap {
+            AppUpdatesSupport.packageBundle(for: $0, apps: apps)?.path
+        })
+        guard includeUpdates else {
+            return PackageResult(items: [], coveredPaths: coveredPaths, available: true,
+                                 onlineCoverageAvailable: installedOutput.status == 0)
+        }
         let outdatedOutput = Self.runCommand(
             HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath))
         guard installedOutput.status == 0, outdatedOutput.status == 0 else {
@@ -253,22 +309,24 @@ final class AppUpdatesService: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 self?.lastError = message.isEmpty ? nil : message
             }
-            return PackageResult(items: [], available: true)
+            return PackageResult(items: [], coveredPaths: coveredPaths, available: true,
+                                 onlineCoverageAvailable: installedOutput.status == 0)
         }
-        let records = HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
         let updates = (try? HomebrewParser.parseOutdatedCommandOutput(outdatedOutput.output)) ?? [:]
         let items = AppUpdatesSupport.packageUpdates(
             outdated: Array(updates.values),
             installed: records,
             ignoredTokens: Self.ownPackageTokens,
             apps: apps.filter { !$0.version.isEmpty })
-        return PackageResult(items: items, available: true)
+        return PackageResult(items: items, coveredPaths: coveredPaths, available: true,
+                             onlineCoverageAvailable: true)
     }
 
     // MARK: - App Store source
 
     private func storeFindings(for candidates: [AppUpdatesSupport.InstalledApp],
                                country: String?,
+                               operatingSystemVersion: String,
                                completion: @escaping ([AppUpdatesSupport.Item]) -> Void) {
         guard !candidates.isEmpty else {
             completion([])
@@ -295,20 +353,76 @@ final class AppUpdatesService: ObservableObject {
         }
 
         group.notify(queue: workQueue) {
-            let os = ProcessInfo.processInfo.operatingSystemVersion
-            let version = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
             completion(AppUpdatesSupport.appStoreUpdates(apps: candidates,
                                                          storeVersions: merged,
-                                                         operatingSystemVersion: version))
+                                                         operatingSystemVersion: operatingSystemVersion))
         }
+    }
+
+    // MARK: - Online catalog source
+
+    private struct OnlineCatalogResult {
+        let items: [AppUpdatesSupport.Item]
+        let available: Bool
+    }
+
+    private static let onlineCatalogCacheLifetime: TimeInterval = 60 * 60
+
+    private func onlineCatalogFindings(for candidates: [AppUpdatesSupport.InstalledApp],
+                                       operatingSystemVersion: String,
+                                       completion: @escaping (OnlineCatalogResult) -> Void) {
+        guard !candidates.isEmpty else {
+            completion(OnlineCatalogResult(items: [], available: true))
+            return
+        }
+
+        let now = Date()
+        if let cache = onlineCatalogCache {
+            let age = now.timeIntervalSince(cache.loadedAt)
+            if age >= 0, age < Self.onlineCatalogCacheLifetime {
+                completion(onlineResult(candidates: candidates,
+                                        catalog: cache.entries,
+                                        operatingSystemVersion: operatingSystemVersion))
+                return
+            }
+        }
+
+        catalogSession.dataTask(with: AppUpdatesSupport.onlineCatalogURL) { [weak self] data, response, _ in
+            guard let self else { return }
+            let statusCode = (response as? HTTPURLResponse)?.statusCode
+            self.workQueue.async {
+                guard let entries = AppUpdatesSupport.parseOnlineCatalogResponse(
+                    data, statusCode: statusCode) else {
+                    completion(OnlineCatalogResult(items: [], available: false))
+                    return
+                }
+                self.onlineCatalogCache = (Date(), entries)
+                completion(self.onlineResult(candidates: candidates,
+                                             catalog: entries,
+                                             operatingSystemVersion: operatingSystemVersion))
+            }
+        }.resume()
+    }
+
+    private func onlineResult(candidates: [AppUpdatesSupport.InstalledApp],
+                              catalog: [AppUpdatesSupport.CatalogEntry],
+                              operatingSystemVersion: String) -> OnlineCatalogResult {
+        OnlineCatalogResult(
+            items: AppUpdatesSupport.onlineCatalogUpdates(
+                apps: candidates,
+                catalog: catalog,
+                operatingSystemVersion: operatingSystemVersion,
+                ignoredTokens: Self.ownPackageTokens),
+            available: true)
     }
 
     // MARK: - Acting on the list
 
     var selectedCount: Int { selection.count }
+    var selectableCount: Int { items.filter(\.isSelectable).count }
 
     func selectAll() {
-        selection = Set(items.map(\.id))
+        selection = Set(items.filter(\.isSelectable).map(\.id))
     }
 
     func selectNone() {
@@ -316,6 +430,7 @@ final class AppUpdatesService: ObservableObject {
     }
 
     func toggle(_ item: AppUpdatesSupport.Item) {
+        guard item.isSelectable else { return }
         if selection.contains(item.id) {
             selection.remove(item.id)
         } else {
@@ -333,33 +448,41 @@ final class AppUpdatesService: ObservableObject {
         }
         if let page = AppUpdatesSupport.singleStorePage(in: items, selection: selection),
            let url = URL(string: page) {
-            handOffToStore(url)
+            handOff(url)
         } else if AppUpdatesSupport.hasStoreSelection(in: items, selection: selection) {
             openAppStoreUpdates()
         }
     }
 
     func update(_ item: AppUpdatesSupport.Item) {
-        if let token = item.token {
+        switch item.source {
+        case .packageManager:
+            guard let token = item.token else { return }
             startUpgrade([token])
-        } else if let page = item.storePage, let url = URL(string: page) {
-            handOffToStore(url)
-        } else {
-            openAppStoreUpdates()
+        case .appStore:
+            if let page = item.storePage, let url = URL(string: page) {
+                handOff(url)
+            } else {
+                openAppStoreUpdates()
+            }
+        case .onlineCatalog:
+            guard let path = item.bundlePath else { return }
+            handOff(URL(fileURLWithPath: path))
         }
     }
 
     func openAppStoreUpdates() {
         guard let url = URL(string: "macappstore://showUpdatesPage") else { return }
-        handOffToStore(url)
+        handOff(url)
     }
 
-    /// The store installs its own updates and macOS offers no way to do it
-    /// from here, so the honest move is to open it and then tell the truth
+    /// The destination installs its own update, so open it and tell the truth
     /// again the moment the person is back.
-    private func handOffToStore(_ url: URL) {
-        storeHandoffPending = true
-        NSWorkspace.shared.open(url)
+    private func handOff(_ url: URL) {
+        updateHandoffPending = true
+        if !NSWorkspace.shared.open(url) {
+            updateHandoffPending = false
+        }
     }
 
     /// Watches the upgrade to its end and re-reads the list, so a row leaves
@@ -391,29 +514,29 @@ final class AppUpdatesService: ObservableObject {
 
     /// What a surface calls when it appears. It scans again when the answer
     /// could have changed behind the app's back: nothing read yet in this
-    /// process, an update just finished in the store, or the last answer is
+    /// process, an update just finished elsewhere, or the last answer is
     /// simply old. Otherwise reopening the panel costs nothing.
     func checkIfNeeded() {
         guard AppUpdatesSupport.shouldRecheck(hasCheckedThisSession: hasCheckedThisSession,
-                                              handoffPending: storeHandoffPending,
+                                              handoffPending: updateHandoffPending,
                                               lastCheck: lastCheck,
                                               now: Date()) else { return }
         check()
     }
 
-    /// Called when the app comes back to the front. Returning from the store
+    /// Called when the app comes back to the front. Returning from an updater
     /// is the moment the list is most likely to be stale, and the window the
     /// person left behind is buried because this app has no Dock icon.
     func applicationBecameActive() {
-        guard storeHandoffPending else { return }
+        guard updateHandoffPending else { return }
         checkIfNeeded()
     }
 
-    /// True while the app should reopen the window the store hand-off left
+    /// True while the app should reopen the window the update hand-off left
     /// behind. Reading it clears the flag, so the window is restored once.
-    func consumeStoreHandoffReturn() -> Bool {
-        guard storeHandoffPending else { return false }
-        storeHandoffPending = false
+    func consumeUpdateHandoffReturn() -> Bool {
+        guard updateHandoffPending else { return false }
+        updateHandoffPending = false
         return true
     }
 

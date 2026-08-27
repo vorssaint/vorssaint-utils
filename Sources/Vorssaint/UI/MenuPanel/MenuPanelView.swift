@@ -1097,6 +1097,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
+    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
+        SuperKeySource.capsLock.rawValue
     @AppStorage(DefaultsKey.panelControlMouseScroll) private var showScroll = true
     @AppStorage(DefaultsKey.panelControlFocusFollowsMouse) private var showFocusFollowsMouse = true
     @AppStorage(DefaultsKey.panelControlMouseNavigation) private var showMouseNavigation = true
@@ -1629,14 +1631,16 @@ struct QuickControlsSection: View {
                 }
         case .superKey:
             let superKeyStrings = FeatureStrings.superKey(l10n.language)
+            let superKeySource = SuperKeySource.sanitized(superKeySourceRaw)
             let modifierCaption = String(
                 format: superKeyStrings.panelCaptionFormat,
+                superKeyStrings.sourceLabel(superKeySource),
                 SuperKeySupport.modifiers(from: superKeyModifierStorage).keyCaps.joined()
             )
             PanelToggleRow(title: superKeyStrings.pageTitle,
                            caption: caption(modifierCaption,
                                             needsAccessibility: superKeyEnabled),
-                           systemImage: "capslock",
+                           systemImage: superKeySource.systemImage,
                            isOn: $superKeyEnabled,
                            isEditing: editing,
                            showsDragHandle: true,

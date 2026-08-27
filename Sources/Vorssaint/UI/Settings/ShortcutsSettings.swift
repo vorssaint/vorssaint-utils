@@ -210,6 +210,7 @@ struct ShortcutsSettings: View {
 
 private struct CentralWindowLayoutShortcutRow: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var superKey = SuperKeyService.shared
     let action: WindowLayoutAction
     let shortcutsEnabled: Bool
     let showsSuperKeyAlternative: Bool
@@ -320,7 +321,7 @@ private struct CentralWindowLayoutShortcutRow: View {
     private var superKeyAlternative: String? {
         guard showsSuperKeyAlternative, let shortcut else { return nil }
         return shortcut.superKeyAlternative(
-            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey,
+            sourceLabel: FeatureStrings.superKey(l10n.language).sourceLabel(superKey.source),
             superKeyModifiers: superKeyModifiers)
     }
 

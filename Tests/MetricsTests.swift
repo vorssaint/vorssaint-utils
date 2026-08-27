@@ -441,6 +441,25 @@ struct MetricsTests {
         expect(largeClipboardPreview.hasSuffix("…")
                 && largeClipboardPreview.count <= ClipboardHistoryEditing.previewCharacters + 1,
                "clipboard rows keep very large text previews bounded")
+        expect(Defaults.allowedClipboardHistoryLimits == [20, 50, 100, 250, 500, 1_000, 10_000, 0],
+               "clipboard history limits include 10k and unlimited options")
+        expect(Defaults.sanitizedClipboardHistoryLimit(10_000) == 10_000
+                && Defaults.sanitizedClipboardHistoryLimit(0) == 0
+                && Defaults.sanitizedClipboardHistoryLimit(50) == 50
+                && Defaults.sanitizedClipboardHistoryLimit(-99) == 50,
+               "sanitized clipboard history limits accept 10k and 0 (unlimited)")
+        let unlimitedHistory = ClipboardHistoryEditing.retainedEntries(
+            [budgetRecentA, budgetRecentB],
+            recentLimit: 0,
+            textByteLimit: 1_000)
+        expect(unlimitedHistory.count == 2,
+               "clipboard history retainedEntries preserves all entries when recentLimit is 0 (unlimited)")
+        let tenThousandHistory = ClipboardHistoryEditing.retainedEntries(
+            [budgetRecentA, budgetRecentB],
+            recentLimit: 10_000,
+            textByteLimit: 1_000)
+        expect(tenThousandHistory.count == 2,
+               "clipboard history retainedEntries preserves entries with 10_000 limit")
         let previewID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let nextPreviewID = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
         let updatedPreview = ClipboardHistoryEntry(id: previewID, text: "updated")
@@ -1851,6 +1870,22 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.switcherShowShortcutHints] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowShortcutHints),
                "App Switcher keeps shortcut hints visible by default and carries the choice in backups")
+        expect(registeredDefaults[DefaultsKey.switcherAppearanceDelay] as? Int
+               == SwitcherSupport.defaultAppearanceDelayMilliseconds
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherAppearanceDelay),
+               "App Switcher keeps the current appearance delay by default and carries the choice in backups")
+        expect(SwitcherSupport.appearanceDelayMillisecondsRange
+               .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
+               "the default App Switcher appearance delay is one the slider accepts")
+        expect(SwitcherSupport.sanitizedAppearanceDelay(milliseconds: 0) == 0,
+               "the App Switcher can appear immediately when requested")
+        expect(SwitcherSupport.sanitizedAppearanceDelay(milliseconds: -1)
+               == SwitcherSupport.appearanceDelayMillisecondsRange.lowerBound
+               && SwitcherSupport.sanitizedAppearanceDelay(milliseconds: 9_000)
+               == SwitcherSupport.appearanceDelayMillisecondsRange.upperBound,
+               "an App Switcher appearance delay outside the range is clamped to it")
+        expectClose(SwitcherSupport.appearanceDelay(milliseconds: 125), 0.125,
+                    "the stored App Switcher milliseconds drive the panel timer in seconds")
         expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
                "App Switcher simple mode always uses the app icon row")
         expect(SwitcherSupport.usesWindowRow(simpleMode: true,
@@ -3765,31 +3800,244 @@ struct MetricsTests {
                    ]) == ["com.vendor.editor"],
                "package removal preserves helper candidates while excluding an owner installed elsewhere")
         let uninstallIDs: Set<String> = ["com.vendor.editor", "com.vendor.editor.helper"]
-        let deepUninstall = UninstallerSupport.exactDeepCandidates(
-            home: URL(fileURLWithPath: "/Users/tester"),
-            bundleIDs: uninstallIDs,
-            darwinCache: URL(fileURLWithPath: "/private/var/folders/test/C"),
-            darwinTemp: URL(fileURLWithPath: "/private/var/folders/test/T"))
-        expect(deepUninstall.count == 10
-               && deepUninstall.contains(where: { $0.url.path == "/Users/tester/.config/com.vendor.editor" })
-               && deepUninstall.contains(where: { $0.url.path == "/private/var/folders/test/C/com.vendor.editor.helper" })
-               && !deepUninstall.contains(where: { $0.url.path.contains("Editor") }),
-               "deeper paths use exact owned identifiers and never the display name")
-        let hostUUID = "B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F"
-        expect(UninstallerSupport.matchesByHostPreference(
-                   "com.vendor.editor.\(hostUUID).plist", bundleIDs: uninstallIDs)
-               && !UninstallerSupport.matchesByHostPreference(
-                   "com.vendor.editor2.\(hostUUID).plist", bundleIDs: uninstallIDs)
-               && !UninstallerSupport.matchesByHostPreference(
-                   "com.vendor.editor.arbitrary.plist", bundleIDs: uninstallIDs),
-               "per-host preferences require an owned identifier and the system UUID format")
-        expect(UninstallerSupport.matchesGroupContainer("group.com.vendor.editor", bundleIDs: uninstallIDs)
-               && !UninstallerSupport.matchesGroupContainer("TEAM.shared.vendor", bundleIDs: uninstallIDs)
-               && !UninstallerSupport.matchesGroupContainer("group.com.vendor.editor.shared", bundleIDs: uninstallIDs),
-               "group containers require an exact app identifier instead of a shared vendor guess")
-        expect(UninstallerSupport.matchesLaunchItem("com.vendor.editor.helper.plist", bundleIDs: uninstallIDs)
-               && !UninstallerSupport.matchesLaunchItem("com.vendor.editor.helper.extra.plist", bundleIDs: uninstallIDs),
-               "launch items must exactly match an owned app or helper identifier")
+        let leftoverIdentity = UninstallerSupport.identity(
+            bundleIDs: uninstallIDs, displayNames: ["Editor", "Editor.app"])
+        expect(leftoverIdentity.nameTokens.contains("editor")
+               && !leftoverIdentity.nameTokens.contains("helper"),
+               "display names become match tokens and helper suffixes do not")
+        expect(UninstallerSupport.leftoverMatch("Editor", identity: leftoverIdentity) == .related
+               && UninstallerSupport.leftoverMatch("com.vendor.editor.plist", identity: leftoverIdentity) == .exact
+               && UninstallerSupport.leftoverMatch(
+                   "com.vendor.editor.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F.plist",
+                   identity: leftoverIdentity) == .exact
+               && UninstallerSupport.leftoverMatch("COM.VENDOR.EDITOR.PLIST", identity: leftoverIdentity) == .exact
+               && UninstallerSupport.leftoverMatch("Editor.prefPane", identity: leftoverIdentity) == .related
+               && UninstallerSupport.leftoverMatch(
+                   "ABCD123456.com.vendor.editor", identity: leftoverIdentity) == .none
+               && UninstallerSupport.leftoverMatch(
+                   "group.com.vendor.editor", identity: leftoverIdentity) == .none
+               && UninstallerSupport.leftoverMatch(
+                   "com.wrapper.com.vendor.editor", identity: leftoverIdentity) == .none
+               && UninstallerSupport.leftoverMatch("Google", identity: leftoverIdentity) == .none
+               && UninstallerSupport.leftoverMatch("com.vendor.editor2", identity: leftoverIdentity) == .none
+               && UninstallerSupport.leftoverMatch(
+                   "com.vendor.editor.extra", identity: leftoverIdentity) == .related
+               && UninstallerSupport.leftoverMatch(
+                   "com.vendor.editor.helper.plist", identity: leftoverIdentity) == .exact
+               && UninstallerSupport.leftoverMatch("Editorial", identity: leftoverIdentity) == .related
+               && UninstallerSupport.leftoverMatch("Editor/Nested", identity: leftoverIdentity) == .none,
+               "owned identifiers are exact, while prefixes and names stay optional without unsigned wrappers")
+        let technicalIdentity = UninstallerSupport.technicalIdentity(leftoverIdentity)
+        expect(UninstallerSupport.leftoverMatch("Editor", identity: technicalIdentity) == .none
+               && UninstallerSupport.leftoverMatch(
+                   "com.vendor.editor.plist", identity: technicalIdentity) == .exact,
+               "sensitive roots accept technical ownership and never a display name")
+        expect(UninstallerSupport.leftoverEntryMatches(
+                   "Editor_2024-01-01-120000_Mac.plist",
+                   identity: leftoverIdentity, crashReporter: true)
+               && !UninstallerSupport.leftoverEntryMatches(
+                   "Editor_2024-01-01-120000_Mac.plist",
+                   identity: leftoverIdentity, crashReporter: false),
+               "crash reports may use the app name as a prefix only in that folder")
+        expect(UninstallerSupport.ownerBundleID(for: "com.vendor.editor.helper.plist",
+                                                identity: leftoverIdentity)
+                == "com.vendor.editor.helper"
+               && UninstallerSupport.ownerBundleID(for: "Editor", identity: leftoverIdentity)
+                == "com.vendor.editor",
+               "a helper identifier wins when it is in the name, otherwise the app identifier owns a name match")
+        expect(UninstallerSupport.normalizedToken("Example App 2") == "exampleapp2"
+               && UninstallerSupport.nameWithoutTrailingVersion("Example App 2") == "Example App"
+               && UninstallerSupport.nameWithoutTrailingVersion("Example App Nightly") == "Example App"
+               && UninstallerSupport.leftoverMatch(
+                   "Example App",
+                   identity: UninstallerSupport.identity(bundleIDs: ["com.vendor.exampleapp"],
+                                                         displayNames: ["Example App 2"])) == .related
+               && UninstallerSupport.leftoverEntryMatches(
+                   "ExampleApp2.plist",
+                   identity: UninstallerSupport.identity(bundleIDs: ["com.vendor.exampleapp"],
+                                                         displayNames: ["Example App 2"])),
+               "spaces and trailing version numbers do not hide a leftover named after the app")
+        expect(UninstallerSupport.identity(primaryBundleID: "com.vendor.browser",
+                                           bundleIDs: ["com.vendor.browser"],
+                                           displayNames: ["Vendor Browser"]).nameTokens.contains("browser"),
+               "the last identifier component is a token when it names the app")
+        let browserIdentity = UninstallerSupport.identity(primaryBundleID: "com.vendor.browser",
+                                                          bundleIDs: ["com.vendor.browser"],
+                                                          displayNames: ["Vendor Browser"])
+        let browserListings = [
+            UninstallerSupport.DirListing(name: "Vendor", children: [
+                UninstallerSupport.DirListing(name: "Browser", children: []),
+                UninstallerSupport.DirListing(name: "Docs", children: []),
+            ]),
+            UninstallerSupport.DirListing(name: "SuiteApp", children: [
+                UninstallerSupport.DirListing(name: "logs", children: []),
+            ]),
+            UninstallerSupport.DirListing(name: "com.vendor.browser", children: []),
+        ]
+        expect(UninstallerSupport.leftoverHitRecords(
+                   listings: browserListings,
+                   identity: browserIdentity,
+                   extraChildDepth: 1).map(\.path) == ["Vendor/Browser", "com.vendor.browser"],
+               "a leftover nested under a vendor folder is found without taking the whole vendor folder")
+        expect(UninstallerSupport.leftoverHitRecords(
+                   listings: browserListings,
+                   identity: browserIdentity,
+                   extraChildDepth: 0).map(\.path) == ["com.vendor.browser"],
+               "vendor nesting is not searched when the folder is a leaf location")
+        expect(UninstallerSupport.leftoverHitRecords(
+                   listings: [UninstallerSupport.DirListing(name: "Browser", children: [
+                       UninstallerSupport.DirListing(name: "com.vendor.browser", children: [])
+                   ])],
+                   identity: browserIdentity,
+                   extraChildDepth: 1).map(\.path) == ["Browser/com.vendor.browser"],
+               "an exact child wins over a broader related parent folder")
+        expect(UninstallerSupport.leftoverHitRecords(
+                   listings: [UninstallerSupport.DirListing(
+                       name: "Unrelated.component", children: [],
+                       bundleIdentifier: "com.vendor.browser")],
+                   identity: browserIdentity,
+                   extraChildDepth: 0).first?.confidence == .exact,
+               "plugin bundle metadata finds a component whose filename does not identify the app")
+        expect(UninstallerSupport.leftoverHitRecords(
+                   listings: [UninstallerSupport.DirListing(name: "Vendor", children: [
+                       UninstallerSupport.DirListing(name: "Mid", children: [
+                           UninstallerSupport.DirListing(name: "Editor", children: [])
+                       ])
+                   ])],
+                   identity: leftoverIdentity,
+                   extraChildDepth: 2).map(\.path) == ["Vendor/Mid/Editor"],
+               "Application Support is searched two levels for vendor/mid/app nesting")
+        let teamedIdentity = UninstallerSupport.identity(
+            bundleIDs: ["com.vendor.editor"], displayNames: [],
+            teamIDs: ["abcd123456"], groupIDs: ["group.com.vendor.editor"])
+        expect(UninstallerSupport.leftoverMatch("ABCD123456.com.other", identity: teamedIdentity) == .related
+               && UninstallerSupport.leftoverMatch(
+                   "ABCD123456.com.vendor.editor", identity: teamedIdentity) == .exact
+               && UninstallerSupport.leftoverMatch(
+                   "ZZZZ123456.com.vendor.editor", identity: teamedIdentity) == .none
+               && UninstallerSupport.leftoverMatch("group.com.vendor.editor", identity: teamedIdentity) == .exact
+               && UninstallerSupport.matchingGroupID(
+                   "group.com.vendor.editor", identity: teamedIdentity) == "group.com.vendor.editor"
+               && UninstallerSupport.containerMetadataMatches("com.vendor.editor",
+                                                              identity: leftoverIdentity) == .exact,
+               "team prefixes are related, app groups and container metadata keep the exact owner")
+        let leftoverFolders = UninstallerSupport.searchFolders(
+            home: URL(fileURLWithPath: "/Users/tester"), darwinCache: nil, darwinTemp: nil)
+        expect(leftoverFolders.contains(where: {
+                   $0.url.path == "/Users/tester/Library/Group Containers" && $0.kind == .containers
+                   && $0.readsContainerMetadata && !$0.allowsNameMatches
+                   && $0.requiresSignedGroup
+               })
+               && leftoverFolders.contains(where: {
+                   $0.url.path == "/Users/tester/Library/PreferencePanes" && $0.kind == .other
+               })
+               && leftoverFolders.contains(where: {
+                   $0.url.path.hasSuffix("CrashReporter") && $0.crashReporter
+               })
+               && leftoverFolders.contains(where: { $0.url.path == "/private/var/db/receipts" })
+               && leftoverFolders.contains(where: { $0.url.path.hasSuffix("/Automator") })
+               && leftoverFolders.contains(where: { $0.url.path.hasSuffix("/Frameworks") })
+               && leftoverFolders.contains(where: {
+                   $0.url.path == "/Users/tester/.config" && !$0.allowsNameMatches
+               })
+               && leftoverFolders.contains(where: {
+                   $0.url.path == "/Users/tester/Library/Preferences/ByHost"
+                       && !$0.allowsNameMatches
+               })
+               && leftoverFolders.contains(where: {
+                   $0.url.path == "/Users/tester/Library/Caches/com.apple.nsurlsessiond/Downloads"
+                       && !$0.allowsNameMatches
+               })
+               && !leftoverFolders.contains(where: { $0.url.path.contains("/Desktop") })
+               && leftoverFolders.contains(where: {
+                   $0.url.path == "/Users/tester/Library/Application Support" && $0.extraChildDepth == 2
+               }),
+               "leftover search covers Library support, plugins and receipts, not the Desktop")
+        let spotlightQuery = UninstallerSupport.leftoverSpotlightExpression(identity: leftoverIdentity) ?? ""
+        expect(spotlightQuery.contains("com.vendor.editor")
+               && spotlightQuery.contains("editor")
+               && UninstallerSupport.leftoverSpotlightPathIsAllowed(
+                    "/Users/tester/Library/Caches/Editor",
+                    roots: [URL(fileURLWithPath: "/Users/tester/Library")])
+               && !UninstallerSupport.leftoverSpotlightPathIsAllowed(
+                    "/Users/tester/Desktop/Editor",
+                    roots: [URL(fileURLWithPath: "/Users/tester/Library")]),
+               "Spotlight leftovers stay inside Library-like roots")
+        let spotlightGroupIdentity = UninstallerSupport.spotlightIdentity(
+            for: "/Users/tester/Library/Group Containers/group.com.vendor.editor",
+            identity: teamedIdentity)
+        let spotlightLaunchIdentity = UninstallerSupport.spotlightIdentity(
+            for: "/Users/tester/Library/LaunchAgents/Editor.plist",
+            identity: teamedIdentity)
+        expect(spotlightGroupIdentity.bundleIDs.isEmpty
+               && spotlightGroupIdentity.groupIDs == ["group.com.vendor.editor"]
+               && spotlightLaunchIdentity.nameTokens.isEmpty,
+               "Spotlight preserves signed-group and technical-only rules for sensitive roots")
+        let safetyFixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-uninstaller-\(UUID().uuidString)", isDirectory: true)
+        let safetyRoot = safetyFixture.appendingPathComponent("root", isDirectory: true)
+        let outsideRoot = safetyFixture.appendingPathComponent("outside", isDirectory: true)
+        let safeFile = safetyRoot.appendingPathComponent("safe.plist")
+        let replacementFile = safetyRoot.appendingPathComponent("replacement.plist")
+        let outsideFile = outsideRoot.appendingPathComponent("foreign.plist")
+        let link = safetyRoot.appendingPathComponent("link", isDirectory: true)
+        try? FileManager.default.createDirectory(at: safetyRoot, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: outsideRoot, withIntermediateDirectories: true)
+        _ = FileManager.default.createFile(atPath: safeFile.path, contents: Data("old".utf8))
+        _ = FileManager.default.createFile(atPath: replacementFile.path, contents: Data("new".utf8))
+        _ = FileManager.default.createFile(atPath: outsideFile.path, contents: Data("foreign".utf8))
+        try? FileManager.default.createSymbolicLink(at: link, withDestinationURL: outsideRoot)
+        let originalFileIdentity = UninstallerSupport.fileIdentity(at: safeFile)
+        let safePathWasAccepted = UninstallerSupport.removalPathIsSafe(safeFile, within: safetyRoot)
+        let linkedPathWasRejected = !UninstallerSupport.removalPathIsSafe(
+            link.appendingPathComponent("foreign.plist"), within: safetyRoot)
+        try? FileManager.default.removeItem(at: safeFile)
+        try? FileManager.default.moveItem(at: replacementFile, to: safeFile)
+        expect(safePathWasAccepted && linkedPathWasRejected
+               && originalFileIdentity != nil
+               && UninstallerSupport.fileIdentity(at: safeFile) != originalFileIdentity,
+               "removal stays inside its scan root, rejects symlink escapes and detects path replacement")
+        try? FileManager.default.removeItem(at: safetyFixture)
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
+                == "com.vendor.editor",
+               "preference panes map to their owning bundle identifier")
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName: "app-0.0.409") == nil
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "0.0.409") == nil
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "1.57.0") == nil
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "com.v2.editor")
+                == "com.v2.editor",
+               "version directories never become deletion ownership evidence")
+        let supportRoot = URL(fileURLWithPath: "/Users/tester/Library/Application Support")
+        expect(CleanerSupport.isDirectChild(
+                   supportRoot.appendingPathComponent("com.vendor.editor"), of: supportRoot)
+               && !CleanerSupport.isDirectChild(
+                   supportRoot.appendingPathComponent("vendor/app-0.0.409"), of: supportRoot),
+               "the general Cleaner accepts only direct children of each leftover root")
+        expect(CleanerSupport.bundleIDCandidate(fromEntryName:
+               "com.vendor.editor.Helper.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F.plist")
+                == "com.vendor.editor.Helper"
+               && CleanerSupport.bundleIDCandidate(fromEntryName:
+               "com.vendor.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F.editor") == nil
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "ABCD123456.com.vendor.editor")
+                == "com.vendor.editor",
+               "ByHost UUIDs and team prefixes unwrap to the owning identifier")
+        expect(CleanerSupport.hasSharedContainerWrapper("group.com.vendor.editor")
+               && CleanerSupport.hasSharedContainerWrapper("ABCD123456.com.vendor.editor")
+               && !CleanerSupport.hasSharedContainerWrapper("abcd123456.com.vendor.editor")
+               && !CleanerSupport.hasSharedContainerWrapper("com.vendor.editor"),
+               "the general Cleaner leaves shared-container wrappers to signed app-specific scans")
+        let helperAppIdentity = UninstallerSupport.identity(
+            primaryBundleID: "com.vendor.chat",
+            bundleIDs: ["com.vendor.chat", "com.vendor.chat.helper.Renderer", "com.vendor.chat.helper.GPU"],
+            displayNames: ["Chat App"])
+        expect(!helperAppIdentity.nameTokens.contains("renderer")
+               && !helperAppIdentity.nameTokens.contains("gpu")
+               && helperAppIdentity.nameTokens.contains("chatapp")
+               && UninstallerSupport.leftoverMatch("renderer.log", identity: helperAppIdentity) == .none
+               && !UninstallerSupport.leftoverSpotlightPathIsAllowed(
+                    "/Users/tester/Library/Application Support/OtherApp/logs/sub/renderer.log",
+                    roots: [URL(fileURLWithPath: "/Users/tester/Library/Application Support")]),
+               "helper subprocess roles and deeply nested foreign logs are never claimed as leftovers")
         expect(CleanerSupport.isProtectedBundleID("systemgroup.com.apple.icloud.searchpartyd.sharedsettings")
                && CleanerSupport.isProtectedBundleID("243LU875E5.groups.com.apple.podcasts")
                && CleanerSupport.isProtectedBundleID("developer.apple.wwdc")
@@ -3804,8 +4052,8 @@ struct MetricsTests {
                == "com.apple.icloud.sharedsettings",
                "systemgroup wrappers unwrap to the real owner")
         expect(CleanerSupport.bundleIDCandidate(fromEntryName:
-               "com.vendor.editor.Helper.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F.plist") == nil,
-               "names carrying a UUID are unattributable and never candidates")
+               "com.vendor.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F.editor") == nil,
+               "a UUID in the middle of a name stays unattributable")
         expect(CleanerSupport.containsUUIDComponent("x.B787EFF9-B8E2-5296-96AF-DF9D3CD3AC4F")
                && !CleanerSupport.containsUUIDComponent("com.vendor.editor"),
                "the UUID detector matches dashed UUIDs and nothing else")
@@ -4077,6 +4325,83 @@ struct MetricsTests {
                                                             visibleSpaces: nil,
                                                             hasTitle: true),
                "without Spaces to compare, the old cautious rule stands")
+
+        expect(AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 0,
+                                                     listedWindows: 0,
+                                                     foundUserWindow: true),
+               "an app the window server still shows a window for is watched again")
+        expect(AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 1,
+                                                     listedWindows: 2,
+                                                     foundUserWindow: true),
+               "a listed window whose notification failed is watched again")
+        expect(!AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 2,
+                                                      listedWindows: 2,
+                                                      foundUserWindow: true),
+               "two registered windows cover the two Accessibility listed windows")
+        expect(!AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 1,
+                                                      listedWindows: 1,
+                                                      foundUserWindow: true),
+               "a registered window is the watch, so nothing is retried")
+        expect(!AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 0,
+                                                      listedWindows: 0,
+                                                      foundUserWindow: false),
+               "an app with no window anywhere is not eligible and needs no watch")
+        expect(AutoQuitSupport.isWindowNotificationRegistered(.success),
+               "a window whose notification was accepted is watched")
+        expect(AutoQuitSupport.isWindowNotificationRegistered(.notificationAlreadyRegistered),
+               "a window already registered on this observer stays watched across refreshes")
+        expect(!AutoQuitSupport.isWindowNotificationRegistered(.cannotComplete),
+               "a window whose registration was refused is not watched")
+        let autoQuitServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/AutoQuit/AutoQuitService.swift",
+            encoding: .utf8)) ?? ""
+        let autoQuitServiceLines = autoQuitServiceSource.components(separatedBy: "\n")
+        func autoQuitServiceCodeLines(containing fragment: String) -> [Int] {
+            autoQuitServiceLines.enumerated().compactMap { index, line in
+                let code = line.trimmingCharacters(in: .whitespaces)
+                guard !code.hasPrefix("//"), code.contains(fragment) else { return nil }
+                return index + 1
+            }
+        }
+        // The retry has to stop: an app whose windows Accessibility can never
+        // describe would otherwise be polled for as long as it runs. The
+        // service is not part of this test binary, so pin the load-bearing
+        // timing, stale-timer guard, and Space re-arm at their source lines.
+        let windowWatchRetryCode = [
+            "let serverWindow = windows.isEmpty ? hasWindowServerUserWindow(pid: pid) : nil",
+            "let foundUserWindow = !windows.isEmpty || serverWindow == true",
+            "private static let windowWatchRetryOffsets: [TimeInterval] = [0.5, 1.5, 4.0]",
+            "retry.attemptsScheduled < Self.windowWatchRetryOffsets.count else { return }",
+            "deadline: retry.origin + Self.windowWatchRetryOffsets[attempt]",
+            "retry.pendingTimerID == timerID",
+            "windowWatchRetries.removeAll()",
+            "NSWorkspace.activeSpaceDidChangeNotification",
+            "rearmWindowWatchRetries()",
+            // The count the retry reads must be windows actually watched, not
+            // windows Accessibility listed: AXObserverAddNotification can
+            // refuse, and a refused registration is exactly the state the
+            // retry exists for. Only the destroyed notification decides it.
+            "if watch(window: window, observer: observer, refcon: refcon) { watchedWindows += 1 }",
+            "needsWindowWatchRetry(registeredWindows: watchedWindows,",
+            "listedWindows: windows.count,",
+            "if notification == kAXUIElementDestroyedNotification {",
+            "watched = AutoQuitSupport.isWindowNotificationRegistered(result)",
+        ]
+        let missingWindowWatchRetryCode = windowWatchRetryCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        expect(missingWindowWatchRetryCode.isEmpty,
+               "the AutoQuit window-watch retry stays bounded, origin-based, re-armed by Space changes, and counts only windows whose destroy notification registered: missing \(missingWindowWatchRetryCode)")
+        let closeCheckOffsetCode = [
+            "private static let closeCheckOffsets: [TimeInterval] = [0.35, 1.0, 2.2]",
+            "for offset in Self.closeCheckOffsets",
+            "DispatchQueue.main.asyncAfter(deadline: origin + offset)",
+        ]
+        let missingCloseCheckOffsetCode = closeCheckOffsetCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        expect(missingCloseCheckOffsetCode.isEmpty,
+               "AutoQuit close checks remain offsets from one origin: missing \(missingCloseCheckOffsetCode)")
 
         // Attaching to a watched app must never ask its application element for
         // a role. A Chromium app (Electron, and the browsers) answers that by
@@ -7393,6 +7718,12 @@ struct MetricsTests {
                                                                   availableHeight: 1200)
         expect(bogusSaved.width == 772 && bogusSaved.height == 838,
                "a saved size below the minimum falls back to the default")
+        expect(!SettingsWindowSupport.isValidContentSize(width: 300, height: 200),
+               "sub-minimum sizes are rejected by isValidContentSize")
+        expect(SettingsWindowSupport.isValidContentSize(width: 772, height: 528),
+               "exact minimum size is valid")
+        expect(SettingsWindowSupport.isValidContentSize(width: 1000, height: 800),
+               "larger size is valid")
         let preferredSettingsFrame = CGRect(x: -50, y: 100, width: 1000, height: 700)
         let overlappingPlacement = SettingsWindowSupport.panelPlacement(
             preferredFrame: preferredSettingsFrame,
@@ -10120,6 +10451,11 @@ struct MetricsTests {
                    && !strings.switcherShowShortcutHints.contains("—")
                    && !strings.switcherShowShortcutHintsCaption.contains("—"),
                    "\(prefix) App Switcher shortcut-hint labels are present without em dash")
+            expect(!strings.switcherAppearanceDelay.isEmpty
+                   && !strings.switcherAppearanceDelayCaption.isEmpty
+                   && !strings.switcherAppearanceDelay.contains("—")
+                   && !strings.switcherAppearanceDelayCaption.contains("—"),
+                   "\(prefix) App Switcher appearance-delay labels are present without em dash")
             expect(!strings.switcherWindowlessApps.isEmpty
                    && !strings.switcherWindowlessApps.contains("—"),
                    "\(prefix) App Switcher windowless apps title is present without em dash")
@@ -11487,13 +11823,13 @@ struct MetricsTests {
         let superSpace = GlobalShortcut(keyCode: Int64(kVK_Space), modifiers: .validMask)
         let customSuperSpace = GlobalShortcut(keyCode: Int64(kVK_Space),
                                               modifiers: [.control, .option, .command])
-        expect(superSpace.superKeyAlternative(capsLockLabel: "Caps Lock",
-                                              superKeyModifiers: .validMask) == "Caps Lock + Space"
+        expect(superSpace.superKeyAlternative(sourceLabel: "Right ⌘",
+                                              superKeyModifiers: .validMask) == "Right ⌘ + Space"
                 && customSuperSpace.superKeyAlternative(
-                    capsLockLabel: "Caps Lock",
-                    superKeyModifiers: [.control, .option, .command]) == "Caps Lock + Space"
+                    sourceLabel: "Right ⌘",
+                    superKeyModifiers: [.control, .option, .command]) == "Right ⌘ + Space"
                 && GlobalShortcut.commandBarDefault.superKeyAlternative(
-                    capsLockLabel: "Caps Lock",
+                    sourceLabel: "Right ⌘",
                     superKeyModifiers: [.control, .option, .command]) == nil,
                "the shortcut editor follows the configured Super key modifiers")
 
@@ -11512,7 +11848,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 52 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 53 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
@@ -11595,7 +11931,7 @@ struct MetricsTests {
                    "no em-dash in visible menu bar appearance strings (\(language.rawValue))")
             let appUpdateValues = Mirror(reflecting: FeatureStrings.appUpdates(language)).children
                 .compactMap { $0.value as? String }
-            expect(appUpdateValues.count == 32 && appUpdateValues.allSatisfy { !$0.isEmpty },
+            expect(appUpdateValues.count == 39 && appUpdateValues.allSatisfy { !$0.isEmpty },
                    "every app update string is set for \(language.rawValue)")
             expect(appUpdateValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible app update strings (\(language.rawValue))")
@@ -11644,7 +11980,7 @@ struct MetricsTests {
                    "every Settings category name is set for \(language.rawValue)")
             let superKeyValues = Mirror(reflecting: FeatureStrings.superKey(language)).children
                 .compactMap { $0.value as? String }
-            expect(superKeyValues.count == 17 && superKeyValues.allSatisfy { !$0.isEmpty },
+            expect(superKeyValues.count == 20 && superKeyValues.allSatisfy { !$0.isEmpty },
                    "every super key string is set for \(language.rawValue)")
             let refusals = SuperKeyMappingFailure.allCases.map {
                 FeatureStrings.superKey(language).mappingFailure($0)
@@ -11652,8 +11988,15 @@ struct MetricsTests {
             expect(Set(refusals).count == SuperKeyMappingFailure.allCases.count
                     && refusals.allSatisfy { !$0.isEmpty },
                    "every reason the key mapping is refused reads differently (\(language.rawValue))")
+            let superKeyStrings = FeatureStrings.superKey(language)
             expect(superKeyValues.allSatisfy { !$0.contains("—") }
-                    && FeatureStrings.superKey(language).panelCaptionFormat.contains("%@"),
+                    && superKeyStrings.enableToggle != superKeyStrings.pageTitle
+                    && superKeyStrings.rightKeyFormat.contains("%@")
+                    && superKeyStrings.panelCaptionFormat.contains("%1$@")
+                    && superKeyStrings.panelCaptionFormat.contains("%2$@")
+                    && SuperKeySource.allCases.allSatisfy {
+                        !superKeyStrings.sourceLabel($0).isEmpty
+                    },
                    "super key strings keep their format and avoid em-dashes (\(language.rawValue))")
             let shortcutValues = Mirror(reflecting: FeatureStrings.shortcuts(language)).children
                 .compactMap { $0.value as? String }
@@ -13722,28 +14065,13 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
-        // The capture tools are sections side by side rather than one
-        // switcher hiding three of them, so no page state decides which is
-        // on screen and every tool's own shortcut sits in its own section
-        // (issue #757).
-        let captureSettingsSources = ["ScreenCaptureSettings", "ScreenshotSettings",
-                                      "ScreenRecorderSettings"]
-            .map { name -> String in
-                let text = (try? String(
-                    contentsOfFile: "Sources/Vorssaint/UI/Settings/\(name).swift",
-                    encoding: .utf8)) ?? ""
-                return text.components(separatedBy: "\n")
-                    .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                    .joined(separator: "\n")
-            }
-        expect(captureSettingsSources[0].contains("ForEach(availableTools")
-                && !captureSettingsSources[0].contains("selectedTool"),
-               "the capture page shows every installed tool instead of one at a time")
-        let shortcutTools = Set(captureSettingsSources.joined(separator: "\n")
-            .components(separatedBy: "ToolShortcutRows(tool: .").dropFirst()
-            .map { String($0.prefix { $0.isLetter }) })
-        expect(shortcutTools == Set(ScreenCaptureTool.allCases.map { "\($0)" }),
-               "every capture tool carries its own shortcut in its own section")
+        let captureSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(captureSettingsSource.contains("selectedTool")
+                && captureSettingsSource.contains(".pickerStyle(.segmented)")
+                && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool"),
+               "the capture page uses a segmented picker with tool-specific shortcuts in the top section")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])
@@ -15059,6 +15387,9 @@ struct MetricsTests {
 
         expect(Defaults.registeredDefaults[DefaultsKey.superKeyEnabled] as? Bool == false,
                "the super key ships off by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.superKeySource] as? String
+                == SuperKeySource.capsLock.rawValue,
+               "the super key keeps Caps Lock as its default source")
         expect(Defaults.registeredDefaults[DefaultsKey.superKeyModifiers] as? String
                 == SuperKeySupport.defaultModifierStorageValue,
                "the super key starts with all four modifiers")
@@ -15067,10 +15398,13 @@ struct MetricsTests {
                "a tap on its own does nothing until the user picks something")
         expect(Defaults.registeredDefaults[DefaultsKey.panelControlSuperKey] as? Bool == true,
                "the super key panel row ships visible like its siblings")
-        expect(Defaults.registeredDefaults[DefaultsKey.superKeyMappingApplied] == nil,
-               "the mapping flag is machine state, so it is never registered and never backed up")
+        expect(Defaults.registeredDefaults[DefaultsKey.superKeyMappingApplied] == nil
+                && Defaults.registeredDefaults[DefaultsKey.superKeyMappedSource] == nil,
+               "mapping recovery state is never registered or backed up")
         expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyMappingApplied)
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyMappedSource)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeySource)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeyModifiers)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.superKeySoloAction),
                "the Super key preferences travel in a backup, the mapping state stays behind")
@@ -15088,6 +15422,23 @@ struct MetricsTests {
                 && SuperKeySoloAction.sanitized("nonsense") == SuperKeySoloAction.none
                 && SuperKeySoloAction.sanitized(nil) == SuperKeySoloAction.none,
                "a stored solo action is trusted only when the app still knows it")
+        expect(SuperKeySource.sanitized("rightCommand") == .rightCommand
+                && SuperKeySource.sanitized("nonsense") == .capsLock
+                && SuperKeySource.sanitized(nil) == .capsLock
+                && SuperKeySource.capsLock.usage == 0x700000039
+                && SuperKeySource.rightControl.usage == 0x7000000E4
+                && SuperKeySource.rightShift.usage == 0x7000000E5
+                && SuperKeySource.rightOption.usage == 0x7000000E6
+                && SuperKeySource.rightCommand.usage == 0x7000000E7
+                && Set(SuperKeySource.allCases.map(\.usage)).count == SuperKeySource.allCases.count
+                && Set(SuperKeySource.allCases.map(\.keyCode)).count == SuperKeySource.allCases.count,
+               "stored sources are validated and each supported key has distinct HID data")
+        expect(SuperKeySource.capsLock.systemImage == "capslock"
+                && SuperKeySource.rightCommand.systemImage == "command"
+                && SuperKeySource.rightOption.systemImage == "option"
+                && SuperKeySource.rightControl.systemImage == "control"
+                && SuperKeySource.rightShift.systemImage == "shift",
+               "each super key source has a matching system image")
         expect(SuperKeySupport.modifiers(from: "control+option+command")
                 == [.control, .option, .command]
                 && SuperKeySupport.modifiers(from: "shift") == .validMask
@@ -15140,32 +15491,43 @@ struct MetricsTests {
                                                      enabledIDs: ["abc"]) == nil,
                "input sources cycle through the enabled system list without a hard-coded shortcut")
 
-        let capsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
+        let capsMapping = SuperKeyMapping(source: SuperKeySource.capsLock.usage,
                                           destination: SuperKeySupport.triggerUsage)
+        let rightCommandMapping = SuperKeyMapping(source: SuperKeySource.rightCommand.usage,
+                                                  destination: SuperKeySupport.triggerUsage)
         let foreignMapping = SuperKeyMapping(source: 0x700000064, destination: 0x700000035)
         expect(SuperKeySupport.mappings(enablingSuperKey: true, existing: []) == [capsMapping],
                "turning the key on maps caps lock to the key it arrives as")
         expect(SuperKeySupport.mappings(enablingSuperKey: true, existing: [foreignMapping])
                 == [capsMapping, foreignMapping],
                "a mapping the user set up elsewhere survives turning the feature on")
+        expect(SuperKeySupport.mappings(enablingSuperKey: true,
+                                        existing: [capsMapping, foreignMapping],
+                                        source: .rightCommand,
+                                        ownedSource: .capsLock)
+                == [rightCommandMapping, foreignMapping],
+               "changing sources removes the old owned mapping before adding the new one")
         expect(SuperKeySupport.mappings(enablingSuperKey: false,
                                         existing: [capsMapping, foreignMapping],
-                                        ownsExistingMapping: true)
+                                        ownedSource: .capsLock)
                 == [foreignMapping],
                "turning it off removes only the entry this feature owns")
-        let foreignCapsMapping = SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
+        let foreignCapsMapping = SuperKeyMapping(source: SuperKeySource.capsLock.usage,
                                                  destination: 0x700000029)
-        expect(SuperKeySupport.hasMappingConflict(in: [foreignCapsMapping],
-                                                  ownsExistingMapping: false)
+        let foreignRightCommandMapping = SuperKeyMapping(source: SuperKeySource.rightCommand.usage,
+                                                         destination: 0x700000029)
+        expect(SuperKeySupport.hasMappingConflict(in: [foreignCapsMapping])
                 && SuperKeySupport.mappings(enablingSuperKey: true,
                                             existing: [foreignCapsMapping]) == [foreignCapsMapping]
                 && SuperKeySupport.mappings(enablingSuperKey: false,
                                             existing: [foreignCapsMapping]) == [foreignCapsMapping],
                "an existing Caps Lock mapping is refused and preserved in both directions")
-        expect(SuperKeySupport.hasMappingConflict(in: [capsMapping],
-                                                  ownsExistingMapping: false)
+        expect(SuperKeySupport.hasMappingConflict(in: [foreignRightCommandMapping],
+                                                  source: .rightCommand),
+               "an existing mapping on a selected right-side source blocks activation")
+        expect(SuperKeySupport.hasMappingConflict(in: [capsMapping])
                 && !SuperKeySupport.hasMappingConflict(in: [capsMapping],
-                                                       ownsExistingMapping: true)
+                                                       ownedSource: .capsLock)
                 && SuperKeySupport.mappings(enablingSuperKey: true,
                                             existing: [capsMapping]) == [capsMapping],
                "an identical external Caps Lock mapping is not claimed without ownership proof")
@@ -15254,7 +15616,7 @@ struct MetricsTests {
         expect(SuperKeySupport.consistentMappings(
             ownedDifferenceReport,
             property: SuperKeySupport.userMappingProperty,
-            ownsExistingMapping: true
+            ownedSource: .capsLock
         ) == [foreignMapping], "a newly connected keyboard can converge when only the owned mapping differs")
 
         let noActionReport = """
@@ -15264,7 +15626,7 @@ struct MetricsTests {
         }
         """
         expect(SuperKeySupport.parseMappings(noActionReport)
-                == [SuperKeyMapping(source: SuperKeySupport.capsLockUsage,
+                == [SuperKeyMapping(source: SuperKeySource.capsLock.usage,
                                     destination: UInt64.max)],
                "hidutil's signed no-action value keeps its unsigned HID meaning")
         // The page is the only place a refused mapping is visible, so the
@@ -15433,8 +15795,8 @@ struct MetricsTests {
         expect(strandedState.decide(.otherKey) == .pass,
                "a key held while the tap goes away cannot leave typing stuck in modifiers")
         var unmappedKeyboardState = SuperKeySupport.State()
-        expect(unmappedKeyboardState.decide(.capsLock) == .interceptAndRemap,
-               "a raw caps lock is intercepted while that keyboard's mapping is repaired")
+        expect(unmappedKeyboardState.decide(.sourceKey) == .interceptAndRemap,
+               "a raw source key is intercepted while that keyboard's mapping is repaired")
 
         // MARK: Mouse app exceptions (issue #358)
 
@@ -15470,6 +15832,214 @@ struct MetricsTests {
                 && !MouseAppExceptionSupport.isExcepted(["com.example.other"],
                                                          exceptions: exceptionSet),
                "a source app or one of its bundled helpers can carry an exception")
+        // A program started from a launcher — the Java process behind a game
+        // is the reported one — has no bundle identifier at all, so the file
+        // being run stands in as its identity (issue #1009). An app that has
+        // an identifier keeps answering only to that, so nothing already
+        // listed changes meaning.
+        expect(MouseAppExceptionSupport.identity(bundleID: "com.example.modeler",
+                                                 executablePath: "/Applications/Modeler.app/Contents/MacOS/Modeler")
+                == "com.example.modeler",
+               "an app with a bundle identifier answers to it and not to its executable")
+        expect(MouseAppExceptionSupport.identity(bundleID: nil,
+                                                 executablePath: "/opt/game/runtime/bin/java")
+                == "/opt/game/runtime/bin/java",
+               "a program with no bundle identifier answers to the file being run")
+        expect(MouseAppExceptionSupport.identity(bundleID: nil, executablePath: nil) == nil
+                && MouseAppExceptionSupport.identity(bundleID: nil, executablePath: "java") == nil,
+               "a program with nothing to be named by is never excepted by accident")
+        expect(MouseAppExceptionSupport.isExecutablePathIdentity("/opt/game/runtime/bin/java")
+                && !MouseAppExceptionSupport.isExecutablePathIdentity("com.example.modeler"),
+               "a stored path is told from a bundle identifier by its leading slash")
+        expect(MouseAppExceptionSupport.isExcepted(
+                   MouseAppExceptionSupport.identity(bundleID: nil,
+                                                     executablePath: "/opt/game/runtime/bin/java"),
+                   exceptions: ["/opt/game/runtime/bin/java"])
+                && !MouseAppExceptionSupport.isExcepted(
+                    MouseAppExceptionSupport.identity(bundleID: nil,
+                                                      executablePath: "/opt/other/bin/java"),
+                    exceptions: ["/opt/game/runtime/bin/java"]),
+               "a listed program path excepts that program and no other")
+        expect(InstalledApps.name(for: "/opt/game/runtime/bin/java") == "java",
+               "a listed program path is shown by its file name, not the whole path")
+
+        // The stored path is the one the file sheet handed back and the
+        // matched one is the file the running program reports, and the same
+        // file arrives at the two ends under different names as soon as
+        // anything on the way is a link — measured on this Mac, the sheet
+        // answers /private/tmp/… for a file the running program answers
+        // /tmp/… for. Both ends resolve, so they meet.
+        let identityRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-identity-\(getpid())", isDirectory: true)
+        let runtimeBinary = identityRoot.appendingPathComponent("runtime/bin/launcher")
+        try? FileManager.default.createDirectory(at: runtimeBinary.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: runtimeBinary.path, contents: Data())
+        let linkedBinary = identityRoot.appendingPathComponent("launcher")
+        try? FileManager.default.createSymbolicLink(at: linkedBinary, withDestinationURL: runtimeBinary)
+        let pickedThroughLink = MouseAppExceptionSupport.executablePathIdentity(linkedBinary.path)
+        let reportedByTheSystem = MouseAppExceptionSupport.identity(bundleID: nil,
+                                                                    executablePath: runtimeBinary.path)
+        expect(pickedThroughLink != nil
+                && pickedThroughLink != linkedBinary.path
+                && pickedThroughLink == reportedByTheSystem,
+               "a program picked through a link stores the file it links to")
+        expect(MouseAppExceptionSupport.isExcepted(reportedByTheSystem,
+                                                   exceptions: Set([pickedThroughLink].compactMap { $0 })),
+               "the program the system reports matches the entry the picker stored")
+
+        // A file sheet that takes programs can be walked into a bundle, and
+        // what is stored has to be what the system will report once the file
+        // runs. Measured on this Mac: a bundle's own executable run straight
+        // from disk is reported as com.example.withid, while a runtime shipped
+        // deeper in that same bundle — the shape issue #1009 is about — is
+        // reported with no identifier and stays a path. Filing that runtime
+        // under the app above it would break the case this all exists for.
+        func makeTestBundle(_ name: String, identifier: String?) -> URL {
+            let bundle = identityRoot.appendingPathComponent("\(name).app")
+            for file in ["Contents/MacOS/\(name)", "Contents/runtime/bin/java"] {
+                let url = bundle.appendingPathComponent(file)
+                try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                         withIntermediateDirectories: true)
+                FileManager.default.createFile(atPath: url.path, contents: Data())
+            }
+            var info: [String: Any] = ["CFBundleExecutable": name, "CFBundlePackageType": "APPL"]
+            if let identifier { info["CFBundleIdentifier"] = identifier }
+            if let plist = try? PropertyListSerialization.data(fromPropertyList: info,
+                                                               format: .xml,
+                                                               options: 0) {
+                try? plist.write(to: bundle.appendingPathComponent("Contents/Info.plist"))
+            }
+            return bundle
+        }
+        let namedBundle = makeTestBundle("Modeler", identifier: "com.example.modeler")
+        let namelessBundle = makeTestBundle("Bare", identifier: nil)
+        expect(MouseAppExceptionSupport.pickedIdentity(for: namedBundle) == "com.example.modeler"
+                && MouseAppExceptionSupport.pickedIdentity(
+                    for: namedBundle.appendingPathComponent("Contents/MacOS/Modeler"))
+                    == "com.example.modeler",
+               "an app is stored by its identifier whether its bundle or the binary inside it was picked")
+        let bundledRuntime = namedBundle.appendingPathComponent("Contents/runtime/bin/java")
+        expect(MouseAppExceptionSupport.pickedIdentity(for: bundledRuntime)
+                == MouseAppExceptionSupport.executablePathIdentity(bundledRuntime.path),
+               "a runtime shipped inside an app keeps its own path, never the identifier of the app above it")
+        expect(MouseAppExceptionSupport.pickedIdentity(for: namelessBundle)
+                == MouseAppExceptionSupport.executablePathIdentity(
+                    namelessBundle.appendingPathComponent("Contents/MacOS/Bare").path),
+               "an app whose Info.plist names no identifier is stored by the binary it runs")
+        expect(MouseAppExceptionSupport.pickedIdentity(for: runtimeBinary)
+                == MouseAppExceptionSupport.executablePathIdentity(runtimeBinary.path),
+               "a program that is not packaged as an app is stored by its own file")
+        try? FileManager.default.removeItem(at: identityRoot)
+
+        // The list sanitizer runs over stored entries, and a file name may
+        // legally end in a space: trimming a path would look for a spelling
+        // the running program never reports, so only an identifier is trimmed.
+        expect(Defaults.sanitizedBundleIdentifierList(["/opt/game/bin/java ", " com.example.a "])
+                == ["/opt/game/bin/java ", "com.example.a"],
+               "a stored path keeps its exact file name while an identifier is trimmed")
+
+        expect(InstalledApps.location(for: "com.example.modeler") == nil,
+               "a bundle identifier names its app on its own and carries no location")
+        expect(InstalledApps.location(for: NSHomeDirectory() + "/runtimes/zulu-8.jre/bin/java")
+                == "~/runtimes/zulu-8.jre/bin",
+               "a path identity is located by its directory, spelled from home")
+        expect(InstalledApps.location(for: "/opt/game/bin/java") == "/opt/game/bin",
+               "a path outside home keeps its absolute directory")
+
+        // Both ends of that agreement live outside this binary: the picker
+        // stores from AppBundleList and the taps match from MouseAppExceptions.
+        // An identity resolved at one end and taken raw at the other silently
+        // matches nothing (issue #1009), so what each side may hand on is
+        // pinned rather than the spelling it happens to use today — a second
+        // way into the list, dropping a file onto it among them, has to go
+        // through the same resolver as the sheet does.
+        let pickerLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/AppBundleList.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        var resolvedNames: Set<String> = []
+        for line in pickerLines where line.contains("= MouseAppExceptionSupport.") {
+            guard let bound = line.components(separatedBy: "let ").last?
+                    .components(separatedBy: " =").first else { continue }
+            resolvedNames.insert(bound.trimmingCharacters(in: .whitespaces))
+        }
+        var resolvedAddSites: [String] = []
+        var rawAddSites: [String] = []
+        for (index, line) in pickerLines.enumerated()
+        where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") && line.contains("onAdd(") {
+            let added = (line.components(separatedBy: "onAdd(").last?
+                .components(separatedBy: ")").first ?? "").trimmingCharacters(in: .whitespaces)
+            if resolvedNames.contains(added) {
+                resolvedAddSites.append("AppBundleList.swift:\(index + 1)")
+            } else {
+                rawAddSites.append("AppBundleList.swift:\(index + 1) adds \(added)")
+            }
+        }
+        expect(!resolvedAddSites.isEmpty && rawAddSites.isEmpty,
+               "every value the picker adds is one the support enum resolved: \(rawAddSites)")
+
+        // A list row's location caption is what tells path identities apart —
+        // every bundled runtime displays as "java" (issue #1009) — and sibling
+        // runtimes differ only after a long shared directory prefix, so the
+        // caption must truncate from the HEAD: cutting the middle or tail
+        // would hide the one component that differs. AppBundleList is not
+        // compiled into this binary, so the shape is pinned here.
+        var locationSites: [Int] = []
+        var headTruncationSites: [Int] = []
+        for (index, line) in pickerLines.enumerated()
+        where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
+            if line.contains("InstalledApps.location(for:") { locationSites.append(index + 1) }
+            if line.contains(".truncationMode(.head)") { headTruncationSites.append(index + 1) }
+        }
+        expect(!locationSites.isEmpty && !headTruncationSites.isEmpty,
+               "a path identity row shows where its file sits and truncates from the head: "
+                   + "\(locationSites) \(headTruncationSites)")
+
+        var resolvedMatchSites: [String] = []
+        var rawMatchSites: [String] = []
+        let matcherLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptions.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        for (index, line) in matcherLines.enumerated()
+        where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+                && line.contains("executableURL") && line.contains(".path") {
+            if line.contains("MouseAppExceptionSupport.identity(")
+                || (index > 0 && matcherLines[index - 1].contains("MouseAppExceptionSupport.identity(")) {
+                resolvedMatchSites.append("MouseAppExceptions.swift:\(index + 1)")
+            } else {
+                rawMatchSites.append("MouseAppExceptions.swift:\(index + 1)")
+            }
+        }
+        expect(resolvedMatchSites.count == 1 && rawMatchSites.isEmpty,
+               "the taps read an executable path only through the support enum: "
+                   + "\(resolvedMatchSites) \(rawMatchSites)")
+        let matcherBody = matcherLines
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!matcherBody.isEmpty && !matcherBody.contains("trimmingCharacters"),
+               "the exception list is sanitized through the one sanitizer, never beside it")
+
+        // The leading-slash test IS the rule that tells a stored path from a
+        // bundle identifier. A second spelling of it drifts the day the rule
+        // learns a new shape — a ~ path, a file URL — so every file that
+        // handles an identity asks isExecutablePathIdentity instead of
+        // re-testing the prefix.
+        var slashRuleSites: [String] = []
+        for file in ["Services/MouseExceptions/MouseAppExceptionSupport.swift",
+                     "Services/InstalledApps.swift",
+                     "Core/Defaults.swift"] {
+            let ruleLines = ((try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
+                                          encoding: .utf8)) ?? "").components(separatedBy: "\n")
+            if ruleLines.count <= 1 { slashRuleSites.append("\(file) unreadable") }
+            for (index, line) in ruleLines.enumerated()
+            where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+                    && line.contains("hasPrefix(\"/\")") {
+                slashRuleSites.append("\(file):\(index + 1)")
+            }
+        }
+        expect(slashRuleSites.count == 1
+                && slashRuleSites[0].hasPrefix("Services/MouseExceptions/MouseAppExceptionSupport.swift:"),
+               "the leading-slash rule is spelled once, inside isExecutablePathIdentity: \(slashRuleSites)")
         expect(MouseAppExceptionSupport.sourceProcessID(42) == 42
                 && MouseAppExceptionSupport.sourceProcessID(0) == nil
                 && MouseAppExceptionSupport.sourceProcessID(-1) == nil
@@ -16153,6 +16723,89 @@ struct MetricsTests {
                "another platform's listing is not the installed Mac app's version")
         expect(AppUpdatesSupport.parseStoreLookup(Data("not json".utf8)).isEmpty,
                "a broken store answer yields nothing instead of throwing")
+
+        let onlineCatalogBody = Data(#"""
+        [
+          {"token":"notes-stable","version":"2.0,revision","artifacts":[{"uninstall":[{"quit":"com.example.notes"}]},{"app":["Notes.app"],"target":"/Applications/Notes.app"}],"depends_on":{"macos":{">=":["14"]}}},
+          {"token":"notes-preview","version":"3.0","artifacts":[{"uninstall":[{"quit":["com.example.notes.preview"]}]},{"app":["Notes.app"]}],"depends_on":{"macos":{">=":["14"]}}},
+          {"token":"writer","version":"2.0","artifacts":[{"app":["Writer Source.app",{"target":"Writer.app"}],"target":"/Applications/Writer.app"}]},
+          {"token":"duplicate-one","version":"2.0","artifacts":[{"uninstall":[{"quit":"com.example.one"}]},{"app":["Duplicate.app"]}]},
+          {"token":"duplicate-two","version":"2.0","artifacts":[{"uninstall":[{"quit":"com.example.two"}]},{"app":["Duplicate.app"]}]},
+          {"token":"future","version":"4.0","artifacts":[{"app":["Future.app"]}],"depends_on":{"macos":{">=":["26"]}}},
+          {"token":"exact","version":"5.0","artifacts":[{"app":["Exact.app"]}],"depends_on":{"macos":{"==":["15"]}}},
+          {"token":"rolling","version":"latest","artifacts":[{"app":["Rolling.app"]}]},
+          {"token":"case-sensitive","version":"2.0","artifacts":[{"app":["Case.app"]}]},
+          {"token":"older","version":"1.0","artifacts":[{"app":["Older.app"]}]},
+          {"token":"own-tool","version":"9.0","artifacts":[{"app":["Own.app"]}]}
+        ]
+        """#.utf8)
+        let onlineCatalog = AppUpdatesSupport.parseOnlineCatalog(onlineCatalogBody) ?? []
+        expect(onlineCatalog.count == 11
+                && onlineCatalog.first?.bundleIDs == ["com.example.notes"]
+                && onlineCatalog.first?.minimumOSVersions == ["14"]
+                && onlineCatalog.first { $0.token == "writer" }?.appNames == ["Writer.app"],
+               "the online catalog keeps final app names, explicit bundle identifiers and OS rules")
+        expect(AppUpdatesSupport.parseOnlineCatalogResponse(onlineCatalogBody, statusCode: 200)?.count == 11
+                && AppUpdatesSupport.parseOnlineCatalogResponse(nil, statusCode: 200) == nil
+                && AppUpdatesSupport.parseOnlineCatalogResponse(onlineCatalogBody, statusCode: 500) == nil
+                && AppUpdatesSupport.parseOnlineCatalogResponse(Data("broken".utf8), statusCode: 200) == nil,
+               "missing, failed and malformed network responses never become successful empty coverage")
+
+        let onlineApps = [
+            AppUpdatesSupport.InstalledApp(name: "Notes", bundleID: "com.example.notes",
+                                           path: "/Applications/Notes.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Writer", bundleID: "com.example.writer",
+                                           path: "/Applications/Writer.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Duplicate", bundleID: "com.example.other",
+                                           path: "/Applications/Duplicate.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Future", bundleID: "com.example.future",
+                                           path: "/Applications/Future.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Exact", bundleID: "com.example.exact",
+                                           path: "/Applications/Exact.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Rolling", bundleID: "com.example.rolling",
+                                           path: "/Applications/Rolling.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Case", bundleID: "com.example.case",
+                                           path: "/Applications/case.app", version: "1.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Older", bundleID: "com.example.older",
+                                           path: "/Applications/Older.app", version: "2.0",
+                                           isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Own", bundleID: "com.example.own",
+                                           path: "/Applications/Own.app", version: "1.0",
+                                           isFromAppStore: false),
+        ]
+        let onlineRows = AppUpdatesSupport.onlineCatalogUpdates(
+            apps: onlineApps, catalog: onlineCatalog, operatingSystemVersion: "15.7",
+            ignoredTokens: ["own-tool"])
+        expect(Set(onlineRows.map(\.name)) == ["Notes", "Writer", "Exact"]
+                && onlineRows.allSatisfy { $0.source == .onlineCatalog && !$0.isSelectable },
+               "online matching requires an exact unique bundle name, uses an explicit ID to resolve ambiguity and keeps rows action-only")
+        expect(!onlineRows.contains { $0.name == "Duplicate" || $0.name == "Future"
+                || $0.name == "Rolling" || $0.name == "Case" || $0.name == "Older"
+                || $0.name == "Own" },
+               "ambiguous, incompatible, uncomparable, differently cased, current and ignored catalog entries stay out")
+        let externalCandidates = AppUpdatesSupport.onlineCatalogCandidates(
+            apps: [onlineApps[0],
+                   AppUpdatesSupport.InstalledApp(name: "Store", bundleID: "com.example.store",
+                                                  path: "/Applications/Store.app", version: "1.0",
+                                                  isFromAppStore: true),
+                   onlineApps[1]],
+            coveredPaths: [onlineApps[1].path])
+        expect(externalCandidates == [onlineApps[0]],
+               "store receipts and package-managed paths never reach the online catalog source")
+
+        let listWithOnline = AppUpdatesSupport.merged(mergedRows, onlineRows)
+        let selectionWithOnline = AppUpdatesSupport.reconciledSelection(
+            previous: Set(onlineRows.map(\.id)), knownIDs: [], items: listWithOnline)
+        expect(selectionWithOnline == Set(mergedRows.map(\.id))
+                && listWithOnline.suffix(onlineRows.count).allSatisfy { $0.source == .onlineCatalog },
+               "online rows remain outside bulk selection and follow the managed sources in the list")
         let discoveredPaths = InstalledApps.applicationScanPaths(
             folderPaths: ["/Applications/Editor.app",
                           "/System/Applications/System Utility.app",
@@ -16261,11 +16914,13 @@ struct MetricsTests {
                "the background check starts off")
         expect(Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeHomebrewApps] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeAppStore] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.appUpdatesIncludeOnlineCatalog] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.appUpdatesNotify] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.panelUtilityAppUpdates] as? Bool == true,
                "the app update defaults are registered")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.appUpdatesCheckFrequency)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.appUpdatesIncludeHomebrewApps)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.appUpdatesIncludeOnlineCatalog)
                 && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.appUpdatesLastCheck),
                "app update preferences travel in a backup, the last check does not")
         expect(AppFeature.appUpdates.enabledKeys.isEmpty
@@ -16713,6 +17368,16 @@ struct MetricsTests {
                                                  available: ["app.chat", "action.a"])
                 == ["app.chat"],
                "the empty bar leads with the pins that still exist")
+        expect(CommandBarPreferences.listedPins(
+                    ["action.cleaningMode", "app.chat", "settings.cleaningMode"],
+                    present: ["app.chat"])
+                == ["app.chat"],
+               "an uninstalled feature is not listed as a pin")
+        expect(CommandBarPreferences.listedPins(
+                    ["action.cleaningMode", "app.gone"],
+                    present: ["action.cleaningMode"])
+                == ["action.cleaningMode", "app.gone"],
+               "an app that left this Mac still appears so its pin can be removed")
         expect(CommandBarPreferences.pinTieBreak < 700,
                "a pin breaks a tie and never jumps over a better match")
         expect(CommandBarPreferences.aliasHit("codex", query: "codex") == .exact

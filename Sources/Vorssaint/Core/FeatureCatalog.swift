@@ -124,7 +124,10 @@ extension AppFeature {
         case .middleClick: return "computermouse"
         case .keyboardDebounce: return "keyboard"
         case .textSnippets: return "text.append"
-        case .superKey: return "capslock"
+        case .superKey:
+            return SuperKeySource.sanitized(
+                UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
+            ).systemImage
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
