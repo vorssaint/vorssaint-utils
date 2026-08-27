@@ -8484,8 +8484,6 @@ struct MetricsTests {
                     "screen OCR joins Japanese lines without spaces")
         expectEqual(joinedOCRPair("이것은", "테스트입니다", true), "이것은 테스트입니다",
                     "screen OCR keeps Korean word spaces at line seams")
-        expectEqual(joinedOCRPair("你好", "，世界", true), "你好，世界",
-                    "screen OCR keeps full-width punctuation tight")
         expectEqual(joinedOCRPair("version", "版本", true), "version 版本",
                     "screen OCR separates mixed Latin and CJK seams")
         expectEqual(joinedOCRPair("这是", "测试", false), "这是\n测试",

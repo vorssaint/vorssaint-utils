@@ -151,26 +151,16 @@ enum QuickToolsSupport {
                 joined = line
                 return
             }
-            let joinsTightly = joined.unicodeScalars.last.map(isTightScriptScalar) == true
-                && line.unicodeScalars.first.map(isTightScriptScalar) == true
+            let joinsTightly = joined.unicodeScalars.last.map(tightScripts.contains) == true
+                && line.unicodeScalars.first.map(tightScripts.contains) == true
             joined.append(joinsTightly ? "" : " ")
             joined.append(line)
         }
     }
 
-    /// CJK text meets without a word space, while Hangul syllables stay out
-    /// because Korean already carries spaces between words.
-    private static func isTightScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
-        switch scalar.value {
-        case 0x3000...0x9FFF,
-             0xF900...0xFAFF,
-             0xFF01...0xFF60,
-             0x20000...0x2FA1F:
-            return true
-        default:
-            return false
-        }
-    }
+    // CJK punctuation, kana, Han. Hangul (AC00-D7AF) stays out on purpose:
+    // Korean keeps its word spaces.
+    private static let tightScripts = CharacterSet(charactersIn: "\u{3000}"..."\u{9FFF}")
 
     // MARK: - QR codes
 
