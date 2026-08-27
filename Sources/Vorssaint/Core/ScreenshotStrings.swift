@@ -302,7 +302,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
         screenCaptureTitle: "Screen capture",
-        dragOutHandleLabel: "Drag to copy"
+        dragOutHandleLabel: "Drag and Drop"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -442,7 +442,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
         screenCaptureTitle: "Ferramentas de captura",
-        dragOutHandleLabel: "Arrastar para copiar"
+        dragOutHandleLabel: "Arraste e solte"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -582,7 +582,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
         screenCaptureTitle: "Ekran yakalama",
-        dragOutHandleLabel: "Kopyalamak için sürükle"
+        dragOutHandleLabel: "Sürükle ve Bırak"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -722,7 +722,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Редактировать изображение из буфера",
         clipboardImageMissing: "Сначала скопируйте изображение",
         screenCaptureTitle: "Захват экрана",
-        dragOutHandleLabel: "Перетащите, чтобы скопировать"
+        dragOutHandleLabel: "Перетащить"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -862,7 +862,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
         screenCaptureTitle: "Herramientas de captura",
-        dragOutHandleLabel: "Arrastra para copiar"
+        dragOutHandleLabel: "Arrastrar y soltar"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -1002,7 +1002,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Kopiertes Bild bearbeiten",
         clipboardImageMissing: "Kopiere zuerst ein Bild",
         screenCaptureTitle: "Bildschirm erfassen",
-        dragOutHandleLabel: "Zum Kopieren ziehen"
+        dragOutHandleLabel: "Ziehen und ablegen"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1142,7 +1142,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
         screenCaptureTitle: "Outils de capture",
-        dragOutHandleLabel: "Faire glisser pour copier"
+        dragOutHandleLabel: "Glisser-déposer"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1282,7 +1282,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Modifica immagine copiata",
         clipboardImageMissing: "Copia prima un'immagine",
         screenCaptureTitle: "Acquisizione schermo",
-        dragOutHandleLabel: "Trascina per copiare"
+        dragOutHandleLabel: "Trascina e rilascia"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1422,7 +1422,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "コピーした画像を編集",
         clipboardImageMissing: "先に画像をコピーしてください",
         screenCaptureTitle: "画面キャプチャ",
-        dragOutHandleLabel: "ドラッグしてコピー"
+        dragOutHandleLabel: "ドラッグ＆ドロップ"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1562,7 +1562,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "복사한 이미지 편집",
         clipboardImageMissing: "먼저 이미지를 복사하세요",
         screenCaptureTitle: "화면 캡처",
-        dragOutHandleLabel: "드래그하여 복사"
+        dragOutHandleLabel: "드래그 앤 드롭"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1702,7 +1702,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "编辑已复制的图像",
         clipboardImageMissing: "请先复制一张图像",
         screenCaptureTitle: "屏幕捕捉",
-        dragOutHandleLabel: "拖动以拷贝"
+        dragOutHandleLabel: "拖放"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1842,7 +1842,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
         screenCaptureTitle: "螢幕擷取",
-        dragOutHandleLabel: "拖移以拷貝"
+        dragOutHandleLabel: "拖放"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1982,6 +1982,6 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
         screenCaptureTitle: "螢幕擷取",
-        dragOutHandleLabel: "拖移以拷貝"
+        dragOutHandleLabel: "拖放"
     )
 }
