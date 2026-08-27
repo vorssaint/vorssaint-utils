@@ -66,23 +66,66 @@ enum CleanerSupport {
         return true
     }
 
+    /// Apple team identifiers are ten uppercase letters and digits. Used to
+    /// drop a leading team prefix so a group container names the app, not
+    /// the developer account.
+    static func isTeamIdentifier(_ raw: String) -> Bool {
+        let value = raw.uppercased()
+        guard raw == value, value.count == 10 else { return false }
+        return value.unicodeScalars.allSatisfy {
+            ($0 >= "A" && $0 <= "Z") || ($0 >= "0" && $0 <= "9")
+        }
+    }
+
     /// Extracts the owning bundle identifier from a Library entry name:
-    /// strips the well known wrappers (group. prefix) and payload suffixes
-    /// (.plist, .savedState, .binarycookies) and validates the shape.
+    /// strips the well known wrappers (group. prefix, a leading team ID)
+    /// and payload suffixes (.plist, .savedState, .binarycookies, preference
+    /// panes, plugins, a trailing ByHost UUID) and validates the shape.
     /// Returns nil when the name does not clearly belong to one bundle.
     static func bundleIDCandidate(fromEntryName rawName: String) -> String? {
-        // A UUID anywhere in the name (per host preferences, update stamps)
-        // makes the owner unattributable; such entries are never candidates.
-        guard !containsUUIDComponent(rawName) else { return nil }
         var name = rawName
-        for suffix in [".plist", ".savedState", ".binarycookies"] where name.hasSuffix(suffix) {
+        for suffix in [".plist", ".savedState", ".binarycookies", ".prefPane",
+                       ".qlgenerator", ".mdimporter", ".service", ".appex",
+                       ".plugin", ".webplugin", ".saver", ".colorPicker",
+                       ".wdgt", ".app", ".framework", ".component", ".vst",
+                       ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
+                       ".safariextz", ".mailbundle"] where
+            name.lowercased().hasSuffix(suffix.lowercased()) {
             name.removeLast(suffix.count)
         }
+        name = strippingTrailingUUIDComponent(name)
         for prefix in ["group.", "systemgroup."] where name.hasPrefix(prefix) {
             name.removeFirst(prefix.count)
         }
+        let parts = name.split(separator: ".")
+        if parts.count >= 4, isTeamIdentifier(String(parts[0])) {
+            name = parts.dropFirst().joined(separator: ".")
+        }
+        // A UUID still in the remainder (update stamps, mid-name hosts)
+        // makes the owner unattributable.
+        guard !containsUUIDComponent(name) else { return nil }
         guard looksLikeBundleID(name) else { return nil }
         return name
+    }
+
+    /// Last path component of a ByHost preference: the Mac's UUID, not the
+    /// owner. Dropped only when it is the whole trailing component.
+    static func strippingTrailingUUIDComponent(_ name: String) -> String {
+        guard let lastDot = name.lastIndex(of: ".") else { return name }
+        let last = String(name[name.index(after: lastDot)...])
+        guard last.count == 36, containsUUIDComponent(last) else { return name }
+        return String(name[..<lastDot])
+    }
+
+    /// Shared-container wrappers need signed entitlement evidence. The
+    /// general Cleaner has no selected signature, so it leaves them alone.
+    static func hasSharedContainerWrapper(_ rawName: String) -> Bool {
+        let lowered = rawName.lowercased()
+        if lowered.hasPrefix("group.") || lowered.hasPrefix("systemgroup.") {
+            return true
+        }
+        guard let first = rawName.split(separator: ".").first else { return false }
+        return isTeamIdentifier(String(first))
     }
 
     /// Whether the name carries a dashed UUID (8-4-4-4-12 hex groups).
@@ -184,4 +227,5 @@ enum CleanerSupport {
         guard !executables.isEmpty else { return false }
         return !executables.contains(where: executableExists)
     }
+
 }

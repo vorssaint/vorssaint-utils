@@ -964,20 +964,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // (Menu bar icon recovery happens on a deliberate reopen, not here: this
         // fires on every activation, so rebuilding here would cause churn/flicker.)
         UpdateService.shared.checkIfStale()
-        restoreAfterAppStoreHandoff()
+        restoreAfterAppUpdateHandoff()
     }
 
-    /// The app update list can only hand a store purchase over to the App
-    /// Store. With no Dock icon there is no way back to the window that sent
-    /// the person there, so returning brings it forward again, on the page
-    /// they left, with the list already reading the truth.
-    private func restoreAfterAppStoreHandoff() {
+    /// Some updates finish in another app. With no Dock icon there is no way
+    /// back to the window that sent the person there, so returning brings it
+    /// forward again, on the same page, while the list reads the truth again.
+    private func restoreAfterAppUpdateHandoff() {
         guard AppFeature.appUpdates.isAvailable else { return }
         let service = AppUpdatesService.shared
         service.applicationBecameActive()
         // Only a window still on screen is brought back. A Settings window the
         // person closed themselves stays closed.
-        guard service.consumeStoreHandoffReturn(),
+        guard service.consumeUpdateHandoffReturn(),
               settingsWindow?.isVisible == true else { return }
         openSettingsWindow()
     }

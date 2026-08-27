@@ -17,9 +17,13 @@ import Combine
 ///    (the Trash category itself is the one explicit exception).
 /// 3. Never guess against a living app. A leftover needs a bundle shaped
 ///    name whose owner is not installed, not running, not Apple, and not
-///    related to any installed identifier (dot boundary family match).
+///    related to any installed identifier (dot boundary family match),
+///    or container metadata that names that owner. Shared wrappers and plain
+///    names are never treated as proof in this general scan.
 /// 4. Scoped roots only. Items come from fixed, well known junk locations,
-///    one directory level deep; nothing outside them can ever be listed.
+///    at most one extra directory level for nested vendor/app folders;
+///    symbolic links are never followed and each item is bound to the file
+///    identity observed during the scan.
 final class JunkCleaner: ObservableObject {
     static let shared = JunkCleaner()
 
@@ -38,6 +42,7 @@ final class JunkCleaner: ObservableObject {
         let size: Int64
         /// A short secondary line: the owning bundle identifier or label.
         let detail: String
+        let fileIdentity: UninstallerSupport.FileIdentity?
         /// Whether this find is safe enough to clean without a second look.
         /// Recommended items start selected and live in the safe section of
         /// the interface; the rest wait unchecked under optional.
@@ -52,6 +57,7 @@ final class JunkCleaner: ObservableObject {
             self.category = category
             self.size = size
             self.detail = detail
+            self.fileIdentity = UninstallerSupport.fileIdentity(at: url)
             self.recommended = recommended
             self.include = recommended
         }
@@ -165,7 +171,7 @@ final class JunkCleaner: ObservableObject {
             }
 
             for item in chosen where item.category != .trash {
-                guard Self.mayRemove(item.url) else {
+                guard Self.mayRemove(item) else {
                     failed += 1
                     continue
                 }
@@ -173,6 +179,10 @@ final class JunkCleaner: ObservableObject {
                     // Retire the job first so nothing keeps running from a
                     // plist that is about to leave; then the regular move.
                     Self.bootoutUserAgent(item.url)
+                    guard Self.mayRemove(item) else {
+                        failed += 1
+                        continue
+                    }
                 }
                 do {
                     try fm.trashItem(at: item.url, resultingItemURL: nil)
@@ -187,8 +197,10 @@ final class JunkCleaner: ObservableObject {
             // them to the Trash exactly like a drag would. One batch, one
             // prompt; a cancel leaves them in place and they count as failed.
             if !stubborn.isEmpty {
-                Self.trashViaFinder(stubborn.map(\.url))
-                for item in stubborn {
+                let stillSafe = stubborn.filter(Self.mayRemove)
+                failed += stubborn.count - stillSafe.count
+                Self.trashViaFinder(stillSafe.map(\.url))
+                for item in stillSafe {
                     if fm.fileExists(atPath: item.url.path) {
                         failed += 1
                     } else {
@@ -208,7 +220,8 @@ final class JunkCleaner: ObservableObject {
     /// Exact match guard against ever removing a critical root, even if a
     /// scanner bug produced one. Items are already scoped by construction;
     /// this is the last line of defense.
-    private static func mayRemove(_ url: URL) -> Bool {
+    private static func mayRemove(_ item: Item) -> Bool {
+        let url = item.url
         let path = url.standardizedFileURL.path
         let home = NSHomeDirectory()
         let critical: Set<String> = [
@@ -217,7 +230,11 @@ final class JunkCleaner: ObservableObject {
             home, home + "/Library", home + "/Documents", home + "/Desktop",
             home + "/Downloads", home + "/Pictures", home + "/Music", home + "/Movies",
         ]
-        guard !critical.contains(path) else { return false }
+        guard !critical.contains(path),
+              let expectedIdentity = item.fileIdentity,
+              UninstallerSupport.fileIdentity(at: url) == expectedIdentity,
+              !UninstallerSupport.isSymbolicLink(url),
+              url.resolvingSymlinksInPath().standardizedFileURL.path == path else { return false }
         // Depth guard: anything this shallow is a root of some kind, never junk.
         return url.pathComponents.count >= 4
     }
@@ -264,27 +281,33 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Installed apps oracle
 
-    /// Every bundle identifier that must be treated as alive: apps found in
-    /// the application folders (three levels deep, covering subfolders and
-    /// suites), everything currently running, and login item helpers nested
-    /// inside those apps.
-    static func installedBundleIDs() -> Set<String> {
+    /// Every bundle identifier that must be treated as
+    /// alive: apps found in the application folders (three levels deep,
+    /// covering subfolders and suites), everything currently running, and
+    /// login item helpers nested inside those apps.
+    private static func installedBundleIDs() -> Set<String> {
         var ids = Set<String>()
         let fm = FileManager.default
         let roots = ["/Applications", "/System/Applications",
                      NSHomeDirectory() + "/Applications"]
 
+        func remember(app url: URL) {
+            if let id = Bundle(url: url)?.bundleIdentifier {
+                ids.insert(id.lowercased())
+            }
+        }
+
         func collect(at url: URL, depth: Int) {
             guard depth > 0 else { return }
-            guard let entries = try? fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil,
+            let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+            guard let entries = try? fm.contentsOfDirectory(at: url,
+                                                            includingPropertiesForKeys: Array(keys),
                                                             options: [.skipsHiddenFiles]) else { return }
             for entry in entries {
-                if entry.pathExtension == "app" {
-                    if let id = Bundle(url: entry)?.bundleIdentifier {
-                        ids.insert(id.lowercased())
-                    }
-                    // Login item helpers live inside the app and own launch
-                    // plists under their own identifiers.
+                let values = try? entry.resourceValues(forKeys: keys)
+                guard values?.isSymbolicLink != true, values?.isDirectory == true else { continue }
+                if entry.pathExtension.caseInsensitiveCompare("app") == .orderedSame {
+                    remember(app: entry)
                     collect(at: entry.appendingPathComponent("Contents/Library/LoginItems"), depth: 1)
                 } else {
                     collect(at: entry, depth: depth - 1)
@@ -297,6 +320,7 @@ final class JunkCleaner: ObservableObject {
         }
         for app in NSWorkspace.shared.runningApplications {
             if let id = app.bundleIdentifier { ids.insert(id.lowercased()) }
+            if let url = app.bundleURL { remember(app: url) }
         }
         return ids
     }
@@ -313,42 +337,108 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Category scanners
 
-    /// User domain locations where uninstalled apps leave data behind. One
-    /// level deep; every entry must map to a bundle identifier to even be
-    /// considered (plain vendor folders are never guessed at by name).
-    /// Group Containers and Application Scripts are deliberately absent:
-    /// their team prefixed, cross app names cannot be attributed safely.
-    private static let leftoverRoots: [String] = [
-        "Application Support", "Caches", "Preferences", "Preferences/ByHost",
-        "Saved Application State", "HTTPStorages", "WebKit", "Logs",
-        "Containers", "Cookies",
+    /// Library locations where uninstalled apps leave data behind. At most
+    /// one extra level is opened for vendor/app nesting. Shared group
+    /// containers stay out of the generic orphan scan because only a selected
+    /// app's signed entitlements can prove their ownership.
+    private static let leftoverRoots: [(path: String, usesContainerMetadata: Bool, extraChildDepth: Int)] = [
+        ("Application Support", false, 1),
+        ("Caches", false, 1),
+        ("Preferences", false, 0),
+        ("Preferences/ByHost", false, 0),
+        ("Saved Application State", false, 0),
+        ("HTTPStorages", false, 0),
+        ("WebKit", false, 0),
+        ("Logs", false, 0),
+        ("Containers", true, 0),
+        ("Cookies", false, 0),
+        ("PreferencePanes", false, 0),
+        ("Internet Plug-Ins", false, 0),
+        ("Services", false, 0),
+        ("QuickLook", false, 0),
+        ("Spotlight", false, 0),
+        ("Input Methods", false, 0),
+        ("Screen Savers", false, 0),
+        ("ColorPickers", false, 0),
+        ("Widgets", false, 0),
+        ("Address Book Plug-Ins", false, 0),
+        ("Contextual Menu Items", false, 0),
+        ("Safari/Extensions", false, 0),
+        ("Automator", false, 0),
+        ("CoreImage", false, 0),
+        ("Dictionaries", false, 0),
+        ("Components", false, 0),
+        ("Audio/Plug-Ins", false, 1),
     ]
 
     private static func scanLeftovers(installed: Set<String>) -> [Item] {
         let fm = FileManager.default
-        let lib = NSHomeDirectory() + "/Library"
+        let libraries = [NSHomeDirectory() + "/Library", "/Library"]
         var found: [Item] = []
-        for root in leftoverRoots {
-            let dir = lib + "/" + root
-            guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { continue }
-            for entry in entries where !entry.hasPrefix(".") {
-                let url = URL(fileURLWithPath: dir).appendingPathComponent(entry)
-                var candidate = CleanerSupport.bundleIDCandidate(fromEntryName: entry)
-                if candidate == nil, root == "Containers" {
-                    // Modern containers carry an opaque UUID name; the owner
-                    // is recorded in the container metadata.
-                    candidate = containerOwner(at: url)
+        for library in libraries {
+            for root in leftoverRoots {
+                let dir = library + "/" + root.path
+                appendLeftovers(in: dir,
+                                extraChildDepth: root.extraChildDepth,
+                                usesContainerMetadata: root.usesContainerMetadata,
+                                installed: installed,
+                                fm: fm,
+                                into: &found)
+            }
+        }
+        return sorted(found)
+    }
+
+    private static func appendLeftovers(in dir: String,
+                                        extraChildDepth: Int,
+                                        usesContainerMetadata: Bool,
+                                        installed: Set<String>,
+                                        fm: FileManager,
+                                        into found: inout [Item]) {
+        let root = URL(fileURLWithPath: dir, isDirectory: true)
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        guard let entries = try? fm.contentsOfDirectory(at: root,
+                                                        includingPropertiesForKeys: Array(keys),
+                                                        options: []) else { return }
+        for url in entries {
+            let entry = url.lastPathComponent
+            guard !entry.hasPrefix(".") else { continue }
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isSymbolicLink != true else { continue }
+            if let owner = leftoverOwner(entry: entry, url: url,
+                                         usesContainerMetadata: usesContainerMetadata) {
+                if CleanerSupport.isProtectedBundleID(owner)
+                    || hasLivingOwner(owner, installed: installed) {
+                    continue
                 }
-                guard let owner = candidate,
-                      !CleanerSupport.isProtectedBundleID(owner),
-                      !hasLivingOwner(owner, installed: installed) else { continue }
                 found.append(Item(url: url, category: .leftovers,
                                   size: directorySize(of: url, fm: fm),
                                   detail: owner,
                                   recommended: CleanerPolicy.precheckLeftovers))
+                continue
             }
+            if usesContainerMetadata {
+                continue
+            }
+            guard extraChildDepth > 0 else { continue }
+            guard values?.isDirectory == true else { continue }
+            appendLeftovers(in: url.path,
+                            extraChildDepth: extraChildDepth - 1,
+                            usesContainerMetadata: false,
+                            installed: installed,
+                            fm: fm,
+                            into: &found)
         }
-        return sorted(found)
+    }
+
+    private static func leftoverOwner(entry: String,
+                                      url: URL,
+                                      usesContainerMetadata: Bool) -> String? {
+        if usesContainerMetadata, let owner = containerOwner(at: url) {
+            return owner
+        }
+        guard !CleanerSupport.hasSharedContainerWrapper(entry) else { return nil }
+        return CleanerSupport.bundleIDCandidate(fromEntryName: entry)
     }
 
     /// The owning bundle identifier of a container folder, from the metadata
@@ -357,8 +447,8 @@ final class JunkCleaner: ObservableObject {
         let metadata = url.appendingPathComponent(".com.apple.containermanagerd.metadata.plist")
         guard let dict = NSDictionary(contentsOf: metadata),
               let owner = dict["MCMMetadataIdentifier"] as? String,
-              CleanerSupport.looksLikeBundleID(owner) else { return nil }
-        return owner
+              !CleanerSupport.hasSharedContainerWrapper(owner) else { return nil }
+        return CleanerSupport.bundleIDCandidate(fromEntryName: owner)
     }
 
     /// Launch agents and daemons whose every referenced executable is gone
@@ -374,6 +464,7 @@ final class JunkCleaner: ObservableObject {
             guard let entries = try? fm.contentsOfDirectory(atPath: root) else { continue }
             for entry in entries where entry.hasSuffix(".plist") {
                 let url = URL(fileURLWithPath: root).appendingPathComponent(entry)
+                guard !UninstallerSupport.isSymbolicLink(url) else { continue }
                 guard let plist = NSDictionary(contentsOfFile: url.path) as? [String: Any] else { continue }
                 let label = plist["Label"] as? String
                 let executables = CleanerSupport.executablePaths(inLaunchPlist: plist)
@@ -510,6 +601,7 @@ final class JunkCleaner: ObservableObject {
     }
 
     private static func directorySize(of url: URL, fm: FileManager) -> Int64 {
+        if UninstallerSupport.isSymbolicLink(url) { return 0 }
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: url.path, isDirectory: &isDir) else { return 0 }
         if !isDir.boolValue { return fileSize(url) }
@@ -518,6 +610,10 @@ final class JunkCleaner: ObservableObject {
                                           includingPropertiesForKeys: [.totalFileAllocatedSizeKey, .fileAllocatedSizeKey],
                                           options: [], errorHandler: nil) {
             for case let item as URL in enumerator {
+                if UninstallerSupport.isSymbolicLink(item) {
+                    enumerator.skipDescendants()
+                    continue
+                }
                 total += fileSize(item)
             }
         }

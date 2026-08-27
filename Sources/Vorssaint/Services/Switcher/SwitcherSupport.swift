@@ -291,6 +291,21 @@ struct SwitcherShortcutHints: Equatable {
 }
 
 enum SwitcherSupport {
+    /// How long the shortcut must be held before the panel appears. A quick
+    /// press can still switch directly without flashing the panel, while zero
+    /// gives users who prefer immediate visual feedback an instant surface.
+    static let defaultAppearanceDelayMilliseconds = 100
+    static let appearanceDelayMillisecondsRange: ClosedRange<Int> = 0 ... 500
+
+    static func sanitizedAppearanceDelay(milliseconds: Int) -> Int {
+        min(max(milliseconds, appearanceDelayMillisecondsRange.lowerBound),
+            appearanceDelayMillisecondsRange.upperBound)
+    }
+
+    static func appearanceDelay(milliseconds: Int) -> TimeInterval {
+        TimeInterval(sanitizedAppearanceDelay(milliseconds: milliseconds)) / 1000
+    }
+
     /// How wide a window's name is in the font a card draws it in. Measured
     /// against the font rather than a layout pass, so a card can decide whether
     /// to scroll the name before the band has ever been on screen -- and a test
