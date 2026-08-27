@@ -79,11 +79,6 @@ struct ClipboardQuickPanelView: View {
             hoveredEntryID = nil
             previewEntryID = history.selectedQuickEntryID
         }
-        .onChange(of: previewEntry?.id) { _, newID in
-            if newID == nil {
-                history.setQuickPreviewPresented(false)
-            }
-        }
     }
 
     private var toolbar: some View {
@@ -100,7 +95,7 @@ struct ClipboardQuickPanelView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(previewEntry == nil)
+            .disabled(previewEntry == nil && !history.quickPreviewPresented)
             .help(text.previewLabel)
             .accessibilityLabel(text.previewLabel)
             Button {
@@ -275,21 +270,47 @@ struct ClipboardQuickPanelView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
         case .files:
-            VStack(alignment: .leading, spacing: 2) {
-                Text(fileTitle(entry))
-                    .font(.system(size: 12))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                if entry.filePaths.count > 1 {
-                    Text(entry.preview)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+            if entry.filePaths.count == 1,
+               let path = entry.filePaths.first,
+               ClipboardImageStore.isImageFile(atPath: path),
+               let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path) {
+                HStack(alignment: .center, spacing: 8) {
+                    Image(nsImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: 240, maxHeight: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.fileNames.first ?? entry.preview)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        if let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path) {
+                            Text("\(text.imageEntryLabel) · \(dim)")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(path)
+            } else {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(fileTitle(entry))
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if entry.filePaths.count > 1 {
+                        Text(entry.preview)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(entry.filePaths.joined(separator: "\n"))
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .help(entry.filePaths.joined(separator: "\n"))
         }
     }
 
@@ -394,6 +415,14 @@ struct ClipboardQuickPanelView: View {
         } else if isHovered {
             Image(systemName: "circle")
                 .foregroundStyle(Color.accentColor.opacity(0.7))
+                .frame(width: 25, height: 25)
+        } else if entry.kind == .files,
+                  entry.filePaths.count == 1,
+                  let path = entry.filePaths.first,
+                  ClipboardImageStore.isImageFile(atPath: path) {
+            Image(systemName: entry.isPinned ? "pin.fill" : "photo")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)
                 .frame(width: 25, height: 25)
         } else if let icon = fileIcon(for: entry) {
             Image(nsImage: icon)

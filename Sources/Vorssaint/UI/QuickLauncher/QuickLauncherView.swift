@@ -407,8 +407,13 @@ struct QuickLauncherView: View {
                 if clipboardEnabled {
                     Picker(FeatureStrings.clipboard(l10n.language).limit, selection: $clipboardLimit) {
                         ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
-                            Text("\(value)").tag(value)
+                            Text(value == 0 ? FeatureStrings.clipboard(l10n.language).limitUnlimited : "\(value)").tag(value)
                         }
+                    }
+                    .onChange(of: clipboardLimit) { _, value in
+                        let sanitized = Defaults.sanitizedClipboardHistoryLimit(value)
+                        if sanitized != value { clipboardLimit = sanitized }
+                        ClipboardHistoryService.shared.trimToLimit()
                     }
                 }
             case .colorPicker:

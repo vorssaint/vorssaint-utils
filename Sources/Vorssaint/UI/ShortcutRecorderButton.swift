@@ -259,6 +259,7 @@ final class RecorderButton: NSButton {
 
 struct ShortcutPreferenceRow: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var superKey = SuperKeyService.shared
 
     private let role: GlobalShortcutRole
     private let isEnabled: Bool
@@ -365,7 +366,7 @@ struct ShortcutPreferenceRow: View {
     private var superKeyAlternative: String? {
         guard showsSuperKeyAlternative else { return nil }
         return shortcut.superKeyAlternative(
-            capsLockLabel: FeatureStrings.superKey(l10n.language).capsLockKey,
+            sourceLabel: FeatureStrings.superKey(l10n.language).sourceLabel(superKey.source),
             superKeyModifiers: superKeyModifiers)
     }
 

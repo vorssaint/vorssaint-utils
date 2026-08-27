@@ -78,7 +78,7 @@ enum SelfUninstall {
         FinderCutPaste.shared.suspend()
         FinderRenameService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
-        // Also takes the Caps Lock mapping back out, synchronously, so the
+        // Also takes the Super key mapping back out, synchronously, so the
         // key is never left remapped behind a tap that is about to die.
         SuperKeyService.shared.suspend()
         DockClickService.shared.suspend()
@@ -132,6 +132,12 @@ enum SelfUninstall {
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Saved Application State/\(id).savedState")
         // Clipboard images and any other app-owned data live here.
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Application Support/\(id)")
+        try? FileManager.default.removeItem(atPath: "\(home)/Library/Caches/\(id)")
+        // URLSession writes these on our behalf whenever the app talks to the
+        // network, so they exist without the app ever choosing the path.
+        try? FileManager.default.removeItem(atPath: "\(home)/Library/HTTPStorages/\(id)")
+        try? FileManager.default.removeItem(
+            atPath: "\(home)/Library/HTTPStorages/\(id).binarycookies")
     }
 
     /// Moves the app's own bundle to the Trash after it quits, then quits. The

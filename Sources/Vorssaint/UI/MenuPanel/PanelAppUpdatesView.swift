@@ -19,12 +19,12 @@ struct PanelAppUpdatesView: View {
                 .panelCard()
         }
         .onAppear {
-            PanelInteractionState.shared.keepsPopoverOpen = true
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
             // The panel is the fast way in, so it arrives with an answer
             // instead of an empty list waiting for a click.
             updates.checkIfNeeded()
         }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 

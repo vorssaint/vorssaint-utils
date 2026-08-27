@@ -9,7 +9,11 @@ struct ReleaseNotes {
     let sections: [ReleaseNoteSection]
 
     static var current: ReleaseNotes {
-        notes(for: AppInfo.version)
+        let direct = notes(for: AppInfo.version)
+        if !direct.sections.isEmpty { return direct }
+        let unreleased = notes(for: "Unreleased")
+        if !unreleased.sections.isEmpty { return unreleased }
+        return direct
     }
 
     static func notes(for version: String, changelog: String? = bundledChangelog()) -> ReleaseNotes {
@@ -27,6 +31,7 @@ struct ReleaseNotes {
         return changelog
             .components(separatedBy: .newlines)
             .compactMap { header(in: $0)?.version }
+            .filter { $0 != "Unreleased" }
     }
 
     /// Raw markdown body of a version's changelog section (everything between its
@@ -35,7 +40,11 @@ struct ReleaseNotes {
     static func rawNotes(for version: String, changelog: String? = bundledChangelog()) -> String {
         guard let changelog else { return "" }
         let lines = changelog.components(separatedBy: .newlines)
-        guard let start = lines.firstIndex(where: { header(in: $0)?.version == version }) else { return "" }
+        var targetIndex = lines.firstIndex(where: { header(in: $0)?.version == version })
+        if targetIndex == nil && (version == "dev" || version == AppInfo.version) {
+            targetIndex = lines.firstIndex(where: { header(in: $0)?.version == "Unreleased" })
+        }
+        guard let start = targetIndex else { return "" }
         var body: [String] = []
         for line in lines.dropFirst(start + 1) {
             if line.hasPrefix("## [") { break }

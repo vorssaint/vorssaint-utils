@@ -183,6 +183,11 @@ enum FanControlPolicy {
             && level.isMultiple(of: coolingLevelStep)
     }
 
+    static func targetRPMMatches(target: Double, expected: Double) -> Bool {
+        target.isFinite && expected.isFinite
+            && abs(target - expected) <= max(2, expected * 0.001)
+    }
+
     static func coolingTargetRPM(minimum: Double, maximum: Double,
                                  level: Int) -> Double? {
         guard validBounds(minimum: minimum, maximum: maximum),
@@ -221,6 +226,48 @@ enum FanControlPolicy {
             }
         }
         return true
+    }
+
+    static func nextCurvePoint(for points: [FanControlCurvePoint]) -> FanControlCurvePoint? {
+        guard points.count < maximumCurvePointCount,
+              let first = points.first,
+              let last = points.last else { return nil }
+        var best: (index: Int, gap: Int)?
+        for index in 1..<points.count {
+            let gap = points[index].temperature - points[index - 1].temperature
+            if gap > 1, gap > (best?.gap ?? 0) { best = (index, gap) }
+        }
+        if let best {
+            let lower = points[best.index - 1]
+            let upper = points[best.index]
+            let temperature = lower.temperature + best.gap / 2
+            let rawLevel = Double(lower.coolingLevel + upper.coolingLevel) / 2
+            let level = Int((rawLevel / Double(coolingLevelStep)).rounded())
+                * coolingLevelStep
+            return FanControlCurvePoint(temperature: temperature, coolingLevel: level)
+        }
+        if last.temperature < maximumCurveTemperature {
+            return FanControlCurvePoint(
+                temperature: min(maximumCurveTemperature, last.temperature + 10),
+                coolingLevel: last.coolingLevel
+            )
+        }
+        if first.temperature > minimumCurveTemperature {
+            return FanControlCurvePoint(
+                temperature: max(minimumCurveTemperature, first.temperature - 10),
+                coolingLevel: first.coolingLevel
+            )
+        }
+        return nil
+    }
+
+    static func addingCurvePoint(to points: [FanControlCurvePoint]) -> [FanControlCurvePoint]? {
+        guard let point = nextCurvePoint(for: points) else { return nil }
+        var updated = points
+        updated.append(point)
+        updated.sort { $0.temperature < $1.temperature }
+        guard validCurve(FanControlCurve(sensor: .hottestSoC, points: updated)) else { return nil }
+        return updated
     }
 
     static func curveCoolingLevel(curves: [FanControlCurve],

@@ -106,6 +106,75 @@ enum MouseAppExceptionSupport {
         return exceptions.contains(bundleID)
     }
 
+    /// A program that is not packaged as an app has no bundle identifier at
+    /// all — the Java process a game launcher starts is the one people ask
+    /// about (issue #1009) — so the path of the file being run stands in as
+    /// its identity. A stored path is told apart from a bundle identifier by
+    /// its leading slash, which a bundle identifier never has, so one list
+    /// carries both kinds and everything already saved keeps its meaning.
+    static func isExecutablePathIdentity(_ identity: String) -> Bool {
+        identity.hasPrefix("/")
+    }
+
+    /// The one spelling a path identity is stored and matched by. The file
+    /// sheet hands back the name the user browsed while a running program
+    /// reports the name it was started under, and the same file reaches the
+    /// two ends under different names whenever anything on the way is a link:
+    /// measured on this Mac, the sheet answers /private/tmp/… where the
+    /// running program answers /tmp/… for one file. Both ends resolve, so
+    /// they meet. A relative path is nothing to resolve against and is no
+    /// identity at all.
+    static func executablePathIdentity(_ path: String?) -> String? {
+        guard let path, isExecutablePathIdentity(path) else { return nil }
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+    }
+
+    /// What an app answers to: its bundle identifier when it has one, and the
+    /// file being run when it does not. Ordinary apps are unaffected — they
+    /// keep answering to the identifier they always did, and the path is not
+    /// even looked at for them: this runs under the event taps.
+    static func identity(bundleID: String?, executablePath: @autoclosure () -> String?) -> String? {
+        bundleID ?? executablePathIdentity(executablePath())
+    }
+
+    /// What a picked file will be reported as once it runs, which is what the
+    /// picker has to store. A file sheet can be walked into a bundle, and the
+    /// binary at Contents/MacOS is reported by its bundle identifier rather
+    /// than by its path, so storing the file there would match nothing.
+    ///
+    /// Only the bundle's OWN executable counts, which is the same rule the
+    /// system applies: measured on this Mac, a bundle's main executable run
+    /// straight from disk is reported as com.example.withid, while a runtime
+    /// shipped deeper in that same bundle — the Java a game launcher starts
+    /// (issue #1009) — is reported with no identifier at all and stays a path.
+    /// Walking up to any enclosing .app when storing would file that Java
+    /// under the launcher and break the case this all exists for — a rule
+    /// about the picked identity only: the source scope walks up on purpose
+    /// (sourceBundleIdentifiers), so a helper inherits the exception of the
+    /// app it shipped inside.
+    static func pickedIdentity(for url: URL) -> String? {
+        // Pointed at the bundle: its identifier, or the binary it runs when
+        // the Info.plist names none, which is what the system reports for it.
+        if let bundle = Bundle(url: url) {
+            return bundle.bundleIdentifier ?? executablePathIdentity(bundle.executableURL?.path)
+        }
+        // Walked inside one: only the bundle's own executable is reported by
+        // the identifier, so anything deeper keeps its own path.
+        let picked = executablePathIdentity(url.path)
+        var candidate = url.deletingLastPathComponent()
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("app") == .orderedSame,
+               let bundle = Bundle(url: candidate),
+               executablePathIdentity(bundle.executableURL?.path) == picked {
+                return bundle.bundleIdentifier ?? picked
+            }
+            let parent = candidate.deletingLastPathComponent()
+            guard parent != candidate else { break }
+            candidate = parent
+        }
+        return picked
+    }
+
     static func sourceProcessID(_ rawValue: Int64) -> Int32? {
         guard rawValue > 0 else { return nil }
         return Int32(exactly: rawValue)
