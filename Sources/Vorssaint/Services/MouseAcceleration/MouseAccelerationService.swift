@@ -5,6 +5,7 @@ import Foundation
 import HIDEventSystem
 
 /// Applies macOS's per-device linear pointer mode to ordinary mouse devices.
+/// Trackpads are deliberately excluded.
 ///
 /// `-1` is the documented HID value for disabled pointer acceleration and
 /// sensitivity. The original value for each service is retained for the
@@ -21,6 +22,7 @@ final class MouseAccelerationService: ObservableObject {
     }
 
     private var originalValues: [UInt64: OriginalSetting] = [:]
+    private static let trackpadAccelerationType = "HIDTrackpadAcceleration"
 
     private init() {}
 
@@ -89,12 +91,17 @@ final class MouseAccelerationService: ObservableObject {
     }
 
     private func isMouse(_ service: IOHIDServiceClient) -> Bool {
-        IOHIDServiceClientConformsTo(service,
-                                     UInt32(kHIDPage_GenericDesktop),
-                                     UInt32(kHIDUsage_GD_Mouse)) != 0
-            || IOHIDServiceClientConformsTo(service,
-                                            UInt32(kHIDPage_GenericDesktop),
-                                            UInt32(kHIDUsage_GD_Pointer)) != 0
+        // `Pointer` is deliberately not accepted here: macOS uses that
+        // broader HID usage for devices other than mice, including trackpads.
+        guard IOHIDServiceClientConformsTo(service,
+                                           UInt32(kHIDPage_GenericDesktop),
+                                           UInt32(kHIDUsage_GD_Mouse)) != 0 else {
+            return false
+        }
+        let accelerationType = IOHIDServiceClientCopyProperty(
+            service, "HIDPointerAccelerationType" as CFString
+        ) as? String
+        return accelerationType != Self.trackpadAccelerationType
     }
 
     private func registryID(of service: IOHIDServiceClient) -> UInt64 {
