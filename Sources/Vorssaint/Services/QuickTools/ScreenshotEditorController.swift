@@ -139,7 +139,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         var lastTool = ScreenshotSupport.Tool(
             rawValue: defaults.string(forKey: DefaultsKey.screenshotLastTool) ?? "") ?? .arrow
         if lastTool == .select || lastTool == .crop { lastTool = .arrow }
-        tool = lastTool
+        tool = ScreenshotSupport.Tool.availableTool(
+            lastTool, orderRaw: defaults.string(forKey: DefaultsKey.screenshotToolOrder))
         color = ScreenshotSupport.ColorID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastColor))
         stroke = ScreenshotSupport.StrokeID.sanitized(

@@ -1141,18 +1141,54 @@ enum ScreenshotSupport {
         /// Saved ids first, then any tools added by a later version in the
         /// canonical order. Invalid and duplicate ids never reach the UI.
         static func ordered(from raw: String?) -> [Tool] {
+            entries(from: raw).map(\.tool)
+        }
+
+        // A leading ! hides an entry without changing its numbered slot.
+        // Plain ids remain the default encoding and need no migration.
+        private static func entries(from raw: String?) -> [(tool: Tool, visible: Bool)] {
             var seen = Set<Tool>()
-            var result: [Tool] = []
+            var result: [(tool: Tool, visible: Bool)] = []
             for id in (raw ?? "").split(separator: ",") {
-                guard let tool = Tool(rawValue: String(id)),
+                let hidden = id.hasPrefix("!")
+                guard let tool = Tool(rawValue: String(hidden ? id.dropFirst() : id)),
                       seen.insert(tool).inserted
                 else { continue }
-                result.append(tool)
+                result.append((tool, tool == .select || !hidden))
             }
             for tool in allCases where seen.insert(tool).inserted {
-                result.append(tool)
+                result.append((tool, true))
             }
             return result
+        }
+
+        static func visibleTools(from raw: String?) -> [Tool] {
+            entries(from: raw).filter(\.visible).map(\.tool)
+        }
+
+        static func orderStorage(_ order: [Tool], preservingVisibilityFrom raw: String?) -> String {
+            let hidden = Set(entries(from: raw).filter { !$0.visible }.map(\.tool))
+            return order.map { (hidden.contains($0) ? "!" : "") + $0.rawValue }
+                .joined(separator: ",")
+        }
+
+        static func settingVisibility(_ visible: Bool, for tool: Tool, orderRaw: String?) -> String {
+            entries(from: orderRaw).map { entry in
+                let shown = entry.tool == .select || (entry.tool == tool ? visible : entry.visible)
+                return (shown ? "" : "!") + entry.tool.rawValue
+            }.joined(separator: ",")
+        }
+
+        static func moving(_ tool: Tool, to target: Tool, orderRaw: String?) -> [Tool] {
+            var order = ordered(from: orderRaw)
+            guard let from = order.firstIndex(of: tool),
+                  let to = order.firstIndex(of: target) else { return order }
+            order.insert(order.remove(at: from), at: to)
+            return order
+        }
+
+        static func availableTool(_ tool: Tool, orderRaw: String?) -> Tool {
+            visibleTools(from: orderRaw).contains(tool) ? tool : .select
         }
 
         static func shortcutTool(number: Int,
@@ -1161,13 +1197,16 @@ enum ScreenshotSupport {
             guard enabled, (1...shortcutLimit).contains(number) else { return nil }
             let order = ordered(from: orderRaw)
             let index = number - 1
-            return order.indices.contains(index) ? order[index] : nil
+            guard order.indices.contains(index),
+                  visibleTools(from: orderRaw).contains(order[index]) else { return nil }
+            return order[index]
         }
 
         static func shortcutNumber(for tool: Tool,
                                    orderRaw: String?,
                                    enabled: Bool) -> Int? {
             guard enabled,
+                  visibleTools(from: orderRaw).contains(tool),
                   let index = ordered(from: orderRaw).firstIndex(of: tool),
                   index < shortcutLimit
             else { return nil }

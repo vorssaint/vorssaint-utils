@@ -14207,6 +14207,81 @@ struct MetricsTests {
                     enabled: true) == nil,
                "the visible shortcut menu assigns a numbered slot or removes a tool from 1 through 9")
 
+        let hiddenArrowOrder = ScreenshotSupport.Tool.settingVisibility(
+            false, for: .arrow, orderRaw: ScreenshotSupport.Tool.defaultOrderStorage)
+        expect(ScreenshotSupport.Tool.ordered(from: hiddenArrowOrder) == defaultScreenshotTools
+                && ScreenshotSupport.Tool.visibleTools(from: hiddenArrowOrder)
+                    == defaultScreenshotTools.filter { $0 != .arrow },
+               "hiding a screenshot tool keeps its saved slot but removes it from the rail")
+        expect(ScreenshotSupport.Tool.shortcutTool(number: 2, orderRaw: hiddenArrowOrder,
+                                                   enabled: true) == nil
+                && ScreenshotSupport.Tool.shortcutTool(number: 3, orderRaw: hiddenArrowOrder,
+                                                       enabled: true) == .pixelate
+                && ScreenshotSupport.Tool.shortcutNumber(for: .arrow, orderRaw: hiddenArrowOrder,
+                                                         enabled: true) == nil,
+               "hidden tools cannot be selected by number and other shortcuts do not shift")
+        expect(ScreenshotSupport.Tool.settingVisibility(true, for: .arrow,
+                                                         orderRaw: hiddenArrowOrder)
+                == ScreenshotSupport.Tool.defaultOrderStorage,
+               "showing a tool again round-trips to the exact reset encoding")
+        expect(ScreenshotSupport.Tool.visibleTools(from: nil) == defaultScreenshotTools
+                && ScreenshotSupport.Tool.visibleTools(from: "") == defaultScreenshotTools
+                && ScreenshotSupport.Tool.visibleTools(from: "broken,!unknown") == defaultScreenshotTools,
+               "legacy empty and invalid screenshot settings leave all tools visible")
+        let mixedVisibilityOrder = "!arrow,crop,arrow,!crop,invalid,!unknown"
+        expect(Array(ScreenshotSupport.Tool.ordered(from: mixedVisibilityOrder).prefix(2)) == [.arrow, .crop]
+                && !ScreenshotSupport.Tool.visibleTools(from: mixedVisibilityOrder).contains(.arrow)
+                && ScreenshotSupport.Tool.visibleTools(from: mixedVisibilityOrder).contains(.crop)
+                && ScreenshotSupport.Tool.visibleTools(from: mixedVisibilityOrder).contains(.redact),
+               "the first duplicate wins for order and visibility and newly added tools are shown")
+        let movedHiddenArrow = ScreenshotSupport.Tool.moving(.arrow, to: .crop, orderRaw: hiddenArrowOrder)
+        let movedHiddenOrder = ScreenshotSupport.Tool.orderStorage(movedHiddenArrow,
+                                                                  preservingVisibilityFrom: hiddenArrowOrder)
+        expect(Array(movedHiddenArrow.prefix(4)) == [.select, .pixelate, .crop, .arrow]
+                && !ScreenshotSupport.Tool.visibleTools(from: movedHiddenOrder).contains(.arrow),
+               "dragging a hidden tool down inserts at the target and preserves its visibility")
+        expect(ScreenshotSupport.Tool.moving(.arrow, to: .pixelate, orderRaw: movedHiddenOrder)
+                == defaultScreenshotTools
+                && ScreenshotSupport.Tool.moving(.arrow, to: .arrow, orderRaw: hiddenArrowOrder)
+                    == defaultScreenshotTools,
+               "dragging up restores the order and dropping onto the same tool changes nothing")
+        let reassignedWithHiddenTool = ScreenshotSupport.Tool.orderStorage(
+            ScreenshotSupport.Tool.assigningShortcut(1, to: .crop, orderRaw: hiddenArrowOrder),
+            preservingVisibilityFrom: hiddenArrowOrder)
+        expect(ScreenshotSupport.Tool.shortcutTool(number: 1, orderRaw: reassignedWithHiddenTool,
+                                                   enabled: true) == .crop
+                && !ScreenshotSupport.Tool.visibleTools(from: reassignedWithHiddenTool).contains(.arrow),
+               "assigning another tool a shortcut does not reveal hidden tools")
+        for tool in defaultScreenshotTools {
+            let hidden = ScreenshotSupport.Tool.settingVisibility(false, for: tool, orderRaw: nil)
+            expect(ScreenshotSupport.Tool.availableTool(tool, orderRaw: hidden) == .select,
+                   "a hidden active or remembered screenshot tool falls back to Select (\(tool))")
+            expect(ScreenshotSupport.Tool.availableTool(tool, orderRaw: nil) == tool,
+                   "a visible screenshot tool stays selected (\(tool))")
+            expect(ScreenshotSupport.Tool.settingVisibility(true, for: tool, orderRaw: hidden)
+                    == ScreenshotSupport.Tool.defaultOrderStorage,
+                   "visibility round-trips for every screenshot tool (\(tool))")
+        }
+        let allToolsHidden = defaultScreenshotTools.reduce(ScreenshotSupport.Tool.defaultOrderStorage) {
+            ScreenshotSupport.Tool.settingVisibility(false, for: $1, orderRaw: $0)
+        }
+        expect(ScreenshotSupport.Tool.visibleTools(from: allToolsHidden) == [.select]
+                && ScreenshotSupport.Tool.visibleTools(from: "!select").contains(.select),
+               "Select remains available even if every visibility toggle or a stored value hides it")
+        expect(ScreenshotSupport.Tool.orderStorage(defaultScreenshotTools, preservingVisibilityFrom: nil)
+                == ScreenshotSupport.Tool.defaultOrderStorage,
+               "the default screenshot order needs no encoding migration")
+        let toolRailSource = stripCommentLines((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotEditorView.swift",
+            encoding: .utf8)) ?? "")
+        let toolControllerSource = stripCommentLines((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift",
+            encoding: .utf8)) ?? "")
+        expect(toolRailSource.contains("ScreenshotSupport.Tool.visibleTools(")
+                && toolRailSource.contains("ScreenshotSupport.Tool.availableTool(")
+                && toolControllerSource.contains("ScreenshotSupport.Tool.availableTool("),
+               "the rail and active and remembered tool paths all consult screenshot visibility")
+
         expect(ScreenshotSupport.cropLoupeSampleRect(
             around: CGPoint(x: 50, y: 40),
             imageSize: CGSize(width: 100, height: 80))

@@ -3,7 +3,7 @@
 
 import SwiftUI
 
-/// Reusable controls for screenshot tool order and number assignments.
+/// Reusable controls for screenshot tool visibility, order and number assignments.
 struct ScreenshotToolOrderControls: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var orderRaw: String
@@ -56,21 +56,37 @@ struct ScreenshotToolOrderControls: View {
 
     private func toolRow(_ tool: ScreenshotSupport.Tool) -> some View {
         let index = orderedTools.firstIndex(of: tool) ?? 0
+        let visible = ScreenshotSupport.Tool.visibleTools(from: orderRaw).contains(tool)
         let assignedNumber = ScreenshotSupport.Tool.shortcutNumber(
             for: tool,
             orderRaw: orderRaw,
             enabled: true)
 
         return HStack(spacing: 7) {
-            Image(systemName: tool.screenshotSymbolName)
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-            Text(tool.screenshotTitle(strings))
-                .lineLimit(1)
-            Spacer(minLength: 4)
+            HStack(spacing: 7) {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundStyle(.tertiary)
+                Image(systemName: tool.screenshotSymbolName)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+                Text(tool.screenshotTitle(strings))
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+            }
+            .contentShape(Rectangle())
+            .draggable("screenshot-tool:\(tool.rawValue)")
+
+            Toggle(tool.screenshotTitle(strings), isOn: Binding(
+                get: { visible },
+                set: { orderRaw = ScreenshotSupport.Tool.settingVisibility(
+                    $0, for: tool, orderRaw: orderRaw) }))
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+                .disabled(tool == .select)
 
             shortcutMenu(for: tool, assignedNumber: assignedNumber)
                 .opacity(shortcutsEnabled ? 1 : 0.48)
+                .disabled(!visible)
 
             Button {
                 move(tool, by: -1)
@@ -94,6 +110,16 @@ struct ScreenshotToolOrderControls: View {
         }
         .frame(minHeight: 26)
         .contentShape(Rectangle())
+        .dropDestination(for: String.self) { items, _ in
+            guard items.count == 1, let item = items.first,
+                  item.hasPrefix("screenshot-tool:"),
+                  let source = ScreenshotSupport.Tool(rawValue: String(item.dropFirst("screenshot-tool:".count))),
+                  source != tool else { return false }
+            withAnimation(.easeInOut(duration: 0.14)) {
+                persist(ScreenshotSupport.Tool.moving(source, to: tool, orderRaw: orderRaw))
+            }
+            return true
+        }
     }
 
     private func shortcutMenu(for tool: ScreenshotSupport.Tool,
@@ -157,6 +183,6 @@ struct ScreenshotToolOrderControls: View {
     }
 
     private func persist(_ order: [ScreenshotSupport.Tool]) {
-        orderRaw = order.map(\.rawValue).joined(separator: ",")
+        orderRaw = ScreenshotSupport.Tool.orderStorage(order, preservingVisibilityFrom: orderRaw)
     }
 }
