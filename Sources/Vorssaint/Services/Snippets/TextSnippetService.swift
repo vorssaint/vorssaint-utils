@@ -385,11 +385,19 @@ final class TextSnippetService {
             // than as a send. For a multi-line snippet that is also the more
             // useful reading of what the person asked for.
             let payload = text + trailingText.replacingOccurrences(of: "\r", with: "\n")
-            // Check before destroying anything. A paste dropped because another
-            // is still in flight would otherwise leave the trigger deleted, no
-            // replacement, and the delimiter swallowed by the tap.
-            guard TransientPaste.shared.paste(payload) else { return }
-            for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
+            // The deletes go out with the ⌘V, not now. `paste` returns as soon
+            // as it has enqueued, and the press only follows the pasteboard
+            // round-trip, the modifier wait and a beat — tens of milliseconds at
+            // best, unbounded when a promised flavour is slow to materialise. Run
+            // here, they would erase the trigger and leave the caret waiting in
+            // an empty space where anything typed meanwhile would land.
+            //
+            // Checked first all the same: a paste declined because another is
+            // still in flight must not delete anything, or the trigger goes with
+            // the delimiter the tap already swallowed.
+            guard TransientPaste.shared.paste(payload, willPostShortcut: {
+                for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
+            }) else { return }
             return
         }
 

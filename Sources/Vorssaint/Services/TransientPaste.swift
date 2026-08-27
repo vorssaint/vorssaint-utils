@@ -73,12 +73,16 @@ final class TransientPaste {
             pasteboard.clearContents()
             pasteboard.setString(text, forType: .string)
             let changeCount = pasteboard.changeCount
-            // Registered here rather than after a hop to main: the history poll
-            // could otherwise land between the write and the ignore and record
-            // text the user never copied.
-            ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
 
             DispatchQueue.main.async {
+                // On main, because ClipboardHistoryService owns lastChangeCount
+                // there and its capture poll compares against it. Assigning from
+                // this lane would race that poll and could push the count past a
+                // genuine copy still being read, dropping it from history. The
+                // window this hop used to open is closed anyway: the poll reads
+                // through GeneralPasteboardAccess too, and the lane is serial, so
+                // this write lands before the poll's read begins.
+                ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
                 self.pendingRestore = (snapshot, changeCount)
                 // The user may still be holding the key that completed the
                 // trigger. ⌘V posted on top of a held Shift or Option is a
@@ -109,7 +113,10 @@ final class TransientPaste {
                 guard pasteboard.changeCount == changeCount, !snapshot.isEmpty else { return }
                 pasteboard.clearContents()
                 pasteboard.writeObjects(snapshot)
-                ClipboardHistoryService.shared.ignoreNextChange(upTo: pasteboard.changeCount)
+                let restored = pasteboard.changeCount
+                DispatchQueue.main.async {
+                    ClipboardHistoryService.shared.ignoreNextChange(upTo: restored)
+                }
             }
         }
         restoreWork = work
