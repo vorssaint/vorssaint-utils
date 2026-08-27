@@ -205,6 +205,7 @@ enum DefaultsKey {
     // does not speak up again after every relaunch.
     static let appUpdatesNotifiedIDs = "appUpdatesNotifiedIDs"
     static let panelUtilityMedia = "panelUtilityMedia"
+    static let archiveExcludeDSStore = "archiveExcludeDSStore"
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"
     static let panelControlMouseScroll = "panelControlMouseScroll"
@@ -937,6 +938,7 @@ enum Defaults {
         DefaultsKey.appUpdatesLastCount: 0,
         DefaultsKey.appUpdatesNotifiedIDs: [String](),
         DefaultsKey.panelUtilityMedia: true,
+        DefaultsKey.archiveExcludeDSStore: false,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,

@@ -11,6 +11,21 @@ import Foundation
 import ImageIO
 import VMStatisticsCompat
 
+private final class ArchiveTestRunner: ArchiveCommandRunning {
+    typealias Handler = (String, [String], ArchiveCancellationToken) -> ArchiveCommandResult
+    private let handler: Handler
+    private(set) var cancelCount = 0
+
+    init(handler: @escaping Handler) { self.handler = handler }
+
+    func run(_ path: String, arguments: [String],
+             token: ArchiveCancellationToken) -> ArchiveCommandResult {
+        handler(path, arguments, token)
+    }
+
+    func cancel() { cancelCount += 1 }
+}
+
 // Standalone unit tests for pure helpers. Compiled without IOKit or UI by
 // `./build.sh --test`, so they run fast and deterministically on any machine.
 //
@@ -2712,6 +2727,8 @@ struct MetricsTests {
                "panel Homebrew utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityMedia] as? Bool == true,
                "panel Media utility is visible by default")
+        expect(registeredDefaults[DefaultsKey.archiveExcludeDSStore] as? Bool == false,
+               "archive creation preserves .DS_Store files by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseScroll] as? Bool == true,
                "panel mouse scroll control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseNavigation] as? Bool == true,
@@ -10763,7 +10780,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10771,7 +10788,7 @@ struct MetricsTests {
             "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "keyboardDebounce", "textSnippets", "superKey",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
-            "diskImageInstaller",
+            "diskImageInstaller", "archiveTools",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
@@ -10785,6 +10802,7 @@ struct MetricsTests {
         expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.archiveTools.availabilityKey] as? Bool) == true
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
@@ -10793,7 +10811,7 @@ struct MetricsTests {
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
-               "new opt-in features ship uninstalled while existing features remain available")
+               "hardware-sensitive and higher-risk features opt in while ordinary file tools remain available")
         expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
                 == AppFeature.allCases.count,
                "every feature belongs to exactly one group")
@@ -10880,6 +10898,12 @@ struct MetricsTests {
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
                 && AppFeature.diskImageInstaller.energyProfile == .idle,
                "the disk image installer is an event-driven file feature with contextual app access")
+        expect(AppFeature.archiveTools.group == .clipboardFiles
+                && AppFeature.archiveTools.enabledKeys.isEmpty
+                && AppFeature.archiveTools.permissions.isEmpty
+                && AppFeature.archiveTools.energyProfile == .idle
+                && AppFeature.archiveTools.settingsDestination == FeatureSettingsDestination(.archiveTools),
+               "Archive tools is an on-demand file feature with a dedicated page and no broad permission")
         expect(AppFeature.bluetoothSleep.group == .energyDisplay
                 && AppFeature.bluetoothSleep.enabledKeys == [DefaultsKey.bluetoothSleepEnabled]
                 && AppFeature.bluetoothSleep.permissions.isEmpty
@@ -10937,6 +10961,158 @@ struct MetricsTests {
                          "\(language.rawValue) installer kept-download format")
             expectFormat(strings.alreadyInstalledBodyFormat, ["@"],
                          "\(language.rawValue) installer existing-app format")
+        }
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.archiveTools(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 13 && values.allSatisfy { !$0.isEmpty },
+                   "Archive tools has every create-ZIP string for \(language.rawValue)")
+            expectFormat(strings.selectedItemsFormat, ["d"],
+                         "\(language.rawValue) Archive tools selection format")
+            expectFormat(strings.completedFormat, ["@"],
+                         "\(language.rawValue) Archive tools completion format")
+            expectFormat(strings.duplicateSourceFormat, ["@"],
+                         "\(language.rawValue) Archive tools duplicate format")
+        }
+
+        // MARK: Archive tools
+
+        expect((AppFeature.availabilityDefaults[AppFeature.archiveTools.availabilityKey] as? Bool) == true,
+               "Archive tools ships available because it has no permission or background cost")
+        let archiveToolsViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Archive/ArchiveToolsView.swift",
+            encoding: .utf8)) ?? ""
+        expect(archiveToolsViewSource.contains(".dropDestination(for: URL.self)")
+                && archiveToolsViewSource.contains("archive.create(sources:"),
+               "the first Archive tools slice accepts Finder drops and exposes ZIP creation")
+        expect(ArchiveSupport.archiveBaseName(for: [URL(fileURLWithPath: "/tmp/Report.txt")]) == "Report"
+                && ArchiveSupport.archiveBaseName(for: [URL(fileURLWithPath: "/tmp/A"),
+                                                         URL(fileURLWithPath: "/tmp/B")]) == "Archive",
+               "archive names derive from one source and use Archive for a multi-source ZIP")
+        expect(ArchiveSupport.duplicateTopLevelName(in: [
+            URL(fileURLWithPath: "/tmp/A/Same"), URL(fileURLWithPath: "/tmp/B/same"),
+        ]) == "same",
+               "duplicate top-level source names are rejected before they can merge in a ZIP")
+
+        let archiveArguments = ArchiveSupport.createArguments(
+            sources: [URL(fileURLWithPath: "/tmp/A/file.txt"),
+                      URL(fileURLWithPath: "/tmp/B/folder", isDirectory: true)],
+            stagedOutput: URL(fileURLWithPath: "/tmp/out.zip"),
+            excludesDSStore: true)
+        expect(archiveArguments == ["-a", "-cf", "/tmp/out.zip", "--exclude", ".DS_Store",
+                                    "-C", "/tmp/A", "./file.txt",
+                                    "-C", "/tmp/B", "./folder"],
+               "archive creation keeps arbitrary source roots and conditionally excludes .DS_Store")
+        expect(!ArchiveSupport.createArguments(
+            sources: [URL(fileURLWithPath: "/tmp/file.txt")],
+            stagedOutput: URL(fileURLWithPath: "/tmp/out.zip"),
+            excludesDSStore: false).contains(".DS_Store"),
+               "the default archive command preserves .DS_Store")
+
+        let archiveFailureRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-archive-failure-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: archiveFailureRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: archiveFailureRoot) }
+        let archiveFailureSource = archiveFailureRoot.appendingPathComponent("source.txt")
+        try? Data("source".utf8).write(to: archiveFailureSource)
+        var abandonedArchiveStage: URL?
+        let failingArchiveRunner = ArchiveTestRunner { path, arguments, _ in
+            if path == "/usr/bin/tar", let outputIndex = arguments.firstIndex(of: "-cf"),
+               arguments.indices.contains(outputIndex + 1) {
+                let output = URL(fileURLWithPath: arguments[outputIndex + 1])
+                abandonedArchiveStage = output.deletingLastPathComponent()
+                try? Data("partial".utf8).write(to: output)
+            }
+            return ArchiveCommandResult(status: 2, output: Data("failed".utf8))
+        }
+        let failedArchive = ArchiveOperationWorker(runner: failingArchiveRunner).create(
+            sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: false, token: ArchiveCancellationToken())
+        if case .failure(.commandFailed) = failedArchive {
+            expect(abandonedArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+                   "a failed archive creation removes its complete temporary workspace")
+        } else {
+            expect(false, "a failed archive command reports an actionable command failure")
+        }
+
+        let cancelledArchiveToken = ArchiveCancellationToken()
+        cancelledArchiveToken.cancel()
+        var cancelledArchiveStage: URL?
+        let cancelledArchiveRunner = ArchiveTestRunner { _, arguments, _ in
+            if let outputIndex = arguments.firstIndex(of: "-cf"),
+               arguments.indices.contains(outputIndex + 1) {
+                let output = URL(fileURLWithPath: arguments[outputIndex + 1])
+                cancelledArchiveStage = output.deletingLastPathComponent()
+                try? Data("partial".utf8).write(to: output)
+            }
+            return ArchiveCommandResult(status: -1, output: Data())
+        }
+        let cancelledArchive = ArchiveOperationWorker(runner: cancelledArchiveRunner).create(
+            sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: false, token: cancelledArchiveToken)
+        expect(cancelledArchive == .failure(.cancelled)
+                && cancelledArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+               "a cancelled archive creation reports cancellation and removes partial output")
+
+        let archiveRoundTripRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-archive-roundtrip-\(UUID().uuidString)", isDirectory: true)
+        let archiveSource = archiveRoundTripRoot.appendingPathComponent("Payload", isDirectory: true)
+        let archiveNested = archiveSource.appendingPathComponent("Nested", isDirectory: true)
+        let archiveOutput = archiveSource.appendingPathComponent("Output", isDirectory: true)
+        let secondSource = archiveRoundTripRoot.appendingPathComponent("Other", isDirectory: true)
+        let externalFile = archiveRoundTripRoot.appendingPathComponent("outside.txt")
+        try? FileManager.default.createDirectory(at: archiveNested, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: archiveOutput, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: secondSource, withIntermediateDirectories: true)
+        try? Data("visible".utf8).write(to: archiveNested.appendingPathComponent("file.txt"))
+        try? Data("hidden".utf8).write(to: archiveNested.appendingPathComponent(".hidden"))
+        try? Data("root metadata".utf8).write(to: archiveSource.appendingPathComponent(".DS_Store"))
+        try? Data("nested metadata".utf8).write(to: archiveNested.appendingPathComponent(".DS_Store"))
+        try? Data("other".utf8).write(to: secondSource.appendingPathComponent("other.txt"))
+        try? Data("outside".utf8).write(to: externalFile)
+        try? FileManager.default.createSymbolicLink(
+            at: archiveNested.appendingPathComponent("outside-link"),
+            withDestinationURL: externalFile)
+        defer { try? FileManager.default.removeItem(at: archiveRoundTripRoot) }
+
+        let roundTripWorker = ArchiveOperationWorker()
+        let preservedArchive = roundTripWorker.create(
+            sources: [archiveSource, secondSource], destinationDirectory: archiveOutput,
+            excludesDSStore: false, token: ArchiveCancellationToken())
+        let excludedArchive = roundTripWorker.create(
+            sources: [archiveSource, secondSource], destinationDirectory: archiveOutput,
+            excludesDSStore: true, token: ArchiveCancellationToken())
+        let archiveListingRunner = SystemArchiveCommandRunner()
+        func archiveListing(_ url: URL, verbose: Bool = false) -> String {
+            let arguments = verbose ? ["-tvf", url.path] : ["-tf", url.path]
+            let result = archiveListingRunner.run("/usr/bin/tar",
+                                                  arguments: arguments,
+                                                  token: ArchiveCancellationToken())
+            return String(data: result.output, encoding: .utf8) ?? ""
+        }
+        if case let .success(preservedURL) = preservedArchive,
+           case let .success(excludedURL) = excludedArchive {
+            let preservedListing = archiveListing(preservedURL)
+            let excludedListing = archiveListing(excludedURL)
+            let verboseListing = archiveListing(excludedURL, verbose: true)
+            expect(preservedListing.contains(".DS_Store")
+                    && !excludedListing.contains(".DS_Store")
+                    && excludedListing.contains("Payload/Nested/.hidden")
+                    && excludedListing.contains("Other/other.txt"),
+                   "real ZIP creation preserves .DS_Store by default, excludes only it on request, and keeps multiple roots")
+            expect(verboseListing.split(separator: "\n").contains { line in
+                line.first == "l" && line.contains("Payload/Nested/outside-link")
+            }, "a symlink outside the selected roots is archived as a link instead of followed")
+            expect(!preservedListing.contains("Archive.zip"),
+                   "an output destination inside a selected root never makes the archive include itself")
+            expect(preservedURL.lastPathComponent == "Archive.zip"
+                    && excludedURL.lastPathComponent == "Archive 2.zip"
+                    && FileManager.default.fileExists(atPath: preservedURL.path)
+                    && FileManager.default.fileExists(atPath: excludedURL.path),
+                   "a second archive publishes under a collision-free name without replacing the first")
+        } else {
+            expect(false, "real system ZIP creation succeeds for multiple roots and both metadata policies")
         }
 
         let installerInfo: [String: Any] = [
@@ -11906,6 +12082,9 @@ struct MetricsTests {
                "the quick toggles alone keep the quick tools page")
         expect(pageVisible(.clipboard, available: [.finderCutPaste]),
                "the image paste option keeps the Clipboard page available")
+        expect(pageVisible(.archiveTools, available: [.archiveTools])
+                && !pageVisible(.archiveTools, available: []),
+               "the Archive tools page follows its installable feature")
         expect(AppFeature.allCases.allSatisfy { feature in
             let destination = feature.settingsDestination
             let gate = FeatureVisibilitySupport.features(for: destination.page)
@@ -11930,6 +12109,9 @@ struct MetricsTests {
                 && AppFeature.diskImageInstaller.settingsDestination
                 == FeatureSettingsDestination(.features),
                "features without dedicated pages use explicit nearest Settings destinations")
+        expect(AppFeature.archiveTools.settingsDestination == FeatureSettingsDestination(.archiveTools)
+                && AppFeature.archiveTools.hasNavigableSettingsDestination,
+               "Archive tools links from the hub to its dedicated page")
         expect(!AppFeature.diskImageInstaller.hasNavigableSettingsDestination
                 && AppFeature.allCases.filter { $0 != .diskImageInstaller }
                     .allSatisfy(\.hasNavigableSettingsDestination),

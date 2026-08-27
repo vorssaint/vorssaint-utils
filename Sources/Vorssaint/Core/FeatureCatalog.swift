@@ -20,7 +20,7 @@ enum AppFeature: String, CaseIterable {
          keyboardDebounce, textSnippets, superKey
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
-         diskImageInstaller
+         diskImageInstaller, archiveTools
     // Sound
     case mixer, soundOutputSwitcher, micMute, musicBlock
     // Energy and display
@@ -92,7 +92,7 @@ extension AppFeature {
              .keyboardDebounce, .textSnippets, .superKey:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
-             .diskImageInstaller:
+             .diskImageInstaller, .archiveTools:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .micMute, .musicBlock:
             return .sound
@@ -135,6 +135,7 @@ extension AppFeature {
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
         case .diskImageInstaller: return "externaldrive.badge.plus"
+        case .archiveTools: return "archivebox"
         case .mixer: return "slider.horizontal.3"
         case .soundOutputSwitcher: return "hifispeaker"
         case .micMute: return "mic.slash"
@@ -216,7 +217,7 @@ extension AppFeature {
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
-        case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
+        case .windowLayout, .diskImageInstaller, .archiveTools, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .killProcess,
@@ -261,7 +262,7 @@ extension AppFeature {
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
-        case .clipboardHistory, .shelf, .urlCleaner,
+        case .clipboardHistory, .shelf, .urlCleaner, .archiveTools,
              .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork, .fanControl, .killProcess:

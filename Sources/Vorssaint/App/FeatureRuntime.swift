@@ -196,6 +196,9 @@ final class FeatureRuntime: ObservableObject {
         .shelf: { ShelfService.shared.syncWithPreferences() },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
         .diskImageInstaller: { DiskImageInstallerService.shared.syncWithPreferences() },
+        .archiveTools: {
+            if !AppFeature.archiveTools.isAvailable { ArchiveService.shared.cancel() }
+        },
         .mixer: {
             PreciseVolumeRollerService.shared.syncWithPreferences()
             AppVolumeMixer.shared.syncWithPreferences()
