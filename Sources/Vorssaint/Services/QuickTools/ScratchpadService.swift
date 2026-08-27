@@ -454,10 +454,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible, self.dismissesOnOutsideClick else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
-               // Every key on the Accessibility Keyboard is a click outside this
-               // panel. Dismissing on those makes the panel impossible to type into.
-               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
                 self.hide()
             }
         }

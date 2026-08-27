@@ -201,15 +201,7 @@ final class TextSnippetService {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: .main
-        ) { [weak self] note in
-            // Not when the Accessibility Keyboard itself comes forward: pressing
-            // one of its keys is typing into the app you were already in, so the
-            // buffer has to survive it. Otherwise this clears what the mouse-down
-            // branch above just took care to keep.
-            if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-               app.bundleIdentifier == AssistiveKeyboard.bundleID {
-                return
-            }
+        ) { [weak self] _ in
             self?.resetBuffer()
         }
     }
@@ -227,12 +219,9 @@ final class TextSnippetService {
             return Unmanaged.passUnretained(event)
         }
         // Clicks move the caret somewhere unknown; the half-typed trigger is
-        // no longer where the deletes would land. A click on the Accessibility
-        // Keyboard is the exception: there the mouse is how a key is pressed,
-        // so the click types a character and leaves the caret alone. That check
-        // costs a nil test unless that keyboard is actually running.
+        // no longer where the deletes would land.
         if type == .leftMouseDown || type == .rightMouseDown {
-            if !AssistiveKeyboard.ownsPoint(event.location) { resetBuffer() }
+            resetBuffer()
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown else { return Unmanaged.passUnretained(event) }
@@ -281,8 +270,8 @@ final class TextSnippetService {
 
         if let first = typed.first, TextSnippetSupport.delimiters.contains(first) {
             // A delimiter can complete an afterDelimiter trigger. The typed
-            // delimiter is swallowed and re-posted after the replacement, so
-            // it lands where the user expects: right after the expanded text.
+            // delimiter is swallowed and kept after the replacement, either
+            // in the same paste or as the original key after typed injection.
             let matched = inputLock.withLock { () -> TextSnippet? in
                 let match = TextSnippetSupport.match(buffer: buffer,
                                                      expansion: .afterDelimiter,
@@ -291,12 +280,14 @@ final class TextSnippetService {
                 return match
             }
             if let matched {
-                expand(matched,
-                       deleteCount: matched.trigger.count,
-                       trailingKeyCode: CGKeyCode(keyCode),
-                       trailingFlags: event.flags,
-                       trailingText: typed)
-                return nil
+                return expand(matched,
+                              deleteCount: matched.trigger.count,
+                              trailingKeyCode: CGKeyCode(keyCode),
+                              trailingFlags: event.flags,
+                              trailingText: typed,
+                              failureKeyCode: CGKeyCode(keyCode))
+                    ? nil
+                    : Unmanaged.passUnretained(event)
             }
             return Unmanaged.passUnretained(event)
         }
@@ -310,29 +301,36 @@ final class TextSnippetService {
             return match
         }
         if let matched {
-            // Suppress the final trigger event. The replacement is posted
-            // before this callback returns, so later typing cannot overtake it.
-            expand(matched,
-                   deleteCount: max(0, matched.trigger.count - typed.count),
-                   trailingKeyCode: nil,
-                   trailingFlags: [])
-            return nil
+            // Suppress the final trigger event once the replacement path has
+            // accepted it. A busy transient paste fails open to normal typing.
+            return expand(matched,
+                          deleteCount: max(0, matched.trigger.count - typed.count),
+                          trailingKeyCode: nil,
+                          trailingFlags: [],
+                          trailingText: "",
+                          failureKeyCode: CGKeyCode(keyCode),
+                          failureFlags: event.flags)
+                ? nil
+                : Unmanaged.passUnretained(event)
         }
         return Unmanaged.passUnretained(event)
     }
 
     // MARK: - Expansion
 
+    @discardableResult
     private func expand(_ snippet: TextSnippet,
                         deleteCount: Int,
                         trailingKeyCode: CGKeyCode?,
                         trailingFlags: CGEventFlags,
-                        trailingText: String = "") {
-        let post = {
-            // The replacement has to be posted before this callback returns,
-            // so later typing cannot overtake it — the read cannot move off
-            // this thread. It can be skipped, though, and for every snippet
-            // that does not name the clipboard it now is.
+                        trailingText: String,
+                        failureKeyCode: CGKeyCode?,
+                        failureFlags: CGEventFlags = []) -> Bool {
+        let post = { () -> Bool in
+            // Variable expansion is decided while the triggering event still
+            // belongs to this callback. Only an explicit clipboard variable
+            // pays for a synchronous read; the multiline write itself runs on
+            // the shared pasteboard lane.
             let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
                 ? NSPasteboard.general.string(forType: .string)
                 : nil
@@ -341,26 +339,30 @@ final class TextSnippetService {
                 date: Date(),
                 clipboard: clipboard
             )
-            Self.postExpansion(deleteCount: deleteCount,
-                               text: text,
-                               trailingKeyCode: trailingKeyCode,
-                               trailingFlags: trailingFlags,
-                               trailingText: trailingText)
+            return Self.postExpansion(deleteCount: deleteCount,
+                                      text: text,
+                                      trailingKeyCode: trailingKeyCode,
+                                      trailingFlags: trailingFlags,
+                                      trailingText: trailingText,
+                                      failureKeyCode: failureKeyCode,
+                                      failureFlags: failureFlags)
         }
         if Thread.isMainThread {
-            post()
-        } else {
-            DispatchQueue.main.sync(execute: post)
+            return post()
         }
+        return DispatchQueue.main.sync(execute: post)
     }
 
     /// Also the snippet library's insertion path (deleteCount 0): one typing
     /// routine, one synthetic marker, one set of quirks.
+    @discardableResult
     static func postExpansion(deleteCount: Int,
                               text: String,
                               trailingKeyCode: CGKeyCode?,
                               trailingFlags: CGEventFlags,
-                              trailingText: String = "") {
+                              trailingText: String = "",
+                              failureKeyCode: CGKeyCode? = nil,
+                              failureFlags: CGEventFlags = []) -> Bool {
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = syntheticMarker
 
@@ -375,42 +377,20 @@ final class TextSnippetService {
             }
         }
 
-        // A newline cannot travel inside a keyboard event's unicode string: the
-        // receiving app inserts only the text before the first newline and drops
-        // the rest of that event's string. With the chunking below that silently
-        // swallows whole fragments of any multi-line snippet, so those go through
-        // the pasteboard, which preserves the text exactly.
-        if text.contains(where: \.isNewline) {
-            // The delimiter rides inside the pasted string; nothing is posted
-            // afterwards. Posting a key after ⌘V does not mean it arrives after
-            // the paste — a plain key is handled while the front app is still
-            // working through the pasteboard, so Return could reach a chat
-            // composer ahead of the text and send it empty. Carried inside, the
-            // whole insertion is one ordered event.
-            //
-            // The trade: Return arrives as a newline in the inserted text rather
-            // than as a send. For a multi-line snippet that is also the more
-            // useful reading of what the person asked for.
-            let payload = text + trailingText.replacingOccurrences(of: "\r", with: "\n")
-            // The deletes go out with the ⌘V, not now. `paste` returns as soon
-            // as it has enqueued, and the press only follows the pasteboard
-            // round-trip, the modifier wait and a beat — tens of milliseconds at
-            // best, unbounded when a promised flavour is slow to materialise. Run
-            // here, they would erase the trigger and leave the caret waiting in
-            // an empty space where anything typed meanwhile would land.
-            //
-            // Checked first all the same: a paste declined because another is
-            // still in flight must not delete anything, or the trigger goes with
-            // the delimiter the tap already swallowed.
-            guard TransientPaste.shared.paste(payload, willPostShortcut: {
-                for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
-            }) else { return }
-            return
+        if TextSnippetSupport.requiresPaste(text) {
+            let payload = TextSnippetSupport.pastePayload(text: text, trailingText: trailingText)
+            return TransientPaste.shared.paste(
+                payload,
+                willPostShortcut: {
+                    for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
+                },
+                didFail: {
+                    if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
+                }
+            )
         }
 
-        for _ in 0..<deleteCount {
-            postKey(CGKeyCode(kVK_Delete))
-        }
+        for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
 
         // Typed injection instead of pasting: the clipboard stays untouched.
         // Keystroke events carry at most ~20 UTF-16 units reliably.
@@ -435,5 +415,6 @@ final class TextSnippetService {
         if let trailingKeyCode {
             postKey(trailingKeyCode, flags: trailingFlags)
         }
+        return true
     }
 }

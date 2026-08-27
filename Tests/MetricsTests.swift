@@ -12435,6 +12435,15 @@ struct MetricsTests {
                "a replacement without variables never reads the clipboard")
         expect(!TextSnippetSupport.needsClipboard("keep {{unknown}}"),
                "an unknown variable is not the clipboard one")
+        expect(TextSnippetSupport.requiresPaste("first\nsecond")
+               && TextSnippetSupport.requiresPaste("first\rsecond")
+               && !TextSnippetSupport.requiresPaste("one line"),
+               "multi-line snippets use paste while single-line snippets keep typed injection")
+        expect(TextSnippetSupport.pastePayload(text: "first\nsecond", trailingText: "\r")
+                == "first\nsecond\n"
+               && TextSnippetSupport.pastePayload(text: "first\nsecond", trailingText: " ")
+                == "first\nsecond ",
+               "multi-line snippets keep their delimiter in the same ordered paste")
 
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")

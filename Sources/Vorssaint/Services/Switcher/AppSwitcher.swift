@@ -582,7 +582,7 @@ final class AppSwitcher: ObservableObject {
                 closeSelectedWindow()
                 return nil
             }
-            dismissForClickOutsidePanel(event)
+            dismissForClickOutsidePanel()
             return Unmanaged.passUnretained(event)
         case .otherMouseUp:
             if let panel,
@@ -1322,13 +1322,8 @@ final class AppSwitcher: ObservableObject {
     /// tap. This preserves the click and prevents a nearly simultaneous Command
     /// release from committing the highlighted window first (issues #384 and
     /// #539).
-    private func dismissForClickOutsidePanel(_ event: CGEvent? = nil) {
+    private func dismissForClickOutsidePanel() {
         guard sessionActive, let panel else { return }
-        // On the Accessibility Keyboard a modifier is latched by double-clicking
-        // it and every other key is then pressed with the mouse. Those clicks
-        // land outside the panel, but they are the user driving the switcher,
-        // not dismissing it: without this the session dies on the second Tab.
-        if let event, AssistiveKeyboard.ownsPoint(event.location) { return }
         guard SwitcherSupport.shouldDismissForClick(panelIsVisible: panel.isVisible,
                                                     panelFrame: panel.frame,
                                                     location: NSEvent.mouseLocation)

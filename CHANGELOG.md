@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint expands clipboard, Super key, App Switcher and snippet controls, broadens app update and safe cleanup discovery, and improves Settings, Scratchpad, floating panels and several menu bar behaviors. App Switcher also separates stale hidden-Space surfaces from real fullscreen windows.
+Vorssaint expands clipboard, Super key, App Switcher and snippet controls, broadens app update and safe cleanup discovery, and improves Settings, Scratchpad, floating panels and several menu bar behaviors. App Switcher also separates stale hidden-Space surfaces from real fullscreen windows, while multi-line snippets preserve their full contents and the clipboard.
 
 ### Added
 - Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
@@ -22,6 +22,7 @@ Vorssaint expands clipboard, Super key, App Switcher and snippet controls, broad
 
 ### Fixed
 - App Switcher now rejects stale hidden-Space surfaces without hiding real fullscreen windows on another Space. Thanks to @naveenkrdy.
+- Multi-line text snippets now paste every line in order while preserving rich clipboard content and keeping transient text out of history. Thanks to @fermincasagrande.
 - Settings now enforces its design minimum size across window resizing, layout updates and window restore, preventing the sidebar and preferences from compressing or clipping.
 - Scratchpad windows now drag reliably from anywhere in the top bar, keep generous resize borders and minimum dimensions, and include a close button on each tab.
 - Text-heavy floating panels now keep their content readable over bright windows when Liquid Glass is enabled.

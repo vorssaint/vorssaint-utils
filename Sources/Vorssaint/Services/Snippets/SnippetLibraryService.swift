@@ -312,10 +312,7 @@ final class SnippetLibraryService: ObservableObject {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
-               // Every key on the Accessibility Keyboard is a click outside this
-               // panel. Dismissing on those makes the panel impossible to type into.
-               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
                 self.hide()
             }
         }
@@ -326,8 +323,7 @@ final class SnippetLibraryService: ObservableObject {
         ) { [weak self] notification in
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier,
-                  app.bundleIdentifier != AssistiveKeyboard.bundleID
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier
             else { return }
             self.hide()
         }

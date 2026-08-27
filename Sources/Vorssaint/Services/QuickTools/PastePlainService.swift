@@ -3,7 +3,6 @@
 
 import AppKit
 import ApplicationServices
-import Carbon.HIToolbox
 
 /// Pastes the clipboard as plain text on a global shortcut: strips fonts,
 /// colors and links, pastes, and quietly puts the original rich content back
@@ -62,36 +61,21 @@ final class PastePlainService: ObservableObject {
         // for every app without that command.
         if pressNativeMatchStyleItem() { return }
 
-        // The transient write — snapshot, replace, paste, put back — is
-        // TransientPaste's job. Sharing it with the snippet expander is not
-        // only about duplication: two independent copies of `pendingRestore`
-        // cannot see each other, so a paste-plain landing inside a snippet
-        // expansion's restore window photographs *that* text as the original
-        // and puts it back afterwards, losing the real clipboard for good.
-        //
-        // It also waits for a clean keyboard before posting ⌘V, which matters
-        // here for the same reason it always did: the user is still holding the
-        // shortcut's modifiers, and with the default ⌥⇧⌘V the merged chord can
-        // re-trigger this very hotkey (issue #186).
-        // A person whose paste-plain shortcut *is* plain ⌘V would have this
-        // app's own global hotkey catch the synthetic ⌘V, so the target app
-        // never receives a paste at all (issue #186). Release it across the
-        // press and register it again after.
-        var mustReleaseHotkey = false
-        TransientPaste.shared.paste(
+        var releaseHotkey = false
+        _ = TransientPaste.shared.paste(
             plain,
             willPostShortcut: { [weak self] in
                 guard let self else { return }
                 let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
                                                     fallback: .pastePlainDefault)
-                mustReleaseHotkey = shortcut.isStandardPasteCommand
-                if mustReleaseHotkey { self.hotkey.unregister() }
+                releaseHotkey = shortcut.isStandardPasteCommand
+                if releaseHotkey { self.hotkey.unregister() }
             },
             didPostShortcut: { [weak self] in
-                if mustReleaseHotkey { self?.syncWithPreferences() }
-            })
+                if releaseHotkey { self?.syncWithPreferences() }
+            }
+        )
     }
-
 
     /// Presses the frontmost app's own matching-style paste when its menus
     /// carry the universal ⌥⇧⌘V equivalent. Found by key equivalent, never by
@@ -178,6 +162,4 @@ final class PastePlainService: ObservableObject {
         }
         return nil
     }
-
-
 }
