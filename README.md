@@ -112,7 +112,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Middle click.** A three finger press becomes a real middle click.
 - **Apps to leave alone.** Every feature above can name apps from anywhere on your Mac that drive themselves with the mouse, like 3D and design tools, and it steps aside in those.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
-- **Super key.** Hold Caps Lock and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing.
+- **Super key.** Hold Caps Lock or a right-side modifier key and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing. Keep the selected key at its default action in System Settings › Keyboard › Modifier Keys.
 - **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available.
 
 ### Clipboard, files and links

@@ -230,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         WindowLayoutService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
         TextSnippetService.shared.suspend()
-        // Takes the Caps Lock mapping back out before the process goes away.
+        // Takes the Super key mapping back out before the process goes away.
         SuperKeyService.shared.suspend()
         MiddleClickService.shared.suspend()
         SmoothScrollService.shared.suspend()

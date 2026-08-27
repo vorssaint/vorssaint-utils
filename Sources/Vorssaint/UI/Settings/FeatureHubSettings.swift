@@ -12,6 +12,8 @@ import SwiftUI
 struct FeatureHubSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
+        SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
 
@@ -142,7 +144,13 @@ struct FeatureHubSettings: View {
         ForEach(FeatureGroup.allCases, id: \.self) { group in
             Section {
                 ForEach(AppFeature.features(in: group), id: \.self) { feature in
-                    FeatureHubRow(feature: feature, hub: hub)
+                    FeatureHubRow(
+                        feature: feature,
+                        hub: hub,
+                        symbolName: feature == .superKey
+                            ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
+                            : feature.symbolName
+                    )
                 }
                 if group == .monitor,
                    !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
@@ -222,6 +230,7 @@ private struct FeatureHubRow: View {
     @State private var working = false
     let feature: AppFeature
     let hub: FeatureHubStrings
+    let symbolName: String
 
     private var installed: Bool { feature.isAvailable }
 
@@ -304,7 +313,7 @@ private struct FeatureHubRow: View {
                         : AnyShapeStyle(Color.secondary.opacity(0.22)))
                 .frame(width: 30, height: 30)
                 .overlay(
-                    Image(systemName: feature.symbolName)
+                    Image(systemName: symbolName)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(installed ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                 )

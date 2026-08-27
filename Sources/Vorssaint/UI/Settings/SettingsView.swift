@@ -11,11 +11,17 @@ struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
+        SuperKeySource.capsLock.rawValue
     @State private var searchQuery = ""
 
     /// The one map of pages, shared with the command bar (SettingsDirectory).
     private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
-        SettingsDirectory.sections(l10n.s, language: l10n.language)
+        SettingsDirectory.sections(
+            l10n.s,
+            language: l10n.language,
+            superKeySource: SuperKeySource.sanitized(superKeySourceRaw)
+        )
     }
 
     var body: some View {

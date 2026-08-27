@@ -20,10 +20,9 @@ import Combine
 ///    related to any installed identifier (dot boundary family match),
 ///    or container metadata that names that owner. Shared wrappers and plain
 ///    names are never treated as proof in this general scan.
-/// 4. Scoped roots only. Items come from fixed, well known junk locations,
-///    at most one extra directory level for nested vendor/app folders;
-///    symbolic links are never followed and each item is bound to the file
-///    identity observed during the scan.
+/// 4. Scoped roots only. Items come from fixed, well known junk locations.
+///    The general scan never enters another app's support tree; symbolic links
+///    are never followed and each item is bound to its observed file identity.
 final class JunkCleaner: ObservableObject {
     static let shared = JunkCleaner()
 
@@ -235,6 +234,12 @@ final class JunkCleaner: ObservableObject {
               UninstallerSupport.fileIdentity(at: url) == expectedIdentity,
               !UninstallerSupport.isSymbolicLink(url),
               url.resolvingSymlinksInPath().standardizedFileURL.path == path else { return false }
+        if item.category == .leftovers {
+            guard isDirectLeftoverRootChild(url),
+                  CleanerSupport.bundleIDCandidate(fromEntryName: item.detail) != nil,
+                  !CleanerSupport.isProtectedBundleID(item.detail),
+                  !hasLivingOwner(item.detail, installed: installedBundleIDs()) else { return false }
+        }
         // Depth guard: anything this shallow is a root of some kind, never junk.
         return url.pathComponents.count >= 4
     }
@@ -337,39 +342,49 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Category scanners
 
-    /// Library locations where uninstalled apps leave data behind. At most
-    /// one extra level is opened for vendor/app nesting. Shared group
-    /// containers stay out of the generic orphan scan because only a selected
-    /// app's signed entitlements can prove their ownership.
-    private static let leftoverRoots: [(path: String, usesContainerMetadata: Bool, extraChildDepth: Int)] = [
-        ("Application Support", false, 1),
-        ("Caches", false, 1),
-        ("Preferences", false, 0),
-        ("Preferences/ByHost", false, 0),
-        ("Saved Application State", false, 0),
-        ("HTTPStorages", false, 0),
-        ("WebKit", false, 0),
-        ("Logs", false, 0),
-        ("Containers", true, 0),
-        ("Cookies", false, 0),
-        ("PreferencePanes", false, 0),
-        ("Internet Plug-Ins", false, 0),
-        ("Services", false, 0),
-        ("QuickLook", false, 0),
-        ("Spotlight", false, 0),
-        ("Input Methods", false, 0),
-        ("Screen Savers", false, 0),
-        ("ColorPickers", false, 0),
-        ("Widgets", false, 0),
-        ("Address Book Plug-Ins", false, 0),
-        ("Contextual Menu Items", false, 0),
-        ("Safari/Extensions", false, 0),
-        ("Automator", false, 0),
-        ("CoreImage", false, 0),
-        ("Dictionaries", false, 0),
-        ("Components", false, 0),
-        ("Audio/Plug-Ins", false, 1),
+    /// Library locations where uninstalled apps leave data behind. Only direct
+    /// children are eligible. A selected app's Uninstaller can prove deeper
+    /// ownership; the general Cleaner cannot safely infer it.
+    private static let leftoverRoots: [(path: String, usesContainerMetadata: Bool)] = [
+        ("Application Support", false),
+        ("Caches", false),
+        ("Preferences", false),
+        ("Preferences/ByHost", false),
+        ("Saved Application State", false),
+        ("HTTPStorages", false),
+        ("WebKit", false),
+        ("Logs", false),
+        ("Containers", true),
+        ("Cookies", false),
+        ("PreferencePanes", false),
+        ("Internet Plug-Ins", false),
+        ("Services", false),
+        ("QuickLook", false),
+        ("Spotlight", false),
+        ("Input Methods", false),
+        ("Screen Savers", false),
+        ("ColorPickers", false),
+        ("Widgets", false),
+        ("Address Book Plug-Ins", false),
+        ("Contextual Menu Items", false),
+        ("Safari/Extensions", false),
+        ("Automator", false),
+        ("CoreImage", false),
+        ("Dictionaries", false),
+        ("Components", false),
+        ("Audio/Plug-Ins", false),
     ]
+
+    private static func isDirectLeftoverRootChild(_ url: URL) -> Bool {
+        [NSHomeDirectory() + "/Library", "/Library"].contains { library in
+            leftoverRoots.contains { root in
+                CleanerSupport.isDirectChild(
+                    url,
+                    of: URL(fileURLWithPath: library + "/" + root.path, isDirectory: true)
+                )
+            }
+        }
+    }
 
     private static func scanLeftovers(installed: Set<String>) -> [Item] {
         let fm = FileManager.default
@@ -379,7 +394,6 @@ final class JunkCleaner: ObservableObject {
             for root in leftoverRoots {
                 let dir = library + "/" + root.path
                 appendLeftovers(in: dir,
-                                extraChildDepth: root.extraChildDepth,
                                 usesContainerMetadata: root.usesContainerMetadata,
                                 installed: installed,
                                 fm: fm,
@@ -390,13 +404,12 @@ final class JunkCleaner: ObservableObject {
     }
 
     private static func appendLeftovers(in dir: String,
-                                        extraChildDepth: Int,
                                         usesContainerMetadata: Bool,
                                         installed: Set<String>,
                                         fm: FileManager,
                                         into found: inout [Item]) {
         let root = URL(fileURLWithPath: dir, isDirectory: true)
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        let keys: Set<URLResourceKey> = [.isSymbolicLinkKey]
         guard let entries = try? fm.contentsOfDirectory(at: root,
                                                         includingPropertiesForKeys: Array(keys),
                                                         options: []) else { return }
@@ -415,19 +428,7 @@ final class JunkCleaner: ObservableObject {
                                   size: directorySize(of: url, fm: fm),
                                   detail: owner,
                                   recommended: CleanerPolicy.precheckLeftovers))
-                continue
             }
-            if usesContainerMetadata {
-                continue
-            }
-            guard extraChildDepth > 0 else { continue }
-            guard values?.isDirectory == true else { continue }
-            appendLeftovers(in: url.path,
-                            extraChildDepth: extraChildDepth - 1,
-                            usesContainerMetadata: false,
-                            installed: installed,
-                            fm: fm,
-                            into: &found)
         }
     }
 

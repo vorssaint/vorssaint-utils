@@ -104,8 +104,18 @@ enum CleanerSupport {
         // A UUID still in the remainder (update stamps, mid-name hosts)
         // makes the owner unattributable.
         guard !containsUUIDComponent(name) else { return nil }
-        guard looksLikeBundleID(name) else { return nil }
+        guard looksLikeBundleID(name),
+              name.split(separator: ".").allSatisfy({ part in
+                  part.unicodeScalars.contains {
+                      ($0 >= "a" && $0 <= "z") || ($0 >= "A" && $0 <= "Z")
+                  }
+              }) else { return nil }
         return name
+    }
+
+    static func isDirectChild(_ url: URL, of root: URL) -> Bool {
+        url.standardizedFileURL.deletingLastPathComponent().path
+            == root.standardizedFileURL.path
     }
 
     /// Last path component of a ByHost preference: the Mac's UUID, not the

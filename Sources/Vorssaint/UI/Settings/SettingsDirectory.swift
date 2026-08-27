@@ -19,7 +19,9 @@ struct SettingsDirectoryItem: Identifiable {
 /// so a page added here is findable everywhere at once.
 enum SettingsDirectory {
     static func sections(_ s: Strings,
-                         language: AppLanguage) -> [(title: String, items: [SettingsDirectoryItem])] {
+                         language: AppLanguage,
+                         superKeySource: SuperKeySource = SuperKeyService.shared.source)
+        -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         return [
             (categories.essentials, [
@@ -154,9 +156,10 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,
-                                      icon: "capslock",
-                                      keywords: [FeatureStrings.superKey(language).capsLockKey,
-                                                 FeatureStrings.superKey(language).enableToggle]),
+                                      icon: superKeySource.systemImage,
+                                      keywords: SuperKeySource.allCases.map {
+                                          FeatureStrings.superKey(language).sourceLabel($0)
+                                      }),
                 SettingsDirectoryItem(page: .textSnippets,
                                       title: FeatureStrings.snippets(language).pageTitle,
                                       icon: "text.append",
