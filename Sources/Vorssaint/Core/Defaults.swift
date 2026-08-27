@@ -453,6 +453,16 @@ enum DefaultsKey {
     static let commandBarFileScopes = "commandBarFileScopes"
     static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
+    // Selection Actions: a floating action bar offered on text selection.
+    static let selectionActionsEnabled = "selectionActionsEnabled"
+    static let selectionActionsEnabledActions = "selectionActionsEnabledActions" // comma-joined SelectionAction ids switched on
+    static let selectionActionsDisplayStyle = "selectionActionsDisplayStyle" // icon | word
+    static let selectionActionsOrder = "selectionActionsOrder" // comma-joined SelectionAction ids, drag order
+    static let selectionActionsMaxVisible = "selectionActionsMaxVisible" // actions shown before the rest collapse under a chevron
+    static let selectionActionsExcludedApps = "selectionActionsExcludedApps" // bundle ids the bar never shows for
+    static let selectionActionsExcludedDomains = "selectionActionsExcludedDomains" // one website per line, never shows on these
+    static let selectionActionsShortcut = "selectionActionsShortcut"
+    static let selectionActionsShortcutEnabled = "selectionActionsShortcutEnabled"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
     static let scratchpadBackgroundOpacity = "scratchpadBackgroundOpacity" // opaque fill over the pad material (ScratchpadSupport.backgroundOpacityRange)
@@ -1140,6 +1150,15 @@ enum Defaults {
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
         DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,
+        DefaultsKey.selectionActionsEnabled: false,
+        DefaultsKey.selectionActionsEnabledActions: SelectionActionCatalog.defaultEnabledStorageValue,
+        DefaultsKey.selectionActionsDisplayStyle: "icon",
+        DefaultsKey.selectionActionsOrder: "",
+        DefaultsKey.selectionActionsMaxVisible: 8,
+        DefaultsKey.selectionActionsExcludedApps: [String](),
+        DefaultsKey.selectionActionsExcludedDomains: "",
+        DefaultsKey.selectionActionsShortcutEnabled: true,
+        DefaultsKey.selectionActionsShortcut: GlobalShortcut.selectionActionsDefault.storageValue,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
         DefaultsKey.scratchpadCloseOnClickOutside: true,
         DefaultsKey.scratchpadBackgroundOpacity: 0.0,

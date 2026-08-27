@@ -10763,7 +10763,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10776,7 +10776,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "selectionActions",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -10787,9 +10787,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.selectionActions.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .selectionActions
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -10835,6 +10836,29 @@ struct MetricsTests {
                 && AppFeature.fanControl.isBeta
                 && !AppFeature.monitorPower.isBeta,
                "fan control is an on-demand beta with no broad permission")
+
+        // MARK: Selection Actions
+
+        expect(ArithmeticEvaluator.evaluate("2 + 3 * 4") == 14,
+               "arithmetic evaluator respects operator precedence")
+        expect(ArithmeticEvaluator.evaluate("(2 + 3) * 4") == 20,
+               "arithmetic evaluator respects parentheses")
+        expect(ArithmeticEvaluator.evaluate("10 / 0") == nil,
+               "arithmetic evaluator rejects division by zero instead of producing infinity")
+        expect(ArithmeticEvaluator.evaluate("3 + ") == nil,
+               "arithmetic evaluator returns nil on a trailing operator instead of crashing")
+        expect(SelectionActionCatalog.looksLikeExpression("2 + 2")
+                && !SelectionActionCatalog.looksLikeExpression("hello world")
+                && !SelectionActionCatalog.looksLikeExpression("42"),
+               "expression detection needs an operator, not just digits")
+        expect(TextListSupport.sorted("banana\napple\ncherry") == "apple\nbanana\ncherry",
+               "sorting a multi-line selection sorts by line")
+        expect(TextListSupport.sorted("banana apple cherry") == "apple banana cherry",
+               "sorting a single-line selection with spaces sorts by word")
+        expect(TextListSupport.sorted("dcba") == "abcd",
+               "sorting a single word with no spaces sorts by letter")
+        expect(TextListSupport.reversed("one\ntwo\nthree") == "three\ntwo\none",
+               "reversing a multi-line selection reverses line order, not each line's characters")
 
         // MARK: Hardware-gated installs
 
