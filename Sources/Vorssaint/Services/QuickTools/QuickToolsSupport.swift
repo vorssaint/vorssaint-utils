@@ -146,7 +146,10 @@ enum QuickToolsSupport {
             .map(\.text)
         guard removingLineBreaks else { return texts.joined(separator: "\n") }
 
-        return texts.reduce(into: "") { joined, line in
+        let normalizedTexts = texts.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return normalizedTexts.reduce(into: "") { joined, line in
             guard !joined.isEmpty else {
                 joined = line
                 return
