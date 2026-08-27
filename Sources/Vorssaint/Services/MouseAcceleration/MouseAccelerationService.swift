@@ -69,15 +69,13 @@ final class MouseAccelerationService: ObservableObject {
                 continue
             }
             originalValues[id] = original
+            let targetValue: CFNumber
             if original.key == "HIDUseLinearScalingMouseAcceleration" {
-                IOHIDServiceClientSetProperty(service,
-                                              "HIDUseLinearScalingMouseAcceleration" as CFString,
-                                              1 as CFNumber)
+                targetValue = 1 as CFNumber
             } else {
-                IOHIDServiceClientSetProperty(service,
-                                              accelerationKey(for: service) as CFString,
-                                              -1 as CFNumber)
+                targetValue = -1 as CFNumber
             }
+            IOHIDServiceClientSetProperty(service, original.key as CFString, targetValue)
         }
     }
 

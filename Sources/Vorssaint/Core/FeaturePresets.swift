@@ -89,7 +89,7 @@ enum FeatureEnergyProfile: String {
 extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
-        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .windowMaximizer, .middleClick,
+        case .scrollInverter, .focusFollowsMouse, .smoothScroll, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .dockPreview, .dockClick, .shelf:
             return .mouse
         case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey:
@@ -106,7 +106,7 @@ extension AppFeature {
             return RadialMenuMouseTrigger.sanitized(
                 UserDefaults.standard.string(forKey: DefaultsKey.radialMenuMouseButton)) == .off
                 ? .idle : .mouse
-        case .clipboardHistory, .urlCleaner, .extraBrightness,
+        case .mouseAcceleration, .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
              .monitorNetwork, .monitorDisk, .monitorPower:
             return .periodic

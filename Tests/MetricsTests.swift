@@ -11828,6 +11828,7 @@ struct MetricsTests {
         }
         expect(AppFeature.monitorCPU.energyProfile == .periodic
                 && AppFeature.clipboardHistory.energyProfile == .periodic
+                && AppFeature.mouseAcceleration.energyProfile == .periodic
                 && AppFeature.textSnippets.energyProfile == .inputs
                 && AppFeature.dockPreview.energyProfile == .mouse
                 && AppFeature.switcher.energyProfile == .keyboard
