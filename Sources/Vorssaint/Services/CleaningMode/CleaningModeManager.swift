@@ -74,6 +74,11 @@ final class CleaningModeManager: ObservableObject {
         // the cleaning overlay.
         MouseButtonShortcutService.shared.suspend()
         RadialMenuService.shared.suspend()
+        // A wipe stroke is exactly the mouse-down/mouse-up gesture that
+        // schedules a Selection Actions read; the overlay's tap deliberately
+        // leaves clicks alone for the Unlock button, so this one isn't
+        // caught by the tap the way key/scroll/gesture services are.
+        SelectionActionsService.shared.suspend()
         unlock.reset()
         unlockProgress = 0
         isActive = true
@@ -95,6 +100,7 @@ final class CleaningModeManager: ObservableObject {
         MouseNavigationService.shared.syncWithPreferences()
         MouseButtonShortcutService.shared.syncWithPreferences()
         RadialMenuService.shared.syncWithPreferences()
+        SelectionActionsService.shared.syncWithPreferences()
     }
 
     // MARK: - Event tap

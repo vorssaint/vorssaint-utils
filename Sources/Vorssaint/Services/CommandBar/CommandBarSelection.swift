@@ -32,31 +32,10 @@ enum CommandBarSelectionReader {
         // activating, so focus never left it.
         let app = AXUIElementCreateApplication(front.processIdentifier)
         // A hung app must not hold the opening of the bar.
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        guard let focused = copyElement(app, kAXFocusedUIElementAttribute),
-              let text = copyString(focused, kAXSelectedTextAttribute) else { return "" }
+        AXUIElementSetMessagingTimeout(app, AXCopy.messagingTimeout)
+        guard let focused = AXCopy.element(app, kAXFocusedUIElementAttribute),
+              let text = AXCopy.string(focused, kAXSelectedTextAttribute) else { return "" }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.count <= maximumLength ? trimmed : ""
-    }
-
-    // MARK: - Accessibility reading
-
-    private static func copyElement(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
-        guard let raw = copyValue(element, attribute),
-              CFGetTypeID(raw) == AXUIElementGetTypeID() else { return nil }
-        return (raw as! AXUIElement)
-    }
-
-    private static func copyString(_ element: AXUIElement, _ attribute: String) -> String? {
-        guard let raw = copyValue(element, attribute),
-              CFGetTypeID(raw) == CFStringGetTypeID() else { return nil }
-        return raw as? String
-    }
-
-    private static func copyValue(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success
-        else { return nil }
-        return value
     }
 }

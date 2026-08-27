@@ -4,8 +4,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue == String {}
-
 /// The major, user-customizable sections of the menu panel. Raw values are the
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
