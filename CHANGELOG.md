@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Screenshot previews can now keep their current dismissal timing, stay open for 30 seconds or wait until you dismiss them.
 - The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
 

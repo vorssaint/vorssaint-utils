@@ -7298,6 +7298,11 @@ struct MetricsTests {
             title: FeatureStrings.screenshot(.enUS).pageTitle,
             keywords: [FeatureStrings.screenshot(.enUS).previewPositionLabel]),
                "preview position is a searchable Screenshot keyword")
+        expect(SettingsSearchSupport.matches(
+            query: "preview duration",
+            title: FeatureStrings.screenshot(.enUS).pageTitle,
+            keywords: SettingsSearchSupport.screenCaptureKeywords(.enUS, language: .enUS)),
+               "preview duration is a searchable Screenshot keyword")
         expect(SettingsSearchSupport.matches(query: "hide",
                                              title: Strings.enUS.tabSwitcher,
                                              keywords: [Strings.enUS.dockClickHide]),
@@ -14310,6 +14315,27 @@ struct MetricsTests {
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
                "screenshot preview placement preserves the existing automatic behavior by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewDismissal] as? String == "",
+               "screenshot previews preserve their existing dismissal timings by default")
+        let standardDismissal = ScreenshotSupport.QuickPreviewDismissal.standard
+        expect(standardDismissal.duration(for: .capture) == 12
+                && standardDismissal.duration(for: .actionConfirmation) == 3
+                && standardDismissal.duration(for: .sharedLink) == 30,
+               "standard screenshot preview dismissal keeps the existing state-specific timings")
+        let extendedDismissal = ScreenshotSupport.QuickPreviewDismissal.extended
+        expect([ScreenshotSupport.QuickPreviewDismissal.State.capture,
+                .actionConfirmation, .sharedLink].allSatisfy {
+                    extendedDismissal.duration(for: $0) == 30
+                },
+               "extended screenshot previews stay for 30 seconds in every state")
+        let manualDismissal = ScreenshotSupport.QuickPreviewDismissal.manual
+        expect([ScreenshotSupport.QuickPreviewDismissal.State.capture,
+                .actionConfirmation, .sharedLink].allSatisfy {
+                    manualDismissal.duration(for: $0) == nil
+                },
+               "manual screenshot previews never schedule an automatic dismissal")
+        expect(ScreenshotSupport.QuickPreviewDismissal.sanitized("damaged") == .standard,
+               "an unknown screenshot preview dismissal policy falls back to standard")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
@@ -15771,6 +15797,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
+                && backupKeys.contains(DefaultsKey.screenshotPreviewDismissal)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)

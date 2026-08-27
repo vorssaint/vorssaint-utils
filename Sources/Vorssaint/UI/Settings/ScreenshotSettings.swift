@@ -32,6 +32,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
+    @AppStorage(DefaultsKey.screenshotPreviewDismissal) private var previewDismissalRaw = ""
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
@@ -130,6 +131,7 @@ struct ScreenshotCaptureSettings: View {
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
                 previewPositionRow
+                previewDismissalRow
                 defaultActionRow
             }
 
@@ -223,6 +225,17 @@ struct ScreenshotCaptureSettings: View {
                 .tag(ScreenshotSupport.QuickPreviewPosition.bottomLeft.rawValue)
             Text(strings.previewPositionBottomRight)
                 .tag(ScreenshotSupport.QuickPreviewPosition.bottomRight.rawValue)
+        }
+    }
+
+    private var previewDismissalRow: some View {
+        Picker(strings.previewDismissalLabel, selection: $previewDismissalRaw) {
+            Text(strings.previewDismissalStandard)
+                .tag(ScreenshotSupport.QuickPreviewDismissal.standard.rawValue)
+            Text(strings.previewDismissalExtended)
+                .tag(ScreenshotSupport.QuickPreviewDismissal.extended.rawValue)
+            Text(strings.previewDismissalManual)
+                .tag(ScreenshotSupport.QuickPreviewDismissal.manual.rawValue)
         }
     }
 

@@ -41,7 +41,7 @@ final class ScreenshotQuickPreviewController {
     private var panel: ScreenshotQuickPreviewPanel?
     private var keyMonitor: Any?
     private var dismissWork: DispatchWorkItem?
-    private var autoDismissDuration: TimeInterval = 12
+    private var dismissalState: ScreenshotSupport.QuickPreviewDismissal.State = .capture
     private var closed = false
 
     var protectedWindowIDs: Set<CGWindowID> {
@@ -114,7 +114,7 @@ final class ScreenshotQuickPreviewController {
         panel.makeKey()
         // A performed action turns the preview into a short confirmation; a
         // failed one keeps the full stay so the person can still act by hand.
-        autoDismissDuration = runDefaultAction(defaultAction) ? 3 : 12
+        dismissalState = runDefaultAction(defaultAction) ? .actionConfirmation : .capture
         scheduleAutoDismiss()
         scanForQR()
     }
@@ -234,7 +234,7 @@ final class ScreenshotQuickPreviewController {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
                 self.model.sharedRecord = record
             }
-            self.autoDismissDuration = 30
+            self.dismissalState = .sharedLink
             self.resizePanel(showingLink: true)
             self.scheduleAutoDismiss()
         }
@@ -270,7 +270,7 @@ final class ScreenshotQuickPreviewController {
                     self.model.deletingShare = false
                 }
                 QuickToolHUD.show(icon: "link", message: self.strings.linkDeletedHUD)
-                self.autoDismissDuration = 12
+                self.dismissalState = .capture
                 self.resizePanel(showingLink: false)
             } catch {
                 guard !self.closed else { return }
@@ -322,9 +322,14 @@ final class ScreenshotQuickPreviewController {
     private func scheduleAutoDismiss() {
         guard !closed else { return }
         dismissWork?.cancel()
+        dismissWork = nil
+        let rawValue = UserDefaults.standard.string(
+            forKey: DefaultsKey.screenshotPreviewDismissal) ?? ""
+        let policy = ScreenshotSupport.QuickPreviewDismissal.sanitized(rawValue)
+        guard let duration = policy.duration(for: dismissalState) else { return }
         let work = DispatchWorkItem { [weak self] in self?.close() }
         dismissWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + autoDismissDuration, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
     }
 
     private func installKeyMonitor(for panel: NSPanel) {

@@ -31,6 +31,7 @@ enum SettingsSearchSupport {
             screenshot.freezeToggle,
             screenshot.fullScreenShortcutTitle,
             screenshot.previewPositionLabel,
+            screenshot.previewDismissalLabel,
             screenshot.pinButton,
             screenshot.toolPixelate,
             screenshot.toolArrow,

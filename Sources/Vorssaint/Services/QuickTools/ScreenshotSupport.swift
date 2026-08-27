@@ -700,6 +700,40 @@ enum ScreenshotSupport {
         case bottomRight
     }
 
+    /// Controls how long a finished screenshot stays on screen. Standard
+    /// preserves the existing timings for each state. The other choices use
+    /// one rule throughout the preview's lifetime.
+    enum QuickPreviewDismissal: String, CaseIterable {
+        case standard = ""
+        case extended
+        case manual
+
+        enum State {
+            case capture
+            case actionConfirmation
+            case sharedLink
+        }
+
+        static func sanitized(_ rawValue: String) -> QuickPreviewDismissal {
+            QuickPreviewDismissal(rawValue: rawValue) ?? .standard
+        }
+
+        func duration(for state: State) -> TimeInterval? {
+            switch self {
+            case .standard:
+                switch state {
+                case .capture: return 12
+                case .actionConfirmation: return 3
+                case .sharedLink: return 30
+                }
+            case .extended:
+                return 30
+            case .manual:
+                return nil
+            }
+        }
+    }
+
     /// Picks the display containing most of the capture. The pointer breaks
     /// an exact tie and is also the fallback when a display was disconnected
     /// or rearranged before the preview appears.
