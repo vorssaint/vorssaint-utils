@@ -41,6 +41,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case screenRecorder
     case colorPicker
     case screenOCR
+    case liveTranslation
     case micMute
     case cameraPreview
     case scratchpad
@@ -59,7 +60,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad:
             return .quickTools
-        case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
+        case .screenshot, .screenRecorder, .colorPicker, .screenOCR, .liveTranslation:
             return .screenshot
         case .soundOutputSwitcher: return .shortcuts
         case .fanControl: return .monitor
@@ -194,6 +195,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .colorPicker)
         case .screenOCR:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenOCR)
+        case .liveTranslation:
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .liveTranslation)
         case .cleaningMode:
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .mediaTools: return FeatureSettingsDestination(.media)
@@ -255,7 +258,7 @@ enum FeatureVisibilitySupport {
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
-        case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .liveTranslation]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:

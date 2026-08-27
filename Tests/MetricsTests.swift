@@ -10738,7 +10738,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -10751,7 +10751,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "liveTranslation",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -10762,9 +10762,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.liveTranslation.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .liveTranslation
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -11326,11 +11327,11 @@ struct MetricsTests {
                "mixer without precise volume roller does not use accessibility")
 
         expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
-                == [.switcher, .screenOCR, .screenshot, .screenRecorder],
-               "switcher with previews uses screen recording; OCR, screenshots and recordings are on demand")
+                == [.switcher, .screenOCR, .screenshot, .screenRecorder, .liveTranslation],
+               "switcher with previews uses screen recording; OCR, screenshots, recordings and live translation are on demand")
         expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode])
-                == [.screenOCR, .screenshot, .screenRecorder],
+                == [.screenOCR, .screenshot, .screenRecorder, .liveTranslation],
                "simple-mode switcher stops using screen recording")
         expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
@@ -13701,12 +13702,13 @@ struct MetricsTests {
                     selected: .screenshot,
                     isAvailable: { _ in false }),
                "a capture result is routed only while its selected feature remains installed")
-        expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4"]
+        expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5"]
                 && ScreenCaptureTool.matchingShortcut("1") == .screenshot
                 && ScreenCaptureTool.matchingShortcut("2") == .recording
                 && ScreenCaptureTool.matchingShortcut("3") == .text
                 && ScreenCaptureTool.matchingShortcut("4") == .color
-                && ScreenCaptureTool.matchingShortcut("5") == nil,
+                && ScreenCaptureTool.matchingShortcut("5") == .translate
+                && ScreenCaptureTool.matchingShortcut("6") == nil,
                "number keys select the same capture mode shown in the chooser")
         let liveScreenshotPolicy = ScreenshotSupport.unifiedCapturePolicy(
             for: .screenshot,
@@ -13733,6 +13735,112 @@ struct MetricsTests {
                                        hideVorssaintWindows: true,
                                        usesGeometry: false),
                "switching capture mode rebuilds the frozen frame, pointer and window policy")
+        let translatePolicy = ScreenshotSupport.unifiedCapturePolicy(
+            for: .translate,
+            screenshotFreeze: false,
+            screenshotIncludePointer: true,
+            screenshotHideVorssaintWindows: true)
+        expect(translatePolicy == .init(freeze: true, includePointer: false,
+                                        hideVorssaintWindows: true,
+                                        usesGeometry: true),
+               "live translation always freezes the frame during selection and uses region geometry")
+
+        // MARK: Live Translation
+
+        expect(LiveTranslationSupport.chipFrame(
+                    boundingBox: CGRect(x: 0.25, y: 0.5, width: 0.5, height: 0.25),
+                    panelSize: CGSize(width: 200, height: 100))
+                == CGRect(x: 50, y: 25, width: 100, height: 25),
+               "a Vision box flips from bottom-left to top-left origin and scales to the panel")
+        expect(LiveTranslationSupport.chipFrame(
+                    boundingBox: CGRect(x: 0, y: 0, width: 1, height: 1),
+                    panelSize: CGSize(width: 40, height: 20))
+                == CGRect(x: 0, y: 0, width: 40, height: 20),
+               "a full-frame box fills the whole panel regardless of orientation")
+        let repeatedLine = LiveTranslationSupport.RecognizedLine(
+            boundingBox: .zero, text: "Bonjour")
+        let differentLine = LiveTranslationSupport.RecognizedLine(
+            boundingBox: .zero, text: "Bonsoir")
+        expect(LiveTranslationSupport.joinedTextHash([repeatedLine])
+                == LiveTranslationSupport.joinedTextHash([repeatedLine])
+                && LiveTranslationSupport.joinedTextHash([repeatedLine])
+                    != LiveTranslationSupport.joinedTextHash([differentLine])
+                && LiveTranslationSupport.joinedTextHash([]) == LiveTranslationSupport.joinedTextHash([]),
+               "identical recognized text hashes the same tick to tick, changed text does not")
+        expect(LiveTranslationSupport.sanitizedInterval(0.1) == 0.5
+                && LiveTranslationSupport.sanitizedInterval(10) == 3.0
+                && LiveTranslationSupport.sanitizedInterval(1.2) == 1.2,
+               "the refresh interval clamps to a sane range")
+        expect(LiveTranslationSupport.resolvedTargetLanguage(overrideRaw: "", fallback: .fr) == .fr
+                && LiveTranslationSupport.resolvedTargetLanguage(overrideRaw: "de", fallback: .fr) == .de
+                && LiveTranslationSupport.resolvedTargetLanguage(overrideRaw: "not-a-language",
+                                                                 fallback: .fr) == .fr,
+               "an empty or unrecognized target override falls back to the system's preferred language")
+        expect(LiveTranslationSupport.resolvedSourceLanguage(overrideRaw: "") == nil
+                && LiveTranslationSupport.resolvedSourceLanguage(overrideRaw: "ja") == .ja
+                && LiveTranslationSupport.resolvedSourceLanguage(overrideRaw: "not-a-language") == nil,
+               "an empty source override means auto-detect; an unrecognized one also falls back to auto")
+        expect(LiveTranslationSupport.googleLanguageTag(.enUS) == "en"
+                && LiveTranslationSupport.googleLanguageTag(.ptBR) == "pt"
+                && LiveTranslationSupport.googleLanguageTag(.zhHans) == "zh-CN"
+                && LiveTranslationSupport.googleLanguageTag(.zhTW) == "zh-TW"
+                && LiveTranslationSupport.googleLanguageTag(.zhHK) == "zh-TW"
+                && LiveTranslationSupport.googleLanguageTag(.ja) == "ja",
+               "Google's API takes base ISO codes except for Chinese, which needs the region")
+        expect(LiveTranslationSupport.appLanguage(forDetectedCode: "en") == .enUS
+                && LiveTranslationSupport.appLanguage(forDetectedCode: "zh-Hans") == .zhHans
+                && LiveTranslationSupport.appLanguage(forDetectedCode: "zh-Hant") == .zhTW
+                && LiveTranslationSupport.appLanguage(forDetectedCode: "ja") == .ja
+                && LiveTranslationSupport.appLanguage(forDetectedCode: "not-a-language") == nil,
+               "NLLanguageRecognizer's detected codes map onto our supported languages, unknowns fall back to nil")
+        expect(LiveTranslationSupport.detectLanguage(from: "hi") == nil
+                && LiveTranslationSupport.detectLanguage(from: "") == nil,
+               "detection is skipped outright below the minimum length, never a guess off one word")
+        expect(LiveTranslationSupport.detectLanguage(
+                    from: "This is a reasonably long sentence written entirely in English.") == .enUS,
+               "a long, unambiguous English sentence detects confidently")
+        expect(LiveTranslationSupport.detectLanguage(from: "这是一段相当长的中文句子，用来测试语言识别功能。") == .zhHans,
+               "a long, unambiguous Simplified Chinese sentence detects confidently")
+        expect(LiveTranslationSupport.resolvedLanguage(for: "首页") == .zhHans
+                && LiveTranslationSupport.resolvedLanguage(for: "こんにちは") == .ja
+                && LiveTranslationSupport.resolvedLanguage(for: "안녕하세요") == .ko
+                && LiveTranslationSupport.resolvedLanguage(for: "Привет") == .ru
+                && LiveTranslationSupport.resolvedLanguage(for: "OK") == nil,
+               "script alone identifies short CJK/Cyrillic lines; short Latin text stays unresolved rather than guessed")
+        let zhLine = LiveTranslationSupport.RecognizedLine(boundingBox: .zero, text: "首页联系我们")
+        let zhLine2 = LiveTranslationSupport.RecognizedLine(boundingBox: .zero, text: "关于我们")
+        let enLine = LiveTranslationSupport.RecognizedLine(
+            boundingBox: .zero, text: "This is already written in English.")
+        let jaLine = LiveTranslationSupport.RecognizedLine(boundingBox: .zero, text: "こんにちは")
+        let ambiguousLine = LiveTranslationSupport.RecognizedLine(boundingBox: .zero, text: "OK")
+
+        let mixedGroups = LiveTranslationSupport.classifyParagraphGroups([[zhLine], [enLine]], target: .enUS)
+        expect(mixedGroups.toTranslate == [[zhLine]] && mixedGroups.primarySource == .zhHans,
+               "a line already in the target language is excluded from translation, the rest keep their source")
+        let allTargetGroups = LiveTranslationSupport.classifyParagraphGroups([[enLine]], target: .enUS)
+        expect(allTargetGroups.toTranslate.isEmpty && allTargetGroups.primarySource == nil,
+               "a region entirely in the target language needs no session at all")
+        let minorityGroups = LiveTranslationSupport.classifyParagraphGroups(
+            [[zhLine], [zhLine2], [jaLine]], target: .enUS)
+        expect(minorityGroups.toTranslate == [[zhLine], [zhLine2]] && minorityGroups.primarySource == .zhHans
+                && !minorityGroups.toTranslate.contains([jaLine]),
+               "the majority language becomes the session source; a minority language is left untranslated, not mistranslated")
+        let unclassifiableGroups = LiveTranslationSupport.classifyParagraphGroups(
+            [[ambiguousLine]], target: .zhHans)
+        expect(unclassifiableGroups.toTranslate == [[ambiguousLine]] && unclassifiableGroups.primarySource == nil,
+               "text that needs translating but can't be classified yet reports no source rather than guessing nil")
+        let pillPlacedAbove = LiveTranslationSupport.pillFrame(
+            anchorRect: CGRect(x: 100, y: 100, width: 200, height: 100),
+            pillSize: CGSize(width: 120, height: 30),
+            screenVisibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 800))
+        expect(pillPlacedAbove.midX == 200 && pillPlacedAbove.minY == 210,
+               "the pill centers above the region when there is room")
+        let pillFlippedBelow = LiveTranslationSupport.pillFrame(
+            anchorRect: CGRect(x: 100, y: 750, width: 200, height: 40),
+            pillSize: CGSize(width: 120, height: 30),
+            screenVisibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 800))
+        expect(pillFlippedBelow.maxY == 740,
+               "the pill flips below the region when it would run off the top of the screen")
         expect(ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
                                                        selectionInProgress: false,
                                                        capturePending: false)
@@ -14406,7 +14514,8 @@ struct MetricsTests {
             ]) == [oversizedCaptureIDs[0], oversizedCaptureIDs[2]],
                "recent captures keeps the latest screenshot and respects its disk budget")
         expect(GlobalShortcutRole.screenshot.requiredEnableKeys == [DefaultsKey.screenshotShortcutEnabled]
-                && GlobalShortcutRole.screenshot.availabilityFeatures == [.screenshot],
+                && GlobalShortcutRole.screenshot.availabilityFeatures == [.screenshot]
+                && GlobalShortcutRole.liveTranslation.availabilityFeatures == [.liveTranslation],
                "the screenshot shortcut keeps its old keys and follows its own tool")
         expect(!GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                 .contains(.screenshot)
@@ -17238,13 +17347,14 @@ struct MetricsTests {
         expect(AppFeature.screenRecorder.energyProfile == .idle,
                "the recorder costs nothing between recordings")
         expect(FeatureVisibilitySupport.features(for: .screenshot)
-                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .liveTranslation]
                 && pageVisible(.screenshot, available: [.screenRecorder])
                 && pageVisible(.screenshot, available: [.screenOCR])
                 && pageVisible(.screenshot, available: [.colorPicker])
+                && pageVisible(.screenshot, available: [.liveTranslation])
                 && !pageVisible(.screenshot, available: []),
                "every installed screen tool keeps the one Screen capture page")
-        expect([AppFeature.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        expect([AppFeature.screenshot, .screenRecorder, .screenOCR, .colorPicker, .liveTranslation]
                 .allSatisfy { $0.settingsDestination.page == .screenshot },
                "every screen tool opens its mode inside the centralized Settings page")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderShortcutEnabled)
@@ -18624,7 +18734,7 @@ struct MetricsTests {
                     == DefaultsKey.screenshotShortcutEnabled,
                "the screenshot tool keeps the old general shortcut's keys as its own")
         expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
-                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .liveTranslation],
                "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded
@@ -18641,6 +18751,9 @@ struct MetricsTests {
         expect(GlobalShortcutRole.captureRoles(in: [.colorPicker, .screenshot, .commandBar])
                 == [.screenshot, .colorPicker],
                "capture roles are reordered for display and other roles fall away")
+        expect(GlobalShortcutRole.captureDisplayOrder.contains(.liveTranslation)
+                && GlobalShortcutRole.captureFeatures.contains(.liveTranslation),
+               "Live Translation shares the capture group like every other screen-capture tool")
         // MARK: A failed removal explains itself where it failed
         // A green tick above "some items couldn't be moved to the Trash" told
         // nobody that sandboxed app data needs Full Disk Access, and the note

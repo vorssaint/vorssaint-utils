@@ -12,6 +12,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     case recording
     case text
     case color
+    case translate
 
     var shortcutKey: String {
         switch self {
@@ -19,6 +20,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "2"
         case .text: return "3"
         case .color: return "4"
+        case .translate: return "5"
         }
     }
 
@@ -33,6 +35,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
+        case .translate: return .liveTranslation
         }
     }
 
@@ -64,6 +67,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .color:
             return DedicatedShortcut(role: .colorPicker,
                                      enabledKey: DefaultsKey.colorPickerShortcutEnabled)
+        case .translate:
+            return DedicatedShortcut(role: .liveTranslation,
+                                     enabledKey: DefaultsKey.liveTranslationShortcutEnabled)
         }
     }
 
@@ -73,6 +79,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
         case .color: return "eyedropper"
+        case .translate: return "character.bubble"
         }
     }
 
@@ -82,12 +89,20 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
         case .color: return strings.colorPickerName
+        case .translate: return FeatureStrings.liveTranslation(language).pageTitle
         }
     }
 
+    /// Live Translation needs macOS 15 for the Translation framework, so it
+    /// stays out of the list on older systems rather than exposing a mode
+    /// that would immediately fail to start.
     static func available(isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> [ScreenCaptureTool] {
-        allCases.filter { isAvailable($0.feature) }
+        allCases.filter {
+            guard isAvailable($0.feature) else { return false }
+            if $0 == .translate, #unavailable(macOS 15.0) { return false }
+            return true
+        }
     }
 }
 
@@ -113,7 +128,7 @@ enum ScreenshotSupport {
             freeze: tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
-            usesGeometry: tool == .recording)
+            usesGeometry: tool == .recording || tool == .translate)
     }
 
     static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],

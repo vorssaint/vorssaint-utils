@@ -227,6 +227,12 @@ final class FeatureRuntime: ObservableObject {
             ScreenCaptureService.shared.syncWithPreferences()
             ScreenRecorderService.shared.syncWithPreferences()
         },
+        .liveTranslation: {
+            ScreenCaptureService.shared.syncWithPreferences()
+            if #available(macOS 15.0, *) {
+                LiveTranslationService.shared.syncWithPreferences()
+            }
+        },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },

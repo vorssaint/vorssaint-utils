@@ -346,6 +346,17 @@ enum CommandBarCatalog {
                 shortcut: roleShortcut(.colorPicker),
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
+        if #available(macOS 15.0, *), AppFeature.liveTranslation.isAvailable {
+            let liveTranslationStrings = FeatureStrings.liveTranslation(language)
+            entries.append(CommandBarEntry(
+                id: "action.liveTranslation",
+                title: liveTranslationStrings.pageTitle,
+                subtitle: area(.liveTranslation, under: liveTranslationStrings.commandBarSubtitle),
+                icon: .symbol("character.bubble"),
+                shortcut: roleShortcut(.screenshot),
+                trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
+                run: { _ in afterBeat { ScreenCaptureService.shared.capture(initial: .translate) } }))
+        }
         if AppFeature.clipboardHistory.isAvailable {
             let clipboardTitle = FeatureStrings.clipboard(language).title
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)

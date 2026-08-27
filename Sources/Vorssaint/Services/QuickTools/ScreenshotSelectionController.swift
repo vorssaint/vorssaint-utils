@@ -133,7 +133,7 @@ final class ScreenshotSelectionController {
 
     private var activeMode: Mode {
         switch activeTool {
-        case .recording: return .geometry
+        case .recording, .translate: return .geometry
         case .color: return .color
         case .screenshot, .text: return .image
         case .none: return baseMode
@@ -1334,6 +1334,9 @@ private struct UnifiedCaptureGuideContent: View {
             return l10n.s.ocrCaption
         case .color:
             return l10n.s.colorPickerCaption
+        case .translate:
+            return FeatureStrings.liveTranslation(l10n.language).chooserCaption
+                + "  ·  " + strings.hintDrag + "  ·  " + strings.hintClick
         }
     }
 }

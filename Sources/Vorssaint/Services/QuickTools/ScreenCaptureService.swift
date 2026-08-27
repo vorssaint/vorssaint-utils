@@ -108,6 +108,11 @@ final class ScreenCaptureService: ObservableObject {
            ScreenRecorderService.shared.stopOrCancelActiveCapture() {
             return
         }
+        if #available(macOS 15.0, *), AppFeature.liveTranslation.isAvailable,
+           LiveTranslationService.shared.isActive {
+            LiveTranslationService.shared.stop()
+            return
+        }
         if countdown != nil {
             cancelSelection()
             return
@@ -175,6 +180,9 @@ final class ScreenCaptureService: ObservableObject {
     private func startSelection(options: ScreenCaptureSelectionOptions) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen,
               self.options === options else { return }
+        if options.selectedTool == .translate, #available(macOS 15.0, *) {
+            LiveTranslationService.shared.prewarm()
+        }
         let defaults = UserDefaults.standard
         let policy = ScreenshotSupport.unifiedCapturePolicy(
             for: options.selectedTool,
@@ -236,16 +244,24 @@ final class ScreenCaptureService: ObservableObject {
                 ScreenshotService.shared.receiveUnifiedCapture(capture)
             case .text:
                 ScreenTextService.shared.receiveUnifiedCapture(capture)
-            case .recording, .color:
+            case .recording, .color, .translate:
+                // Translate is a .geometry-mode tool and never produces a
+                // .captured outcome; this branch exists only for exhaustiveness.
                 showFailure(for: selected)
             }
         case .region(let region):
-            guard selected == .recording else {
+            switch selected {
+            case .recording:
+                ScreenRecorderService.shared.record(region, audioOptions: recorderAudio)
+            case .translate:
+                if #available(macOS 15.0, *) {
+                    LiveTranslationService.shared.begin(region: region)
+                } else {
+                    showFailure(for: selected)
+                }
+            default:
                 showFailure(for: selected)
-                return
             }
-            ScreenRecorderService.shared.record(region,
-                                                audioOptions: recorderAudio)
         case .scrollingRegion(let region):
             guard selected == .screenshot else {
                 showFailure(for: selected)

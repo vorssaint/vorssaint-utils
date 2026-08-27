@@ -213,6 +213,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // layer, matching how the system numbers its own capture keys.
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
                                                       modifiers: [.control, .option, .command])
+    // Continues the capture family's numeric run (screenshot 4, full screen
+    // 3, recorder 5).
+    static let liveTranslationDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_6),
+                                                       modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -593,6 +597,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case snippetLibrary
     case commandBar
     case screenRecorder
+    case liveTranslation
 
     var id: String { storageKey }
 
@@ -620,6 +625,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
+        case .liveTranslation: return DefaultsKey.liveTranslationShortcut
         }
     }
 
@@ -647,6 +653,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
         case .screenRecorder: return .screenRecorderDefault
+        case .liveTranslation: return .liveTranslationDefault
         }
     }
 
@@ -682,6 +689,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
+        case .liveTranslation: return FeatureStrings.liveTranslation(L10n.shared.language).pageTitle
         }
     }
 
@@ -726,6 +734,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
+        case .liveTranslation: return [DefaultsKey.liveTranslationShortcutEnabled]
         }
     }
 
@@ -753,6 +762,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
+        case .liveTranslation: return .liveTranslation
         }
     }
 
@@ -801,11 +811,11 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// The features whose shortcuts share one Screen capture group on the
     /// central shortcuts page.
     static let captureFeatures: [AppFeature] =
-        [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .liveTranslation]
 
     /// Chooser tools first, in chooser order, then the screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
-        .screenshot, .screenRecorder, .screenOCR, .colorPicker,
+        .screenshot, .screenRecorder, .screenOCR, .colorPicker, .liveTranslation,
         .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
     ]
 

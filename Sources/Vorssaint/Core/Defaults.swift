@@ -429,6 +429,20 @@ enum DefaultsKey {
     static let screenOCRShortcutEnabled = "screenOCRShortcutEnabled"
     static let screenOCRShortcut = "screenOCRShortcut"
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
+    static let liveTranslationInterval = "liveTranslationInterval"
+    static let liveTranslationSourceLanguage = "liveTranslationSourceLanguage" // "" = auto-detect
+    static let liveTranslationTargetLanguage = "liveTranslationTargetLanguage" // "" = follow app language
+    static let liveTranslationMode = "liveTranslationMode"       // inPlace | window
+    static let liveTranslationHideOnHover = "liveTranslationHideOnHover"
+    static let liveTranslationStrategy = "liveTranslationStrategy" // lowLatency | highFidelity
+    static let liveTranslationProvider = "liveTranslationProvider" // apple | google
+    static let liveTranslationShortcut = "liveTranslationShortcut"
+    static let liveTranslationShortcutEnabled = "liveTranslationShortcutEnabled"
+    static let liveTranslationGoogleCharacterCount = "liveTranslationGoogleCharacterCount" // lifetime total, characters
+    static let liveTranslationGoogleWordCount = "liveTranslationGoogleWordCount" // lifetime total, informational only
+    static let liveTranslationGoogleUsageCapEnabled = "liveTranslationGoogleUsageCapEnabled"
+    static let liveTranslationGoogleUsageCapCharacters = "liveTranslationGoogleUsageCapCharacters" // characters; enforced only while the toggle above is on
+    static let liveTranslationEngine = "liveTranslationEngine" // native | compatibility - native-only ever meaningful on macOS 26+
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
@@ -1123,6 +1137,20 @@ enum Defaults {
         DefaultsKey.screenOCRShortcutEnabled: false,
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
         DefaultsKey.screenOCRDetectQRCodes: true,
+        DefaultsKey.liveTranslationInterval: 0.8,
+        DefaultsKey.liveTranslationSourceLanguage: "",
+        DefaultsKey.liveTranslationTargetLanguage: "",
+        DefaultsKey.liveTranslationMode: "inPlace",
+        DefaultsKey.liveTranslationHideOnHover: false,
+        DefaultsKey.liveTranslationStrategy: "lowLatency",
+        DefaultsKey.liveTranslationProvider: "apple",
+        DefaultsKey.liveTranslationShortcutEnabled: false,
+        DefaultsKey.liveTranslationShortcut: GlobalShortcut.liveTranslationDefault.storageValue,
+        DefaultsKey.liveTranslationGoogleCharacterCount: 0,
+        DefaultsKey.liveTranslationGoogleWordCount: 0,
+        DefaultsKey.liveTranslationGoogleUsageCapEnabled: false,
+        DefaultsKey.liveTranslationGoogleUsageCapCharacters: 500_000,
+        DefaultsKey.liveTranslationEngine: "native",
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
@@ -1498,6 +1526,10 @@ enum Defaults {
 
     static func sanitizedBatteryLimit(_ percent: Int) -> Int {
         allowedBatteryLimits.contains(percent) ? percent : 10
+    }
+
+    static func sanitizedGoogleUsageCap(_ characters: Int) -> Int {
+        min(max(characters, 1_000), 100_000_000)
     }
 
     static func sanitizedKeepAwakeMouseJiggleInterval(_ minutes: Int) -> Int {

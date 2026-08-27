@@ -192,6 +192,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MediaImageStrings.swift \
         Sources/Vorssaint/Core/QuickToggleStrings.swift \
         Sources/Vorssaint/Core/ScreenshotStrings.swift \
+        Sources/Vorssaint/Core/LiveTranslationStrings.swift \
         Sources/Vorssaint/Core/RecentCaptureStrings.swift \
         Sources/Vorssaint/Core/RecorderStrings.swift \
         Sources/Vorssaint/Core/RecorderShareStrings.swift \
@@ -290,6 +291,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/LiveTranslationSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift \
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
