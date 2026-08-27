@@ -27,7 +27,9 @@ final class MouseAccelerationService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        if defaults.bool(forKey: DefaultsKey.mouseAccelerationDisabled) {
+        let wanted = AppFeature.mouseAcceleration.isAvailable
+            && defaults.bool(forKey: DefaultsKey.mouseAccelerationDisabled)
+        if wanted {
             start()
         } else {
             stop()
@@ -60,10 +62,14 @@ final class MouseAccelerationService: ObservableObject {
 
         for service in services where isMouse(service) {
             let id = registryID(of: service)
-            if originalValues[id] == nil, let setting = currentSetting(for: service) {
-                originalValues[id] = setting
+            // Do not change a device unless its current setting can be kept
+            // and restored. Some HID services accept a write but don't expose
+            // the property for reading back.
+            guard let original = originalValues[id] ?? currentSetting(for: service) else {
+                continue
             }
-            if originalValues[id]?.key == "HIDUseLinearScalingMouseAcceleration" {
+            originalValues[id] = original
+            if original.key == "HIDUseLinearScalingMouseAcceleration" {
                 IOHIDServiceClientSetProperty(service,
                                               "HIDUseLinearScalingMouseAcceleration" as CFString,
                                               1 as CFNumber)
