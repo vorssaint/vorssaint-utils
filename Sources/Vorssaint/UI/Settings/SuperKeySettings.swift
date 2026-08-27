@@ -50,6 +50,10 @@ struct SuperKeySettings: View {
                 Label(text.modifierKeysNote, systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                HStack {
+                    Button("Hyper (⇧⌃⌥⌘)") { setModifiers(.validMask) }
+                    Button("Meh (⇧⌃⌥)") { setModifiers(SuperKeySupport.mehModifiers) }
+                }
                 diagram
                 if enabled, let failure = superKey.mappingFailure {
                     Label(text.mappingFailure(failure),
@@ -189,7 +193,11 @@ struct SuperKeySettings: View {
             next.insert(modifier)
         }
         guard next.hasPrimaryModifier else { return }
-        modifierStorage = SuperKeySupport.storageValue(for: next)
+        setModifiers(next)
+    }
+
+    private func setModifiers(_ modifiers: GlobalShortcutModifiers) {
+        modifierStorage = SuperKeySupport.storageValue(for: modifiers)
         SuperKeyService.shared.syncWithPreferences()
     }
 

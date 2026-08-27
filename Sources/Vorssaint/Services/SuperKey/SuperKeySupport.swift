@@ -94,9 +94,15 @@ enum SuperKeyMappingFailure: Equatable, CaseIterable {
 /// first, which is what makes holding it possible at all.
 enum SuperKeySupport {
     static let defaultModifiers: GlobalShortcutModifiers = .validMask
+    /// The standard Meh chord: Shift+Control+Option, without Command.
+    static let mehModifiers: GlobalShortcutModifiers = [.shift, .control, .option]
 
     static var defaultModifierStorageValue: String {
         storageValue(for: defaultModifiers)
+    }
+
+    static var mehModifierStorageValue: String {
+        storageValue(for: mehModifiers)
     }
 
     static func modifiers(from storedValue: String?) -> GlobalShortcutModifiers {

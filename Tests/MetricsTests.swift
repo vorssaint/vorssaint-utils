@@ -15074,6 +15074,11 @@ struct MetricsTests {
                 && SuperKeySupport.storageValue(for: [])
                     == SuperKeySupport.defaultModifierStorageValue,
                "Super key modifiers keep stable storage and never save an empty combination")
+        expect(SuperKeySupport.mehModifiers == [.shift, .control, .option]
+                && SuperKeySupport.mehModifierStorageValue == "shift+control+option"
+                && SuperKeySupport.modifiers(from: SuperKeySupport.mehModifierStorageValue)
+                    == SuperKeySupport.mehModifiers,
+               "the Meh preset stores and restores Shift+Control+Option without Command")
         expect(SuperKeySupport.soloEffect(action: .none,
                                           longHold: false,
                                           repeated: false) == .none
