@@ -1320,7 +1320,6 @@ struct MediaWorkspaceView: View {
         return (duration * 10).rounded() / 10
     }
 
-    @MainActor
     /// The dropped image goes straight to the capture editor: nothing is
     /// imported or copied first, because that editor works on an image rather
     /// than on a file it has to own.
@@ -1329,11 +1328,18 @@ struct MediaWorkspaceView: View {
               let url = inputURL, inputURLs.count == 1
         else { return }
         localMessage = nil
-        if !ScreenshotService.shared.openEditor(imageAt: url) {
+        // An image the editor cannot hold is not an unsupported format: say
+        // which of the two it is, since the tool's own limit is the likelier
+        // of the two here.
+        if let size = MediaSupport.imageDisplaySize(at: url),
+           !ScreenshotSupport.editorAcceptsImage(pixelSize: size) {
+            localMessage = imageText.tooLarge
+        } else if !ScreenshotService.shared.openEditor(imageAt: url) {
             localMessage = l10n.s.mediaErrorUnsupported
         }
     }
 
+    @MainActor
     private func openVideoEditor() {
         guard AppFeature.mediaTools.isAvailable, let url = inputURL,
               !isImportingVideo else { return }
