@@ -172,30 +172,36 @@ final class MediaService: ObservableObject {
         }
     }
 
-    func compressImage(inputURL: URL, outputURL: URL, options: MediaImageOptions) {
+    func compressImage(inputURL: URL, outputURL: URL, options: MediaImageOptions,
+                       targetBytes: Int64 = 0) {
         run(.imageCompressor) { [weak self] id, token in
             try self?.processImagesWork(inputURLs: [inputURL],
                                         outputDirectory: outputURL.deletingLastPathComponent(),
                                         explicitOutputURL: outputURL,
                                         options: options,
+                                        targetBytes: targetBytes,
                                         operationID: id,
                                         token: token)
         }
     }
 
-    func combineImagesIntoPDF(inputURLs: [URL], outputURL: URL, options: MediaImageOptions) {
+    func combineImagesIntoPDF(inputURLs: [URL], outputURL: URL, options: MediaImageOptions,
+                              targetBytes: Int64 = 0) {
         run(.imageCompressor) { [weak self] id, token in
             try self?.combineImagesWork(inputURLs: inputURLs, outputURL: outputURL,
-                                        options: options, operationID: id, token: token)
+                                        options: options, targetBytes: targetBytes,
+                                        operationID: id, token: token)
         }
     }
 
-    func processImages(inputURLs: [URL], outputDirectory: URL, options: MediaImageOptions) {
+    func processImages(inputURLs: [URL], outputDirectory: URL, options: MediaImageOptions,
+                       targetBytes: Int64 = 0) {
         run(.imageCompressor) { [weak self] id, token in
             try self?.processImagesWork(inputURLs: inputURLs,
                                         outputDirectory: outputDirectory,
                                         explicitOutputURL: nil,
                                         options: options,
+                                        targetBytes: targetBytes,
                                         operationID: id,
                                         token: token)
         }
@@ -603,27 +609,39 @@ final class MediaService: ObservableObject {
             let name = String(format: "%@-%03d", base, index + 1)
             let pageURL = workshop.appendingPathComponent(name)
                 .appendingPathExtension(format.fileExtension)
-            guard let destination = CGImageDestinationCreateWithURL(
-                pageURL as CFURL, typeIdentifier(for: format) as CFString, 1, nil) else { continue }
-            CGImageDestinationAddImage(destination, rendered, [
-                kCGImageDestinationLossyCompressionQuality: MediaSupport.sanitizedQuality(options.quality),
-            ] as CFDictionary)
-            guard CGImageDestinationFinalize(destination) else { continue }
+            // Each page carries its share of the ceiling: what the archive is
+            // allowed to weigh, divided by the pages going into it.
+            let pageCeiling = options.targetBytes > 0
+                ? max(1, options.targetBytes / Int64(indexes.count))
+                : 0
+            try writeImage(rendered,
+                           properties: [:],
+                           outputURL: pageURL,
+                           options: MediaImageOptions(quality: options.quality,
+                                                      maxDimension: 20_000,
+                                                      format: format,
+                                                      stripMetadata: true),
+                           targetBytes: pageCeiling,
+                           token: token)
             written.append(pageURL)
             publish(.running(progress: Double(position + 1) / Double(indexes.count), message: "pdf"),
                     operationID: operationID)
         }
         guard let first = written.first else { throw MediaFailureBox(.unsupported) }
 
-        let finalURL: URL
+        // The chosen destination is honoured; only its extension follows what
+        // is actually written, since a page range decides between one picture
+        // and an archive.
+        let wanted = written.count == 1 ? format.fileExtension : "zip"
+        let finalURL = outputURL.pathExtension.lowercased() == wanted
+            ? outputURL
+            : MediaSupport.uniqueOutputURL(in: outputURL.deletingLastPathComponent(),
+                                           baseName: MediaSupport.visibleOutputBaseName(for: outputURL),
+                                           fileExtension: wanted)
         if written.count == 1 {
-            finalURL = MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-page",
-                                                    fileExtension: format.fileExtension)
             try? FileManager.default.removeItem(at: finalURL)
             try FileManager.default.moveItem(at: first, to: finalURL)
         } else {
-            finalURL = MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-pages",
-                                                    fileExtension: "zip")
             try archive(written, into: finalURL, operationID: operationID, token: token)
         }
         MediaSupport.makeVisibleIfNeeded(finalURL)
@@ -657,14 +675,21 @@ final class MediaService: ObservableObject {
         }
     }
 
-    /// A scanned page carries all of its weight in one image and nothing else,
-    /// so it is re-encoded at the chosen quality. A page that holds text is
-    /// returned untouched: rasterizing it would trade searchable words for
-    /// pixels, which is the very thing that makes Preview's own "reduce file
-    /// size" unusable on real documents.
+    /// Decides a page by what it weighs, not by whether it carries text.
+    ///
+    /// Scanners embed an invisible OCR layer — ScanSnap, Acrobat, Notes and
+    /// most bank exports all do — so "has no text" would skip precisely the
+    /// documents this exists for, and the user would wait for a file that came
+    /// back the same size. A page that weighs more than a page of text can
+    /// weigh is carrying a picture, whatever its text layer says.
+    ///
+    /// Re-encoding it costs that invisible layer. That is a real loss and it is
+    /// stated on screen rather than hidden: a scan that stays searchable and a
+    /// scan that gets smaller are not the same request.
     private func recompressedPage(_ page: PDFPage, quality: Double) -> PDFPage? {
+        let weight = page.dataRepresentation?.count ?? 0
         let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard text.isEmpty else { return nil }
+        guard weight > 120_000 || text.isEmpty else { return nil }
         let bounds = page.bounds(for: .mediaBox)
         guard bounds.width >= 1, bounds.height >= 1,
               let rendered = rasterizedPage(page, bounds: bounds),
@@ -730,6 +755,7 @@ final class MediaService: ObservableObject {
                                    outputDirectory: URL,
                                    explicitOutputURL: URL?,
                                    options: MediaImageOptions,
+                                   targetBytes: Int64 = 0,
                                    operationID: UUID,
                                    token: MediaCancellationToken) throws {
         let started = Date()
@@ -774,7 +800,9 @@ final class MediaService: ObservableObject {
                 try writeImage(prepared.image,
                                properties: prepared.properties,
                                outputURL: stagedOutputURL,
-                               options: options)
+                               options: options,
+                               targetBytes: targetBytes,
+                               token: token)
                 try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
                 MediaSupport.makeVisibleIfNeeded(outputURL)
                 preserveModificationDateIfNeeded(from: inputURL, to: outputURL, options: options)
@@ -828,6 +856,7 @@ final class MediaService: ObservableObject {
     private func combineImagesWork(inputURLs: [URL],
                                    outputURL: URL,
                                    options: MediaImageOptions,
+                                   targetBytes: Int64 = 0,
                                    operationID: UUID,
                                    token: MediaCancellationToken) throws {
         let started = Date()
@@ -847,6 +876,13 @@ final class MediaService: ObservableObject {
         }
 
         let document = PDFDocument()
+        // A ceiling on the document becomes a quality for its pages: the
+        // encode starts high and steps down until the whole thing fits.
+        var pageQuality = MediaSupport.sanitizedQuality(options.quality)
+        if targetBytes > 0 {
+            let perPage = Double(targetBytes) / Double(max(1, inputs.count))
+            pageQuality = perPage < 400_000 ? 0.55 : (perPage < 1_200_000 ? 0.72 : 0.88)
+        }
         var originalBytes: Int64 = 0
         for (offset, inputURL) in inputs.enumerated() {
             try checkCancellation(token)
@@ -856,7 +892,7 @@ final class MediaService: ObservableObject {
                                                   watermarkLogo: watermarkLogo,
                                                   token: token)
             guard let page = pdfPage(from: prepared.image,
-                                     quality: MediaSupport.sanitizedQuality(options.quality))
+                                     quality: pageQuality)
             else { continue }
             document.insert(page, at: document.pageCount)
             publish(.running(progress: Double(offset + 1) / Double(inputs.count), message: "image"),
@@ -950,23 +986,41 @@ final class MediaService: ObservableObject {
                              size: CGSize(width: image.width, height: image.height))
     }
 
-    /// Writes the image, then, when a ceiling was asked for, writes it again at
-    /// a lower quality until it fits. A file already under the ceiling is left
-    /// at the quality it was given: a JPEG that weighs 400 KB on its own has no
-    /// business being degraded because someone typed 20 MB.
+    /// Writes the image, then, when a ceiling was asked for, writes it again
+    /// smaller until it fits. Quality comes down first; when the format has no
+    /// quality to give — PNG — or the floor is reached, the picture itself is
+    /// scaled down, which is what the hint on screen promises. A file already
+    /// under the ceiling keeps the quality it was given: a JPEG that weighs
+    /// 400 KB on its own has no business being degraded because someone typed
+    /// 20 MB.
     private func writeImage(_ image: CGImage,
                             properties: [CFString: Any],
                             outputURL: URL,
-                            options: MediaImageOptions) throws {
+                            options: MediaImageOptions,
+                            targetBytes: Int64 = 0,
+                            token: MediaCancellationToken? = nil) throws {
         var attempt = options
-        for _ in 0..<6 {
-            try encodeImage(image, properties: properties, outputURL: outputURL, options: attempt)
-            guard options.targetBytes > 0,
-                  let next = MediaSupport.retryQuality(current: attempt.quality,
-                                                       actualBytes: fileSize(outputURL),
-                                                       targetBytes: options.targetBytes)
-            else { return }
-            attempt.quality = next
+        var rendered = image
+        for _ in 0..<8 {
+            if let token { try checkCancellation(token) }
+            try encodeImage(rendered, properties: properties, outputURL: outputURL, options: attempt)
+            guard targetBytes > 0, fileSize(outputURL) > targetBytes else { return }
+            if let next = MediaSupport.retryQuality(current: attempt.quality,
+                                                    actualBytes: fileSize(outputURL),
+                                                    targetBytes: targetBytes),
+               attempt.format != .png {
+                attempt.quality = next
+                continue
+            }
+            guard let smaller = MediaSupport.downscaledSize(
+                    CGSize(width: rendered.width, height: rendered.height), by: 0.82),
+                  let scaled = resize(rendered, maxDimension: Int(max(smaller.width,
+                                                                     smaller.height)))
+            else { throw MediaFailureBox(.targetTooSmall) }
+            rendered = scaled
+        }
+        guard targetBytes == 0 || fileSize(outputURL) <= targetBytes else {
+            throw MediaFailureBox(.targetTooSmall)
         }
     }
 

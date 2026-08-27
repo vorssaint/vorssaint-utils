@@ -453,7 +453,7 @@ struct MediaWorkspaceView: View {
                 } label: {
                     Label(screenshotText.editButton, systemImage: "crop")
                 }
-                .disabled(inputURLs.isEmpty || isRunning)
+                .disabled(inputURLs.count != 1 || isRunning)
             }
 
             if isRunning {
@@ -914,6 +914,15 @@ struct MediaWorkspaceView: View {
         return (source == "jpeg" && target == "jpg") || (source == "jpg" && target == "jpeg")
     }
 
+    /// Whether the page selection can produce more than one file. An empty
+    /// selection means the whole document, so anything but a single page named
+    /// on its own counts as plural.
+    private var pdfPageSelectionIsPlural: Bool {
+        let trimmed = pdfPageRange.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+        return Int(trimmed) == nil
+    }
+
     private var pdfSizing: MediaSizingMode {
         MediaSizingMode.sanitized(pdfSizingRaw)
     }
@@ -922,13 +931,22 @@ struct MediaWorkspaceView: View {
         MediaSizingMode.sanitized(imageSizingRaw)
     }
 
+    /// The ceiling this job aims at, or 0 when the quality picker decides. It
+    /// travels beside the options rather than inside them: the options are
+    /// saved as profiles, and a ceiling belongs to one job.
+    private var imageTargetBytes: Int64 {
+        imageSizing == .targetSize
+            ? MediaSupport.targetBytes(megabytes: imageTargetMegabytes)
+            : 0
+    }
+
     private var pdfOutputFormat: MediaImageFormat? {
         pdfOutputFormatRaw == "pdf" ? nil : MediaImageFormat.sanitized(pdfOutputFormatRaw)
     }
 
     private var inputIsPDF: Bool {
-        guard selectedTool == .imageCompressor, let inputURL else { return false }
-        return MediaSupport.isPDF(at: inputURL)
+        guard selectedTool == .imageCompressor else { return false }
+        return inputURLs.contains(where: { MediaSupport.isPDF(at: $0) })
     }
 
     private var videoSizing: MediaSizingMode {
@@ -1156,7 +1174,6 @@ struct MediaWorkspaceView: View {
             // Aiming at a weight starts from a high quality and comes down
             // only as far as it must, so a light image stays untouched.
             options.quality = 0.92
-            options.targetBytes = MediaSupport.targetBytes(megabytes: imageTargetMegabytes)
         }
         return options
     }
@@ -1385,7 +1402,10 @@ struct MediaWorkspaceView: View {
 
     private func setInputs(_ urls: [URL]) {
         cancelVideoImport()
-        let holdsPDF = urls.first.map { MediaSupport.isPDF(at: $0) } ?? false
+        // Anywhere in the selection, not just first: the file panel accepts
+        // both kinds now, so a PDF picked second would otherwise be run
+        // through the image batch.
+        let holdsPDF = urls.contains(where: { MediaSupport.isPDF(at: $0) })
         inputURLs = selectedTool == .imageCompressor && !holdsPDF ? urls : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor && !holdsPDF
             ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
@@ -1436,26 +1456,26 @@ struct MediaWorkspaceView: View {
         return (duration * 10).rounded() / 10
     }
 
-    @MainActor
     /// The dropped image goes straight to the capture editor: nothing is
     /// imported or copied first, because that editor works on an image rather
     /// than on a file it has to own.
     private func openImageEditor() {
         guard AppFeature.mediaTools.isAvailable, AppFeature.screenshot.isAvailable,
-              !inputURLs.isEmpty
+              let url = inputURL, inputURLs.count == 1
         else { return }
         localMessage = nil
-        // A batch opens one editor per image, capped so a careless drop of a
-        // hundred files cannot bury the screen in windows.
-        var opened = 0
-        for url in inputURLs.prefix(8) where ScreenshotService.shared.openEditor(imageAt: url) {
-            opened += 1
-        }
-        if opened == 0 {
+        // An image the editor cannot hold is not an unsupported format: say
+        // which of the two it is, since the tool's own limit is the likelier
+        // of the two here.
+        if let size = MediaSupport.imageDisplaySize(at: url),
+           !ScreenshotSupport.editorAcceptsImage(pixelSize: size) {
+            localMessage = imageText.tooLarge
+        } else if !ScreenshotService.shared.openEditor(imageAt: url) {
             localMessage = l10n.s.mediaErrorUnsupported
         }
     }
 
+    @MainActor
     private func openVideoEditor() {
         guard AppFeature.mediaTools.isAvailable, let url = inputURL,
               !isImportingVideo else { return }
@@ -1555,16 +1575,19 @@ struct MediaWorkspaceView: View {
                 && MediaImageFormat.sanitized(imageFormatRaw) == .pdf:
             media.combineImagesIntoPDF(inputURLs: inputURLs,
                                        outputURL: outputURL,
-                                       options: currentImageOptions)
+                                       options: currentImageOptions,
+                                       targetBytes: imageTargetBytes)
         case .imageCompressor:
             if inputURLs.count > 1 {
                 media.processImages(inputURLs: inputURLs,
                                     outputDirectory: outputURL,
-                                    options: currentImageOptions)
+                                    options: currentImageOptions,
+                                    targetBytes: imageTargetBytes)
             } else {
                 media.compressImage(inputURL: inputURL,
                                     outputURL: outputURL,
-                                    options: currentImageOptions)
+                                    options: currentImageOptions,
+                                    targetBytes: imageTargetBytes)
             }
         case .textExtractor:
             media.extractText(inputURL: inputURL, outputURL: outputURL,
@@ -1586,7 +1609,17 @@ struct MediaWorkspaceView: View {
     }
 
     private var outputType: UTType {
-        if inputIsPDF { return .pdf }
+        if inputIsPDF {
+            guard let format = pdfOutputFormat else { return .pdf }
+            // Several pages leave as an archive, one leaves as that picture.
+            if pdfPageSelectionIsPlural { return .zip }
+            switch format {
+            case .jpeg: return .jpeg
+            case .heic: return .heic
+            case .png: return .png
+            case .pdf: return .pdf
+            }
+        }
         switch selectedTool {
         case .videoCompressor: return .mpeg4Movie
         case .gifMaker: return .gif
@@ -1609,8 +1642,14 @@ struct MediaWorkspaceView: View {
                                                 fileExtension: "pdf")
         }
         if tool == .imageCompressor, MediaSupport.isPDF(at: inputURL) {
-            return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-compressed",
-                                                fileExtension: "pdf")
+            guard let format = pdfOutputFormat else {
+                return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-compressed",
+                                                    fileExtension: "pdf")
+            }
+            return MediaSupport.uniqueOutputURL(
+                for: inputURL,
+                suffix: pdfPageSelectionIsPlural ? "-pages" : "-page",
+                fileExtension: pdfPageSelectionIsPlural ? "zip" : format.fileExtension)
         }
         switch tool {
         case .videoCompressor:

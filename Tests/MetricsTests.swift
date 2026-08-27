@@ -13860,8 +13860,8 @@ struct MetricsTests {
             pixelSize: CGSize(width: 1200, height: 800),
             pointSize: CGSize(width: 600, height: 800)) == 1,
                "copied images with inconsistent metadata safely use 1x")
-                
-                        
+
+
                         expect(ScreenshotSupport.editorAcceptsImage(pixelSize: CGSize(width: 4_000, height: 3_000))
                 && ScreenshotSupport.editorAcceptsImage(
                     pixelSize: CGSize(width: 10_000, height: 6_000)),

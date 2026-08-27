@@ -295,9 +295,6 @@ struct MediaImageRenamePattern: Codable, Equatable {
 }
 
 struct MediaImageOptions: Codable, Equatable {
-    /// Bytes the encoded image must fit under, or 0 to follow the quality
-    /// picker. Not part of a saved profile: it belongs to one job.
-    var targetBytes: Int64 = 0
     var quality: Double
     var maxDimension: Int
     var format: MediaImageFormat
@@ -598,6 +595,16 @@ enum MediaSupport {
         guard sourceWidth.isFinite, sourceWidth > 0 else { return maximumTargetGIFWidth }
         return Swift.max(minimumTargetGIFWidth,
                          Swift.min(maximumTargetGIFWidth, Int(sourceWidth.rounded())))
+    }
+
+    /// The size to render at when quality alone cannot bring a file under its
+    /// ceiling — a lossless format, or a quality already at the floor.
+    static func downscaledSize(_ size: CGSize, by factor: Double) -> CGSize? {
+        guard size.width >= 2, size.height >= 2, factor > 0, factor < 1 else { return nil }
+        let width = Swift.max(16, Int((Double(size.width) * factor).rounded()))
+        let height = Swift.max(16, Int((Double(size.height) * factor).rounded()))
+        guard width < Int(size.width) || height < Int(size.height) else { return nil }
+        return CGSize(width: width, height: height)
     }
 
     /// Quality to try next when an encode came out heavier than the ceiling.
