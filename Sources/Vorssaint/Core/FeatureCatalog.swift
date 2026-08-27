@@ -124,7 +124,10 @@ extension AppFeature {
         case .middleClick: return "computermouse"
         case .keyboardDebounce: return "keyboard"
         case .textSnippets: return "text.append"
-        case .superKey: return "capslock"
+        case .superKey:
+            return SuperKeySource.sanitized(
+                UserDefaults.standard.string(forKey: DefaultsKey.superKeySource)
+            ).systemImage
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
@@ -329,6 +332,7 @@ extension AppFeature {
                 return boolFor(DefaultsKey.monitorAlertDisk)
             case (.monitorPower, .notifications):
                 return boolFor(DefaultsKey.monitorAlertBattery)
+                    || boolFor(DefaultsKey.monitorAlertBatteryTemperature)
             case (.appUpdates, .notifications):
                 return AppUpdatesSupport.CheckFrequency
                     .sanitized(stringFor(DefaultsKey.appUpdatesCheckFrequency)) != .off
@@ -356,6 +360,7 @@ extension AppFeature {
     static let monitorAlertPairs: [(key: String, feature: AppFeature)] = [
         (DefaultsKey.monitorAlertCPU, .monitorCPU),
         (DefaultsKey.monitorAlertCPUTemperature, .monitorCPU),
+        (DefaultsKey.monitorAlertBatteryTemperature, .monitorPower),
         (DefaultsKey.monitorAlertMemory, .monitorMemory),
         (DefaultsKey.monitorAlertDisk, .monitorDisk),
         (DefaultsKey.monitorAlertBattery, .monitorPower),

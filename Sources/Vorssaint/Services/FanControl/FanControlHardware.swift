@@ -141,12 +141,12 @@ final class FanControlHardware {
 
         if !directSucceeded {
             for (fan, target) in zip(fans, targets) {
-                guard setValue(target, for: fan.target, attempts: 10) else {
+                guard setTargetRPM(target, for: fan, attempts: 10) else {
                     throw FanControlHardwareError.operationFailed
                 }
             }
         }
-        guard verifyCooling(fans, targets: targets) else {
+        guard verifyCooling(fans, targets: targets, attempts: 10) else {
             throw FanControlHardwareError.operationFailed
         }
         activeTargets = targets
@@ -155,9 +155,7 @@ final class FanControlHardware {
 
     func updateCooling(level: Int) throws -> [FanControlFanReading] {
         let fans = try discoverControlledFans()
-        guard FanControlPolicy.validCoolingLevel(level),
-              activeTargets.count == fans.count,
-              fans.allSatisfy({ (try? modeValue($0.mode)) == 1 }) else {
+        guard FanControlPolicy.validCoolingLevel(level) else {
             throw FanControlHardwareError.operationFailed
         }
         let targets = try fans.map { fan -> Double in
@@ -169,11 +167,11 @@ final class FanControlHardware {
             return target
         }
         for (fan, target) in zip(fans, targets) {
-            guard setValue(target, for: fan.target, attempts: 10) else {
+            guard setTargetRPM(target, for: fan, attempts: 10) else {
                 throw FanControlHardwareError.operationFailed
             }
         }
-        guard verifyCooling(fans, targets: targets) else {
+        guard verifyCooling(fans, targets: targets, attempts: 10) else {
             throw FanControlHardwareError.operationFailed
         }
         activeTargets = targets
@@ -361,13 +359,18 @@ final class FanControlHardware {
         }
     }
 
-    private func verifyCooling(_ fans: [Fan], targets: [Double]) -> Bool {
+    private func verifyCooling(_ fans: [Fan], targets: [Double], attempts: Int = 1) -> Bool {
         guard fans.count == targets.count else { return false }
-        return zip(fans, targets).allSatisfy { fan, expected in
-            guard (try? modeValue(fan.mode)) == 1,
-                  let target = client.readValue(fan.target) else { return false }
-            return abs(target - expected) <= max(2, expected * 0.001)
+        for attempt in 0..<attempts {
+            let matches = zip(fans, targets).allSatisfy { fan, expected in
+                guard (try? modeValue(fan.mode)) == 1,
+                      let target = client.readValue(fan.target) else { return false }
+                return FanControlPolicy.targetRPMMatches(target: target, expected: expected)
+            }
+            if matches { return true }
+            if attempt + 1 < attempts { Thread.sleep(forTimeInterval: 0.05) }
         }
+        return false
     }
 
     private func modeValue(_ key: SMCClient.Key) throws -> UInt8 {
@@ -386,9 +389,22 @@ final class FanControlHardware {
         return (try? modeValue(fan.mode)) == value
     }
 
+    private func setTargetRPM(_ target: Double, for fan: Fan, attempts: Int) -> Bool {
+        for attempt in 0..<attempts {
+            _ = writeManualPair(for: fan, target: target)
+            if let currentTarget = client.readValue(fan.target),
+               FanControlPolicy.targetRPMMatches(target: currentTarget, expected: target),
+               (try? modeValue(fan.mode)) == 1 {
+                return true
+            }
+            if attempt + 1 < attempts { Thread.sleep(forTimeInterval: 0.05) }
+        }
+        return false
+    }
+
     private func writeManualPair(for fan: Fan, target: Double) -> Bool {
+        _ = try? client.writeBytes([1], to: fan.mode)
         do {
-            try client.writeBytes([1], to: fan.mode)
             try client.writeValue(target, to: fan.target)
             return true
         } catch {
@@ -427,4 +443,13 @@ final class FanControlHardware {
         }
         return false
     }
+
+    /// Whether this Mac exposes a fan the app can actually drive. It asks the
+    /// same discovery the control path uses, so "controllable" means the very
+    /// keys a cooling write needs, not merely a reported fan count. Hardware
+    /// does not change under a running process, so the answer is computed once.
+    static let hasControllableFan: Bool = {
+        guard let hardware = FanControlHardware() else { return false }
+        return (try? hardware.discoverControlledFans())?.isEmpty == false
+    }()
 }

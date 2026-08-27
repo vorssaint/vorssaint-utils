@@ -15,25 +15,21 @@ struct HomebrewSettings: View {
     @State private var showOperationDetails = false
 
     var body: some View {
-        GeometryReader { proxy in
-            VStack(spacing: 0) {
-                pageHeader
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                Divider()
-                Group {
-                    if homebrew.brewPath == nil {
-                        missingState
-                    } else {
-                        content
-                    }
+        VStack(spacing: 0) {
+            pageHeader
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            Divider()
+            Group {
+                if homebrew.brewPath == nil {
+                    missingState
+                } else {
+                    content
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
-            // A long package list must scroll inside its pane instead of
-            // expanding the whole split view beyond the Settings window.
-            .frame(width: proxy.size.width, height: proxy.size.height)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             if homebrew.installed.isEmpty {
                 homebrew.refreshInstalled()
@@ -373,9 +369,11 @@ struct HomebrewSettings: View {
                         popularityBadge(popularity)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .buttonStyle(.plain)
             if activeStatus(for: package) != nil {
                 ProgressView()
                     .controlSize(.mini)

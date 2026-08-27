@@ -4,6 +4,81 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Summary
+Vorssaint expands clipboard, Super key, App Switcher and snippet controls, broadens app update and safe cleanup discovery, and improves Settings, Scratchpad, floating panels and several menu bar behaviors. App Switcher also separates stale hidden-Space surfaces from real fullscreen windows.
+
+### Added
+- Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
+- Super key can now use Caps Lock or the right Command, Option, Control or Shift key, with the chosen key shown across Settings, shortcuts and the menu panel. Thanks to @JoanLaRosa.
+- The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
+- Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
+
+### Changed
+- App Updates now finds newer versions for other installed apps through a privacy-preserving public online catalog and opens those apps so their own updater remains in control.
+- The Uninstaller now finds more support files, containers, preference panes and plugins through verified app identifiers and signed ownership, searches nested vendor folders and opens every result in Finder. Name-related finds start unchecked.
+- Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
+
+### Fixed
+- App Switcher now rejects stale hidden-Space surfaces without hiding real fullscreen windows on another Space. Thanks to @naveenkrdy.
+- Settings now enforces its design minimum size across window resizing, layout updates and window restore, preventing the sidebar and preferences from compressing or clipping.
+- Scratchpad windows now drag reliably from anywhere in the top bar, keep generous resize borders and minimum dimensions, and include a close button on each tab.
+- Text-heavy floating panels now keep their content readable over bright windows when Liquid Glass is enabled.
+- Auto-quit now retries watching windows when accessibility initially lists no open window, ensuring apps quit properly when their last window is closed. Thanks to @iltonandrew.
+- Screen recording settings in Traditional Chinese (Taiwan) now use the standard microphone term 麥克風 instead of the Hong Kong Cantonese term 咪高風. Thanks to @watain666.
+- Mouse exceptions now match non-bundled executable programs and Java runtimes alongside regular application bundles. Thanks to @iltonandrew.
+- Uninstalling a feature now removes it from Command Bar pins in Settings.
+- Pressing Escape in the clipboard history quick panel now clears batch selection or closes the panel directly instead of closing the preview pane first. Thanks to @naveenkrdy.
+- Adding points to a custom fan curve now updates and saves the curve instead of discarding the new point.
+- The battery icon in the menu bar now preserves its rectangular aspect ratio when split into its own item instead of rendering as a square. Thanks to @Yahddyyp.
+
+## [3.3.3-beta.3] - 2026-08-26
+
+### Added
+- General settings now include a Liquid Glass toggle on macOS 26 and later to control translucent glass visual effects across panels and controls.
+- The video and GIF tools now include an option to compress directly to a target file size in megabytes, automatically deriving the resolution and frame rate to stay under the limit. Thanks to @FlowSync0.
+- Shelf now shows real content thumbnails for dropped images and videos, covering more file types, and decodes saved image thumbnails asynchronously on launch. Thanks to @tenbux.
+- The Command Bar now offers a compact mode where the bar opens as a field alone and shows results once you type, with Down arrow revealing the full list. Under Command Bar, off by default. Thanks to @kobebrylant.
+- Command Bar script links can now be marked to run on their bare name without an argument, so scripts that work on the clipboard, selection, or files don't need a placeholder word typed after the name. Under Command Bar, off by default. Thanks to @rhukster.
+- Monitor alerts can now warn you when the battery stays above a temperature you choose. Under Monitor alerts, off by default. Thanks to @ywu73.
+- Radial Menu now supports custom profiles with distinct wheel layouts, color themes, shortcuts, mouse triggers and starter presets, and website links can fetch their actual website icons on demand.
+
+### Changed
+- Homebrew package rows can now be selected by clicking the unused space beside the name. Thanks to @pergioa.
+- Clipboard history now displays image previews and thumbnails for image files copied from Finder in the quick panel, preview inspector and menu panel.
+- Clipboard history now remembers whether you left the preview inspector open or closed across launches.
+- New Scratchpad tabs now start at 1 instead of leaving the first tab unnumbered, while existing names stay unchanged. Thanks to @AB-boi and @JashRashne.
+- Every screen capture tool now carries its own keyboard shortcut to open directly into screenshot, recording, text copy or color picking, with the active tool shortcut edited at the top of the Screen capture settings page. Thanks to @RecoilGaming.
+- The Keyboard Shortcuts page now lists every capture shortcut under one Screen capture group, and expandable shortcut groups are toggled by their whole row, with the chevron moved to the trailing edge. Thanks to @RecoilGaming.
+
+### Fixed
+- Fan Control now updates manual and curve cooling speeds during an active session without verification timeouts.
+- The Homebrew panel now closes when you click outside it while browsing or searching, and stays open for a confirmation or a running job. Thanks to @pergioa.
+- Settings opened from the menu panel no longer stay covered when the two windows cannot fit side by side. Thanks to @FloatingPegasus.
+- Muting the microphone from Quick toggles no longer moves the menu panel. Thanks to @FloatingPegasus.
+- Fan Control can no longer be installed on a Mac with no controllable fan, including from Install all and first-run setup. Thanks to @PathGao and @Yahddyyp.
+- Quit on close no longer causes elevated background CPU usage in watched applications. Thanks to @iltonandrew.
+- The Displays section no longer freezes when switching off the built-in display while an external monitor is connected. Thanks to @iltonandrew.
+- Subprocess sampling and window enumeration no longer exhaust background dispatch threads or deadlock the main thread. Thanks to @PathGao, @iltonandrew and @SudhanshuBhogal.
+- Quick tool confirmation panels and scrolling capture banners now keep long copied text or parameter lists bounded on screen instead of overflowing the display. Thanks to @rhukster.
+- App Switcher now keeps walking backwards when you hold Shift and tap Tab again. Thanks to @iltonandrew and @justin-chiam.
+- The window-scoped App Switcher (⌘`) no longer collapses into a single tile when one entry per app is enabled. Thanks to @iltonandrew, @AB-boi and @PathGao.
+- The screen capture loupe now rings the pixel under the pointer instead of drawing a crosshair across it, and that pixel sits in the middle of the loupe, so the Color picker shows the color it is about to copy. Thanks to @I-Have-No-Idea-What-Im-Doing-Right-Now and @PathGao.
+- Screenshot editor crop now snaps selection and resize edges to pixel boundaries, keeping the loupe cross and the final cut aligned to the exact source pixel. Thanks to @PathGao.
+- Media settings now keep the title and tool picker in place when More options expands, and matching disclosure rows across Settings toggle from the full label. Thanks to @ruvelro.
+- Saved image profiles now restore max-side values up to 20,000 pixels without silently shrinking them. Thanks to @ruvelro.
+- Menu bar icon recovery no longer overlaps or hides the item under macOS system items like the battery icon.
+- Command Bar and quick tools no longer freeze when copying, opening links, or expanding snippets while the clipboard holds stalled content. Thanks to @PathGao and @atomsbaza.
+- Keep going with lid closed no longer fails to set up on accounts whose username contains @ or other non-alphanumeric characters, granting the rule by user ID instead. Thanks to @iltonandrew and @dhruvsaxena1998.
+- Uninstallation via script or inside the app now fully clears the Fan Control helper daemon registration, stored application data, caches and ByHost preferences. Thanks to @mugurc.
+- The menu bar panel keeps its arrow under the icon when the bar hides itself and the panel content changes height. Thanks to @pergioa.
+- Homebrew formulas installed from another tap now show their update on the row. Thanks to @pergioa.
+- Super key now shows why it could not remap Caps Lock, instead of staying on with a key that still only toggles capitals. Thanks to @PathGao.
+- Holding Super key now also moves and resizes windows by dragging. Thanks to @iltonandrew and @felixblaschke.
+- Shelf drop zone and menu bar icon hit testing no longer use off-screen coordinates when the menu bar is hidden in full screen. Thanks to @iltonandrew.
+- Settings backup import now coordinates file reading for cloud files and accepts XML backup files.
+
 ## [3.3.3-beta.2] - 2026-08-22
 
 ### Added
@@ -17,6 +92,7 @@ All notable changes to this project are documented here. The format follows
 - Finder Cut & Paste now includes an option in Settings to show or hide the floating panel for staged files, and automatically hides the panel when Finder is in the background.
 
 ### Changed
+- Command Bar settings no longer put a command key glyph in front of "Open the bar now", read as one paragraph rather than four separate cards, and name what the shortcut opens. Thanks to @PathGao.
 - Sound Mixer panel now groups audio devices and organizes preferences in a collapsible Options section.
 - Embedded utilities in the Quick Launcher now provide distinct Back and Close buttons. Thanks to @ruvelro.
 
@@ -29,6 +105,13 @@ All notable changes to this project are documented here. The format follows
 - App Switcher and Dock previews no longer show stale previews for windows that were closed or apps that quit. Thanks to @atomsbaza.
 - Beta releases now automatically turn on the beta update channel on first launch, ensuring seamless delivery of subsequent beta updates.
 - Keep Awake now preserves the order of asynchronous closed-lid sleep requests when rapidly toggled. Thanks to @Tr1meputiNe.
+- The Uninstaller now names the items a removal could not move, and offers Full Disk Access on the spot when that permission is what stopped it. Sandboxed app data used to be left behind under a success tick. Thanks to @PathGao.
+- Rebuilding the display list after a hotplug, a wake or opening the panel no
+  longer reads the screen names from a background thread. The names the sliders
+  carry are unchanged. Thanks to @PathGao.
+- App Switcher now sizes its window and icon rows from a single shared width, preventing clipping when fewer than three apps are open. Thanks to @iltonandrew.
+- Opening Energy settings or the brightness panel no longer dims displays that were already at that brightness. Thanks to @iltonandrew.
+- Opening a Shelf tile's context menu now hides its hover tooltip, preventing the tooltip from covering menu items. Thanks to @tenbux.
 
 ## [3.3.3-beta.1] - 2026-08-22
 
@@ -40,8 +123,9 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   any of eight directions with a native glass-ring HUD. Thanks to @Bald-M.
 - The Super key can now use a quick press to switch between enabled input sources
   while a press-and-hold toggles Caps Lock. Thanks to @BenjaminD2023.
-- Dock Preview thumbnails can now be dragged to move windows freely or snap them
-  to screen regions. Thanks to @PathGao.
+- Dock Preview thumbnails can now be dragged to move any window to where they are
+  dropped, keeping the size it already had. A minimized window is restored there
+  and a window from another desktop is carried across. Thanks to @PathGao.
 - Clean URL now removes the tracking parameters that YouTube, X, Instagram, Spotify,
   Reddit, TikTok, Bilibili and Xiaohongshu add to their own share links, while leaving
   the same parameter names alone on every other site. Thanks to @PathGao.
@@ -87,9 +171,23 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   the Dock Preview block. Thanks to @PathGao.
 - Scratchpad tabs and the pin, close, new pad and pad actions buttons now respond
   across their whole area. Thanks to @AB-boi and @PathGao.
-- Dock Preview cards no longer draw the app icon on every thumbnail or repeat the
-  window title over it, leaving the thumbnail more of the card, and a card now
-  badges a window that lives on another desktop. Thanks to @PathGao.
+- The Scratchpad tab strip now takes the width its row has free, so widening the
+  pad shows more of each tab name instead of leaving the space beside the pad
+  actions button empty. Thanks to @AB-boi.
+- Dock Preview cards now carry the App Switcher's look: the app's icon and the window's
+  state along the bottom of a 16:10 picture, the name and its subtitle underneath, and the
+  close and minimize buttons in that band rather than over the picture. Thanks to @PathGao.
+
+- Dock Preview cards keep a full title band at every preview size rather than scaling it
+  with the card, and the app icon standing in for a thumbnail that has not arrived follows
+  the preview size as a watermark. Thanks to @PathGao.
+
+- A Dock Preview beside a Dock on the left or right now runs its cards down the screen
+  instead of across it, a hovered panel draws no header, and pinning one is a named item
+  in a card's menu. Thanks to @PathGao.
+
+- A window name too long for its band now scrolls while the pointer is on that card, in
+  the App Switcher as well as a Dock Preview. Thanks to @PathGao.
 - Fan Control now prepares stopped fans before taking manual control and keeps a
   failed attempt visible instead of silently returning to Automatic.
 - The Clean URL settings fields now take a click anywhere across their row. Their
@@ -101,11 +199,17 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   the window shortcut reach each window, even when showing one entry per app.
 - Windowless apps no longer repeat or misplace their name in the App Switcher's Small
   size. Thanks to @Yahddyyp.
+- App Switcher grid cards now give their thumbnail the 14 points their chrome
+  was reserving and not using, and their title band holds a subtitle without
+  clipping its descenders. Thanks to @PathGao.
 - Clicking the Dock icon of a background app to restore its minimized windows now
   brings that app forward, instead of leaving its windows behind whichever app was
   already in front. Thanks to @PathGao.
 - The recording editor now trims reliably from the beginning of a video when
   dragging the left handle. Thanks to @lmilojevicc.
+
+- A test run no longer leaves a preference file behind in `~/Library/Preferences`
+  for every defaults suite it uses. Thanks to @PathGao.
 - Screen recorder, Copy text from screen and Color picker can each take a shortcut
   of their own again, opening screen capture already on that mode. Their Settings
   rows no longer record a combination that does nothing. Thanks to @wiidede and
@@ -118,10 +222,18 @@ Vorssaint 3.3.3-beta.1 introduces the opt-in beta release channel and in-app fee
   write. Thanks to @ThomasWaldmann.
 - Administrator approval for updates now originates from Vorssaint instead of a
   system script. Thanks to @dbhorst.
+- Switching a display back on from Displays no longer freezes the app. The
+  change is now made on the main thread, where macOS expects it, instead of on
+  the queue that also carries monitor probing, and the record of which displays
+  are off is written with that queue's lock released. Thanks to @ozimosko and
+  @bayujo.
 - Stopping Music from opening on its own no longer blocks opening it from the
   Dock, Spotlight or Applications. Media keys still cannot launch it.
 - The recording editor now reads composition duration directly without background
   queries. Thanks to @Bald-M.
+- Launch at login now names System Settings › General › Login Items & Extensions
+  when the login item is registered but switched off there, instead of springing
+  back with nothing said. Thanks to @PathGao and @wenujacodes.
 
 ## [3.3.2] - 2026-08-20
 
@@ -1511,7 +1623,7 @@ Vorssaint 3.1.0 adds three optional tools: Clipboard History for saving and reus
   default, with a setting to split them into separate CPU°C, GPU°C and BAT°C
   blocks.
 
-![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaint/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
+![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaintapp/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
 
 ## [3.0.7] - 2026-06-20
 

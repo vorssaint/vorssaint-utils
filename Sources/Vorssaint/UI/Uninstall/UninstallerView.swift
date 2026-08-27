@@ -172,11 +172,27 @@ struct UninstallerView: View {
                 .resizable().frame(width: 22, height: 22)
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name).font(.system(size: 12.5)).lineLimit(1).truncationMode(.middle)
-                Text(prettyPath(item.url))
-                    .font(.system(size: 10.5)).foregroundStyle(.tertiary)
-                    .lineLimit(1).truncationMode(.head)
+                HStack(spacing: 5) {
+                    if item.confidence == .related {
+                        Label(l10n.s.cleanerOptionalSection, systemImage: "questionmark.circle")
+                            .foregroundStyle(.orange)
+                    }
+                    Text(prettyPath(item.url))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+                .font(.system(size: 10.5))
             }
             Spacer()
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([item.url])
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.plain)
+            .help(l10n.s.cleanerRevealInFinder)
+            .accessibilityLabel(l10n.s.cleanerRevealInFinder)
             Text(Self.byteString(item.size))
                 .font(.system(size: 11.5)).foregroundStyle(.secondary)
                 .monospacedDigit()
@@ -256,20 +272,17 @@ struct UninstallerView: View {
 
     // MARK: Done
 
-    private func doneState(freed: Int64, failed: Int) -> some View {
+    private func doneState(freed: Int64, failed: [AppUninstaller.Leftover]) -> some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "checkmark.circle.fill")
+            Image(systemName: UninstallerSupport.doneSymbol(hasLeftovers: !failed.isEmpty))
                 .font(.system(size: 54))
-                .foregroundStyle(.green)
+                .foregroundStyle(failed.isEmpty ? .green : .orange)
             Text(l10n.s.uninstallerDoneTitle).font(.system(size: 20, weight: .bold))
             Text(String(format: l10n.s.uninstallerFreedFormat, Self.byteString(freed)))
                 .font(.system(size: 13)).foregroundStyle(.secondary)
-            if failed > 0 {
-                Text(l10n.s.uninstallerSomeFailed)
-                    .font(.caption).foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+            if !failed.isEmpty {
+                UninstallFailureNote(items: failed).frame(width: 360)
             }
             Button(l10n.s.uninstallerAnother) { uninstaller.reset() }
                 .controlSize(.large)

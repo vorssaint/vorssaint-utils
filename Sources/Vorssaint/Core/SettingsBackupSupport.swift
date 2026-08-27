@@ -32,6 +32,7 @@ enum SettingsBackupSupport {
         DefaultsKey.textSnippets,
         DefaultsKey.scratchpadDocument,
         DefaultsKey.radialMenuItems,
+        DefaultsKey.radialMenuProfiles,
         DefaultsKey.commandBarLinks,
         DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
@@ -114,6 +115,7 @@ enum SettingsBackupSupport {
         DefaultsKey.updateShowcaseMediaOverride,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated,
         DefaultsKey.restoredScreenCaptureShortcutsMigrated,
+        DefaultsKey.orphanedCaptureShortcutMigrated,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
@@ -145,13 +147,27 @@ enum SettingsBackupSupport {
     /// and exports — unknown, renamed or never-exported keys are dropped, so
     /// a tampered or future file can never write outside the allowed set.
     static func sanitizedSettings(from payload: [String: Any]) -> [String: Any]? {
-        guard let version = payload[formatVersionKey] as? Int,
+        guard let version = formatVersion(from: payload),
               version >= 1, version <= formatVersion,
               let settings = payload[settingsKey] as? [String: Any]
         else { return nil }
         let allowed = exportKeys()
         let filtered = settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
         return portableMediaSettings(filtered)
+    }
+
+    static func formatVersion(from payload: [String: Any]) -> Int? {
+        if let intValue = payload[formatVersionKey] as? Int {
+            return intValue
+        }
+        if let number = payload[formatVersionKey] as? NSNumber {
+            return number.intValue
+        }
+        if let string = payload[formatVersionKey] as? String,
+           let intValue = Int(string.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return intValue
+        }
+        return nil
     }
 
     private static func portableMediaSettings(_ source: [String: Any]) -> [String: Any] {

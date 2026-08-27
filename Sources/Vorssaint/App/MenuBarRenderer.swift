@@ -1208,10 +1208,17 @@ enum MenuBarRenderer {
             if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
                 .withSymbolConfiguration(symbolConfig) {
                 let symbolSize = symbol.size
+                // draw(in:) stretches the image to exactly fill the rect, so
+                // clamping only the width while leaving height at
+                // the symbol's full natural size squished wide glyphs like
+                // the battery icon. Scale both dimensions together to keep
+                // the glyph's own proportions.
+                let scale = min(symbolWidth / symbolSize.width, 1)
+                let drawSize = NSSize(width: symbolSize.width * scale, height: symbolSize.height * scale)
                 let symbolRect = NSRect(x: 0,
-                                        y: (height - symbolSize.height) / 2,
-                                        width: min(symbolWidth, symbolSize.width),
-                                        height: symbolSize.height)
+                                        y: (height - drawSize.height) / 2,
+                                        width: drawSize.width,
+                                        height: drawSize.height)
                 symbol.draw(in: symbolRect)
             }
             let valueAttrs = dynamicTextAttributes(font: valueFont)

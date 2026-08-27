@@ -8,6 +8,7 @@ struct CommandBarSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
+    @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -37,40 +38,51 @@ struct CommandBarSettings: View {
     var body: some View {
         Form {
             Section {
-                Button {
-                    CommandBarService.shared.show()
-                } label: {
-                    Label(text.openButton, systemImage: "command")
-                }
-                Button {
-                    CommandBarService.shared.resetPanelPosition()
-                } label: {
-                    Label(text.resetPositionButton, systemImage: "arrow.uturn.backward")
-                }
-                .disabled(!service.hasCustomPosition)
-                Text(text.positionCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(text.settingsCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Label(text.privacyNote, systemImage: "lock.laptopcomputer")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 6) {
-                    Text(text.tryTheseLabel)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                    ForEach(examples, id: \.self) { example in
-                        Text(example)
-                            .font(.system(size: 10.5, design: .rounded))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.primary.opacity(0.06)))
+                // One choice, open it or recenter it, so one row. Neither
+                // carries an icon: a ⌘ glyph in front of "Open the bar now"
+                // reads as the shortcut that opens it, which it is not.
+                HStack(spacing: 10) {
+                    Button(text.openButton) {
+                        CommandBarService.shared.show()
                     }
+                    Button(text.resetPositionButton) {
+                        CommandBarService.shared.resetPanelPosition()
+                    }
+                    .disabled(!service.hasCustomPosition)
                 }
-                Toggle(l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
+                // One row for the whole explanation. As separate rows the form
+                // drew a divider between every sentence, cutting one paragraph
+                // about one feature into four cards that looked like settings.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(text.positionCaption)
+                    Text(text.settingsCaption)
+                    Label(text.privacyNote, systemImage: "lock.laptopcomputer")
+                    HStack(spacing: 6) {
+                        Text(text.tryTheseLabel)
+                            .foregroundStyle(.tertiary)
+                        ForEach(examples, id: \.self) { example in
+                            Text(example)
+                                .font(.system(size: 10.5, design: .rounded))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                // No callback: the bar reads this on every open, and opening
+                // Settings has already hidden it, so the two can never be on
+                // screen with a stale value between them.
+                Toggle(text.compactModeToggle, isOn: $compactMode)
+                Text(text.compactModeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                // Not the shared "Global shortcut" label the other feature
+                // pages use: this page already has an "open the bar" button at
+                // the top, so the toggle has to say which of the two it arms.
+                Toggle(text.shortcutToggle, isOn: $shortcutEnabled)
                     .onChange(of: shortcutEnabled) { _, _ in
                         CommandBarService.shared.syncWithPreferences()
                     }
@@ -131,35 +143,41 @@ struct CommandBarSettings: View {
                 } label: {
                     Label(text.filesAddFolder, systemImage: "plus")
                 }
-                DisclosureGroup(FeatureStrings.recorder(l10n.language).moreOptions,
-                                isExpanded: $showsFileOptions) {
-                    Text(text.filesIgnoreCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ForEach(fileIgnores, id: \.self) { pattern in
+                DisclosureHeaderRow(isExpanded: $showsFileOptions) {
+                    Text(FeatureStrings.recorder(l10n.language).moreOptions)
+                    Spacer()
+                }
+                if showsFileOptions {
+                    Group {
+                        Text(text.filesIgnoreCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        ForEach(fileIgnores, id: \.self) { pattern in
+                            HStack(spacing: 8) {
+                                Image(systemName: "eye.slash")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 16)
+                                Text(pattern)
+                                    .font(.system(size: 12))
+                                    .lineLimit(1)
+                                Spacer()
+                                Button(text.removeButton) { removeFileIgnore(pattern) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.mini)
+                            }
+                        }
                         HStack(spacing: 8) {
-                            Image(systemName: "eye.slash")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 16)
-                            Text(pattern)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
-                            Spacer()
-                            Button(text.removeButton) { removeFileIgnore(pattern) }
+                            TextField(text.filesIgnorePlaceholder, text: $ignoreDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .onSubmit { addFileIgnore() }
+                            Button(text.filesIgnoreAdd) { addFileIgnore() }
                                 .buttonStyle(.bordered)
-                                .controlSize(.mini)
+                                .controlSize(.small)
+                                .disabled(ignoreDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                         }
                     }
-                    HStack(spacing: 8) {
-                        TextField(text.filesIgnorePlaceholder, text: $ignoreDraft)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { addFileIgnore() }
-                        Button(text.filesIgnoreAdd) { addFileIgnore() }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(ignoreDraft.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
+                    .disclosureIndent()
                 }
             } header: {
                 Text(text.filesTitle)
@@ -355,8 +373,9 @@ struct CommandBarSettings: View {
     }
 
     /// A key whose row is not in the catalog right now (an app that was
-    /// removed, a feature switched off in the hub) still shows, by its key, so
-    /// nothing the person set can become invisible and unremovable.
+    /// removed) still shows, by its key, so nothing the person set can become
+    /// invisible and unremovable. An uninstalled hub feature is dropped
+    /// instead: its pin is not a leftover id.
     private func title(forKey key: String) -> String {
         service.entryTitle(forStableKey: key) ?? key
     }
@@ -368,7 +387,9 @@ struct CommandBarSettings: View {
     }
 
     private var pinned: [NamedRow] {
-        CommandBarPreferences.decodePins(pinsRaw)
+        CommandBarPreferences.listedPins(
+            CommandBarPreferences.decodePins(pinsRaw),
+            present: service.presentStableKeys)
             .map { NamedRow(key: $0, title: title(forKey: $0), alias: "") }
     }
 
@@ -558,9 +579,13 @@ private struct CommandBarLinkEditor: View {
                     }
                 }
             } else {
-                Text(text.scriptHint)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(text.scriptHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.scriptRunsWithoutArgument, isOn: $draft.runsWithoutArgument)
+                        .font(.caption)
+                }
             }
 
             HStack {

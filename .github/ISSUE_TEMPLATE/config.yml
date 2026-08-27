@@ -1,6 +1,9 @@
 blank_issues_enabled: true
 
 contact_links:
+  - name: Troubleshooting Guide
+    about: The usual fixes for permissions, Gatekeeper and a feature that stopped responding.
+    url: https://github.com/vorssaintapp/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md
   - name: Security Vulnerability
     about: Please report security vulnerabilities privately.
-    url: https://github.com/vorssaint/vorssaint-utils/security/advisories/new
+    url: https://github.com/vorssaintapp/vorssaint-utils/security/advisories/new

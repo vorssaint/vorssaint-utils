@@ -1,10 +1,31 @@
 name: "🐛 Bug Report"
 description: Report a bug or unexpected behavior in Vorssaint
-title: "[Bug]: "
 labels:
   - bug
 
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Fill in what you can. A partial report is still useful.
+
+        **One problem per issue.** A second problem added to an existing thread
+        tends to get lost while the first one is being discussed.
+
+        [Reporting a useful bug](https://github.com/vorssaintapp/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md#reporting-a-useful-bug)
+        lists what a report needs to be actionable.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      description: The [troubleshooting guide](https://github.com/vorssaintapp/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md) covers both of these.
+      options:
+        - label: "If the feature does nothing at all, I checked that Vorssaint is listed and switched on for the permission it needs in System Settings, Privacy and Security, and toggled it off and back on."
+          required: true
+        - label: "It still happens on the latest version."
+          required: true
+
   - type: textarea
     id: description
     attributes:
@@ -23,6 +44,24 @@ body:
         1. Open Vorssaint
         2. Click on '...'
         3. See error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature_area
+    attributes:
+      label: Feature Area
+      description: The same groups you see in Settings.
+      options:
+        - Windows and Dock
+        - Mouse and keyboard
+        - Clipboard and files
+        - Sound
+        - Energy and display
+        - Tools
+        - System monitor
+        - Menu bar
+        - Other
     validations:
       required: true
 
@@ -54,7 +93,23 @@ body:
       required: true
 
   - type: input
+    id: language
+    attributes:
+      label: Language
+      description: The language Vorssaint is running in, and your macOS language if it differs. Several bugs so far were invisible in English, so this narrows things down fast.
+      placeholder: "简体中文 · macOS in 简体中文"
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac and displays
+      description: Skip only if the bug touches neither windows nor hardware. The Mac model decides the sensors, fans and brightness range; the display and Spaces layout decides almost every window bug.
+      placeholder: "MacBook Pro 14 (M3 Pro) · built-in + one 4K external, scaled, two Spaces"
+
+  - type: input
     id: installation_method
     attributes:
       label: Installation Method
-      placeholder: Homebrew, DMG, GitHub Release, etc.
+      placeholder: Homebrew, DMG, GitHub Release, built from source

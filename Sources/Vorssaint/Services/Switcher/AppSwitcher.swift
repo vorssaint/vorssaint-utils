@@ -104,10 +104,6 @@ final class AppSwitcher: ObservableObject {
     private var routePendingSessionStart: SwitcherPendingSessionStart?
     private var sessionStartGeneration: UInt64 = 0
 
-    /// The panel appears only after this delay, like the system switcher: a
-    /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
-    /// toggling feel instant instead of flashing a window.
-    private static let appearanceDelay: TimeInterval = 0.1
     private var pendingShow: DispatchWorkItem?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
@@ -124,8 +120,14 @@ final class AppSwitcher: ObservableObject {
     private var sessionStartWindowID: CGWindowID?
     private var sessionSourceContext: SwitcherSourceContext?
     private var sessionShortcut: GlobalShortcut?
-    private var sessionScope: SwitcherSessionScope = .allApps
+    @Published private(set) var sessionScope: SwitcherSessionScope = .allApps
     private var shiftBackNavigationHeld = false
+    /// Pressing Shift mid-session already steps back once, so the Tab landing
+    /// in that same physical chord must not step again — but later Tabs during
+    /// the same Shift hold must keep walking the list (issue #784). The chord
+    /// is recognized by time: anything after this deadline is a deliberate
+    /// separate press.
+    private var shiftBackChordDeadline: TimeInterval = 0
 
     /// Windows already asked to close, still listed until they are really
     /// gone. Releasing the shortcut skips them, so they are never raised on
@@ -614,7 +616,7 @@ final class AppSwitcher: ObservableObject {
         let shortcut = sessionShortcut ?? appsShortcut
         switch keyCode {
         case _ where keyCode == shortcut.keyCode && shortcut.matches(event: event, allowingExtraShift: true):
-            if shortcut.shiftIsNavigationModifier, flags.contains(.maskShift), shiftBackNavigationHeld {
+            if shortcut.shiftIsNavigationModifier, flags.contains(.maskShift), consumesShiftBackChordTab() {
                 break
             }
             let delta = shortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
@@ -629,7 +631,7 @@ final class AppSwitcher: ObservableObject {
                                     tolerating: shortcut.modifiers):
             // A window-scoped session keeps its list when the Apps shortcut is
             // pressed with overlapping modifiers instead of expanding to all apps.
-            if appsShortcut.shiftIsNavigationModifier, flags.contains(.maskShift), shiftBackNavigationHeld {
+            if appsShortcut.shiftIsNavigationModifier, flags.contains(.maskShift), consumesShiftBackChordTab() {
                 break
             }
             let delta = appsShortcut.shiftIsNavigationModifier && flags.contains(.maskShift) ? -1 : 1
@@ -793,6 +795,11 @@ final class AppSwitcher: ObservableObject {
                                   isFullscreen: source.isFullscreen)
         }
         sessionStartWindowID = source?.windowID
+        // The layout pass below reads usesWindowRow, which depends on the
+        // session scope; teardown resets it to .allApps, so assigning it after
+        // recomputeLayouts would size a window-scoped panel for the grouped
+        // layout on its first frame.
+        sessionScope = pending.scope
         recomputeLayouts(for: list)
         if !capturesPreviews {
             previews = [:]
@@ -818,7 +825,6 @@ final class AppSwitcher: ObservableObject {
                                     frontmostPID: SwitcherSupport.appPID(forFrontmost: reportedFrontPID,
                                                                          items: list))
         sessionShortcut = pending.shortcut
-        sessionScope = pending.scope
         shiftBackNavigationHeld = pending.reversed && pending.shortcut.shiftIsNavigationModifier
 
         if pending.additionalNavigation != 0 {
@@ -862,6 +868,16 @@ final class AppSwitcher: ObservableObject {
                                                                   isShiftHeld: shiftHeld)
         else { return false }
         advanceSelection(by: -1)
+        shiftBackChordDeadline = ProcessInfo.processInfo.systemUptime
+            + SwitcherSupport.shiftBackChordWindow
+        return true
+    }
+
+    /// True exactly once for the Tab that belongs to the Shift press that just
+    /// stepped back; consuming it keeps a Shift+Tab chord at one step.
+    private func consumesShiftBackChordTab() -> Bool {
+        guard ProcessInfo.processInfo.systemUptime < shiftBackChordDeadline else { return false }
+        shiftBackChordDeadline = 0
         return true
     }
 
@@ -1269,6 +1285,7 @@ final class AppSwitcher: ObservableObject {
         sessionShortcut = nil
         sessionScope = .allApps
         shiftBackNavigationHeld = false
+        shiftBackChordDeadline = 0
         closingItemIDs = []
         commitPendingForClose = false
     }
@@ -1284,7 +1301,9 @@ final class AppSwitcher: ObservableObject {
             self.showPanel()
         }
         pendingShow = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.appearanceDelay, execute: work)
+        let appearanceDelay = SwitcherSupport.appearanceDelay(
+            milliseconds: UserDefaults.standard.integer(forKey: DefaultsKey.switcherAppearanceDelay))
+        DispatchQueue.main.asyncAfter(deadline: .now() + appearanceDelay, execute: work)
     }
 
     private func showPanel() {
@@ -1347,7 +1366,8 @@ final class AppSwitcher: ObservableObject {
     private var usesWindowRow: Bool {
         SwitcherSupport.usesWindowRow(
             simpleMode: simpleModeEnabled,
-            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+            sessionScope: sessionScope
         )
     }
 
@@ -1547,10 +1567,10 @@ struct SwitcherGrid: Equatable {
     let visibleRows: Int
     let panelSize: CGSize
 
-    // Base sizes and breathing room scale together, so making previews smaller
-    // also keeps the panel from spending that saved space on empty gaps.
-    static var cardWidth: CGFloat { 288 * PreviewSizing.scale }
-    static var cardHeight: CGFloat { 214 * PreviewSizing.scale }
+    // Breathing room scales with the cards, so making previews smaller also
+    // keeps the panel from spending that saved space on empty gaps.
+    static var cardWidth: CGFloat { SwitcherGridCard.width }
+    static var cardHeight: CGFloat { SwitcherGridCard.height }
     static var spacing: CGFloat { 12 * PreviewSizing.scale }
     static var padding: CGFloat { 20 * PreviewSizing.scale }
 

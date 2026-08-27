@@ -78,6 +78,7 @@ enum SpaceWindowBridge {
         struct DisplayInfo {
             let displayID: CGDirectDisplayID?
             let spaces: [UInt64]
+            let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
         }
 
@@ -87,6 +88,11 @@ enum SpaceWindowBridge {
         var orderedSpacesPerDisplay: [[UInt64]] { displays.map(\.spaces) }
         /// The Space currently showing on each display.
         var visibleSpaces: Set<UInt64> { Set(displays.compactMap(\.currentSpace)) }
+        /// Native fullscreen Spaces. Managed-display dictionaries use type 4
+        /// for these and type 0 for ordinary desktops on current macOS.
+        var fullscreenSpaces: Set<UInt64> {
+            displays.reduce(into: []) { $0.formUnion($1.fullscreenSpaces) }
+        }
     }
 
     static func topology() -> Topology? {
@@ -110,18 +116,59 @@ enum SpaceWindowBridge {
 
         var displays: [Topology.DisplayInfo] = []
         for display in displayDicts {
-            let row = (display["Spaces"] as? [[String: Any]])?
-                .compactMap { ($0["id64"] as? NSNumber)?.uint64Value } ?? []
+            let spaceDictionaries = display["Spaces"] as? [[String: Any]] ?? []
+            let row = spaceDictionaries
+                .compactMap { ($0["id64"] as? NSNumber)?.uint64Value }
             guard !row.isEmpty else { continue }
+            let fullscreenSpaces = Set(spaceDictionaries.compactMap { space -> UInt64? in
+                guard (space["type"] as? NSNumber)?.intValue == 4 else { return nil }
+                return (space["id64"] as? NSNumber)?.uint64Value
+            })
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
             let displayID = uuidStr.flatMap { screenMap[$0] }
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
+                                                 fullscreenSpaces: fullscreenSpaces,
                                                  currentSpace: current?.uint64Value))
         }
         guard !displays.isEmpty else { return nil }
         return Topology(displays: displays)
+    }
+
+    private typealias MoveWindowsToSpaceFunction =
+        @convention(c) (ConnectionID, CFArray, UInt64) -> Void
+    private static let moveWindowsToManagedSpace: MoveWindowsToSpaceFunction? = {
+        guard let symbol = symbol("CGSMoveWindowsToManagedSpace") else { return nil }
+        return unsafeBitCast(symbol, to: MoveWindowsToSpaceFunction.self)
+    }()
+
+    /// The Space showing on the display under `pointer`, an AppKit screen
+    /// point. Nil when the Space queries are unavailable, so callers can carry
+    /// on without moving anything rather than guessing at a destination.
+    static func visibleSpace(near pointer: CGPoint) -> UInt64? {
+        guard let topology = topology() else { return nil }
+        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+        if let number = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
+            .uint32Value,
+           let display = topology.displays.first(where: { $0.displayID == number }) {
+            return display.currentSpace
+        }
+        return topology.displays.first?.currentSpace
+    }
+
+    /// Brings one window onto the Space the pointer's display is showing. A
+    /// window dropped from another desktop otherwise takes the position it was
+    /// given and stays where nobody can see it.
+    @discardableResult
+    static func moveToVisibleSpace(_ windowID: CGWindowID, near pointer: CGPoint) -> Bool {
+        guard connection != 0,
+              let moveWindowsToManagedSpace,
+              let destination = visibleSpace(near: pointer)
+        else { return false }
+        guard !spaces(of: windowID).contains(destination) else { return true }
+        moveWindowsToManagedSpace(connection, [NSNumber(value: windowID)] as CFArray, destination)
+        return true
     }
 
     /// Whether the window sits on at least one Space and none of them is

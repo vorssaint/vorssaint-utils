@@ -62,6 +62,38 @@ struct RadialMenuFeatureStrings {
     let activationModePress: String
     let activationModeHold: String
     let activationModeCaption: String
+    let profilesHeader: String
+    let profilePickerLabel: String
+    let addProfileButton: String
+    let duplicateProfileButton: String
+    let deleteProfileButton: String
+    let profileNameLabel: String
+    let profileColorLabel: String
+    let profileShortcutLabel: String
+    let profileMouseTriggerLabel: String
+    let presetGeneral: String
+    let presetMedia: String
+    let presetTools: String
+    let presetWindowLayout: String
+    let presetQuickToggles: String
+    let presetBlank: String
+    let colorAccent: String
+    let colorBlue: String
+    let colorPurple: String
+    let colorPink: String
+    let colorRed: String
+    let colorOrange: String
+    let colorYellow: String
+    let colorGreen: String
+    let colorMint: String
+    let colorCyan: String
+    let colorIndigo: String
+    let colorGraphite: String
+    let fetchFaviconButton: String
+    let fetchFaviconDisclaimer: String
+    let fetchFaviconLoading: String
+    let fetchFaviconSuccess: String
+    let fetchFaviconError: String
 }
 
 extension FeatureStrings {
@@ -143,7 +175,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Press or hold",
         activationModePress: "Press to open",
         activationModeHold: "Hold to select",
-        activationModeCaption: "Press or hold keeps the current adaptive gesture. Press stays open; hold runs the highlighted action on release."
+        activationModeCaption: "Press or hold keeps the current adaptive gesture. Press stays open; hold runs the highlighted action on release.",
+        profilesHeader: "Profiles",
+        profilePickerLabel: "Profile",
+        addProfileButton: "Add profile",
+        duplicateProfileButton: "Duplicate profile",
+        deleteProfileButton: "Delete profile",
+        profileNameLabel: "Profile name",
+        profileColorLabel: "Color",
+        profileShortcutLabel: "Shortcut",
+        profileMouseTriggerLabel: "Mouse button",
+        presetGeneral: "General",
+        presetMedia: "Media",
+        presetTools: "Tools",
+        presetWindowLayout: "Window layout",
+        presetQuickToggles: "Quick toggles",
+        presetBlank: "Blank",
+        colorAccent: "Accent",
+        colorBlue: "Blue",
+        colorPurple: "Purple",
+        colorPink: "Pink",
+        colorRed: "Red",
+        colorOrange: "Orange",
+        colorYellow: "Yellow",
+        colorGreen: "Green",
+        colorMint: "Mint",
+        colorCyan: "Cyan",
+        colorIndigo: "Indigo",
+        colorGraphite: "Graphite",
+        fetchFaviconButton: "Fetch Website Icon",
+        fetchFaviconDisclaimer: "Connects to the website once to download its icon. Saved locally.",
+        fetchFaviconLoading: "Fetching icon…",
+        fetchFaviconSuccess: "Icon downloaded",
+        fetchFaviconError: "Could not find a website icon"
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -204,7 +268,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Pressionar ou segurar",
         activationModePress: "Pressionar para abrir",
         activationModeHold: "Segurar para selecionar",
-        activationModeCaption: "Pressionar ou segurar mantém o gesto adaptável atual. Pressionar deixa aberto; segurar executa a ação destacada ao soltar."
+        activationModeCaption: "Pressionar ou segurar mantém o gesto adaptável atual. Pressionar deixa aberto; segurar executa a ação destacada ao soltar.",
+        profilesHeader: "Perfis",
+        profilePickerLabel: "Perfil",
+        addProfileButton: "Adicionar perfil",
+        duplicateProfileButton: "Duplicar perfil",
+        deleteProfileButton: "Excluir perfil",
+        profileNameLabel: "Nome do perfil",
+        profileColorLabel: "Cor",
+        profileShortcutLabel: "Atalho",
+        profileMouseTriggerLabel: "Botão do mouse",
+        presetGeneral: "Geral",
+        presetMedia: "Mídia",
+        presetTools: "Ferramentas",
+        presetWindowLayout: "Organização de janelas",
+        presetQuickToggles: "Atalhos rápidos",
+        presetBlank: "Em branco",
+        colorAccent: "Destaque",
+        colorBlue: "Azul",
+        colorPurple: "Roxo",
+        colorPink: "Rosa",
+        colorRed: "Vermelho",
+        colorOrange: "Laranja",
+        colorYellow: "Amarelo",
+        colorGreen: "Verde",
+        colorMint: "Menta",
+        colorCyan: "Ciano",
+        colorIndigo: "Índigo",
+        colorGraphite: "Grafite",
+        fetchFaviconButton: "Buscar ícone do site",
+        fetchFaviconDisclaimer: "Conecta ao site uma única vez para baixar o ícone. Salvo localmente.",
+        fetchFaviconLoading: "Buscando ícone…",
+        fetchFaviconSuccess: "Ícone baixado",
+        fetchFaviconError: "Não foi possível encontrar o ícone do site"
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -265,7 +361,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Bas veya basılı tut",
         activationModePress: "Açmak için bas",
         activationModeHold: "Seçmek için basılı tut",
-        activationModeCaption: "Bas veya basılı tut mevcut uyarlanabilir hareketi korur. Bas modu açık kalır; basılı tutma modu bırakınca vurgulanan eylemi çalıştırır."
+        activationModeCaption: "Bas veya basılı tut mevcut uyarlanabilir hareketi korur. Bas modu açık kalır; basılı tutma modu bırakınca vurgulanan eylemi çalıştırır.",
+        profilesHeader: "Profiller",
+        profilePickerLabel: "Profil",
+        addProfileButton: "Profil ekle",
+        duplicateProfileButton: "Profili çoğalt",
+        deleteProfileButton: "Profili sil",
+        profileNameLabel: "Profil adı",
+        profileColorLabel: "Renk",
+        profileShortcutLabel: "Kısayol",
+        profileMouseTriggerLabel: "Fare düğmesi",
+        presetGeneral: "Genel",
+        presetMedia: "Ortam",
+        presetTools: "Araçlar",
+        presetWindowLayout: "Pencere düzeni",
+        presetQuickToggles: "Hızlı geçişler",
+        presetBlank: "Boş",
+        colorAccent: "Vurgu",
+        colorBlue: "Mavi",
+        colorPurple: "Mor",
+        colorPink: "Pembe",
+        colorRed: "Kırmızı",
+        colorOrange: "Turuncu",
+        colorYellow: "Sarı",
+        colorGreen: "Yeşil",
+        colorMint: "Nane",
+        colorCyan: "Camgöbeği",
+        colorIndigo: "Çivit",
+        colorGraphite: "Grafit",
+        fetchFaviconButton: "Web Sitesi Simgesini Getir",
+        fetchFaviconDisclaimer: "Simgeyi indirmek için web sitesine bir kez bağlanır. Yerel olarak kaydedilir.",
+        fetchFaviconLoading: "Simge getiriliyor…",
+        fetchFaviconSuccess: "Simge indirildi",
+        fetchFaviconError: "Web sitesi simgesi bulunamadı"
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -326,7 +454,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Нажать или удерживать",
         activationModePress: "Нажать, чтобы открыть",
         activationModeHold: "Удерживать для выбора",
-        activationModeCaption: "Первый режим сохраняет текущее адаптивное поведение. Нажатие оставляет меню открытым; удержание запускает выделенное действие при отпускании."
+        activationModeCaption: "Первый режим сохраняет текущее адаптивное поведение. Нажатие оставляет меню открытым; удержание запускает выделенное действие при отпускании.",
+        profilesHeader: "Профили",
+        profilePickerLabel: "Профиль",
+        addProfileButton: "Добавить профиль",
+        duplicateProfileButton: "Дублировать профиль",
+        deleteProfileButton: "Удалить профиль",
+        profileNameLabel: "Название профиля",
+        profileColorLabel: "Цвет",
+        profileShortcutLabel: "Сочетание клавиш",
+        profileMouseTriggerLabel: "Кнопка мыши",
+        presetGeneral: "Основной",
+        presetMedia: "Медиа",
+        presetTools: "Инструменты",
+        presetWindowLayout: "Разметка окон",
+        presetQuickToggles: "Быстрые переключатели",
+        presetBlank: "Пустой",
+        colorAccent: "Акцент",
+        colorBlue: "Синий",
+        colorPurple: "Фиолетовый",
+        colorPink: "Розовый",
+        colorRed: "Красный",
+        colorOrange: "Оранжевый",
+        colorYellow: "Жёлтый",
+        colorGreen: "Зелёный",
+        colorMint: "Мятный",
+        colorCyan: "Голубой",
+        colorIndigo: "Индиго",
+        colorGraphite: "Графит",
+        fetchFaviconButton: "Загрузить значок сайта",
+        fetchFaviconDisclaimer: "Подключается к сайту один раз для загрузки значка. Сохраняется локально.",
+        fetchFaviconLoading: "Загрузка значка…",
+        fetchFaviconSuccess: "Значок загружен",
+        fetchFaviconError: "Не удалось найти значок сайта"
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -387,7 +547,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Pulsar o mantener",
         activationModePress: "Pulsar para abrir",
         activationModeHold: "Mantener para seleccionar",
-        activationModeCaption: "Pulsar o mantener conserva el gesto adaptable actual. Pulsar deja el menú abierto; mantener ejecuta la acción resaltada al soltar."
+        activationModeCaption: "Pulsar o mantener conserva el gesto adaptable actual. Pulsar deja el menú abierto; mantener ejecuta la acción resaltada al soltar.",
+        profilesHeader: "Perfiles",
+        profilePickerLabel: "Perfil",
+        addProfileButton: "Añadir perfil",
+        duplicateProfileButton: "Duplicar perfil",
+        deleteProfileButton: "Eliminar perfil",
+        profileNameLabel: "Nombre del perfil",
+        profileColorLabel: "Color",
+        profileShortcutLabel: "Atajo",
+        profileMouseTriggerLabel: "Botón del ratón",
+        presetGeneral: "General",
+        presetMedia: "Multimedia",
+        presetTools: "Herramientas",
+        presetWindowLayout: "Organización de ventanas",
+        presetQuickToggles: "Ajustes rápidos",
+        presetBlank: "En blanco",
+        colorAccent: "Realce",
+        colorBlue: "Azul",
+        colorPurple: "Morado",
+        colorPink: "Rosa",
+        colorRed: "Rojo",
+        colorOrange: "Naranja",
+        colorYellow: "Amarillo",
+        colorGreen: "Verde",
+        colorMint: "Menta",
+        colorCyan: "Cian",
+        colorIndigo: "Índigo",
+        colorGraphite: "Grafito",
+        fetchFaviconButton: "Obtener icono del sitio web",
+        fetchFaviconDisclaimer: "Se conecta al sitio web una sola vez para descargar el icono. Guardado localmente.",
+        fetchFaviconLoading: "Obteniendo icono…",
+        fetchFaviconSuccess: "Icono descargado",
+        fetchFaviconError: "No se pudo encontrar el icono del sitio web"
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -448,7 +640,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Drücken oder halten",
         activationModePress: "Zum Öffnen drücken",
         activationModeHold: "Zum Auswählen halten",
-        activationModeCaption: "Drücken oder halten behält die bisherige adaptive Geste bei. Drücken lässt das Rad offen; Halten führt beim Loslassen die markierte Aktion aus."
+        activationModeCaption: "Drücken oder halten behält die bisherige adaptive Geste bei. Drücken lässt das Rad offen; Halten führt beim Loslassen die markierte Aktion aus.",
+        profilesHeader: "Profile",
+        profilePickerLabel: "Profil",
+        addProfileButton: "Profil hinzufügen",
+        duplicateProfileButton: "Profil duplizieren",
+        deleteProfileButton: "Profil löschen",
+        profileNameLabel: "Profilname",
+        profileColorLabel: "Farbe",
+        profileShortcutLabel: "Kurzbefehl",
+        profileMouseTriggerLabel: "Maustaste",
+        presetGeneral: "Allgemein",
+        presetMedia: "Medien",
+        presetTools: "Werkzeuge",
+        presetWindowLayout: "Fensteranordnung",
+        presetQuickToggles: "Schnellschalter",
+        presetBlank: "Leer",
+        colorAccent: "Akzent",
+        colorBlue: "Blau",
+        colorPurple: "Lila",
+        colorPink: "Rosa",
+        colorRed: "Rot",
+        colorOrange: "Orange",
+        colorYellow: "Gelb",
+        colorGreen: "Grün",
+        colorMint: "Minze",
+        colorCyan: "Cyan",
+        colorIndigo: "Indigo",
+        colorGraphite: "Graphit",
+        fetchFaviconButton: "Website-Icon laden",
+        fetchFaviconDisclaimer: "Verbindet sich einmal mit der Website, um das Icon zu laden. Lokal gespeichert.",
+        fetchFaviconLoading: "Icon wird geladen…",
+        fetchFaviconSuccess: "Icon heruntergeladen",
+        fetchFaviconError: "Website-Icon konnte nicht gefunden werden"
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -509,7 +733,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Appuyer ou maintenir",
         activationModePress: "Appuyer pour ouvrir",
         activationModeHold: "Maintenir pour choisir",
-        activationModeCaption: "Appuyer ou maintenir conserve le geste adaptatif actuel. Appuyer laisse la roue ouverte ; maintenir lance l’action surlignée au relâchement."
+        activationModeCaption: "Appuyer ou maintenir conserve le geste adaptatif actuel. Appuyer laisse la roue ouverte ; maintenir lance l’action surlignée au relâchement.",
+        profilesHeader: "Profils",
+        profilePickerLabel: "Profil",
+        addProfileButton: "Ajouter un profil",
+        duplicateProfileButton: "Dupliquer le profil",
+        deleteProfileButton: "Supprimer le profil",
+        profileNameLabel: "Nom du profil",
+        profileColorLabel: "Couleur",
+        profileShortcutLabel: "Raccourci",
+        profileMouseTriggerLabel: "Bouton de la souris",
+        presetGeneral: "Général",
+        presetMedia: "Médias",
+        presetTools: "Outils",
+        presetWindowLayout: "Disposition des fenêtres",
+        presetQuickToggles: "Boutons rapides",
+        presetBlank: "Vierge",
+        colorAccent: "Accent",
+        colorBlue: "Bleu",
+        colorPurple: "Violet",
+        colorPink: "Rose",
+        colorRed: "Rouge",
+        colorOrange: "Orange",
+        colorYellow: "Jaune",
+        colorGreen: "Vert",
+        colorMint: "Menthe",
+        colorCyan: "Cyan",
+        colorIndigo: "Indigo",
+        colorGraphite: "Graphite",
+        fetchFaviconButton: "Récupérer l'icône du site",
+        fetchFaviconDisclaimer: "Se connecte au site web une seule fois pour télécharger l'icône. Enregistrée localement.",
+        fetchFaviconLoading: "Récupération de l'icône…",
+        fetchFaviconSuccess: "Icône téléchargée",
+        fetchFaviconError: "Impossible de trouver l'icône du site web"
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -570,7 +826,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "Premi o tieni premuto",
         activationModePress: "Premi per aprire",
         activationModeHold: "Tieni premuto per scegliere",
-        activationModeCaption: "Premi o tieni premuto conserva il gesto adattivo attuale. Premi lascia aperta la ruota; tieni premuto esegue l’azione evidenziata al rilascio."
+        activationModeCaption: "Premi o tieni premuto conserva il gesto adattivo attuale. Premi lascia aperta la ruota; tieni premuto esegue l’azione evidenziata al rilascio.",
+        profilesHeader: "Profili",
+        profilePickerLabel: "Profilo",
+        addProfileButton: "Aggiungi profilo",
+        duplicateProfileButton: "Duplica profilo",
+        deleteProfileButton: "Elimina profilo",
+        profileNameLabel: "Nome del profilo",
+        profileColorLabel: "Colore",
+        profileShortcutLabel: "Abbreviazione",
+        profileMouseTriggerLabel: "Pulsante del mouse",
+        presetGeneral: "Generale",
+        presetMedia: "File multimediali",
+        presetTools: "Strumenti",
+        presetWindowLayout: "Disposizione finestre",
+        presetQuickToggles: "Interruttori rapidi",
+        presetBlank: "Vuoto",
+        colorAccent: "Accento",
+        colorBlue: "Blu",
+        colorPurple: "Viola",
+        colorPink: "Rosa",
+        colorRed: "Rosso",
+        colorOrange: "Arancione",
+        colorYellow: "Giallo",
+        colorGreen: "Verde",
+        colorMint: "Menta",
+        colorCyan: "Ciano",
+        colorIndigo: "Indaco",
+        colorGraphite: "Grafite",
+        fetchFaviconButton: "Scarica icona del sito",
+        fetchFaviconDisclaimer: "Si connette al sito una sola volta per scaricare l'icona. Salvata localmente.",
+        fetchFaviconLoading: "Scaricamento icona…",
+        fetchFaviconSuccess: "Icona scaricata",
+        fetchFaviconError: "Impossibile trovare l'icona del sito"
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -631,7 +919,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "押す／長押し",
         activationModePress: "押して開く",
         activationModeHold: "長押しで選択",
-        activationModeCaption: "押す／長押しは現在の自動ジェスチャーを維持します。押すモードは開いたまま、長押しモードは放したときに強調中の操作を実行します。"
+        activationModeCaption: "押す／長押しは現在の自動ジェスチャーを維持します。押すモードは開いたまま、長押しモードは放したときに強調中の操作を実行します。",
+        profilesHeader: "プロファイル",
+        profilePickerLabel: "プロファイル",
+        addProfileButton: "プロファイルを追加",
+        duplicateProfileButton: "プロファイルを複製",
+        deleteProfileButton: "プロファイルを削除",
+        profileNameLabel: "プロファイル名",
+        profileColorLabel: "カラー",
+        profileShortcutLabel: "ショートカット",
+        profileMouseTriggerLabel: "マウスボタン",
+        presetGeneral: "一般",
+        presetMedia: "メディア",
+        presetTools: "ツール",
+        presetWindowLayout: "ウインドウ配置",
+        presetQuickToggles: "クイック切り替え",
+        presetBlank: "空白",
+        colorAccent: "アクセント",
+        colorBlue: "ブルー",
+        colorPurple: "パープル",
+        colorPink: "ピンク",
+        colorRed: "レッド",
+        colorOrange: "オレンジ",
+        colorYellow: "イエロー",
+        colorGreen: "グリーン",
+        colorMint: "ミント",
+        colorCyan: "シアン",
+        colorIndigo: "インディゴ",
+        colorGraphite: "グラファイト",
+        fetchFaviconButton: "Webサイトのアイコンを取得",
+        fetchFaviconDisclaimer: "アイコンをダウンロードするために1回だけWebサイトに接続します。ローカルに保存されます。",
+        fetchFaviconLoading: "アイコンを取得中…",
+        fetchFaviconSuccess: "アイコンをダウンロードしました",
+        fetchFaviconError: "Webサイトのアイコンが見つかりませんでした"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -692,7 +1012,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "누르기 또는 길게 누르기",
         activationModePress: "눌러서 열기",
         activationModeHold: "길게 눌러 선택",
-        activationModeCaption: "누르기 또는 길게 누르기는 현재의 자동 제스처를 유지합니다. 누르기 모드는 열린 상태를 유지하고, 길게 누르기 모드는 놓을 때 강조된 동작을 실행합니다."
+        activationModeCaption: "누르기 또는 길게 누르기는 현재의 자동 제스처를 유지합니다. 누르기 모드는 열린 상태를 유지하고, 길게 누르기 모드는 놓을 때 강조된 동작을 실행합니다.",
+        profilesHeader: "프로필",
+        profilePickerLabel: "프로필",
+        addProfileButton: "프로필 추가",
+        duplicateProfileButton: "프로필 복제",
+        deleteProfileButton: "프로필 삭제",
+        profileNameLabel: "프로필 이름",
+        profileColorLabel: "색상",
+        profileShortcutLabel: "단축키",
+        profileMouseTriggerLabel: "마우스 버튼",
+        presetGeneral: "일반",
+        presetMedia: "미디어",
+        presetTools: "도구",
+        presetWindowLayout: "윈도우 레이아웃",
+        presetQuickToggles: "빠른 전환",
+        presetBlank: "빈 프로필",
+        colorAccent: "강조 색상",
+        colorBlue: "파란색",
+        colorPurple: "보라색",
+        colorPink: "분홍색",
+        colorRed: "빨간색",
+        colorOrange: "주황색",
+        colorYellow: "노란색",
+        colorGreen: "초록색",
+        colorMint: "민트색",
+        colorCyan: "청록색",
+        colorIndigo: "남색",
+        colorGraphite: "흑연색",
+        fetchFaviconButton: "웹사이트 아이콘 가져오기",
+        fetchFaviconDisclaimer: "아이콘을 다운로드하기 위해 웹사이트에 한 번 연결합니다. 로컬에 저장됩니다.",
+        fetchFaviconLoading: "아이콘 가져오는 중…",
+        fetchFaviconSuccess: "아이콘 다운로드됨",
+        fetchFaviconError: "웹사이트 아이콘을 찾을 수 없습니다"
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -753,7 +1105,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "按下或按住",
         activationModePress: "按下打开",
         activationModeHold: "按住选择",
-        activationModeCaption: "按下或按住会保留当前的自适应手势。按下模式会保持打开；按住模式会在松开时执行高亮操作。"
+        activationModeCaption: "按下或按住会保留当前的自适应手势。按下模式会保持打开；按住模式会在松开时执行高亮操作。",
+        profilesHeader: "配置文件",
+        profilePickerLabel: "配置",
+        addProfileButton: "添加配置",
+        duplicateProfileButton: "复制配置",
+        deleteProfileButton: "删除配置",
+        profileNameLabel: "配置名称",
+        profileColorLabel: "颜色",
+        profileShortcutLabel: "快捷键",
+        profileMouseTriggerLabel: "鼠标按钮",
+        presetGeneral: "通用",
+        presetMedia: "媒体",
+        presetTools: "工具",
+        presetWindowLayout: "窗口布局",
+        presetQuickToggles: "快捷开关",
+        presetBlank: "空白",
+        colorAccent: "强调色",
+        colorBlue: "蓝色",
+        colorPurple: "紫色",
+        colorPink: "粉色",
+        colorRed: "红色",
+        colorOrange: "橙色",
+        colorYellow: "黄色",
+        colorGreen: "绿色",
+        colorMint: "薄荷绿",
+        colorCyan: "青色",
+        colorIndigo: "靛蓝",
+        colorGraphite: "石墨灰",
+        fetchFaviconButton: "获取网站图标",
+        fetchFaviconDisclaimer: "仅连接网站一次以下载图标。保存在本地。",
+        fetchFaviconLoading: "正在获取图标…",
+        fetchFaviconSuccess: "图标已下载",
+        fetchFaviconError: "未找到网站图标"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -814,7 +1198,39 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "按下或按住",
         activationModePress: "按下以開啟",
         activationModeHold: "按住以選擇",
-        activationModeCaption: "按下或按住會保留目前的自適應手勢。按下模式會保持開啟；按住模式會在放開時執行醒目顯示的動作。"
+        activationModeCaption: "按下或按住會保留目前的自適應手勢。按下模式會保持開啟；按住模式會在放開時執行醒目顯示的動作。",
+        profilesHeader: "設定檔",
+        profilePickerLabel: "設定檔",
+        addProfileButton: "新增設定檔",
+        duplicateProfileButton: "複製設定檔",
+        deleteProfileButton: "刪除設定檔",
+        profileNameLabel: "設定檔名稱",
+        profileColorLabel: "顏色",
+        profileShortcutLabel: "快速鍵",
+        profileMouseTriggerLabel: "滑鼠按鈕",
+        presetGeneral: "一般",
+        presetMedia: "媒體",
+        presetTools: "工具",
+        presetWindowLayout: "視窗佈局",
+        presetQuickToggles: "快速開關",
+        presetBlank: "空白",
+        colorAccent: "強調色",
+        colorBlue: "藍色",
+        colorPurple: "紫色",
+        colorPink: "粉紅色",
+        colorRed: "紅色",
+        colorOrange: "橙色",
+        colorYellow: "黃色",
+        colorGreen: "綠色",
+        colorMint: "薄荷綠",
+        colorCyan: "青色",
+        colorIndigo: "靛青",
+        colorGraphite: "石墨灰",
+        fetchFaviconButton: "取得網站圖示",
+        fetchFaviconDisclaimer: "僅連接網站一次以下載圖示。儲存在本機。",
+        fetchFaviconLoading: "正在取得圖示…",
+        fetchFaviconSuccess: "圖示已下載",
+        fetchFaviconError: "找不到網站圖示"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -875,6 +1291,38 @@ extension RadialMenuFeatureStrings {
         activationModePressOrHold: "按下或按住",
         activationModePress: "按下以開啟",
         activationModeHold: "按住以選擇",
-        activationModeCaption: "按下或按住會保留目前的自適應手勢。按下模式會保持開啟；按住模式會在放開時執行醒目顯示的動作。"
+        activationModeCaption: "按下或按住會保留目前的自適應手勢。按下模式會保持開啟；按住模式會在放開時執行醒目顯示的動作。",
+        profilesHeader: "設定檔",
+        profilePickerLabel: "設定檔",
+        addProfileButton: "新增設定檔",
+        duplicateProfileButton: "複製設定檔",
+        deleteProfileButton: "刪除設定檔",
+        profileNameLabel: "設定檔名稱",
+        profileColorLabel: "顏色",
+        profileShortcutLabel: "快捷鍵",
+        profileMouseTriggerLabel: "滑鼠按鈕",
+        presetGeneral: "一般",
+        presetMedia: "媒體",
+        presetTools: "工具",
+        presetWindowLayout: "視窗佈局",
+        presetQuickToggles: "快速開關",
+        presetBlank: "空白",
+        colorAccent: "強調色",
+        colorBlue: "藍色",
+        colorPurple: "紫色",
+        colorPink: "粉紅色",
+        colorRed: "紅色",
+        colorOrange: "橙色",
+        colorYellow: "黃色",
+        colorGreen: "綠色",
+        colorMint: "薄荷綠",
+        colorCyan: "青色",
+        colorIndigo: "靛青",
+        colorGraphite: "石墨灰",
+        fetchFaviconButton: "取得網站圖示",
+        fetchFaviconDisclaimer: "僅連線網站一次以下載圖示。儲存在本機。",
+        fetchFaviconLoading: "正在取得圖示…",
+        fetchFaviconSuccess: "圖示已下載",
+        fetchFaviconError: "找不到網站圖示"
     )
 }

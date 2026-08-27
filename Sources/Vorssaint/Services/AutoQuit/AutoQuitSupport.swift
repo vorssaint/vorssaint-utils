@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import ApplicationServices
 import Foundation
 
 enum AutoQuitWindowEvent: Equatable {
@@ -13,12 +14,6 @@ enum AutoQuitWindowEvent: Equatable {
     case windowDeminiaturized
     case appShown
     case other
-}
-
-enum AutoQuitCloseSignal: Equatable {
-    case closeButton
-    case commandW
-    case programmatic
 }
 
 enum AutoQuitSupport {
@@ -50,6 +45,24 @@ enum AutoQuitSupport {
              .other:
             return false
         }
+    }
+
+    /// Every found user window requires a registered destroy notification.
+    /// Accessibility-listed windows set that count directly; window-server
+    /// evidence when Accessibility lists none still requires one watch.
+    static func needsWindowWatchRetry(registeredWindows: Int,
+                                      listedWindows: Int,
+                                      foundUserWindow: Bool) -> Bool {
+        foundUserWindow && registeredWindows < max(listedWindows, 1)
+    }
+
+    /// Whether adding a window notification left the observer watching for it.
+    /// Already registered is the ordinary answer, not a failure: every refresh
+    /// registers the windows it is already watching again, and counting those
+    /// as unwatched would zero the count above on every refresh and leave the
+    /// retry firing for as long as the app runs.
+    static func isWindowNotificationRegistered(_ result: AXError) -> Bool {
+        result == .success || result == .notificationAlreadyRegistered
     }
 
     static func shouldQuitAfterWindowCheck(hadWindows: Bool,
