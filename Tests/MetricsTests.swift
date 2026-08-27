@@ -407,6 +407,25 @@ struct MetricsTests {
         expect(largeClipboardPreview.hasSuffix("…")
                 && largeClipboardPreview.count <= ClipboardHistoryEditing.previewCharacters + 1,
                "clipboard rows keep very large text previews bounded")
+        expect(Defaults.allowedClipboardHistoryLimits == [20, 50, 100, 250, 500, 1_000, 10_000, 0],
+               "clipboard history limits include 10k and unlimited options")
+        expect(Defaults.sanitizedClipboardHistoryLimit(10_000) == 10_000
+                && Defaults.sanitizedClipboardHistoryLimit(0) == 0
+                && Defaults.sanitizedClipboardHistoryLimit(50) == 50
+                && Defaults.sanitizedClipboardHistoryLimit(-99) == 50,
+               "sanitized clipboard history limits accept 10k and 0 (unlimited)")
+        let unlimitedHistory = ClipboardHistoryEditing.retainedEntries(
+            [budgetRecentA, budgetRecentB],
+            recentLimit: 0,
+            textByteLimit: 1_000)
+        expect(unlimitedHistory.count == 2,
+               "clipboard history retainedEntries preserves all entries when recentLimit is 0 (unlimited)")
+        let tenThousandHistory = ClipboardHistoryEditing.retainedEntries(
+            [budgetRecentA, budgetRecentB],
+            recentLimit: 10_000,
+            textByteLimit: 1_000)
+        expect(tenThousandHistory.count == 2,
+               "clipboard history retainedEntries preserves entries with 10_000 limit")
         let previewID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let nextPreviewID = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
         let updatedPreview = ClipboardHistoryEntry(id: previewID, text: "updated")
@@ -7352,6 +7371,12 @@ struct MetricsTests {
                                                                   availableHeight: 1200)
         expect(bogusSaved.width == 772 && bogusSaved.height == 838,
                "a saved size below the minimum falls back to the default")
+        expect(!SettingsWindowSupport.isValidContentSize(width: 300, height: 200),
+               "sub-minimum sizes are rejected by isValidContentSize")
+        expect(SettingsWindowSupport.isValidContentSize(width: 772, height: 528),
+               "exact minimum size is valid")
+        expect(SettingsWindowSupport.isValidContentSize(width: 1000, height: 800),
+               "larger size is valid")
         let preferredSettingsFrame = CGRect(x: -50, y: 100, width: 1000, height: 700)
         let overlappingPlacement = SettingsWindowSupport.panelPlacement(
             preferredFrame: preferredSettingsFrame,
@@ -11499,7 +11524,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 52 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 53 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
@@ -13691,28 +13716,13 @@ struct MetricsTests {
         expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
                 == [.screenshot, .recording, .text, .color],
                "the capture chooser keeps a stable order for every installed mode")
-        // The capture tools are sections side by side rather than one
-        // switcher hiding three of them, so no page state decides which is
-        // on screen and every tool's own shortcut sits in its own section
-        // (issue #757).
-        let captureSettingsSources = ["ScreenCaptureSettings", "ScreenshotSettings",
-                                      "ScreenRecorderSettings"]
-            .map { name -> String in
-                let text = (try? String(
-                    contentsOfFile: "Sources/Vorssaint/UI/Settings/\(name).swift",
-                    encoding: .utf8)) ?? ""
-                return text.components(separatedBy: "\n")
-                    .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                    .joined(separator: "\n")
-            }
-        expect(captureSettingsSources[0].contains("ForEach(availableTools")
-                && !captureSettingsSources[0].contains("selectedTool"),
-               "the capture page shows every installed tool instead of one at a time")
-        let shortcutTools = Set(captureSettingsSources.joined(separator: "\n")
-            .components(separatedBy: "ToolShortcutRows(tool: .").dropFirst()
-            .map { String($0.prefix { $0.isLetter }) })
-        expect(shortcutTools == Set(ScreenCaptureTool.allCases.map { "\($0)" }),
-               "every capture tool carries its own shortcut in its own section")
+        let captureSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(captureSettingsSource.contains("selectedTool")
+                && captureSettingsSource.contains(".pickerStyle(.segmented)")
+                && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool"),
+               "the capture page uses a segmented picker with tool-specific shortcuts in the top section")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])

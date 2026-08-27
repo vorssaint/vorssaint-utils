@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
 - Super key can now use Caps Lock or the right Command, Option, Control or Shift key, with the chosen key shown across Settings, shortcuts and the menu panel. Thanks to @JoanLaRosa.
 - The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
@@ -17,12 +18,13 @@ All notable changes to this project are documented here. The format follows
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 
 ### Fixed
+- Settings now enforces its design minimum size across window resizing, layout updates and window restore, preventing the sidebar and preferences from compressing or clipping.
+- Scratchpad windows now drag reliably from anywhere in the top bar, keep generous resize borders and minimum dimensions, and include a close button on each tab.
 - Text-heavy floating panels now keep their content readable over bright windows when Liquid Glass is enabled.
 - Auto-quit now retries watching windows when accessibility initially lists no open window, ensuring apps quit properly when their last window is closed. Thanks to @iltonandrew.
 - Screen recording settings in Traditional Chinese (Taiwan) now use the standard microphone term 麥克風 instead of the Hong Kong Cantonese term 咪高風. Thanks to @watain666.
 - Mouse exceptions now match non-bundled executable programs and Java runtimes alongside regular application bundles. Thanks to @iltonandrew.
 - Uninstalling a feature now removes it from Command Bar pins in Settings.
-- Screen capture settings now display each capture mode in its own section, keeping shortcuts directly within their settings and preventing sidebar layout shifting on narrower windows or translations. Thanks to @PathGao.
 - Pressing Escape in the clipboard history quick panel now clears batch selection or closes the panel directly instead of closing the preview pane first. Thanks to @naveenkrdy.
 - Adding points to a custom fan curve now updates and saves the curve instead of discarding the new point.
 - The battery icon in the menu bar now preserves its rectangular aspect ratio when split into its own item instead of rendering as a square. Thanks to @Yahddyyp.

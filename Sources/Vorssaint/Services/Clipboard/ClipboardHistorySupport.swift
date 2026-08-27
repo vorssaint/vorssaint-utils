@@ -162,7 +162,8 @@ enum ClipboardHistoryEditing {
             return result
         }
         let pinned = retained(entries.filter(\.isPinned), limit: nil)
-        let recent = retained(entries.filter { !$0.isPinned }, limit: max(0, recentLimit))
+        let recentLimitOrNil = recentLimit <= 0 ? nil : recentLimit
+        let recent = retained(entries.filter { !$0.isPinned }, limit: recentLimitOrNil)
         return pinned + recent
     }
 
