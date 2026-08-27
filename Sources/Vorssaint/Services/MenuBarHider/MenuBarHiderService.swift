@@ -78,7 +78,7 @@ final class MenuBarHiderService: NSResponder, ObservableObject {
             // the items does not do it, so a relaunch that restores an expanded
             // bar never collapsed, and switching auto-collapse on only took
             // effect after the next manual expand.
-            if !isCollapsed {
+            if !isCollapsed && !isConfiguring {
                 restartAutoCollapseTimerIfNeeded()
             }
         } else {

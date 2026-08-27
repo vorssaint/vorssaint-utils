@@ -316,7 +316,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .joined(separator: ",")
         let visible = statusController?.statusItem.isVisible ?? false
         let manager = Self.runningMenuBarManagerName() ?? "none"
-        Self.menuBarLog.log("reshow \(stage, privacy: .public) window=\(window != nil) frame=\(placement, privacy: .public) visible=\(visible) screens=\(screens, privacy: .public) organizer=\(manager, privacy: .public)")
+        let hider = MenuBarHiderService.shared
+        let hiderState = hider.isEnabled ? (hider.isCollapsed ? "collapsed" : "expanded") : "off"
+        Self.menuBarLog.log("reshow \(stage, privacy: .public) window=\(window != nil) frame=\(placement, privacy: .public) visible=\(visible) screens=\(screens, privacy: .public) organizer=\(manager, privacy: .public) hider=\(hiderState, privacy: .public)")
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
@@ -1424,6 +1426,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // metrics option must not immediately re-hide what the user just
         // asked to see (and then trip the "still hidden" alert).
         UserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
+        if AppFeature.menuBarHider.isAvailable {
+            MenuBarHiderService.shared.expand(startTimer: false)
+        }
         statusController?.recreateStatusItem(resetPlacement: true)
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
