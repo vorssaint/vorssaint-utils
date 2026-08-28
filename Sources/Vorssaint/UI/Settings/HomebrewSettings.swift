@@ -266,11 +266,13 @@ struct HomebrewSettings: View {
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 4) {
-                Text(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupTitle))
+                Text(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupTitle,
+                                                 terminal: preferredTerminal))
                     .font(.system(size: 12, weight: .semibold))
                 Text(l10n.s.homebrewTerminalText(homebrew.didOpenShellConfig
                                                  ? l10n.s.homebrewShellSetupOpened
-                                                 : l10n.s.homebrewShellSetupBody))
+                                                 : l10n.s.homebrewShellSetupBody,
+                                                 terminal: preferredTerminal))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -279,7 +281,8 @@ struct HomebrewSettings: View {
             Button {
                 homebrew.openShellConfiguration()
             } label: {
-                Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupButton),
+                Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupButton,
+                                                  terminal: preferredTerminal),
                       systemImage: "wrench.and.screwdriver")
             }
             .controlSize(.small)
@@ -628,7 +631,8 @@ struct HomebrewSettings: View {
                 .foregroundStyle(.secondary)
             Text(l10n.s.homebrewMissingTitle)
                 .font(.system(size: 16, weight: .semibold))
-            Text(l10n.s.homebrewTerminalText(l10n.s.homebrewMissingBody))
+            Text(l10n.s.homebrewTerminalText(l10n.s.homebrewMissingBody,
+                                             terminal: preferredTerminal))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -641,7 +645,8 @@ struct HomebrewSettings: View {
             .buttonStyle(.borderedProminent)
             Text(l10n.s.homebrewTerminalText(homebrew.didOpenInstaller
                                               ? l10n.s.homebrewInstallHomebrewOpened
-                                              : l10n.s.homebrewInstallHomebrewCaption))
+                                              : l10n.s.homebrewInstallHomebrewCaption,
+                                              terminal: preferredTerminal))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)

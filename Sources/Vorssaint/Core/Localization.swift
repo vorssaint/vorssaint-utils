@@ -4,6 +4,21 @@
 import Combine
 import Foundation
 
+/// A localized template whose `%@` placeholders must be replaced with a
+/// terminal name before it can be shown. Keeping this distinct from `String`
+/// makes accidental raw rendering a compile-time error.
+struct TerminalNameTemplate: ExpressibleByStringLiteral, Equatable {
+    let rawValue: String
+
+    init(stringLiteral value: String) {
+        rawValue = value
+    }
+
+    func rendered(terminalName: String) -> String {
+        rawValue.replacingOccurrences(of: "%@", with: terminalName)
+    }
+}
+
 /// Languages the interface can use. The first launch defaults to the system
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -456,17 +471,17 @@ struct Strings {
     let homebrewPreferredTerminalTitle: String
     let homebrewPreferredTerminalCaption: String
     let homebrewAlacrittyWarning: String
-    let homebrewTerminalLaunchFailedFormat: String
+    let homebrewTerminalLaunchFailedFormat: TerminalNameTemplate
     let homebrewEnableCaption: String
     let homebrewMissingTitle: String
-    let homebrewMissingBody: String
+    let homebrewMissingBody: TerminalNameTemplate
     let homebrewInstallHomebrew: String
-    let homebrewInstallHomebrewCaption: String
-    let homebrewInstallHomebrewOpened: String
-    let homebrewShellSetupTitle: String
-    let homebrewShellSetupBody: String
-    let homebrewShellSetupButton: String
-    let homebrewShellSetupOpened: String
+    let homebrewInstallHomebrewCaption: TerminalNameTemplate
+    let homebrewInstallHomebrewOpened: TerminalNameTemplate
+    let homebrewShellSetupTitle: TerminalNameTemplate
+    let homebrewShellSetupBody: TerminalNameTemplate
+    let homebrewShellSetupButton: TerminalNameTemplate
+    let homebrewShellSetupOpened: TerminalNameTemplate
     let homebrewRefresh: String
     let homebrewCheckPackages: String
     let homebrewTrustTitle: String
@@ -489,7 +504,7 @@ struct Strings {
     let homebrewUpgradeAll: String
     let homebrewUpdateHomebrew: String
     let homebrewAllPackages: String
-    let homebrewOpenTerminal: String
+    let homebrewOpenTerminal: TerminalNameTemplate
     let homebrewCancelOperation: String
     let homebrewClearLog: String
     let homebrewLogTitle: String
@@ -513,7 +528,7 @@ struct Strings {
     let homebrewConfirmUpgradeAllBody: String
     let homebrewConfirmUpdateHomebrewTitle: String
     let homebrewConfirmUpdateHomebrewBody: String
-    let homebrewTerminalFallback: String
+    let homebrewTerminalFallback: TerminalNameTemplate
     let homebrewLoading: String
     let homebrewSearchEmpty: String
     let homebrewOperationInstallFormat: String
@@ -535,7 +550,7 @@ struct Strings {
     let homebrewOperationUpgrading: String
     let homebrewOperationFinalizing: String
     let homebrewOperationRefreshing: String
-    let homebrewOperationTerminal: String
+    let homebrewOperationTerminal: TerminalNameTemplate
     let homebrewOperationElapsedFormat: String
     let homebrewOperationShowDetails: String
     let homebrewOperationHideDetails: String
@@ -1116,12 +1131,10 @@ struct Strings {
 
 extension Strings {
     /// Formats Homebrew copy with the terminal currently selected by the user.
-    /// The localized templates use one or more `%@` placeholders for the app
-    /// name; Terminal is kept as the fallback when no supported app resolves.
-    func homebrewTerminalText(_ template: String,
-                              terminal: HomebrewTerminal = HomebrewTerminalSupport.preferredTerminal()) -> String {
-        let terminalName = terminal.applicationName
-        return String(format: template, terminalName, terminalName)
+    /// All `%@` placeholders are replaced without a variadic argument limit.
+    func homebrewTerminalText(_ template: TerminalNameTemplate,
+                              terminal: HomebrewTerminal) -> String {
+        template.rendered(terminalName: terminal.applicationName)
     }
 }
 

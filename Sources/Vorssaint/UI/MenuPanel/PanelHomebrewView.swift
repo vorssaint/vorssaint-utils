@@ -15,6 +15,8 @@ struct PanelHomebrewView: View {
     @State private var filter: PanelHomebrewFilter = .all
     @State private var pendingAction: HomebrewPendingAction?
     @State private var showOperationDetails = false
+    @AppStorage(DefaultsKey.homebrewPreferredTerminal)
+    private var preferredTerminalRawValue = HomebrewTerminal.terminal.rawValue
 
     var onClose: () -> Void
 
@@ -94,6 +96,11 @@ struct PanelHomebrewView: View {
         }
     }
 
+    private var preferredTerminal: HomebrewTerminal {
+        HomebrewTerminalSupport.preferredTerminal(rawValue: preferredTerminalRawValue,
+                                                   available: homebrew.availableTerminals)
+    }
+
     private var missingState: some View {
         VStack(spacing: 10) {
             Image(systemName: "shippingbox")
@@ -101,7 +108,8 @@ struct PanelHomebrewView: View {
                 .foregroundStyle(.secondary)
             Text(l10n.s.homebrewMissingTitle)
                 .font(.system(size: 13, weight: .semibold))
-            Text(l10n.s.homebrewTerminalText(l10n.s.homebrewMissingBody))
+            Text(l10n.s.homebrewTerminalText(l10n.s.homebrewMissingBody,
+                                             terminal: preferredTerminal))
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -116,7 +124,8 @@ struct PanelHomebrewView: View {
             .controlSize(.small)
             Text(l10n.s.homebrewTerminalText(homebrew.didOpenInstaller
                                               ? l10n.s.homebrewInstallHomebrewOpened
-                                              : l10n.s.homebrewInstallHomebrewCaption))
+                                              : l10n.s.homebrewInstallHomebrewCaption,
+                                              terminal: preferredTerminal))
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -154,12 +163,14 @@ struct PanelHomebrewView: View {
     private var shellSetupCard: some View {
         if !homebrew.isShellConfigured {
             VStack(alignment: .leading, spacing: 7) {
-                Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupTitle),
+                Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupTitle,
+                                                  terminal: preferredTerminal),
                       systemImage: "terminal")
                     .font(.system(size: 10.5, weight: .semibold))
                 Text(l10n.s.homebrewTerminalText(homebrew.didOpenShellConfig
                                                  ? l10n.s.homebrewShellSetupOpened
-                                                 : l10n.s.homebrewShellSetupBody))
+                                                 : l10n.s.homebrewShellSetupBody,
+                                                 terminal: preferredTerminal))
                     .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -167,7 +178,8 @@ struct PanelHomebrewView: View {
                     Button {
                         homebrew.openShellConfiguration()
                     } label: {
-                        Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupButton),
+                        Label(l10n.s.homebrewTerminalText(l10n.s.homebrewShellSetupButton,
+                                                          terminal: preferredTerminal),
                               systemImage: "wrench.and.screwdriver")
                             .font(.system(size: 10.5, weight: .medium))
                     }

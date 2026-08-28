@@ -915,7 +915,7 @@ enum Defaults {
         DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
-        DefaultsKey.homebrewPreferredTerminal: "terminal",
+        DefaultsKey.homebrewPreferredTerminal: HomebrewTerminal.terminal.rawValue,
         DefaultsKey.panelUtilityAppUpdates: true,
         // The list itself costs nothing until it is opened; only the
         // background check keeps a timer, so it starts off.

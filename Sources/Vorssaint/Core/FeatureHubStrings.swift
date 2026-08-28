@@ -41,7 +41,7 @@ struct FeatureHubStrings {
     let permFilesAndFolders: String
     let permNotifications: String
     let permAutomationFinder: String
-    let permAutomationTerminal: String
+    let permAutomationTerminal: TerminalNameTemplate
     let permAudioCapture: String
     let explainAccessibility: String
     let explainScreenRecording: String
@@ -49,7 +49,7 @@ struct FeatureHubStrings {
     let explainFilesAndFolders: String
     let explainNotifications: String
     let explainAutomationFinder: String
-    let explainAutomationTerminal: String
+    let explainAutomationTerminal: TerminalNameTemplate
     let explainAudioCapture: String
     // One-line feature descriptions
     let descSwitcher: String
@@ -257,11 +257,11 @@ extension FeatureHubStrings {
 
 extension FeatureHubStrings {
     func automationTerminalName(for terminal: HomebrewTerminal) -> String {
-        String(format: permAutomationTerminal, terminal.applicationName)
+        permAutomationTerminal.rendered(terminalName: terminal.applicationName)
     }
 
     func automationTerminalExplanation(for terminal: HomebrewTerminal) -> String {
-        String(format: explainAutomationTerminal, terminal.applicationName)
+        explainAutomationTerminal.rendered(terminalName: terminal.applicationName)
     }
 }
 

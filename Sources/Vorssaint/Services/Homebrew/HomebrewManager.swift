@@ -450,8 +450,8 @@ final class HomebrewManager: ObservableObject {
             }
             DispatchQueue.main.async {
                 guard generation == self.terminalLaunchGeneration else { return }
-                self.errorMessage = String(format: L10n.shared.s.homebrewTerminalLaunchFailedFormat,
-                                           terminal.displayName)
+                self.errorMessage = L10n.shared.s.homebrewTerminalLaunchFailedFormat
+                    .rendered(terminalName: terminal.displayName)
                 completion?(false)
             }
         }

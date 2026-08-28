@@ -39,6 +39,9 @@ struct MetricsTests {
             let actual = formatSpecifiers(in: format)
             if actual != expected { failures.append("\(label): got \(actual), expected \(expected)") }
         }
+        func expectFormat(_ template: TerminalNameTemplate, _ expected: [String], _ label: String) {
+            expectFormat(template.rawValue, expected, label)
+        }
 
         // MARK: Byte / rate formatting
 
@@ -9184,6 +9187,12 @@ struct MetricsTests {
         expect(HomebrewTerminalSupport.commandLineArguments(for: .ghostty,
                                                             command: "brew install jq") == nil,
                "AppleScript terminals do not use the CLI adapter")
+        expect(HomebrewTerminal.terminal.usesAppleEvents
+                && HomebrewTerminal.iTerm2.usesAppleEvents
+                && HomebrewTerminal.ghostty.usesAppleEvents
+                && !HomebrewTerminal.wezTerm.usesAppleEvents
+                && !HomebrewTerminal.alacritty.usesAppleEvents,
+               "only terminals controlled through Apple Events expose Automation permission")
         expect(FeatureStrings.hub(.enUS).automationTerminalName(for: .ghostty)
                 == "Ghostty automation",
                "Feature Hub terminal permission name follows the selected app")
@@ -9193,9 +9202,14 @@ struct MetricsTests {
         expect(Strings.enUS.homebrewTerminalText("%@ / %@", terminal: .ghostty)
                 == "Ghostty / Ghostty",
                "Homebrew localized copy formats repeated terminal placeholders")
+        let repeatedTerminalTemplate: TerminalNameTemplate = "%@ / %@ / %@"
+        expect(repeatedTerminalTemplate.rendered(terminalName: "Ghostty")
+                == "Ghostty / Ghostty / Ghostty",
+               "terminal templates safely replace every placeholder")
         expectFormat(Strings.enUS.homebrewTerminalLaunchFailedFormat, ["@"],
                      "Homebrew terminal launch failure format")
-        expect(Defaults.registeredDefaults[DefaultsKey.homebrewPreferredTerminal] as? String == "terminal",
+        expect(Defaults.registeredDefaults[DefaultsKey.homebrewPreferredTerminal] as? String
+                == HomebrewTerminal.terminal.rawValue,
                "Homebrew terminal preference defaults to Terminal.app")
 
         let brewPath = "/opt/homebrew/bin/brew"
