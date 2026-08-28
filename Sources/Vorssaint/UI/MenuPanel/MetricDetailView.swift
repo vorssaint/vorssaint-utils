@@ -313,6 +313,8 @@ struct MetricDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .panelKeyboardRow(PanelRowID(kind.panelSection, "speedTest"),
+                                      actions: PanelRowActions(activate: { speed.start() }), cornerRadius: 6)
                 }
                 Spacer()
                 if let down = speed.downloadMbps, let up = speed.uploadMbps {
@@ -341,7 +343,7 @@ struct MetricDetailView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
-                ActivityMonitorButton()
+                ActivityMonitorButton(keyboardRow: PanelRowID(kind.panelSection, "activityMonitor"))
             }
             if processRows.isEmpty {
                 Text(processRowsLoading ? l10n.s.breakdownMeasuring : emptyProcessText)
@@ -349,7 +351,8 @@ struct MetricDetailView: View {
                     .foregroundStyle(.tertiary)
             } else {
                 ForEach(processRows) { row in
-                    ProcessUsageRow(row: row, value: processValue(row))
+                    ProcessUsageRow(row: row, value: processValue(row),
+                                    keyboardRow: PanelRowID(kind.panelSection, "process-\(row.id)"))
                 }
             }
         }

@@ -107,6 +107,7 @@ struct MenuPanelView: View {
             KeepAwakeManager.shared.refreshPasswordlessStatus()
             syncMonitorSampling()
             syncNavigatorTabs()
+            syncNavigatorChrome()
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuPanelWillShow)) { _ in
             syncMonitorSampling()
@@ -133,13 +134,26 @@ struct MenuPanelView: View {
         .onChange(of: selectedSection) { _, _ in
             syncNavigatorTabs()
         }
+        .onChange(of: selectedMetric) { _, _ in
+            syncNavigatorTabs()
+            syncNavigatorChrome()
+        }
     }
 
     /// Keeps the navigator's tab list and active tab current, so keyboard
     /// Tab/←/→ always cycles the tabs actually on screen and the focus ring
-    /// follows the active one whether it moved by mouse or keyboard.
+    /// follows the active one whether it moved by mouse or keyboard. Metric
+    /// detail has no tab bar of its own, so it reports none — its back
+    /// button takes that spot in the sequence instead (`syncNavigatorChrome`).
     private func syncNavigatorTabs() {
-        navigator.configureTabs(visibleSections, active: activeSection) { selectedSection = $0 }
+        let tabs = selectedMetric == nil ? visibleSections : []
+        navigator.configureTabs(tabs, active: activeSection) { selectedSection = $0 }
+    }
+
+    /// Keeps the navigator's fixed chrome current: only the metric-detail
+    /// back button for now (the footer and header join in a later stage).
+    private func syncNavigatorChrome() {
+        navigator.configureChrome(leading: selectedMetric != nil ? [.metricBack] : [], trailing: [])
     }
 
     private var monitorNeeds: SystemMonitorPanelNeeds {
@@ -403,6 +417,7 @@ struct MenuPanelView: View {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.7)
             )
+            .panelKeyboardChrome(.metricBack, activate: dismissMetricDetail, cornerRadius: 7)
 
             Label(kind.title(l10n.s), systemImage: kind.symbolName)
                 .font(.system(size: 12.5, weight: .semibold))
