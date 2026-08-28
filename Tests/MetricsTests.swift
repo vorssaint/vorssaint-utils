@@ -15196,7 +15196,7 @@ struct MetricsTests {
         // every mouse-move sample along the Dock's edge, and the process it
         // questions is the Dock — the one that stops answering (issue #971).
         // Its cap has to be written on the elements it holds: written on the
-        // system-wide object it is the process-wide default, which five other
+        // system-wide object it is the process-wide default, which six other
         // features already write with three different values, so hovering the
         // Dock would change how long window layout and focus-follows-mouse
         // wait. Comment lines are dropped first, since both spellings appear in
@@ -15208,7 +15208,8 @@ struct MetricsTests {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
         expect(dockPreviewLines.contains { $0.contains("AXUIElementSetMessagingTimeout") },
                "dock preview caps how long it waits for the Dock to answer")
-        expect(!dockPreviewLines.contains { $0.contains("AXUIElementSetMessagingTimeout(system") },
+        expect(!dockPreviewLines.contains { $0.contains("AXUIElementSetMessagingTimeout(system")
+                                            || $0.contains("bounded(system") },
                "dock preview caps its own elements, never the process-wide default")
 
         // Asking an application element for its role switches a Chromium app's

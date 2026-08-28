@@ -1328,7 +1328,7 @@ final class DockPreviewService: ObservableObject {
     /// of these per sample rather than the whole chain.
     ///
     /// Per element on purpose. Setting a timeout on the system-wide object sets
-    /// the process-wide default, and five features here already write that
+    /// the process-wide default, and six features here already write that
     /// global with three different values; hovering the Dock must not change how
     /// long window layout or focus-follows-mouse wait. Measured on 26.6.2: a
     /// value written to an element survives a later write to the global, and a
