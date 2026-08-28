@@ -29,6 +29,13 @@ struct FanControlCurveEditor: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .disabled(disabled)
+                .panelKeyboardRow(disabled ? nil : PanelRowID(.fanControl, "addSensor"),
+                                  actions: PanelRowActions(activate: {
+                                      curves.append(FanControlCurve(
+                                          sensor: source,
+                                          points: FanControlConfiguration.defaultCurve.points
+                                      ))
+                                  }))
             }
         }
     }
@@ -67,6 +74,8 @@ struct FanControlCurveEditor: View {
                     .help(strings.removeSensor)
                     .accessibilityLabel(strings.removeSensor)
                     .disabled(disabled)
+                    .panelKeyboardRow(disabled ? nil : PanelRowID(.fanControl, "removeSensor-\(curveIndex)"),
+                                      actions: PanelRowActions(activate: { curves.remove(at: curveIndex) }))
                 }
             }
 
@@ -90,15 +99,18 @@ struct FanControlCurveEditor: View {
 
             if curve.wrappedValue.points.count < FanControlPolicy.maximumCurvePointCount,
                FanControlPolicy.nextCurvePoint(for: curve.wrappedValue.points) != nil {
-                Button {
+                let addPoint = {
                     guard let updated = FanControlPolicy.addingCurvePoint(to: curves[curveIndex].points) else { return }
                     curves[curveIndex].points = updated
-                } label: {
+                }
+                Button(action: addPoint) {
                     Label(strings.addPoint, systemImage: "plus")
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.mini)
                 .disabled(disabled)
+                .panelKeyboardRow(disabled ? nil : PanelRowID(.fanControl, "addPoint-\(curveIndex)"),
+                                  actions: PanelRowActions(activate: addPoint))
             }
         }
     }
@@ -117,6 +129,13 @@ struct FanControlCurveEditor: View {
                 .controlSize(.mini)
                 .accessibilityValue(formattedTemperature(Double(point.temperature)))
                 .disabled(disabled)
+                .panelKeyboardRow(disabled ? nil : PanelRowID(.fanControl, "point-\(curveIndex)-\(pointIndex)-temp"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      adjustPoint(curveIndex: curveIndex, pointIndex: pointIndex,
+                                                 direction: direction, step: 1,
+                                                 range: temperatureRange(curveIndex: curveIndex, pointIndex: pointIndex),
+                                                 binding: temperatureBinding(curveIndex: curveIndex, pointIndex: pointIndex))
+                                  }))
 
             Spacer(minLength: 4)
 
@@ -132,12 +151,20 @@ struct FanControlCurveEditor: View {
                 .controlSize(.mini)
                 .accessibilityValue("\(point.coolingLevel)%")
                 .disabled(disabled)
+                .panelKeyboardRow(disabled ? nil : PanelRowID(.fanControl, "point-\(curveIndex)-\(pointIndex)-level"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      adjustPoint(curveIndex: curveIndex, pointIndex: pointIndex,
+                                                 direction: direction, step: FanControlPolicy.coolingLevelStep,
+                                                 range: levelRange(curveIndex: curveIndex, pointIndex: pointIndex),
+                                                 binding: levelBinding(curveIndex: curveIndex, pointIndex: pointIndex))
+                                  }))
 
-            Button {
+            let removePoint = {
                 var points = curves[curveIndex].points
                 points.remove(at: pointIndex)
                 curves[curveIndex].points = points
-            } label: {
+            }
+            Button(action: removePoint) {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
             }
@@ -148,7 +175,24 @@ struct FanControlCurveEditor: View {
             .accessibilityLabel(strings.removePoint)
             .disabled(disabled
                       || curves[curveIndex].points.count <= FanControlPolicy.minimumCurvePointCount)
+            .panelKeyboardRow(
+                (disabled || curves[curveIndex].points.count <= FanControlPolicy.minimumCurvePointCount)
+                    ? nil : PanelRowID(.fanControl, "point-\(curveIndex)-\(pointIndex)-remove"),
+                actions: PanelRowActions(activate: removePoint))
         }
+    }
+
+    /// Shared by both per-point steppers: moves by exactly the step the
+    /// native control uses, clamped to the range the neighboring points
+    /// already constrain it to.
+    private func adjustPoint(curveIndex: Int, pointIndex: Int,
+                             direction: PanelAdjustDirection, step: Int,
+                             range: ClosedRange<Int>, binding: Binding<Int>) -> Bool {
+        let delta = direction == .increase ? step : -step
+        let next = min(range.upperBound, max(range.lowerBound, binding.wrappedValue + delta))
+        guard next != binding.wrappedValue else { return false }
+        binding.wrappedValue = next
+        return true
     }
 
     private func curveBinding(at index: Int) -> Binding<FanControlCurve> {

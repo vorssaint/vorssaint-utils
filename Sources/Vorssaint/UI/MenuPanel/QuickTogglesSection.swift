@@ -168,6 +168,9 @@ struct QuickTogglesList: View {
     @ViewBuilder
     private func itemView(_ item: QuickToggleAction) -> some View {
         let strings = FeatureStrings.quickToggles(l10n.language)
+        // Matches the `.disabled(...)` the row gets from the ForEach below,
+        // so Return cannot fire an action the mouse cannot currently click.
+        let isRunning = toggles.state(for: item) == .running
         switch item {
         case .darkMode:
             UtilityActionButton(id: PanelRowID(.toggles, item), title: colorScheme == .dark ? strings.darkModeToLight : strings.darkModeToDark,
@@ -176,6 +179,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.toggleDarkMode()
                                 })
@@ -190,7 +194,8 @@ struct QuickTogglesList: View {
                            ),
                            isEditing: editing,
                            showsDragHandle: true,
-                           visibility: visibilityBinding(item))
+                           visibility: visibilityBinding(item),
+                           isDisabledForActivation: isRunning)
         case .micMute:
             UtilityActionButton(id: PanelRowID(.toggles, item), title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
                                 caption: l10n.s.micMuteCaption,
@@ -199,6 +204,7 @@ struct QuickTogglesList: View {
                                 showsDragHandle: true,
                                 visibility: $showMicMute,
                                 shortcutHint: shortcutHint(.micMute),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     MicMuteService.shared.toggle()
                                 })
@@ -212,6 +218,7 @@ struct QuickTogglesList: View {
                                 needsAttention: needsPermission(item),
                                 permissionButtonTitle: permissionButtonTitle(item),
                                 permissionAction: permissionAction(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     // The confirmation alert opens centered and
                                     // key; the panel stays put behind it.
@@ -224,6 +231,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.ejectAllDisks()
                                 })
@@ -234,6 +242,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.toggleHiddenFiles()
                                 })
@@ -244,6 +253,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.toggleDesktopIcons()
                                 })
@@ -254,6 +264,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -267,6 +278,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -280,6 +292,7 @@ struct QuickTogglesList: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {

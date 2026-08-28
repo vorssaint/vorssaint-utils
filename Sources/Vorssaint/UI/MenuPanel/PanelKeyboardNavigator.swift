@@ -226,6 +226,13 @@ final class PanelKeyboardNavigator: ObservableObject {
     // MARK: - Keys
 
     /// Handles one key-down; returns true if the panel consumed it.
+    ///
+    /// Tab is the one key that engages keyboard navigation from a standing
+    /// start (focus nil): nothing else in the popover has a working native
+    /// key-view loop for it to compete with. Arrows and Return/Space defer
+    /// instead while focus is nil, so a native control the user just
+    /// click-focused (a slider, a stepper) keeps its own arrow keys until
+    /// the person actually starts navigating with the keyboard.
     @discardableResult
     func handleKeyDown(_ event: NSEvent) -> Bool {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
@@ -235,12 +242,16 @@ final class PanelKeyboardNavigator: ObservableObject {
             moveTab(backward: fine)
             return true
         case kVK_LeftArrow:
+            guard focus != nil else { return false }
             return handleLeft(fine: fine)
         case kVK_RightArrow:
+            guard focus != nil else { return false }
             return handleRight(fine: fine)
         case kVK_DownArrow:
+            guard focus != nil else { return false }
             return handleDown()
         case kVK_UpArrow:
+            guard focus != nil else { return false }
             return handleUp()
         case kVK_Return, kVK_ANSI_KeypadEnter, kVK_Space:
             guard focus != nil else { return false }

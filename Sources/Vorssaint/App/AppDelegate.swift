@@ -937,29 +937,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         // Text controls inside the popover, especially the Homebrew search
         // field, keep their own keys — the navigator never sees them.
-        if let window, !isTextEditingActive(in: window),
-           PanelKeyboardNavigator.shared.handleKeyDown(event) {
-            return nil
-        }
-
-        guard PanelInteractionState.shared.viewKeepsPopoverOpen,
-              isPlainPopoverHoldKey(event),
-              let window else {
+        guard let window, !isTextEditingActive(in: window) else {
             return event
         }
 
-        // Text controls inside the popover, especially the Homebrew search
-        // field, need Space/Return delivered through AppKit's normal field
-        // editor path so delegates and target/actions can submit correctly.
-        if isTextEditingActive(in: window) {
-            return event
-        }
-
-        if NSApp.keyWindow === window || event.window === window {
+        // A real AppKit control the user already clicked into (a native
+        // slider, a checkbox in a hosted tool that keeps the popover open
+        // for a multi-step flow) keeps first claim on Space/Return over the
+        // navigator, so switching between mouse and keyboard mid-session
+        // never steals the key out from under whatever is actually focused.
+        if isHoldOpenKeyForwardable(event, in: window) {
             window.firstResponder?.keyDown(with: event)
             return nil
         }
+
+        if PanelKeyboardNavigator.shared.handleKeyDown(event) {
+            return nil
+        }
         return event
+    }
+
+    private func isHoldOpenKeyForwardable(_ event: NSEvent, in window: NSWindow) -> Bool {
+        guard PanelInteractionState.shared.viewKeepsPopoverOpen,
+              isPlainPopoverHoldKey(event),
+              NSApp.keyWindow === window || event.window === window,
+              let responder = window.firstResponder else {
+            return false
+        }
+        return responder is NSControl
     }
 
     private func isPlainPopoverHoldKey(_ event: NSEvent) -> Bool {

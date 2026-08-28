@@ -1829,6 +1829,17 @@ struct QuickControlsSection: View {
         }
         .controlSize(.small)
         .padding(.leading, 28)
+        .panelKeyboardRow(PanelRowID(.controls, "keyDebounceWindow"),
+                          actions: PanelRowActions(adjust: { direction, _ in
+                              let range = Defaults.allowedKeyboardDebounceWindowRange
+                              let step = 5
+                              let current = keyDebounceWindowBinding.wrappedValue
+                              let next = min(range.upperBound, max(range.lowerBound,
+                                            current + (direction == .increase ? step : -step)))
+                              guard next != current else { return false }
+                              keyDebounceWindowBinding.wrappedValue = next
+                              return true
+                          }))
     }
 
     private var keyDebounceWindowBinding: Binding<Int> {
@@ -1942,6 +1953,11 @@ struct UtilityActionButton: View {
     var accessoryTitle: String? = nil
     var accessorySystemImage: String? = nil
     var accessoryAction: (() -> Void)? = nil
+    /// True while the row's own action is unavailable for a reason the
+    /// caller already reflects with `.disabled()` (an operation already
+    /// running, say) — kept separate from `isEditing` so Return matches
+    /// exactly what the mouse can and cannot click.
+    var isDisabledForActivation = false
     let action: () -> Void
 
     var body: some View {
@@ -1968,7 +1984,18 @@ struct UtilityActionButton: View {
                 .buttonStyle(.plain)
             }
         }
-        .panelKeyboardRow(id, actions: PanelRowActions(activate: isEditing ? nil : action), cornerRadius: 10)
+        .panelKeyboardRow(id, actions: PanelRowActions(activate: keyboardActivate), cornerRadius: 10)
+    }
+
+    /// In edit mode Return matches the row's own hide toggle, since that is
+    /// the only thing tapping the row does there; otherwise the row's usual
+    /// action, unless the caller has disabled it.
+    private var keyboardActivate: (() -> Void)? {
+        if isEditing {
+            guard let visibility else { return nil }
+            return { visibility.wrappedValue.toggle() }
+        }
+        return isDisabledForActivation ? nil : action
     }
 
     private var mainButton: some View {
@@ -2091,12 +2118,22 @@ struct PanelToggleRow: View {
     /// shown only outside edit mode.
     var accessoryTitle: String? = nil
     var accessoryAction: (() -> Void)? = nil
+    /// True while the toggle is unavailable for a reason the caller already
+    /// reflects with `.disabled()`; see `UtilityActionButton`.
+    var isDisabledForActivation = false
 
     var body: some View {
         rowContent
             .panelCard()
-            .panelKeyboardRow(id, actions: PanelRowActions(activate: isEditing ? nil : { isOn.toggle() }),
-                             cornerRadius: 10)
+            .panelKeyboardRow(id, actions: PanelRowActions(activate: keyboardActivate), cornerRadius: 10)
+    }
+
+    private var keyboardActivate: (() -> Void)? {
+        if isEditing {
+            guard let visibility else { return nil }
+            return { visibility.wrappedValue.toggle() }
+        }
+        return isDisabledForActivation ? nil : { isOn.toggle() }
     }
 
     private var rowContent: some View {
