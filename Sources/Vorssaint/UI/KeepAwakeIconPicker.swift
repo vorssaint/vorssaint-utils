@@ -8,6 +8,10 @@ struct KeepAwakeIconPicker: View {
     @Binding var iconValue: String
     @Binding var tintValue: String
     var compact = false
+    /// Non-nil only when hosted in the panel: wires each swatch into
+    /// keyboard navigation under this section. Settings hosts the same
+    /// picker without it.
+    var keyboardSection: PanelSectionID? = nil
 
     private var selectedIcon: KeepAwakeActiveIcon {
         Defaults.sanitizedKeepAwakeActiveIcon(iconValue)
@@ -95,6 +99,8 @@ struct KeepAwakeIconPicker: View {
         .buttonStyle(.plain)
         .help(icon.title(l10n.s))
         .accessibilityLabel(icon.title(l10n.s))
+        .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "keepAwakeIcon-\(icon.rawValue)") },
+                          actions: PanelRowActions(activate: { iconValue = icon.rawValue }))
     }
 
     private func tintButton(_ tint: KeepAwakeIconTint) -> some View {
@@ -132,6 +138,8 @@ struct KeepAwakeIconPicker: View {
         .buttonStyle(.plain)
         .help(tint.title(l10n.s))
         .accessibilityLabel(tint.title(l10n.s))
+        .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "keepAwakeTint-\(tint.rawValue)") },
+                          actions: PanelRowActions(activate: { tintValue = tint.rawValue }))
     }
 
     private func tintColor(_ tint: KeepAwakeIconTint) -> Color? {

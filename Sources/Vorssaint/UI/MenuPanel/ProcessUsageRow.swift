@@ -8,6 +8,9 @@ struct ProcessUsageRow: View {
     let value: String
     var iconSize: CGFloat = 15
     var leadingPadding: CGFloat = 0
+    /// Non-nil wires this row into keyboard navigation. Left nil where the
+    /// list isn't otherwise part of a keyboard-navigable section.
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Group {
@@ -18,6 +21,7 @@ struct ProcessUsageRow: View {
                     content
                 }
                 .buttonStyle(.plain)
+                .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: { ProcessUsageService.shared.activate(row) }))
             } else {
                 content
             }

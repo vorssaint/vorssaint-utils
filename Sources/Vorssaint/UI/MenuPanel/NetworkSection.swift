@@ -132,7 +132,8 @@ struct NetworkSection: View {
         if !netApps {
             PanelHiddenItemRow(title: l10n.s.networkApps,
                                systemImage: "list.bullet.rectangle",
-                               isVisible: $netApps)
+                               isVisible: $netApps,
+                               keyboardRow: PanelRowID(.network, "hidden-apps"))
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
@@ -141,7 +142,7 @@ struct NetworkSection: View {
                         .foregroundStyle(.tertiary)
                     Spacer(minLength: 0)
                     if editing {
-                        PanelInlineHideButton(isVisible: $netApps)
+                        PanelInlineHideButton(isVisible: $netApps, keyboardRow: PanelRowID(.network, "hide-apps"))
                     }
                 }
                 if appRows.isEmpty {
@@ -152,7 +153,8 @@ struct NetworkSection: View {
                     ForEach(appRows) { row in
                         ProcessUsageRow(row: row,
                                         value: networkValue(row),
-                                        iconSize: 14)
+                                        iconSize: 14,
+                                        keyboardRow: PanelRowID(.network, "app-\(row.id)"))
                     }
                 }
             }
@@ -164,13 +166,14 @@ struct NetworkSection: View {
         if !netSpeed {
             PanelHiddenItemRow(title: l10n.s.monitorItemNetSpeed,
                                systemImage: "arrow.down",
-                               isVisible: $netSpeed)
+                               isVisible: $netSpeed,
+                               keyboardRow: PanelRowID(.network, "hidden-speed"))
         } else {
             VStack(alignment: .leading, spacing: 10) {
                 if editing {
                     HStack {
                         Spacer(minLength: 0)
-                        PanelInlineHideButton(isVisible: $netSpeed)
+                        PanelInlineHideButton(isVisible: $netSpeed, keyboardRow: PanelRowID(.network, "hide-speed"))
                     }
                 }
                 HStack(spacing: 10) {
@@ -230,7 +233,8 @@ struct NetworkSection: View {
         if !netTotals {
             PanelHiddenItemRow(title: l10n.s.monitorItemNetTotals,
                                systemImage: "sum",
-                               isVisible: $netTotals)
+                               isVisible: $netTotals,
+                               keyboardRow: PanelRowID(.network, "hidden-totals"))
         } else {
             HStack(spacing: 6) {
                 Text(l10n.s.networkThisSession)
@@ -244,7 +248,7 @@ struct NetworkSection: View {
                         .foregroundStyle(.secondary)
                 }
                 if editing {
-                    PanelInlineHideButton(isVisible: $netTotals)
+                    PanelInlineHideButton(isVisible: $netTotals, keyboardRow: PanelRowID(.network, "hide-totals"))
                 }
             }
         }
@@ -256,7 +260,8 @@ struct NetworkSection: View {
         if !netTest {
             PanelHiddenItemRow(title: l10n.s.monitorItemNetTest,
                                systemImage: "gauge.with.dots.needle.67percent",
-                               isVisible: $netTest)
+                               isVisible: $netTest,
+                               keyboardRow: PanelRowID(.network, "hidden-test"))
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -275,6 +280,8 @@ struct NetworkSection: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .panelKeyboardRow(PanelRowID(.network, "speedTest"),
+                                          actions: PanelRowActions(activate: { speed.start() }), cornerRadius: 6)
                     }
                     Spacer()
                     if let down = speed.downloadMbps, let up = speed.uploadMbps {
@@ -284,7 +291,7 @@ struct NetworkSection: View {
                             .contentTransition(.numericText())
                     }
                     if editing {
-                        PanelInlineHideButton(isVisible: $netTest)
+                        PanelInlineHideButton(isVisible: $netTest, keyboardRow: PanelRowID(.network, "hide-test"))
                     }
                 }
                 if case .failed = speed.phase {

@@ -184,12 +184,15 @@ struct DiskSection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.disk, "select-\(disk.id)"),
+                              actions: PanelRowActions(activate: { selectedDiskID = disk.id }), cornerRadius: 8)
             if disk.canEject {
                 DiskSelectorEjectButton(state: protection.state(for: disk),
                                         idleHelp: l10n.s.diskEject,
                                         busyHelp: l10n.s.diskEjecting,
                                         readyHelp: l10n.s.diskReadyToRemove,
-                                        failedHelp: l10n.s.diskEjectFailed) {
+                                        failedHelp: l10n.s.diskEjectFailed,
+                                        keyboardRow: PanelRowID(.disk, "eject-\(disk.id)")) {
                     protection.eject(disk)
                 }
                 .padding(.trailing, 5)
@@ -208,10 +211,11 @@ struct DiskSection: View {
         if !diskUsage {
             PanelHiddenItemRow(title: l10n.s.monitorItemDiskUsage,
                                systemImage: "internaldrive",
-                               isVisible: $diskUsage)
+                               isVisible: $diskUsage,
+                               keyboardRow: PanelRowID(.disk, "hidden-usage"))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                blockHeader(l10n.s.monitorItemDiskUsage, editing: editing, visible: $diskUsage)
+                blockHeader(l10n.s.monitorItemDiskUsage, editing: editing, visible: $diskUsage, block: .usage)
                 VStack(alignment: .leading, spacing: 5) {
                     diskTitleRow(disk)
                     DiskUsageBar(fraction: disk.usedFraction)
@@ -243,10 +247,11 @@ struct DiskSection: View {
         if !diskActivity {
             PanelHiddenItemRow(title: l10n.s.monitorItemDiskActivity,
                                systemImage: "arrow.up.arrow.down",
-                               isVisible: $diskActivity)
+                               isVisible: $diskActivity,
+                               keyboardRow: PanelRowID(.disk, "hidden-activity"))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                blockHeader(l10n.s.monitorItemDiskActivity, editing: editing, visible: $diskActivity)
+                blockHeader(l10n.s.monitorItemDiskActivity, editing: editing, visible: $diskActivity, block: .activity)
                 HStack(spacing: 10) {
                     rateColumn(icon: "arrow.down",
                                label: l10n.s.diskRead,
@@ -313,10 +318,11 @@ struct DiskSection: View {
         if !diskSMART {
             PanelHiddenItemRow(title: l10n.s.monitorItemDiskSMART,
                                systemImage: "checkmark.shield",
-                               isVisible: $diskSMART)
+                               isVisible: $diskSMART,
+                               keyboardRow: PanelRowID(.disk, "hidden-smart"))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                blockHeader(l10n.s.monitorItemDiskSMART, editing: editing, visible: $diskSMART)
+                blockHeader(l10n.s.monitorItemDiskSMART, editing: editing, visible: $diskSMART, block: .smart)
                 VStack(alignment: .leading, spacing: 5) {
                     diskTitleRow(disk, showsTags: !diskUsage)
                     if let smart = disk.smart {
@@ -374,11 +380,13 @@ struct DiskSection: View {
         if !diskProtection {
             PanelHiddenItemRow(title: l10n.s.monitorItemDiskProtection,
                                systemImage: "eject",
-                               isVisible: $diskProtection)
+                               isVisible: $diskProtection,
+                               keyboardRow: PanelRowID(.disk, "hidden-protection"))
         } else {
             VStack(alignment: .leading, spacing: 7) {
-                blockHeader(l10n.s.monitorItemDiskProtection, editing: editing, visible: $diskProtection)
+                blockHeader(l10n.s.monitorItemDiskProtection, editing: editing, visible: $diskProtection, block: .protection)
                 HStack(spacing: 7) {
+                    let canEjectThis = disk.canEject && protection.state(for: disk) != .ejecting
                     Button {
                         protection.eject(disk)
                     } label: {
@@ -387,7 +395,9 @@ struct DiskSection: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(!disk.canEject || protection.state(for: disk) == .ejecting)
+                    .disabled(!canEjectThis)
+                    .panelKeyboardRow(canEjectThis ? PanelRowID(.disk, "ejectThis-\(disk.id)") : nil,
+                                      actions: PanelRowActions(activate: { protection.eject(disk) }), cornerRadius: 6)
 
                     Button {
                         protection.ejectAll(disks)
@@ -398,6 +408,8 @@ struct DiskSection: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .disabled(ejectableDisks.isEmpty)
+                    .panelKeyboardRow(ejectableDisks.isEmpty ? nil : PanelRowID(.disk, "ejectAll"),
+                                      actions: PanelRowActions(activate: { protection.ejectAll(disks) }), cornerRadius: 6)
                 }
                 Text(disk.canEject ? ejectCaption(for: disk) : l10n.s.diskNoExternal)
                     .font(.system(size: 9.5))
@@ -429,10 +441,11 @@ struct DiskSection: View {
         if !diskTools {
             PanelHiddenItemRow(title: l10n.s.monitorItemDiskTools,
                                systemImage: "folder.badge.gearshape",
-                               isVisible: $diskTools)
+                               isVisible: $diskTools,
+                               keyboardRow: PanelRowID(.disk, "hidden-tools"))
         } else {
             VStack(alignment: .leading, spacing: 7) {
-                blockHeader(l10n.s.monitorItemDiskTools, editing: editing, visible: $diskTools)
+                blockHeader(l10n.s.monitorItemDiskTools, editing: editing, visible: $diskTools, block: .tools)
                 HStack(spacing: 8) {
                     Text(disk.name)
                         .font(.system(size: 11, weight: .medium))
@@ -447,18 +460,28 @@ struct DiskSection: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .panelKeyboardRow(PanelRowID(.disk, "openInFinder"),
+                                      actions: PanelRowActions(
+                                          activate: { NSWorkspace.shared.open(URL(fileURLWithPath: disk.mountPath)) }),
+                                      cornerRadius: 6)
                 }
                 Button {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Storage-Settings.extension") {
-                        NSWorkspace.shared.open(url)
-                    }
+                    Self.openStorageSettings()
                 } label: {
                     Label(l10n.s.diskStorageSettings, systemImage: "gearshape")
                         .font(.system(size: 10.5, weight: .medium))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                .panelKeyboardRow(PanelRowID(.disk, "storageSettings"),
+                                  actions: PanelRowActions(activate: Self.openStorageSettings), cornerRadius: 6)
             }
+        }
+    }
+
+    private static func openStorageSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Storage-Settings.extension") {
+            NSWorkspace.shared.open(url)
         }
     }
 
@@ -490,14 +513,14 @@ struct DiskSection: View {
             .background(Capsule().fill(Color.primary.opacity(0.07)))
     }
 
-    private func blockHeader(_ title: String, editing: Bool, visible: Binding<Bool>) -> some View {
+    private func blockHeader(_ title: String, editing: Bool, visible: Binding<Bool>, block: Block) -> some View {
         HStack(spacing: 6) {
             Text(title)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
             Spacer(minLength: 0)
             if editing {
-                PanelInlineHideButton(isVisible: visible)
+                PanelInlineHideButton(isVisible: visible, keyboardRow: PanelRowID(.disk, "hide-\(block)"))
             }
         }
     }
@@ -514,6 +537,7 @@ private struct DiskSelectorEjectButton: View {
     let busyHelp: String
     let readyHelp: String
     let failedHelp: String
+    var keyboardRow: PanelRowID? = nil
     let action: () -> Void
     @State private var hovering = false
 
@@ -530,6 +554,7 @@ private struct DiskSelectorEjectButton: View {
         .help(help)
         .accessibilityLabel(help)
         .animation(.easeOut(duration: 0.12), value: hovering)
+        .panelKeyboardRow(busy ? nil : keyboardRow, actions: PanelRowActions(activate: action), cornerRadius: 9)
     }
 
     @ViewBuilder

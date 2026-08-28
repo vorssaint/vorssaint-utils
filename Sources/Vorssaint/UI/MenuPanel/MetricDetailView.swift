@@ -115,13 +115,11 @@ extension MenuBarMetric {
 struct ActivityMonitorButton: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var isHovered = false
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Button {
-            let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
-            let url = NSWorkspace.shared
-                .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
-            NSWorkspace.shared.open(url)
+            Self.open()
         } label: {
             Image(systemName: "arrow.up.forward.app")
                 .font(.system(size: 10, weight: .medium))
@@ -135,6 +133,14 @@ struct ActivityMonitorButton: View {
         .help(l10n.s.monitorOpenActivityMonitor)
         .accessibilityLabel(l10n.s.monitorOpenActivityMonitor)
         .animation(.easeOut(duration: 0.12), value: isHovered)
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: Self.open), cornerRadius: 9)
+    }
+
+    private static func open() {
+        let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
+        let url = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
+        NSWorkspace.shared.open(url)
     }
 }
 

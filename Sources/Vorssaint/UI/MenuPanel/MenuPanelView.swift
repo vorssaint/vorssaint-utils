@@ -2448,6 +2448,8 @@ struct KeepAwakeCard: View {
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
+                .panelKeyboardRow(PanelRowID(.keepAwake, "toggle"),
+                                  actions: PanelRowActions(activate: { activeBinding.wrappedValue.toggle() }))
 
                 if awake.isActive, awake.endDate != nil {
                     HStack(spacing: 6) {
@@ -2477,6 +2479,9 @@ struct KeepAwakeCard: View {
                           isOn: $awake.clamshellPreferred,
                           disabled: awake.clamshellSetupInProgress,
                           captionIsError: awake.clamshellSetupFailed)
+                    .panelKeyboardRow(PanelRowID(.keepAwake, "clamshell"),
+                                     actions: awake.clamshellSetupInProgress ? PanelRowActions()
+                                        : PanelRowActions(activate: { awake.clamshellPreferred.toggle() }))
             }
             .panelCard()
         }
@@ -2506,24 +2511,37 @@ struct KeepAwakeCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.keepAwake, "options"),
+                              actions: PanelRowActions(
+                                  activate: { optionsExpanded.toggle() },
+                                  adjust: { direction, _ in
+                                      let wantsExpanded = direction == .increase
+                                      guard wantsExpanded != optionsExpanded else { return false }
+                                      optionsExpanded = wantsExpanded
+                                      return true
+                                  }))
 
             if optionsExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
                                         tintValue: $keepAwakeIconTint,
-                                        compact: true)
+                                        compact: true,
+                                        keyboardSection: .keepAwake)
                     compactOptionToggle(
+                        id: "allowDisplaySleep",
                         icon: "display",
                         title: displaySleepStrings.allowDisplaySleep,
                         isOn: $keepAwakeAllowDisplaySleep
                     )
                     compactOptionToggle(
+                        id: "autoStart",
                         icon: "play.circle",
                         title: l10n.s.keepAwakeAutoStart,
                         isOn: $keepAwakeAutoStart
                     )
                     automationDisclosure
                     compactOptionToggle(
+                        id: "mouseJiggle",
                         icon: "cursorarrow.motionlines",
                         title: l10n.s.keepAwakeMouseJiggle,
                         isOn: $keepAwakeMouseJiggle,
@@ -2537,6 +2555,9 @@ struct KeepAwakeCard: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .panelKeyboardRow(PanelRowID(.keepAwake, "mouseJigglePermission"),
+                                              actions: PanelRowActions(activate: grantAccessibility),
+                                              cornerRadius: 6)
                         }
                     }
                 }
@@ -2568,9 +2589,18 @@ struct KeepAwakeCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.keepAwake, "automation"),
+                              actions: PanelRowActions(
+                                  activate: { automationExpanded.toggle() },
+                                  adjust: { direction, _ in
+                                      let wantsExpanded = direction == .increase
+                                      guard wantsExpanded != automationExpanded else { return false }
+                                      automationExpanded = wantsExpanded
+                                      return true
+                                  }))
 
             if automationExpanded {
-                KeepAwakeAutomationEditor(compact: true)
+                KeepAwakeAutomationEditor(compact: true, keyboardSection: .keepAwake)
                     .padding(.leading, 22)
             }
         }
@@ -2603,7 +2633,8 @@ struct KeepAwakeCard: View {
             .background(Circle().fill(Color.accentColor.opacity(0.12)))
     }
 
-    private func compactOptionToggle(icon: String,
+    private func compactOptionToggle(id: String,
+                                     icon: String,
                                      title: String,
                                      isOn: Binding<Bool>,
                                      errorText: String? = nil) -> some View {
@@ -2631,6 +2662,7 @@ struct KeepAwakeCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .panelKeyboardRow(PanelRowID(.keepAwake, id), actions: PanelRowActions(activate: { isOn.wrappedValue.toggle() }))
     }
 
     private var mouseJiggleIntervalRow: some View {
@@ -2748,6 +2780,9 @@ struct KeepAwakeCard: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .font(.system(size: 10))
+        .panelKeyboardRow(PanelRowID(.keepAwake, "extend\(minutes)"),
+                          actions: PanelRowActions(activate: { awake.extend(minutes: minutes) }),
+                          cornerRadius: 6)
     }
 
     private static func remainingText(until end: Date) -> String {

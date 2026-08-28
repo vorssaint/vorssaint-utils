@@ -352,6 +352,18 @@ extension View {
         modifier(PanelKeyboardRowModifier(id: id, actions: actions, cornerRadius: cornerRadius))
     }
 
+    /// Same as above, for a shared component (a picker tile, a toggle row...)
+    /// that is also hosted somewhere outside the panel — Settings, typically
+    /// — and should only register when it actually has a row identity to use.
+    @ViewBuilder
+    func panelKeyboardRow(_ id: PanelRowID?, actions: PanelRowActions, cornerRadius: CGFloat = 8) -> some View {
+        if let id {
+            modifier(PanelKeyboardRowModifier(id: id, actions: actions, cornerRadius: cornerRadius))
+        } else {
+            self
+        }
+    }
+
     /// Marks the root of a section's scrollable content: establishes the
     /// coordinate space rows measure their position in, and reports the
     /// resulting top-to-bottom order to the navigator.

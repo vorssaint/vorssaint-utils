@@ -401,6 +401,10 @@ private struct PanelItemDropDelegate<Item: PanelOrderItem>: DropDelegate {
 struct PanelInlineHideButton: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var isVisible: Bool
+    /// Non-nil when this button stands alone as its own keyboard row (e.g. a
+    /// block header's hide toggle). `PanelHiddenItemRow` wires its own row
+    /// around the whole placeholder instead, so it leaves this nil.
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Button {
@@ -418,6 +422,7 @@ struct PanelInlineHideButton: View {
         .buttonStyle(.plain)
         .help(isVisible ? l10n.s.panelHideItem : l10n.s.panelShowItem)
         .accessibilityLabel(isVisible ? l10n.s.panelHideItem : l10n.s.panelShowItem)
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: { isVisible.toggle() }), cornerRadius: 7)
     }
 }
 
@@ -441,6 +446,7 @@ struct PanelHiddenItemRow: View {
     let title: String
     let systemImage: String
     @Binding var isVisible: Bool
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -456,6 +462,7 @@ struct PanelHiddenItemRow: View {
             PanelHiddenBadge()
             PanelInlineHideButton(isVisible: $isVisible)
         }
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: { isVisible.toggle() }))
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
         .background(
