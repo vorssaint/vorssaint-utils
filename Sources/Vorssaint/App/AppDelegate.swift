@@ -108,6 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         setUpPopover()
         bindManagers()
+        _ = SelectionTranslationPanelController.shared
 
         HotkeyManager.shared.onActivate = { KeepAwakeManager.shared.toggle() }
         HotkeyManager.shared.syncWithPreferences()
@@ -138,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .superKey, .mixer,
+                    .selectionTranslation,
                 ])
             }
             .store(in: &cancellables)

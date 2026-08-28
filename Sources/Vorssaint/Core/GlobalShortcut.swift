@@ -213,6 +213,8 @@ struct GlobalShortcut: Equatable, Hashable {
     // layer, matching how the system numbers its own capture keys.
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
                                                       modifiers: [.control, .option, .command])
+    static let selectionTranslationDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Y),
+                                                             modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -593,6 +595,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case snippetLibrary
     case commandBar
     case screenRecorder
+    case selectionTranslation
 
     var id: String { storageKey }
 
@@ -620,6 +623,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
+        case .selectionTranslation: return DefaultsKey.selectionTranslationShortcut
         }
     }
 
@@ -647,6 +651,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
         case .screenRecorder: return .screenRecorderDefault
+        case .selectionTranslation: return .selectionTranslationDefault
         }
     }
 
@@ -682,6 +687,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
+        case .selectionTranslation: return FeatureStrings.selectionTranslation(L10n.shared.language).title
         }
     }
 
@@ -726,6 +732,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
+        case .selectionTranslation: return [DefaultsKey.selectionTranslationShortcutEnabled]
         }
     }
 
@@ -753,6 +760,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
+        case .selectionTranslation: return .selectionTranslation
         }
     }
 

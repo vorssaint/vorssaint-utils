@@ -11235,7 +11235,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 54, "feature catalog has 54 features")
+        expect(AppFeature.allCases.count == 55, "feature catalog has 55 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -11248,7 +11248,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "selectionTranslation", "killProcess",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -11261,6 +11261,7 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
+                        && $0 != .selectionTranslation
                         && $0 != .killProcess
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
@@ -11791,7 +11792,7 @@ struct MetricsTests {
                "only active Window Layout hooks and live features keep the permission watcher alive")
 
         expect(activeSet(.accessibility)
-                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
+                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder, .selectionTranslation],
                "with nothing enabled only on-demand features use accessibility")
         expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
@@ -19343,6 +19344,10 @@ struct MetricsTests {
         try? FileManager.default.removeItem(at: privateRoot)
 
         // MARK: Result
+
+        runSelectionTranslationTests { condition, message in
+            expect(condition, message)
+        }
 
         // MARK: Every defaults suite stays inside a namespace build.sh sweeps
         // A UserDefaults suite leaves an empty plist in ~/Library/Preferences

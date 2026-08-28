@@ -126,6 +126,7 @@ struct SettingsView: View {
         case .textSnippets: TextSnippetsSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
+        case .selectionTranslation: SelectionTranslationSettings()
         case .energy: EnergySettings()
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()

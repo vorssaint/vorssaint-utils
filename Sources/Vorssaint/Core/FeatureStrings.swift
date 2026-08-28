@@ -4,6 +4,14 @@
 import Foundation
 
 enum FeatureStrings {
+    static func selectionTranslation(_ language: AppLanguage) -> SelectionTranslationFeatureStrings {
+        switch language {
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        default: return .enUS
+        }
+    }
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
         case .enUS: return .enUS

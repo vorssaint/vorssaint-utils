@@ -92,6 +92,7 @@ enum SelfUninstall {
         RadialMenuService.shared.suspend()
         ScratchpadService.shared.suspend()
         CommandBarService.shared.suspend()
+        SelectionTranslationService.shared.suspend()
         PreciseVolumeRollerService.shared.suspend()
         // Leaving the mic cut after the app is gone would strand the user
         // with a silent input and no indicator anywhere.
@@ -133,6 +134,7 @@ enum SelfUninstall {
         // Clipboard images and any other app-owned data live here.
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Application Support/\(id)")
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Caches/\(id)")
+        SelectionTranslationKeychain.delete()
         // URLSession writes these on our behalf whenever the app talks to the
         // network, so they exist without the app ever choosing the path.
         try? FileManager.default.removeItem(atPath: "\(home)/Library/HTTPStorages/\(id)")

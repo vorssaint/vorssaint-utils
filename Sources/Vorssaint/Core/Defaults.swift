@@ -438,6 +438,14 @@ enum DefaultsKey {
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
+    static let selectionTranslationShortcutEnabled = "selectionTranslationShortcutEnabled"
+    static let selectionTranslationShortcut = "selectionTranslationShortcut"
+    static let selectionTranslationBaseURL = "selectionTranslationBaseURL"
+    static let selectionTranslationModel = "selectionTranslationModel"
+    static let selectionTranslationProviderName = "selectionTranslationProviderName"
+    static let selectionTranslationTargetLanguage = "selectionTranslationTargetLanguage"
+    static let selectionTranslationSystemPrompt = "selectionTranslationSystemPrompt"
+    static let selectionTranslationUserPrompt = "selectionTranslationUserPrompt"
     /// Compact mode: an empty field shows nothing but itself. Off by default
     static let commandBarCompactMode = "commandBarCompactMode"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
@@ -1140,6 +1148,14 @@ enum Defaults {
         DefaultsKey.commandBarFileScopes: "",
         DefaultsKey.commandBarFileIgnores: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
+        DefaultsKey.selectionTranslationShortcutEnabled: true,
+        DefaultsKey.selectionTranslationShortcut: GlobalShortcut.selectionTranslationDefault.storageValue,
+        DefaultsKey.selectionTranslationBaseURL: "https://api.openai.com/v1",
+        DefaultsKey.selectionTranslationModel: "gpt-4o-mini",
+        DefaultsKey.selectionTranslationProviderName: "OpenAI-compatible",
+        DefaultsKey.selectionTranslationTargetLanguage: SelectionTranslationLanguage.simplifiedChinese.rawValue,
+        DefaultsKey.selectionTranslationSystemPrompt: SelectionTranslationPromptTemplates.default.systemPrompt,
+        DefaultsKey.selectionTranslationUserPrompt: SelectionTranslationPromptTemplates.default.userPrompt,
         DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,
         DefaultsKey.scratchpadRetention: ScratchpadRetention.never.rawValue,
