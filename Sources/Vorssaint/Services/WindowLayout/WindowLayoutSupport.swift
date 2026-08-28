@@ -240,6 +240,11 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 }
 
 enum WindowLayoutGeometry {
+    /// Points the settle path allows a window to miss its target by. Display
+    /// transfer uses the same value to treat a window as filling the source
+    /// or flush with an edge, so tuning settle cannot split those checks.
+    static let frameTolerance: CGFloat = 8
+
     static func effectiveAction(for action: WindowLayoutAction,
                                 current _: CGRect,
                                 visibleFrame _: CGRect,
@@ -536,11 +541,8 @@ enum WindowLayoutGeometry {
         // size, only shrinking to fit, and keep the same edge insets rather
         // than spreading leftover space. A window that already fills the
         // source still fills the destination, so Maximize stays Maximize.
-        // 8pt matches the settle tolerance used when judging a placement
-        // as stuck.
-        let fillTolerance: CGFloat = 8
-        if current.width >= sourceVisibleFrame.width - fillTolerance,
-           current.height >= sourceVisibleFrame.height - fillTolerance {
+        if current.width >= sourceVisibleFrame.width - frameTolerance,
+           current.height >= sourceVisibleFrame.height - frameTolerance {
             return destinationVisibleFrame.integral
         }
 
@@ -585,14 +587,24 @@ enum WindowLayoutGeometry {
                                        preferMax: Bool) -> CGFloat {
         let minInset = currentMin - sourceMin
         let maxInset = sourceMax - currentMax
-        let flushTolerance: CGFloat = 8
+        let sourceSlack = (sourceMax - sourceMin) - (currentMax - currentMin)
+        // Near-zero leftover space makes flush-edge detection a coin flip:
+        // a 1pt jitter picks left vs right and becomes a thousand-point
+        // jump on an ultrawide. Keep the preferred-edge inset instead;
+        // the caller already clamps.
+        if sourceSlack <= frameTolerance {
+            if preferMax {
+                return destinationMax - maxInset - size
+            }
+            return destinationMin + minInset
+        }
         if preferMax {
-            if minInset <= flushTolerance, minInset < maxInset {
+            if minInset <= frameTolerance, minInset < maxInset {
                 return destinationMin + minInset
             }
             return destinationMax - maxInset - size
         }
-        if maxInset <= flushTolerance, maxInset < minInset {
+        if maxInset <= frameTolerance, maxInset < minInset {
             return destinationMax - maxInset - size
         }
         return destinationMin + minInset
