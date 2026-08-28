@@ -241,6 +241,15 @@ final class ShelfService: ObservableObject {
     private static let persistQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-persist",
                                                     qos: .utility)
 
+    /// File promises may need to wait for Outlook to download or materialize
+    /// an attachment, so their callbacks must never occupy the main queue.
+    private let promiseOperationQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.vorssaint.utils.shelf-file-promises"
+        queue.qualityOfService = .utility
+        return queue
+    }()
+
     private var persistScheduled = false
     /// Gates persistence until the restore has landed, so an early mutation
     /// cannot overwrite the saved shelf with a partial list.
@@ -275,6 +284,21 @@ final class ShelfService: ObservableObject {
         }
     }
 
+    /// Outlook and Mail expose dragged messages and attachments as file
+    /// promises. The dynamic type is supplied by AppKit, so use the system's
+    /// readable list instead of hardcoding an Outlook-specific identifier.
+    private static let filePromiseTypeIdentifiers = Set(NSFilePromiseReceiver.readableDraggedTypes)
+    private static let filePromiseMetadataTypeIdentifier = "com.apple.NSFilePromiseItemMetaData"
+    private static let filePromiseDropTypes = NSFilePromiseReceiver.readableDraggedTypes
+        .map { NSPasteboard.PasteboardType($0) }
+
+    /// The SwiftUI drop surfaces need the same identifiers as their AppKit
+    /// counterparts. `UTType(importedAs:)` preserves custom pasteboard types
+    /// that do not have a public declaration in UniformTypeIdentifiers.
+    static let swiftUIDropTypes: [UTType] = [
+        .fileURL, .image, .url, .text, .plainText
+    ] + NSFilePromiseReceiver.readableDraggedTypes.map { UTType(importedAs: $0) }
+
     static let tileDropTypes: [NSPasteboard.PasteboardType] = [
         .fileURL,
         .URL,
@@ -289,7 +313,7 @@ final class ShelfService: ObservableObject {
         NSPasteboard.PasteboardType(UTType.url.identifier),
         NSPasteboard.PasteboardType(UTType.text.identifier),
         NSPasteboard.PasteboardType(UTType.plainText.identifier),
-    ]
+    ] + filePromiseDropTypes
 
     // MARK: - Lifecycle
 
@@ -540,6 +564,7 @@ final class ShelfService: ObservableObject {
         for item in items {
             for type in item.types {
                 if directTypes.contains(type.rawValue) { return true }
+                if Self.filePromiseTypeIdentifiers.contains(type.rawValue) { return true }
                 guard let utType = UTType(type.rawValue) else { continue }
                 if supportedUTTypes.contains(where: { utType.conforms(to: $0) }) { return true }
             }
@@ -1032,11 +1057,19 @@ final class ShelfService: ObservableObject {
     /// Kept in sync with `resolveItem`'s own branches by hand, since a
     /// provider load is async and cannot itself be probed synchronously.
     private func canResolveItem(from provider: NSItemProvider) -> Bool {
-        provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        promisedFileTypeIdentifier(for: provider) != nil
+            || provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
             || provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier)
             || provider.canLoadObject(ofClass: NSImage.self)
             || provider.canLoadObject(ofClass: URL.self)
             || provider.canLoadObject(ofClass: NSString.self)
+    }
+
+    private func promisedFileTypeIdentifier(for provider: NSItemProvider) -> String? {
+        provider.registeredTypeIdentifiers.first {
+            Self.filePromiseTypeIdentifiers.contains($0)
+                && $0 != Self.filePromiseMetadataTypeIdentifier
+        }
     }
 
     /// Resolves every provider in a drop and adds them together: one pile
@@ -1069,7 +1102,18 @@ final class ShelfService: ObservableObject {
     /// image, then a URL (file or link), then text. Always calls back
     /// exactly once, on the main queue, so callers can mutate state from it.
     private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
-        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+        if let promiseType = promisedFileTypeIdentifier(for: provider) {
+            _ = provider.loadFileRepresentation(forTypeIdentifier: promiseType) { [weak self] url, error in
+                guard error == nil, let self, let url,
+                      let storedURL = self.storePromisedFile(url) else {
+                    return DispatchQueue.main.async { completion(nil) }
+                }
+                let title = url.lastPathComponent
+                DispatchQueue.main.async {
+                    completion(self.fileItem(for: storedURL, title: title))
+                }
+            }
+        } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
             _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
                 DispatchQueue.main.async {
                     guard let url, url.isFileURL else { return completion(nil) }
@@ -1384,6 +1428,10 @@ final class ShelfService: ObservableObject {
         if !activeInternalDragIDs.isEmpty {
             return mergeInternalDrag(into: targetID)
         }
+        let promises = filePromises(from: pasteboard)
+        if !promises.isEmpty {
+            return receivePromisedFiles(promises, mergingInto: targetID)
+        }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
         guard merge(additions, into: targetID) else {
@@ -1407,6 +1455,18 @@ final class ShelfService: ObservableObject {
     }
 
     func accept(pasteboard: NSPasteboard) -> Bool {
+        let promises = filePromises(from: pasteboard)
+        if !promises.isEmpty {
+            let directItems = items(from: pasteboard)
+            var accepted = false
+            if !directItems.isEmpty {
+                accepted = append(directItems)
+            }
+            if itemCount < ShelfPersistenceSupport.maxLeaves {
+                accepted = receivePromisedFiles(promises) || accepted
+            }
+            return accepted
+        }
         let fileURLs = fileURLs(from: pasteboard)
         if fileURLs.count > 1 {
             return addFileBatch(fileURLs)
@@ -1559,6 +1619,82 @@ final class ShelfService: ObservableObject {
         return Item(payload: .file(url), title: "GIF", icon: icon, isImage: true, hasContentThumbnail: true)
     }
 
+    /// Fulfills Outlook's file promise without blocking the drop callback.
+    /// Outlook may need to download an attachment or serialize an email first,
+    /// and the resulting temporary URL is only valid until the provider's
+    /// completion handler returns, so it is copied into the Shelf store before
+    /// the item is built on the main thread.
+    private func receivePromisedFiles(_ promises: [NSFilePromiseReceiver],
+                                      mergingInto targetID: UUID? = nil) -> Bool {
+        guard !promises.isEmpty else { return false }
+        let destination = tempDir.appendingPathComponent("Promise-\(UUID().uuidString)",
+                                                         isDirectory: true)
+        guard (try? FileManager.default.createDirectory(
+            at: destination,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])) != nil else {
+            return false
+        }
+
+        for promise in promises {
+            promise.receivePromisedFiles(atDestination: destination,
+                                         options: [:],
+                                         operationQueue: promiseOperationQueue) { [weak self] url, error in
+                guard error == nil, let self,
+                      let storedURL = self.storePromisedFile(url) else { return }
+                let title = url.lastPathComponent
+                if storedURL != url { try? FileManager.default.removeItem(at: url) }
+                try? FileManager.default.removeItem(at: destination)
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    let item = self.fileItem(for: storedURL, title: title)
+                    if let targetID {
+                        guard self.merge([item], into: targetID) else {
+                            self.discardOwnedPayloads(in: [item])
+                            return
+                        }
+                        self.startContentThumbnails(for: [item])
+                        self.lastAddedID = item.id
+                        self.addSerial &+= 1
+                        self.noteInteraction()
+                    } else {
+                        _ = self.append(item)
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    /// Copies one promised file into the same owner-only persistent store as
+    /// pasted images and GIFs. The original filename remains the tile title,
+    /// while a generated destination avoids collisions between repeated
+    /// Outlook drags with the same attachment name.
+    private func storePromisedFile(_ source: URL) -> URL? {
+        guard source.isFileURL else { return nil }
+        let directory: URL
+        if let store = Self.storeDirectory,
+           PrivateFileStore.createDirectory(at: store) {
+            directory = store
+        } else {
+            directory = tempDir
+            guard PrivateFileStore.createDirectory(at: directory) else { return nil }
+        }
+        var destination = directory.appendingPathComponent(UUID().uuidString)
+        if !source.pathExtension.isEmpty {
+            destination.appendPathExtension(source.pathExtension)
+        }
+        do {
+            try FileManager.default.copyItem(at: source, to: destination)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600],
+                                                  ofItemAtPath: destination.path)
+            return destination
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            return nil
+        }
+    }
+
     /// Writes a pasted payload where it can outlive this run; only if the
     /// Application Support store is unavailable does it fall back to the temp
     /// dir (the item then works for this session, as it always did).
@@ -1657,6 +1793,16 @@ final class ShelfService: ObservableObject {
         return []
     }
 
+    private func filePromises(from pasteboard: NSPasteboard) -> [NSFilePromiseReceiver] {
+        (pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver]) ?? []
+    }
+
+    private func pasteboardHasFilePromises(_ pasteboard: NSPasteboard) -> Bool {
+        (pasteboard.types ?? []).contains { type in
+            Self.filePromiseTypeIdentifiers.contains(type.rawValue)
+        }
+    }
+
     private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
         let fileOptions: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: fileOptions) as? [NSURL],
@@ -1671,6 +1817,9 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardCanCreateItem(_ pasteboard: NSPasteboard) -> Bool {
+        if pasteboardHasFilePromises(pasteboard) {
+            return !filePromises(from: pasteboard).isEmpty
+        }
         if !fileURLs(from: pasteboard).isEmpty {
             return true
         }

@@ -39,7 +39,7 @@ private struct ShelfPill: View {
     @State private var targeted = false
     @State private var hovered = false
 
-    private static let dropTypes: [UTType] = [.fileURL, .image, .url, .text, .plainText]
+    private static let dropTypes = ShelfService.swiftUIDropTypes
 
     var body: some View {
         HStack(spacing: 7) {

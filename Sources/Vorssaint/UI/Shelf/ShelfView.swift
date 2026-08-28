@@ -28,7 +28,7 @@ struct ShelfView: View {
     @State private var pinButtonHovered = false
     @State private var closeButtonHovered = false
 
-    private static let dropTypes: [UTType] = [.fileURL, .image, .url, .text, .plainText]
+    private static let dropTypes = ShelfService.swiftUIDropTypes
     private static let panelWidth: CGFloat = 304
     private static let tileAreaHeight: CGFloat = 188
 
