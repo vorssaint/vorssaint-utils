@@ -63,6 +63,7 @@ struct MenuPanelView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @ObservedObject private var panelFocus = MenuPanelFocus.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.monitorShowMixer) private var showMixer = true
@@ -83,7 +84,6 @@ struct MenuPanelView: View {
     @State private var updateBannerHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
-    @FocusState private var focusedSection: PanelSectionID?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
@@ -106,6 +106,7 @@ struct MenuPanelView: View {
             applyFocus(panelFocus.request)
             KeepAwakeManager.shared.refreshPasswordlessStatus()
             syncMonitorSampling()
+            syncNavigatorTabs()
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuPanelWillShow)) { _ in
             syncMonitorSampling()
@@ -126,9 +127,19 @@ struct MenuPanelView: View {
         .onChange(of: panelFocus.request) { _, request in
             applyFocus(request)
         }
-        .onChange(of: focusedSection) { _, section in
-            if let section { selectedSection = section }
+        .onChange(of: visibleSections) { _, _ in
+            syncNavigatorTabs()
         }
+        .onChange(of: selectedSection) { _, _ in
+            syncNavigatorTabs()
+        }
+    }
+
+    /// Keeps the navigator's tab list and active tab current, so keyboard
+    /// Tab/←/→ always cycles the tabs actually on screen and the focus ring
+    /// follows the active one whether it moved by mouse or keyboard.
+    private func syncNavigatorTabs() {
+        navigator.configureTabs(visibleSections, active: activeSection) { selectedSection = $0 }
     }
 
     private var monitorNeeds: SystemMonitorPanelNeeds {
@@ -157,9 +168,9 @@ struct MenuPanelView: View {
             guard isSectionVisible(section) else { return }
             selectedMetric = nil
             selectedSection = section
-            focusedSection = section
+            navigator.focusTab(section)
         case .metric(let metric):
-            focusedSection = nil
+            navigator.clearFocus()
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
@@ -177,6 +188,7 @@ struct MenuPanelView: View {
                     section(for: activeSection, collapsible: false)
                 }
                 .frame(width: 308)
+                .trackPanelKeyboardRowOrder()
             }
             .frame(width: 308, height: navigableScrollHeight)
 
@@ -198,6 +210,7 @@ struct MenuPanelView: View {
                 OverlayScrollView(measuredHeight: $metricContentHeight) {
                     MetricDetailView(kind: selectedMetric)
                         .frame(width: 308)
+                        .trackPanelKeyboardRowOrder()
                 }
                 .frame(width: 308, height: metricScrollHeight)
             }
@@ -323,7 +336,6 @@ struct MenuPanelView: View {
                 let isActive = activeSection == id
                 Button {
                     selectedSection = id
-                    focusedSection = id
                 } label: {
                     Image(systemName: id.symbolName)
                         .font(.system(size: 13.5, weight: .semibold))
@@ -332,12 +344,12 @@ struct MenuPanelView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .focused($focusedSection, equals: id)
                 .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isActive ? navigationActiveFill : Color.clear)
                 )
+                .panelFocusRing(navigator.focus == .tab(id))
                 .help(id.title(l10n.s))
             }
         }

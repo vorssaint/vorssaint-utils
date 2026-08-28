@@ -924,15 +924,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
-        if popover.isShown, event.keyCode == UInt16(kVK_Escape) {
+        guard popover.isShown else { return event }
+        let window = popover.contentViewController?.view.window
+
+        if event.keyCode == UInt16(kVK_Escape) {
+            // Metric detail and a hosted utility sub-panel each push a level;
+            // Escape backs out of those before it ever closes the popover.
+            if PanelKeyboardNavigator.shared.popTopLevel() { return nil }
             closePopover()
             return nil
         }
 
-        guard popover.isShown,
-              PanelInteractionState.shared.viewKeepsPopoverOpen,
+        // Text controls inside the popover, especially the Homebrew search
+        // field, keep their own keys — the navigator never sees them.
+        if let window, !isTextEditingActive(in: window),
+           PanelKeyboardNavigator.shared.handleKeyDown(event) {
+            return nil
+        }
+
+        guard PanelInteractionState.shared.viewKeepsPopoverOpen,
               isPlainPopoverHoldKey(event),
-              let window = popover.contentViewController?.view.window else {
+              let window else {
             return event
         }
 
