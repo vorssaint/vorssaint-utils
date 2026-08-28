@@ -2503,6 +2503,12 @@ final class CommandBarService: ObservableObject {
                 case "k":
                     self.openActions()
                     return nil
+                case "p":
+                    if let entry = self.selectedEntry, !entry.isAnswer,
+                       CommandBarPreferences.acceptsPin(rowID: entry.id) {
+                        self.togglePin(entry)
+                    }
+                    return nil
                 case "a", "c", "x", "v":
                     // The bar is a non-activating panel, so the app is key
                     // without being active and the Edit menu never gets to
@@ -2528,13 +2534,6 @@ final class CommandBarService: ObservableObject {
                     self.revealInFinder(entry)
                     return nil
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_P {
-                if let entry = self.selectedEntry, !entry.isAnswer,
-                   CommandBarPreferences.acceptsPin(rowID: entry.id) {
-                    self.togglePin(entry)
-                }
-                return nil
             }
             switch Int(event.keyCode) {
             case kVK_Escape:
