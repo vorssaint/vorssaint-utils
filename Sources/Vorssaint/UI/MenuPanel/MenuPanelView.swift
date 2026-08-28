@@ -220,6 +220,21 @@ struct MenuPanelView: View {
         .padding(12)
         .frame(width: 332, height: metricPanelHeight)
         .panelGlassSurface()
+        .onAppear {
+            navigator.pushLevel(.metricDetail, dismiss: dismissMetricDetail)
+        }
+        .onDisappear {
+            navigator.popLevel(.metricDetail)
+        }
+    }
+
+    /// Escape and the back button both go through this: back to the section
+    /// the metric lives in, with keyboard focus cleared the same way the
+    /// back button always has.
+    private func dismissMetricDetail() {
+        if let selectedMetric { selectedSection = selectedMetric.panelSection }
+        selectedMetric = nil
+        MenuPanelFocus.shared.clearMetricFocus()
     }
 
     /// The major sections in the user's saved order. Reading `sectionOrderRaw`
@@ -370,11 +385,7 @@ struct MenuPanelView: View {
 
     private func metricNavigationHeader(_ kind: MetricDetailKind) -> some View {
         HStack(spacing: 8) {
-            Button {
-                selectedMetric = nil
-                selectedSection = kind.panelSection
-                MenuPanelFocus.shared.clearMetricFocus()
-            } label: {
+            Button(action: dismissMetricDetail) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 11, weight: .semibold))
                     .frame(width: 24, height: 24)
@@ -637,8 +648,16 @@ struct UtilitiesSection: View {
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
         }
+        .onChange(of: isHostingUtility) { _, hosting in
+            if hosting {
+                PanelKeyboardNavigator.shared.pushLevel(.hostedUtility, dismiss: dismissActiveHostedUtility)
+            } else {
+                PanelKeyboardNavigator.shared.popLevel(.hostedUtility)
+            }
+        }
         .onDisappear {
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            PanelKeyboardNavigator.shared.popLevel(.hostedUtility)
         }
     }
 
@@ -649,6 +668,21 @@ struct UtilitiesSection: View {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel
+    }
+
+    /// Escape goes through this: closes whichever tool is currently hosted,
+    /// the same way its own close button does.
+    private func dismissActiveHostedUtility() {
+        PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        if showUninstaller { showUninstaller = false }
+        else if showCleanerPanel { showCleanerPanel = false }
+        else if showURLCleaner { showURLCleaner = false }
+        else if showHomebrewPanel { showHomebrewPanel = false }
+        else if showMediaPanel { showMediaPanel = false }
+        else if showClipboardPanel { showClipboardPanel = false }
+        else if showRecentCapturesPanel { showRecentCapturesPanel = false }
+        else if showWindowLayoutPanel { showWindowLayoutPanel = false }
+        else if showAppUpdatesPanel { showAppUpdatesPanel = false }
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -2181,7 +2215,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
             host.widthAnchor.constraint(equalTo: clip.widthAnchor),
         ])
         context.coordinator.host = host
-        installReporter(on: host)
+        installReporter(on: host, coordinator: context.coordinator)
         return scroll
     }
 
@@ -2189,11 +2223,12 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         scroll.scrollerStyle = .overlay
         guard let host = context.coordinator.host else { return }
         host.rootView = content
-        installReporter(on: host)               // re-bind to the latest measuredHeight
+        installReporter(on: host, coordinator: context.coordinator) // re-bind to the latest measuredHeight
         let h = host.fittingSize.height          // catch content changes with no new layout pass
         if h > 1, abs(h - measuredHeight) > 0.5 {
             DispatchQueue.main.async { measuredHeight = h }
         }
+        scrollFocusedRowIntoViewIfNeeded(host, coordinator: context.coordinator)
     }
 
     /// Wire the hosting view to report its natural height into `measuredHeight`
@@ -2201,18 +2236,40 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     /// animation — so the popover tracks the real content height instead of a
     /// single stale reading taken when SwiftUI happened to re-run updateNSView.
     /// The 0.5pt guard also breaks the measure → resize → measure feedback loop.
-    private func installReporter(on host: HeightReportingHostingView<Content>) {
+    private func installReporter(on host: HeightReportingHostingView<Content>, coordinator: Coordinator) {
         let binding = $measuredHeight
-        host.onLayout = { [weak host] in
+        host.onLayout = { [weak host, weak coordinator] in
             guard let host else { return }
             let h = host.fittingSize.height
             guard h > 1, abs(h - binding.wrappedValue) > 0.5 else { return }
             DispatchQueue.main.async { binding.wrappedValue = h }
+            // Row frames only settle once a layout pass actually lands (e.g.
+            // after a collapse/expand animation), so retry the scroll here too.
+            if let coordinator { scrollFocusedRowIntoViewIfNeeded(host, coordinator: coordinator) }
         }
     }
 
+    /// Scrolls the keyboard-focused row into view the moment focus lands on
+    /// it, then leaves the scroll position alone until focus moves again —
+    /// so it never fights a manual scroll while the same row stays focused.
+    private func scrollFocusedRowIntoViewIfNeeded(_ host: HeightReportingHostingView<Content>,
+                                                  coordinator: Coordinator) {
+        guard case .row(let id)? = PanelKeyboardNavigator.shared.focus else {
+            coordinator.lastScrolledRowID = nil
+            return
+        }
+        guard id != coordinator.lastScrolledRowID else { return }
+        guard let frame = PanelKeyboardNavigator.shared.frame(for: id) else { return }
+        coordinator.lastScrolledRowID = id
+        host.scrollToVisible(frame.insetBy(dx: 0, dy: -4))
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+
+    final class Coordinator {
+        var host: HeightReportingHostingView<Content>?
+        var lastScrolledRowID: PanelRowID?
+    }
 }
 
 /// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The

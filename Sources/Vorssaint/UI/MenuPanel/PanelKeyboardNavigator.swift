@@ -88,6 +88,7 @@ final class PanelKeyboardNavigator: ObservableObject {
 
     // Kept current by the row registration modifier and its order collector.
     private var rowOrder: [PanelRowID] = []
+    private var rowFrames: [PanelRowID: CGRect] = [:]
     private var rowActions: [PanelRowID: PanelRowActions] = [:]
 
     private var levels: [(id: PanelLevelID, dismiss: () -> Void)] = []
@@ -133,13 +134,21 @@ final class PanelKeyboardNavigator: ObservableObject {
         }
     }
 
-    /// The row order for the section currently on screen, sorted top to
-    /// bottom by real on-screen position.
-    func configureRowOrder(_ ids: [PanelRowID]) {
-        rowOrder = ids
-        if case .row(let focused)? = focus, !ids.contains(focused) {
+    /// The rows in the section currently on screen, sorted top to bottom by
+    /// real on-screen position, with the frame each measured in
+    /// `rowCoordinateSpace` — the coordinate space of the scroll view's own
+    /// document view, so `OverlayScrollView` can scroll a row into view
+    /// without knowing anything about the panel's content.
+    func configureRowOrder(_ rows: [(id: PanelRowID, frame: CGRect)]) {
+        rowOrder = rows.map(\.id)
+        rowFrames = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.frame) })
+        if case .row(let focused)? = focus, !rowOrder.contains(focused) {
             focus = activeTab.map { .tab($0) }
         }
+    }
+
+    func frame(for row: PanelRowID) -> CGRect? {
+        rowFrames[row]
     }
 
     // MARK: - Levels
@@ -289,7 +298,7 @@ final class PanelKeyboardNavigator: ObservableObject {
 
 private struct PanelRowGeometry: Equatable {
     let id: PanelRowID
-    let minY: CGFloat
+    let frame: CGRect
 }
 
 private struct PanelRowGeometryPreferenceKey: PreferenceKey {
@@ -314,7 +323,7 @@ private struct PanelKeyboardRowModifier: ViewModifier {
                         key: PanelRowGeometryPreferenceKey.self,
                         value: [PanelRowGeometry(
                             id: id,
-                            minY: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)).minY)])
+                            frame: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)))])
                 }
             )
             .panelFocusRing(navigator.focus == .row(id), cornerRadius: cornerRadius)
@@ -328,7 +337,7 @@ private struct PanelKeyboardRowOrderModifier: ViewModifier {
         content
             .coordinateSpace(name: PanelKeyboardNavigator.rowCoordinateSpace)
             .onPreferenceChange(PanelRowGeometryPreferenceKey.self) { rows in
-                let ordered = rows.sorted { $0.minY < $1.minY }.map(\.id)
+                let ordered = rows.sorted { $0.frame.minY < $1.frame.minY }.map { ($0.id, $0.frame) }
                 PanelKeyboardNavigator.shared.configureRowOrder(ordered)
             }
     }
