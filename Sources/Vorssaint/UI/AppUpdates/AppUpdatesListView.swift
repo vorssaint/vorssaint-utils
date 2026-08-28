@@ -14,6 +14,8 @@ struct AppUpdatesListView: View {
     private var includeOnlineCatalog = true
     @State private var showOperationDetails = false
     var compact = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     private var text: AppUpdateStrings { FeatureStrings.appUpdates(l10n.language) }
     private var isBusy: Bool { updates.isChecking || homebrew.operation != nil }
@@ -86,6 +88,8 @@ struct AppUpdatesListView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(isBusy)
+            .panelKeyboardRow(isBusy ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-check") },
+                              actions: PanelRowActions(activate: { updates.check() }))
         }
     }
 
@@ -140,10 +144,16 @@ struct AppUpdatesListView: View {
 
     private var selectionBar: some View {
         HStack(spacing: 8) {
+            let allSelected = updates.selectedCount == updates.selectableCount
+            let noneSelected = updates.selectedCount == 0
             Button(text.selectAll) { updates.selectAll() }
-                .disabled(updates.selectedCount == updates.selectableCount)
+                .disabled(allSelected)
+                .panelKeyboardRow(allSelected ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-selectAll") },
+                                  actions: PanelRowActions(activate: { updates.selectAll() }))
             Button(text.clearSelection) { updates.selectNone() }
-                .disabled(updates.selectedCount == 0)
+                .disabled(noneSelected)
+                .panelKeyboardRow(noneSelected ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-selectNone") },
+                                  actions: PanelRowActions(activate: { updates.selectNone() }))
             Spacer(minLength: 0)
         }
         .buttonStyle(.link)
@@ -189,6 +199,8 @@ struct AppUpdatesListView: View {
                 .labelsHidden()
                 .toggleStyle(.checkbox)
                 .accessibilityLabel(item.name)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appUpdates-\(item.id)-select") },
+                                  actions: PanelRowActions(activate: { updates.toggle(item) }), cornerRadius: 6)
             } else {
                 Color.clear
                     .frame(width: 14, height: 14)
@@ -229,6 +241,8 @@ struct AppUpdatesListView: View {
             .controlSize(.small)
             .disabled(isBusy)
             .help(actionHint(for: item))
+            .panelKeyboardRow(isBusy ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-\(item.id)-update") },
+                              actions: PanelRowActions(activate: { updates.update(item) }), cornerRadius: 6)
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
@@ -285,6 +299,9 @@ struct AppUpdatesListView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(compact ? .small : .regular)
             .disabled(updates.selectedCount == 0 || isBusy)
+            .panelKeyboardRow(
+                (updates.selectedCount == 0 || isBusy) ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-updateSelected") },
+                actions: PanelRowActions(activate: { updates.updateSelected() }))
             if !compact {
                 Spacer(minLength: 0)
             }
