@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreTransferable
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Reusable controls for screenshot tool visibility, order and number assignments.
 struct ScreenshotToolOrderControls: View {
@@ -74,7 +76,7 @@ struct ScreenshotToolOrderControls: View {
                 Spacer(minLength: 4)
             }
             .contentShape(Rectangle())
-            .draggable("screenshot-tool:\(tool.rawValue)")
+            .draggable(ScreenshotToolDragItem(toolID: tool.rawValue))
 
             Toggle(tool.screenshotTitle(strings), isOn: Binding(
                 get: { visible },
@@ -110,10 +112,9 @@ struct ScreenshotToolOrderControls: View {
         }
         .frame(minHeight: 26)
         .contentShape(Rectangle())
-        .dropDestination(for: String.self) { items, _ in
+        .dropDestination(for: ScreenshotToolDragItem.self) { items, _ in
             guard items.count == 1, let item = items.first,
-                  item.hasPrefix("screenshot-tool:"),
-                  let source = ScreenshotSupport.Tool(rawValue: String(item.dropFirst("screenshot-tool:".count))),
+                  let source = ScreenshotSupport.Tool(rawValue: item.toolID),
                   source != tool else { return false }
             withAnimation(.easeInOut(duration: 0.14)) {
                 persist(ScreenshotSupport.Tool.moving(source, to: tool, orderRaw: orderRaw))
@@ -184,5 +185,17 @@ struct ScreenshotToolOrderControls: View {
 
     private func persist(_ order: [ScreenshotSupport.Tool]) {
         orderRaw = ScreenshotSupport.Tool.orderStorage(order, preservingVisibilityFrom: orderRaw)
+    }
+}
+
+private struct ScreenshotToolDragItem: Codable, Transferable {
+    let toolID: String
+
+    private static let contentType = UTType(exportedAs: "com.vorssaint.utils.screenshot-tool",
+                                           conformingTo: .data)
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: contentType)
+            .visibility(.ownProcess)
     }
 }

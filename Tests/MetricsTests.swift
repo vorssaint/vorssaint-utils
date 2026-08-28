@@ -14281,6 +14281,22 @@ struct MetricsTests {
                 && toolRailSource.contains("ScreenshotSupport.Tool.availableTool(")
                 && toolControllerSource.contains("ScreenshotSupport.Tool.availableTool("),
                "the rail and active and remembered tool paths all consult screenshot visibility")
+        let rememberedToolPreservation =
+            #"let(\w+)=UserDefaults\.standard\.string\(forKey:DefaultsKey\.screenshotLastTool\);?"#
+            + #"\w+\.tool=\w+;?UserDefaults\.standard\.set\(\1,forKey:DefaultsKey\.screenshotLastTool\)"#
+        expect(toolRailSource.filter { !$0.isWhitespace }.range(
+            of: rememberedToolPreservation, options: .regularExpression) != nil,
+               "automatic tool fallback restores the saved preference after the model's persistence observer runs")
+        let toolOrderControlsSource = stripCommentLines((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotToolOrderControls.swift",
+            encoding: .utf8)) ?? "").filter { !$0.isWhitespace }
+        expect(toolOrderControlsSource.contains(".draggable(ScreenshotToolDragItem(")
+                && toolOrderControlsSource.contains(".dropDestination(for:ScreenshotToolDragItem.self)"),
+               "screenshot tool drags and drops use the dedicated payload instead of plain text")
+        expect(toolOrderControlsSource.contains("CodableRepresentation(contentType:")
+                && toolOrderControlsSource.contains(".visibility(.ownProcess)")
+                && !toolOrderControlsSource.contains("ProxyRepresentation("),
+               "screenshot tool drag data stays inside the app with no text proxy")
 
         expect(ScreenshotSupport.cropLoupeSampleRect(
             around: CGPoint(x: 50, y: 40),

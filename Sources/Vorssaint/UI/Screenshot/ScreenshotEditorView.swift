@@ -67,7 +67,10 @@ struct ScreenshotEditorView: View {
             let tool = ScreenshotSupport.Tool.availableTool(model.tool, orderRaw: raw)
             if tool != model.tool {
                 commitEditingTextIfNeeded()
+                let rememberedTool = UserDefaults.standard.string(forKey: DefaultsKey.screenshotLastTool)
                 model.tool = tool
+                // The automatic fallback is not a new tool choice to remember.
+                UserDefaults.standard.set(rememberedTool, forKey: DefaultsKey.screenshotLastTool)
             }
         }
         .sheet(item: $sharedRecord) { record in

@@ -1174,7 +1174,7 @@ enum ScreenshotSupport {
 
         static func settingVisibility(_ visible: Bool, for tool: Tool, orderRaw: String?) -> String {
             entries(from: orderRaw).map { entry in
-                let shown = entry.tool == .select || (entry.tool == tool ? visible : entry.visible)
+                let shown = entry.tool == tool ? visible : entry.visible
                 return (shown ? "" : "!") + entry.tool.rawValue
             }.joined(separator: ",")
         }
