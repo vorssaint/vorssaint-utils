@@ -207,6 +207,7 @@ struct ArchiveToolsSettings: View {
     private func failureMessage(_ failure: ArchiveFailure) -> String {
         switch failure {
         case .noInput: return text.noSelection
+        case .sourceUnavailable: return text.sourceUnavailable
         case let .duplicateSourceName(name):
             return String(format: text.duplicateSourceFormat, name)
         case let .commandFailed(message): return message

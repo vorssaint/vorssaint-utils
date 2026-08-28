@@ -5,6 +5,7 @@ import Foundation
 
 enum ArchiveFailure: Error, Equatable {
     case noInput
+    case sourceUnavailable
     case duplicateSourceName(String)
     case commandFailed(String)
     case cannotPrepare

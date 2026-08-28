@@ -288,8 +288,9 @@ extension AppFeature {
         allCases.filter { $0.group == group }
     }
 
-    /// Registered defaults preserve existing features on update. New opt-in
-    /// features and explicit betas ship uninstalled.
+    /// Registered defaults preserve existing features on update. Permission-free,
+    /// on-demand tools can ship available; features requiring an explicit opt-in
+    /// because of permissions, background work, hardware risk or beta status do not.
     static var availabilityDefaults: [String: Any] {
         Dictionary(uniqueKeysWithValues: allCases.map {
             ($0.availabilityKey,

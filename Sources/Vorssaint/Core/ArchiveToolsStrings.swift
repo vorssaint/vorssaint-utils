@@ -15,6 +15,7 @@ struct ArchiveToolsStrings {
     let selectedItemsFormat: String
     let completedFormat: String
     let duplicateSourceFormat: String
+    let sourceUnavailable: String
     let cannotPrepare: String
     let cannotPublish: String
 }
@@ -52,6 +53,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d items selected",
         completedFormat: "Saved as %@",
         duplicateSourceFormat: "Two selected items are named %@. Choose items with unique top-level names.",
+        sourceUnavailable: "A selected item is no longer available. Choose the sources again.",
         cannotPrepare: "A temporary workspace could not be created at the destination.",
         cannotPublish: "The completed result could not be published at the destination."
     )
@@ -68,6 +70,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d itens selecionados",
         completedFormat: "Salvo como %@",
         duplicateSourceFormat: "Dois itens selecionados se chamam %@. Escolha nomes de nível superior exclusivos.",
+        sourceUnavailable: "Um item selecionado não está mais disponível. Escolha as origens novamente.",
         cannotPrepare: "Não foi possível criar um espaço temporário no destino.",
         cannotPublish: "Não foi possível publicar o resultado concluído no destino."
     )
@@ -84,6 +87,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d öğe seçildi",
         completedFormat: "%@ olarak kaydedildi",
         duplicateSourceFormat: "Seçili iki öğenin adı %@. Benzersiz üst düzey adlara sahip öğeler seçin.",
+        sourceUnavailable: "Seçili bir öğe artık kullanılamıyor. Kaynakları yeniden seçin.",
         cannotPrepare: "Hedefte geçici çalışma alanı oluşturulamadı.",
         cannotPublish: "Tamamlanan sonuç hedefte yayımlanamadı."
     )
@@ -100,6 +104,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "Выбрано объектов: %d",
         completedFormat: "Сохранено как %@",
         duplicateSourceFormat: "Два выбранных объекта называются %@. Выберите объекты с разными именами верхнего уровня.",
+        sourceUnavailable: "Один из выбранных объектов больше недоступен. Выберите исходные объекты снова.",
         cannotPrepare: "Не удалось создать временную рабочую папку в месте назначения.",
         cannotPublish: "Не удалось опубликовать готовый результат в месте назначения."
     )
@@ -116,6 +121,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d elementos seleccionados",
         completedFormat: "Guardado como %@",
         duplicateSourceFormat: "Dos elementos seleccionados se llaman %@. Elige nombres de nivel superior únicos.",
+        sourceUnavailable: "Un elemento seleccionado ya no está disponible. Vuelve a elegir los elementos de origen.",
         cannotPrepare: "No se pudo crear un espacio de trabajo temporal en el destino.",
         cannotPublish: "No se pudo publicar el resultado completado en el destino."
     )
@@ -132,6 +138,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d Objekte ausgewählt",
         completedFormat: "Gespeichert als %@",
         duplicateSourceFormat: "Zwei ausgewählte Objekte heißen %@. Wähle eindeutige Namen auf oberster Ebene.",
+        sourceUnavailable: "Ein ausgewähltes Objekt ist nicht mehr verfügbar. Wähle die Quellen erneut aus.",
         cannotPrepare: "Am Ziel konnte kein temporärer Arbeitsbereich erstellt werden.",
         cannotPublish: "Das fertige Ergebnis konnte am Ziel nicht veröffentlicht werden."
     )
@@ -148,6 +155,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d éléments sélectionnés",
         completedFormat: "Enregistré sous %@",
         duplicateSourceFormat: "Deux éléments sélectionnés portent le nom %@. Choisissez des noms de premier niveau uniques.",
+        sourceUnavailable: "Un élément sélectionné n’est plus disponible. Choisissez à nouveau les sources.",
         cannotPrepare: "Impossible de créer un espace de travail temporaire à la destination.",
         cannotPublish: "Impossible de publier le résultat terminé à la destination."
     )
@@ -164,6 +172,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d elementi selezionati",
         completedFormat: "Salvato come %@",
         duplicateSourceFormat: "Due elementi selezionati si chiamano %@. Scegli nomi di primo livello univoci.",
+        sourceUnavailable: "Un elemento selezionato non è più disponibile. Scegli di nuovo le origini.",
         cannotPrepare: "Impossibile creare uno spazio di lavoro temporaneo nella destinazione.",
         cannotPublish: "Impossibile pubblicare il risultato completato nella destinazione."
     )
@@ -180,6 +189,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d項目を選択中",
         completedFormat: "%@として保存しました",
         duplicateSourceFormat: "選択した2つの項目の名前が%@です。最上位の名前が異なる項目を選択してください。",
+        sourceUnavailable: "選択した項目を利用できなくなりました。ソースを選択し直してください。",
         cannotPrepare: "保存先に一時作業領域を作成できませんでした。",
         cannotPublish: "完成した結果を保存先に公開できませんでした。"
     )
@@ -196,6 +206,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "%d개 항목 선택됨",
         completedFormat: "%@ 이름으로 저장됨",
         duplicateSourceFormat: "선택한 두 항목의 이름이 %@입니다. 최상위 이름이 고유한 항목을 선택하세요.",
+        sourceUnavailable: "선택한 항목을 더 이상 사용할 수 없습니다. 소스를 다시 선택하세요.",
         cannotPrepare: "대상에 임시 작업 공간을 만들 수 없습니다.",
         cannotPublish: "완료된 결과를 대상에 게시할 수 없습니다."
     )
@@ -212,6 +223,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "已选择 %d 个项目",
         completedFormat: "已存储为 %@",
         duplicateSourceFormat: "两个所选项目都名为 %@。请选择顶层名称不同的项目。",
+        sourceUnavailable: "某个所选项目已不可用。请重新选择源项目。",
         cannotPrepare: "无法在目标位置创建临时工作区。",
         cannotPublish: "无法将完成的结果发布到目标位置。"
     )
@@ -228,6 +240,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "已選擇 %d 個項目",
         completedFormat: "已儲存為 %@",
         duplicateSourceFormat: "兩個所選項目都命名為 %@。請選擇頂層名稱不同的項目。",
+        sourceUnavailable: "某個所選項目已無法使用。請重新選擇來源項目。",
         cannotPrepare: "無法在目的地建立暫存工作區。",
         cannotPublish: "無法將完成的結果發佈到目的地。"
     )
@@ -244,6 +257,7 @@ extension ArchiveToolsStrings {
         selectedItemsFormat: "已選擇 %d 個項目",
         completedFormat: "已儲存為 %@",
         duplicateSourceFormat: "兩個所選項目都名為 %@。請選擇頂層名稱不同的項目。",
+        sourceUnavailable: "某個所選項目已無法使用。請重新選擇來源項目。",
         cannotPrepare: "無法在目的地建立暫存工作區。",
         cannotPublish: "無法將完成的結果發佈到目的地。"
     )

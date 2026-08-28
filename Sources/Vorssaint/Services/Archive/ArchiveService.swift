@@ -5,138 +5,120 @@ import Combine
 import Darwin
 import Foundation
 
-final class ArchiveCancellationToken: @unchecked Sendable {
-    private let lock = NSLock()
-    private var cancelled = false
-
-    var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelled
+struct ArchivePublisher {
+    enum Attempt {
+        case success
+        case destinationExists
+        case unsupported
+        case failed
     }
 
-    func cancel() {
-        lock.lock()
-        cancelled = true
-        lock.unlock()
-    }
-}
+    typealias Operation = (URL, URL) -> Attempt
 
-struct ArchiveCommandResult {
-    let status: Int32
-    let output: Data
-}
+    private let renameExclusive: Operation
+    private let copyExclusive: Operation
 
-protocol ArchiveCommandRunning: AnyObject {
-    func run(_ path: String, arguments: [String],
-             token: ArchiveCancellationToken) -> ArchiveCommandResult
-    func cancel()
-}
-
-private final class ArchiveProcessOutput: @unchecked Sendable {
-    private let lock = NSLock()
-    private var data = Data()
-
-    func append(_ chunk: Data) {
-        lock.lock()
-        defer { lock.unlock() }
-        let available = max(0, 32_768 - data.count)
-        if available > 0 { data.append(chunk.prefix(available)) }
+    init() {
+        renameExclusive = Self.systemRenameExclusive
+        copyExclusive = Self.systemCopyExclusive
     }
 
-    func value() -> Data {
-        lock.lock()
-        defer { lock.unlock() }
-        return data
+    init(renameExclusive: @escaping Operation, copyExclusive: Operation? = nil) {
+        self.renameExclusive = renameExclusive
+        self.copyExclusive = copyExclusive ?? Self.systemCopyExclusive
     }
-}
 
-final class SystemArchiveCommandRunner: ArchiveCommandRunning {
-    private let lock = NSLock()
-    private var activeProcess: Process?
-
-    func run(_ path: String, arguments: [String],
-             token: ArchiveCancellationToken) -> ArchiveCommandResult {
-        guard !token.isCancelled else { return ArchiveCommandResult(status: -1, output: Data()) }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        process.environment = ProcessInfo.processInfo.environment.merging(["LC_ALL": "C"]) { _, new in new }
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-
-        let output = ArchiveProcessOutput()
-        let finished = DispatchSemaphore(value: 0)
-        process.terminationHandler = { _ in finished.signal() }
-        pipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if !chunk.isEmpty { output.append(chunk) }
+    func publish(_ stagedURL: URL, in directory: URL, baseName: String,
+                 fileManager: FileManager) throws -> URL {
+        for _ in 1...10_000 {
+            let candidate = FileOutputSupport.uniqueOutputURL(in: directory,
+                                                              baseName: baseName,
+                                                              fileExtension: "zip",
+                                                              fileManager: fileManager)
+            switch renameExclusive(stagedURL, candidate) {
+            case .success:
+                return candidate
+            case .destinationExists:
+                continue
+            case .unsupported:
+                switch copyExclusive(stagedURL, candidate) {
+                case .success:
+                    return candidate
+                case .destinationExists:
+                    continue
+                case .unsupported, .failed:
+                    throw ArchiveFailure.cannotPublish
+                }
+            case .failed:
+                throw ArchiveFailure.cannotPublish
+            }
         }
-
-        lock.lock()
-        activeProcess = process
-        guard !token.isCancelled else {
-            activeProcess = nil
-            lock.unlock()
-            pipe.fileHandleForReading.readabilityHandler = nil
-            return ArchiveCommandResult(status: -1, output: Data())
-        }
-
-        do {
-            try process.run()
-        } catch {
-            activeProcess = nil
-            lock.unlock()
-            pipe.fileHandleForReading.readabilityHandler = nil
-            return ArchiveCommandResult(status: -1, output: Data())
-        }
-        lock.unlock()
-
-        _ = finished.wait(timeout: .distantFuture)
-        pipe.fileHandleForReading.readabilityHandler = nil
-        let tail = pipe.fileHandleForReading.readDataToEndOfFile()
-        if !tail.isEmpty { output.append(tail) }
-        clear(process)
-        return ArchiveCommandResult(status: process.terminationStatus, output: output.value())
+        throw ArchiveFailure.cannotPublish
     }
 
-    func cancel() {
-        lock.lock()
-        let process = activeProcess
-        lock.unlock()
-        guard let process, process.isRunning else { return }
-        process.terminate()
-        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+    private static func systemRenameExclusive(_ sourceURL: URL,
+                                              _ destinationURL: URL) -> Attempt {
+        let result = sourceURL.withUnsafeFileSystemRepresentation { source in
+            destinationURL.withUnsafeFileSystemRepresentation { destination in
+                guard let source, let destination else { return Int32(-1) }
+                return renameatx_np(AT_FDCWD, source, AT_FDCWD, destination,
+                                    UInt32(RENAME_EXCL))
+            }
+        }
+        guard result != 0 else { return .success }
+        switch errno {
+        case EEXIST: return .destinationExists
+        case ENOTSUP, EXDEV: return .unsupported
+        default: return .failed
         }
     }
 
-    private func clear(_ process: Process) {
-        lock.lock()
-        if activeProcess === process { activeProcess = nil }
-        lock.unlock()
+    private static func systemCopyExclusive(_ sourceURL: URL,
+                                            _ destinationURL: URL) -> Attempt {
+        let destinationExisted = FileManager.default.fileExists(atPath: destinationURL.path)
+        let result = sourceURL.withUnsafeFileSystemRepresentation { source in
+            destinationURL.withUnsafeFileSystemRepresentation { destination in
+                guard let source, let destination else { return Int32(-1) }
+                return copyfile(source, destination, nil,
+                                copyfile_flags_t(COPYFILE_DATA | COPYFILE_EXCL
+                                    | COPYFILE_MOVE | COPYFILE_NOFOLLOW))
+            }
+        }
+        guard result != 0 else { return .success }
+        let failure = errno
+        if failure == EEXIST { return .destinationExists }
+        if !destinationExisted { try? FileManager.default.removeItem(at: destinationURL) }
+        return .failed
     }
 }
 
 final class ArchiveOperationWorker {
+    typealias CommandRunner = (String, [String], CancellationToken) -> BoundedProcessRunner.Result
+
     private let fileManager: FileManager
-    private let runner: ArchiveCommandRunning
+    private let runCommand: CommandRunner
+    private let publisher: ArchivePublisher
 
     init(fileManager: FileManager = .default,
-         runner: ArchiveCommandRunning = SystemArchiveCommandRunner()) {
+         commandRunner: @escaping CommandRunner = { path, arguments, token in
+             BoundedProcessRunner.run(path, arguments,
+                                      timeout: nil,
+                                      maxOutputBytes: 32_768,
+                                      environment: ["LC_ALL": "C"],
+                                      cancellationToken: token)
+         },
+         publisher: ArchivePublisher = ArchivePublisher()) {
         self.fileManager = fileManager
-        self.runner = runner
+        runCommand = commandRunner
+        self.publisher = publisher
     }
 
-    func cancel() { runner.cancel() }
-
     func create(sources: [URL], destinationDirectory: URL, excludesDSStore: Bool,
-                token: ArchiveCancellationToken) -> Result<URL, ArchiveFailure> {
-        guard !sources.isEmpty,
-              sources.allSatisfy({ fileManager.fileExists(atPath: $0.path) })
-        else { return .failure(.noInput) }
+                token: CancellationToken) -> Result<URL, ArchiveFailure> {
+        guard !sources.isEmpty else { return .failure(.noInput) }
+        guard sources.allSatisfy({ fileManager.fileExists(atPath: $0.path) }) else {
+            return .failure(.sourceUnavailable)
+        }
         if let duplicate = ArchiveSupport.duplicateTopLevelName(in: sources) {
             return .failure(.duplicateSourceName(duplicate))
         }
@@ -153,43 +135,25 @@ final class ArchiveOperationWorker {
         defer { try? fileManager.removeItem(at: stageRoot) }
 
         let stagedOutput = stageRoot.appendingPathComponent("Archive.zip")
-        let result = runner.run("/usr/bin/tar",
-                                arguments: ArchiveSupport.createArguments(
-                                    sources: sources,
-                                    stagedOutput: stagedOutput,
-                                    excludesDSStore: excludesDSStore),
-                                token: token)
+        let result = runCommand("/usr/bin/tar",
+                                ArchiveSupport.createArguments(sources: sources,
+                                                               stagedOutput: stagedOutput,
+                                                               excludesDSStore: excludesDSStore),
+                                token)
         if token.isCancelled { return .failure(.cancelled) }
         guard result.status == 0, fileManager.fileExists(atPath: stagedOutput.path) else {
             return .failure(.commandFailed(ArchiveSupport.boundedFailureMessage(result.output)))
         }
 
         do {
-            return .success(try publish(stagedOutput,
-                                        in: destinationDirectory,
-                                        baseName: ArchiveSupport.archiveBaseName(for: sources)))
+            return .success(try publisher.publish(
+                stagedOutput,
+                in: destinationDirectory,
+                baseName: ArchiveSupport.archiveBaseName(for: sources),
+                fileManager: fileManager))
         } catch {
             return .failure(.cannotPublish)
         }
-    }
-
-    private func publish(_ stagedURL: URL, in directory: URL, baseName: String) throws -> URL {
-        for _ in 1...10_000 {
-            let candidate = FileOutputSupport.uniqueOutputURL(in: directory,
-                                                              baseName: baseName,
-                                                              fileExtension: "zip",
-                                                              fileManager: fileManager)
-            let result = stagedURL.withUnsafeFileSystemRepresentation { source in
-                candidate.withUnsafeFileSystemRepresentation { destination in
-                    guard let source, let destination else { return Int32(-1) }
-                    return renameatx_np(AT_FDCWD, source, AT_FDCWD, destination,
-                                        UInt32(RENAME_EXCL))
-                }
-            }
-            if result == 0 { return candidate }
-            if errno != EEXIST { throw ArchiveFailure.cannotPublish }
-        }
-        throw ArchiveFailure.cannotPublish
     }
 }
 
@@ -202,7 +166,7 @@ final class ArchiveService: ObservableObject {
     private let lock = NSLock()
     private let worker: ArchiveOperationWorker
     private var operationID: UUID?
-    private var token: ArchiveCancellationToken?
+    private var token: CancellationToken?
 
     init(worker: ArchiveOperationWorker = ArchiveOperationWorker()) {
         self.worker = worker
@@ -215,10 +179,9 @@ final class ArchiveService: ObservableObject {
 
     func create(sources: [URL], destinationDirectory: URL, excludesDSStore: Bool) {
         let id = UUID()
-        let token = ArchiveCancellationToken()
+        let token = CancellationToken()
         lock.lock()
         self.token?.cancel()
-        worker.cancel()
         operationID = id
         self.token = token
         lock.unlock()
@@ -243,7 +206,6 @@ final class ArchiveService: ObservableObject {
         operationID = nil
         token = nil
         lock.unlock()
-        worker.cancel()
         setStateOnMain(.cancelled)
     }
 

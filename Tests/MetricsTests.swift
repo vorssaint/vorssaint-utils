@@ -11,21 +11,6 @@ import Foundation
 import ImageIO
 import VMStatisticsCompat
 
-private final class ArchiveTestRunner: ArchiveCommandRunning {
-    typealias Handler = (String, [String], ArchiveCancellationToken) -> ArchiveCommandResult
-    private let handler: Handler
-    private(set) var cancelCount = 0
-
-    init(handler: @escaping Handler) { self.handler = handler }
-
-    func run(_ path: String, arguments: [String],
-             token: ArchiveCancellationToken) -> ArchiveCommandResult {
-        handler(path, arguments, token)
-    }
-
-    func cancel() { cancelCount += 1 }
-}
-
 // Standalone unit tests for pure helpers. Compiled without IOKit or UI by
 // `./build.sh --test`, so they run fast and deterministically on any machine.
 //
@@ -10487,6 +10472,17 @@ struct MetricsTests {
         expect(timedOutProcess.timedOut && timedOutProcess.status == -1
                 && Date().timeIntervalSince(timeoutStarted) < 1.5,
                "a stalled subprocess is terminated inside its deadline")
+        let cancellationToken = CancellationToken()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.05) {
+            cancellationToken.cancel()
+        }
+        let cancellationStarted = Date()
+        let cancelledProcess = BoundedProcessRunner.run(
+            "/bin/sh", ["-c", "trap '' TERM; /bin/sleep 5"],
+            timeout: nil, maxOutputBytes: 1_024, cancellationToken: cancellationToken)
+        expect(cancellationToken.isCancelled && !cancelledProcess.timedOut
+                && Date().timeIntervalSince(cancellationStarted) < 1.5,
+               "a cancellation token terminates a process without dropping bounded pipe cleanup")
 
         // Reproduces the freeze in issue #971 from the other side: the app's
         // own abandoned waits had filled the shared dispatch pool, so nothing
@@ -10966,7 +10962,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.archiveTools(language)
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 13 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 14 && values.allSatisfy { !$0.isEmpty },
                    "Archive tools has every create-ZIP string for \(language.rawValue)")
             expectFormat(strings.selectedItemsFormat, ["d"],
                          "\(language.rawValue) Archive tools selection format")
@@ -11016,19 +11012,25 @@ struct MetricsTests {
         defer { try? FileManager.default.removeItem(at: archiveFailureRoot) }
         let archiveFailureSource = archiveFailureRoot.appendingPathComponent("source.txt")
         try? Data("source".utf8).write(to: archiveFailureSource)
+        let missingArchiveSource = archiveFailureRoot.appendingPathComponent("removed.txt")
+        expect(ArchiveOperationWorker().create(
+            sources: [missingArchiveSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: false, token: CancellationToken()) == .failure(.sourceUnavailable),
+               "a source removed after selection reports that it is unavailable")
         var abandonedArchiveStage: URL?
-        let failingArchiveRunner = ArchiveTestRunner { path, arguments, _ in
+        let failedArchive = ArchiveOperationWorker(commandRunner: { path, arguments, _ in
             if path == "/usr/bin/tar", let outputIndex = arguments.firstIndex(of: "-cf"),
                arguments.indices.contains(outputIndex + 1) {
                 let output = URL(fileURLWithPath: arguments[outputIndex + 1])
                 abandonedArchiveStage = output.deletingLastPathComponent()
                 try? Data("partial".utf8).write(to: output)
             }
-            return ArchiveCommandResult(status: 2, output: Data("failed".utf8))
-        }
-        let failedArchive = ArchiveOperationWorker(runner: failingArchiveRunner).create(
+            return BoundedProcessRunner.Result(status: 2,
+                                               output: Data("failed".utf8),
+                                               timedOut: false)
+        }).create(
             sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
-            excludesDSStore: false, token: ArchiveCancellationToken())
+            excludesDSStore: false, token: CancellationToken())
         if case .failure(.commandFailed) = failedArchive {
             expect(abandonedArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
                    "a failed archive creation removes its complete temporary workspace")
@@ -11036,24 +11038,38 @@ struct MetricsTests {
             expect(false, "a failed archive command reports an actionable command failure")
         }
 
-        let cancelledArchiveToken = ArchiveCancellationToken()
+        let cancelledArchiveToken = CancellationToken()
         cancelledArchiveToken.cancel()
         var cancelledArchiveStage: URL?
-        let cancelledArchiveRunner = ArchiveTestRunner { _, arguments, _ in
+        let cancelledArchive = ArchiveOperationWorker(commandRunner: { _, arguments, _ in
             if let outputIndex = arguments.firstIndex(of: "-cf"),
                arguments.indices.contains(outputIndex + 1) {
                 let output = URL(fileURLWithPath: arguments[outputIndex + 1])
                 cancelledArchiveStage = output.deletingLastPathComponent()
                 try? Data("partial".utf8).write(to: output)
             }
-            return ArchiveCommandResult(status: -1, output: Data())
-        }
-        let cancelledArchive = ArchiveOperationWorker(runner: cancelledArchiveRunner).create(
+            return BoundedProcessRunner.Result(status: -1, output: Data(), timedOut: false)
+        }).create(
             sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
             excludesDSStore: false, token: cancelledArchiveToken)
         expect(cancelledArchive == .failure(.cancelled)
                 && cancelledArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
                "a cancelled archive creation reports cancellation and removes partial output")
+
+        let fallbackStage = archiveFailureRoot.appendingPathComponent("fallback-stage.zip")
+        let occupiedFallback = archiveFailureRoot.appendingPathComponent("Fallback.zip")
+        try? Data("archive".utf8).write(to: fallbackStage)
+        try? Data("existing".utf8).write(to: occupiedFallback)
+        let fallbackPublisher = ArchivePublisher(
+            renameExclusive: { _, _ in .unsupported })
+        let fallbackPublished = try? fallbackPublisher.publish(
+            fallbackStage, in: archiveFailureRoot, baseName: "Fallback",
+            fileManager: .default)
+        expect(fallbackPublished?.lastPathComponent == "Fallback 2.zip"
+                && !FileManager.default.fileExists(atPath: fallbackStage.path)
+                && (try? Data(contentsOf: occupiedFallback)) == Data("existing".utf8)
+                && fallbackPublished.flatMap { try? Data(contentsOf: $0) } == Data("archive".utf8),
+               "unsupported exclusive rename falls back without replacing an existing archive")
 
         let archiveRoundTripRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-archive-roundtrip-\(UUID().uuidString)", isDirectory: true)
@@ -11079,16 +11095,16 @@ struct MetricsTests {
         let roundTripWorker = ArchiveOperationWorker()
         let preservedArchive = roundTripWorker.create(
             sources: [archiveSource, secondSource], destinationDirectory: archiveOutput,
-            excludesDSStore: false, token: ArchiveCancellationToken())
+            excludesDSStore: false, token: CancellationToken())
         let excludedArchive = roundTripWorker.create(
             sources: [archiveSource, secondSource], destinationDirectory: archiveOutput,
-            excludesDSStore: true, token: ArchiveCancellationToken())
-        let archiveListingRunner = SystemArchiveCommandRunner()
+            excludesDSStore: true, token: CancellationToken())
         func archiveListing(_ url: URL, verbose: Bool = false) -> String {
             let arguments = verbose ? ["-tvf", url.path] : ["-tf", url.path]
-            let result = archiveListingRunner.run("/usr/bin/tar",
-                                                  arguments: arguments,
-                                                  token: ArchiveCancellationToken())
+            let result = BoundedProcessRunner.run("/usr/bin/tar", arguments,
+                                                  timeout: 10,
+                                                  maxOutputBytes: 4 * 1024 * 1024,
+                                                  environment: ["LC_ALL": "C"])
             return String(data: result.output, encoding: .utf8) ?? ""
         }
         if case let .success(preservedURL) = preservedArchive,

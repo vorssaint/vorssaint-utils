@@ -4,6 +4,54 @@
 import Darwin
 import Foundation
 
+final class CancellationToken: @unchecked Sendable {
+    typealias Handler = () -> Void
+
+    private let lock = NSLock()
+    private var cancelled = false
+    private var handlers: [UUID: Handler] = [:]
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        guard !cancelled else {
+            lock.unlock()
+            return
+        }
+        cancelled = true
+        let pendingHandlers = Array(handlers.values)
+        handlers.removeAll()
+        lock.unlock()
+        pendingHandlers.forEach { $0() }
+    }
+
+    @discardableResult
+    func register(_ handler: @escaping Handler) -> UUID? {
+        lock.lock()
+        if cancelled {
+            lock.unlock()
+            handler()
+            return nil
+        }
+        let id = UUID()
+        handlers[id] = handler
+        lock.unlock()
+        return id
+    }
+
+    func unregister(_ id: UUID?) {
+        guard let id else { return }
+        lock.lock()
+        handlers[id] = nil
+        lock.unlock()
+    }
+}
+
 private final class BoundedProcessOutput: @unchecked Sendable {
     private let lock = NSLock()
     private let limit: Int
@@ -36,11 +84,20 @@ enum BoundedProcessRunner {
 
     static func run(_ path: String,
                     _ arguments: [String],
-                    timeout: TimeInterval,
-                    maxOutputBytes: Int) -> Result {
+                    timeout: TimeInterval?,
+                    maxOutputBytes: Int,
+                    environment: [String: String]? = nil,
+                    cancellationToken: CancellationToken? = nil) -> Result {
+        guard cancellationToken?.isCancelled != true else {
+            return Result(status: -1, output: Data(), timedOut: false)
+        }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
+        if let environment {
+            process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, new in new }
+        }
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
@@ -79,7 +136,17 @@ enum BoundedProcessRunner {
             return Result(status: -1, output: Data(), timedOut: false)
         }
 
-        var didFinish = finished.wait(timeout: .now() + max(0, timeout)) == .success
+        let cancellationRegistration = cancellationToken?.register {
+            guard process.isRunning else { return }
+            process.terminate()
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
+                if process.isRunning { kill(process.processIdentifier, SIGKILL) }
+            }
+        }
+        defer { cancellationToken?.unregister(cancellationRegistration) }
+
+        let deadline = timeout.map { DispatchTime.now() + max(0, $0) } ?? .distantFuture
+        var didFinish = finished.wait(timeout: deadline) == .success
         let timedOut = !didFinish
         if timedOut {
             process.terminate()
