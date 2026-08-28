@@ -6,6 +6,7 @@ import Foundation
 struct DiskImageInstallerStrings {
     let title: String
     let hubDescription: String
+    let useUserApplications: String
     let promptTitle: String
     let promptBodyFormat: String
     let installButton: String
@@ -43,6 +44,7 @@ extension DiskImageInstallerStrings {
     static let enUS = DiskImageInstallerStrings(
         title: "Disk image installer",
         hubDescription: "Install the single app inside a disk image and clean up the download",
+        useUserApplications: "Install apps in ~/Applications",
         promptTitle: "Install this app?",
         promptBodyFormat: "%@ will be copied to Applications. The disk image is then ejected and its download moved to Trash.",
         installButton: "Install",
@@ -59,6 +61,7 @@ extension DiskImageInstallerStrings {
     static let ptBR = DiskImageInstallerStrings(
         title: "Instalador de imagens de disco",
         hubDescription: "Instale o único app de uma imagem de disco e limpe o download",
+        useUserApplications: "Instalar apps em ~/Applications",
         promptTitle: "Instalar este app?",
         promptBodyFormat: "%@ será copiado para Aplicativos. Depois, a imagem de disco será ejetada e o download irá para o Lixo.",
         installButton: "Instalar",
@@ -75,6 +78,7 @@ extension DiskImageInstallerStrings {
     static let tr = DiskImageInstallerStrings(
         title: "Disk görüntüsü yükleyicisi",
         hubDescription: "Disk görüntüsündeki tek uygulamayı yükle ve indirilen dosyayı temizle",
+        useUserApplications: "Uygulamaları ~/Applications klasörüne yükle",
         promptTitle: "Bu uygulama yüklensin mi?",
         promptBodyFormat: "%@ Uygulamalar'a kopyalanacak. Ardından disk görüntüsü çıkarılacak ve indirilen dosya Çöp Sepeti'ne taşınacak.",
         installButton: "Yükle",
@@ -91,6 +95,7 @@ extension DiskImageInstallerStrings {
     static let ru = DiskImageInstallerStrings(
         title: "Установка из образа диска",
         hubDescription: "Установите единственное приложение из образа диска и удалите загрузку",
+        useUserApplications: "Устанавливать приложения в ~/Applications",
         promptTitle: "Установить это приложение?",
         promptBodyFormat: "%@ будет скопировано в папку «Программы». Затем образ диска будет извлечён, а загрузка перемещена в Корзину.",
         installButton: "Установить",
@@ -107,6 +112,7 @@ extension DiskImageInstallerStrings {
     static let es = DiskImageInstallerStrings(
         title: "Instalador de imágenes de disco",
         hubDescription: "Instala la única app de una imagen de disco y limpia la descarga",
+        useUserApplications: "Instalar apps en ~/Applications",
         promptTitle: "¿Instalar esta app?",
         promptBodyFormat: "%@ se copiará en Aplicaciones. Después, se expulsará la imagen de disco y la descarga irá a la Papelera.",
         installButton: "Instalar",
@@ -123,6 +129,7 @@ extension DiskImageInstallerStrings {
     static let de = DiskImageInstallerStrings(
         title: "Disk-Image-Installer",
         hubDescription: "Installiere die einzige App in einem Disk-Image und räume den Download auf",
+        useUserApplications: "Apps in ~/Applications installieren",
         promptTitle: "Diese App installieren?",
         promptBodyFormat: "%@ wird in Programme kopiert. Danach wird das Disk-Image ausgeworfen und der Download in den Papierkorb gelegt.",
         installButton: "Installieren",
@@ -139,6 +146,7 @@ extension DiskImageInstallerStrings {
     static let fr = DiskImageInstallerStrings(
         title: "Installation depuis une image disque",
         hubDescription: "Installez l'unique app d'une image disque et nettoyez le téléchargement",
+        useUserApplications: "Installer les apps dans ~/Applications",
         promptTitle: "Installer cette app ?",
         promptBodyFormat: "%@ sera copiée dans Applications. L'image disque sera ensuite éjectée et le téléchargement placé dans la Corbeille.",
         installButton: "Installer",
@@ -155,6 +163,7 @@ extension DiskImageInstallerStrings {
     static let it = DiskImageInstallerStrings(
         title: "Installazione da immagine disco",
         hubDescription: "Installa l'unica app di un'immagine disco e ripulisci il download",
+        useUserApplications: "Installa le app in ~/Applications",
         promptTitle: "Installare questa app?",
         promptBodyFormat: "%@ verrà copiata in Applicazioni. Poi l'immagine disco verrà espulsa e il download spostato nel Cestino.",
         installButton: "Installa",
@@ -171,6 +180,7 @@ extension DiskImageInstallerStrings {
     static let ja = DiskImageInstallerStrings(
         title: "ディスクイメージからインストール",
         hubDescription: "ディスクイメージ内の1つのアプリをインストールし、ダウンロードを片付けます",
+        useUserApplications: "アプリを ~/Applications にインストール",
         promptTitle: "このアプリをインストールしますか？",
         promptBodyFormat: "%@をアプリケーションにコピーします。その後、ディスクイメージを取り出し、ダウンロードをゴミ箱に移動します。",
         installButton: "インストール",
@@ -187,6 +197,7 @@ extension DiskImageInstallerStrings {
     static let ko = DiskImageInstallerStrings(
         title: "디스크 이미지 설치",
         hubDescription: "디스크 이미지 안의 단일 앱을 설치하고 다운로드를 정리합니다",
+        useUserApplications: "앱을 ~/Applications에 설치",
         promptTitle: "이 앱을 설치할까요?",
         promptBodyFormat: "%@을(를) 응용 프로그램에 복사합니다. 그런 다음 디스크 이미지를 추출하고 다운로드를 휴지통으로 이동합니다.",
         installButton: "설치",
@@ -203,6 +214,7 @@ extension DiskImageInstallerStrings {
     static let zhHans = DiskImageInstallerStrings(
         title: "磁盘映像安装器",
         hubDescription: "安装磁盘映像中的唯一应用，并清理下载文件",
+        useUserApplications: "将 App 安装到 ~/Applications",
         promptTitle: "安装此应用？",
         promptBodyFormat: "%@ 将复制到“应用程序”。随后会推出磁盘映像，并将下载文件移到废纸篓。",
         installButton: "安装",
@@ -219,6 +231,7 @@ extension DiskImageInstallerStrings {
     static let zhTW = DiskImageInstallerStrings(
         title: "磁碟映像檔安裝器",
         hubDescription: "安裝磁碟映像檔中的單一 App，並清理下載檔案",
+        useUserApplications: "將 App 安裝到 ~/Applications",
         promptTitle: "要安裝此 App 嗎？",
         promptBodyFormat: "%@ 將複製到「應用程式」。接著會退出磁碟映像檔，並將下載檔案移到垃圾桶。",
         installButton: "安裝",
@@ -235,6 +248,7 @@ extension DiskImageInstallerStrings {
     static let zhHK = DiskImageInstallerStrings(
         title: "磁碟映像檔安裝器",
         hubDescription: "安裝磁碟映像檔中的單一 App，並清理下載檔案",
+        useUserApplications: "將 App 安裝到 ~/Applications",
         promptTitle: "要安裝此 App 嗎？",
         promptBodyFormat: "%@ 將複製到「應用程式」。之後會退出磁碟映像檔，並將下載檔案移到垃圾桶。",
         installButton: "安裝",

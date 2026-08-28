@@ -10995,7 +10995,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.diskImageInstaller(language)
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 13 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 14 && values.allSatisfy { !$0.isEmpty },
                    "disk image installer has every localized field for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "disk image installer text uses human punctuation for \(language.rawValue)")
@@ -11039,6 +11039,36 @@ struct MetricsTests {
             applicationsURL: URL(fileURLWithPath: "/Applications", isDirectory: true))?.path
             == "/Applications/Example.app",
             "a top-level app gets one fixed Applications destination")
+        expect(DiskImageInstallerSupport.destinationURL(
+            for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
+            applicationsURL: URL(fileURLWithPath: "/Users/test/Applications",
+                                 isDirectory: true))?.path
+            == "/Users/test/Applications/Example.app",
+            "the installer support accepts the current user's Applications directory")
+        expect(DiskImageInstallerSupport.applicationsDomain(useUserApplications: false)
+                == .localDomainMask
+                && DiskImageInstallerSupport.applicationsDomain(useUserApplications: true)
+                == .userDomainMask,
+               "the disk image setting selects the system or user application domain")
+        expect(DiskImageInstallerSupport.collisionDomains(useUserApplications: false)
+                == [.localDomainMask]
+                && DiskImageInstallerSupport.collisionDomains(useUserApplications: true)
+                == [.localDomainMask, .userDomainMask],
+               "only the opt-in installer checks both application domains for collisions")
+        let installerDestinations = DiskImageInstallerSupport.destinationURLs(
+            for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
+            applicationsURLs: [
+                URL(fileURLWithPath: "/Applications", isDirectory: true),
+                URL(fileURLWithPath: "/Users/test/Applications", isDirectory: true),
+            ])
+        expect(installerDestinations?.map(\.path) == [
+            "/Applications/Example.app",
+            "/Users/test/Applications/Example.app",
+        ], "the already-installed guard covers both application directories")
+        expect(DiskImageInstallerSupport.destinationURLs(
+            for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
+            applicationsURLs: []) == nil,
+            "missing application-domain resolutions fail closed")
         expect(DiskImageInstallerSupport.destinationURL(
             for: URL(fileURLWithPath: "/Volumes/Installer/.Hidden.app"),
             applicationsURL: URL(fileURLWithPath: "/Applications", isDirectory: true)) == nil,
@@ -16005,6 +16035,10 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
                 && backupKeys.contains(DefaultsKey.finderPasteImageAsFile),
                "pasting copied images as files is opt-in and travels with settings backup")
+        expect(Defaults.registeredDefaults[
+            DefaultsKey.diskImageInstallerUseUserApplications] as? Bool == false
+                && backupKeys.contains(DefaultsKey.diskImageInstallerUseUserApplications),
+               "installing disk-image apps for the current user is opt-in and travels with settings backup")
         expect(Defaults.registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true
                 && backupKeys.contains(DefaultsKey.finderCutPasteShowHUD),
                "the Finder cut and paste floating panel default is on and travels with settings backup")

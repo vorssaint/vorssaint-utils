@@ -103,6 +103,7 @@ enum DefaultsKey {
     static let finderRenameEnabled = "finderRenameEnabled"
     static let finderRenameShortcut = "finderRenameShortcut"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
+    static let diskImageInstallerUseUserApplications = "diskImageInstallerUseUserApplications"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
     static let shelfEnabled = "shelfEnabled"
@@ -1116,6 +1117,7 @@ enum Defaults {
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
         DefaultsKey.finderRenameEnabled: false,
         DefaultsKey.finderRenameShortcut: GlobalShortcut.finderRenameDefault.storageValue,
+        DefaultsKey.diskImageInstallerUseUserApplications: false,
         DefaultsKey.colorPickerShortcutEnabled: false,
         DefaultsKey.colorPickerShortcut: GlobalShortcut.colorPickerDefault.storageValue,
         DefaultsKey.colorPickerFormat: "hex",
