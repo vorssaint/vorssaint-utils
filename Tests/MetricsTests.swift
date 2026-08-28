@@ -18041,8 +18041,9 @@ struct MetricsTests {
                "build.sh installs the temp dir sweep before it stages the first dir")
         // zsh runs the EXIT trap on HUP but not on INT or TERM, so the signals
         // have to reach it through `exit` or Ctrl-C leaks the staged bundle.
-        expect(buildScript.contains("trap 'exit 1' INT TERM HUP"),
-               "build.sh routes interrupt and termination through the sweep")
+        let signalsRouted = buildScript.range(of: "trap 'exit 1' INT TERM HUP")?.lowerBound
+        expect(signalsRouted != nil && firstStaged != nil && signalsRouted! < firstStaged!,
+               "build.sh routes interrupts through the sweep before it stages the first dir")
         let cleanupBody = buildScript.components(separatedBy: "cleanup() {")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
         let stagedTempDirs = buildScript.components(separatedBy: "=\"$(mktemp -d)\"")
