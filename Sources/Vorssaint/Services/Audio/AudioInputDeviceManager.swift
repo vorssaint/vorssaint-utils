@@ -422,12 +422,24 @@ final class AudioInputDeviceManager: ObservableObject {
         kAudioDevicePropertyVolumeScalar,
     ]
 
-    private static func inputVolumeAddresses() -> [AudioObjectPropertyAddress] {
+    private static func mainInputVolumeAddresses() -> [AudioObjectPropertyAddress] {
         inputVolumeSelectors.map { selector in
             AudioObjectPropertyAddress(mSelector: selector,
                                        mScope: kAudioDevicePropertyScopeInput,
                                        mElement: kAudioObjectPropertyElementMain)
         }
+    }
+
+    private static func channelInputVolumeAddresses() -> [AudioObjectPropertyAddress] {
+        [AudioObjectPropertyElement(1), AudioObjectPropertyElement(2)].map { element in
+            AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                       mScope: kAudioDevicePropertyScopeInput,
+                                       mElement: element)
+        }
+    }
+
+    private static func inputVolumeAddresses() -> [AudioObjectPropertyAddress] {
+        mainInputVolumeAddresses() + channelInputVolumeAddresses()
     }
 
     private func updateVolumeListeners(for deviceID: AudioObjectID?) {
@@ -496,19 +508,36 @@ final class AudioInputDeviceManager: ObservableObject {
     }
 
     private static func inputVolume(for deviceID: AudioObjectID) -> Float32? {
-        for var address in inputVolumeAddresses() where isSettable(deviceID, &address) {
+        for var address in mainInputVolumeAddresses() where isSettable(deviceID, &address) {
             var volume = Float32(0)
             var size = UInt32(MemoryLayout<Float32>.size)
             if AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr {
                 return volume
             }
         }
-        return nil
+
+        // Some input devices expose writable gain only on their individual
+        // channels. Represent those controls with their mean so both remain
+        // visible and editable through the single slider.
+        let channelVolumes = channelInputVolumeAddresses().compactMap { address -> Float32? in
+            var address = address
+            guard isSettable(deviceID, &address) else { return nil }
+            var volume = Float32(0)
+            var size = UInt32(MemoryLayout<Float32>.size)
+            guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr else {
+                return nil
+            }
+            return volume
+        }
+        guard !channelVolumes.isEmpty else { return nil }
+        return channelVolumes.reduce(0, +) / Float32(channelVolumes.count)
     }
 
     private static func setInputVolume(_ volume: Float32, for deviceID: AudioObjectID) -> Bool {
         let clamped = min(max(volume, 0), 1)
-        for var address in inputVolumeAddresses() where isSettable(deviceID, &address) {
+        // Prefer a master control and stop at the first successful selector so
+        // devices exposing both master and channels keep their channel balance.
+        for var address in mainInputVolumeAddresses() where isSettable(deviceID, &address) {
             var nextVolume = clamped
             if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
                                           UInt32(MemoryLayout<Float32>.size),
@@ -516,7 +545,19 @@ final class AudioInputDeviceManager: ObservableObject {
                 return true
             }
         }
-        return false
+
+        // With no usable master, every writable channel must be updated or a
+        // channel-only microphone would remain partially unchanged.
+        var applied = false
+        for var address in channelInputVolumeAddresses() where isSettable(deviceID, &address) {
+            var nextVolume = clamped
+            if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
+                                          UInt32(MemoryLayout<Float32>.size),
+                                          &nextVolume) == noErr {
+                applied = true
+            }
+        }
+        return applied
     }
 
     private static func inputDevices(defaultUID: String?) -> [MixerInputDevice] {
