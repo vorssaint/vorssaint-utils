@@ -59,6 +59,8 @@ struct PanelClipboardView: View {
                 .onChange(of: enabled) { _, _ in
                     ClipboardHistoryService.shared.syncWithPreferences()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-enable"),
+                                  actions: PanelRowActions(activate: { enabled.toggle() }))
             Text(enabled ? text.caption : text.disabled)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -85,6 +87,11 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.clearRecent)
                 .disabled(history.recentEntries.isEmpty)
+                .panelKeyboardRow(history.recentEntries.isEmpty ? nil : PanelRowID(.utilities, "clipboard-clearRecent"),
+                                  actions: PanelRowActions(activate: {
+                                      history.clearRecent()
+                                      copiedID = nil
+                                  }), cornerRadius: 6)
                 Button {
                     history.showHistoryWindow()
                 } label: {
@@ -95,6 +102,8 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.shortcut)
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-showWindow"),
+                                  actions: PanelRowActions(activate: { history.showHistoryWindow() }), cornerRadius: 6)
             }
         }
         .panelCard()
@@ -204,6 +213,8 @@ struct PanelClipboardView: View {
             }
             entryPreview(entry)
             HStack(spacing: 6) {
+                let canMoveUp = canReorderEntries && history.canMove(entry, .up)
+                let canMoveDown = canReorderEntries && history.canMove(entry, .down)
                 Button {
                     history.move(entry, .up)
                 } label: {
@@ -213,7 +224,9 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.moveUp)
-                .disabled(!canReorderEntries || !history.canMove(entry, .up))
+                .disabled(!canMoveUp)
+                .panelKeyboardRow(canMoveUp ? PanelRowID(.utilities, "clipboard-\(entry.id)-up") : nil,
+                                  actions: PanelRowActions(activate: { history.move(entry, .up) }), cornerRadius: 6)
                 Button {
                     history.move(entry, .down)
                 } label: {
@@ -223,7 +236,9 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.moveDown)
-                .disabled(!canReorderEntries || !history.canMove(entry, .down))
+                .disabled(!canMoveDown)
+                .panelKeyboardRow(canMoveDown ? PanelRowID(.utilities, "clipboard-\(entry.id)-down") : nil,
+                                  actions: PanelRowActions(activate: { history.move(entry, .down) }), cornerRadius: 6)
                 Button {
                     history.togglePin(entry)
                 } label: {
@@ -233,6 +248,8 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-\(entry.id)-pin"),
+                                  actions: PanelRowActions(activate: { history.togglePin(entry) }), cornerRadius: 6)
                 Button {
                     // The tick means "it is on the clipboard", so it waits for
                     // the write instead of announcing one still queued behind
@@ -247,6 +264,12 @@ struct PanelClipboardView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.mini)
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-\(entry.id)-copy"),
+                                  actions: PanelRowActions(activate: {
+                                      history.copy(entry) { copied in
+                                          if copied { copiedID = entry.id }
+                                      }
+                                  }), cornerRadius: 6)
                 Button {
                     history.remove(entry)
                 } label: {
@@ -256,6 +279,8 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.delete)
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-\(entry.id)-delete"),
+                                  actions: PanelRowActions(activate: { history.remove(entry) }), cornerRadius: 6)
                 Spacer()
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))

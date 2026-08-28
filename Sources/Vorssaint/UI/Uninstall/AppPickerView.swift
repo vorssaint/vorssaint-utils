@@ -18,6 +18,8 @@ struct AppPickerView: View {
     /// it anywhere else would take an entry that never matches anything
     /// (issue #1009).
     var acceptsExecutables = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
     var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
@@ -25,12 +27,14 @@ struct AppPickerView: View {
     init(compact: Bool = false,
          canBrowseApplications: Bool = false,
          acceptsExecutables: Bool = false,
+         keyboardSection: PanelSectionID? = nil,
          onCancel: @escaping () -> Void,
          onSelect: @escaping (URL) -> Void,
          loadApps: @escaping () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }) {
         self.compact = compact
         self.canBrowseApplications = canBrowseApplications
         self.acceptsExecutables = acceptsExecutables
+        self.keyboardSection = keyboardSection
         self.onCancel = onCancel
         self.onSelect = onSelect
         self.loadApps = loadApps
@@ -77,9 +81,13 @@ struct AppPickerView: View {
                     Label(l10n.s.uninstallerChoose, systemImage: "folder")
                 }
                 .controlSize(compact ? .small : .regular)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-browse") },
+                                  actions: PanelRowActions(activate: { isBrowsingApplications = true }))
             }
             Button(l10n.s.uninstallerCancel, action: onCancel)
                 .controlSize(compact ? .small : .regular)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-cancel") },
+                                  actions: PanelRowActions(activate: onCancel))
         }
     }
 
@@ -117,6 +125,8 @@ struct AppPickerView: View {
                             AppPickerRow(app: app, compact: compact)
                         }
                         .buttonStyle(.plain)
+                        .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-\(app.url.path)") },
+                                          actions: PanelRowActions(activate: { onSelect(app.url) }))
                     }
                 }
                 .padding(.vertical, 3)

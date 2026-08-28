@@ -7,7 +7,7 @@ struct PanelRecentCapturesView: View {
     var onClose: () -> Void
 
     var body: some View {
-        RecentCapturesView(onClose: onClose)
+        RecentCapturesView(onClose: onClose, keyboardSection: .utilities)
         .onAppear {
             PanelInteractionState.shared.viewKeepsPopoverOpen = true
         }
@@ -23,6 +23,8 @@ struct RecentCapturesView: View {
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     private var text: RecentCaptureStrings {
         FeatureStrings.recentCaptures(l10n.language)
@@ -68,6 +70,8 @@ struct RecentCapturesView: View {
             .help(text.clear)
             .accessibilityLabel(text.clear)
             .disabled(visibleEntries.isEmpty)
+            .panelKeyboardRow(visibleEntries.isEmpty ? nil : keyboardSection.map { PanelRowID($0, "recentCaptures-clear") },
+                              actions: PanelRowActions(activate: { confirmingClear = true }))
             if let onClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
@@ -78,6 +82,8 @@ struct RecentCapturesView: View {
                 .buttonStyle(.plain)
                 .help(l10n.s.uninstallerCancel)
                 .accessibilityLabel(l10n.s.uninstallerCancel)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "recentCaptures-close") },
+                                  actions: PanelRowActions(activate: onClose))
             }
         }
     }
@@ -126,6 +132,8 @@ struct RecentCapturesView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
+                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "recentCapture-\(entry.id)-open") },
+                                      actions: PanelRowActions(activate: { history.open(entry) }), cornerRadius: 6)
                     Button {
                         history.remove(entry)
                     } label: {
@@ -136,6 +144,8 @@ struct RecentCapturesView: View {
                     .controlSize(.mini)
                     .help(text.remove)
                     .accessibilityLabel(text.remove)
+                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "recentCapture-\(entry.id)-remove") },
+                                      actions: PanelRowActions(activate: { history.remove(entry) }), cornerRadius: 6)
                 }
             }
             Spacer(minLength: 0)

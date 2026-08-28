@@ -42,6 +42,8 @@ struct FullDiskAccessNote: View {
     /// Why this surface needs the permission. The scan is the usual reason;
     /// a failed removal has its own, so it says so in its own words.
     var reason: String?
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -62,8 +64,14 @@ struct FullDiskAccessNote: View {
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: compact ? 7 : 8) {
                 Button(l10n.s.uninstallerFDAGrant) { permissions.requestFullDiskAccess() }
+                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "fullDiskAccess-grant") },
+                                      actions: PanelRowActions(activate: { permissions.requestFullDiskAccess() }),
+                                      cornerRadius: 6)
                 // Shown alongside because access only takes effect on relaunch.
                 Button(l10n.s.uninstallerFDARelaunch) { appDelegate()?.relaunchApp() }
+                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "fullDiskAccess-relaunch") },
+                                      actions: PanelRowActions(activate: { appDelegate()?.relaunchApp() }),
+                                      cornerRadius: 6)
             }
             .controlSize(.small)
             .font(compact ? .system(size: 10.5) : nil)
@@ -85,6 +93,8 @@ struct FullDiskAccessNote: View {
 struct UninstallFailureNote: View {
     let items: [AppUninstaller.Leftover]
     var compact = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -111,7 +121,8 @@ struct UninstallFailureNote: View {
                     .foregroundStyle(.tertiary)
             }
             if !permissions.fullDiskAccess {
-                FullDiskAccessNote(compact: compact, reason: l10n.s.uninstallerFailedNeedsFDA)
+                FullDiskAccessNote(compact: compact, reason: l10n.s.uninstallerFailedNeedsFDA,
+                                   keyboardSection: keyboardSection)
             }
         }
     }
