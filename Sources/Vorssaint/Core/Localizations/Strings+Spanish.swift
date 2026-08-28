@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "Acerca de",
         tabReleaseNotes: "Novedades",
         releaseNotesOnUpdateToggle: "Mostrar novedades al actualizar",
-        whatsNewDontShowAgain: "No mostrar de nuevo",
         previewSizeLabel: "Tamaño de vistas previas",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Grande",
@@ -208,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Ventanas",
         switcherWindowShortcutCaption: "Abre un selector de las ventanas de la app en primer plano. Con el selector de apps abierto, salta entre las ventanas de la app seleccionada.",
+        switcherAppearanceDelay: "Retardo de aparición",
+        switcherAppearanceDelayCaption: "Cuánto tiempo debe mantenerse pulsado el atajo antes de que aparezca el selector.",
         switcherMergeTabs: "Mostrar una entrada por app",
         switcherMergeTabsCaption: "Agrupa todas las ventanas de una app en una sola entrada del selector, en vez de una por ventana.",
         switcherWindowlessApps: "Apps sin ventanas abiertas",
@@ -675,6 +676,8 @@ extension Strings {
         diskSection: "Discos",
         diskUsed: "usado",
         diskFree: "libre",
+        diskAvailable: "disponible",
+        diskPurgeable: "purgable",
         diskInternal: "Interno",
         diskExternal: "Externo",
         diskSelect: "Seleccionar disco",
@@ -751,6 +754,8 @@ extension Strings {
         speedTestFailed: "La prueba falló",
 
         monitorShowInPanel: "Mostrar en el panel",
+        disclosureExpanded: "Expandido",
+        disclosureCollapsed: "Contraído",
         panelHideItem: "Ocultar del panel",
         panelShowItem: "Mostrar en el panel",
         panelHiddenItem: "Oculto",
@@ -906,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Abrir ajustes de notificaciones…",
         launchAtLoginNeedsApplications: "La app se está ejecutando desde un lugar que no permite abrirse al iniciar sesión. Arrastra Vorssaint a la carpeta Aplicaciones, ábrelo desde ahí y actívalo de nuevo.",
         launchAtLoginNeedsApproval: "El ítem de inicio está registrado, pero sigue desactivado en Ajustes del Sistema. Abre Ajustes del Sistema › General › Ítems de inicio y extensiones y activa Vorssaint en «Abrir al iniciar sesión».",
+        ocrRemoveLineBreaksToggle: "Eliminar saltos de línea",
+        ocrRemoveLineBreaksCaption: "Elimina los saltos de línea para que el texto copiado se pegue como un solo párrafo.",
         ocrQRToggle: "Leer códigos QR",
         ocrQRCaption: "Si el área tiene un código QR, se muestra su contenido para copiar o abrir.",
         ocrQRCopied: "Código QR copiado",
@@ -965,6 +972,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Orden normal",
         switcherMinimizedPlacementEnd: "Colocar al final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa"
     )
 }

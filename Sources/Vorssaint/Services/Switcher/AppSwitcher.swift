@@ -104,15 +104,15 @@ final class AppSwitcher: ObservableObject {
     private var routePendingSessionStart: SwitcherPendingSessionStart?
     private var sessionStartGeneration: UInt64 = 0
 
-    /// The panel appears only after this delay, like the system switcher: a
-    /// quick ⌘Tab flick switches with no UI at all, which is what makes rapid
-    /// toggling feel instant instead of flashing a window.
-    private static let appearanceDelay: TimeInterval = 0.1
     private var pendingShow: DispatchWorkItem?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
     private var hoverAnchor: NSPoint?
+    /// The card currently under the pointer. Kept separate from selection so
+    /// a middle click on panel chrome can never close an unrelated window.
+    private var hoveredWindowIndex: Int?
+    private var swallowingMiddleMouseUp = false
     /// Fires while the pointer stays on the last visible overflow icon.
     private var iconRowEdgeHoverWork: DispatchWorkItem?
     private var iconRowEdgeHoverIndex: Int?
@@ -124,7 +124,7 @@ final class AppSwitcher: ObservableObject {
     private var sessionStartWindowID: CGWindowID?
     private var sessionSourceContext: SwitcherSourceContext?
     private var sessionShortcut: GlobalShortcut?
-    private var sessionScope: SwitcherSessionScope = .allApps
+    @Published private(set) var sessionScope: SwitcherSessionScope = .allApps
     private var shiftBackNavigationHeld = false
     /// Pressing Shift mid-session already steps back once, so the Tab landing
     /// in that same physical chord must not step again — but later Tabs during
@@ -576,27 +576,32 @@ final class AppSwitcher: ObservableObject {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             if type == .otherMouseDown,
                let panel,
+               let hoveredWindowIndex,
+               windows.indices.contains(hoveredWindowIndex),
                SwitcherSupport.isMiddleClickInsidePanel(
                    eventType: type,
                    buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
                    panelIsVisible: panel.isVisible,
                    panelFrame: panel.frame,
-                   location: NSEvent.mouseLocation
+                   location: NSEvent.mouseLocation,
+                   itemIsHovered: true
                ) {
-                closeSelectedWindow()
+                swallowingMiddleMouseUp = true
+                self.hoveredWindowIndex = nil
+                closeWindow(windows[hoveredWindowIndex])
                 return nil
             }
+            swallowingMiddleMouseUp = false
             dismissForClickOutsidePanel()
             return Unmanaged.passUnretained(event)
         case .otherMouseUp:
-            if let panel,
-               SwitcherSupport.shouldSwallowMiddleMouseUp(
+            let shouldSwallow = SwitcherSupport.shouldSwallowMiddleMouseUp(
                    eventType: type,
                    buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
-                   panelIsVisible: panel.isVisible,
-                   panelFrame: panel.frame,
-                   location: NSEvent.mouseLocation
-               ) {
+                   swallowedMouseDown: swallowingMiddleMouseUp
+               )
+            swallowingMiddleMouseUp = false
+            if shouldSwallow {
                 return nil
             }
             return Unmanaged.passUnretained(event)
@@ -799,6 +804,11 @@ final class AppSwitcher: ObservableObject {
                                   isFullscreen: source.isFullscreen)
         }
         sessionStartWindowID = source?.windowID
+        // The layout pass below reads usesWindowRow, which depends on the
+        // session scope; teardown resets it to .allApps, so assigning it after
+        // recomputeLayouts would size a window-scoped panel for the grouped
+        // layout on its first frame.
+        sessionScope = pending.scope
         recomputeLayouts(for: list)
         if !capturesPreviews {
             previews = [:]
@@ -824,7 +834,6 @@ final class AppSwitcher: ObservableObject {
                                     frontmostPID: SwitcherSupport.appPID(forFrontmost: reportedFrontPID,
                                                                          items: list))
         sessionShortcut = pending.shortcut
-        sessionScope = pending.scope
         shiftBackNavigationHeld = pending.reversed && pending.shortcut.shiftIsNavigationModifier
 
         if pending.additionalNavigation != 0 {
@@ -951,13 +960,18 @@ final class AppSwitcher: ObservableObject {
     /// the panel opens centered on the cursor's screen, and the card that
     /// happens to sit under a stationary pointer must not steal the selection.
     func hoverSelect(index: Int) {
-        guard sessionActive else { return }
+        guard sessionActive, windows.indices.contains(index) else { return }
+        hoveredWindowIndex = index
         let mouse = NSEvent.mouseLocation
         if let anchor = hoverAnchor {
             guard hypot(mouse.x - anchor.x, mouse.y - anchor.y) > 4 else { return }
             hoverAnchor = nil
         }
         select(index: index)
+    }
+
+    func hoverSelectEnded(index: Int) {
+        if hoveredWindowIndex == index { hoveredWindowIndex = nil }
     }
 
     /// Icon-row hover. Selects the tile, then only the last visible overflow
@@ -969,6 +983,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     func hoverSelectIconRowEnded(index: Int) {
+        hoverSelectEnded(index: index)
         guard iconRowEdgeHoverIndex == iconRowIndex(forSelectionIndex: index) else { return }
         cancelIconRowEdgeHover()
     }
@@ -1277,6 +1292,7 @@ final class AppSwitcher: ObservableObject {
         isSearchPinned = false
         totalWindowCount = 0
         hoverAnchor = nil
+        hoveredWindowIndex = nil
         cancelIconRowEdgeHover()
         iconRowFirstVisibleIndex = 0
         userNavigated = false
@@ -1301,7 +1317,9 @@ final class AppSwitcher: ObservableObject {
             self.showPanel()
         }
         pendingShow = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.appearanceDelay, execute: work)
+        let appearanceDelay = SwitcherSupport.appearanceDelay(
+            milliseconds: UserDefaults.standard.integer(forKey: DefaultsKey.switcherAppearanceDelay))
+        DispatchQueue.main.asyncAfter(deadline: .now() + appearanceDelay, execute: work)
     }
 
     private func showPanel() {
@@ -1359,7 +1377,8 @@ final class AppSwitcher: ObservableObject {
     private var usesWindowRow: Bool {
         SwitcherSupport.usesWindowRow(
             simpleMode: simpleModeEnabled,
-            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+            sessionScope: sessionScope
         )
     }
 

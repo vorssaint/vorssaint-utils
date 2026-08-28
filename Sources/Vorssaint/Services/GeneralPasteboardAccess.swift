@@ -3,31 +3,33 @@
 
 import Foundation
 
-/// Serializes the app's background observers of the general pasteboard.
+/// Serializes every access the app makes to the general pasteboard.
 /// NSPasteboard keeps a mutable type cache on its shared instance, so reading
-/// it from two queues at once can race inside AppKit. Slow reads stay off the
-/// main thread while the services that continuously inspect the clipboard use
-/// one access lane.
+/// it from two queues at once can race inside AppKit, and a read has no time
+/// limit: content can be promised and rendered only on demand, so an app that
+/// stops answering leaves the reader hanging. Hence one serial lane, off the
+/// main thread, and no way to wait for it — a caller waiting on the main
+/// thread is a frozen app (issue #887).
 final class GeneralPasteboardAccess {
     static let shared = GeneralPasteboardAccess()
 
     private let queue: DispatchQueue
-    private let queueKey = DispatchSpecificKey<UInt8>()
-    private let queueValue: UInt8 = 1
 
     init(label: String = "Vorssaint.Pasteboard.general") {
         queue = DispatchQueue(label: label, qos: .utility)
-        queue.setSpecific(key: queueKey, value: queueValue)
     }
 
     func async(_ work: @escaping () -> Void) {
         queue.async(execute: work)
     }
 
-    func sync<T>(_ work: () throws -> T) rethrows -> T {
-        if DispatchQueue.getSpecific(key: queueKey) == queueValue {
-            return try work()
+    /// Runs `work` on the lane and hands its result to `completion` on the
+    /// main queue. The caller returns immediately: a wedged lane delays the
+    /// completion, it never blocks whoever asked.
+    func async<T>(_ work: @escaping () -> T, then completion: @escaping (T) -> Void) {
+        queue.async {
+            let result = work()
+            DispatchQueue.main.async { completion(result) }
         }
-        return try queue.sync(execute: work)
     }
 }

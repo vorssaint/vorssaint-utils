@@ -67,7 +67,7 @@ struct ClipboardSettings: View {
                         .disabled(!enabled)
                     Picker(text.limit, selection: $limit) {
                         ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
-                            Text("\(value)").tag(value)
+                            Text(value == 0 ? text.limitUnlimited : "\(value)").tag(value)
                         }
                     }
                     .disabled(!enabled)
@@ -136,7 +136,9 @@ struct ClipboardSettings: View {
             autoClearDelay = Defaults.sanitizedClipboardAutoClearDelay(autoClearDelay)
         }
         .onChange(of: limit) { _, value in
-            limit = Defaults.sanitizedClipboardHistoryLimit(value)
+            let sanitized = Defaults.sanitizedClipboardHistoryLimit(value)
+            if sanitized != value { limit = sanitized }
+            ClipboardHistoryService.shared.trimToLimit()
         }
         // No syncWithPreferences() here, unlike the auto-clear toggles: the
         // running poll reads this value from UserDefaults on every tick, so a

@@ -29,16 +29,20 @@ struct PanelUninstallerView: View {
             }
             return selected
         } isTargeted: { dropTargeted = $0 }
-        .onAppear { PanelInteractionState.shared.keepsPopoverOpen = true }
-        .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+        .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
+        .onDisappear {
+            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            dismissHomebrewRemovalConfirmation()
+        }
         .alert(l10n.s.homebrewConfirmUninstallTitle,
-               isPresented: Binding(get: { pendingHomebrewRemoval != nil },
-                                    set: { if !$0 { pendingHomebrewRemoval = nil } }),
+               isPresented: homebrewRemovalConfirmationPresented,
                presenting: pendingHomebrewRemoval) { package in
-            Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            Button(l10n.s.uninstallerCancel, role: .cancel) {
+                dismissHomebrewRemovalConfirmation()
+            }
             Button(l10n.s.homebrewUninstall, role: .destructive) {
-                pendingHomebrewRemoval = nil
                 uninstaller.removeSelectedWithHomebrew()
+                dismissHomebrewRemovalConfirmation()
             }
         } message: { package in
             Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, package.displayName))
@@ -246,13 +250,29 @@ struct PanelUninstallerView: View {
                     .font(.system(size: 11))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text(prettyPath(item.url))
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.head)
+                HStack(spacing: 4) {
+                    if item.confidence == .related {
+                        Image(systemName: "questionmark.circle")
+                            .foregroundStyle(.orange)
+                            .help(l10n.s.cleanerOptionalSection)
+                            .accessibilityLabel(l10n.s.cleanerOptionalSection)
+                    }
+                    Text(prettyPath(item.url))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+                .font(.system(size: 9.5))
             }
             Spacer(minLength: 0)
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([item.url])
+            } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.plain)
+            .help(l10n.s.cleanerRevealInFinder)
+            .accessibilityLabel(l10n.s.cleanerRevealInFinder)
             Text(Self.byteString(item.size))
                 .font(.system(size: 10))
                 .monospacedDigit()
@@ -282,7 +302,7 @@ struct PanelUninstallerView: View {
                 Spacer()
                 Button {
                     if let package = uninstaller.selectedHomebrewPackage {
-                        pendingHomebrewRemoval = package
+                        presentHomebrewRemovalConfirmation(for: package)
                     } else {
                         uninstaller.removeSelected()
                     }
@@ -302,6 +322,24 @@ struct PanelUninstallerView: View {
 
     private var removeButtonTitle: String {
         uninstaller.selectedHomebrewPackage == nil ? l10n.s.uninstallerRemove : l10n.s.homebrewUninstall
+    }
+
+    private var homebrewRemovalConfirmationPresented: Binding<Bool> {
+        Binding {
+            pendingHomebrewRemoval != nil
+        } set: { isPresented in
+            if !isPresented { dismissHomebrewRemovalConfirmation() }
+        }
+    }
+
+    private func presentHomebrewRemovalConfirmation(for package: HomebrewPackage) {
+        PanelInteractionState.shared.isPresentingPopoverModal = true
+        pendingHomebrewRemoval = package
+    }
+
+    private func dismissHomebrewRemovalConfirmation() {
+        pendingHomebrewRemoval = nil
+        PanelInteractionState.shared.isPresentingPopoverModal = false
     }
 
     @ViewBuilder

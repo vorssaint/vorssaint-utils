@@ -62,13 +62,19 @@ final class URLCleanerService: ObservableObject {
         URLCleaning.clean(text, rules: Self.rules)
     }
 
+    /// Writes on the shared lane and settles the change count on the main
+    /// queue, where the poll compares against it. The caller never waits: the
+    /// lane can be wedged behind an app that promised pasteboard content and
+    /// stopped answering (issue #887).
     func copy(_ urlString: String) {
         cancelPoll()
-        let changeCount = GeneralPasteboardAccess.shared.sync {
-            Self.writeToPasteboard(urlString)
-        }
-        lastChangeCount = changeCount
         lastCleaned = urlString
+        GeneralPasteboardAccess.shared.async({
+            Self.writeToPasteboard(urlString)
+        }, then: { [weak self] changeCount in
+            guard let self else { return }
+            self.lastChangeCount = max(self.lastChangeCount, changeCount)
+        })
     }
 
     func stop() {

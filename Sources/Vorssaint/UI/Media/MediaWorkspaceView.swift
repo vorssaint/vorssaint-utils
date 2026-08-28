@@ -18,8 +18,8 @@ struct PanelMediaView: View {
 
     var body: some View {
         MediaWorkspaceView(compact: true, onClose: onClose)
-            .onAppear { PanelInteractionState.shared.keepsPopoverOpen = true }
-            .onDisappear { PanelInteractionState.shared.keepsPopoverOpen = false }
+            .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
+            .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
 }
 
@@ -152,15 +152,11 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             header
             toolPicker
-            if compact {
-                ScrollView {
-                    content
-                        .padding(.trailing, 1)
-                }
-                .frame(maxHeight: 430)
-            } else {
+            ScrollView {
                 content
+                    .padding(.trailing, 1)
             }
+            .frame(maxHeight: compact ? 430 : .infinity)
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
@@ -348,7 +344,11 @@ struct MediaWorkspaceView: View {
                 .pickerStyle(.segmented)
                 compressionRow(value: $imageQuality)
                 imageResizeSection
-                DisclosureGroup(imageText.moreOptions, isExpanded: $imageMoreOptionsExpanded) {
+                DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded) {
+                    Text(imageText.moreOptions)
+                    Spacer()
+                }
+                if imageMoreOptionsExpanded {
                     VStack(alignment: .leading, spacing: 10) {
                         imageProfileRow
                         // PDF output never carries EXIF (the image is re-encoded
@@ -364,6 +364,7 @@ struct MediaWorkspaceView: View {
                             .toggleStyle(.checkbox)
                     }
                     .padding(.top, 6)
+                    .disclosureIndent()
                 }
             }
             .panelCard()
@@ -1526,7 +1527,9 @@ struct MediaWorkspaceView: View {
 
     private func applyImageOptions(_ options: MediaImageOptions) {
         imageQuality = options.quality
-        imageMaxDimension = options.maxDimension
+        // Older profiles can carry the previously clamped legacy field;
+        // resizeMode remains authoritative for the value the user selected.
+        imageMaxDimension = options.resizeMode.maxDimension
         imageFormatRaw = options.format.rawValue
         imageStripMetadata = options.stripMetadata
         imageResizeKindRaw = options.resizeMode.kind.rawValue

@@ -12,6 +12,8 @@ import SwiftUI
 struct FeatureHubSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
+        SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
 
@@ -34,14 +36,14 @@ struct FeatureHubSettings: View {
                 if tab == .features {
                     HStack(spacing: 8) {
                         Text(String(format: hub.activeCountFormat,
-                                    features.availableCount, AppFeature.allCases.count))
+                                    features.availableCount, features.installableCount))
                             .font(.caption)
                             .foregroundStyle(.tertiary)
                         Spacer(minLength: 8)
                         Button(hub.installAllButton) {
                             FeatureRuntime.shared.setAllAvailable(true)
                         }
-                        .disabled(features.availableCount == AppFeature.allCases.count)
+                        .disabled(features.availableCount == features.installableCount)
                         Button(hub.uninstallAllButton) {
                             FeatureRuntime.shared.setAllAvailable(false)
                         }
@@ -142,7 +144,13 @@ struct FeatureHubSettings: View {
         ForEach(FeatureGroup.allCases, id: \.self) { group in
             Section {
                 ForEach(AppFeature.features(in: group), id: \.self) { feature in
-                    FeatureHubRow(feature: feature, hub: hub)
+                    FeatureHubRow(
+                        feature: feature,
+                        hub: hub,
+                        symbolName: feature == .superKey
+                            ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
+                            : feature.symbolName
+                    )
                 }
                 if group == .monitor,
                    !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
@@ -222,8 +230,14 @@ private struct FeatureHubRow: View {
     @State private var working = false
     let feature: AppFeature
     let hub: FeatureHubStrings
+    let symbolName: String
 
     private var installed: Bool { feature.isAvailable }
+
+    /// Set only while this Mac cannot run the feature and it is not yet
+    /// installed, so an install that predates the check keeps an ordinary
+    /// row with its settings and Uninstall reachable.
+    private var unsupportedReason: String? { feature.installBlockedReason }
 
     private var accessibilityTitle: String {
         let title = feature.hubTitle(l10n.s, hub: hub)
@@ -258,6 +272,8 @@ private struct FeatureHubRow: View {
                 rowContent(showsChevron: false)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                    .opacity(unsupportedReason == nil ? 1 : 0.4)
+                    .saturation(unsupportedReason == nil ? 1 : 0)
             }
             if working {
                 ProgressView()
@@ -267,6 +283,18 @@ private struct FeatureHubRow: View {
                     .buttonStyle(.bordered)
                     .controlSize(.small)
                     .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
+            } else if let reason = unsupportedReason {
+                // .help() never fires on a disabled control, so the tooltip
+                // has to sit on this wrapper. Flattening it loses the only
+                // place the reason is shown.
+                HStack(spacing: 0) {
+                    Button(hub.installButton) { flip(to: true) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(true)
+                        .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(reason)")
+                }
+                .help(reason)
             } else {
                 Button(hub.installButton) { flip(to: true) }
                     .buttonStyle(.borderedProminent)
@@ -285,7 +313,7 @@ private struct FeatureHubRow: View {
                         : AnyShapeStyle(Color.secondary.opacity(0.22)))
                 .frame(width: 30, height: 30)
                 .overlay(
-                    Image(systemName: feature.symbolName)
+                    Image(systemName: symbolName)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(installed ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
                 )

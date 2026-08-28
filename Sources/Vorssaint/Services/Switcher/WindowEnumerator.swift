@@ -29,6 +29,12 @@ enum WindowEnumerator {
     /// tree within the process thread budget while collapsing it into a few
     /// bounded AX batches.
     private static let maximumConcurrentQueries = 24
+    /// Ceiling on the whole batch, which the main thread waits out. Generous
+    /// against the messaging timeouts above even with every query as slow as
+    /// they allow, so only a dispatch pool with no thread to give can outlast
+    /// it (issue #971) — and then no answer was ever coming. A stalled main
+    /// thread stalls the event taps with it (issue #189), so it must expire.
+    private static let accessibilityBatchBudget: TimeInterval = 5.0
 
     static func listWindows(groupByApp: Bool = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
                             preservingGroupedWindows: Bool = false) -> [SwitcherItem] {
@@ -180,14 +186,23 @@ enum WindowEnumerator {
         var withheldPIDs = Set<pid_t>()
 
         // Accessibility cannot describe windows parked on a Space that is not
-        // visible, so the ghost veto below would silently hide real windows
-        // (issue #339). The window server tells them apart: a real parked
-        // window belongs to a Space, a stale leftover surface belongs to none.
+        // visible, so the ghost veto below needs the window server as a second
+        // witness. A stale surface can retain an old Space assignment, so
+        // membership alone is not proof that it is still a real window.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
-        var visibleSpaces: Set<UInt64>?
+        var topologyResolved = false
+        var topology: SpaceWindowBridge.Topology?
         var windowSpaces: [CGWindowID: [UInt64]] = [:]
         var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        var fullscreenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        func resolvedTopology() -> SpaceWindowBridge.Topology? {
+            if !topologyResolved {
+                topology = SpaceWindowBridge.topology()
+                topologyResolved = true
+            }
+            return topology
+        }
         func spaces(of windowID: CGWindowID) -> [UInt64] {
             if let cached = windowSpaces[windowID] { return cached }
             let resolved = SpaceWindowBridge.spaces(of: windowID)
@@ -196,15 +211,24 @@ enum WindowEnumerator {
         }
         func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
             if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
-            if visibleSpaces == nil {
-                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces ?? []
-            }
-            guard let visible = visibleSpaces, !visible.isEmpty else { return false }
+            guard let visible = resolvedTopology()?.visibleSpaces, !visible.isEmpty else { return false }
             let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
                 windowSpaces: spaces(of: windowID),
                 visibleSpaces: visible
             )
             hiddenSpaceVerdicts[windowID] = verdict
+            return verdict
+        }
+        func isOnFullscreenSpace(_ windowID: CGWindowID) -> Bool {
+            if let verdict = fullscreenSpaceVerdicts[windowID] { return verdict }
+            guard let fullscreen = resolvedTopology()?.fullscreenSpaces, !fullscreen.isEmpty else {
+                return false
+            }
+            let verdict = SpaceHopSupport.isOnFullscreenSpace(
+                windowSpaces: spaces(of: windowID),
+                fullscreenSpaces: fullscreen
+            )
+            fullscreenSpaceVerdicts[windowID] = verdict
             return verdict
         }
 
@@ -247,12 +271,19 @@ enum WindowEnumerator {
                     windowSpaces: spaces(of: CGWindowID(windowID)))
             let axSnapshot = accessibilityWindows[windowOwnerPID]
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
+            // A stale dialog can keep an old ordinary-Space tag indefinitely.
+            // Trust an unmatched hidden surface only when Accessibility could
+            // not describe any window for that owner, or when the window
+            // server puts this exact surface on a native fullscreen Space.
+            let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
+                && ((axSnapshot?.ordered.isEmpty ?? true)
+                    || isOnFullscreenSpace(CGWindowID(windowID)))
             if axSnapshot != nil, axWindow == nil {
                 // WindowServer kept a surface Accessibility does not vouch for:
                 // a stale leftover from a closed tab or window. Windows parked
                 // on a hidden Space and confirmed hidden-app windows are real,
                 // so they survive this veto.
-                if (!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
+                if (!hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow)
                     || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
                     continue
                 }
@@ -272,7 +303,9 @@ enum WindowEnumerator {
                                  width: (boundsDict["Width"] as? NSNumber)?.doubleValue ?? 0,
                                  height: (boundsDict["Height"] as? NSNumber)?.doubleValue ?? 0)
             let isMinimized = axWindow?.isMinimized ?? false
-            let isFullscreen = (axWindow?.isFullscreen ?? false) || frameLooksFullscreen(cgFrame)
+            let isFullscreen = (axWindow?.isFullscreen ?? false)
+                || (axWindow == nil && isOnFullscreenSpace(CGWindowID(windowID)))
+                || frameLooksFullscreen(cgFrame)
             guard let frame = switchableFrame(cgFrame, fallback: axWindow?.frame, isMinimized: isMinimized) else {
                 continue
             }
@@ -304,7 +337,7 @@ enum WindowEnumerator {
             // Windows the window server places on a hidden Space are equally
             // real even when untitled (their titles need Screen Recording).
             if !isOnScreen && displayTitle.isEmpty && axWindow == nil
-                && !isOnHiddenSpace(windowID) && !isConfirmedHiddenAppWindow { continue }
+                && !hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow { continue }
 
             seen.insert(windowID)
             windows.append(.window(id: windowID,
@@ -423,7 +456,8 @@ enum WindowEnumerator {
         guard !orderedPIDs.isEmpty else { return [:] }
         let screenFrames = NSScreen.screens.map(\.frame)
         var result: [pid_t: AccessibilityWindowSnapshotList] = [:]
-        let resultLock = NSLock()
+        var pendingQueries = orderedPIDs.count
+        let resultLock = NSCondition()
         // A remote app can consume its whole messaging timeout. Overlap those
         // independent calls so several slow background helpers cost one wait,
         // not one wait each, while preserving Accessibility-only windows. The
@@ -433,19 +467,31 @@ enum WindowEnumerator {
         queryQueue.maxConcurrentOperationCount = min(maximumConcurrentQueries, orderedPIDs.count)
         for pid in orderedPIDs {
             queryQueue.addOperation {
-                guard let windows = accessibilityWindows(
+                let windows = accessibilityWindows(
                     for: pid,
                     bundleIdentifier: bundleIdentifiers[pid],
                     acceptsUndescribedSubroles: undescribedSubrolePids.contains(pid),
                     screenFrames: screenFrames
-                ) else { return }
+                )
                 resultLock.lock()
-                result[pid] = windows
+                if let windows { result[pid] = windows }
+                pendingQueries -= 1
+                if pendingQueries == 0 { resultLock.broadcast() }
                 resultLock.unlock()
             }
         }
-        queryQueue.waitUntilAllOperationsAreFinished()
-        return result
+        // Operations still queued when the budget runs out are cancelled and
+        // the answers already in hand are returned. An app missing from that
+        // map reads downstream like an app that could not answer Accessibility,
+        // which every caller already handles.
+        let deadline = Date(timeIntervalSinceNow: accessibilityBatchBudget)
+        resultLock.lock()
+        while pendingQueries > 0, resultLock.wait(until: deadline) {}
+        let exhaustedBudget = pendingQueries > 0
+        let collected = result
+        resultLock.unlock()
+        if exhaustedBudget { queryQueue.cancelAllOperations() }
+        return collected
     }
 
     private static func accessibilityWindows(for pid: pid_t,

@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "Informazioni",
         tabReleaseNotes: "Novità",
         releaseNotesOnUpdateToggle: "Mostra le novità dopo l'aggiornamento",
-        whatsNewDontShowAgain: "Non mostrare più",
         previewSizeLabel: "Dimensione anteprime",
         previewSizeNormal: "Normale",
         previewSizeLarge: "Grande",
@@ -208,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "Finestre",
         switcherWindowShortcutCaption: "Apre un selettore per le finestre dell’app in primo piano. Con il selettore app aperto, salta tra le finestre dell’app selezionata.",
+        switcherAppearanceDelay: "Ritardo di comparsa",
+        switcherAppearanceDelayCaption: "Per quanto tempo va tenuta premuta la scorciatoia prima che appaia il selettore.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un'app in un'unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",
@@ -675,6 +676,8 @@ extension Strings {
         diskSection: "Dischi",
         diskUsed: "usato",
         diskFree: "libero",
+        diskAvailable: "disponibile",
+        diskPurgeable: "eliminabile",
         diskInternal: "Interno",
         diskExternal: "Esterno",
         diskSelect: "Scegli disco",
@@ -751,6 +754,8 @@ extension Strings {
         speedTestFailed: "Test non riuscito",
 
         monitorShowInPanel: "Mostra nel pannello",
+        disclosureExpanded: "Espanso",
+        disclosureCollapsed: "Contratto",
         panelHideItem: "Nascondi dal pannello",
         panelShowItem: "Mostra nel pannello",
         panelHiddenItem: "Nascosto",
@@ -906,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Apri impostazioni notifiche…",
         launchAtLoginNeedsApplications: "L'app è in esecuzione da una posizione che non consente l'apertura all'accesso. Trascina Vorssaint nella cartella Applicazioni, aprila da lì e riattiva l'opzione.",
         launchAtLoginNeedsApproval: "L'elemento di login è registrato, ma in Impostazioni di Sistema resta disattivato. Apri Impostazioni di Sistema › Generali › Elementi login ed estensioni e attiva Vorssaint sotto «Apri all'accesso».",
+        ocrRemoveLineBreaksToggle: "Rimuovi interruzioni di riga",
+        ocrRemoveLineBreaksCaption: "Rimuove le interruzioni di riga, così il testo copiato viene incollato come un unico paragrafo.",
         ocrQRToggle: "Leggi i codici QR",
         ocrQRCaption: "Se l'area contiene un codice QR, il suo contenuto viene mostrato per copiarlo o aprirlo.",
         ocrQRCopied: "Codice QR copiato",
@@ -965,6 +972,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordine normale",
         switcherMinimizedPlacementEnd: "Sposta alla fine",
         switcherMinimizedPlacementHidden: "Nascondi",
-        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero" 
+        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero"
     )
 }

@@ -13,17 +13,24 @@ struct AppPickerView: View {
 
     var compact = false
     var canBrowseApplications = false
+    /// Whether a program that is not packaged as an app may be chosen too.
+    /// Only the lists that can recognize one at runtime ask for this: offering
+    /// it anywhere else would take an entry that never matches anything
+    /// (issue #1009).
+    var acceptsExecutables = false
     var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
 
     init(compact: Bool = false,
          canBrowseApplications: Bool = false,
+         acceptsExecutables: Bool = false,
          onCancel: @escaping () -> Void,
          onSelect: @escaping (URL) -> Void,
          loadApps: @escaping () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }) {
         self.compact = compact
         self.canBrowseApplications = canBrowseApplications
+        self.acceptsExecutables = acceptsExecutables
         self.onCancel = onCancel
         self.onSelect = onSelect
         self.loadApps = loadApps
@@ -50,7 +57,9 @@ struct AppPickerView: View {
         .frame(width: compact ? nil : 520, height: compact ? nil : 560)
         .onAppear { loadAppsIfNeeded() }
         .fileImporter(isPresented: $isBrowsingApplications,
-                      allowedContentTypes: [.applicationBundle]) { result in
+                      allowedContentTypes: acceptsExecutables
+                          ? [.applicationBundle, .executable, .unixExecutable]
+                          : [.applicationBundle]) { result in
             guard let url = try? result.get() else { return }
             onSelect(url)
         }

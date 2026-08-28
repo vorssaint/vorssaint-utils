@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "情報",
         tabReleaseNotes: "新機能",
         releaseNotesOnUpdateToggle: "アップデート後に新機能を表示",
-        whatsNewDontShowAgain: "今後表示しない",
         previewSizeLabel: "プレビューのサイズ",
         previewSizeNormal: "標準",
         previewSizeLarge: "大",
@@ -208,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "アプリ",
         switcherShortcutHintWindows: "ウインドウ",
         switcherWindowShortcutCaption: "最前面のアプリのウインドウ用スイッチャーを開きます。アプリスイッチャー表示中は、選択中のアプリのウインドウを順に切り替えます。",
+        switcherAppearanceDelay: "表示までの待ち時間",
+        switcherAppearanceDelayCaption: "スイッチャーが表示されるまでショートカットを押し続ける時間です。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
         switcherWindowlessApps: "ウインドウなしのアプリ",
@@ -675,6 +676,8 @@ extension Strings {
         diskSection: "ディスク",
         diskUsed: "使用済み",
         diskFree: "空き",
+        diskAvailable: "利用可能",
+        diskPurgeable: "パージ可能",
         diskInternal: "内蔵",
         diskExternal: "外部",
         diskSelect: "ディスクを選択",
@@ -751,6 +754,8 @@ extension Strings {
         speedTestFailed: "テストに失敗しました",
 
         monitorShowInPanel: "パネルに表示",
+        disclosureExpanded: "展開済み",
+        disclosureCollapsed: "折りたたみ済み",
         panelHideItem: "パネルで非表示",
         panelShowItem: "パネルに表示",
         panelHiddenItem: "非表示",
@@ -906,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "通知設定を開く…",
         launchAtLoginNeedsApplications: "ログイン時に開けない場所からアプリが実行されています。Vorssaintをアプリケーションフォルダにドラッグし、そこから開いてもう一度オンにしてください。",
         launchAtLoginNeedsApproval: "ログイン項目は登録されていますが、システム設定ではオフのままです。「システム設定 › 一般 › ログイン項目と機能拡張」を開き、「ログイン時に開く」でVorssaintをオンにしてください。",
+        ocrRemoveLineBreaksToggle: "改行を削除",
+        ocrRemoveLineBreaksCaption: "認識したテキストの改行を取り除き、1つの段落としてペーストします。",
         ocrQRToggle: "QRコードを読み取る",
         ocrQRCaption: "選択した範囲にQRコードがあると、その内容をコピーまたは開けるように表示します。",
         ocrQRCopied: "QRコードをコピーしました",
@@ -965,6 +972,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "通常の順序",
         switcherMinimizedPlacementEnd: "最後に配置",
         switcherMinimizedPlacementHidden: "非表示",
-        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示" 
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示"
     )
 }

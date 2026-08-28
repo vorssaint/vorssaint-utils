@@ -5,61 +5,6 @@ import AppKit
 import AVKit
 import SwiftUI
 
-/// Shown once, automatically, to a user who skipped one or more releases between
-/// updates (e.g. 3.0.2 → 3.0.5), so the changes they missed — not only the
-/// current version — are surfaced. Clean installs, single-step updates and
-/// normal relaunches never see it.
-struct WhatsNewView: View {
-    let releases: [ReleaseNotes]
-    var onClose: () -> Void
-    var onDontShowAgain: () -> Void
-
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            ScrollView {
-                ReleaseNotesContent(releases: releases)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 22)
-            }
-            Divider()
-            footer
-        }
-        .frame(width: 640, height: 600)
-        .background(Color(nsColor: .windowBackgroundColor))
-    }
-
-    private var header: some View {
-        HStack {
-            Text(l10n.s.tabReleaseNotes)
-                .font(.system(size: 22, weight: .bold))
-            Spacer()
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 24)
-        .padding(.bottom, 16)
-    }
-
-    private var footer: some View {
-        HStack {
-            Button(l10n.s.whatsNewDontShowAgain) {
-                onDontShowAgain()
-            }
-            Spacer()
-            Button(l10n.s.menuClose) {
-                onClose()
-            }
-            .keyboardShortcut(.defaultAction)
-            .buttonStyle(.borderedProminent)
-        }
-        .padding(16)
-    }
-}
-
 /// Pre-install preview window content: shows the next version's full changelog —
 /// the same notes that ship with the release — so the user can decide before any
 /// download starts. Opened from both the Settings install button and the menu

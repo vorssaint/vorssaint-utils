@@ -15,7 +15,6 @@ enum MenuBarMetricSpacing: String, CaseIterable {
         return MenuBarMetricSpacing(rawValue: Defaults.sanitizedMenuBarMetricSpacing(raw)) ?? .standard
     }
 }
-
 /// How percentage based monitor readings appear in the menu bar. Values keep
 /// the existing numeric blocks; bars replace CPU, GPU, memory and disk usage
 /// with a compact vertical gauge. Readings without a fixed 0...100 scale stay
@@ -267,5 +266,45 @@ enum MenuBarSpacingSupport {
         if hasRenderedTitle { return true }
         guard itemExists else { return false }
         return consecutiveEmptyRenders < emptyMetricRendersBeforeRemoval
+    }
+}
+
+enum StatusItemPlacementSupport {
+    static let mainAutosaveName = "VorssaintMenuBarItem"
+    static let maxPlacementGeneration = 10_000
+
+    static func placementGeneration(in defaults: UserDefaults) -> Int {
+        min(max(defaults.integer(forKey: DefaultsKey.statusItemPlacementGeneration), 0),
+            maxPlacementGeneration)
+    }
+
+    static func mainAutosaveName(in defaults: UserDefaults) -> String {
+        let generation = placementGeneration(in: defaults)
+        guard generation > 0 else { return mainAutosaveName }
+        return "\(mainAutosaveName).\(generation)"
+    }
+
+    static func bumpPlacementGeneration(in defaults: UserDefaults) {
+        let previousName = mainAutosaveName(in: defaults)
+        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
+        defaults.removeObject(forKey: "NSStatusItem Visible \(previousName)")
+        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(previousName)")
+        let nextGen = (placementGeneration(in: defaults) % maxPlacementGeneration) + 1
+        defaults.set(nextGen, forKey: DefaultsKey.statusItemPlacementGeneration)
+        let nextName = mainAutosaveName(in: defaults)
+        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(nextName)")
+        defaults.removeObject(forKey: "NSStatusItem Visible \(nextName)")
+        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(nextName)")
+    }
+
+    /// Cleans up any legacy hardcoded placement offset (e.g. 64pt from screen's right edge)
+    /// which placed the item directly under macOS system items like the battery icon.
+    static func sanitizeStalePlacement(in defaults: UserDefaults) {
+        let currentName = mainAutosaveName(in: defaults)
+        let key = "NSStatusItem Preferred Position \(currentName)"
+        if let value = defaults.object(forKey: key) as? NSNumber,
+           abs(value.doubleValue - 64.0) < 0.1 {
+            defaults.removeObject(forKey: key)
+        }
     }
 }

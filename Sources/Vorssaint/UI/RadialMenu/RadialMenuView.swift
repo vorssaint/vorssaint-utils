@@ -11,9 +11,14 @@ struct RadialMenuView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var items: [RadialMenuItem] { service.stack.last ?? [] }
+    private var profileColor: Color {
+        service.activeProfile?.color.color(for: colorScheme) ?? .accentColor
+    }
 
     var body: some View {
         ZStack {
@@ -23,7 +28,7 @@ struct RadialMenuView: View {
                                  sliceAngle: 2 * .pi / Double(items.count),
                                  innerRadius: RadialMenuLayout.deadZoneRadius,
                                  outerRadius: RadialMenuLayout.wheelDiameter / 2 - 4)
-                    .fill(Color.accentColor.opacity(colorScheme == .light ? 0.16 : 0.24))
+                    .fill(profileColor.opacity(colorScheme == .light ? 0.16 : 0.24))
             }
             ring.id(service.stack.count)
             hub
@@ -40,7 +45,27 @@ struct RadialMenuView: View {
         .accessibilityLabel(text.pageTitle)
     }
 
+    @ViewBuilder
     private var backplate: some View {
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *), liquidGlassEnabled, !reduceTransparency {
+            Circle()
+                .fill(Color.clear)
+                .glassEffect(.regular, in: Circle())
+                .overlay(Circle().fill(PanelSurface.baseFill(for: colorScheme).opacity(colorScheme == .light ? 0.35 : 0.45)))
+                .overlay(Circle().strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8))
+                .frame(width: RadialMenuLayout.wheelDiameter, height: RadialMenuLayout.wheelDiameter)
+                .shadow(color: .black.opacity(colorScheme == .light ? 0.18 : 0.5), radius: 18, y: 5)
+        } else {
+            classicBackplate
+        }
+#else
+        classicBackplate
+#endif
+    }
+
+    @ViewBuilder
+    private var classicBackplate: some View {
         Circle()
             .fill(.regularMaterial)
             .overlay(Circle().fill(PanelSurface.baseFill(for: colorScheme)))
@@ -56,7 +81,8 @@ struct RadialMenuView: View {
                            name: item.displayName(text, nowPlayingState: service.nowPlayingState),
                            nowPlayingState: service.nowPlayingState,
                            highlighted: service.highlightedIndex == index,
-                           reduceMotion: reduceMotion)
+                           reduceMotion: reduceMotion,
+                           profileColor: profileColor)
                 .offset(x: unit.dx * RadialMenuLayout.ringRadius,
                         y: -unit.dyUp * RadialMenuLayout.ringRadius)
                 .accessibilityLabel(item.displayName(text, nowPlayingState: service.nowPlayingState))
@@ -103,12 +129,13 @@ private struct RadialChipView: View {
     let nowPlayingState: RadialNowPlayingState
     let highlighted: Bool
     let reduceMotion: Bool
+    let profileColor: Color
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
             Circle()
-                .fill(highlighted ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(PanelSurface.controlFill(for: colorScheme)))
+                .fill(highlighted ? AnyShapeStyle(profileColor) : AnyShapeStyle(PanelSurface.controlFill(for: colorScheme)))
                 .overlay(Circle().strokeBorder(PanelSurface.border(for: colorScheme),
                                                lineWidth: highlighted ? 0 : 0.7))
             icon
@@ -132,6 +159,11 @@ private struct RadialChipView: View {
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundStyle(highlighted ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             }
+        } else if item.symbolName.isEmpty, let customImage = RadialMenuIconStore.customIcon(for: item) {
+            Image(nsImage: customImage)
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 34, height: 34)
         } else if item.usesFileIcon {
             Image(nsImage: RadialMenuIconStore.fileIcon(for: item.payload))
                 .resizable()
@@ -173,6 +205,7 @@ struct RadialWedgeShape: Shape {
 enum RadialMenuIconStore {
     private static var icons: [String: NSImage] = [:]
     private static var names: [String: String] = [:]
+    private static var customIcons: [UUID: NSImage] = [:]
 
     static func fileIcon(for payload: String) -> NSImage {
         if let cached = icons[payload] { return cached }
@@ -181,6 +214,15 @@ enum RadialMenuIconStore {
         icon.size = NSSize(width: 34, height: 34)
         icons[payload] = icon
         return icon
+    }
+
+    static func customIcon(for item: RadialMenuItem) -> NSImage? {
+        guard let data = item.customIconData else { return nil }
+        if let cached = customIcons[item.id] { return cached }
+        guard let image = NSImage(data: data) else { return nil }
+        image.size = NSSize(width: 34, height: 34)
+        customIcons[item.id] = image
+        return image
     }
 
     static func fileName(for payload: String) -> String {
@@ -194,6 +236,12 @@ enum RadialMenuIconStore {
     static func invalidate(_ payload: String) {
         icons.removeValue(forKey: payload)
         names.removeValue(forKey: payload)
+    }
+
+    static func invalidate(item: RadialMenuItem) {
+        icons.removeValue(forKey: item.payload)
+        names.removeValue(forKey: item.payload)
+        customIcons.removeValue(forKey: item.id)
     }
 }
 

@@ -37,6 +37,13 @@ struct AppUpdateStrings {
     let homebrewBadge: String
     let sourcesTitle: String
     let includeHomebrewToggle: String
+    let onlineBadge: String
+    let openApp: String
+    let openAppHint: String
+    let includeOnlineToggle: String
+    let includeOnlineCaption: String
+    let incompleteCheck: String
+    let onlineUnavailable: String
 }
 
 extension FeatureStrings {
@@ -63,14 +70,14 @@ extension AppUpdateStrings {
     static let enUS = AppUpdateStrings(
         pageTitle: "App updates",
         hubDescription: "Find and install updates for the apps you have",
-        caption: "Looks for a newer version of the apps on this Mac and updates the ones you pick, so you do not have to open a store for each one.",
+        caption: "Looks for newer versions of the apps on this Mac and helps you finish each update from its original source.",
         panelCaption: "See which apps have a newer version",
         checkNow: "Check now",
         checking: "Checking",
         lastCheckFormat: "Last checked %@",
         neverChecked: "Not checked yet",
-        upToDate: "Every app is up to date",
-        coverageNote: "Covers apps installed with Homebrew and apps from the App Store. Apps that carry their own updater keep updating themselves.",
+        upToDate: "No updates found",
+        coverageNote: "Checks managed and store apps, then compares other exact app names with a public online catalog. Updates still install through their original source.",
         selectAll: "Select all",
         clearSelection: "Clear",
         updateSelectedFormat: "Update %d",
@@ -92,20 +99,27 @@ extension AppUpdateStrings {
         showInPanel: "Show in panel",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Sources",
-        includeHomebrewToggle: "Include Homebrew apps"
+        includeHomebrewToggle: "Include Homebrew apps",
+        onlineBadge: "Online",
+        openApp: "Open",
+        openAppHint: "Opens the app so its own updater can finish",
+        includeOnlineToggle: "Include other installed apps",
+        includeOnlineCaption: "Downloads a public app catalog without sending the names or identifiers of apps on this Mac.",
+        incompleteCheck: "Some apps could not be checked",
+        onlineUnavailable: "The online check could not be completed. Other results are still shown."
     )
 
     static let ptBR = AppUpdateStrings(
         pageTitle: "Atualizações de apps",
         hubDescription: "Encontre e instale atualizações dos seus apps",
-        caption: "Procura versão nova dos apps deste Mac e atualiza os que você escolher, sem precisar abrir uma loja para cada um.",
+        caption: "Procura versões novas dos apps deste Mac e ajuda você a concluir cada atualização pela origem do app.",
         panelCaption: "Veja quais apps têm versão nova",
         checkNow: "Verificar agora",
         checking: "Verificando",
         lastCheckFormat: "Última verificação %@",
         neverChecked: "Ainda não verificado",
-        upToDate: "Todos os apps estão em dia",
-        coverageNote: "Cobre apps instalados pelo Homebrew e apps da App Store. Apps com atualizador próprio continuam se atualizando sozinhos.",
+        upToDate: "Nenhuma atualização encontrada",
+        coverageNote: "Cobre apps gerenciados e da loja e compara o nome exato dos demais com um catálogo público online. A instalação continua na origem de cada app.",
         selectAll: "Selecionar tudo",
         clearSelection: "Limpar",
         updateSelectedFormat: "Atualizar %d",
@@ -127,20 +141,27 @@ extension AppUpdateStrings {
         showInPanel: "Mostrar no painel",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Fontes",
-        includeHomebrewToggle: "Incluir apps do Homebrew"
+        includeHomebrewToggle: "Incluir apps do Homebrew",
+        onlineBadge: "Online",
+        openApp: "Abrir",
+        openAppHint: "Abre o app para que o atualizador dele conclua",
+        includeOnlineToggle: "Incluir outros apps instalados",
+        includeOnlineCaption: "Baixa um catálogo público de apps sem enviar os nomes nem os identificadores dos apps deste Mac.",
+        incompleteCheck: "Não foi possível verificar alguns apps",
+        onlineUnavailable: "A verificação online não pôde ser concluída. Os demais resultados continuam visíveis."
     )
 
     static let tr = AppUpdateStrings(
         pageTitle: "Uygulama güncellemeleri",
         hubDescription: "Uygulamalarının güncellemelerini bul ve kur",
-        caption: "Bu Mac'teki uygulamaların yeni sürümünü arar ve seçtiklerini günceller, böylece her biri için ayrı bir mağaza açman gerekmez.",
+        caption: "Bu Mac'teki uygulamaların yeni sürümlerini arar ve her güncellemeyi kendi kaynağında tamamlamana yardımcı olur.",
         panelCaption: "Hangi uygulamaların yeni sürümü olduğunu gör",
         checkNow: "Şimdi denetle",
         checking: "Denetleniyor",
         lastCheckFormat: "Son denetleme %@",
         neverChecked: "Henüz denetlenmedi",
-        upToDate: "Tüm uygulamalar güncel",
-        coverageNote: "Homebrew ile kurulan uygulamaları ve App Store uygulamalarını kapsar. Kendi güncelleyicisi olan uygulamalar kendini güncellemeye devam eder.",
+        upToDate: "Güncelleme bulunamadı",
+        coverageNote: "Yönetilen ve mağaza uygulamalarını denetler, diğer uygulamaların tam adlarını herkese açık çevrimiçi bir katalogla karşılaştırır. Güncellemeler yine kendi kaynaklarında yüklenir.",
         selectAll: "Tümünü seç",
         clearSelection: "Temizle",
         updateSelectedFormat: "%d güncelle",
@@ -162,20 +183,27 @@ extension AppUpdateStrings {
         showInPanel: "Panelde göster",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Kaynaklar",
-        includeHomebrewToggle: "Homebrew uygulamalarını dahil et"
+        includeHomebrewToggle: "Homebrew uygulamalarını dahil et",
+        onlineBadge: "Çevrimiçi",
+        openApp: "Aç",
+        openAppHint: "Kendi güncelleyicisinin tamamlaması için uygulamayı açar",
+        includeOnlineToggle: "Yüklü diğer uygulamaları dahil et",
+        includeOnlineCaption: "Bu Mac'teki uygulama adlarını veya kimliklerini göndermeden herkese açık bir uygulama kataloğu indirir.",
+        incompleteCheck: "Bazı uygulamalar denetlenemedi",
+        onlineUnavailable: "Çevrimiçi denetleme tamamlanamadı. Diğer sonuçlar gösterilmeye devam ediyor."
     )
 
     static let ru = AppUpdateStrings(
         pageTitle: "Обновления приложений",
         hubDescription: "Находите и устанавливайте обновления ваших приложений",
-        caption: "Ищет новые версии приложений на этом Mac и обновляет те, что вы выберете, так что открывать магазин для каждого не нужно.",
+        caption: "Ищет новые версии приложений на этом Mac и помогает завершить каждое обновление из его исходного источника.",
         panelCaption: "Посмотрите, у каких приложений есть новая версия",
         checkNow: "Проверить сейчас",
         checking: "Проверка",
         lastCheckFormat: "Последняя проверка %@",
         neverChecked: "Ещё не проверялось",
-        upToDate: "Все приложения обновлены",
-        coverageNote: "Охватывает приложения, установленные через Homebrew, и приложения из App Store. Приложения со своим обновлятором продолжают обновляться сами.",
+        upToDate: "Обновления не найдены",
+        coverageNote: "Проверяет управляемые приложения и приложения из магазина, а остальные сопоставляет по точному имени с открытым онлайн-каталогом. Обновления по-прежнему устанавливаются из исходного источника.",
         selectAll: "Выбрать все",
         clearSelection: "Снять выбор",
         updateSelectedFormat: "Обновить: %d",
@@ -197,20 +225,27 @@ extension AppUpdateStrings {
         showInPanel: "Показывать в панели",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Источники",
-        includeHomebrewToggle: "Включать приложения Homebrew"
+        includeHomebrewToggle: "Включать приложения Homebrew",
+        onlineBadge: "Онлайн",
+        openApp: "Открыть",
+        openAppHint: "Открывает приложение, чтобы его средство обновления завершило работу",
+        includeOnlineToggle: "Включать другие установленные приложения",
+        includeOnlineCaption: "Загружает открытый каталог приложений, не отправляя названия или идентификаторы приложений с этого Mac.",
+        incompleteCheck: "Некоторые приложения не удалось проверить",
+        onlineUnavailable: "Онлайн-проверку не удалось завершить. Остальные результаты по-прежнему показаны."
     )
 
     static let es = AppUpdateStrings(
         pageTitle: "Actualizaciones de apps",
         hubDescription: "Encuentra e instala actualizaciones de tus apps",
-        caption: "Busca una versión más nueva de las apps de este Mac y actualiza las que elijas, sin abrir una tienda para cada una.",
+        caption: "Busca versiones más nuevas de las apps de este Mac y te ayuda a completar cada actualización desde su origen.",
         panelCaption: "Mira qué apps tienen una versión más nueva",
         checkNow: "Buscar ahora",
         checking: "Buscando",
         lastCheckFormat: "Última búsqueda %@",
         neverChecked: "Todavía sin buscar",
-        upToDate: "Todas las apps están al día",
-        coverageNote: "Cubre las apps instaladas con Homebrew y las apps de la App Store. Las apps con su propio actualizador siguen actualizándose solas.",
+        upToDate: "No se encontraron actualizaciones",
+        coverageNote: "Revisa las apps gestionadas y de la tienda, y compara el nombre exacto de las demás con un catálogo público en línea. Las actualizaciones se siguen instalando desde su origen.",
         selectAll: "Seleccionar todo",
         clearSelection: "Limpiar",
         updateSelectedFormat: "Actualizar %d",
@@ -232,20 +267,27 @@ extension AppUpdateStrings {
         showInPanel: "Mostrar en el panel",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Fuentes",
-        includeHomebrewToggle: "Incluir apps de Homebrew"
+        includeHomebrewToggle: "Incluir apps de Homebrew",
+        onlineBadge: "En línea",
+        openApp: "Abrir",
+        openAppHint: "Abre la app para que su propio actualizador pueda terminar",
+        includeOnlineToggle: "Incluir otras apps instaladas",
+        includeOnlineCaption: "Descarga un catálogo público de apps sin enviar los nombres ni los identificadores de las apps de este Mac.",
+        incompleteCheck: "No se pudieron revisar algunas apps",
+        onlineUnavailable: "No se pudo completar la revisión en línea. Los demás resultados siguen visibles."
     )
 
     static let de = AppUpdateStrings(
         pageTitle: "App-Updates",
         hubDescription: "Updates für deine Apps finden und installieren",
-        caption: "Sucht nach neueren Versionen der Apps auf diesem Mac und aktualisiert die, die du auswählst, ohne für jede einen Store zu öffnen.",
+        caption: "Sucht nach neueren Versionen der Apps auf diesem Mac und hilft dir, jedes Update über seine ursprüngliche Quelle abzuschließen.",
         panelCaption: "Sieh, welche Apps eine neuere Version haben",
         checkNow: "Jetzt prüfen",
         checking: "Wird geprüft",
         lastCheckFormat: "Zuletzt geprüft %@",
         neverChecked: "Noch nicht geprüft",
-        upToDate: "Alle Apps sind aktuell",
-        coverageNote: "Deckt Apps ab, die mit Homebrew installiert wurden, und Apps aus dem App Store. Apps mit eigenem Updater aktualisieren sich weiterhin selbst.",
+        upToDate: "Keine Updates gefunden",
+        coverageNote: "Prüft verwaltete Apps und Store-Apps und vergleicht die exakten Namen anderer Apps mit einem öffentlichen Online-Katalog. Updates werden weiterhin über ihre ursprüngliche Quelle installiert.",
         selectAll: "Alle auswählen",
         clearSelection: "Aufheben",
         updateSelectedFormat: "%d aktualisieren",
@@ -267,20 +309,27 @@ extension AppUpdateStrings {
         showInPanel: "Im Panel anzeigen",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Quellen",
-        includeHomebrewToggle: "Homebrew-Apps einbeziehen"
+        includeHomebrewToggle: "Homebrew-Apps einbeziehen",
+        onlineBadge: "Online",
+        openApp: "Öffnen",
+        openAppHint: "Öffnet die App, damit ihr eigener Updater abschließen kann",
+        includeOnlineToggle: "Andere installierte Apps einbeziehen",
+        includeOnlineCaption: "Lädt einen öffentlichen App-Katalog, ohne Namen oder Kennungen der Apps auf diesem Mac zu senden.",
+        incompleteCheck: "Einige Apps konnten nicht geprüft werden",
+        onlineUnavailable: "Die Online-Prüfung konnte nicht abgeschlossen werden. Andere Ergebnisse werden weiterhin angezeigt."
     )
 
     static let fr = AppUpdateStrings(
         pageTitle: "Mises à jour des apps",
         hubDescription: "Trouvez et installez les mises à jour de vos apps",
-        caption: "Cherche une version plus récente des apps de ce Mac et met à jour celles que vous choisissez, sans ouvrir une boutique pour chacune.",
+        caption: "Cherche des versions plus récentes des apps de ce Mac et vous aide à terminer chaque mise à jour depuis sa source d'origine.",
         panelCaption: "Voyez quelles apps ont une version plus récente",
         checkNow: "Vérifier maintenant",
         checking: "Vérification",
         lastCheckFormat: "Dernière vérification %@",
         neverChecked: "Pas encore vérifié",
-        upToDate: "Toutes les apps sont à jour",
-        coverageNote: "Couvre les apps installées avec Homebrew et les apps de l'App Store. Les apps qui ont leur propre outil de mise à jour continuent de se mettre à jour seules.",
+        upToDate: "Aucune mise à jour trouvée",
+        coverageNote: "Vérifie les apps gérées et celles de la boutique, puis compare le nom exact des autres avec un catalogue public en ligne. Les mises à jour restent installées depuis leur source d'origine.",
         selectAll: "Tout sélectionner",
         clearSelection: "Effacer",
         updateSelectedFormat: "Mettre à jour %d",
@@ -302,20 +351,27 @@ extension AppUpdateStrings {
         showInPanel: "Afficher dans le panneau",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Sources",
-        includeHomebrewToggle: "Inclure les apps Homebrew"
+        includeHomebrewToggle: "Inclure les apps Homebrew",
+        onlineBadge: "En ligne",
+        openApp: "Ouvrir",
+        openAppHint: "Ouvre l'app pour permettre à son propre outil de mise à jour de terminer",
+        includeOnlineToggle: "Inclure les autres apps installées",
+        includeOnlineCaption: "Télécharge un catalogue public d'apps sans envoyer le nom ni l'identifiant des apps de ce Mac.",
+        incompleteCheck: "Certaines apps n'ont pas pu être vérifiées",
+        onlineUnavailable: "La vérification en ligne n'a pas pu aboutir. Les autres résultats restent affichés."
     )
 
     static let it = AppUpdateStrings(
         pageTitle: "Aggiornamenti delle app",
         hubDescription: "Trova e installa gli aggiornamenti delle tue app",
-        caption: "Cerca una versione più recente delle app di questo Mac e aggiorna quelle che scegli, senza aprire un negozio per ognuna.",
+        caption: "Cerca versioni più recenti delle app di questo Mac e ti aiuta a completare ogni aggiornamento dalla fonte originale.",
         panelCaption: "Guarda quali app hanno una versione più recente",
         checkNow: "Controlla ora",
         checking: "Controllo in corso",
         lastCheckFormat: "Ultimo controllo %@",
         neverChecked: "Non ancora controllato",
-        upToDate: "Tutte le app sono aggiornate",
-        coverageNote: "Copre le app installate con Homebrew e le app dell'App Store. Le app con un aggiornatore proprio continuano ad aggiornarsi da sole.",
+        upToDate: "Nessun aggiornamento trovato",
+        coverageNote: "Controlla le app gestite e quelle dello store, poi confronta il nome esatto delle altre con un catalogo pubblico online. Gli aggiornamenti vengono ancora installati dalla fonte originale.",
         selectAll: "Seleziona tutto",
         clearSelection: "Azzera",
         updateSelectedFormat: "Aggiorna %d",
@@ -337,20 +393,27 @@ extension AppUpdateStrings {
         showInPanel: "Mostra nel pannello",
         homebrewBadge: "Homebrew",
         sourcesTitle: "Fonti",
-        includeHomebrewToggle: "Includi le app Homebrew"
+        includeHomebrewToggle: "Includi le app Homebrew",
+        onlineBadge: "Online",
+        openApp: "Apri",
+        openAppHint: "Apre l'app per consentire al suo programma di aggiornamento di terminare",
+        includeOnlineToggle: "Includi le altre app installate",
+        includeOnlineCaption: "Scarica un catalogo pubblico di app senza inviare nomi o identificatori delle app su questo Mac.",
+        incompleteCheck: "Non è stato possibile controllare alcune app",
+        onlineUnavailable: "Non è stato possibile completare il controllo online. Gli altri risultati restano visibili."
     )
 
     static let ja = AppUpdateStrings(
         pageTitle: "Appのアップデート",
         hubDescription: "使っているAppのアップデートを見つけて適用",
-        caption: "このMacのAppに新しいバージョンがないか調べ、選んだものだけをアップデートします。App ごとにストアを開く必要はありません。",
+        caption: "このMacのAppに新しいバージョンがないか調べ、それぞれの元の配布元からアップデートを完了できるようにします。",
         panelCaption: "新しいバージョンがあるAppを確認",
         checkNow: "今すぐ確認",
         checking: "確認中",
         lastCheckFormat: "前回の確認 %@",
         neverChecked: "まだ確認していません",
-        upToDate: "すべてのAppが最新です",
-        coverageNote: "Homebrewで入れたAppとApp StoreのAppが対象です。独自のアップデート機能を持つAppは、これまでどおり自分で更新します。",
+        upToDate: "アップデートは見つかりませんでした",
+        coverageNote: "管理対象とストアのAppを確認し、その他のAppは正確な名前を公開オンラインカタログと照合します。アップデートは引き続き元の配布元からインストールされます。",
         selectAll: "すべて選択",
         clearSelection: "選択解除",
         updateSelectedFormat: "%d件をアップデート",
@@ -372,20 +435,27 @@ extension AppUpdateStrings {
         showInPanel: "パネルに表示",
         homebrewBadge: "Homebrew",
         sourcesTitle: "ソース",
-        includeHomebrewToggle: "HomebrewのAppを含める"
+        includeHomebrewToggle: "HomebrewのAppを含める",
+        onlineBadge: "オンライン",
+        openApp: "開く",
+        openAppHint: "Appを開き、内蔵のアップデート機能で完了します",
+        includeOnlineToggle: "その他のインストール済みAppを含める",
+        includeOnlineCaption: "このMac上のApp名や識別子を送信せずに、公開Appカタログをダウンロードします。",
+        incompleteCheck: "一部のAppを確認できませんでした",
+        onlineUnavailable: "オンライン確認を完了できませんでした。その他の結果は引き続き表示されます。"
     )
 
     static let ko = AppUpdateStrings(
         pageTitle: "앱 업데이트",
         hubDescription: "사용 중인 앱의 업데이트를 찾아 설치",
-        caption: "이 Mac에 있는 앱의 새 버전을 찾아 선택한 앱만 업데이트합니다. 앱마다 스토어를 열 필요가 없습니다.",
+        caption: "이 Mac에 있는 앱의 새 버전을 찾아 각 업데이트를 원래 출처에서 완료할 수 있도록 도와줍니다.",
         panelCaption: "새 버전이 있는 앱 보기",
         checkNow: "지금 확인",
         checking: "확인 중",
         lastCheckFormat: "마지막 확인 %@",
         neverChecked: "아직 확인하지 않음",
-        upToDate: "모든 앱이 최신입니다",
-        coverageNote: "Homebrew로 설치한 앱과 App Store 앱이 대상입니다. 자체 업데이트 기능이 있는 앱은 계속 스스로 업데이트합니다.",
+        upToDate: "업데이트를 찾지 못했습니다",
+        coverageNote: "관리되는 앱과 스토어 앱을 확인하고, 다른 앱의 정확한 이름을 공개 온라인 카탈로그와 비교합니다. 업데이트는 계속 원래 출처에서 설치됩니다.",
         selectAll: "모두 선택",
         clearSelection: "선택 해제",
         updateSelectedFormat: "%d개 업데이트",
@@ -407,20 +477,27 @@ extension AppUpdateStrings {
         showInPanel: "패널에 표시",
         homebrewBadge: "Homebrew",
         sourcesTitle: "소스",
-        includeHomebrewToggle: "Homebrew 앱 포함"
+        includeHomebrewToggle: "Homebrew 앱 포함",
+        onlineBadge: "온라인",
+        openApp: "열기",
+        openAppHint: "앱을 열어 자체 업데이트 기능으로 완료합니다",
+        includeOnlineToggle: "설치된 다른 앱 포함",
+        includeOnlineCaption: "이 Mac에 있는 앱의 이름이나 식별자를 보내지 않고 공개 앱 카탈로그를 다운로드합니다.",
+        incompleteCheck: "일부 앱을 확인하지 못했습니다",
+        onlineUnavailable: "온라인 확인을 완료하지 못했습니다. 다른 결과는 계속 표시됩니다."
     )
 
     static let zhHans = AppUpdateStrings(
         pageTitle: "App 更新",
         hubDescription: "查找并安装你的 App 更新",
-        caption: "检查这台 Mac 上的 App 有没有更新的版本，只更新你选中的那些，不用为每个 App 单独打开商店。",
+        caption: "检查这台 Mac 上的 App 有没有更新版本，并帮助你从各自的原始来源完成更新。",
         panelCaption: "看看哪些 App 有更新的版本",
         checkNow: "立即检查",
         checking: "正在检查",
         lastCheckFormat: "上次检查 %@",
         neverChecked: "尚未检查",
-        upToDate: "所有 App 都是最新的",
-        coverageNote: "覆盖用 Homebrew 安装的 App 和 App Store 的 App。自带更新功能的 App 会继续自己更新。",
+        upToDate: "未找到更新",
+        coverageNote: "检查受管理的 App 和商店 App，并将其他 App 的准确名称与公开在线目录进行比较。更新仍从原始来源安装。",
         selectAll: "全选",
         clearSelection: "清除",
         updateSelectedFormat: "更新 %d 个",
@@ -442,20 +519,27 @@ extension AppUpdateStrings {
         showInPanel: "在面板中显示",
         homebrewBadge: "Homebrew",
         sourcesTitle: "来源",
-        includeHomebrewToggle: "包含 Homebrew App"
+        includeHomebrewToggle: "包含 Homebrew App",
+        onlineBadge: "在线",
+        openApp: "打开",
+        openAppHint: "打开 App，让它自己的更新程序完成更新",
+        includeOnlineToggle: "包含其他已安装的 App",
+        includeOnlineCaption: "下载公开 App 目录，不会发送这台 Mac 上 App 的名称或标识符。",
+        incompleteCheck: "部分 App 无法检查",
+        onlineUnavailable: "无法完成在线检查。其他结果仍会显示。"
     )
 
     static let zhTW = AppUpdateStrings(
         pageTitle: "App 更新",
         hubDescription: "尋找並安裝你的 App 更新",
-        caption: "檢查這台 Mac 上的 App 有沒有更新的版本，只更新你選取的那些，不必為每個 App 分別打開商店。",
+        caption: "檢查這台 Mac 上的 App 有沒有更新版本，並協助你從各自的原始來源完成更新。",
         panelCaption: "看看哪些 App 有更新的版本",
         checkNow: "立即檢查",
         checking: "正在檢查",
         lastCheckFormat: "上次檢查 %@",
         neverChecked: "尚未檢查",
-        upToDate: "所有 App 都是最新的",
-        coverageNote: "涵蓋以 Homebrew 安裝的 App 和 App Store 的 App。自帶更新功能的 App 會繼續自己更新。",
+        upToDate: "找不到更新",
+        coverageNote: "檢查受管理的 App 和商店 App，並將其他 App 的確切名稱與公開線上目錄比較。更新仍從原始來源安裝。",
         selectAll: "全選",
         clearSelection: "清除",
         updateSelectedFormat: "更新 %d 個",
@@ -477,20 +561,27 @@ extension AppUpdateStrings {
         showInPanel: "在面板中顯示",
         homebrewBadge: "Homebrew",
         sourcesTitle: "來源",
-        includeHomebrewToggle: "包含 Homebrew App"
+        includeHomebrewToggle: "包含 Homebrew App",
+        onlineBadge: "線上",
+        openApp: "打開",
+        openAppHint: "打開 App，讓它自己的更新程式完成更新",
+        includeOnlineToggle: "包含其他已安裝的 App",
+        includeOnlineCaption: "下載公開 App 目錄，不會傳送這台 Mac 上 App 的名稱或識別碼。",
+        incompleteCheck: "部分 App 無法檢查",
+        onlineUnavailable: "無法完成線上檢查。其他結果仍會顯示。"
     )
 
     static let zhHK = AppUpdateStrings(
         pageTitle: "App 更新",
         hubDescription: "尋找並安裝你的 App 更新",
-        caption: "檢查這部 Mac 上的 App 有沒有更新版本，只更新你揀選的那些，唔使為每個 App 分別開商店。",
+        caption: "檢查呢部 Mac 上嘅 App 有冇更新版本，並協助你由各自原來嘅來源完成更新。",
         panelCaption: "睇吓邊啲 App 有更新版本",
         checkNow: "立即檢查",
         checking: "正在檢查",
         lastCheckFormat: "上次檢查 %@",
         neverChecked: "尚未檢查",
-        upToDate: "所有 App 都是最新的",
-        coverageNote: "涵蓋以 Homebrew 安裝的 App 和 App Store 的 App。自帶更新功能的 App 會繼續自己更新。",
+        upToDate: "搵唔到更新",
+        coverageNote: "檢查受管理嘅 App 同商店 App，並將其他 App 嘅確切名稱同公開網上目錄比較。更新仍然由原來來源安裝。",
         selectAll: "全選",
         clearSelection: "清除",
         updateSelectedFormat: "更新 %d 個",
@@ -512,6 +603,13 @@ extension AppUpdateStrings {
         showInPanel: "喺面板中顯示",
         homebrewBadge: "Homebrew",
         sourcesTitle: "來源",
-        includeHomebrewToggle: "包含 Homebrew App"
+        includeHomebrewToggle: "包含 Homebrew App",
+        onlineBadge: "網上",
+        openApp: "打開",
+        openAppHint: "打開 App，等佢自己嘅更新程式完成更新",
+        includeOnlineToggle: "包含其他已安裝嘅 App",
+        includeOnlineCaption: "下載公開 App 目錄，唔會傳送呢部 Mac 上 App 嘅名稱或識別碼。",
+        incompleteCheck: "部分 App 無法檢查",
+        onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。"
     )
 }

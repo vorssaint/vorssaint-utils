@@ -731,11 +731,33 @@ final class CommandBarService: ObservableObject {
     /// lists never show a bare id. Builds the catalog once if this loading
     /// presentation has not prepared it yet.
     func entryTitle(forStableKey key: String) -> String? {
+        ensureCatalogIndexed()
+        return entriesByStableKey[key]?.title
+    }
+
+    /// Keys the catalog can name right now. Settings uses this to drop pins
+    /// of features that were uninstalled, without hiding an app pin whose
+    /// app is simply not on this Mac at the moment.
+    var presentStableKeys: Set<String> {
+        ensureCatalogIndexed()
+        return Set(entriesByStableKey.keys)
+    }
+
+    /// Rebuilds the rows after a hub install or uninstall, so Settings and
+    /// an open bar stop offering a feature that is no longer there.
+    func noteHubChange() {
+        guard AppFeature.commandBar.isAvailable else { return }
+        rebuildCatalog()
+        rebuildRunningEntries()
+        if isVisible { refreshResults() }
+        objectWillChange.send()
+    }
+
+    private func ensureCatalogIndexed() {
         if entriesByStableKey.isEmpty {
             rebuildCatalog()
             rebuildRunningEntries()
         }
-        return entriesByStableKey[key]?.title
     }
 
     func alias(for entry: CommandBarEntry) -> String? {
@@ -1947,12 +1969,14 @@ final class CommandBarService: ObservableObject {
             }
             return
         }
-        guard ClipboardHistoryService.shared.copy(entry) else {
-            NSSound.beep()
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            Self.postPasteWhenModifiersReleased(attempt: 0)
+        ClipboardHistoryService.shared.copy(entry) { copied in
+            guard copied else {
+                NSSound.beep()
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                Self.postPasteWhenModifiersReleased(attempt: 0)
+            }
         }
     }
 
