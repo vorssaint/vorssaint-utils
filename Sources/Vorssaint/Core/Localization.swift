@@ -1079,6 +1079,7 @@ struct Strings {
     let switcherCurrentSpaceOnly: String
     let switcherCurrentSpaceOnlyCaption: String
     let shelfFileMissing: String
+    let shelfDropFailed: String
     let previewSizeSmall: String
     let mixerSoundEffectsOutputTitle: String
     let mixerSoundEffectsOutputTooltip: String
@@ -2064,6 +2065,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
         switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
         shelfFileMissing: "O arquivo não existe mais",
+        shelfDropFailed: "Não foi possível adicionar o item arrastado à área temporária.",
         previewSizeSmall: "Pequeno",
         mixerSoundEffectsOutputTitle: "Sons do sistema",
         mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam",
@@ -3050,6 +3052,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "Show only the current desktop",
         switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
         shelfFileMissing: "The file no longer exists",
+        shelfDropFailed: "Could not add the dropped item to the shelf.",
         previewSizeSmall: "Small",
         mixerSoundEffectsOutputTitle: "System sounds",
         mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play",

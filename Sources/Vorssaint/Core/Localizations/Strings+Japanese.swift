@@ -935,6 +935,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "現在のデスクトップのみ表示",
         switcherCurrentSpaceOnlyCaption: "今いるデスクトップのウインドウだけをスイッチャーに表示します。ウインドウを選んでも別のデスクトップには移動しません。",
         shelfFileMissing: "ファイルはもう存在しません",
+        shelfDropFailed: "ドロップした項目をシェルフに追加できませんでした。",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "システムサウンド",
         mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",

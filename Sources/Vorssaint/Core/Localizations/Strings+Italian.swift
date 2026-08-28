@@ -935,6 +935,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "Mostra solo la scrivania attuale",
         switcherCurrentSpaceOnlyCaption: "Mostra nel commutatore solo le finestre della scrivania in cui ti trovi. Scegliere una finestra non ti porta mai su un'altra scrivania.",
         shelfFileMissing: "Il file non esiste più",
+        shelfDropFailed: "Impossibile aggiungere l’elemento trascinato al ripiano.",
         previewSizeSmall: "Piccola",
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
         mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori",

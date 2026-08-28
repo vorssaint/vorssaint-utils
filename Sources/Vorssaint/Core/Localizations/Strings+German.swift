@@ -935,6 +935,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
         switcherCurrentSpaceOnlyCaption: "Zeigt im Umschalter nur Fenster des Schreibtischs, auf dem du gerade bist. Die Auswahl eines Fensters wechselt nie zu einem anderen Schreibtisch.",
         shelfFileMissing: "Die Datei existiert nicht mehr",
+        shelfDropFailed: "Das abgelegte Element konnte nicht zur Ablage hinzugefügt werden.",
         previewSizeSmall: "Klein",
         mixerSoundEffectsOutputTitle: "Systemtöne",
         mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",

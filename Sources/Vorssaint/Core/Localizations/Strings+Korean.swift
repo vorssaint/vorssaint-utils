@@ -936,6 +936,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "현재 데스크탑만 표시",
         switcherCurrentSpaceOnlyCaption: "지금 있는 데스크탑의 윈도우만 전환기에 표시합니다. 윈도우를 선택해도 다른 데스크탑으로 이동하지 않습니다.",
         shelfFileMissing: "파일이 더 이상 존재하지 않습니다",
+        shelfDropFailed: "드롭한 항목을 선반에 추가할 수 없습니다.",
         previewSizeSmall: "작게",
         mixerSoundEffectsOutputTitle: "시스템 사운드",
         mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택",

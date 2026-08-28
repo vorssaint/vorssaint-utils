@@ -249,6 +249,9 @@ final class ShelfService: ObservableObject {
         queue.qualityOfService = .utility
         return queue
     }()
+    /// Promise callbacks can fail independently during one multi-file drop.
+    /// Keep the failure feedback useful without beeping once per attachment.
+    private var promiseFailureFeedbackScheduled = false
 
     private var persistScheduled = false
     /// Gates persistence until the restore has landed, so an early mutation
@@ -1048,7 +1051,12 @@ final class ShelfService: ObservableObject {
             count + (canResolveItem(from: provider) ? 1 : 0)
         }
         guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
-                                             newLeaves: candidateLeaves) else { return false }
+                                             newLeaves: candidateLeaves) else {
+            if providers.contains(where: { promisedFileTypeIdentifier(for: $0) != nil }) {
+                reportPromiseFailure()
+            }
+            return false
+        }
         acceptMixedBatch(providers: providers)
         return true
     }
@@ -1080,6 +1088,9 @@ final class ShelfService: ObservableObject {
     private func acceptMixedBatch(providers: [NSItemProvider]) {
         let group = DispatchGroup()
         var resolved: [(Int, Item)] = []
+        let containsPromise = providers.contains {
+            promisedFileTypeIdentifier(for: $0) != nil
+        }
 
         for (index, provider) in providers.enumerated() {
             group.enter()
@@ -1093,7 +1104,8 @@ final class ShelfService: ObservableObject {
             guard let self else { return }
             let items = ShelfBatchSupport.orderedItems(from: resolved)
             guard !items.isEmpty else { return }
-            _ = self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
+            let accepted = self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
+            if !accepted, containsPromise { self.reportPromiseFailure() }
         }
     }
 
@@ -1103,12 +1115,20 @@ final class ShelfService: ObservableObject {
     /// exactly once, on the main queue, so callers can mutate state from it.
     private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
         if let promiseType = promisedFileTypeIdentifier(for: provider) {
+            // SwiftUI exposes item-based file promises as NSItemProvider file
+            // representations. Foundation writes that representation to a
+            // temporary URL before this callback returns, so copy it just as
+            // promptly as the AppKit NSFilePromiseReceiver path below.
             _ = provider.loadFileRepresentation(forTypeIdentifier: promiseType) { [weak self] url, error in
-                guard error == nil, let self, let url,
-                      let storedURL = self.storePromisedFile(url) else {
+                guard let self else {
                     return DispatchQueue.main.async { completion(nil) }
                 }
-                let title = url.lastPathComponent
+                guard error == nil, let url,
+                      let storedURL = self.storePromisedFile(url) else {
+                    self.reportPromiseFailure()
+                    return DispatchQueue.main.async { completion(nil) }
+                }
+                let title = provider.suggestedName ?? url.lastPathComponent
                 DispatchQueue.main.async {
                     completion(self.fileItem(for: storedURL, title: title))
                 }
@@ -1457,15 +1477,10 @@ final class ShelfService: ObservableObject {
     func accept(pasteboard: NSPasteboard) -> Bool {
         let promises = filePromises(from: pasteboard)
         if !promises.isEmpty {
-            let directItems = items(from: pasteboard)
-            var accepted = false
-            if !directItems.isEmpty {
-                accepted = append(directItems)
-            }
-            if itemCount < ShelfPersistenceSupport.maxLeaves {
-                accepted = receivePromisedFiles(promises) || accepted
-            }
-            return accepted
+            // Promise-backed drops may also advertise auxiliary text or URL
+            // flavors, such as Outlook's subject. The promised file is the
+            // authoritative Shelf item, so do not add those flavors twice.
+            return receivePromisedFiles(promises)
         }
         let fileURLs = fileURLs(from: pasteboard)
         if fileURLs.count > 1 {
@@ -1627,30 +1642,45 @@ final class ShelfService: ObservableObject {
     private func receivePromisedFiles(_ promises: [NSFilePromiseReceiver],
                                       mergingInto targetID: UUID? = nil) -> Bool {
         guard !promises.isEmpty else { return false }
-        let destination = tempDir.appendingPathComponent("Promise-\(UUID().uuidString)",
-                                                         isDirectory: true)
-        guard (try? FileManager.default.createDirectory(
-            at: destination,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700])) != nil else {
-            return false
-        }
-
+        var scheduled = false
         for promise in promises {
+            // A receiver can represent more than one file, so keep its
+            // staging directory alive until the existing temp-file sweep.
+            // Removing it from the first callback could delete a later file
+            // that is still being materialized by the same receiver.
+            let destination = tempDir.appendingPathComponent("Promise-\(UUID().uuidString)",
+                                                             isDirectory: true)
+            guard (try? FileManager.default.createDirectory(
+                at: destination,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700])) != nil else {
+                reportPromiseFailure()
+                continue
+            }
+            scheduled = true
             promise.receivePromisedFiles(atDestination: destination,
                                          options: [:],
                                          operationQueue: promiseOperationQueue) { [weak self] url, error in
-                guard error == nil, let self,
-                      let storedURL = self.storePromisedFile(url) else { return }
+                guard let self else { return }
+                guard error == nil else {
+                    try? FileManager.default.removeItem(at: url)
+                    self.reportPromiseFailure()
+                    return
+                }
+                guard let storedURL = self.storePromisedFile(url) else {
+                    try? FileManager.default.removeItem(at: url)
+                    self.reportPromiseFailure()
+                    return
+                }
                 let title = url.lastPathComponent
-                if storedURL != url { try? FileManager.default.removeItem(at: url) }
-                try? FileManager.default.removeItem(at: destination)
+                try? FileManager.default.removeItem(at: url)
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     let item = self.fileItem(for: storedURL, title: title)
                     if let targetID {
                         guard self.merge([item], into: targetID) else {
                             self.discardOwnedPayloads(in: [item])
+                            self.reportPromiseFailure()
                             return
                         }
                         self.startContentThumbnails(for: [item])
@@ -1658,12 +1688,31 @@ final class ShelfService: ObservableObject {
                         self.addSerial &+= 1
                         self.noteInteraction()
                     } else {
-                        _ = self.append(item)
+                        guard self.append(item) else {
+                            self.reportPromiseFailure()
+                            return
+                        }
                     }
                 }
             }
         }
-        return true
+        return scheduled
+    }
+
+    /// Promise materialization is asynchronous, so a drop cannot return a
+    /// later failure through AppKit's synchronous operation result. Keep the
+    /// existing beep convention and add a localized HUD when a promise fails.
+    private func reportPromiseFailure() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !self.promiseFailureFeedbackScheduled else { return }
+            self.promiseFailureFeedbackScheduled = true
+            NSSound.beep()
+            QuickToolHUD.show(icon: "exclamationmark.triangle",
+                              message: L10n.shared.s.shelfDropFailed)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                self?.promiseFailureFeedbackScheduled = false
+            }
+        }
     }
 
     /// Copies one promised file into the same owner-only persistent store as
@@ -1817,8 +1866,9 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardCanCreateItem(_ pasteboard: NSPasteboard) -> Bool {
-        if pasteboardHasFilePromises(pasteboard) {
-            return !filePromises(from: pasteboard).isEmpty
+        if pasteboardHasFilePromises(pasteboard),
+           !filePromises(from: pasteboard).isEmpty {
+            return true
         }
         if !fileURLs(from: pasteboard).isEmpty {
             return true

@@ -935,6 +935,7 @@ extension Strings {
         switcherCurrentSpaceOnly: "仅显示当前桌面",
         switcherCurrentSpaceOnlyCaption: "切换器中只显示你所在桌面的窗口。选择窗口不会把你带到其他桌面。",
         shelfFileMissing: "文件已不存在",
+        shelfDropFailed: "无法将拖放的项目添加到暂存架。",
         previewSizeSmall: "小",
         mixerSoundEffectsOutputTitle: "系统声音",
         mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备",
