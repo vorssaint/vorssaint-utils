@@ -47,7 +47,8 @@ struct AppUpdatesListView: View {
                                             showDetails: $showOperationDetails,
                                             onCancel: homebrew.cancelOperation,
                                             onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                                            onOpenTerminal: homebrew.openTerminalFallback,
+                                            keyboardSection: keyboardSection)
                     .padding(compact ? 0 : 4)
             }
             if let error = updates.lastError, !error.isEmpty {

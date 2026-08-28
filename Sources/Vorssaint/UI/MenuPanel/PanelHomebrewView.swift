@@ -90,6 +90,7 @@ struct PanelHomebrewView: View {
             }
             .buttonStyle(.plain)
             .help(l10n.s.uninstallerCancel)
+            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-close"), actions: PanelRowActions(activate: onClose))
         }
     }
 
@@ -113,6 +114,8 @@ struct PanelHomebrewView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-install"),
+                              actions: PanelRowActions(activate: { homebrew.openHomebrewInstaller() }), cornerRadius: 6)
             Text(homebrew.didOpenInstaller ? l10n.s.homebrewInstallHomebrewOpened : l10n.s.homebrewInstallHomebrewCaption)
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
@@ -133,6 +136,8 @@ struct PanelHomebrewView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-refreshMissing"),
+                              actions: PanelRowActions(activate: { homebrew.refreshInstalled() }), cornerRadius: 6)
         }
         .frame(maxWidth: .infinity)
         .panelCard()
@@ -166,6 +171,9 @@ struct PanelHomebrewView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
+                    .panelKeyboardRow(PanelRowID(.utilities, "homebrew-configureShell"),
+                                      actions: PanelRowActions(activate: { homebrew.openShellConfiguration() }),
+                                      cornerRadius: 6)
                     Button {
                         homebrew.refreshShellConfigurationStatus()
                     } label: {
@@ -174,6 +182,9 @@ struct PanelHomebrewView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .panelKeyboardRow(PanelRowID(.utilities, "homebrew-refreshShell"),
+                                      actions: PanelRowActions(activate: { homebrew.refreshShellConfigurationStatus() }),
+                                      cornerRadius: 6)
                 }
             }
             .panelCard()
@@ -187,6 +198,7 @@ struct PanelHomebrewView: View {
                                          placeholder: l10n.s.homebrewSearchPlaceholder,
                                          onSubmit: search)
                     .frame(height: 24)
+                let canSearch = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !homebrew.isBusy
                 Button {
                     search()
                 } label: {
@@ -195,7 +207,9 @@ struct PanelHomebrewView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || homebrew.isBusy)
+                .disabled(!canSearch)
+                .panelKeyboardRow(canSearch ? PanelRowID(.utilities, "homebrew-search") : nil,
+                                  actions: PanelRowActions(activate: search), cornerRadius: 6)
             }
             Picker("", selection: $searchKind) {
                 Text(l10n.s.homebrewCasks).tag(HomebrewPackageKind.cask)
@@ -234,6 +248,8 @@ struct PanelHomebrewView: View {
                 .controlSize(.small)
                 .help(l10n.s.homebrewCheckPackages)
                 .disabled(homebrew.isBusy)
+                .panelKeyboardRow(homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-checkInstalled"),
+                                  actions: PanelRowActions(activate: { homebrew.refreshInstalled() }), cornerRadius: 6)
                 Button {
                     presentConfirmation(HomebrewPendingAction(action: .updateHomebrew))
                 } label: {
@@ -245,6 +261,10 @@ struct PanelHomebrewView: View {
                 .controlSize(.small)
                 .help(l10n.s.homebrewUpdateHomebrew)
                 .disabled(homebrew.isBusy)
+                .panelKeyboardRow(homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-updateHomebrew"),
+                                  actions: PanelRowActions(activate: {
+                                      presentConfirmation(HomebrewPendingAction(action: .updateHomebrew))
+                                  }), cornerRadius: 6)
                 Spacer(minLength: 0)
             }
             outdatedSummary
@@ -280,6 +300,10 @@ struct PanelHomebrewView: View {
                 .controlSize(.small)
                 .help(l10n.s.homebrewUpgradeAll)
                 .disabled(homebrew.isBusy)
+                .panelKeyboardRow(homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-upgradeAll"),
+                                  actions: PanelRowActions(activate: {
+                                      presentConfirmation(HomebrewPendingAction(action: .upgradeAll))
+                                  }), cornerRadius: 6)
             }
         } else {
             Label("\(l10n.s.homebrewUpdates) 0", systemImage: "checkmark.circle.fill")
@@ -378,6 +402,8 @@ struct PanelHomebrewView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-package-\(package.id)"),
+                              actions: PanelRowActions(activate: { homebrew.select(package) }))
             if activeStatus(for: package) != nil {
                 ProgressView()
                     .controlSize(.mini)
@@ -416,6 +442,10 @@ struct PanelHomebrewView: View {
         .disabled(homebrew.isBusy)
         .help("\(l10n.s.homebrewUpgrade): \(update.versionSummary)")
         .accessibilityLabel(l10n.s.homebrewUpgrade)
+        .panelKeyboardRow(homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-update-\(package.id)"),
+                          actions: PanelRowActions(activate: {
+                              presentConfirmation(HomebrewPendingAction(action: .upgrade, package: package))
+                          }))
     }
 
     @ViewBuilder
@@ -454,7 +484,7 @@ struct PanelHomebrewView: View {
     @ViewBuilder
     private var errorBanner: some View {
         if let tap = homebrew.untrustedTap {
-            HomebrewTrustCard(tap: tap, compact: true)
+            HomebrewTrustCard(tap: tap, compact: true, keyboardSection: .utilities)
         }
         if let error = homebrew.errorMessage, !error.isEmpty {
             Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -515,6 +545,8 @@ struct PanelHomebrewView: View {
                     Link(l10n.s.homebrewHomepage, destination: url)
                         .font(.system(size: 10.5))
                         .lineLimit(1)
+                        .panelKeyboardRow(PanelRowID(.utilities, "homebrew-homepage"),
+                                          actions: PanelRowActions(activate: { NSWorkspace.shared.open(url) }))
                 }
                 HStack(spacing: 7) {
                     Spacer(minLength: 0)
@@ -543,7 +575,8 @@ struct PanelHomebrewView: View {
                                         showDetails: $showOperationDetails,
                                         onCancel: homebrew.cancelOperation,
                                         onClear: homebrew.clearLog,
-                                        onOpenTerminal: homebrew.openTerminalFallback)
+                                        onOpenTerminal: homebrew.openTerminalFallback,
+                                        keyboardSection: .utilities)
             .panelCard()
         }
     }
@@ -555,6 +588,8 @@ struct PanelHomebrewView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
         } else if package.isInstalled {
+            let row = homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-detailUpgrade")
+            let uninstallRow = homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-detailUninstall")
             if package.update != nil {
                 VStack(alignment: .trailing, spacing: 6) {
                     Button {
@@ -564,6 +599,9 @@ struct PanelHomebrewView: View {
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
+                    .panelKeyboardRow(row, actions: PanelRowActions(activate: {
+                        presentConfirmation(HomebrewPendingAction(action: .upgrade, package: package))
+                    }))
                     Button(role: .destructive) {
                         presentConfirmation(HomebrewPendingAction(action: .uninstall, package: package))
                     } label: {
@@ -571,6 +609,9 @@ struct PanelHomebrewView: View {
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .tint(.red)
+                    .panelKeyboardRow(uninstallRow, actions: PanelRowActions(activate: {
+                        presentConfirmation(HomebrewPendingAction(action: .uninstall, package: package))
+                    }))
                 }
             } else {
                 Button(role: .destructive) {
@@ -580,6 +621,9 @@ struct PanelHomebrewView: View {
                         .font(.system(size: 11, weight: .semibold))
                 }
                 .tint(.red)
+                .panelKeyboardRow(uninstallRow, actions: PanelRowActions(activate: {
+                    presentConfirmation(HomebrewPendingAction(action: .uninstall, package: package))
+                }))
             }
         } else {
             Button {
@@ -589,6 +633,10 @@ struct PanelHomebrewView: View {
                     .font(.system(size: 11, weight: .semibold))
             }
             .buttonStyle(.borderedProminent)
+            .panelKeyboardRow(homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-detailInstall"),
+                              actions: PanelRowActions(activate: {
+                                  presentConfirmation(HomebrewPendingAction(action: .install, package: package))
+                              }))
         }
     }
 

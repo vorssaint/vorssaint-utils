@@ -379,9 +379,10 @@ struct PanelUninstallerView: View {
                                             showDetails: $showHomebrewDetails,
                                             onCancel: homebrew.cancelOperation,
                                             onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                                            onOpenTerminal: homebrew.openTerminalFallback,
+                                            keyboardSection: .utilities)
                 if let tap = homebrew.untrustedTap {
-                    HomebrewTrustCard(tap: tap, compact: true)
+                    HomebrewTrustCard(tap: tap, compact: true, keyboardSection: .utilities)
                 }
                 if let error = homebrew.errorMessage, !error.isEmpty {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
