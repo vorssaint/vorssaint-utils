@@ -353,7 +353,7 @@ extension QuickToggleFeatureStrings {
         hiddenFilesHide: "不显示隐藏的文件",
         desktopIconsHide: "隐藏桌面图标",
         desktopIconsShow: "显示桌面图标",
-        finderRestartCaption: "Finder 将重新启动以应用更改。",
+        finderRestartCaption: "Finder 会重新启动，更改随即生效。",
         lockScreenTitle: "锁定屏幕",
         lockScreenCaption: "返回时需要输入密码。",
         displayOffTitle: "关闭显示器",

@@ -226,6 +226,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Уменьшите, чтобы видеть больше того, что находится за панелью.",
         dockPreviewOpenDelay: "Задержка открытия",
         dockPreviewOpenDelayCaption: "Сколько указатель должен оставаться на значке, прежде чем откроется панель.",
+        dockPreviewQuitAppOnClose: "Завершать приложение кнопкой ×",
+        dockPreviewQuitAppOnCloseCaption: "В Dock Preview кнопка × завершает всё приложение, а не закрывает только это окно.",
         dockClickMinimize: "Сворачивать кликом по Dock",
         dockClickMinimizeCaption: "Окна активного приложения сворачиваются при клике по его значку в Dock. Кликните ещё раз, чтобы вернуть их.",
         dockClickCycleWindows: "Кликом по Dock переключать окна",
@@ -675,6 +677,8 @@ extension Strings {
         diskSection: "Диски",
         diskUsed: "занято",
         diskFree: "свободно",
+        diskAvailable: "доступно",
+        diskPurgeable: "очищаемый",
         diskInternal: "Внутренний",
         diskExternal: "Внешний",
         diskSelect: "Выбрать диск",
@@ -908,6 +912,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Открыть настройки уведомлений…",
         launchAtLoginNeedsApplications: "Приложение запущено из места, из которого нельзя открываться при входе. Перетащите Vorssaint в папку «Программы», откройте его оттуда и включите параметр снова.",
         launchAtLoginNeedsApproval: "Объект входа зарегистрирован, но в Системных настройках он выключен. Откройте «Системные настройки › Основные › Объекты входа и расширения» и включите Vorssaint в разделе «Открывать при входе».",
+        ocrRemoveLineBreaksToggle: "Убирать переносы строк",
+        ocrRemoveLineBreaksCaption: "Удаляет переносы строк, чтобы скопированный текст вставлялся одним абзацем.",
         ocrQRToggle: "Читать QR-коды",
         ocrQRCaption: "Если в области есть QR-код, его содержимое можно скопировать или открыть.",
         ocrQRCopied: "QR-код скопирован",
@@ -967,6 +973,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Обычный порядок",
         switcherMinimizedPlacementEnd: "В конец списка",
         switcherMinimizedPlacementHidden: "Скрывать",
-        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна",
+        switcherScreenPlacementLabel: "Показывать на",
+        switcherScreenPlacementPointer: "Экран с указателем",
+        switcherScreenPlacementMenuBar: "Экран со строкой меню",
+        switcherScreenPlacementActiveWindow: "Экран с активным окном",
+        switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов."
     )
 }

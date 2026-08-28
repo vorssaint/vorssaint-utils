@@ -400,7 +400,7 @@ extension KillProcessFeatureStrings {
         columnMemory: "内存",
         columnPID: "PID",
         groupToggle: "合并相关进程",
-        groupCaption: "将辅助进程归并到负责它们的应用下面。",
+        groupCaption: "将辅助进程归并到负责它们的 App 下面。",
         commandBarToggle: "在命令栏中显示",
         commandBarCaption: "将正在运行的进程加入命令栏，无需打开设置即可查找并结束它们。",
         refreshTooltip: "刷新",
@@ -420,7 +420,7 @@ extension KillProcessFeatureStrings {
         confirmKillTreeFormat: "要结束“%@”及其所有子进程吗？",
         killFailedTitle: "无法结束进程",
         killFailedMessage: "该进程可能已经退出，或需要额外的权限。",
-        adminPromptFormat: "Vorssaint 需要管理员权限才能结束“%@”。"
+        adminPromptFormat: "Vorssaint 需要您的管理员密码才能结束“%@”。"
     )
 
     static let zhTW = KillProcessFeatureStrings(

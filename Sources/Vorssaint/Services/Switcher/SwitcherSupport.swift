@@ -74,6 +74,30 @@ enum SwitcherWindowlessApps: String, CaseIterable, Equatable {
     }
 }
 
+/// Which display the switcher panel opens on. The pointer's screen is what
+/// the app always did; the other two are the choices people arrive expecting
+/// from the switchers they used before, and the menu bar one is the only way
+/// to keep the panel on a fixed display when the pointer roams.
+enum SwitcherScreenPlacement: String, CaseIterable, Equatable {
+    /// The screen under the mouse pointer.
+    case pointer
+    /// The screen with the menu bar, the primary display in Displays settings.
+    case menuBar
+    /// The screen showing the window that was in front when the session began.
+    case activeWindow
+
+    static let fallback = SwitcherScreenPlacement.pointer
+
+    /// Preferences are stored as plain strings, so an unknown or missing value
+    /// resolves to the behavior the app shipped with instead of nothing.
+    static func placement(storedValue: String?) -> SwitcherScreenPlacement {
+        guard let storedValue, let placement = SwitcherScreenPlacement(rawValue: storedValue) else {
+            return fallback
+        }
+        return placement
+    }
+}
+
 /// A per-app override for the switcher's regular window and windowless-app
 /// choices. Apps without an override keep following `SwitcherWindowlessApps`.
 enum SwitcherAppRule: String, CaseIterable, Equatable {
@@ -477,13 +501,18 @@ enum SwitcherSupport {
     }
 
     /// Some professional media apps expose their main surface as a floating
-    /// Accessibility window instead of a standard macOS window. Match bundle
-    /// prefixes because recent releases append version or application suffixes.
+    /// or undescribed Accessibility window instead of a standard macOS window.
+    /// Match bundle prefixes case-insensitively because releases vary between
+    /// lowercase, uppercase and versioned bundle identifiers.
     static func isSupportedMediaFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
-        guard subrole == "AXFloatingWindow", let bundleIdentifier else { return false }
-        return bundleIdentifier.hasPrefix("com.adobe.Audition")
-            || bundleIdentifier.hasPrefix("com.adobe.AfterEffects")
-            || bundleIdentifier.hasPrefix("com.adobe.PremierePro")
+        guard let subrole, subrole == "AXFloatingWindow" || subrole == "AXUnknown",
+              let bundleIdentifier else { return false }
+        let lower = bundleIdentifier.lowercased()
+        return lower.hasPrefix("com.adobe.audition")
+            || lower.hasPrefix("com.adobe.aftereffects")
+            || lower.hasPrefix("com.adobe.premiere")
+            || lower.hasPrefix("com.adobe.mediaencoder")
+            || lower.hasPrefix("com.adobe.characteranimator")
     }
 
     /// Some full-screen playback surfaces keep a nonstandard Accessibility
@@ -566,6 +595,26 @@ enum SwitcherSupport {
                 return candidate.pid
             }
         }
+    }
+
+    /// The display showing most of a window, as an index into `displayBounds`.
+    /// Both rectangles share the window server's coordinate space (top-left
+    /// origin), which is what `kCGWindowBounds` and `CGDisplayBounds` report,
+    /// so no flipping is needed. A window straddling two displays belongs to
+    /// the one holding the larger part. A window touching no display, or an
+    /// entry with no frame at all (an app without windows), yields nil so the
+    /// caller can fall back to another screen instead of guessing.
+    static func displayIndex(showingMostOf windowFrame: CGRect, displayBounds: [CGRect]) -> Int? {
+        guard !windowFrame.isNull, !windowFrame.isEmpty else { return nil }
+        var best: (index: Int, area: CGFloat)?
+        for (index, bounds) in displayBounds.enumerated() {
+            let overlap = bounds.intersection(windowFrame)
+            guard !overlap.isNull else { continue }
+            let area = overlap.width * overlap.height
+            guard area > 0, area > (best?.area ?? 0) else { continue }
+            best = (index, area)
+        }
+        return best?.index
     }
 
     static func hidesApp(bundleIdentifier: String?,
@@ -1146,29 +1195,27 @@ enum SwitcherSupport {
         panelIsVisible && !panelFrame.contains(location)
     }
 
-    /// Whether a mouse click is a middle click inside the active switcher panel
-    /// (which closes the highlighted/targeted window).
+    /// Whether a mouse click is a middle click on a hovered switcher card.
     static func isMiddleClickInsidePanel(eventType: CGEventType,
                                          buttonNumber: Int64,
                                          panelIsVisible: Bool,
                                          panelFrame: CGRect,
-                                         location: CGPoint) -> Bool {
+                                         location: CGPoint,
+                                         itemIsHovered: Bool) -> Bool {
         eventType == .otherMouseDown
             && buttonNumber == 2
             && panelIsVisible
             && panelFrame.contains(location)
+            && itemIsHovered
     }
 
-    /// Whether a middle mouse up event occurred inside the switcher panel and should be swallowed.
+    /// A release is swallowed only when its matching press closed a card.
     static func shouldSwallowMiddleMouseUp(eventType: CGEventType,
                                            buttonNumber: Int64,
-                                           panelIsVisible: Bool,
-                                           panelFrame: CGRect,
-                                           location: CGPoint) -> Bool {
+                                           swallowedMouseDown: Bool) -> Bool {
         eventType == .otherMouseUp
             && buttonNumber == 2
-            && panelIsVisible
-            && panelFrame.contains(location)
+            && swallowedMouseDown
     }
 
     /// The letters the panel acts on: W closes the highlighted window, Q quits

@@ -131,8 +131,9 @@ enum QuickToolsSupport {
 
     /// Joins recognized lines in natural reading order: top to bottom, left
     /// to right within the same visual row. Empty lines are dropped.
-    static func joinedRecognizedText(_ lines: [RecognizedLine]) -> String {
-        lines
+    static func joinedRecognizedText(_ lines: [RecognizedLine],
+                                     removingLineBreaks: Bool) -> String {
+        let texts = lines
             .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .sorted {
                 // Vision's y grows upward; bucket rows so tiny baseline
@@ -143,7 +144,36 @@ enum QuickToolsSupport {
                 return $0.x < $1.x
             }
             .map(\.text)
-            .joined(separator: "\n")
+        guard removingLineBreaks else { return texts.joined(separator: "\n") }
+
+        let normalizedTexts = texts.map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return normalizedTexts.reduce(into: "") { joined, line in
+            guard !joined.isEmpty else {
+                joined = line
+                return
+            }
+            let joinsTightly = joined.unicodeScalars.last.map(isTightScriptScalar) == true
+                && line.unicodeScalars.first.map(isTightScriptScalar) == true
+            joined.append(joinsTightly ? "" : " ")
+            joined.append(line)
+        }
+    }
+
+    // CJK punctuation, kana, Han. Hangul syllables and halfwidth Hangul jamo
+    // stay out on purpose because Korean keeps its word spaces.
+    private static func isTightScriptScalar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x3000...0x312F,
+             0x3190...0x9FFF,
+             0xF900...0xFAFF,
+             0xFF01...0xFF9F,
+             0x20000...0x2FA1F:
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - QR codes

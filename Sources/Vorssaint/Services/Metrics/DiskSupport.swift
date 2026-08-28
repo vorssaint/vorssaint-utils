@@ -32,6 +32,7 @@ struct DiskDeviceReading: Identifiable, Equatable {
     var fileSystem: String?
     var totalBytes: UInt64
     var freeBytes: UInt64
+    var purgeableBytes: UInt64?
     var usedBytes: UInt64
     var isInternal: Bool
     var isRemovable: Bool

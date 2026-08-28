@@ -113,6 +113,14 @@ enum TextSnippetSupport {
         replacement.contains("{{clipboard}}")
     }
 
+    static func requiresPaste(_ text: String) -> Bool {
+        text.contains(where: \.isNewline)
+    }
+
+    static func pastePayload(text: String, trailingText: String) -> String {
+        text + trailingText.replacingOccurrences(of: "\r", with: "\n")
+    }
+
     static func expand(_ replacement: String,
                        date: Date,
                        clipboard: String?,
