@@ -302,7 +302,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
         screenCaptureTitle: "Screen capture",
-        dragOutHandleLabel: "Drag and Drop"
+        dragOutHandleLabel: "Drag and drop"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -582,7 +582,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
         screenCaptureTitle: "Ekran yakalama",
-        dragOutHandleLabel: "Sürükle ve Bırak"
+        dragOutHandleLabel: "Sürükle ve bırak"
     )
 
     static let ru = ScreenshotFeatureStrings(

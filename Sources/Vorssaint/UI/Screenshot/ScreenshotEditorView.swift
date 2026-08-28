@@ -1180,6 +1180,7 @@ struct ScreenshotEditorView: View {
     /// window."
     private var dragOutHandle: some View {
         Label(strings.dragOutHandleLabel, systemImage: "arrow.up.doc")
+            .labelStyle(.iconOnly)
             .font(.system(size: 11, weight: .medium))
             .onDrag {
                 commitEditingTextIfNeeded()
@@ -1194,7 +1195,7 @@ struct ScreenshotEditorView: View {
             }
             .screenshotSafeHelp(strings.dragOutHandleLabel)
             .accessibilityLabel(strings.dragOutHandleLabel)
-        }
+    }
 }
 
 private struct ScreenshotEditorSharedLinkView: View {
