@@ -109,6 +109,10 @@ final class AppSwitcher: ObservableObject {
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
     private var hoverAnchor: NSPoint?
+    /// The card currently under the pointer. Kept separate from selection so
+    /// a middle click on panel chrome can never close an unrelated window.
+    private var hoveredWindowIndex: Int?
+    private var swallowingMiddleMouseUp = false
     /// Fires while the pointer stays on the last visible overflow icon.
     private var iconRowEdgeHoverWork: DispatchWorkItem?
     private var iconRowEdgeHoverIndex: Int?
@@ -572,27 +576,32 @@ final class AppSwitcher: ObservableObject {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             if type == .otherMouseDown,
                let panel,
+               let hoveredWindowIndex,
+               windows.indices.contains(hoveredWindowIndex),
                SwitcherSupport.isMiddleClickInsidePanel(
                    eventType: type,
                    buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
                    panelIsVisible: panel.isVisible,
                    panelFrame: panel.frame,
-                   location: NSEvent.mouseLocation
+                   location: NSEvent.mouseLocation,
+                   itemIsHovered: true
                ) {
-                closeSelectedWindow()
+                swallowingMiddleMouseUp = true
+                self.hoveredWindowIndex = nil
+                closeWindow(windows[hoveredWindowIndex])
                 return nil
             }
+            swallowingMiddleMouseUp = false
             dismissForClickOutsidePanel()
             return Unmanaged.passUnretained(event)
         case .otherMouseUp:
-            if let panel,
-               SwitcherSupport.shouldSwallowMiddleMouseUp(
+            let shouldSwallow = SwitcherSupport.shouldSwallowMiddleMouseUp(
                    eventType: type,
                    buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
-                   panelIsVisible: panel.isVisible,
-                   panelFrame: panel.frame,
-                   location: NSEvent.mouseLocation
-               ) {
+                   swallowedMouseDown: swallowingMiddleMouseUp
+               )
+            swallowingMiddleMouseUp = false
+            if shouldSwallow {
                 return nil
             }
             return Unmanaged.passUnretained(event)
@@ -951,13 +960,18 @@ final class AppSwitcher: ObservableObject {
     /// the panel opens centered on the cursor's screen, and the card that
     /// happens to sit under a stationary pointer must not steal the selection.
     func hoverSelect(index: Int) {
-        guard sessionActive else { return }
+        guard sessionActive, windows.indices.contains(index) else { return }
+        hoveredWindowIndex = index
         let mouse = NSEvent.mouseLocation
         if let anchor = hoverAnchor {
             guard hypot(mouse.x - anchor.x, mouse.y - anchor.y) > 4 else { return }
             hoverAnchor = nil
         }
         select(index: index)
+    }
+
+    func hoverSelectEnded(index: Int) {
+        if hoveredWindowIndex == index { hoveredWindowIndex = nil }
     }
 
     /// Icon-row hover. Selects the tile, then only the last visible overflow
@@ -969,6 +983,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     func hoverSelectIconRowEnded(index: Int) {
+        hoverSelectEnded(index: index)
         guard iconRowEdgeHoverIndex == iconRowIndex(forSelectionIndex: index) else { return }
         cancelIconRowEdgeHover()
     }
@@ -1277,6 +1292,7 @@ final class AppSwitcher: ObservableObject {
         isSearchPinned = false
         totalWindowCount = 0
         hoverAnchor = nil
+        hoveredWindowIndex = nil
         cancelIconRowEdgeHover()
         iconRowFirstVisibleIndex = 0
         userNavigated = false

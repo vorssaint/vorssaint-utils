@@ -969,6 +969,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "일반 순서",
         switcherMinimizedPlacementEnd: "끝으로 보내기",
         switcherMinimizedPlacementHidden: "숨기기",
-        switcherShowFullscreenWindows: "전체 화면 윈도우 표시" 
+        switcherShowFullscreenWindows: "전체 화면 윈도우 표시"
     )
 }

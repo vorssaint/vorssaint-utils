@@ -477,13 +477,18 @@ enum SwitcherSupport {
     }
 
     /// Some professional media apps expose their main surface as a floating
-    /// Accessibility window instead of a standard macOS window. Match bundle
-    /// prefixes because recent releases append version or application suffixes.
+    /// or undescribed Accessibility window instead of a standard macOS window.
+    /// Match bundle prefixes case-insensitively because releases vary between
+    /// lowercase, uppercase and versioned bundle identifiers.
     static func isSupportedMediaFloatingWindow(bundleIdentifier: String?, subrole: String?) -> Bool {
-        guard subrole == "AXFloatingWindow", let bundleIdentifier else { return false }
-        return bundleIdentifier.hasPrefix("com.adobe.Audition")
-            || bundleIdentifier.hasPrefix("com.adobe.AfterEffects")
-            || bundleIdentifier.hasPrefix("com.adobe.PremierePro")
+        guard let subrole, subrole == "AXFloatingWindow" || subrole == "AXUnknown",
+              let bundleIdentifier else { return false }
+        let lower = bundleIdentifier.lowercased()
+        return lower.hasPrefix("com.adobe.audition")
+            || lower.hasPrefix("com.adobe.aftereffects")
+            || lower.hasPrefix("com.adobe.premiere")
+            || lower.hasPrefix("com.adobe.mediaencoder")
+            || lower.hasPrefix("com.adobe.characteranimator")
     }
 
     /// Some full-screen playback surfaces keep a nonstandard Accessibility
@@ -1146,29 +1151,27 @@ enum SwitcherSupport {
         panelIsVisible && !panelFrame.contains(location)
     }
 
-    /// Whether a mouse click is a middle click inside the active switcher panel
-    /// (which closes the highlighted/targeted window).
+    /// Whether a mouse click is a middle click on a hovered switcher card.
     static func isMiddleClickInsidePanel(eventType: CGEventType,
                                          buttonNumber: Int64,
                                          panelIsVisible: Bool,
                                          panelFrame: CGRect,
-                                         location: CGPoint) -> Bool {
+                                         location: CGPoint,
+                                         itemIsHovered: Bool) -> Bool {
         eventType == .otherMouseDown
             && buttonNumber == 2
             && panelIsVisible
             && panelFrame.contains(location)
+            && itemIsHovered
     }
 
-    /// Whether a middle mouse up event occurred inside the switcher panel and should be swallowed.
+    /// A release is swallowed only when its matching press closed a card.
     static func shouldSwallowMiddleMouseUp(eventType: CGEventType,
                                            buttonNumber: Int64,
-                                           panelIsVisible: Bool,
-                                           panelFrame: CGRect,
-                                           location: CGPoint) -> Bool {
+                                           swallowedMouseDown: Bool) -> Bool {
         eventType == .otherMouseUp
             && buttonNumber == 2
-            && panelIsVisible
-            && panelFrame.contains(location)
+            && swallowedMouseDown
     }
 
     /// The letters the panel acts on: W closes the highlighted window, Q quits

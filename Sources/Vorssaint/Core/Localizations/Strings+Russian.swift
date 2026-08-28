@@ -969,6 +969,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Обычный порядок",
         switcherMinimizedPlacementEnd: "В конец списка",
         switcherMinimizedPlacementHidden: "Скрывать",
-        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна"
     )
 }

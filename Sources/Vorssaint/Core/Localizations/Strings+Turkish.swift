@@ -968,6 +968,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal sıralama",
         switcherMinimizedPlacementEnd: "Sona yerleştir",
         switcherMinimizedPlacementHidden: "Gizle",
-        switcherShowFullscreenWindows: "Tam ekran pencereleri göster" 
+        switcherShowFullscreenWindows: "Tam ekran pencereleri göster"
     )
 }

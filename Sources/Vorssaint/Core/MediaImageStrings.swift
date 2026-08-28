@@ -721,12 +721,12 @@ extension MediaImageConverterStrings {
         preserveDate: "保留原始修改日期",
         moreOptions: "更多选项",
         tooLarge: "这些尺寸太大，无法安全处理。请选择更小的尺寸。",
-        copySummary: "复制摘要",
+        copySummary: "拷贝摘要",
         savedBytesFormat: "节省 %@",
         grewBytesFormat: "增大 %@",
-        batchSavedFormat: "已保存 %d 张图像",
-        batchPartialFormat: "已保存 %d 张，%d 张失败",
-        batchSummaryHeaderFormat: "已保存 %d 张，%d 张失败",
+        batchSavedFormat: "已存储 %d 张图像",
+        batchPartialFormat: "已存储 %d 张，%d 张失败",
+        batchSummaryHeaderFormat: "已存储 %d 张，%d 张失败",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

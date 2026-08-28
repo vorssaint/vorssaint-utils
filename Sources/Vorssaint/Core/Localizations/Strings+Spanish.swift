@@ -968,6 +968,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Orden normal",
         switcherMinimizedPlacementEnd: "Colocar al final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa"
     )
 }

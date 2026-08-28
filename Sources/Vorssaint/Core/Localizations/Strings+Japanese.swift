@@ -968,6 +968,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "通常の順序",
         switcherMinimizedPlacementEnd: "最後に配置",
         switcherMinimizedPlacementHidden: "非表示",
-        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示" 
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示"
     )
 }

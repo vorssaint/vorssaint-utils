@@ -212,6 +212,13 @@ enum SuperKeySupport {
         readbackConfirmed ? false : previous
     }
 
+    static func mappingRequestIsAuthorized(requestGeneration: UInt,
+                                           currentGeneration: UInt,
+                                           tapIsCurrent: Bool,
+                                           stopping: Bool) -> Bool {
+        requestGeneration == currentGeneration && tapIsCurrent && !stopping
+    }
+
     /// The mapping table as the command line takes it.
     static func mappingArgument(_ mappings: [SuperKeyMapping]) -> String {
         let entries = mappings.map {

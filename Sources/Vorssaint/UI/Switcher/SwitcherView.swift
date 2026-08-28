@@ -166,7 +166,11 @@ struct SwitcherView: View {
                                    })
                             .id(window.id)
                             .onHover { hovering in
-                                if hovering { switcher.hoverSelect(index: index) }
+                                if hovering {
+                                    switcher.hoverSelect(index: index)
+                                } else {
+                                    switcher.hoverSelectEnded(index: index)
+                                }
                             }
                     }
                 }
@@ -307,7 +311,11 @@ struct SwitcherView: View {
                                                               })
                                         .id(window.id)
                                         .onHover { hovering in
-                                            if hovering { switcher.hoverSelect(index: index) }
+                                            if hovering {
+                                                switcher.hoverSelect(index: index)
+                                            } else {
+                                                switcher.hoverSelectEnded(index: index)
+                                            }
                                         }
                                     }
                                 }
@@ -386,7 +394,11 @@ struct SwitcherView: View {
                                         switcher.commitSession()
                                     },
                                     onHover: { hovering in
-                                        if hovering { switcher.hoverSelect(index: entry.offset) }
+                                        if hovering {
+                                            switcher.hoverSelect(index: entry.offset)
+                                        } else {
+                                            switcher.hoverSelectEnded(index: entry.offset)
+                                        }
                                     }
                                 )
                                 .id(entry.element.id)
