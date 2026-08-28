@@ -353,12 +353,12 @@ final class UpdateService: ObservableObject {
             return
         }
 
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath,
-                          "\(getuid())", expectedVersion]
         do {
-            try task.run()
+            // Its own session: a plain child would be swept away with this
+            // app's session and launchd job, before the swap it is here for.
+            try DetachedProcess.spawn("/bin/sh",
+                                      [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath,
+                                       "\(getuid())", expectedVersion])
         } catch {
             try? FileManager.default.removeItem(at: scriptURL)
             failInstall(dmgPath: dmgPath, message: error.localizedDescription)
@@ -373,9 +373,9 @@ final class UpdateService: ObservableObject {
     /// Same installer, behind the system admin prompt via AdminShell, which
     /// serializes prompts and brings this menu bar app forward so the dialog
     /// cannot open behind another window. The script goes inline inside the
-    /// elevated command (never a user-writable file run as root), detached
-    /// with nohup so the prompt returns while the installer waits for our
-    /// exit.
+    /// elevated command (never a user-writable file run as root), started in
+    /// its own session so the prompt returns while the installer waits for our
+    /// exit — and so it survives that exit.
     private func launchAdminInstaller(appPath: String, dmgPath: String, pid: Int32,
                                       resultPath: String, expectedVersion: String) {
         let command = UpdateInstallerSupport.elevatedInstallCommand(appPath: appPath,
