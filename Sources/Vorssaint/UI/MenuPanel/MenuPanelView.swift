@@ -366,6 +366,8 @@ struct MenuPanelView: View {
                 )
                 .panelFocusRing(navigator.focus == .tab(id))
                 .help(id.title(l10n.s))
+                .accessibilityLabel(id.title(l10n.s))
+                .accessibilityAddTraits(isActive ? .isSelected : [])
             }
         }
         .padding(4)

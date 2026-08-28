@@ -327,6 +327,7 @@ private struct PanelKeyboardRowModifier: ViewModifier {
                 }
             )
             .panelFocusRing(navigator.focus == .row(id), cornerRadius: cornerRadius)
+            .accessibilityAddTraits(navigator.focus == .row(id) ? .isSelected : [])
             .onAppear { navigator.registerRow(id, actions: actions) }
             .onDisappear { navigator.unregisterRow(id) }
     }
