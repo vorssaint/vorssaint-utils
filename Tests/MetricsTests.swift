@@ -18033,8 +18033,16 @@ struct MetricsTests {
         // The sweep is therefore a trap, and a staging dir added later leaks on
         // every build until it is named in cleanup(). The names are read out of
         // the script so the two cannot drift apart.
-        expect(buildScript.contains("trap cleanup EXIT"),
-               "build.sh sweeps its temp dirs however the script ends")
+        // The trap has to be installed before the first dir exists: a failure
+        // between `mktemp -d` and a later `trap` leaks exactly as before.
+        let sweepInstalled = buildScript.range(of: "trap cleanup EXIT")?.lowerBound
+        let firstStaged = buildScript.range(of: "mktemp -d")?.lowerBound
+        expect(sweepInstalled != nil && firstStaged != nil && sweepInstalled! < firstStaged!,
+               "build.sh installs the temp dir sweep before it stages the first dir")
+        // zsh runs the EXIT trap on HUP but not on INT or TERM, so the signals
+        // have to reach it through `exit` or Ctrl-C leaks the staged bundle.
+        expect(buildScript.contains("trap 'exit 1' INT TERM HUP"),
+               "build.sh routes interrupt and termination through the sweep")
         let cleanupBody = buildScript.components(separatedBy: "cleanup() {")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
         let stagedTempDirs = buildScript.components(separatedBy: "=\"$(mktemp -d)\"")
@@ -18050,7 +18058,7 @@ struct MetricsTests {
         expect(buildScript.components(separatedBy: "mktemp -d").count - 1 == stagedTempDirs.count,
                "every mktemp -d in build.sh is captured whole into a variable")
         for variable in Set(stagedTempDirs) {
-            expect(cleanupBody.contains("$\(variable)"),
+            expect(cleanupBody.contains("\"$\(variable)\""),
                    "temp dir \(variable) is swept by build.sh cleanup()")
         }
 

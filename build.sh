@@ -21,6 +21,10 @@ cleanup() {
     return 0
 }
 trap cleanup EXIT
+# zsh runs the EXIT trap when the script is hung up, but not when it is
+# interrupted or terminated; route those through exit so a Ctrl-C partway
+# into the build sweeps like any other ending.
+trap 'exit 1' INT TERM HUP
 
 # Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
 # bundle id, so it coexists with the official app); --install puts it in /Applications.
