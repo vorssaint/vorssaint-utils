@@ -1182,6 +1182,8 @@ struct ScreenshotEditorView: View {
         Label(strings.dragOutHandleLabel, systemImage: "arrow.up.doc")
             .labelStyle(.iconOnly)
             .font(.system(size: 11, weight: .medium))
+            .frame(width: 26, height: 18)
+            .contentShape(Rectangle())
             .onDrag {
                 commitEditingTextIfNeeded()
                 guard let image = model.exportImage(),
