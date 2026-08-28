@@ -154,6 +154,22 @@ struct FanControlCardContent: View {
                 .controlSize(.small)
                 .disabled(isWorking)
         }
+        .panelKeyboardRow(PanelRowID(.fanControl, "coolingLevel"),
+                          actions: isWorking ? PanelRowActions() : PanelRowActions(
+                              adjust: { direction, _ in adjustCoolingLevel(direction) }))
+    }
+
+    /// Always moves by the full step: the level is quantized to multiples of
+    /// it (`selectedCoolingLevel` rounds up to the next one), so a finer
+    /// keyboard step would just get rounded away.
+    private func adjustCoolingLevel(_ direction: PanelAdjustDirection) -> Bool {
+        let step = FanControlPolicy.coolingLevelStep
+        let delta = direction == .increase ? step : -step
+        let next = min(FanControlPolicy.maximumCoolingLevel,
+                       max(FanControlPolicy.minimumCoolingLevel, selectedCoolingLevel + delta))
+        guard next != selectedCoolingLevel else { return false }
+        coolingLevel = next
+        return true
     }
 
     private var statusHeader: some View {

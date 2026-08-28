@@ -80,6 +80,27 @@ struct BrightnessSection: View {
                     .accessibilityLabel(display.name)
             }
         }
+        .panelKeyboardRow(PanelRowID(.brightness, display.id), actions: rowActions(for: display))
+    }
+
+    private func rowActions(for display: BrightnessDisplay) -> PanelRowActions {
+        guard display.isActive, display.method != nil, !service.isDisplayPending(display.id) else {
+            return PanelRowActions()
+        }
+        return PanelRowActions(adjust: { direction, fine in
+            adjustBrightness(for: display, direction: direction, fine: fine)
+        })
+    }
+
+    /// 5% a press, 1% with Shift held for precise placement.
+    private func adjustBrightness(for display: BrightnessDisplay,
+                                  direction: PanelAdjustDirection, fine: Bool) -> Bool {
+        let step = fine ? 0.01 : 0.05
+        let delta = direction == .increase ? step : -step
+        let next = min(1, max(0, display.brightness + delta))
+        guard abs(next - display.brightness) > 0.0001 else { return false }
+        service.setBrightness(next, for: display.id, showOSD: brightnessOSDEnabled)
+        return true
     }
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {

@@ -188,6 +188,13 @@ struct MixerSection: View {
                         mixer.setCurrentOutputVolume($0)
                     }
                 }
+                .panelKeyboardRow(PanelRowID(.mixer, "systemOutputVolume"),
+                                  actions: PanelRowActions(adjust: { direction, fine in
+                                      guard let next = adjustedVolume(volume, direction: direction,
+                                                                      fine: fine, maximum: 1) else { return false }
+                                      mixer.setCurrentOutputVolume(next)
+                                      return true
+                                  }))
             }
 
             if universalOutputDevices.isEmpty {
@@ -306,6 +313,16 @@ struct MixerSection: View {
                         .foregroundStyle(.secondary)
                         .frame(width: 38, alignment: .trailing)
                 }
+                .panelKeyboardRow(PanelRowID(.mixer, "headphonesDisconnectVolume"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      let current = headphonesDisconnectDisplayPercent
+                                      let delta = direction == .increase ? 5 : -5
+                                      let next = min(100, max(Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
+                                                              current + delta))
+                                      guard next != current else { return false }
+                                      headphonesDisconnectVolumeBinding.wrappedValue = next
+                                      return true
+                                  }))
             }
         }
     }
@@ -694,6 +711,17 @@ struct MixerSection: View {
     }
 }
 
+/// 5% a press, 1% with Shift held; clamped to the row's own range. Shared by
+/// the system output row and every per-app `MixerRow`.
+private func adjustedVolume(_ current: Double, direction: PanelAdjustDirection,
+                            fine: Bool, maximum: Double) -> Double? {
+    let step = fine ? 0.01 : 0.05
+    let delta = direction == .increase ? step : -step
+    let next = min(maximum, max(0, current + delta))
+    guard abs(next - current) > 0.0001 else { return nil }
+    return next
+}
+
 private struct MixerRow: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
@@ -830,6 +858,19 @@ private struct MixerRow: View {
                 }
             }
         }
+        .panelKeyboardRow(PanelRowID(.mixer, "app:\(app.id)"), actions: rowActions)
+    }
+
+    private var rowActions: PanelRowActions {
+        // Zoom and pro audio apps are listed but never tapped (see
+        // isBypassed above): nothing here for the arrow keys to adjust.
+        guard !app.isBypassed else { return PanelRowActions() }
+        return PanelRowActions(adjust: { direction, fine in
+            guard let next = adjustedVolume(app.volume, direction: direction,
+                                            fine: fine, maximum: AppVolumeMixer.maxVolume) else { return false }
+            mixer.setVolume(next, for: app)
+            return true
+        })
     }
 
     private var volumeBinding: Binding<Double> {
