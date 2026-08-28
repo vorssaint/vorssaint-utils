@@ -304,6 +304,7 @@ private struct PanelKeyboardRowModifier: ViewModifier {
     @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     let id: PanelRowID
     let actions: PanelRowActions
+    let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
         content
@@ -316,7 +317,7 @@ private struct PanelKeyboardRowModifier: ViewModifier {
                             minY: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)).minY)])
                 }
             )
-            .panelFocusRing(navigator.focus == .row(id))
+            .panelFocusRing(navigator.focus == .row(id), cornerRadius: cornerRadius)
             .onAppear { navigator.registerRow(id, actions: actions) }
             .onDisappear { navigator.unregisterRow(id) }
     }
@@ -337,8 +338,8 @@ extension View {
     /// Registers this view as a keyboard-navigable row. `id` must be stable
     /// and unique within its section; `actions` says what Return/Space and
     /// the arrow keys do to it.
-    func panelKeyboardRow(_ id: PanelRowID, actions: PanelRowActions) -> some View {
-        modifier(PanelKeyboardRowModifier(id: id, actions: actions))
+    func panelKeyboardRow(_ id: PanelRowID, actions: PanelRowActions, cornerRadius: CGFloat = 8) -> some View {
+        modifier(PanelKeyboardRowModifier(id: id, actions: actions, cornerRadius: cornerRadius))
     }
 
     /// Marks the root of a section's scrollable content: establishes the

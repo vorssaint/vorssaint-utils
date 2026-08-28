@@ -246,6 +246,17 @@ struct PanelSection<Content: View>: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .panelKeyboardRow(PanelRowID(id, "header"),
+                                  actions: PanelRowActions(activate: toggle,
+                                                           adjust: { direction, _ in
+                                                               // Right expands, left collapses; already being
+                                                               // there hands the key back instead of no-oping.
+                                                               let wantsExpanded = direction == .increase
+                                                               guard wantsExpanded == collapsed else { return false }
+                                                               toggle()
+                                                               return true
+                                                           }),
+                                  cornerRadius: 6)
             } else {
                 sectionTitle(title)
                 Spacer(minLength: 0)
