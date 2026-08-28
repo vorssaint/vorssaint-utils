@@ -68,33 +68,7 @@ struct KeepAwakeIconPicker: View {
         return Button {
             iconValue = icon.rawValue
         } label: {
-            Group {
-                if let image = BlackHoleGlyph.activeImage(style: icon, tint: selectedTint) {
-                    Image(nsImage: image)
-                        .renderingMode(selectedTint == .none ? .template : .original)
-                        .resizable()
-                        .scaledToFit()
-                        .foregroundStyle(.primary)
-                } else {
-                    Image(systemName: "circle.fill")
-                        .foregroundStyle(.primary)
-                }
-            }
-            .frame(maxWidth: 21, maxHeight: compact ? 14 : 16)
-            .frame(maxWidth: .infinity)
-            .frame(height: compact ? 29 : 35)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.14)
-                                   : Color.secondary.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.75)
-                                           : Color.secondary.opacity(0.13),
-                                  lineWidth: selected ? 1.2 : 1)
-            )
-            .contentShape(Rectangle())
+            iconGlyph(icon, selected: selected)
         }
         .buttonStyle(.plain)
         .help(icon.title(l10n.s))
@@ -103,43 +77,81 @@ struct KeepAwakeIconPicker: View {
                           actions: PanelRowActions(activate: { iconValue = icon.rawValue }))
     }
 
+    /// Split out of `iconButton` so its background/overlay ternaries (and the
+    /// row registration appended alongside them) don't all sit in the one
+    /// expression the type checker has to solve at once.
+    private func iconGlyph(_ icon: KeepAwakeActiveIcon, selected: Bool) -> some View {
+        Group {
+            if let image = BlackHoleGlyph.activeImage(style: icon, tint: selectedTint) {
+                Image(nsImage: image)
+                    .renderingMode(selectedTint == .none ? .template : .original)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.primary)
+            } else {
+                Image(systemName: "circle.fill")
+                    .foregroundStyle(.primary)
+            }
+        }
+        .frame(maxWidth: 21, maxHeight: compact ? 14 : 16)
+        .frame(maxWidth: .infinity)
+        .frame(height: compact ? 29 : 35)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.14)
+                               : Color.secondary.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(selected ? Color.accentColor.opacity(0.75)
+                                       : Color.secondary.opacity(0.13),
+                              lineWidth: selected ? 1.2 : 1)
+        )
+        .contentShape(Rectangle())
+    }
+
     private func tintButton(_ tint: KeepAwakeIconTint) -> some View {
         let selected = tint == selectedTint
         return Button {
             tintValue = tint.rawValue
         } label: {
-            ZStack {
-                if let color = tintColor(tint) {
-                    Circle()
-                        .fill(color)
-                        .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
-                } else {
-                    Circle()
-                        .strokeBorder(Color.secondary, lineWidth: 1.2)
-                        .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
-                    Image(systemName: "slash")
-                        .font(.system(size: compact ? 8 : 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: compact ? 24 : 28)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.12) : Color.clear)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.clear,
-                                  lineWidth: 1.1)
-            )
-            .contentShape(Rectangle())
+            tintGlyph(tint, selected: selected)
         }
         .buttonStyle(.plain)
         .help(tint.title(l10n.s))
         .accessibilityLabel(tint.title(l10n.s))
         .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "keepAwakeTint-\(tint.rawValue)") },
                           actions: PanelRowActions(activate: { tintValue = tint.rawValue }))
+    }
+
+    /// Split out of `tintButton` for the same reason as `iconGlyph`.
+    private func tintGlyph(_ tint: KeepAwakeIconTint, selected: Bool) -> some View {
+        ZStack {
+            if let color = tintColor(tint) {
+                Circle()
+                    .fill(color)
+                    .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
+            } else {
+                Circle()
+                    .strokeBorder(Color.secondary, lineWidth: 1.2)
+                    .frame(width: compact ? 12 : 14, height: compact ? 12 : 14)
+                Image(systemName: "slash")
+                    .font(.system(size: compact ? 8 : 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: compact ? 24 : 28)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.clear,
+                              lineWidth: 1.1)
+        )
+        .contentShape(Rectangle())
     }
 
     private func tintColor(_ tint: KeepAwakeIconTint) -> Color? {

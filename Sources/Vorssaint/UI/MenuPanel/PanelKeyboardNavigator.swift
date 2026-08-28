@@ -372,6 +372,39 @@ final class PanelKeyboardNavigator: ObservableObject {
     }
 }
 
+// MARK: - Panel host scoping
+
+/// True only within the popover panel's own view tree. Several components
+/// instrumented for keyboard navigation (`KeepAwakeIconPicker`,
+/// `AppPickerView`, `AppUpdatesListView`, `HomebrewOperationStatusView`, and
+/// others) are also hosted in Settings or a standalone window, which can be
+/// open at the same time as the panel — `AppDelegate.shouldDismissPopover`
+/// deliberately allows that. `PanelKeyboardRowModifier` and
+/// `PanelKeyboardChromeModifier` read this to become no-ops outside the
+/// panel, so a Settings/standalone instance of a shared view never
+/// registers into (or draws the focus ring for) the panel's navigator —
+/// gating per view tree rather than on `popover.isShown`, which can't tell
+/// the two hosts apart when both are on screen.
+private struct IsMenuPanelHostKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var isMenuPanelHost: Bool {
+        get { self[IsMenuPanelHostKey.self] }
+        set { self[IsMenuPanelHostKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Marks the root of the popover panel's own content so the keyboard-nav
+    /// row/chrome modifiers know they're inside it. Set once, in
+    /// `MenuPanelView`.
+    func markMenuPanelHost() -> some View {
+        environment(\.isMenuPanelHost, true)
+    }
+}
+
 // MARK: - Row registration
 
 private struct PanelRowGeometry: Equatable {
@@ -389,25 +422,30 @@ private struct PanelRowGeometryPreferenceKey: PreferenceKey {
 
 private struct PanelKeyboardRowModifier: ViewModifier {
     @ObservedObject private var navigator = PanelKeyboardNavigator.shared
+    @Environment(\.isMenuPanelHost) private var isMenuPanelHost
     let id: PanelRowID
     let actions: PanelRowActions
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
-        content
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: PanelRowGeometryPreferenceKey.self,
-                        value: [PanelRowGeometry(
-                            id: id,
-                            frame: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)))])
-                }
-            )
-            .panelFocusRing(navigator.focus == .row(id), cornerRadius: cornerRadius)
-            .accessibilityAddTraits(navigator.focus == .row(id) ? .isSelected : [])
-            .onAppear { navigator.registerRow(id, actions: actions) }
-            .onDisappear { navigator.unregisterRow(id) }
+        if isMenuPanelHost {
+            content
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: PanelRowGeometryPreferenceKey.self,
+                            value: [PanelRowGeometry(
+                                id: id,
+                                frame: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)))])
+                    }
+                )
+                .panelFocusRing(navigator.focus == .row(id), cornerRadius: cornerRadius)
+                .accessibilityAddTraits(navigator.focus == .row(id) ? .isSelected : [])
+                .onAppear { navigator.registerRow(id, actions: actions) }
+                .onDisappear { navigator.unregisterRow(id) }
+        } else {
+            content
+        }
     }
 }
 
@@ -424,16 +462,21 @@ private struct PanelKeyboardRowOrderModifier: ViewModifier {
 
 private struct PanelKeyboardChromeModifier: ViewModifier {
     @ObservedObject private var navigator = PanelKeyboardNavigator.shared
+    @Environment(\.isMenuPanelHost) private var isMenuPanelHost
     let id: PanelChromeID
     let activate: () -> Void
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
-        content
-            .panelFocusRing(navigator.focus == .chrome(id), cornerRadius: cornerRadius)
-            .accessibilityAddTraits(navigator.focus == .chrome(id) ? .isSelected : [])
-            .onAppear { navigator.registerChromeAction(id, activate: activate) }
-            .onDisappear { navigator.unregisterChromeAction(id) }
+        if isMenuPanelHost {
+            content
+                .panelFocusRing(navigator.focus == .chrome(id), cornerRadius: cornerRadius)
+                .accessibilityAddTraits(navigator.focus == .chrome(id) ? .isSelected : [])
+                .onAppear { navigator.registerChromeAction(id, activate: activate) }
+                .onDisappear { navigator.unregisterChromeAction(id) }
+        } else {
+            content
+        }
     }
 }
 

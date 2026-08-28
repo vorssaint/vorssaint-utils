@@ -102,6 +102,7 @@ struct MenuPanelView: View {
                 navigablePanel
             }
         }
+        .markMenuPanelHost()
         .onAppear {
             applyFocus(panelFocus.request)
             KeepAwakeManager.shared.refreshPasswordlessStatus()
