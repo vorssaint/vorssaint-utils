@@ -6,8 +6,9 @@ name: Issue fix status
 #   `fixed (pending release)`, with the merge commit recorded in the bot's
 #   comment
 #
-#   a stable release that contains that commit      ->  the label becomes
-#   `please confirm` and the reporter is asked to check that release
+#   the next stable release                         ->  every issue still
+#   carrying that label becomes `please confirm`, and its reporter is asked
+#   to check that release
 #
 #   two weeks of silence after that                 ->  the issue is closed,
 #   after a comment saying so and how to reopen it
@@ -35,15 +36,25 @@ name: Issue fix status
 # stops there.
 #
 # Neither of the first two decides that anything is fixed. A human decided that
-# when they merged. The label only says where the change is, and
-# `git tag --contains` answers the second one, so a changelog entry is never the
-# evidence. The third decides nothing either: one word from anyone stops it, and
-# it never reads what that word says.
+# when they merged. The label only says where the change is, and the release
+# that follows a merge is the one that carries it, so the second step moves
+# every issue that is waiting rather than looking each commit up in the tag.
+# What that gives up is the pull request merged after the tag was cut and
+# before the release finished building: its reporter is asked one release
+# early, and their answer settles it either way. The third step decides
+# nothing either: one word from anyone stops it, and it never reads what that
+# word says.
 #
 # `please confirm` carries no version. The version lives in the comment, which
 # is the only part of this the reporter ever sees -- labels are silent, they
 # notify nobody, and a label per release would grow the repository's label list
 # without ever telling anyone anything.
+#
+# A `summary` issue is never touched by any of this, wherever it turns up: a
+# long-lived index has no reporter waiting on a build, and a pull request that
+# fixes one line of a fifty-line audit has not fixed the audit. They are also
+# the issues most often referenced, so the number that reaches these jobs most
+# is the one that must never be labelled or closed by them.
 #
 # Both labels and both comments are addressed to the person who filed the
 # report, and most of them are not developers. Nothing in what they read says
@@ -84,6 +95,7 @@ env:
   GH_REPO: ${{ github.repository }}
   PENDING_LABEL: fixed (pending release)
   CONFIRM_LABEL: please confirm
+  SKIP_LABEL: summary
   CONFIRM_DAYS: 14
 
 jobs:
@@ -126,6 +138,10 @@ jobs:
             }
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            if jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              echo "#$number: $SKIP_LABEL, left alone"
+              continue
+            fi
             jq -e --arg l "$PENDING_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
 
             # POST /labels creates the label if the repository has not seen it
@@ -155,6 +171,15 @@ jobs:
 
   reference-hint:
     name: Point out a reference that will not reach the reporter
+    # The only job here that writes to a pull request, and the only one that
+    # gets to. `gh pr comment` is the GraphQL addComment mutation, which is
+    # checked against `pull-requests` and not against `issues`; without this
+    # the job fails at its last line every time it has something to say. It
+    # needs no write on issues -- it reads them and says nothing to them.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
     if: >-
       github.event_name == 'pull_request_target'
       && github.event.action != 'closed'
@@ -218,6 +243,14 @@ jobs:
             issue=$(gh api "repos/$GH_REPO/issues/$number" 2>/dev/null) || continue
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
+            # A summary issue is never referenced -- but a closing keyword
+            # aimed at one is the worst case in this file, not an exempt one:
+            # GitHub closes a long-lived index on merge and nothing here would
+            # have said a word. The skip belongs to the `missing` form alone.
+            if [ "$form" != closing ] \
+               && jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+              continue
+            fi
             printf '%s\t%s\n' "$number" "$(jq -r '.title' <<<"$issue")" >> hits.txt
           done
 
@@ -285,11 +318,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
+      # No checkout: this reads issues and releases, not the history.
       - name: Move the label onto the release that carries the fix
         env:
           TAG: ${{ github.event.workflow_run.head_branch }}
@@ -323,32 +352,17 @@ jobs:
 
           # `gh issue list` never returns pull requests.
           gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
-            --json number,author --jq '.[] | "\(.number) \(.author.login)"' > pending.txt
+            --json number,author,labels \
+            | jq -r --arg l "$SKIP_LABEL" \
+                '.[] | select(any(.labels[]; .name == $l) | not) | "\(.number) \(.author.login)"' \
+            > pending.txt
 
+          # Everything waiting moves, including labels applied by hand. Waiting
+          # means the fix is on main and no stable release had gone out since;
+          # this is that release. Nothing here reads a commit, so an issue whose
+          # label arrived without one is no longer stuck waiting forever.
           while read -r number login; do
             [ -n "$number" ] || continue
-
-            shas=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" --jq '.[].body' \
-                     | grep -oE 'vorssaint-fix-status sha=[0-9a-f]{7,40}' | cut -d= -f2 | sort -u) || true
-            if [ -z "$shas" ]; then
-              echo "::warning::#$number: labelled $PENDING_LABEL with no recorded commit, left alone"
-              continue
-            fi
-
-            # The label moves only when the release really carries the fix.
-            # Reading the changelog instead of the history is how issues get
-            # closed against a version that never shipped the change.
-            contained=false
-            for sha in $shas; do
-              if git tag --contains "$sha" 2>/dev/null | grep -qxF "$TAG"; then
-                contained=true
-                break
-              fi
-            done
-            if [ "$contained" = false ]; then
-              echo "#$number: fix is not in $TAG yet, left alone"
-              continue
-            fi
 
             gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$CONFIRM_LABEL" --silent
             gh issue edit "$number" --remove-label "$PENDING_LABEL" || true
@@ -388,7 +402,10 @@ jobs:
           echo "closing checks asked before $cutoff"
 
           gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
-            --json number --jq '.[].number' > waiting.txt
+            --json number,labels \
+            | jq -r --arg l "$SKIP_LABEL" \
+                '.[] | select(any(.labels[]; .name == $l) | not) | .number' \
+            > waiting.txt
 
           while read -r number; do
             [ -n "$number" ] || continue

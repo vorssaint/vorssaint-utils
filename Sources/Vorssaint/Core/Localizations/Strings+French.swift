@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "À propos",
         tabReleaseNotes: "Nouveautés",
         releaseNotesOnUpdateToggle: "Afficher les nouveautés après mise à jour",
-        whatsNewDontShowAgain: "Ne plus afficher",
         previewSizeLabel: "Taille des aperçus",
         previewSizeNormal: "Normale",
         previewSizeLarge: "Grande",
@@ -208,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenêtres",
         switcherWindowShortcutCaption: "Ouvre un sélecteur pour les fenêtres de l’app au premier plan. Sélecteur d’apps ouvert, passe d’une fenêtre à l’autre de l’app sélectionnée.",
+        switcherAppearanceDelay: "Délai d’affichage",
+        switcherAppearanceDelayCaption: "Durée pendant laquelle le raccourci doit rester enfoncé avant l’affichage du sélecteur.",
         switcherMergeTabs: "Afficher une seule entrée par app",
         switcherMergeTabsCaption: "Regroupe toutes les fenêtres d’une app en une seule entrée dans le sélecteur, au lieu d’une entrée par fenêtre.",
         switcherWindowlessApps: "Apps sans fenêtre ouverte",
@@ -673,6 +674,8 @@ extension Strings {
         diskSection: "Disques",
         diskUsed: "utilisé",
         diskFree: "libre",
+        diskAvailable: "disponible",
+        diskPurgeable: "purgeable",
         diskInternal: "Interne",
         diskExternal: "Externe",
         diskSelect: "Choisir un disque",
@@ -906,6 +909,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Ouvrir les réglages de notifications…",
         launchAtLoginNeedsApplications: "L'app s'exécute depuis un emplacement qui ne permet pas l'ouverture à la connexion. Glissez Vorssaint dans le dossier Applications, ouvrez l'app depuis ce dossier et réactivez l'option.",
         launchAtLoginNeedsApproval: "L'élément d'ouverture est enregistré, mais il reste désactivé dans les Réglages Système. Ouvrez Réglages Système › Général › Ouverture et extensions, puis activez Vorssaint sous « Ouvrir à la session ».",
+        ocrRemoveLineBreaksToggle: "Supprimer les sauts de ligne",
+        ocrRemoveLineBreaksCaption: "Supprime les sauts de ligne afin que le texte copié soit collé en un seul paragraphe.",
         ocrQRToggle: "Lire les codes QR",
         ocrQRCaption: "Si la zone contient un code QR, son contenu s'affiche pour le copier ou l'ouvrir.",
         ocrQRCopied: "Code QR copié",
@@ -965,6 +970,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordre normal",
         switcherMinimizedPlacementEnd: "Placer à la fin",
         switcherMinimizedPlacementHidden: "Masquer",
-        switcherShowFullscreenWindows: "Afficher les fenêtres plein écran" 
+        switcherShowFullscreenWindows: "Afficher les fenêtres plein écran"
     )
 }

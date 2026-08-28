@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "關於",
         tabReleaseNotes: "新功能",
         releaseNotesOnUpdateToggle: "更新後顯示新功能",
-        whatsNewDontShowAgain: "不再顯示",
         previewSizeLabel: "預覽大小",
         previewSizeNormal: "正常",
         previewSizeLarge: "大型",
@@ -209,6 +208,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
         switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
+        switcherAppearanceDelay: "顯示延遲",
+        switcherAppearanceDelayCaption: "按住快速鍵多久後顯示切換器。",
         switcherMergeTabs: "每個 App 僅顯示一項",
         switcherMergeTabsCaption: "將一個 App 的所有視窗合併為切換器中的一項，而不是每個視窗一項。",
         switcherWindowlessApps: "沒有開啟視窗的 App",
@@ -674,6 +675,8 @@ extension Strings {
         diskSection: "磁碟",
         diskUsed: "已用",
         diskFree: "可用",
+        diskAvailable: "可用",
+        diskPurgeable: "可清除",
         diskInternal: "內建",
         diskExternal: "外接",
         diskSelect: "選擇磁碟",
@@ -907,6 +910,8 @@ extension Strings {
         cleanerNotifOpenSettings: "打開通知設定…",
         launchAtLoginNeedsApplications: "App 正從無法在登入時開啟的位置執行。請將 Vorssaint 拖到「應用程式」檔案夾，從那裡開啟後再重新開啟此選項。",
         launchAtLoginNeedsApproval: "登入項目已註冊，但系統設定中仍是關閉的。請打開「系統設定 › 一般 › 登入項目與延伸功能」，在「登入時打開」中開啟 Vorssaint。",
+        ocrRemoveLineBreaksToggle: "移除換行",
+        ocrRemoveLineBreaksCaption: "移除辨識文字中的換行，讓拷貝的內容貼上為單一段落。",
         ocrQRToggle: "讀取 QR 碼",
         ocrQRCaption: "如果所選區域包含 QR 碼，會顯示它的內容以便拷貝或打開。",
         ocrQRCopied: "QR 碼已拷貝",
@@ -966,6 +971,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "正常順序",
         switcherMinimizedPlacementEnd: "放到最後",
         switcherMinimizedPlacementHidden: "隱藏",
-        switcherShowFullscreenWindows: "顯示全螢幕視窗" 
+        switcherShowFullscreenWindows: "顯示全螢幕視窗"
     )
 }

@@ -45,6 +45,7 @@ struct FanControlFeatureStrings {
     let averageCPU: String
     let hottestCPU: String
     let hottestGPU: String
+    let helperUnavailable: String
 }
 
 extension FeatureStrings {
@@ -109,7 +110,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "Hottest SoC",
         averageCPU: "Average CPU",
         hottestCPU: "Hottest CPU",
-        hottestGPU: "Hottest GPU"
+        hottestGPU: "Hottest GPU",
+        helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again."
     )
 
     static let ptBR = FanControlFeatureStrings(
@@ -153,7 +155,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC mais quente",
         averageCPU: "Média da CPU",
         hottestCPU: "CPU mais quente",
-        hottestGPU: "GPU mais quente"
+        hottestGPU: "GPU mais quente",
+        helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente."
     )
 
     static let tr = FanControlFeatureStrings(
@@ -197,7 +200,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "En sıcak SoC",
         averageCPU: "Ortalama CPU",
         hottestCPU: "En sıcak CPU",
-        hottestGPU: "En sıcak GPU"
+        hottestGPU: "En sıcak GPU",
+        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri'nde Vorssaint'e izin verip yeniden deneyin."
     )
 
     static let ru = FanControlFeatureStrings(
@@ -241,7 +245,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "Самая горячая SoC",
         averageCPU: "Средняя CPU",
         hottestCPU: "Самая горячая CPU",
-        hottestGPU: "Самая горячая GPU"
+        hottestGPU: "Самая горячая GPU",
+        helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку."
     )
 
     static let es = FanControlFeatureStrings(
@@ -285,7 +290,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC más caliente",
         averageCPU: "Promedio de CPU",
         hottestCPU: "CPU más caliente",
-        hottestGPU: "GPU más caliente"
+        hottestGPU: "GPU más caliente",
+        helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo."
     )
 
     static let de = FanControlFeatureStrings(
@@ -329,7 +335,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "Heißester SoC",
         averageCPU: "CPU-Durchschnitt",
         hottestCPU: "Heißeste CPU",
-        hottestGPU: "Heißeste GPU"
+        hottestGPU: "Heißeste GPU",
+        helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut."
     )
 
     static let fr = FanControlFeatureStrings(
@@ -373,7 +380,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC le plus chaud",
         averageCPU: "Moyenne du CPU",
         hottestCPU: "CPU le plus chaud",
-        hottestGPU: "GPU le plus chaud"
+        hottestGPU: "GPU le plus chaud",
+        helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez."
     )
 
     static let it = FanControlFeatureStrings(
@@ -417,7 +425,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC più caldo",
         averageCPU: "Media CPU",
         hottestCPU: "CPU più calda",
-        hottestGPU: "GPU più calda"
+        hottestGPU: "GPU più calda",
+        helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova."
     )
 
     static let ja = FanControlFeatureStrings(
@@ -461,7 +470,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "最高SoC",
         averageCPU: "CPU平均",
         hottestCPU: "最高CPU",
-        hottestGPU: "最高GPU"
+        hottestGPU: "最高GPU",
+        helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。"
     )
 
     static let ko = FanControlFeatureStrings(
@@ -505,7 +515,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "가장 뜨거운 SoC",
         averageCPU: "평균 CPU",
         hottestCPU: "가장 뜨거운 CPU",
-        hottestGPU: "가장 뜨거운 GPU"
+        hottestGPU: "가장 뜨거운 GPU",
+        helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요."
     )
 
     static let zhHans = FanControlFeatureStrings(
@@ -522,7 +533,7 @@ extension FanControlFeatureStrings {
         unsupported: "这台Mac不支持风扇控制。",
         alreadyControlled: "另一个进程正在控制风扇。请先在那里恢复系统控制。",
         failed: "无法验证请求的控制，风扇已恢复系统控制。",
-        safetyCaption: "控制会保持到你恢复系统模式。应用断开、Mac睡眠、传感器失效或热压力升高时会自动交还系统。",
+        safetyCaption: "控制会保持到你恢复系统模式。App 断开、Mac睡眠、传感器失效或热压力升高时会自动交还系统。",
         safetyStopped: "风扇控制中断，已恢复系统控制。",
         menuBarTitle: "风扇转速",
         systemControl: "系统",
@@ -532,8 +543,8 @@ extension FanControlFeatureStrings {
         coolingIntensity: "风扇速度",
         currentRPMFormat: "当前 %d RPM",
         targetRPMFormat: "目标 %d RPM",
-        applyManual: "应用手动控制",
-        applyCurve: "应用风扇曲线",
+        applyManual: "启用手动控制",
+        applyCurve: "启用风扇曲线",
         returnToSystem: "使用系统控制",
         temperatureUnavailable: "所选温度传感器停止响应。风扇控制已恢复系统模式。",
         curveUnavailable: "这台Mac不支持某个所选温度传感器。",
@@ -549,7 +560,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC最高温度",
         averageCPU: "CPU平均温度",
         hottestCPU: "CPU最高温度",
-        hottestGPU: "GPU最高温度"
+        hottestGPU: "GPU最高温度",
+        helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。"
     )
 
     static let zhTW = FanControlFeatureStrings(
@@ -593,7 +605,8 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC最高溫度",
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
-        hottestGPU: "GPU最高溫度"
+        hottestGPU: "GPU最高溫度",
+        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。"
     )
 
     static let zhHK = FanControlFeatureStrings(
@@ -637,6 +650,7 @@ extension FanControlFeatureStrings {
         hottestSoC: "SoC最高溫度",
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
-        hottestGPU: "GPU最高溫度"
+        hottestGPU: "GPU最高溫度",
+        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。"
     )
 }

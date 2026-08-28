@@ -13,6 +13,8 @@ final class DiskSampler {
         var ioCounterIDs: [String] = []
         var totalBytes: UInt64?
         var freeBytes: UInt64?
+        var rawFreeBytes: UInt64?
+        var purgeableBytes: UInt64?
         var usedBytes: UInt64?
         var isInternal: Bool?
         var isRemovable: Bool?
@@ -58,6 +60,7 @@ final class DiskSampler {
                                          ?? DiskSupport.fileSystemLabel(type: volume.fileSystemType),
                                      totalBytes: capacity.total,
                                      freeBytes: capacity.free,
+                                     purgeableBytes: capacity.purgeable,
                                      usedBytes: capacity.used,
                                      isInternal: isInternal,
                                      isRemovable: isRemovable,
@@ -82,7 +85,7 @@ final class DiskSampler {
     }
 
     private static func bestCapacity(volume: MountedVolume, metadata: DiskMetadata)
-        -> (total: UInt64, free: UInt64, used: UInt64) {
+        -> (total: UInt64, free: UInt64, used: UInt64, purgeable: UInt64?) {
         let total = volume.totalBytes > 0 ? volume.totalBytes : (metadata.totalBytes ?? 0)
         let free: UInt64
         if volume.freeBytes > 0 {
@@ -92,11 +95,19 @@ final class DiskSampler {
         } else {
             free = 0
         }
-        if let metadataUsed = metadata.usedBytes, volume.freeBytes == 0 {
-            return (total, min(free, total), min(metadataUsed, total))
+        let purgeable = volume.purgeableBytes ?? metadata.purgeableBytes
+        let used: UInt64
+        if volume.usedBytes > 0 {
+            used = volume.usedBytes
+        } else if let metadataUsed = metadata.usedBytes {
+            used = metadataUsed
+        } else {
+            let rawFree = volume.rawFreeBytes ?? metadata.rawFreeBytes ?? free
+            used = total >= rawFree ? total - rawFree : 0
         }
         let clampedFree = min(free, total)
-        return (total, clampedFree, total - clampedFree)
+        let clampedUsed = min(used, total)
+        return (total, clampedFree, clampedUsed, purgeable)
     }
 
     private func ratesAndTotals(for diskID: String, counters: DiskIOCounters, now: TimeInterval)
@@ -155,6 +166,8 @@ final class DiskSampler {
         var mountPath: String
         var totalBytes: UInt64
         var freeBytes: UInt64
+        var rawFreeBytes: UInt64?
+        var purgeableBytes: UInt64?
         var usedBytes: UInt64
         var isInternal: Bool
         var isRemovable: Bool
@@ -185,18 +198,27 @@ final class DiskSampler {
                   values.volumeIsLocal != false,
                   let total = positiveUInt(values.volumeTotalCapacity),
                   total > 0 else { return nil }
-            let free = positiveUInt(values.volumeAvailableCapacityForImportantUsage, requiringPositive: true)
-                ?? positiveUInt(values.volumeAvailableCapacity, requiringPositive: true)
-                ?? positiveUInt(values.volumeAvailableCapacityForImportantUsage)
+            let rawFree = positiveUInt(values.volumeAvailableCapacity, requiringPositive: true)
                 ?? positiveUInt(values.volumeAvailableCapacity)
+            let free = positiveUInt(values.volumeAvailableCapacityForImportantUsage, requiringPositive: true)
+                ?? positiveUInt(values.volumeAvailableCapacityForImportantUsage)
+                ?? rawFree
                 ?? 0
+            let purgeable: UInt64? = {
+                guard let rawFree, free > rawFree else { return nil }
+                return free - rawFree
+            }()
+            let physicalUsed = rawFree.map { total >= $0 ? total - $0 : 0 }
+                ?? (total >= free ? total - free : 0)
             let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
             let identity = statfsIdentity(for: url.path)
             return MountedVolume(name: name.isEmpty ? url.path : name,
                                  mountPath: url.path,
                                  totalBytes: total,
                                  freeBytes: min(free, total),
-                                 usedBytes: total - min(free, total),
+                                 rawFreeBytes: rawFree,
+                                 purgeableBytes: purgeable,
+                                 usedBytes: min(physicalUsed, total),
                                  isInternal: values.volumeIsInternal ?? false,
                                  isRemovable: values.volumeIsRemovable ?? false,
                                  isEjectable: values.volumeIsEjectable ?? false,
@@ -271,6 +293,8 @@ final class DiskSampler {
                             ioCounterIDs: ioIDs,
                             totalBytes: total,
                             freeBytes: free,
+                            rawFreeBytes: free,
+                            purgeableBytes: nil,
                             usedBytes: used,
                             isInternal: info["Internal"] as? Bool,
                             isRemovable: (info["RemovableMediaOrExternalDevice"] as? Bool)

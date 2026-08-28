@@ -217,15 +217,21 @@ struct DiskSection: View {
                     HStack(spacing: 6) {
                         Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
                         Spacer()
-                        Text("\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskFree)")
+                        Text("\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)")
                     }
                     .font(.system(size: 10.5, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    Text("\(MetricFormat.diskBytes(disk.usedBytes)) / \(MetricFormat.diskBytes(disk.totalBytes))")
-                        .font(.system(size: 10))
-                        .monospacedDigit()
-                        .foregroundStyle(.tertiary)
+                    HStack(spacing: 6) {
+                        Text("\(MetricFormat.diskBytes(disk.usedBytes)) / \(MetricFormat.diskBytes(disk.totalBytes))")
+                        if let purgeable = disk.purgeableBytes, purgeable >= 500_000_000 {
+                            Spacer()
+                            Text("\(MetricFormat.diskBytes(purgeable)) \(l10n.s.diskPurgeable)")
+                        }
+                    }
+                    .font(.system(size: 10))
+                    .monospacedDigit()
+                    .foregroundStyle(.tertiary)
                 }
             }
         }

@@ -166,10 +166,14 @@ final class DockClickService {
         // click near the edge of a Dock-less display whose long-axis
         // coordinate lines up with an icon would minimize or restore apps out
         // of thin air. Only clicks inside the Dock strip that is actually on
-        // screen can mean an icon.
+        // screen, with nothing drawn over it, can mean an icon.
         guard let dockPID = dockProcessID(),
-              let dockBounds = Self.revealedDockBounds(dockPID: dockPID),
-              dockBounds.insetBy(dx: -8, dy: -8).contains(point) else {
+              DockClickSupport.dockOwnsPoint(
+                point,
+                windows: Self.onScreenWindows(),
+                dockProcessID: dockPID,
+                dockLayer: Int(CGWindowLevelForKey(.dockWindow)),
+                ownProcessID: getpid()) else {
             return Unmanaged.passUnretained(event)
         }
 
@@ -727,26 +731,12 @@ final class DockClickService {
 
     // MARK: - Geometry
 
-    /// The on-screen bounds of the Dock strip, in the same top-left-origin
-    /// global coordinates as event locations, or nil while it is off screen.
-    /// The strip is the single layer-20 window the Dock owns; with auto-hide
-    /// its on-screen state flips as it slides in and out, verified empirically
-    /// on macOS 27. The bounds also pin the strip to the one display that has
-    /// it, so edge clicks on other displays never reach the icon matching.
-    private static func revealedDockBounds(dockPID: pid_t) -> CGRect? {
-        guard let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID)
-                as? [[String: Any]] else { return nil }
-        let dockLevel = Int(CGWindowLevelForKey(.dockWindow))
-        for window in list {
-            guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == dockPID,
-                  (window[kCGWindowLayer as String] as? Int) == dockLevel,
-                  let boundsDict = window[kCGWindowBounds as String] as? NSDictionary,
-                  let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary),
-                  bounds.width > 0, bounds.height > 0
-            else { continue }
-            return bounds
+    private static func onScreenWindows() -> [MouseAppExceptionSupport.Window] {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]] else {
+            return []
         }
-        return nil
+        return MouseAppExceptionSupport.windows(from: list)
     }
 
     /// Cheap pre-filter before any AX call, in the event's top-left-origin

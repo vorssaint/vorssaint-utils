@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "정보",
         tabReleaseNotes: "새로운 기능",
         releaseNotesOnUpdateToggle: "업데이트 후 새로운 기능 보기",
-        whatsNewDontShowAgain: "다시 표시하지 않기",
         previewSizeLabel: "미리보기 크기",
         previewSizeNormal: "보통",
         previewSizeLarge: "크게",
@@ -209,6 +208,8 @@ extension Strings {
         switcherShortcutHintApps: "앱",
         switcherShortcutHintWindows: "윈도우",
         switcherWindowShortcutCaption: "맨 앞 앱의 윈도우 전환기를 엽니다. 앱 전환기가 열려 있으면 선택한 앱의 윈도우를 차례로 전환합니다.",
+        switcherAppearanceDelay: "표시 지연",
+        switcherAppearanceDelayCaption: "전환기가 나타나기 전에 단축키를 누르고 있어야 하는 시간입니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
@@ -674,6 +675,8 @@ extension Strings {
         diskSection: "디스크",
         diskUsed: "사용됨",
         diskFree: "사용 가능",
+        diskAvailable: "사용 가능",
+        diskPurgeable: "삭제 가능",
         diskInternal: "내장",
         diskExternal: "외장",
         diskSelect: "디스크 선택",
@@ -907,6 +910,8 @@ extension Strings {
         cleanerNotifOpenSettings: "알림 설정 열기…",
         launchAtLoginNeedsApplications: "로그인 시 열 수 없는 위치에서 앱이 실행되고 있습니다. Vorssaint를 응용 프로그램 폴더로 드래그한 다음 거기에서 열고 이 옵션을 다시 켜 주세요.",
         launchAtLoginNeedsApproval: "로그인 항목은 등록되었지만 시스템 설정에서는 여전히 꺼져 있습니다. 시스템 설정 › 일반 › 로그인 항목 및 확장 프로그램을 열고 ‘로그인 시 열기’에서 Vorssaint를 켜 주세요.",
+        ocrRemoveLineBreaksToggle: "줄바꿈 제거",
+        ocrRemoveLineBreaksCaption: "인식한 텍스트의 줄바꿈을 제거하여 한 문단으로 붙여 넣습니다.",
         ocrQRToggle: "QR 코드 읽기",
         ocrQRCaption: "영역에 QR 코드가 있으면 그 내용을 복사하거나 열 수 있도록 보여 줍니다.",
         ocrQRCopied: "QR 코드를 복사했습니다",
@@ -966,6 +971,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "일반 순서",
         switcherMinimizedPlacementEnd: "끝으로 보내기",
         switcherMinimizedPlacementHidden: "숨기기",
-        switcherShowFullscreenWindows: "전체 화면 윈도우 표시" 
+        switcherShowFullscreenWindows: "전체 화면 윈도우 표시"
     )
 }

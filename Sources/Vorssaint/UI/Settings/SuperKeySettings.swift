@@ -8,6 +8,7 @@ struct SuperKeySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var superKey = SuperKeyService.shared
     @AppStorage(DefaultsKey.superKeyEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.superKeySource) private var sourceRaw = SuperKeySource.capsLock.rawValue
     @AppStorage(DefaultsKey.superKeyModifiers) private var modifierStorage =
         SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.superKeySoloAction) private var soloActionRaw = SuperKeySoloAction.none.rawValue
@@ -38,7 +39,15 @@ struct SuperKeySettings: View {
                         permissions.requestAccessibility()
                         permissions.openAccessibilitySettings()
                     }
+                Picker(text.sourceKey, selection: sourceBinding) {
+                    ForEach(SuperKeySource.allCases) { source in
+                        Text(text.sourceLabel(source)).tag(source)
+                    }
+                }
                 Text(text.enableCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Label(text.modifierKeysNote, systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 diagram
@@ -84,7 +93,9 @@ struct SuperKeySettings: View {
     private var diagram: some View {
         HStack(spacing: 10) {
             VStack(spacing: 3) {
-                keyCap(text.capsLockKey, symbol: "capslock", wide: true)
+                keyCap(text.sourceLabel(source),
+                       symbol: source == .capsLock ? "capslock" : nil,
+                       wide: true)
                 Text(text.holdHint)
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
@@ -157,6 +168,17 @@ struct SuperKeySettings: View {
 
     private var selectedModifiers: GlobalShortcutModifiers {
         SuperKeySupport.modifiers(from: modifierStorage)
+    }
+
+    private var source: SuperKeySource { SuperKeySource.sanitized(sourceRaw) }
+
+    private var sourceBinding: Binding<SuperKeySource> {
+        Binding {
+            source
+        } set: { source in
+            sourceRaw = source.rawValue
+            SuperKeyService.shared.syncWithPreferences()
+        }
     }
 
     private func toggle(_ modifier: GlobalShortcutModifiers) {

@@ -109,7 +109,6 @@ extension Strings {
         tabAbout: "О программе",
         tabReleaseNotes: "Что нового",
         releaseNotesOnUpdateToggle: "Показывать изменения после обновления",
-        whatsNewDontShowAgain: "Больше не показывать",
         previewSizeLabel: "Размер превью",
         previewSizeNormal: "Обычный",
         previewSizeLarge: "Большой",
@@ -209,6 +208,8 @@ extension Strings {
         switcherShortcutHintApps: "Приложения",
         switcherShortcutHintWindows: "Окна",
         switcherWindowShortcutCaption: "Открывает переключатель окон приложения на переднем плане. Пока открыт переключатель приложений, переходит между окнами выбранного приложения.",
+        switcherAppearanceDelay: "Задержка появления",
+        switcherAppearanceDelayCaption: "Как долго нужно удерживать сочетание клавиш, прежде чем появится переключатель.",
         switcherMergeTabs: "Показывать одну запись на приложение",
         switcherMergeTabsCaption: "Сводит все окна приложения в одну запись в переключателе вместо отдельной записи на каждое окно.",
         switcherWindowlessApps: "Приложения без открытых окон",
@@ -674,6 +675,8 @@ extension Strings {
         diskSection: "Диски",
         diskUsed: "занято",
         diskFree: "свободно",
+        diskAvailable: "доступно",
+        diskPurgeable: "очищаемый",
         diskInternal: "Внутренний",
         diskExternal: "Внешний",
         diskSelect: "Выбрать диск",
@@ -907,6 +910,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Открыть настройки уведомлений…",
         launchAtLoginNeedsApplications: "Приложение запущено из места, из которого нельзя открываться при входе. Перетащите Vorssaint в папку «Программы», откройте его оттуда и включите параметр снова.",
         launchAtLoginNeedsApproval: "Объект входа зарегистрирован, но в Системных настройках он выключен. Откройте «Системные настройки › Основные › Объекты входа и расширения» и включите Vorssaint в разделе «Открывать при входе».",
+        ocrRemoveLineBreaksToggle: "Убирать переносы строк",
+        ocrRemoveLineBreaksCaption: "Удаляет переносы строк, чтобы скопированный текст вставлялся одним абзацем.",
         ocrQRToggle: "Читать QR-коды",
         ocrQRCaption: "Если в области есть QR-код, его содержимое можно скопировать или открыть.",
         ocrQRCopied: "QR-код скопирован",
@@ -966,6 +971,6 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Обычный порядок",
         switcherMinimizedPlacementEnd: "В конец списка",
         switcherMinimizedPlacementHidden: "Скрывать",
-        switcherShowFullscreenWindows: "Показывать полноэкранные окна" 
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна"
     )
 }

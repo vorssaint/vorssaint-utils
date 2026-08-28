@@ -6,11 +6,59 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Vorssaint expands screen text recognition, clipboard, Super key, App Switcher and snippet controls, broadens app update and safe cleanup discovery, and hardens Super key shutdown, process termination, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+
+### Added
+- Copy Text from Screen now includes an option in Settings to remove line breaks and join recognized lines as a single paragraph with script-aware spacing. Thanks to @ywu73.
+- Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
+- Super key can now use Caps Lock or the right Command, Option, Control or Shift key, with the chosen key shown across Settings, shortcuts and the menu panel. Thanks to @JoanLaRosa.
+- The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
+- Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
+
+### Changed
+- Simplified Chinese terminology is now unified across the app to match native macOS conventions for copying, saving, app names and confirmations. Thanks to @PathGao.
+- The disk space readout now shows available and physical used space using macOS volume metrics and displays purgeable capacity when present.
+- App Updates now finds newer versions for other installed apps through a privacy-preserving public online catalog and opens those apps so their own updater remains in control.
+- The Uninstaller now finds more support files, containers, preference panes and plugins through verified app identifiers and signed ownership, searches nested vendor folders and opens every result in Finder. Name-related finds start unchecked.
+- Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
+
+### Fixed
+- App Switcher now recognizes floating and undescribed workspace windows from professional media apps.
+- Super key now restores its source when the app is force-quit, preventing Caps Lock or a right-side modifier from being left inactive.
+- App Switcher now rejects stale hidden-Space surfaces without hiding real fullscreen windows on another Space. Thanks to @naveenkrdy.
+- App Switcher middle-click now closes only the card under the pointer and leaves panel chrome untouched.
+- Multi-line text snippets now paste every line in order while preserving rich clipboard content and keeping transient text out of history. Thanks to @fermincasagrande.
+- Text snippets now keep their trigger buffer when typed on the macOS Accessibility Keyboard. Thanks to @fermincasagrande.
+- Dock click actions and previews now stay behind fullscreen content and sample high-rate pointer movement without overloading the hover tap. Thanks to @iltonandrew.
+- Clipboard history now trims against the encoded file size before saving, preventing its store from becoming unreadable.
+- Kill Process now sorts consistently and revalidates the exact process before terminating it, preventing a recycled process identifier from targeting a different process.
+- Music launch blocking now fails open when its media-key listener is unavailable.
+- Radial Menu favicon downloads now stay on the link origin and reject cross-origin redirects, oversized payloads and unsafe image dimensions.
+- Feedback reports now show human-readable beta and update-channel diagnostics.
+- CPU temperature and Fan Control curves now use only mapped processor sensors, recognize M3 core readings and distinguish an unavailable helper from unsupported hardware.
+- Settings now enforces its design minimum size across window resizing, layout updates and window restore, preventing the sidebar and preferences from compressing or clipping.
+- Scratchpad windows now drag reliably from anywhere in the top bar, keep generous resize borders and minimum dimensions, and include a close button on each tab.
+- Screenshot editor windows now enforce their designed minimum size across manual and accessibility resizing, preventing the canvas and tools from compressing into a narrow strip. Thanks to @iltonandrew.
+- Text-heavy floating panels now keep their content readable over bright windows when Liquid Glass is enabled.
+- Auto-quit now retries watching windows when accessibility initially lists no open window, ensuring apps quit properly when their last window is closed. Thanks to @iltonandrew.
+- Screen recording settings in Traditional Chinese (Taiwan) now use the standard microphone term 麥克風 instead of the Hong Kong Cantonese term 咪高風. Thanks to @watain666.
+- Mouse exceptions now match non-bundled executable programs and Java runtimes alongside regular application bundles. Thanks to @iltonandrew.
+- Settings backups now keep machine-local program paths out of exported files and preserve local exceptions across a restore. Thanks to @iltonandrew.
+- Uninstalling a feature now removes it from Command Bar pins in Settings.
+- Pressing Escape in the clipboard history quick panel now clears batch selection or closes the panel directly instead of closing the preview pane first. Thanks to @naveenkrdy.
+- Adding points to a custom fan curve now updates and saves the curve instead of discarding the new point.
+- The battery icon in the menu bar now preserves its rectangular aspect ratio when split into its own item instead of rendering as a square. Thanks to @Yahddyyp.
+- Cleaning Mode now uses a forgiving 6-second press window for the Escape unlock gesture and resets the count when modifier keys are pressed while wiping. Thanks to @iltonandrew.
+- Dock previews now move to the vacated screen edge when an auto-hiding Dock slides away instead of floating detached. Thanks to @iltonandrew.
+
+## [3.3.3-beta.3] - 2026-08-26
+
 ### Added
 - General settings now include a Liquid Glass toggle on macOS 26 and later to control translucent glass visual effects across panels and controls.
 - The video and GIF tools now include an option to compress directly to a target file size in megabytes, automatically deriving the resolution and frame rate to stay under the limit. Thanks to @FlowSync0.
 - Shelf now shows real content thumbnails for dropped images and videos, covering more file types, and decodes saved image thumbnails asynchronously on launch. Thanks to @tenbux.
-- The Command Bar now offers a compact mode: the bar opens as a field alone and shows results only once you type. Press Down to see the usual list anyway. Under Command Bar, off by default. Thanks to @kobebrylant.
+- The Command Bar now offers a compact mode where the bar opens as a field alone and shows results once you type, with Down arrow revealing the full list. Under Command Bar, off by default. Thanks to @kobebrylant.
 - Command Bar script links can now be marked to run on their bare name without an argument, so scripts that work on the clipboard, selection, or files don't need a placeholder word typed after the name. Under Command Bar, off by default. Thanks to @rhukster.
 - Monitor alerts can now warn you when the battery stays above a temperature you choose. Under Monitor alerts, off by default. Thanks to @ywu73.
 - Radial Menu now supports custom profiles with distinct wheel layouts, color themes, shortcuts, mouse triggers and starter presets, and website links can fetch their actual website icons on demand.
@@ -20,10 +68,11 @@ All notable changes to this project are documented here. The format follows
 - Clipboard history now displays image previews and thumbnails for image files copied from Finder in the quick panel, preview inspector and menu panel.
 - Clipboard history now remembers whether you left the preview inspector open or closed across launches.
 - New Scratchpad tabs now start at 1 instead of leaving the first tab unnumbered, while existing names stay unchanged. Thanks to @AB-boi and @JashRashne.
-- Every screen capture tool — screenshot, recording, copy text and color picker — now carries its own keyboard shortcut that opens the shared chooser on that tool, replacing the single general capture shortcut; an existing capture shortcut keeps working unchanged as the screenshot's own, and the selected tool's shortcut is edited at the top of the Screen capture settings page. Thanks to @RecoilGaming.
+- Every screen capture tool now carries its own keyboard shortcut to open directly into screenshot, recording, text copy or color picking, with the active tool shortcut edited at the top of the Screen capture settings page. Thanks to @RecoilGaming.
 - The Keyboard Shortcuts page now lists every capture shortcut under one Screen capture group, and expandable shortcut groups are toggled by their whole row, with the chevron moved to the trailing edge. Thanks to @RecoilGaming.
 
 ### Fixed
+- Fan Control now updates manual and curve cooling speeds during an active session without verification timeouts.
 - The Homebrew panel now closes when you click outside it while browsing or searching, and stays open for a confirmation or a running job. Thanks to @pergioa.
 - Settings opened from the menu panel no longer stay covered when the two windows cannot fit side by side. Thanks to @FloatingPegasus.
 - Muting the microphone from Quick toggles no longer moves the menu panel. Thanks to @FloatingPegasus.
@@ -47,6 +96,7 @@ All notable changes to this project are documented here. The format follows
 - Super key now shows why it could not remap Caps Lock, instead of staying on with a key that still only toggles capitals. Thanks to @PathGao.
 - Holding Super key now also moves and resizes windows by dragging. Thanks to @iltonandrew and @felixblaschke.
 - Shelf drop zone and menu bar icon hit testing no longer use off-screen coordinates when the menu bar is hidden in full screen. Thanks to @iltonandrew.
+- Settings backup import now coordinates file reading for cloud files and accepts XML backup files.
 
 ## [3.3.3-beta.2] - 2026-08-22
 

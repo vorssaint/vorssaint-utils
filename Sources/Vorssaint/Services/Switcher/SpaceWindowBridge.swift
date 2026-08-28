@@ -78,6 +78,7 @@ enum SpaceWindowBridge {
         struct DisplayInfo {
             let displayID: CGDirectDisplayID?
             let spaces: [UInt64]
+            let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
         }
 
@@ -87,6 +88,11 @@ enum SpaceWindowBridge {
         var orderedSpacesPerDisplay: [[UInt64]] { displays.map(\.spaces) }
         /// The Space currently showing on each display.
         var visibleSpaces: Set<UInt64> { Set(displays.compactMap(\.currentSpace)) }
+        /// Native fullscreen Spaces. Managed-display dictionaries use type 4
+        /// for these and type 0 for ordinary desktops on current macOS.
+        var fullscreenSpaces: Set<UInt64> {
+            displays.reduce(into: []) { $0.formUnion($1.fullscreenSpaces) }
+        }
     }
 
     static func topology() -> Topology? {
@@ -110,14 +116,20 @@ enum SpaceWindowBridge {
 
         var displays: [Topology.DisplayInfo] = []
         for display in displayDicts {
-            let row = (display["Spaces"] as? [[String: Any]])?
-                .compactMap { ($0["id64"] as? NSNumber)?.uint64Value } ?? []
+            let spaceDictionaries = display["Spaces"] as? [[String: Any]] ?? []
+            let row = spaceDictionaries
+                .compactMap { ($0["id64"] as? NSNumber)?.uint64Value }
             guard !row.isEmpty else { continue }
+            let fullscreenSpaces = Set(spaceDictionaries.compactMap { space -> UInt64? in
+                guard (space["type"] as? NSNumber)?.intValue == 4 else { return nil }
+                return (space["id64"] as? NSNumber)?.uint64Value
+            })
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
             let displayID = uuidStr.flatMap { screenMap[$0] }
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
+                                                 fullscreenSpaces: fullscreenSpaces,
                                                  currentSpace: current?.uint64Value))
         }
         guard !displays.isEmpty else { return nil }

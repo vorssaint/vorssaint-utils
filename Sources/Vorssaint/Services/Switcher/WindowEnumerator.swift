@@ -186,14 +186,23 @@ enum WindowEnumerator {
         var withheldPIDs = Set<pid_t>()
 
         // Accessibility cannot describe windows parked on a Space that is not
-        // visible, so the ghost veto below would silently hide real windows
-        // (issue #339). The window server tells them apart: a real parked
-        // window belongs to a Space, a stale leftover surface belongs to none.
+        // visible, so the ghost veto below needs the window server as a second
+        // witness. A stale surface can retain an old Space assignment, so
+        // membership alone is not proof that it is still a real window.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
-        var visibleSpaces: Set<UInt64>?
+        var topologyResolved = false
+        var topology: SpaceWindowBridge.Topology?
         var windowSpaces: [CGWindowID: [UInt64]] = [:]
         var hiddenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        var fullscreenSpaceVerdicts: [CGWindowID: Bool] = [:]
+        func resolvedTopology() -> SpaceWindowBridge.Topology? {
+            if !topologyResolved {
+                topology = SpaceWindowBridge.topology()
+                topologyResolved = true
+            }
+            return topology
+        }
         func spaces(of windowID: CGWindowID) -> [UInt64] {
             if let cached = windowSpaces[windowID] { return cached }
             let resolved = SpaceWindowBridge.spaces(of: windowID)
@@ -202,15 +211,24 @@ enum WindowEnumerator {
         }
         func isOnHiddenSpace(_ windowID: CGWindowID) -> Bool {
             if let verdict = hiddenSpaceVerdicts[windowID] { return verdict }
-            if visibleSpaces == nil {
-                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces ?? []
-            }
-            guard let visible = visibleSpaces, !visible.isEmpty else { return false }
+            guard let visible = resolvedTopology()?.visibleSpaces, !visible.isEmpty else { return false }
             let verdict = SpaceHopSupport.isParkedOnHiddenSpace(
                 windowSpaces: spaces(of: windowID),
                 visibleSpaces: visible
             )
             hiddenSpaceVerdicts[windowID] = verdict
+            return verdict
+        }
+        func isOnFullscreenSpace(_ windowID: CGWindowID) -> Bool {
+            if let verdict = fullscreenSpaceVerdicts[windowID] { return verdict }
+            guard let fullscreen = resolvedTopology()?.fullscreenSpaces, !fullscreen.isEmpty else {
+                return false
+            }
+            let verdict = SpaceHopSupport.isOnFullscreenSpace(
+                windowSpaces: spaces(of: windowID),
+                fullscreenSpaces: fullscreen
+            )
+            fullscreenSpaceVerdicts[windowID] = verdict
             return verdict
         }
 
@@ -253,12 +271,19 @@ enum WindowEnumerator {
                     windowSpaces: spaces(of: CGWindowID(windowID)))
             let axSnapshot = accessibilityWindows[windowOwnerPID]
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
+            // A stale dialog can keep an old ordinary-Space tag indefinitely.
+            // Trust an unmatched hidden surface only when Accessibility could
+            // not describe any window for that owner, or when the window
+            // server puts this exact surface on a native fullscreen Space.
+            let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
+                && ((axSnapshot?.ordered.isEmpty ?? true)
+                    || isOnFullscreenSpace(CGWindowID(windowID)))
             if axSnapshot != nil, axWindow == nil {
                 // WindowServer kept a surface Accessibility does not vouch for:
                 // a stale leftover from a closed tab or window. Windows parked
                 // on a hidden Space and confirmed hidden-app windows are real,
                 // so they survive this veto.
-                if (!isOnHiddenSpace(CGWindowID(windowID)) && !isConfirmedHiddenAppWindow)
+                if (!hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow)
                     || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
                     continue
                 }
@@ -278,7 +303,9 @@ enum WindowEnumerator {
                                  width: (boundsDict["Width"] as? NSNumber)?.doubleValue ?? 0,
                                  height: (boundsDict["Height"] as? NSNumber)?.doubleValue ?? 0)
             let isMinimized = axWindow?.isMinimized ?? false
-            let isFullscreen = (axWindow?.isFullscreen ?? false) || frameLooksFullscreen(cgFrame)
+            let isFullscreen = (axWindow?.isFullscreen ?? false)
+                || (axWindow == nil && isOnFullscreenSpace(CGWindowID(windowID)))
+                || frameLooksFullscreen(cgFrame)
             guard let frame = switchableFrame(cgFrame, fallback: axWindow?.frame, isMinimized: isMinimized) else {
                 continue
             }
@@ -310,7 +337,7 @@ enum WindowEnumerator {
             // Windows the window server places on a hidden Space are equally
             // real even when untitled (their titles need Screen Recording).
             if !isOnScreen && displayTitle.isEmpty && axWindow == nil
-                && !isOnHiddenSpace(windowID) && !isConfirmedHiddenAppWindow { continue }
+                && !hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow { continue }
 
             seen.insert(windowID)
             windows.append(.window(id: windowID,
