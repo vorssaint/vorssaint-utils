@@ -18056,10 +18056,18 @@ struct MetricsTests {
         // the parent in no variable at all, which is how the bundle staging dir
         // leaked. Every call has to be captured whole to be sweepable.
         expect(buildScript.components(separatedBy: "mktemp -d").count - 1 == stagedTempDirs.count,
-               "every mktemp -d in build.sh is captured whole into a variable")
+               "every mktemp -d in build.sh is a whole capture — no path suffix, no other spelling")
         for variable in Set(stagedTempDirs) {
             expect(cleanupBody.contains("\"$\(variable)\""),
                    "temp dir \(variable) is swept by build.sh cleanup()")
+            // The sweep runs under `set -u` before the dir is staged: an entry
+            // whose variable is not empty first aborts cleanup() at that line,
+            // leaving everything listed below it unswept and the exit status
+            // untouched. The empty assignment is the third line of the pattern.
+            // The leading newline keeps ICON_TMP off STAGE_ICON_TMP.
+            let initialized = buildScript.range(of: "\n\(variable)=\"\"")?.lowerBound
+            expect(initialized != nil && sweepInstalled != nil && initialized! < sweepInstalled!,
+                   "temp dir \(variable) is empty before the sweep is installed")
         }
 
         // MARK: Uninstallation paths stay aligned across SelfUninstall and Tools/uninstall.sh
