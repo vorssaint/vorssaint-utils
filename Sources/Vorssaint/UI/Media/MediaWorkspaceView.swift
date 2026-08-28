@@ -198,6 +198,8 @@ struct MediaWorkspaceView: View {
                 }
                 .buttonStyle(.plain)
                 .help(l10n.s.uninstallerCancel)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-close") : nil,
+                                  actions: PanelRowActions(activate: onClose))
             }
         }
     }
@@ -249,6 +251,8 @@ struct MediaWorkspaceView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-chooseInput") : nil,
+                                  actions: PanelRowActions(activate: chooseInput))
 
                 if !inputURLs.isEmpty {
                     Button {
@@ -263,6 +267,8 @@ struct MediaWorkspaceView: View {
                     .buttonStyle(.plain)
                     .help(l10n.s.mediaCancel)
                     .padding(.trailing, compact ? 8 : 10)
+                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-clearInput") : nil,
+                                      actions: PanelRowActions(activate: clearInput))
                 }
             }
             .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
@@ -295,6 +301,9 @@ struct MediaWorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
+                .panelKeyboardRow(
+                    (compact && !(inputURLs.isEmpty || isRunning)) ? PanelRowID(.utilities, "media-chooseOutput") : nil,
+                    actions: PanelRowActions(activate: chooseOutput), cornerRadius: 6)
             }
         }
         .panelCard()
@@ -329,6 +338,8 @@ struct MediaWorkspaceView: View {
                 }
                 Toggle(l10n.s.mediaLoopGIF, isOn: $gifLoops)
                     .toggleStyle(.checkbox)
+                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-gifLoops") : nil,
+                                      actions: PanelRowActions(activate: { gifLoops.toggle() }))
             }
             .panelCard()
         case .imageCompressor:
@@ -344,7 +355,8 @@ struct MediaWorkspaceView: View {
                 .pickerStyle(.segmented)
                 compressionRow(value: $imageQuality)
                 imageResizeSection
-                DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded) {
+                DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded,
+                                    keyboardRow: compact ? PanelRowID(.utilities, "media-moreOptions") : nil) {
                     Text(imageText.moreOptions)
                     Spacer()
                 }
@@ -356,12 +368,16 @@ struct MediaWorkspaceView: View {
                         if MediaImageFormat.sanitized(imageFormatRaw) != .pdf {
                             Toggle(l10n.s.mediaStripMetadata, isOn: $imageStripMetadata)
                                 .toggleStyle(.checkbox)
+                                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-stripMetadata") : nil,
+                                                  actions: PanelRowActions(activate: { imageStripMetadata.toggle() }))
                         }
                         imageBackgroundSection
                         imageWatermarkSection
                         imageRenameSection
                         Toggle(imageText.preserveDate, isOn: $imagePreserveModificationDate)
                             .toggleStyle(.checkbox)
+                            .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-preserveDate") : nil,
+                                              actions: PanelRowActions(activate: { imagePreserveModificationDate.toggle() }))
                     }
                     .padding(.top, 6)
                     .disclosureIndent()
@@ -382,21 +398,27 @@ struct MediaWorkspaceView: View {
 
     private var actionRow: some View {
         HStack(spacing: 8) {
+            let canRun = !(inputURLs.isEmpty || isRunning)
             Button {
                 run()
             } label: {
                 Label(actionTitle, systemImage: selectedTool == .textExtractor ? "text.viewfinder" : "play.fill")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(inputURLs.isEmpty || isRunning)
+            .disabled(!canRun)
+            .panelKeyboardRow((compact && canRun) ? PanelRowID(.utilities, "media-run") : nil,
+                              actions: PanelRowActions(activate: run))
 
             if selectedTool == .videoCompressor {
+                let canEdit = inputURLs.count == 1 && !isRunning && !isImportingVideo
                 Button {
                     openVideoEditor()
                 } label: {
                     Label(screenshotText.editButton, systemImage: "crop")
                 }
-                .disabled(inputURLs.count != 1 || isRunning || isImportingVideo)
+                .disabled(!canEdit)
+                .panelKeyboardRow((compact && canEdit) ? PanelRowID(.utilities, "media-editVideo") : nil,
+                                  actions: PanelRowActions(activate: openVideoEditor))
                 if isImportingVideo {
                     ProgressView()
                         .controlSize(.small)
@@ -409,6 +431,8 @@ struct MediaWorkspaceView: View {
                 } label: {
                     Label(l10n.s.mediaCancel, systemImage: "xmark")
                 }
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-cancel") : nil,
+                                  actions: PanelRowActions(activate: { media.cancel() }))
             }
 
             Spacer(minLength: 0)
@@ -491,11 +515,13 @@ struct MediaWorkspaceView: View {
             }
             HStack(spacing: 8) {
                 if let outputURL = result.outputURL {
-                    Button {
-                        NSWorkspace.shared.activateFileViewerSelecting(result.outputURLs.isEmpty ? [outputURL] : result.outputURLs)
-                    } label: {
+                    let reveal = { NSWorkspace.shared.activateFileViewerSelecting(
+                        result.outputURLs.isEmpty ? [outputURL] : result.outputURLs) }
+                    Button(action: reveal) {
                         Label(l10n.s.mediaOpenInFinder, systemImage: "folder")
                     }
+                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-revealOutput") : nil,
+                                      actions: PanelRowActions(activate: reveal), cornerRadius: 6)
                 }
                 if let text = result.text {
                     Button {
@@ -503,6 +529,8 @@ struct MediaWorkspaceView: View {
                     } label: {
                         Label(l10n.s.mediaCopyText, systemImage: "doc.on.doc")
                     }
+                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-copyText") : nil,
+                                      actions: PanelRowActions(activate: { copy(text) }), cornerRadius: 6)
                 }
                 if result.imageBatchItems.count > 1 {
                     Button {
@@ -510,12 +538,16 @@ struct MediaWorkspaceView: View {
                     } label: {
                         Label(imageText.copySummary, systemImage: "doc.on.doc")
                     }
+                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-copySummary") : nil,
+                                      actions: PanelRowActions(activate: { copy(batchSummaryText(result)) }), cornerRadius: 6)
                 }
                 Button {
                     run()
                 } label: {
                     Label(l10n.s.mediaRunAgain, systemImage: "arrow.clockwise")
                 }
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-runAgain") : nil,
+                                  actions: PanelRowActions(activate: run), cornerRadius: 6)
             }
             .controlSize(.small)
         }
@@ -586,6 +618,9 @@ struct MediaWorkspaceView: View {
                 }
                 .disabled(imageSelectedProfileID.isEmpty)
                 .help(imageText.deleteProfile)
+                .panelKeyboardRow(
+                    (compact && !imageSelectedProfileID.isEmpty) ? PanelRowID(.utilities, "media-deleteProfile") : nil,
+                    actions: PanelRowActions(activate: deleteSelectedProfile))
             }
             if selectedImageProfile != nil, imageProfileIsModified {
                 Label(imageText.profileModified, systemImage: "pencil")
@@ -602,43 +637,57 @@ struct MediaWorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(imageSelectedProfileID.isEmpty)
+                .panelKeyboardRow(
+                    (compact && !imageSelectedProfileID.isEmpty) ? PanelRowID(.utilities, "media-updateProfile") : nil,
+                    actions: PanelRowActions(activate: updateSelectedProfile), cornerRadius: 6)
                 Button {
                     saveNewProfile()
                 } label: {
                     Label(imageText.saveAsNew, systemImage: "plus")
                 }
                 .controlSize(.small)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-saveNewProfile") : nil,
+                                  actions: PanelRowActions(activate: saveNewProfile), cornerRadius: 6)
             }
         }
     }
 
     private var imageQuickPresetsRow: some View {
-        HStack(spacing: 6) {
-            Button(imageText.presetWeb) {
-                applyImageOptions(MediaImageOptions(quality: 0.72,
-                                                    maxDimension: 1600,
-                                                    format: .jpeg,
-                                                    stripMetadata: true,
-                                                    resizeMode: .maxDimension(1600),
-                                                    renamePattern: MediaImageRenamePattern("{name}-web")))
-            }
-            Button(imageText.presetSocial) {
-                applyImageOptions(MediaImageOptions(quality: 0.82,
-                                                    maxDimension: 2048,
-                                                    format: .png,
-                                                    stripMetadata: true,
-                                                    resizeMode: .maxDimension(2048),
-                                                    renamePattern: MediaImageRenamePattern("{name}-social")))
-            }
-            Button(imageText.presetDocs) {
-                applyImageOptions(MediaImageOptions(quality: 0.7,
-                                                    maxDimension: 1600,
-                                                    format: .pdf,
-                                                    stripMetadata: true,
-                                                    resizeMode: .maxDimension(1600),
-                                                    background: .white,
-                                                    preserveModificationDate: true))
-            }
+        let webPreset = {
+            applyImageOptions(MediaImageOptions(quality: 0.72,
+                                                maxDimension: 1600,
+                                                format: .jpeg,
+                                                stripMetadata: true,
+                                                resizeMode: .maxDimension(1600),
+                                                renamePattern: MediaImageRenamePattern("{name}-web")))
+        }
+        let socialPreset = {
+            applyImageOptions(MediaImageOptions(quality: 0.82,
+                                                maxDimension: 2048,
+                                                format: .png,
+                                                stripMetadata: true,
+                                                resizeMode: .maxDimension(2048),
+                                                renamePattern: MediaImageRenamePattern("{name}-social")))
+        }
+        let docsPreset = {
+            applyImageOptions(MediaImageOptions(quality: 0.7,
+                                                maxDimension: 1600,
+                                                format: .pdf,
+                                                stripMetadata: true,
+                                                resizeMode: .maxDimension(1600),
+                                                background: .white,
+                                                preserveModificationDate: true))
+        }
+        return HStack(spacing: 6) {
+            Button(imageText.presetWeb, action: webPreset)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-presetWeb") : nil,
+                                  actions: PanelRowActions(activate: webPreset), cornerRadius: 6)
+            Button(imageText.presetSocial, action: socialPreset)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-presetSocial") : nil,
+                                  actions: PanelRowActions(activate: socialPreset), cornerRadius: 6)
+            Button(imageText.presetDocs, action: docsPreset)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-presetDocs") : nil,
+                                  actions: PanelRowActions(activate: docsPreset), cornerRadius: 6)
         }
         .controlSize(.small)
     }
@@ -780,6 +829,8 @@ struct MediaWorkspaceView: View {
                         Label(imageText.chooseLogo, systemImage: "photo")
                     }
                     .controlSize(.small)
+                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-chooseLogo") : nil,
+                                      actions: PanelRowActions(activate: chooseWatermarkLogo), cornerRadius: 6)
                     if !imageWatermarkLogoPath.isEmpty {
                         Button {
                             imageWatermarkLogoPath = ""
@@ -787,6 +838,8 @@ struct MediaWorkspaceView: View {
                             Image(systemName: "xmark.circle.fill")
                         }
                         .buttonStyle(.plain)
+                        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-clearLogo") : nil,
+                                          actions: PanelRowActions(activate: { imageWatermarkLogoPath = "" }))
                     }
                 }
             }
@@ -906,6 +959,8 @@ struct MediaWorkspaceView: View {
             )
         }
         .buttonStyle(.plain)
+        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-compression-\(level.rawValue)") : nil,
+                          actions: PanelRowActions(activate: { value.wrappedValue = level.quality }), cornerRadius: 7)
     }
 
     private func fpsSliderRow(value: Binding<Double>, range: ClosedRange<Double>) -> some View {

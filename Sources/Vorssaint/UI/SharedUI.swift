@@ -250,18 +250,19 @@ struct DisclosureHeaderRow<Label: View>: View {
     @ObservedObject private var l10n = L10n.shared
 
     private let isExpanded: Binding<Bool>
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    private let keyboardRow: PanelRowID?
     private let label: () -> Label
 
-    init(isExpanded: Binding<Bool>, @ViewBuilder label: @escaping () -> Label) {
+    init(isExpanded: Binding<Bool>, keyboardRow: PanelRowID? = nil, @ViewBuilder label: @escaping () -> Label) {
         self.isExpanded = isExpanded
+        self.keyboardRow = keyboardRow
         self.label = label
     }
 
     var body: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                isExpanded.wrappedValue.toggle()
-            }
+            toggle()
         } label: {
             HStack(spacing: 8) {
                 label()
@@ -275,6 +276,20 @@ struct DisclosureHeaderRow<Label: View>: View {
         .buttonStyle(.plain)
         .accessibilityValue(isExpanded.wrappedValue
             ? l10n.s.disclosureExpanded : l10n.s.disclosureCollapsed)
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(
+            activate: toggle,
+            adjust: { direction, _ in
+                let wantsExpanded = direction == .increase
+                guard wantsExpanded != isExpanded.wrappedValue else { return false }
+                toggle()
+                return true
+            }))
+    }
+
+    private func toggle() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isExpanded.wrappedValue.toggle()
+        }
     }
 }
 
