@@ -329,9 +329,12 @@ final class AudioInputDeviceManager: ObservableObject {
         }
         let effectiveDeviceID = snapshot.resolution.effectiveUID
             .flatMap { uid in snapshot.devices.first(where: { $0.uid == uid })?.audioObjectID }
+        // Rewiring listeners invalidates pending control reads. Capture the
+        // sweep's validity first so that initial wiring cannot invalidate the
+        // volume value discovered by this same sweep.
+        let sweepVolumeIsCurrent = volumeRefreshGeneration == snapshot.volumeGeneration
         updateVolumeListeners(for: effectiveDeviceID)
-        if volumeRefreshGeneration == snapshot.volumeGeneration,
-           inputVolume != snapshot.inputVolume {
+        if sweepVolumeIsCurrent, inputVolume != snapshot.inputVolume {
             inputVolume = snapshot.inputVolume
         }
 

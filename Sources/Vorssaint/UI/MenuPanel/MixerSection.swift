@@ -163,9 +163,9 @@ struct MixerSection: View {
                     Image(systemName: mixer.systemOutputMuted == true || volume <= 0.001
                           ? "speaker.slash.fill"
                           : "speaker.wave.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: 10.5, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 16)
+                        .frame(width: 16, alignment: .leading)
 
                     MixerVolumeSlider(value: systemOutputVolumeBinding,
                                       normalTint: normalSliderTint,
