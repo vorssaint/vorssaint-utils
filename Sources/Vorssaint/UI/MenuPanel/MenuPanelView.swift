@@ -124,6 +124,7 @@ struct MenuPanelView: View {
             if !state.showsMenuPanelBanner {
                 updateBannerHeight = 0
             }
+            syncNavigatorChrome()
         }
         .onChange(of: panelFocus.request) { _, request in
             applyFocus(request)
@@ -150,10 +151,16 @@ struct MenuPanelView: View {
         navigator.configureTabs(tabs, active: activeSection) { selectedSection = $0 }
     }
 
-    /// Keeps the navigator's fixed chrome current: only the metric-detail
-    /// back button for now (the footer and header join in a later stage).
+    /// Keeps the navigator's fixed chrome current: the update banner and the
+    /// beta feedback button lead (when shown), the metric-detail back button
+    /// takes the tab bar's spot while a metric is open, and the footer
+    /// always trails the content.
     private func syncNavigatorChrome() {
-        navigator.configureChrome(leading: selectedMetric != nil ? [.metricBack] : [], trailing: [])
+        var leading: [PanelChromeID] = []
+        if updates.state.showsMenuPanelBanner { leading.append(.updateBanner) }
+        if AppInfo.isBeta { leading.append(.headerFeedback) }
+        if selectedMetric != nil { leading.append(.metricBack) }
+        navigator.configureChrome(leading: leading, trailing: [.footerSettings, .footerQuit])
     }
 
     private var monitorNeeds: SystemMonitorPanelNeeds {
@@ -443,13 +450,15 @@ struct MenuPanelView: View {
         HStack(spacing: 8) {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
-                         horizontalPadding: 7) {
+                         horizontalPadding: 7,
+                         keyboardChrome: .footerSettings) {
                 appDelegate()?.openSettingsWindow()
             }
 
             footerButton(l10n.s.panelQuit,
                          systemImage: "power",
-                         horizontalPadding: 7) {
+                         horizontalPadding: 7,
+                         keyboardChrome: .footerQuit) {
                 NSApp.terminate(nil)
             }
         }
@@ -460,6 +469,7 @@ struct MenuPanelView: View {
 
     private func footerButton(_ title: String, systemImage: String,
                               horizontalPadding: CGFloat = 8,
+                              keyboardChrome: PanelChromeID,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
@@ -482,6 +492,7 @@ struct MenuPanelView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+        .panelKeyboardChrome(keyboardChrome, activate: action, cornerRadius: 7)
     }
 }
 
@@ -518,6 +529,7 @@ private struct MenuPanelHeader: View {
                     }
                     .buttonStyle(.plain)
                     .help(FeatureStrings.feedback(l10n.language).openButton)
+                    .panelKeyboardChrome(.headerFeedback, activate: { appDelegate()?.openFeedbackWindow() })
                 }
             }
         }
@@ -2395,6 +2407,7 @@ struct UpdateBanner: View {
                 )
             }
             .buttonStyle(.plain)
+            .panelKeyboardChrome(.updateBanner, activate: { appDelegate()?.showUpdatePreview() }, cornerRadius: 10)
         case let .downloading(progress):
             progressRow(l10n.s.updateDownloading, fraction: progress)
         case .installing:
