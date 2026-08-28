@@ -1190,29 +1190,27 @@ enum SwitcherSupport {
         panelIsVisible && !panelFrame.contains(location)
     }
 
-    /// Whether a mouse click is a middle click inside the active switcher panel
-    /// (which closes the highlighted/targeted window).
+    /// Whether a mouse click is a middle click on a hovered switcher card.
     static func isMiddleClickInsidePanel(eventType: CGEventType,
                                          buttonNumber: Int64,
                                          panelIsVisible: Bool,
                                          panelFrame: CGRect,
-                                         location: CGPoint) -> Bool {
+                                         location: CGPoint,
+                                         itemIsHovered: Bool) -> Bool {
         eventType == .otherMouseDown
             && buttonNumber == 2
             && panelIsVisible
             && panelFrame.contains(location)
+            && itemIsHovered
     }
 
-    /// Whether a middle mouse up event occurred inside the switcher panel and should be swallowed.
+    /// A release is swallowed only when its matching press closed a card.
     static func shouldSwallowMiddleMouseUp(eventType: CGEventType,
                                            buttonNumber: Int64,
-                                           panelIsVisible: Bool,
-                                           panelFrame: CGRect,
-                                           location: CGPoint) -> Bool {
+                                           swallowedMouseDown: Bool) -> Bool {
         eventType == .otherMouseUp
             && buttonNumber == 2
-            && panelIsVisible
-            && panelFrame.contains(location)
+            && swallowedMouseDown
     }
 
     /// The letters the panel acts on: W closes the highlighted window, Q quits

@@ -70,6 +70,7 @@ final class ClipboardHistoryService: ObservableObject {
     private static let persistQueue = DispatchQueue(label: "com.vorssaint.utils.clipboard-persist",
                                                     qos: .utility)
     private var persistScheduled = false
+    private var persistenceGeneration = 0
     /// True while the history still lives in the legacy UserDefaults blob;
     /// only a store-file write that really landed retires that blob, so a
     /// crash mid-migration never loses entries.
@@ -861,6 +862,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     /// Coalesces the saves of one mutation cycle into a single persist.
     private func save() {
+        persistenceGeneration &+= 1
         guard !persistScheduled else { return }
         persistScheduled = true
         DispatchQueue.main.async { [weak self] in
@@ -872,31 +874,37 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func persist() {
         let snapshot = entries
+        let generation = persistenceGeneration
         let retireLegacyBlob = migrateLegacyBlob
         Self.persistQueue.async { [weak self] in
-            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            guard let encoded = ClipboardHistoryEditing.encodedHistory(snapshot) else { return }
+            let data = encoded.data
             // The PNG sweep waits for the JSON to land and runs back on the
             // main thread against the list as it is then. Sweeping first
             // could strand an entry whose PNG died if the process fell in
             // between; the reverse at worst leaves an orphaned PNG that the
             // launch sweep heals. The main thread also keeps it from racing
             // a just-stored PNG whose entry has not landed in the list yet.
-            func sweepAfterPersist() {
+            func finishPersist() {
                 DispatchQueue.main.async {
                     guard let self else { return }
+                    if self.persistenceGeneration == generation,
+                       encoded.entries != snapshot {
+                        self.entries = encoded.entries
+                    }
                     ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)))
                 }
             }
             guard let url = Self.storeURL else {
                 UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
-                sweepAfterPersist()
+                finishPersist()
                 return
             }
             PrivateFileStore.createDirectory(at: url.deletingLastPathComponent())
             // Only a write that really landed retires the legacy blob, so a
             // failed save leaves the history readable from somewhere.
             guard PrivateFileStore.write(data, to: url) else { return }
-            sweepAfterPersist()
+            finishPersist()
             if retireLegacyBlob {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
                 DispatchQueue.main.async { self?.migrateLegacyBlob = false }

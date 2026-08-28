@@ -105,7 +105,7 @@ extension ClipboardIgnoredAppsStrings {
         listTitle: "不记录的 App",
         addButton: "添加 App…",
         removeButton: "移除",
-        caption: "在这些 App 里复制的内容都不会存进历史。"
+        caption: "在这些 App 里拷贝的内容都不会存进历史。"
     )
 
     static let zhTW = ClipboardIgnoredAppsStrings(

@@ -37,6 +37,14 @@ enum SpaceHopSupport {
         return !windowSpaces.contains { visibleSpaces.contains($0) }
     }
 
+    /// Whether at least one Space assigned to a window is a native fullscreen
+    /// Space. This is stronger than guessing from the window frame: a tiled or
+    /// zoomed window can fill the same rectangle without owning its own Space.
+    static func isOnFullscreenSpace(windowSpaces: [UInt64],
+                                    fullscreenSpaces: Set<UInt64>) -> Bool {
+        windowSpaces.contains { fullscreenSpaces.contains($0) }
+    }
+
     /// The window server marks surfaces that must stay out of app window
     /// cycling. This remains meaningful when Accessibility cannot inspect a
     /// window because it lives on another Space.
