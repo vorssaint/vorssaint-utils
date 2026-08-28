@@ -148,6 +148,20 @@ enum SwitcherGridCard {
     static var fallbackIconSize: CGFloat { 80 * PreviewSizing.scale }
 }
 
+/// The floating capsule that shows the live search query and match count.
+/// It draws as a corner overlay rather than inline content, so its footprint
+/// has to be reserved separately in the panel's own size formula — these
+/// constants are the one place both answer "how much room does it need."
+enum SwitcherSearchChip {
+    /// Distance from the panel's top-trailing corner to the capsule itself.
+    static let cornerInset: CGFloat = 12
+    /// One 12pt semibold text line plus 7pt top/bottom padding, measured.
+    static let height: CGFloat = 29
+    /// Corner inset + capsule height, plus a small gap so the capsule reads
+    /// as floating above the content instead of touching its edge.
+    static let clearance: CGFloat = cornerInset + height + 6
+}
+
 struct SwitcherIconRowLayout: Equatable {
     let visibleIconCount: Int
     let appRowContentWidth: CGFloat
@@ -157,6 +171,7 @@ struct SwitcherIconRowLayout: Equatable {
     let simpleTitleSurfaceWidth: CGFloat
     let panelSize: CGSize
     let showsShortcutHints: Bool
+    let showsSearchChip: Bool
 
     static var scale: CGFloat { min(PreviewSizing.scale, 1.15) }
     static var iconSize: CGFloat { 68 * scale }
@@ -212,7 +227,7 @@ struct SwitcherIconRowLayout: Equatable {
     var simplePanelSize: CGSize {
         CGSize(width: contentWidth(simpleMode: true, windowRow: false) + Self.padding * 2,
                height: Self.simpleTitleHeight + Self.simpleTitleGap
-                        + Self.rowHeight + shortcutHintHeight
+                        + Self.rowHeight + shortcutHintHeight + searchChipHeight
                         + Self.padding * 2)
     }
 
@@ -220,11 +235,17 @@ struct SwitcherIconRowLayout: Equatable {
     /// separate title strip above the row.
     var simpleWindowPanelSize: CGSize {
         CGSize(width: contentWidth(simpleMode: true, windowRow: true) + Self.padding * 2,
-               height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
+               height: Self.rowHeight + shortcutHintHeight + searchChipHeight + Self.padding * 2)
     }
 
     private var shortcutHintHeight: CGFloat {
         showsShortcutHints ? Self.hintGap + Self.hintHeight : 0
+    }
+
+    /// Reserved so the floating search chip (`SwitcherSearchChip`) never
+    /// lands on top of the preview panel or icon row beneath it.
+    private var searchChipHeight: CGFloat {
+        showsSearchChip ? SwitcherSearchChip.clearance : 0
     }
 
     static let empty = SwitcherIconRowLayout(visibleIconCount: 1,
@@ -234,12 +255,14 @@ struct SwitcherIconRowLayout: Equatable {
                                              previewSurfaceWidth: 0,
                                              simpleTitleSurfaceWidth: 0,
                                              panelSize: .zero,
-                                             showsShortcutHints: true)
+                                             showsShortcutHints: true,
+                                             showsSearchChip: false)
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
+                        showsSearchChip: Bool = false,
                         tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
@@ -264,7 +287,8 @@ struct SwitcherIconRowLayout: Equatable {
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
-        let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + padding * 2
+        let searchChipHeight = showsSearchChip ? SwitcherSearchChip.clearance : 0
+        let height = previewHeight + previewGap + rowHeight + shortcutHintHeight + searchChipHeight + padding * 2
         return SwitcherIconRowLayout(visibleIconCount: visibleIconCount,
                                      appRowContentWidth: appRowWidth,
                                      appRowSurfaceWidth: appRowSurfaceWidth,
@@ -272,7 +296,8 @@ struct SwitcherIconRowLayout: Equatable {
                                      previewSurfaceWidth: previewSurfaceWidth,
                                      simpleTitleSurfaceWidth: simpleTitleSurfaceWidth,
                                      panelSize: CGSize(width: width, height: height),
-                                     showsShortcutHints: showsShortcutHints)
+                                     showsShortcutHints: showsShortcutHints,
+                                     showsSearchChip: showsSearchChip)
     }
 
     static func compute(count rawCount: Int, screenVisibleFrame: CGRect) -> SwitcherIconRowLayout {

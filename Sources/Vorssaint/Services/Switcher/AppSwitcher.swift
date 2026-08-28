@@ -65,6 +65,10 @@ final class AppSwitcher: ObservableObject {
     @Published private(set) var isSearchPinned = false
     @Published private(set) var totalWindowCount = 0
 
+    /// Whether the floating search chip is currently drawn, so the panel's
+    /// own size formula and the chip's on-screen presence never disagree.
+    var showsSearchChip: Bool { !searchQuery.isEmpty || isSearchPinned }
+
     /// Single source of truth for "a session is open": the stored value lives
     /// under `routeLock` because the tap thread routes every keystroke by it.
     /// Written only on the main thread.
@@ -703,7 +707,13 @@ final class AppSwitcher: ObservableObject {
                     switch action {
                     case .closeWindow: closeSelectedWindow()
                     case .quitApp: quitSelectedApp()
-                    case .pinSearch: isSearchPinned = true
+                    case .pinSearch:
+                        isSearchPinned = true
+                        // The chip shows as soon as the field is pinned, even
+                        // before the first character lands, so the panel has
+                        // to reserve room for it right away too.
+                        recomputeLayouts(for: windows)
+                        resizePanel()
                     }
                 }
             } else if let text {
@@ -1401,13 +1411,14 @@ final class AppSwitcher: ObservableObject {
 
     private func recomputeLayouts(for items: [SwitcherItem]) {
         guard let screen = NSScreen.withMouse ?? NSScreen.screens.first else { return }
-        grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
+        grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen, showsSearchChip: showsSearchChip)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: usesWindowRow ? items.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: items),
             screenVisibleFrame: screen.visibleFrame,
             showsShortcutHints: showsShortcutHints,
+            showsSearchChip: showsSearchChip,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
         )
@@ -1421,6 +1432,7 @@ final class AppSwitcher: ObservableObject {
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
             screenVisibleFrame: NSScreen.pointerVisibleFrame,
             showsShortcutHints: showsShortcutHints,
+            showsSearchChip: showsSearchChip,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
         )
@@ -1587,7 +1599,7 @@ struct SwitcherGrid: Equatable {
 
     static let empty = SwitcherGrid(columns: 1, rows: 1, visibleRows: 1, panelSize: .zero)
 
-    static func compute(count: Int, on screen: NSScreen) -> SwitcherGrid {
+    static func compute(count: Int, on screen: NSScreen, showsSearchChip: Bool = false) -> SwitcherGrid {
         let usableWidth = screen.visibleFrame.width * 0.92
         let usableHeight = screen.visibleFrame.height * 0.85
 
@@ -1598,8 +1610,10 @@ struct SwitcherGrid: Equatable {
         let maxRows = max(1, Int((usableHeight - padding * 2 + spacing) / (cardHeight + spacing)))
         let visibleRows = min(rows, maxRows)
 
+        let searchChipHeight = showsSearchChip ? SwitcherSearchChip.clearance : 0
         let width = CGFloat(columns) * cardWidth + CGFloat(columns - 1) * spacing + padding * 2
-        let height = CGFloat(visibleRows) * cardHeight + CGFloat(visibleRows - 1) * spacing + padding * 2
+        let height = CGFloat(visibleRows) * cardHeight + CGFloat(visibleRows - 1) * spacing
+            + searchChipHeight + padding * 2
         return SwitcherGrid(columns: columns, rows: rows, visibleRows: visibleRows,
                             panelSize: CGSize(width: width, height: height))
     }

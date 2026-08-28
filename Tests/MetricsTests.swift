@@ -7909,6 +7909,30 @@ struct MetricsTests {
                && twoAppLayout.contentWidth(simpleMode: true, windowRow: true)
                     == twoAppLayout.simpleWindowPanelSize.width - SwitcherIconRowLayout.padding * 2,
                "App Switcher rows fit the panel with fewer apps than the hint bar is wide")
+        // The floating search chip draws as a corner overlay, not inline
+        // content, so its footprint has to be reserved separately — these
+        // pin the panel's height formula to the chip's own measured size
+        // (`SwitcherSearchChip`) so the two can never drift apart again
+        // (issue: search chip overlapping window previews).
+        let searchChipIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
+                                                                     selectedWindowCount: 1,
+                                                                     screenVisibleFrame: screen,
+                                                                     showsSearchChip: true)
+        expect(searchChipIconRowLayout.panelSize.height
+               == iconRowLayout.panelSize.height + SwitcherSearchChip.clearance,
+               "App Switcher reserves exactly the search chip's footprint when it is shown")
+        expect(searchChipIconRowLayout.simplePanelSize.height
+               == iconRowLayout.simplePanelSize.height + SwitcherSearchChip.clearance,
+               "App Switcher simple mode also reserves room for the search chip")
+        expect(searchChipIconRowLayout.simpleWindowPanelSize.height
+               == iconRowLayout.simpleWindowPanelSize.height + SwitcherSearchChip.clearance,
+               "App Switcher's flat window row also reserves room for the search chip")
+        let noSearchChipIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
+                                                                       selectedWindowCount: 1,
+                                                                       screenVisibleFrame: screen,
+                                                                       showsSearchChip: false)
+        expect(noSearchChipIconRowLayout.panelSize.height == iconRowLayout.panelSize.height,
+               "App Switcher reserves no extra height when the search chip is hidden")
         expect(SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8) == 5,
                "App Switcher wrapping splits ten windows across two even rows")
         expect(SwitcherSupport.gridColumnCount(itemCount: 9, maxColumns: 8) == 5,

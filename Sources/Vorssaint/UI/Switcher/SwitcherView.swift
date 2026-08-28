@@ -70,7 +70,9 @@ struct SwitcherView: View {
                 cardGrid
             }
         }
-        .padding(SwitcherGrid.padding)
+        .padding(.horizontal, SwitcherGrid.padding)
+        .padding(.bottom, SwitcherGrid.padding)
+        .padding(.top, SwitcherGrid.padding + searchChipTopClearance)
         .background(HUDBackdrop(cornerRadius: 24))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(alignment: .topTrailing) {
@@ -80,6 +82,14 @@ struct SwitcherView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
         )
+    }
+
+    /// Extra headroom so the floating `searchChip` never lands on top of the
+    /// grid's or icon row's top-right content; kept in lockstep with the same
+    /// flag the panel's own size formula reserves it under
+    /// (`SwitcherGrid.compute`/`SwitcherIconRowLayout.compute`).
+    private var searchChipTopClearance: CGFloat {
+        switcher.showsSearchChip ? SwitcherSearchChip.clearance : 0
     }
 
     @ViewBuilder
@@ -120,27 +130,27 @@ struct SwitcherView: View {
 
     @ViewBuilder
     private var searchChip: some View {
-        if !switcher.searchQuery.isEmpty || switcher.isSearchPinned {
+        if switcher.showsSearchChip {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 11, weight: .bold))
                 Text(switcher.searchQuery.isEmpty ? l10n.s.switcherSearchPin : switcher.searchQuery)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: 180)
+                    .frame(maxWidth: 200)
                 Text("\(switcher.windows.count)/\(switcher.totalWindowCount)")
-                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
             .foregroundStyle(.primary)
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
             .background(
                 Capsule(style: .continuous)
                     .fill(Color.black.opacity(0.42))
             )
-            .padding(12)
+            .padding(SwitcherSearchChip.cornerInset)
         }
     }
 
@@ -205,7 +215,9 @@ struct SwitcherView: View {
                 shortcutHintBar
             }
         }
-        .padding(SwitcherIconRowLayout.padding)
+        .padding(.horizontal, SwitcherIconRowLayout.padding)
+        .padding(.bottom, SwitcherIconRowLayout.padding)
+        .padding(.top, SwitcherIconRowLayout.padding + searchChipTopClearance)
     }
 
     private var iconRowPanelSize: CGSize {
