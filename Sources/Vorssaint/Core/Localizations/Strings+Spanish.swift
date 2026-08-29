@@ -548,6 +548,14 @@ extension Strings {
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir con",
         shelfActionShare: "Compartir",
+        shelfActionRename: "Cambiar nombre…",
+        shelfActionMoveToTrash: "Mover a la Papelera",
+        shelfRenamePromptTitle: "Cambiar el nombre a “%@”",
+        shelfRenameConfirm: "Cambiar nombre",
+        shelfRenameCancel: "Cancelar",
+        shelfRenameCollisionMessage: "Ya existe un archivo llamado “%@” aquí.",
+        shelfRenameFailedMessage: "No se pudo cambiar el nombre de este elemento.",
+        shelfTrashFailedMessage: "No se pudo mover este elemento a la Papelera.",
 
         breakdownMeasuring: "Midiendo…",
 

@@ -737,3 +737,24 @@ enum ShelfPersistenceSupport {
         return result
     }
 }
+
+enum ShelfFileActionSupport {
+    /// A name fit to pass to `FileManager.moveItem`: trimmed, non-empty, and
+    /// free of the path separator the filesystem itself forbids. Everything
+    /// else (length, reserved characters Finder rejects) is left to the
+    /// filesystem call to reject, rather than duplicated here.
+    static func validatedName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("/") else { return nil }
+        return trimmed
+    }
+
+    /// Whether a rename only changes letter case. On the case-insensitive
+    /// volumes most Macs use, the new name already "exists" as the file
+    /// itself, so an existence check would refuse `photo.jpg` → `Photo.jpg`
+    /// when the rename is exactly what the user wants and the filesystem
+    /// performs it fine.
+    static func isCaseOnlyChange(from oldName: String, to newName: String) -> Bool {
+        oldName != newName && oldName.compare(newName, options: .caseInsensitive) == .orderedSame
+    }
+}

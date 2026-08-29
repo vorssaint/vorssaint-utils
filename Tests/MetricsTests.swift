@@ -8818,6 +8818,25 @@ struct MetricsTests {
         ShelfFilePromiseTests.run { expect($0, $1) }
         ShelfDropRoutingTests.run { expect($0, $1) }
 
+        // MARK: Shelf file actions (rename)
+
+        expect(ShelfFileActionSupport.validatedName("report.pdf") == "report.pdf",
+               "a plain name validates unchanged")
+        expect(ShelfFileActionSupport.validatedName("  report.pdf  ") == "report.pdf",
+               "surrounding whitespace is trimmed")
+        expect(ShelfFileActionSupport.validatedName("") == nil,
+               "an empty name is rejected")
+        expect(ShelfFileActionSupport.validatedName("   ") == nil,
+               "a whitespace-only name is rejected")
+        expect(ShelfFileActionSupport.validatedName("a/b") == nil,
+               "a name containing the path separator is rejected")
+        expect(ShelfFileActionSupport.isCaseOnlyChange(from: "photo.jpg", to: "Photo.JPG"),
+               "changing only the case of a name is a case-only change")
+        expect(!ShelfFileActionSupport.isCaseOnlyChange(from: "photo.jpg", to: "photo.jpg"),
+               "the same name again is not a change at all")
+        expect(!ShelfFileActionSupport.isCaseOnlyChange(from: "photo.jpg", to: "photo-2.jpg"),
+               "a different name is not a case-only change")
+
         // MARK: Shelf reveal
 
         let revealChildA = UUID()
