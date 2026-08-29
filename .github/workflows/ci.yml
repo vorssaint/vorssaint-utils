@@ -53,6 +53,9 @@ jobs:
       - name: Selftest
         run: ./build/Vorssaint --selftest
 
+      - name: Startup and menu-bar responsiveness gates
+        run: ./Tools/ci-ui-performance-gate.sh
+
       - name: Package DMG
         run: ./Tools/make-dmg.sh
 

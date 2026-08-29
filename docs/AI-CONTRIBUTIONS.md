@@ -230,7 +230,9 @@ permissions and hardware, that is a small part of the claim.
 ./build.sh --test
 ```
 
-CI runs exactly those three. Four things are worth knowing beyond them:
+CI runs those three plus the menu-bar startup and responsiveness performance
+gate (`./Tools/ci-ui-performance-gate.sh`). Four things are worth knowing
+beyond the build/selftest/unit-test trio:
 
 - **`./build.sh --test` is not proof that it compiles.** It builds a
   hand-written list of source files, and `Sources/Vorssaint/UI/` is largely
