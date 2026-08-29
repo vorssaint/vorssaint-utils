@@ -182,7 +182,11 @@ extension ClipboardFeatureStrings {
         autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
-        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        menuBarPreview: "메뉴 막대에 최근 복사 항목 표시",
+        menuBarPreviewCaption: "아이콘 옆에 최근 복사한 내용의 축약된 미리보기를 표시합니다. 클릭하면 기록이 열립니다.",
+        menuBarPreviewLength: "미리보기 길이",
+        menuBarPreviewLengthSuffix: "자"
     )
 }
 
@@ -456,6 +460,10 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let menuBarPreview: String
+    let menuBarPreviewCaption: String
+    let menuBarPreviewLength: String
+    let menuBarPreviewLengthSuffix: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -510,7 +518,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Clear clipboard on computer sleep",
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
-        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        menuBarPreview: "Show latest copy in the menu bar",
+        menuBarPreviewCaption: "Shows a shortened preview of your last copy next to the icon. Click it to open the history.",
+        menuBarPreviewLength: "Preview length",
+        menuBarPreviewLengthSuffix: "characters"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -566,7 +578,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
-        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        menuBarPreview: "Mostrar a última cópia na barra de menus",
+        menuBarPreviewCaption: "Mostra uma prévia resumida da sua última cópia ao lado do ícone. Clique nela para abrir o histórico.",
+        menuBarPreviewLength: "Tamanho da prévia",
+        menuBarPreviewLengthSuffix: "caracteres"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -622,7 +638,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
-        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        menuBarPreview: "Menü çubuğunda son kopyalananı göster",
+        menuBarPreviewCaption: "Simgenin yanında son kopyalananın kısaltılmış bir önizlemesini gösterir. Geçmişi açmak için üzerine tıkla.",
+        menuBarPreviewLength: "Önizleme uzunluğu",
+        menuBarPreviewLengthSuffix: "karakter"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -678,7 +698,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
-        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        menuBarPreview: "Показывать последнюю скопированную запись в строке меню",
+        menuBarPreviewCaption: "Показывает сокращённый предпросмотр последней скопированной записи рядом со значком. Нажмите на него, чтобы открыть историю.",
+        menuBarPreviewLength: "Длина предпросмотра",
+        menuBarPreviewLengthSuffix: "символов"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -734,7 +758,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
-        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        menuBarPreview: "Mostrar la última copia en la barra de menús",
+        menuBarPreviewCaption: "Muestra una vista previa abreviada de tu última copia junto al icono. Haz clic para abrir el historial.",
+        menuBarPreviewLength: "Longitud de la vista previa",
+        menuBarPreviewLengthSuffix: "caracteres"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -790,7 +818,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
-        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        menuBarPreview: "Letzte Kopie in der Menüleiste anzeigen",
+        menuBarPreviewCaption: "Zeigt eine gekürzte Vorschau deiner letzten Kopie neben dem Symbol. Klicke darauf, um den Verlauf zu öffnen.",
+        menuBarPreviewLength: "Vorschaulänge",
+        menuBarPreviewLengthSuffix: "Zeichen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -846,7 +878,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
         autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
-        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique.",
+        menuBarPreview: "Afficher la dernière copie dans la barre des menus",
+        menuBarPreviewCaption: "Affiche un aperçu raccourci de votre dernière copie à côté de l'icône. Cliquez dessus pour ouvrir l'historique.",
+        menuBarPreviewLength: "Longueur de l'aperçu",
+        menuBarPreviewLengthSuffix: "caractères"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -902,7 +938,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
-        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        menuBarPreview: "Mostra l'ultima copia nella barra dei menu",
+        menuBarPreviewCaption: "Mostra un'anteprima abbreviata dell'ultima copia accanto all'icona. Fai clic per aprire la cronologia.",
+        menuBarPreviewLength: "Lunghezza dell'anteprima",
+        menuBarPreviewLengthSuffix: "caratteri"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -958,7 +998,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "システムスリープ時にクリップボードを消去",
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
-        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        menuBarPreview: "メニューバーに直前のコピーを表示",
+        menuBarPreviewCaption: "アイコンの横に直前のコピーの短縮プレビューを表示します。クリックすると履歴が開きます。",
+        menuBarPreviewLength: "プレビューの長さ",
+        menuBarPreviewLengthSuffix: "文字"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1014,7 +1058,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠时清空剪贴板",
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
-        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        menuBarPreview: "在菜单栏显示最近拷贝的内容",
+        menuBarPreviewCaption: "在图标旁显示最近拷贝内容的简短预览，点击即可打开历史记录。",
+        menuBarPreviewLength: "预览长度",
+        menuBarPreviewLengthSuffix: "个字符"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1070,7 +1118,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        menuBarPreview: "在選單列顯示最近複製的內容",
+        menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，點選即可開啟紀錄。",
+        menuBarPreviewLength: "預覽長度",
+        menuBarPreviewLengthSuffix: "個字元"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1126,7 +1178,11 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        menuBarPreview: "在選單列顯示最近複製的內容",
+        menuBarPreviewCaption: "在圖示旁顯示最近複製內容的簡短預覽，按一下即可開啟記錄。",
+        menuBarPreviewLength: "預覽長度",
+        menuBarPreviewLengthSuffix: "個字元"
     )
 }
 

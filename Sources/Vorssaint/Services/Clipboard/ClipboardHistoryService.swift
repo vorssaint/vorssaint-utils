@@ -24,8 +24,25 @@ final class ClipboardHistoryService: ObservableObject {
     static let quickPanelPreviewSize = NSSize(width: 840, height: 500)
 
     @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
-        didSet { entriesStamp &+= 1 }
+        didSet {
+            entriesStamp &+= 1
+            // Keeps latestPasteboardEntry from outliving the entry it points
+            // to: removing it, clearing recent/all, or trimming to a smaller
+            // limit must stop the preview from claiming stale content is
+            // still the latest copy. Re-reading it here (rather than nil-ing
+            // it) also picks up an edit to that same entry's text.
+            if let current = latestPasteboardEntry {
+                latestPasteboardEntry = entries.first(where: { $0.id == current.id })
+            }
+        }
     }
+    /// The entry most recently put on the system pasteboard, whether from a
+    /// fresh external copy or from reusing an existing entry. `touch()`
+    /// deliberately leaves `entries`' own order alone when reusing one, so
+    /// this is what the optional "show latest copy" menu bar item follows
+    /// instead of `entries.first` (which is also wrong on its own whenever
+    /// anything is pinned, since pinned entries always sort first there).
+    @Published private(set) var latestPasteboardEntry: ClipboardHistoryEntry?
     @Published private(set) var isRunning = false
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var quickBatchEntryIDs: Set<UUID> = []
@@ -98,9 +115,22 @@ final class ClipboardHistoryService: ObservableObject {
         lastChangeCount = max(lastChangeCount, changeCount)
     }
 
+    /// ClipboardAutoClearService calls this after it actually empties the
+    /// system pasteboard, so the menu bar preview stops showing content that
+    /// is no longer there. Deliberately separate from ignoreNextChange:
+    /// a transient rewrite-then-restore (paste as plain text) also calls
+    /// that, but the pasteboard's real content never changed there, so the
+    /// preview must not clear in that case.
+    func pasteboardWasCleared() {
+        latestPasteboardEntry = nil
+    }
+
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
         writeToPasteboard([entry]) { [weak self] copied in
-            if copied { self?.touch([entry.id]) }
+            if copied {
+                self?.touch([entry.id])
+                self?.latestPasteboardEntry = entry
+            }
             completion(copied)
         }
     }
@@ -111,7 +141,14 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
         writeToPasteboard(selectedEntries) { [weak self] copied in
-            if copied { self?.touch(selectedEntries.map(\.id)) }
+            if copied {
+                self?.touch(selectedEntries.map(\.id))
+                // A single-entry selection mirrors the entry above; a real
+                // batch no longer matches any one saved entry's text, so the
+                // menu bar preview falls back to the most recent entry
+                // instead of showing a stale single-entry snapshot.
+                self?.latestPasteboardEntry = selectedEntries.count == 1 ? selectedEntries[0] : nil
+            }
             completion(copied)
         }
     }
@@ -779,6 +816,7 @@ final class ClipboardHistoryService: ObservableObject {
         } else {
             entries.insert(entry, at: firstRecentIndex)
         }
+        latestPasteboardEntry = entry
     }
 
     private func normalizeEntryOrder() {

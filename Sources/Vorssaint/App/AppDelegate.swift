@@ -97,6 +97,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.captureStatusClick()
             self?.showMetricPanel(for: metric, anchoredTo: button)
         }
+        statusController.onClipboardPreviewClick = { [weak self] in
+            self?.captureStatusClick()
+            ClipboardHistoryService.shared.toggleHistoryWindow()
+        }
         // The shelf drop zone chip anchors itself under the menu bar icon.
         ShelfService.shared.statusItemFrameProvider = { [weak self] in
             guard let item = self?.statusController.statusItem, item.isVisible,

@@ -79,6 +79,13 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         }
     }
 
+    /// `preview` collapsed further to a menu bar sized excerpt, for the
+    /// optional "show latest copy" status item.
+    func menuBarText(maxCharacters: Int) -> String {
+        guard preview.count > maxCharacters else { return preview }
+        return String(preview.prefix(maxCharacters)) + "…"
+    }
+
     /// Same clipboard content, regardless of when it was copied: re-copying
     /// refreshes the existing entry instead of duplicating it.
     func matchesContent(of other: ClipboardHistoryEntry) -> Bool {

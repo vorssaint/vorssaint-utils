@@ -221,6 +221,31 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
+        // MARK: Clipboard menu bar preview
+
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreview] as? Bool == false,
+               "the menu bar clipboard preview is off until asked for")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreviewLength] as? Int == 20,
+               "the menu bar clipboard preview starts at twenty characters")
+        expect(Defaults.sanitizedClipboardMenuBarPreviewLength(20) == 20,
+               "menu bar preview length in range passes through")
+        expect(Defaults.sanitizedClipboardMenuBarPreviewLength(1) == 5,
+               "menu bar preview length below the floor clamps up, so a typed 1 does not jump to the default")
+        expect(Defaults.sanitizedClipboardMenuBarPreviewLength(999) == 50,
+               "menu bar preview length above the ceiling clamps down")
+        let shortMenuBarPreview = ClipboardHistoryEntry(text: "hi").menuBarText(maxCharacters: 20)
+        expect(shortMenuBarPreview == "hi",
+               "a copy shorter than the limit shows in full, with no ellipsis")
+        let longMenuBarPreview = ClipboardHistoryEntry(text: String(repeating: "a", count: 200))
+            .menuBarText(maxCharacters: 20)
+        expect(longMenuBarPreview.count == 21 && longMenuBarPreview.hasSuffix("…"),
+               "a copy longer than the limit is cut to the limit plus an ellipsis")
+        let imageMenuBarPreview = ClipboardHistoryEntry(text: "", kind: .image,
+                                                        imageWidth: 400, imageHeight: 300)
+            .menuBarText(maxCharacters: 20)
+        expect(imageMenuBarPreview == "400×300",
+               "an image copy shows its dimensions instead of empty text")
+
         // MARK: Clipboard auto clear timing
 
         let autoClearCopiedAt = Date(timeIntervalSince1970: 1_000_000)
@@ -3049,6 +3074,8 @@ struct MetricsTests {
                "the Shelf provider rejects an untrustworthy status-item frame")
         expect(statusHitTestCode.contains(statusFrameCall) && statusHitTestCode.contains("return false"),
                "status-item hit testing rejects an untrustworthy frame")
+        expect(statusHitTestCode.contains("clipboardPreviewStatusItem"),
+               "status-item hit testing also covers the clipboard preview item")
 
         // The panel keeps its top edge and its center while its content resizes.
         let panelArea = CGRect(x: 0, y: 0, width: 1470, height: 932)
@@ -12105,7 +12132,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.clipboard(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 53 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 57 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
