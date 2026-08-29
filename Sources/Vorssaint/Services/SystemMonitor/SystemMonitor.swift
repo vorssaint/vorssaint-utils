@@ -118,6 +118,7 @@ final class SystemMonitor: ObservableObject {
     private var panelClients = 0
     private var menuPanelNeeds: SystemMonitorPanelNeeds = .none
     private var menuBarActive = false
+    private var widgetsActive = false
     private var alertsActive = false
     private var refreshInFlight = false
     private var pendingRefresh = false
@@ -236,6 +237,9 @@ final class SystemMonitor: ObservableObject {
         runOnMain { [weak self] in
             guard let self else { return }
             panelClients += 1
+            // Cheap moment to notice a widget the user placed or removed while
+            // the app was idle; the system announces neither.
+            WidgetSnapshotPublisher.shared.refreshInstalledWidgets()
             ensureTimer()
             refresh(suppressImmediateGPU: true)
             scheduleDeferredGPURefreshIfNeeded()
@@ -350,6 +354,26 @@ final class SystemMonitor: ObservableObject {
         refresh()
     }
 
+    /// Keeps the light samplers alive while a desktop widget is placed. Widgets
+    /// are off screen, so they are their own activation flag: with none placed
+    /// this stays false and the monitor idles exactly as it does today.
+    func setWidgetsActive(_ active: Bool) {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            guard active != widgetsActive else {
+                if active { resyncIfPlanChanged() }
+                return
+            }
+            widgetsActive = active
+            if active {
+                ensureTimer()
+                refresh()
+            } else {
+                stopTimerIfIdle()
+            }
+        }
+    }
+
     /// The hub switching a metric on or off changes the plan without touching
     /// any activation flag; resample right away like any settings change.
     func planDidChange() {
@@ -392,7 +416,9 @@ final class SystemMonitor: ObservableObject {
     /// independent surfaces cannot desync.
     private var fullMonitorVisible: Bool { panelClients > 0 }
 
-    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || menuBarActive || alertsActive }
+    private var shouldRun: Bool {
+        fullMonitorVisible || menuPanelNeeds.any || menuBarActive || alertsActive || widgetsActive
+    }
 
     private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
@@ -482,6 +508,15 @@ final class SystemMonitor: ObservableObject {
            Self.fanTelemetryAvailable {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
                 || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
+        }
+
+        // A placed desktop widget asks only for what it draws, so a widget on
+        // the desktop never wakes the SMC: no temperatures, no fan telemetry.
+        if widgetsActive {
+            plan.needCPU = true
+            plan.needMemory = true
+            plan.needDisk = true
+            plan.needGPUUsage = true
         }
 
         // The hub gates whole metric families: an unavailable metric never
@@ -816,6 +851,7 @@ final class SystemMonitor: ObservableObject {
                     self.snapshot = next
                     self.lastPublishedPlan = plan
                     self.lastPublishedForeground = foregroundSampling
+                    WidgetSnapshotPublisher.shared.publish(next)
                 }
                 self.refreshInFlight = false
                 let shouldRunPendingRefresh = self.pendingRefresh

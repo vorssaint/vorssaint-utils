@@ -39,6 +39,7 @@ else
     BUILD_CONFIGURATION="release"
 fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
+WIDGET_EXT_ID="$APP_BUNDLE_ID.widgets"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
@@ -347,6 +348,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
+        Sources/Vorssaint/Services/Widgets/WidgetSnapshotStore.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.
@@ -386,6 +388,14 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
     Sources/FanControlHelper/main.swift \
     -o "build/$FAN_HELPER_ID"
 "build/$FAN_HELPER_ID" --selftest
+
+echo "▸ Compiling widget extension…"
+swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+    "${BUILD_VARIANT_FLAGS[@]}" -parse-as-library -application-extension \
+    -Xlinker -e -Xlinker _NSExtensionMain \
+    Sources/Vorssaint/Services/Widgets/WidgetSnapshotStore.swift \
+    Sources/VorssaintWidgets/*.swift \
+    -o "build/VorssaintWidgets"
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
@@ -464,6 +474,19 @@ FAN_HELPER_VERSION="$(
 )"
 /usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
     "$STAGE/Contents/Info.plist"
+WIDGET_APPEX="$STAGE/Contents/PlugIns/VorssaintWidgets.appex"
+mkdir -p "$WIDGET_APPEX/Contents/MacOS"
+cp build/VorssaintWidgets "$WIDGET_APPEX/Contents/MacOS/VorssaintWidgets"
+cp Resources/VorssaintWidgets-Info.plist "$WIDGET_APPEX/Contents/Info.plist"
+if (( DEV )); then
+    # Its own identifier, so the Developer build's widgets appear next to the
+    # official app's in the gallery instead of replacing them.
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $WIDGET_EXT_ID" \
+        "$WIDGET_APPEX/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vorssaint (Developer)" \
+        "$WIDGET_APPEX/Contents/Info.plist"
+fi
+
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
@@ -516,10 +539,28 @@ codesign_fan_helper() {
     fi
 }
 
+# The extension is the only sandboxed code in the bundle, so it is signed with
+# its own entitlements rather than the app's.
+codesign_widget_extension() {
+    local target="$1"
+    local entitlements="Resources/VorssaintWidgets.entitlements"
+    if [[ -n "$DEVID" ]]; then
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+            --entitlements "$entitlements" --identifier "$WIDGET_EXT_ID" --sign "$DEVID" "$target"
+    elif security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
+        codesign --force --strip-disallowed-xattrs --entitlements "$entitlements" \
+            --identifier "$WIDGET_EXT_ID" --sign "$LEGACY_IDENTITY" "$target"
+    else
+        codesign --force --strip-disallowed-xattrs --entitlements "$entitlements" \
+            --identifier "$WIDGET_EXT_ID" --sign - "$target"
+    fi
+}
+
 sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+    local appex="$bundle/Contents/PlugIns/VorssaintWidgets.appex"
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
@@ -529,6 +570,7 @@ sign_bundle() {
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+    [[ -d "$appex" ]] && codesign_widget_extension "$appex"
     codesign_app "$bundle"
 
     # If local filesystem metadata invalidates the first signature, sign once
@@ -537,6 +579,7 @@ sign_bundle() {
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
         [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+        [[ -d "$appex" ]] && codesign_widget_extension "$appex"
         codesign_app "$bundle"
     fi
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
