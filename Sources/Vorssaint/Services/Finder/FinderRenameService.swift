@@ -183,7 +183,11 @@ final class FinderRenameService {
                                             &focused) == .success,
               let focused, CFGetTypeID(focused) == AXUIElementGetTypeID()
         else { return nil }
+        // A fresh element takes the process-wide default rather than the cap on
+        // the element it was read from, so the role read below needs its own or
+        // it waits the default on the rename shortcut's tap.
         let element = focused as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, 0.15)
         var role: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString,
                                             &role) == .success,
