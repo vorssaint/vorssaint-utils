@@ -1335,19 +1335,20 @@ final class DockPreviewService: ObservableObject {
     /// a Dock that answers it and then stops costs three.
     ///
     /// Per element on purpose. Setting a timeout on the system-wide object sets
-    /// the process-wide default, and six features here already write that
-    /// global with three different values; hovering the Dock must not change how
-    /// long window layout or focus-follows-mouse wait. Measured on 26.6.2: a
-    /// value written to an element survives a later write to the global, and a
-    /// new element inherits whichever global was written last.
+    /// the process-wide default for every question this process asks, whoever
+    /// asks it, so hovering the Dock would change how long the other
+    /// Accessibility features wait. Measured on 26.6.2: a value written to an
+    /// element survives a later write to the global, and a fresh element takes
+    /// whichever global was written last rather than the cap on the element it
+    /// came from — which is why the two doors above carry it rather than the
+    /// call sites.
     ///
-    /// The value matches what `AppDelegate` writes to the global at launch, so
-    /// a read here answers or gives up exactly when it does today. Tightening it
-    /// is a separate question: a read that gives up sooner is a hover that opens
-    /// no preview, and one that lands in the classifier reads as a pointer that
-    /// left the Dock, which closes a preview already open. That trade wants the
-    /// timeout signal in #1086 first, so a read that ran out is no longer
-    /// indistinguishable from an answer.
+    /// This number is this path's alone. Tightening it is a separate question:
+    /// a read that gives up sooner is a hover that opens no preview, and one
+    /// that lands in the classifier reads as a pointer that left the Dock,
+    /// which closes a preview already open. That trade wants the timeout signal
+    /// in #1086 first, so a read that ran out is no longer indistinguishable
+    /// from an answer.
     private static let messagingTimeout: Float = 0.35
 
     private func bounded(_ element: AXUIElement?) -> AXUIElement? {

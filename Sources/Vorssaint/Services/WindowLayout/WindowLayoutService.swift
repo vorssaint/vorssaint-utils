@@ -297,7 +297,7 @@ final class WindowLayoutService: ObservableObject {
             // thread (and every event tap) for the default timeout.
             AXUIElementSetMessagingTimeout(axApp, 0.35)
             for attribute in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
-                if let window = windowAttribute(axApp, attribute as String),
+                if let window = windowAttribute(axApp, attribute as String, cappedAt: 0.35),
                    let target = target(from: window,
                                        app: app,
                                        onScreenWindowIDs: onScreenWindowIDs,
@@ -305,7 +305,7 @@ final class WindowLayoutService: ObservableObject {
                     return target
                 }
             }
-            if let windows = windowsAttribute(axApp),
+            if let windows = windowsAttribute(axApp, cappedAt: 0.35),
                let first = windows.compactMap({ target(from: $0,
                                                         app: app,
                                                         onScreenWindowIDs: onScreenWindowIDs,
@@ -1183,10 +1183,9 @@ final class WindowLayoutService: ObservableObject {
               !app.isTerminated, app.activationPolicy == .regular else { return nil }
         let axApp = AXUIElementCreateApplication(pressCandidate.pid)
         AXUIElementSetMessagingTimeout(axApp, 0.25)
-        guard let window = windowsAttribute(axApp)?.first(where: {
+        guard let window = windowsAttribute(axApp, cappedAt: 0.25)?.first(where: {
                   AXWindowResolver.windowID(for: $0) == pressCandidate.windowID
               }) else { return nil }
-        AXUIElementSetMessagingTimeout(window, 0.25)
         guard let onScreenWindowIDs = onScreenWindowIDs(),
               let target = target(from: window,
                                   app: app,
@@ -1731,11 +1730,10 @@ final class WindowLayoutService: ObservableObject {
         if role(of: element) == (kAXWindowRole as String) {
             window = element
         } else {
-            window = windowAttribute(element, kAXWindowAttribute as String)
-                ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String)
+            window = windowAttribute(element, kAXWindowAttribute as String, cappedAt: 0.25)
+                ?? windowAttribute(element, kAXTopLevelUIElementAttribute as String, cappedAt: 0.25)
         }
         guard let window else { return nil }
-        AXUIElementSetMessagingTimeout(window, 0.25)
 
         var pid = pid_t(0)
         guard role(of: window) == (kAXWindowRole as String),
@@ -1865,20 +1863,32 @@ final class WindowLayoutService: ObservableObject {
         return value as? String
     }
 
-    private func windowAttribute(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
+    /// The cap is the caller's: an element read out of another one is a fresh
+    /// element and takes the process-wide default, not the cap on the element it
+    /// came from, so every read off it would run on the global instead.
+    private func windowAttribute(_ element: AXUIElement,
+                                 _ attribute: String,
+                                 cappedAt timeout: Float) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
               let value,
               CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
-        return (value as! AXUIElement)
+        let child = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(child, timeout)
+        return child
     }
 
-    private func windowsAttribute(_ element: AXUIElement) -> [AXUIElement]? {
+    /// Every element in the list, not only the one a caller keeps: the search
+    /// that picks one asks each of them for its window id, and that question
+    /// reaches the other process.
+    private func windowsAttribute(_ element: AXUIElement,
+                                  cappedAt timeout: Float) -> [AXUIElement]? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
               let values = value as? [AXUIElement]
         else { return nil }
+        for value in values { AXUIElementSetMessagingTimeout(value, timeout) }
         return values
     }
 

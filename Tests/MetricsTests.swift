@@ -15272,18 +15272,21 @@ struct MetricsTests {
         }
         expect(!appSources.isEmpty && systemWideViolations.isEmpty,
                "the process-wide Accessibility timeout has one writer: \(systemWideViolations)")
-        let holders = mayHoldSystemWide.filter { file in
-            guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
-                                           encoding: .utf8) else { return false }
-            return source.contains("AXUIElementCreateSystemWide")
+        // Read the same way the violation scan reads: commenting a line out is
+        // how a rule stops being enforced without anyone deleting it.
+        func code(_ file: String) -> String {
+            ((try? String(contentsOfFile: "Sources/Vorssaint/\(file)", encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
         }
+        let holders = mayHoldSystemWide.filter { code($0).contains("AXUIElementCreateSystemWide") }
         expect(holders.count == mayHoldSystemWide.count,
                "every file allowed to hold the system-wide element still does: \(holders)")
         // And the floor itself is still written, since the four that hold the
         // element without capping it are relying on there being one.
-        let launchFloor = (try? String(contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
-                                       encoding: .utf8)) ?? ""
-        expect(launchFloor.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()"),
+        expect(code("App/AppDelegate.swift")
+                   .contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()"),
                "the launch default that every uncapped read falls back to is still set")
         // The Dock preview hit test reads Accessibility on the main thread on
         // every mouse-move sample along the Dock's edge, and the process it
