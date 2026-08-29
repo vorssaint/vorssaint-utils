@@ -25,20 +25,27 @@ SwiftPM aware editors can index the code.
 Hitting a build or permission snag while developing? See the
 [troubleshooting guide](docs/TROUBLESHOOTING.md).
 
-### Stable signing (optional)
+### Stable signing
 
-By default `build.sh` signs ad hoc, and that code hash changes on every build,
-so macOS asks again for Accessibility and Screen Recording after each rebuild.
-Run this once
+By default `build.sh` signs ad hoc, and that code hash changes on every build.
+macOS ties Accessibility and Screen Recording grants to the hash, so each
+rebuild silently orphans them: System Settings keeps showing the app as
+granted, the app is no longer trusted, and no new prompt appears. Developer
+builds (`--dev`) therefore create a free, self signed identity called
+`Vorssaint Utils Signing` in a dedicated keychain automatically when no
+identity is installed. For plain local builds, run the same setup once
+yourself:
 
 ```sh
 ./Tools/setup-signing.sh
 ```
 
-to create a free, self signed identity called `Vorssaint Utils Signing` in a
-dedicated keychain. `build.sh` then signs local builds with it and gives them a
+Either way `build.sh` then signs local builds with it and gives them a
 constant designated requirement, so granted permissions stick across rebuilds.
-It is a local convenience only and never shows up outside the keychain.
+If a permission was granted to an earlier ad-hoc build, clear the stale grant
+once (`tccutil reset Accessibility com.vorssaint.utils.dev`) and grant it
+again. The identity is a local convenience only and never shows up outside
+the keychain.
 
 Official releases work differently. CI signs the app and DMG with an Apple
 **Developer ID**, using credentials isolated in the protected `release-signing`

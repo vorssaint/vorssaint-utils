@@ -19519,6 +19519,33 @@ struct MetricsTests {
                    "defaults suite \(argument) is named inside a namespace build.sh sweeps")
         }
 
+        // MARK: An identity-less Developer build creates its stable signing identity
+        // An ad-hoc signature changes hash on every build, so macOS orphans
+        // Accessibility and Screen Recording grants on each rebuild while
+        // System Settings keeps showing them as granted. build.sh therefore
+        // routes identity-less --dev builds through Tools/setup-signing.sh
+        // before signing. The needle is the invocation at the start of a
+        // command line: the ad-hoc fallback's advice string also names the
+        // script, and must not satisfy this check.
+        let runsSigningSetup = buildScript.components(separatedBy: "\n").contains {
+            $0.range(of: #"^\s*(if\s+!?\s*)?\./Tools/setup-signing\.sh"#,
+                     options: .regularExpression) != nil
+        }
+        expect(runsSigningSetup,
+               "an identity-less Developer build invokes Tools/setup-signing.sh itself")
+        // The setup script must run against the stock /usr/bin/openssl, which
+        // is LibreSSL: it rejects OpenSSL 3's -legacy flag outright, and the
+        // script once died on exactly that with its stderr discarded. The
+        // portable spelling names the PBE algorithms instead of the flag.
+        let signingSetup = (try? String(contentsOfFile: "Tools/setup-signing.sh",
+                                        encoding: .utf8)) ?? ""
+        expect(!signingSetup.isEmpty, "the signing setup script reads back for its shape check")
+        let signingSetupCode = signingSetup.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+            .joined(separator: "\n")
+        expect(!signingSetupCode.contains("-legacy"),
+               "setup-signing.sh avoids the -legacy flag the stock LibreSSL openssl rejects")
+
         // MARK: Uninstallation paths stay aligned across SelfUninstall and Tools/uninstall.sh
         let selfUninstallSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/SelfUninstall.swift",
                                               encoding: .utf8)) ?? ""

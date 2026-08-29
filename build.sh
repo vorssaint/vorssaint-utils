@@ -50,6 +50,24 @@ developer_id_identity() {
         | sed -E 's/.*"(.*)".*/\1/' || true
 }
 
+# The Developer build exists for iterative local work, where an ad-hoc
+# signature is a trap: macOS ties Accessibility and Screen Recording grants to
+# the exact binary hash, so every rebuild orphans them while System Settings
+# keeps showing them as granted, and no new prompt ever appears. When no
+# identity is installed, create the stable local one up front instead of
+# falling through to ad-hoc — setup-signing.sh is free, offline and idempotent.
+if (( DEV )) && [[ -z "$(developer_id_identity)" ]] \
+    && ! security find-identity -p codesigning 2>/dev/null | grep -q "$LEGACY_IDENTITY"; then
+    echo "▸ No signing identity installed; creating the stable local one…"
+    if ! ./Tools/setup-signing.sh; then
+        echo "  ⚠ Tools/setup-signing.sh failed; signing ad-hoc instead." >&2
+        echo "    Accessibility and Screen Recording grants will not survive rebuilds:" >&2
+        echo "    System Settings will show them as granted while the app is not trusted." >&2
+        echo "    After fixing the identity, clear the stale grant once with:" >&2
+        echo "      tccutil reset Accessibility $APP_BUNDLE_ID" >&2
+    fi
+fi
+
 codesign_with_timestamp_retry() {
     local attempt
     for attempt in 1 2 3; do
