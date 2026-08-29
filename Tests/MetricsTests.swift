@@ -2284,38 +2284,58 @@ struct MetricsTests {
             role: "AXWindow",
             subrole: "AXUnknown",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher accepts a screen-sized window with a nonstandard subrole")
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXFloatingWindow",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher accepts a screen-sized floating playback surface")
         expect(!SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXUnknown",
             fillsScreen: false,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher filters a smaller window with a nonstandard subrole")
         expect(!SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXGroup",
             subrole: "AXUnknown",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher requires a real window role for a full-screen surface")
         expect(!SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXDialog",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher does not turn a screen-sized dialog into a playback window")
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXUnknown",
             fillsScreen: false,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: true),
                "App Switcher preserves hosted windows with custom chrome")
+        expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher accepts an ordinary window from an app that describes none")
+        expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXFloatingWindow",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher keeps a described floating panel filtered at the normal window level")
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: nil,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
