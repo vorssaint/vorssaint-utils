@@ -7,7 +7,7 @@ import SwiftUI
 struct ArchiveToolsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var archive = ArchiveService.shared
-    @AppStorage(DefaultsKey.archiveExcludeDSStore) private var excludesDSStore = false
+    @AppStorage(DefaultsKey.archiveExcludeDSStore) private var excludesDSStore = true
     @State private var sources: [URL] = []
     @State private var destination: URL?
     @State private var dropTargeted = false

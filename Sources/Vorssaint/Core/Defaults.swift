@@ -938,7 +938,7 @@ enum Defaults {
         DefaultsKey.appUpdatesLastCount: 0,
         DefaultsKey.appUpdatesNotifiedIDs: [String](),
         DefaultsKey.panelUtilityMedia: true,
-        DefaultsKey.archiveExcludeDSStore: false,
+        DefaultsKey.archiveExcludeDSStore: true,
         DefaultsKey.panelUtilityClipboard: true,
         DefaultsKey.panelUtilityWindowLayout: true,
         DefaultsKey.panelControlMouseScroll: true,

@@ -2712,8 +2712,8 @@ struct MetricsTests {
                "panel Homebrew utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityMedia] as? Bool == true,
                "panel Media utility is visible by default")
-        expect(registeredDefaults[DefaultsKey.archiveExcludeDSStore] as? Bool == false,
-               "archive creation preserves .DS_Store files by default")
+        expect(registeredDefaults[DefaultsKey.archiveExcludeDSStore] as? Bool == true,
+               "archive creation excludes .DS_Store files by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseScroll] as? Bool == true,
                "panel mouse scroll control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseNavigation] as? Bool == true,
@@ -11004,7 +11004,7 @@ struct MetricsTests {
             sources: [URL(fileURLWithPath: "/tmp/file.txt")],
             stagedOutput: URL(fileURLWithPath: "/tmp/out.zip"),
             excludesDSStore: false).contains(".DS_Store"),
-               "the default archive command preserves .DS_Store")
+               "the archive command can preserve .DS_Store when requested")
 
         let archiveFailureRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-archive-failure-\(UUID().uuidString)", isDirectory: true)
@@ -11061,15 +11061,70 @@ struct MetricsTests {
         try? Data("archive".utf8).write(to: fallbackStage)
         try? Data("existing".utf8).write(to: occupiedFallback)
         let fallbackPublisher = ArchivePublisher(
-            renameExclusive: { _, _ in .unsupported })
+            renameExclusive: { _, _, _ in .unsupported })
         let fallbackPublished = try? fallbackPublisher.publish(
             fallbackStage, in: archiveFailureRoot, baseName: "Fallback",
-            fileManager: .default)
+            fileManager: .default, token: CancellationToken())
         expect(fallbackPublished?.lastPathComponent == "Fallback 2.zip"
                 && !FileManager.default.fileExists(atPath: fallbackStage.path)
                 && (try? Data(contentsOf: occupiedFallback)) == Data("existing".utf8)
                 && fallbackPublished.flatMap { try? Data(contentsOf: $0) } == Data("archive".utf8),
                "unsupported exclusive rename falls back without replacing an existing archive")
+
+        let publishCancellationToken = CancellationToken()
+        var cancelledPublishedURL: URL?
+        let cancellingPublisher = ArchivePublisher(
+            renameExclusive: { _, _, _ in .unsupported },
+            copyExclusive: { source, destination, token in
+                try? Data(contentsOf: source).write(to: destination, options: .withoutOverwriting)
+                cancelledPublishedURL = destination
+                token.cancel()
+                return .success
+            })
+        let cancelledPublishWorker = ArchiveOperationWorker(
+            commandRunner: { _, arguments, _ in
+                guard let outputIndex = arguments.firstIndex(of: "-cf"),
+                      arguments.indices.contains(outputIndex + 1) else {
+                    return BoundedProcessRunner.Result(status: 2, output: Data(), timedOut: false)
+                }
+                try? Data("archive".utf8).write(
+                    to: URL(fileURLWithPath: arguments[outputIndex + 1]))
+                return BoundedProcessRunner.Result(status: 0, output: Data(), timedOut: false)
+            },
+            publisher: cancellingPublisher)
+        let cancelledDuringPublish = cancelledPublishWorker.create(
+            sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: true, token: publishCancellationToken)
+        expect(cancelledDuringPublish == .failure(.cancelled)
+                && cancelledPublishedURL.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+               "cancelling during fallback publication removes the owned result and reports cancellation")
+
+        let racedStage = archiveFailureRoot.appendingPathComponent("race-stage.zip")
+        try? Data("our archive".utf8).write(to: racedStage)
+        var raceAttempts = 0
+        let racedPublisher = ArchivePublisher(renameExclusive: { source, destination, _ in
+            raceAttempts += 1
+            if raceAttempts == 1 {
+                try? Data("racing archive".utf8).write(
+                    to: destination, options: .withoutOverwriting)
+                return .destinationExists
+            }
+            do {
+                try FileManager.default.moveItem(at: source, to: destination)
+                return .success
+            } catch {
+                return .failed
+            }
+        })
+        let racedPublished = try? racedPublisher.publish(
+            racedStage, in: archiveFailureRoot, baseName: "Raced",
+            fileManager: .default, token: CancellationToken())
+        expect(raceAttempts == 2
+                && (try? Data(contentsOf: archiveFailureRoot.appendingPathComponent("Raced.zip")))
+                    == Data("racing archive".utf8)
+                && racedPublished?.lastPathComponent == "Raced 2.zip"
+                && racedPublished.flatMap { try? Data(contentsOf: $0) } == Data("our archive".utf8),
+               "a publication collision that appears after naming retries without overwriting it")
 
         let archiveRoundTripRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-archive-roundtrip-\(UUID().uuidString)", isDirectory: true)
@@ -11116,7 +11171,7 @@ struct MetricsTests {
                     && !excludedListing.contains(".DS_Store")
                     && excludedListing.contains("Payload/Nested/.hidden")
                     && excludedListing.contains("Other/other.txt"),
-                   "real ZIP creation preserves .DS_Store by default, excludes only it on request, and keeps multiple roots")
+                   "real ZIP creation supports both .DS_Store policies and keeps multiple roots")
             expect(verboseListing.split(separator: "\n").contains { line in
                 line.first == "l" && line.contains("Payload/Nested/outside-link")
             }, "a symlink outside the selected roots is archived as a link instead of followed")
@@ -11127,6 +11182,15 @@ struct MetricsTests {
                     && FileManager.default.fileExists(atPath: preservedURL.path)
                     && FileManager.default.fileExists(atPath: excludedURL.path),
                    "a second archive publishes under a collision-free name without replacing the first")
+            expect((try? Data(contentsOf: archiveNested.appendingPathComponent("file.txt")))
+                        == Data("visible".utf8)
+                    && (try? Data(contentsOf: archiveNested.appendingPathComponent(".hidden")))
+                        == Data("hidden".utf8)
+                    && (try? Data(contentsOf: secondSource.appendingPathComponent("other.txt")))
+                        == Data("other".utf8)
+                    && FileManager.default.fileExists(
+                        atPath: archiveNested.appendingPathComponent("outside-link").path),
+                   "archive creation preserves the selected source tree and its contents")
         } else {
             expect(false, "real system ZIP creation succeeds for multiple roots and both metadata policies")
         }
