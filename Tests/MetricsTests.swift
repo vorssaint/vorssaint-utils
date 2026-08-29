@@ -2001,6 +2001,36 @@ struct MetricsTests {
                && !SpaceHopSupport.isOnFullscreenSpace(windowSpaces: [4], fullscreenSpaces: [8])
                && !SpaceHopSupport.isOnFullscreenSpace(windowSpaces: [], fullscreenSpaces: [8]),
                "App Switcher identifies fullscreen from Space type instead of window size")
+        expect(!SpaceHopSupport.shouldSkipStaleSurfaceVeto(hasNoWindowsForOwner: false, hadAttributeReadFailure: false),
+               "a clean pass that found at least one window is a real vouch - the veto still applies")
+        expect(SpaceHopSupport.shouldSkipStaleSurfaceVeto(hasNoWindowsForOwner: true, hadAttributeReadFailure: false),
+               "an owner with zero windows and no read failures is the original #339 forgiveness case")
+        expect(SpaceHopSupport.shouldSkipStaleSurfaceVeto(hasNoWindowsForOwner: false, hadAttributeReadFailure: true),
+               "a read failure skips the veto even when other windows for the same owner were found - the exact Dock Preview regression this guards against, where a busier hover pattern hits the 0.35s per-window AX timeout more often than the App Switcher's one-shot enumeration")
+        expect(SpaceHopSupport.shouldSkipStaleSurfaceVeto(hasNoWindowsForOwner: true, hadAttributeReadFailure: true),
+               "zero windows and a read failure together still skip the veto")
+        // WindowEnumerator's hidden-Space veto must route the owner-vouch
+        // decision through shouldSkipStaleSurfaceVeto, not the bare
+        // `axSnapshot?.ordered.isEmpty` it wraps - reverting that one call
+        // site back to the bare check silently reopens the Dock Preview
+        // ghost/hidden-window regression this test file guards against.
+        let enumeratorSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+            encoding: .utf8)) ?? ""
+        expect(enumeratorSource.contains("SpaceHopSupport.shouldSkipStaleSurfaceVeto("),
+               "the hidden-Space veto's owner-vouch check routes through shouldSkipStaleSurfaceVeto")
+        // The owner-vouch decision is only as complete as every reader that
+        // feeds `hadAttributeReadFailure`. A timed-out window-id resolve or
+        // frame read is just as silent a drop as the bool/string readers -
+        // both must set the flag too, or a real window whose id/frame read
+        // timed out (as opposed to a bool/string attribute) still gets
+        // vetoed with no visible difference from before this fix.
+        expect(enumeratorSource.contains("idAttr.timedOut { hadAttributeReadFailure = true }"),
+               "a timed-out AXWindowResolver window-id resolve in the snapshot loop must mark hadAttributeReadFailure, not just get silently dropped from ordered/byID")
+        expect(enumeratorSource.contains("frameAttr.timedOut { hadAttributeReadFailure = true }"),
+               "a timed-out accessibilityFrame read in the snapshot loop must mark hadAttributeReadFailure")
+        expect(enumeratorSource.contains("frameAttr.timedOut { hadReadFailure = true }"),
+               "a timed-out accessibilityFrame read inside isUserFacingWindow's fillsScreen check must mark hadReadFailure too")
         expect(SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: 1 << 18),
                "a window-server surface marked to ignore cycling is excluded from the switcher")
         expect(!SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: (1 << 19) | (1 << 22)),

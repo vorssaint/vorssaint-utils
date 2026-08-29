@@ -45,6 +45,18 @@ enum SpaceHopSupport {
         windowSpaces.contains { fullscreenSpaces.contains($0) }
     }
 
+    /// Whether the hidden-Space stale-surface veto should be skipped for this
+    /// owner: either it genuinely reported zero windows (the original #339
+    /// forgiveness case, and the most complete a vouch can be), or a
+    /// per-window Accessibility read failed partway through this pass (the
+    /// 0.35s messaging timeout can drop one real window out of the results
+    /// while its siblings still answer) — that window's true answer was
+    /// simply never obtained, not proven absent, so this incomplete pass
+    /// does not get to veto a window it is missing.
+    static func shouldSkipStaleSurfaceVeto(hasNoWindowsForOwner: Bool, hadAttributeReadFailure: Bool) -> Bool {
+        hasNoWindowsForOwner || hadAttributeReadFailure
+    }
+
     /// The window server marks surfaces that must stay out of app window
     /// cycling. This remains meaningful when Accessibility cannot inspect a
     /// window because it lives on another Space.

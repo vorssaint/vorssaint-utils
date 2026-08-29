@@ -13,8 +13,18 @@ private func _AXUIElementGetWindow(_ element: AXUIElement,
 
 enum AXWindowResolver {
     static func windowID(for element: AXUIElement) -> CGWindowID? {
+        readWindowID(for: element).id
+    }
+
+    /// Same lookup as `windowID(for:)`, but reports whether the read hit its
+    /// messaging timeout instead of collapsing that into the same `nil` as
+    /// "this element genuinely has no window id" — a caller deciding whether
+    /// a missing id proves a window does not exist needs to tell those two
+    /// apart.
+    static func readWindowID(for element: AXUIElement) -> (id: CGWindowID?, timedOut: Bool) {
         var id: CGWindowID = 0
-        guard _AXUIElementGetWindow(element, &id) == .success, id != 0 else { return nil }
-        return id
+        let error = _AXUIElementGetWindow(element, &id)
+        guard error == .success, id != 0 else { return (nil, error == .cannotComplete) }
+        return (id, false)
     }
 }

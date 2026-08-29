@@ -273,10 +273,16 @@ enum WindowEnumerator {
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
             // A stale dialog can keep an old ordinary-Space tag indefinitely.
             // Trust an unmatched hidden surface only when Accessibility could
-            // not describe any window for that owner, or when the window
-            // server puts this exact surface on a native fullscreen Space.
+            // not describe any window for that owner (and that pass was not
+            // itself cut short by a per-window read timeout — an incomplete
+            // pass does not get to vouch for a window it is missing), or when
+            // the window server puts this exact surface on a native
+            // fullscreen Space.
+            let staleSurfaceVetoShouldBeSkipped = SpaceHopSupport.shouldSkipStaleSurfaceVeto(
+                hasNoWindowsForOwner: axSnapshot?.ordered.isEmpty ?? true,
+                hadAttributeReadFailure: axSnapshot?.hadAttributeReadFailure ?? false)
             let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
-                && ((axSnapshot?.ordered.isEmpty ?? true)
+                && (staleSurfaceVetoShouldBeSkipped
                     || isOnFullscreenSpace(CGWindowID(windowID)))
             if axSnapshot != nil, axWindow == nil {
                 // WindowServer kept a surface Accessibility does not vouch for:
@@ -445,6 +451,13 @@ enum WindowEnumerator {
     private struct AccessibilityWindowSnapshotList {
         let ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)]
         let byID: [CGWindowID: AccessibilityWindowSnapshot]
+        /// True when at least one of this owner's windows hit the 0.35s
+        /// per-window AX messaging timeout during this pass. A window that
+        /// times out is silently absent from `byID` just like a window that
+        /// genuinely does not exist, so callers deciding whether an absence
+        /// means "AX vouches this owner has nothing else" must also check
+        /// this flag — an incomplete read is not a vouch.
+        let hadAttributeReadFailure: Bool
     }
 
     private static func accessibilityWindows(for pids: Set<pid_t>,
@@ -509,13 +522,15 @@ enum WindowEnumerator {
         let windowsResult = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value)
         // Not responding: skip the remaining calls, each would block again.
         guard windowsResult != .cannotComplete else { return nil }
+        var hadAttributeReadFailure = false
         if windowsResult == .success, let windows = value as? [AXUIElement] {
             for window in windows {
                 AXUIElementSetMessagingTimeout(window, 0.35)
                 if isUserFacingWindow(window,
                                       bundleIdentifier: bundleIdentifier,
                                       acceptsUndescribedSubroles: acceptsUndescribedSubroles,
-                                      screenFrames: screenFrames) {
+                                      screenFrames: screenFrames,
+                                      hadReadFailure: &hadAttributeReadFailure) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -526,7 +541,8 @@ enum WindowEnumerator {
                 if isUserFacingWindow(window,
                                       bundleIdentifier: bundleIdentifier,
                                       acceptsUndescribedSubroles: acceptsUndescribedSubroles,
-                                      screenFrames: screenFrames) {
+                                      screenFrames: screenFrames,
+                                      hadReadFailure: &hadAttributeReadFailure) {
                     appendUnique(window, to: &axWindows)
                 }
             }
@@ -535,12 +551,18 @@ enum WindowEnumerator {
         var byID: [CGWindowID: AccessibilityWindowSnapshot] = [:]
         var ordered: [(id: CGWindowID, snapshot: AccessibilityWindowSnapshot)] = []
         for window in axWindows {
-            if let id = AXWindowResolver.windowID(for: window) {
-                let frame = accessibilityFrame(for: window)
+            let idAttr = AXWindowResolver.readWindowID(for: window)
+            if idAttr.timedOut { hadAttributeReadFailure = true }
+            if let id = idAttr.id {
+                let frameAttr = accessibilityFrame(for: window)
+                if frameAttr.timedOut { hadAttributeReadFailure = true }
+                let frame = frameAttr.frame
+                let isMinimizedAttr = readBoolAttribute(window, kAXMinimizedAttribute as String)
+                if isMinimizedAttr.timedOut { hadAttributeReadFailure = true }
                 let snapshot = AccessibilityWindowSnapshot(title: accessibilityTitle(for: window),
                                                            frame: frame,
-                                                           isMinimized: boolAttribute(window, kAXMinimizedAttribute as String),
-                                                           isFullscreen: isFullscreenWindow(window)
+                                                           isMinimized: isMinimizedAttr.value ?? false,
+                                                           isFullscreen: isFullscreenWindow(window, hadReadFailure: &hadAttributeReadFailure)
                                                             || frameLooksFullscreen(frame,
                                                                                     screenFrames: screenFrames))
                 byID[id] = snapshot
@@ -555,12 +577,14 @@ enum WindowEnumerator {
         if axWindows.isEmpty {
             return acceptsUndescribedSubroles
                 ? nil
-                : AccessibilityWindowSnapshotList(ordered: ordered, byID: byID)
+                : AccessibilityWindowSnapshotList(ordered: ordered, byID: byID,
+                                                  hadAttributeReadFailure: hadAttributeReadFailure)
         }
         // If an app reports AX windows but none resolve to WindowServer ids,
         // keep the old behavior instead of hiding a real window for that app.
         if !ordered.isEmpty {
-            return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID)
+            return AccessibilityWindowSnapshotList(ordered: ordered, byID: byID,
+                                                  hadAttributeReadFailure: hadAttributeReadFailure)
         }
         return nil
     }
@@ -622,23 +646,30 @@ enum WindowEnumerator {
         return value as? String ?? ""
     }
 
-    private static func accessibilityFrame(for window: AXUIElement) -> CGRect? {
+    /// Reports whether either attribute read hit its messaging timeout, same
+    /// reason as `readStringAttribute`/`readBoolAttribute`: a caller deciding
+    /// whether an absent frame means "AX has nothing to say" needs to tell
+    /// that apart from "AX never answered in time".
+    private static func accessibilityFrame(for window: AXUIElement) -> (frame: CGRect?, timedOut: Bool) {
         var positionValue: CFTypeRef?
         var sizeValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
-              AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+        let positionResult = AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue)
+        let sizeResult = AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue)
+        let timedOut = positionResult == .cannotComplete || sizeResult == .cannotComplete
+        guard positionResult == .success,
+              sizeResult == .success,
               let positionValue,
               let sizeValue,
               CFGetTypeID(positionValue) == AXValueGetTypeID(),
               CFGetTypeID(sizeValue) == AXValueGetTypeID()
-        else { return nil }
+        else { return (nil, timedOut) }
 
         var position = CGPoint.zero
         var size = CGSize.zero
         guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
               AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
-        else { return nil }
-        return CGRect(origin: position, size: size)
+        else { return (nil, timedOut) }
+        return (CGRect(origin: position, size: size), timedOut)
     }
 
     private static func frameIsSwitchable(_ frame: CGRect) -> Bool {
@@ -667,20 +698,32 @@ enum WindowEnumerator {
     private static func isUserFacingWindow(_ window: AXUIElement,
                                            bundleIdentifier: String? = nil,
                                            acceptsUndescribedSubroles: Bool = false,
-                                           screenFrames: [CGRect]) -> Bool {
-        if isFullscreenWindow(window) { return true }
-        if boolAttribute(window, kAXMinimizedAttribute as String),
-           stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String) {
-            return true
+                                           screenFrames: [CGRect],
+                                           hadReadFailure: inout Bool) -> Bool {
+        if isFullscreenWindow(window, hadReadFailure: &hadReadFailure) { return true }
+        let minimizedAttr = readBoolAttribute(window, kAXMinimizedAttribute as String)
+        if minimizedAttr.timedOut { hadReadFailure = true }
+        if minimizedAttr.value == true {
+            let roleAttr = readStringAttribute(window, kAXRoleAttribute as String)
+            if roleAttr.timedOut { hadReadFailure = true }
+            if roleAttr.value == (kAXWindowRole as String) {
+                return true
+            }
         }
-        if let subrole = stringAttribute(window, kAXSubroleAttribute as String) {
+        let subroleAttr = readStringAttribute(window, kAXSubroleAttribute as String)
+        if subroleAttr.timedOut { hadReadFailure = true }
+        if let subrole = subroleAttr.value {
             if subrole == "AXStandardWindow" || subrole == "AXFullScreenWindow" { return true }
             if SwitcherSupport.isSupportedMediaFloatingWindow(bundleIdentifier: bundleIdentifier,
                                                               subrole: subrole) { return true }
-            let role = stringAttribute(window, kAXRoleAttribute as String)
+            let roleAttr = readStringAttribute(window, kAXRoleAttribute as String)
+            if roleAttr.timedOut { hadReadFailure = true }
+            let role = roleAttr.value
             let canBePlaybackSurface = subrole == "AXUnknown" || subrole == "AXFloatingWindow"
+            let frameAttr = accessibilityFrame(for: window)
+            if frameAttr.timedOut { hadReadFailure = true }
             let fillsScreen = canBePlaybackSurface
-                && frameLooksFullscreen(accessibilityFrame(for: window), screenFrames: screenFrames)
+                && frameLooksFullscreen(frameAttr.frame, screenFrames: screenFrames)
             // Compatibility-layer processes draw their own window chrome on
             // borderless surfaces, which Accessibility reports as AXUnknown;
             // for them the window role is the real signal.
@@ -692,12 +735,18 @@ enum WindowEnumerator {
                 fillsScreen: fillsScreen,
                 acceptsUndescribedSubroles: acceptsUndescribedSubroles)
         }
-        return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"
+        let finalRoleAttr = readStringAttribute(window, kAXRoleAttribute as String)
+        if finalRoleAttr.timedOut { hadReadFailure = true }
+        return finalRoleAttr.value == "AXWindow"
     }
 
-    private static func isFullscreenWindow(_ window: AXUIElement) -> Bool {
-        if boolAttribute(window, "AXFullScreen") { return true }
-        return stringAttribute(window, kAXSubroleAttribute as String) == "AXFullScreenWindow"
+    private static func isFullscreenWindow(_ window: AXUIElement, hadReadFailure: inout Bool) -> Bool {
+        let fullscreenAttr = readBoolAttribute(window, "AXFullScreen")
+        if fullscreenAttr.timedOut { hadReadFailure = true }
+        if fullscreenAttr.value == true { return true }
+        let subroleAttr = readStringAttribute(window, kAXSubroleAttribute as String)
+        if subroleAttr.timedOut { hadReadFailure = true }
+        return subroleAttr.value == "AXFullScreenWindow"
     }
 
     private static func appendUnique(_ window: AXUIElement, to windows: inout [AXUIElement]) {
@@ -714,21 +763,29 @@ enum WindowEnumerator {
         return (value as! AXUIElement)
     }
 
-    private static func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
+    /// A messaging timeout (`AXUIElementSetMessagingTimeout`) makes
+    /// `AXUIElementCopyAttributeValue` return `.cannotComplete` rather than
+    /// hang, but that error looks identical to "this attribute legitimately
+    /// has no value" unless the caller checks for it specifically. Callers
+    /// that need to tell "AX answered false/absent" apart from "AX never
+    /// answered" read `timedOut` instead of collapsing both into `nil`/`false`.
+    private static func readStringAttribute(_ element: AXUIElement,
+                                             _ attribute: String) -> (value: String?, timedOut: Bool) {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value else { return nil }
-        return value as? String
+        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        guard error == .success, let value else { return (nil, error == .cannotComplete) }
+        return (value as? String, false)
     }
 
-    private static func boolAttribute(_ element: AXUIElement, _ attribute: String) -> Bool {
+    private static func readBoolAttribute(_ element: AXUIElement,
+                                          _ attribute: String) -> (value: Bool?, timedOut: Bool) {
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
-              let value else { return false }
+        let error = AXUIElementCopyAttributeValue(element, attribute as CFString, &value)
+        guard error == .success, let value else { return (nil, error == .cannotComplete) }
         guard CFGetTypeID(value) == CFBooleanGetTypeID() else {
-            return (value as? Bool) ?? false
+            return (value as? Bool, false)
         }
-        return CFBooleanGetValue((value as! CFBoolean))
+        return (CFBooleanGetValue((value as! CFBoolean)), false)
     }
 
     /// Adds the apps that are running with no window to switch to, so the list
