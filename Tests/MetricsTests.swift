@@ -15205,19 +15205,29 @@ struct MetricsTests {
             guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
                                            encoding: .utf8) else { continue }
             let lines = source.components(separatedBy: "\n")
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            func isComment(_ line: String) -> Bool {
+                line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+            }
             var systemWideNames: Set<String> = []
-            for line in lines {
+            for line in lines where !isComment(line) {
+                // The name is whatever the declaration binds, which is the last
+                // word before the `=` and before any type annotation: both
+                // `let system = …` and `let system: AXUIElement = …` bind
+                // `system`, and a rule that reads the second one as
+                // `AXUIElement` is walked past by an ordinary spelling.
                 guard line.contains("= AXUIElementCreateSystemWide()"),
                       let name = line.components(separatedBy: "=").first?
+                          .components(separatedBy: ":").first?
                           .components(separatedBy: .whitespaces)
                           .last(where: { !$0.isEmpty })
                 else { continue }
                 systemWideNames.insert(name)
             }
-            for (index, line) in lines.enumerated()
-            where line.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()")
-                || systemWideNames.contains(where: { line.contains("AXUIElementSetMessagingTimeout(\($0)") }) {
+            // Enumerated unfiltered, so the line number reported is the line in
+            // the file rather than a position in a filtered copy of it.
+            for (index, line) in lines.enumerated() where !isComment(line)
+                && (line.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()")
+                    || systemWideNames.contains(where: { line.contains("AXUIElementSetMessagingTimeout(\($0)") })) {
                 systemWideTimeoutWriters.append("\(file):\(index + 1)")
             }
         }
