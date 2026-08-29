@@ -15226,15 +15226,7 @@ struct MetricsTests {
         //
         //   AppDelegate — the deliberate floor, set once at launch, so a path
         //   that caps nothing of its own still waits a bounded time.
-        //
-        //   FinderCutPaste — open. It asks the system-wide element for
-        //   `AXFocusedUIElement`, and asking the frontmost application's
-        //   element instead is not the same question: measured on 26.6.2 the
-        //   system-wide read failed where the application read answered. That
-        //   is a behaviour change and wants its own reasoning, not a rider on
-        //   this one.
-        let allowedSystemWideTimeoutWriters = ["App/AppDelegate.swift",
-                                               "Services/Finder/FinderCutPaste.swift"]
+        let allowedSystemWideTimeoutWriters = ["App/AppDelegate.swift"]
         let unexpectedWriters = systemWideTimeoutWriters.filter { entry in
             !allowedSystemWideTimeoutWriters.contains { entry.hasPrefix($0 + ":") }
         }

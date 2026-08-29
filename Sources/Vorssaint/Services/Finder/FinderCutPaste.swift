@@ -287,9 +287,10 @@ final class FinderCutPaste: ObservableObject {
         let flags = event.flags
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
 
-        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderBundleID,
+        guard let finder = NSWorkspace.shared.frontmostApplication,
+              finder.bundleIdentifier == Self.finderBundleID,
               AXIsProcessTrusted(),
-              !isEditingText()
+              !isEditingText(in: finder.processIdentifier)
         else { return Unmanaged.passUnretained(event) }
 
         switch keyCode {
@@ -425,15 +426,21 @@ final class FinderCutPaste: ObservableObject {
 
     /// True when the keyboard focus is in an editable text control, so cut/copy/
     /// paste shortcuts must be left to the system (e.g. renaming a file).
-    private func isEditingText() -> Bool {
-        let system = AXUIElementCreateSystemWide()
-        // The whole session's typing waits for this tap to answer, and this
-        // question goes to whichever app is in front. A file browser reading a
-        // share that went away is exactly the app that stops answering, so the
-        // wait is kept short enough not to be felt.
-        AXUIElementSetMessagingTimeout(system, 0.15)
+    ///
+    /// Asked of Finder's own element rather than the system-wide one. The whole
+    /// session's typing waits for this tap to answer, and Finder reading a share
+    /// that went away is exactly the app that stops answering, so the wait is
+    /// kept short enough not to be felt — but a timeout written on the
+    /// system-wide object is the process-wide default, and this feature was
+    /// setting it for every other one (#938). The caller has already established
+    /// that Finder is frontmost, and the two questions return the same element:
+    /// measured on 26.6.2 with the file list focused and with the Go to Folder
+    /// field focused, both reads gave the same role.
+    private func isEditingText(in pid: pid_t) -> Bool {
+        let finder = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(finder, 0.15)
         var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, "AXFocusedUIElement" as CFString, &focused) == .success,
+        guard AXUIElementCopyAttributeValue(finder, "AXFocusedUIElement" as CFString, &focused) == .success,
               let focused,
               // Type-check before casting: this runs inside the event tap, so
               // an unexpected CF type must degrade gracefully, never crash.
