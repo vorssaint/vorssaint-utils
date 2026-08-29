@@ -226,6 +226,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "調低後可以看到更多面板後面的內容。",
         dockPreviewOpenDelay: "開啟延遲",
         dockPreviewOpenDelayCaption: "指標停在圖示上多久之後才打開面板。",
+        dockPreviewQuitAppOnClose: "使用 × 按鈕結束 App",
+        dockPreviewQuitAppOnCloseCaption: "在 Dock Preview 中，× 會結束整個 App，而不只是關閉該視窗。",
         dockClickMinimize: "點按 Dock 圖示最小化",
         dockClickMinimizeCaption: "點按最前方 App 的 Dock 圖示可將其視窗最小化。再點按一次即可還原。",
         dockClickCycleWindows: "點按 Dock 圖示切換視窗",
@@ -675,6 +677,8 @@ extension Strings {
         diskSection: "磁碟",
         diskUsed: "已用",
         diskFree: "可用",
+        diskAvailable: "可用",
+        diskPurgeable: "可清除",
         diskInternal: "內建",
         diskExternal: "外接",
         diskSelect: "選擇磁碟",
@@ -908,6 +912,8 @@ extension Strings {
         cleanerNotifOpenSettings: "打開通知設定…",
         launchAtLoginNeedsApplications: "App 正從無法在登入時開啟的位置執行。請將 Vorssaint 拖到「應用程式」檔案夾，從那裡開啟後再重新開啟此選項。",
         launchAtLoginNeedsApproval: "登入項目已註冊，但系統設定中仍是關閉的。請打開「系統設定 › 一般 › 登入項目與延伸功能」，在「登入時打開」中開啟 Vorssaint。",
+        ocrRemoveLineBreaksToggle: "移除換行",
+        ocrRemoveLineBreaksCaption: "移除辨識文字中的換行，讓拷貝的內容貼上為單一段落。",
         ocrQRToggle: "讀取 QR 碼",
         ocrQRCaption: "如果所選區域包含 QR 碼，會顯示它的內容以便拷貝或打開。",
         ocrQRCopied: "QR 碼已拷貝",
@@ -967,6 +973,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "正常順序",
         switcherMinimizedPlacementEnd: "放到最後",
         switcherMinimizedPlacementHidden: "隱藏",
-        switcherShowFullscreenWindows: "顯示全螢幕視窗" 
+        switcherShowFullscreenWindows: "顯示全螢幕視窗",
+        switcherScreenPlacementLabel: "顯示於",
+        switcherScreenPlacementPointer: "指標所在的螢幕",
+        switcherScreenPlacementMenuBar: "選單列所在的螢幕",
+        switcherScreenPlacementActiveWindow: "使用中視窗所在的螢幕",
+        switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。"
     )
 }

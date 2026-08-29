@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Bájalo para ver más de lo que hay detrás del panel.",
         dockPreviewOpenDelay: "Retardo de apertura",
         dockPreviewOpenDelayCaption: "Cuánto tiempo debe reposar el puntero sobre un icono antes de que se abra el panel.",
+        dockPreviewQuitAppOnClose: "Salir de la app con el botón ×",
+        dockPreviewQuitAppOnCloseCaption: "En Dock Preview, × cierra toda la app en lugar de cerrar solo esa ventana.",
         dockClickMinimize: "Clic en el Dock para minimizar",
         dockClickMinimizeCaption: "Las ventanas de la app activa se minimizan al hacer clic en su icono del Dock. Vuelve a hacer clic para recuperarlas.",
         dockClickCycleWindows: "Clic en el Dock para alternar ventanas",
@@ -674,6 +676,8 @@ extension Strings {
         diskSection: "Discos",
         diskUsed: "usado",
         diskFree: "libre",
+        diskAvailable: "disponible",
+        diskPurgeable: "purgable",
         diskInternal: "Interno",
         diskExternal: "Externo",
         diskSelect: "Seleccionar disco",
@@ -907,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Abrir ajustes de notificaciones…",
         launchAtLoginNeedsApplications: "La app se está ejecutando desde un lugar que no permite abrirse al iniciar sesión. Arrastra Vorssaint a la carpeta Aplicaciones, ábrelo desde ahí y actívalo de nuevo.",
         launchAtLoginNeedsApproval: "El ítem de inicio está registrado, pero sigue desactivado en Ajustes del Sistema. Abre Ajustes del Sistema › General › Ítems de inicio y extensiones y activa Vorssaint en «Abrir al iniciar sesión».",
+        ocrRemoveLineBreaksToggle: "Eliminar saltos de línea",
+        ocrRemoveLineBreaksCaption: "Elimina los saltos de línea para que el texto copiado se pegue como un solo párrafo.",
         ocrQRToggle: "Leer códigos QR",
         ocrQRCaption: "Si el área tiene un código QR, se muestra su contenido para copiar o abrir.",
         ocrQRCopied: "Código QR copiado",
@@ -966,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Orden normal",
         switcherMinimizedPlacementEnd: "Colocar al final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa" 
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa",
+        switcherScreenPlacementLabel: "Mostrar en",
+        switcherScreenPlacementPointer: "Pantalla con el puntero",
+        switcherScreenPlacementMenuBar: "Pantalla con la barra de menús",
+        switcherScreenPlacementActiveWindow: "Pantalla con la ventana activa",
+        switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada."
     )
 }

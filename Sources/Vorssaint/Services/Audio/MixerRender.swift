@@ -57,12 +57,35 @@ enum MixerRender {
         return nil
     }
 
+    /// Silences every output frame from `frame` on.
+    ///
+    /// The output buffer is handed over dirty: it holds whatever CoreAudio
+    /// last put in that memory. Frames the tap cannot fill — the tail of a
+    /// buffer longer than the tap's, or the whole buffer on a cycle with no
+    /// tap to read — used to be left as they were found and played back as a
+    /// fragment of older audio (issue #326). Silence is the right content for
+    /// a frame with no samples behind it.
+    static func silence(_ output: UnsafeMutableAudioBufferListPointer, from frame: Int = 0) {
+        for buffer in output {
+            let channels = Int(buffer.mNumberChannels)
+            guard channels > 0,
+                  let destination = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+            let unwritten = frames(bytes: buffer.mDataByteSize,
+                                   channels: buffer.mNumberChannels) - frame
+            guard unwritten > 0 else { continue }
+            vDSP_vclr(destination + frame * channels, 1, vDSP_Length(unwritten * channels))
+        }
+    }
+
     /// Renders one interleaved source buffer onto the output, scaled by
-    /// `gain`, and answers how many frames it wrote.
+    /// `gain`, and answers how many frames it wrote. Whatever it does not
+    /// write it silences, so the caller never has to think about the tail.
     @discardableResult
     static func render(source: AudioBuffer,
                        into output: UnsafeMutableAudioBufferListPointer,
                        gain: Float) -> Int {
+        var written = 0
+        defer { silence(output, from: written) }
         let sourceChannels = Int(source.mNumberChannels)
         guard sourceChannels > 0,
               let samples = source.mData?.assumingMemoryBound(to: Float.self) else { return 0 }
@@ -85,7 +108,8 @@ enum MixerRender {
         if output.count == 1, Int(output[0].mNumberChannels) == sourceChannels,
            let destination = output[0].mData?.assumingMemoryBound(to: Float.self) {
             vDSP_vsmul(samples, 1, &gain, destination, 1, vDSP_Length(frames * sourceChannels))
-            return frames
+            written = frames
+            return written
         }
 
         // One channel to play with: fold the source into it instead of
@@ -100,7 +124,8 @@ enum MixerRender {
                 vDSP_vsma(samples + channel, vDSP_Stride(sourceChannels), &scale,
                           destination, 1, destination, 1, vDSP_Length(frames))
             }
-            return frames
+            written = frames
+            return written
         }
 
         var firstOutputChannel = 0
@@ -121,6 +146,7 @@ enum MixerRender {
                            destination + channel, vDSP_Stride(channels), vDSP_Length(frames))
             }
         }
-        return didWriteSourceChannel ? frames : 0
+        written = didWriteSourceChannel ? frames : 0
+        return written
     }
 }

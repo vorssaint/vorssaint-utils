@@ -141,6 +141,7 @@ struct ScreenshotFeatureStrings {
     let editClipboardImage: String
     let clipboardImageMissing: String
     let screenCaptureTitle: String
+    let dragOutHandleLabel: String
 }
 
 extension FeatureStrings {
@@ -300,7 +301,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Allow temporary links",
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
-        screenCaptureTitle: "Screen capture"
+        screenCaptureTitle: "Screen capture",
+        dragOutHandleLabel: "Drag and drop"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -439,7 +441,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir links temporários",
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
-        screenCaptureTitle: "Ferramentas de captura"
+        screenCaptureTitle: "Ferramentas de captura",
+        dragOutHandleLabel: "Arraste e solte"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -578,7 +581,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Geçici bağlantılara izin ver",
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
-        screenCaptureTitle: "Ekran yakalama"
+        screenCaptureTitle: "Ekran yakalama",
+        dragOutHandleLabel: "Sürükle ve bırak"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -717,7 +721,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Разрешить временные ссылки",
         editClipboardImage: "Редактировать изображение из буфера",
         clipboardImageMissing: "Сначала скопируйте изображение",
-        screenCaptureTitle: "Захват экрана"
+        screenCaptureTitle: "Захват экрана",
+        dragOutHandleLabel: "Перетащить"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -856,7 +861,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir enlaces temporales",
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
-        screenCaptureTitle: "Herramientas de captura"
+        screenCaptureTitle: "Herramientas de captura",
+        dragOutHandleLabel: "Arrastrar y soltar"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -995,7 +1001,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Temporäre Links erlauben",
         editClipboardImage: "Kopiertes Bild bearbeiten",
         clipboardImageMissing: "Kopiere zuerst ein Bild",
-        screenCaptureTitle: "Bildschirm erfassen"
+        screenCaptureTitle: "Bildschirm erfassen",
+        dragOutHandleLabel: "Ziehen und ablegen"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1134,7 +1141,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Autoriser les liens temporaires",
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
-        screenCaptureTitle: "Outils de capture"
+        screenCaptureTitle: "Outils de capture",
+        dragOutHandleLabel: "Glisser-déposer"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1273,7 +1281,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Consenti link temporanei",
         editClipboardImage: "Modifica immagine copiata",
         clipboardImageMissing: "Copia prima un'immagine",
-        screenCaptureTitle: "Acquisizione schermo"
+        screenCaptureTitle: "Acquisizione schermo",
+        dragOutHandleLabel: "Trascina e rilascia"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1412,7 +1421,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "一時リンクを許可",
         editClipboardImage: "コピーした画像を編集",
         clipboardImageMissing: "先に画像をコピーしてください",
-        screenCaptureTitle: "画面キャプチャ"
+        screenCaptureTitle: "画面キャプチャ",
+        dragOutHandleLabel: "ドラッグ＆ドロップ"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1551,7 +1561,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "임시 링크 허용",
         editClipboardImage: "복사한 이미지 편집",
         clipboardImageMissing: "먼저 이미지를 복사하세요",
-        screenCaptureTitle: "화면 캡처"
+        screenCaptureTitle: "화면 캡처",
+        dragOutHandleLabel: "드래그 앤 드롭"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1638,8 +1649,8 @@ extension ScreenshotFeatureStrings {
         backdropCustomLabel: "自定义",
         openEditorToggle: "截取后立即打开编辑器",
         openEditorCaption: "截屏会跳过浮动预览，直接打开即可开始标注。",
-        autoCopyToggle: "自动复制到剪贴板",
-        autoCopyCaption: "每次截屏后会立即进入剪贴板，随时可以粘贴。是否保存为文件仍是单独的选择。",
+        autoCopyToggle: "自动拷贝到剪贴板",
+        autoCopyCaption: "每次截屏后会立即进入剪贴板，随时可以粘贴。是否存储为文件仍是单独的选择。",
         hintLoupe: "按 Z 切换放大镜",
         lastRegionToggle: "显示上次截屏区域轮廓",
         backdropBlurLabel: "模糊",
@@ -1661,7 +1672,7 @@ extension ScreenshotFeatureStrings {
         shareSixHours: "保留 6 小时",
         shareTwentyFourHours: "保留 24 小时",
         sharingHUD: "正在创建链接…",
-        sharedHUD: "链接已复制",
+        sharedHUD: "链接已拷贝",
         shareFailedHUD: "无法创建链接",
         sharedLinksTitle: "已分享的链接",
         sharedLinksEmpty: "没有有效链接",
@@ -1670,7 +1681,7 @@ extension ScreenshotFeatureStrings {
         linkDeletedHUD: "链接已删除",
         deleteFailedHUD: "无法删除链接",
         openLink: "打开",
-        copyLink: "复制链接",
+        copyLink: "拷贝链接",
         done: "完成",
         sharePrivacyButton: "隐私",
         sharePrivacyTitle: "临时链接隐私",
@@ -1688,9 +1699,10 @@ extension ScreenshotFeatureStrings {
         previewPositionBottomRight: "右下角",
         hideVorssaintWindowsToggle: "隐藏 Vorssaint 窗口",
         shareEnabledToggle: "允许临时链接",
-        editClipboardImage: "编辑已复制的图像",
-        clipboardImageMissing: "请先复制一张图像",
-        screenCaptureTitle: "屏幕捕捉"
+        editClipboardImage: "编辑已拷贝的图像",
+        clipboardImageMissing: "请先拷贝一张图像",
+        screenCaptureTitle: "屏幕捕捉",
+        dragOutHandleLabel: "拖放"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1829,7 +1841,8 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
-        screenCaptureTitle: "螢幕擷取"
+        screenCaptureTitle: "螢幕擷取",
+        dragOutHandleLabel: "拖放"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1968,6 +1981,7 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
-        screenCaptureTitle: "螢幕擷取"
+        screenCaptureTitle: "螢幕擷取",
+        dragOutHandleLabel: "拖放"
     )
 }

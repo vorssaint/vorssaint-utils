@@ -282,7 +282,8 @@ struct FanControlCardContent: View {
         switch error {
         case .alreadyControlled: return strings.alreadyControlled
         case .unsupportedHardware: return strings.unsupported
-        case .helperUnavailable, .controlFailed: return strings.failed
+        case .helperUnavailable: return strings.helperUnavailable
+        case .controlFailed: return strings.failed
         case .authorizationRequired: return strings.approvalCaption
         case .noFans, .none: break
         }

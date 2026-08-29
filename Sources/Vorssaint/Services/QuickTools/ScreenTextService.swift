@@ -54,10 +54,12 @@ final class ScreenTextService: ObservableObject {
     private func recognize(_ image: CGImage) {
         let generation = recognitionGeneration
         let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
+        let removeLineBreaks = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
         let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let outcome = ScreenTextService.outcome(for: image,
                                                     detectQRCodes: detectQRCodes,
+                                                    removeLineBreaks: removeLineBreaks,
                                                     fallbackLanguages: fallbackLanguages)
             DispatchQueue.main.async { [weak self] in
                 guard self?.recognitionGeneration == generation else { return }
@@ -83,6 +85,7 @@ final class ScreenTextService: ObservableObject {
     /// to exercise directly on a known image.
     static func outcome(for image: CGImage,
                         detectQRCodes: Bool,
+                        removeLineBreaks: Bool,
                         fallbackLanguages: [String] = ["en-US"]) -> Outcome {
         if detectQRCodes, let reading = BarcodeDetector.read(image) {
             return .qr(reading)
@@ -100,7 +103,8 @@ final class ScreenTextService: ObservableObject {
                                     automaticallyDetectLanguage: false,
                                     preferredLanguages: fallbackLanguages)
         }
-        let text = QuickToolsSupport.joinedRecognizedText(lines)
+        let text = QuickToolsSupport.joinedRecognizedText(lines,
+                                                         removingLineBreaks: removeLineBreaks)
         return text.isEmpty ? .empty : .text(text)
     }
 

@@ -202,17 +202,17 @@ extension DiskImageInstallerStrings {
 
     static let zhHans = DiskImageInstallerStrings(
         title: "磁盘映像安装器",
-        hubDescription: "安装磁盘映像中的唯一应用，并清理下载文件",
-        promptTitle: "安装此应用？",
-        promptBodyFormat: "%@ 将复制到“应用程序”。随后会推出磁盘映像，并将下载文件移到废纸篓。",
+        hubDescription: "安装磁盘映像中的唯一 App，并清理下载文件",
+        promptTitle: "安装此 App？",
+        promptBodyFormat: "%@ 将拷贝到“应用程序”。随后会推出磁盘映像，并将下载文件移到废纸篓。",
         installButton: "安装",
-        installedTitle: "应用已安装",
+        installedTitle: "App 已安装",
         installedBodyFormat: "%@ 已在“应用程序”中就绪。磁盘映像已推出，下载文件已移到废纸篓。",
         installedKeepingMountBodyFormat: "%@ 已安装，但无法推出磁盘映像。下载文件已保留。",
         installedKeepingDownloadBodyFormat: "%@ 已安装且磁盘映像已推出，但无法将下载文件移到废纸篓。",
         failedTitle: "无法安装",
-        failedBody: "没有更改任何内容。你仍可将应用拖到“应用程序”中。",
-        verificationFailedBody: "这台 Mac 无法验证该应用，因此没有安装。",
+        failedBody: "没有更改任何内容。你仍可将 App 拖到“应用程序”中。",
+        verificationFailedBody: "这台 Mac 无法验证该 App，因此没有安装。",
         alreadyInstalledBodyFormat: "%@ 已在“应用程序”中。"
     )
 

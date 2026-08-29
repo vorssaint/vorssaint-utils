@@ -1173,31 +1173,31 @@ struct ScreenshotEditorView: View {
         return "\(width) × \(height) px\(retina)"
     }
 
-    /// A draggable thumbnail that exports the flattened PNG.
+    /// A draggable control that exports the flattened PNG. Lives in infoChip
+    /// (bottom row), not the top toolbar — that region overlaps the
+    /// window's real system title bar, where no subview-level override
+    /// can reliably stop AppKit from treating a click as "move the
+    /// window."
     private var dragOutHandle: some View {
-        Image(nsImage: NSImage(cgImage: model.baseImage,
-                               size: NSSize(width: 22, height: 22 * model.imageSize.height
-                                                / max(model.imageSize.width, 1))))
-            .resizable()
-            .aspectRatio(contentMode: .fit)
+        Label(strings.dragOutHandleLabel, systemImage: "arrow.up.doc")
+            .labelStyle(.iconOnly)
+            .font(.system(size: 11, weight: .medium))
             .frame(width: 26, height: 18)
-            .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.2), lineWidth: 1)
-            )
+            .contentShape(Rectangle())
             .onDrag {
                 commitEditingTextIfNeeded()
                 guard let image = model.exportImage(),
-                      let provider = ScreenshotService.dragItemProvider(image: image,
-                                                                        strings: strings)
+                      let provider = ScreenshotService.dragItemProvider(
+                          image: image,
+                          strings: strings
+                      )
                 else { return NSItemProvider() }
                 model.markExported()
                 return provider
             }
-            .screenshotSafeHelp(strings.editorTitle)
+            .screenshotSafeHelp(strings.dragOutHandleLabel)
+            .accessibilityLabel(strings.dragOutHandleLabel)
     }
-
 }
 
 private struct ScreenshotEditorSharedLinkView: View {

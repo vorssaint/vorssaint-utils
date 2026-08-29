@@ -1891,8 +1891,15 @@ private final class TapGainEngine: GainEngine {
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
             guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers,
-                                                            tapChannels: tapChannels) else { return }
+                                                            tapChannels: tapChannels) else {
+                // No samples to put in the buffer is not a reason to leave it:
+                // whatever the HAL left there plays otherwise (issue #326).
+                MixerRender.silence(outputBuffers)
+                return
+            }
             let gain = box.value
+            // `render` silences whatever it does not fill, so every path from
+            // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
                                             gain: gain)
@@ -1947,11 +1954,23 @@ private final class TapGainEngine: GainEngine {
     /// arrived on. Serial, so two changes in a row cannot land out of order.
     private static let rateQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.rate",
                                                  qos: .userInitiated)
-    /// A broken HAL path can park inside teardown. Cleanup stays serialized so
-    /// repeated failures cannot accumulate blocked worker threads; every IO
-    /// proc is already stopped before it reaches this queue.
-    private static let teardownQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.teardown",
-                                                     qos: .utility)
+    /// How many teardowns may sit in the HAL at once. Operations past the
+    /// bound wait in the queue holding no thread, so however often a wedged
+    /// HAL parks a destroy, the shared pool loses at most this many workers
+    /// (issue #971).
+    private static let maximumConcurrentTeardowns = 4
+    /// A broken HAL path can park inside teardown — `AudioHardwareDestroyProcessTap`
+    /// on a wedged tap is the one that does it. Serialized, that one call left
+    /// every later engine's aggregate and tap alive behind it, for as long as
+    /// the app ran. Overlapping them lets the rest through, under the bound
+    /// above so the parked ones cannot take the thread pool with them.
+    private static let teardownQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.name = "com.vorssaint.utils.mixer.teardown"
+        queue.qualityOfService = .utility
+        queue.maxConcurrentOperationCount = maximumConcurrentTeardowns
+        return queue
+    }()
 
     /// The smallest possible answer, for the same reason as the mixer's own
     /// callback above: the system decides which thread this arrives on and it
@@ -2036,7 +2055,7 @@ private final class TapGainEngine: GainEngine {
             AudioDeviceStop(aggregateID, ioProc)
         }
 
-        Self.teardownQueue.async {
+        Self.teardownQueue.addOperation {
             if let listenerClient {
                 var mayReleaseListener = aggregateID == 0
                 if aggregateID != 0 {
