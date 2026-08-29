@@ -6,7 +6,7 @@ import Darwin
 import Foundation
 
 struct ArchivePublisher {
-    enum Attempt {
+    enum Attempt: Equatable {
         case success
         case destinationExists
         case unsupported
@@ -78,11 +78,11 @@ struct ArchivePublisher {
             }
         }
         guard result != 0 else { return .success }
-        switch errno {
-        case EEXIST: return .destinationExists
-        case ENOTSUP, EXDEV: return .unsupported
-        default: return .failed
-        }
+        return renameFailureAttempt(for: errno)
+    }
+
+    static func renameFailureAttempt(for errorNumber: Int32) -> Attempt {
+        errorNumber == EEXIST ? .destinationExists : .unsupported
     }
 
     private static func systemCopyExclusive(_ sourceURL: URL,

@@ -11659,6 +11659,12 @@ struct MetricsTests {
                 && cancelledArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
                "a cancelled archive creation reports cancellation and removes partial output")
 
+        expect(ArchivePublisher.renameFailureAttempt(for: EEXIST) == .destinationExists,
+               "an exclusive rename collision retries with a unique archive name")
+        expect(ArchivePublisher.renameFailureAttempt(for: EINVAL) == .unsupported
+                && ArchivePublisher.renameFailureAttempt(for: EPERM) == .unsupported,
+               "unknown exclusive rename errors use the safe copy fallback")
+
         let fallbackStage = archiveFailureRoot.appendingPathComponent("fallback-stage.zip")
         let occupiedFallback = archiveFailureRoot.appendingPathComponent("Fallback.zip")
         try? Data("archive".utf8).write(to: fallbackStage)
