@@ -15225,9 +15225,10 @@ struct MetricsTests {
             }
             // Enumerated unfiltered, so the line number reported is the line in
             // the file rather than a position in a filtered copy of it.
-            for (index, line) in lines.enumerated() where !isComment(line)
-                && (line.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()")
-                    || systemWideNames.contains(where: { line.contains("AXUIElementSetMessagingTimeout(\($0)") })) {
+            for (index, rawLine) in lines.enumerated() where !isComment(rawLine)
+                && { let line = rawLine.replacingOccurrences(of: "self.", with: "")
+                     return line.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()")
+                         || systemWideNames.contains(where: { line.contains("AXUIElementSetMessagingTimeout(\($0)") }) }() {
                 systemWideTimeoutWriters.append("\(file):\(index + 1)")
             }
         }

@@ -129,7 +129,7 @@ final class WindowMaximizer: ObservableObject {
 
     private func target(at point: CGPoint) -> ClickTarget? {
         guard let candidate = WindowServerTrafficLightHitTest.candidate(at: point, button: .zoom),
-              let element = elementAt(point: point, in: candidate.pid),
+              let element = elementAt(point: point),
               let window = topLevelWindow(from: element),
               role(of: window) == (kAXWindowRole as String),
               pid(of: window) == candidate.pid,
@@ -239,17 +239,22 @@ final class WindowMaximizer: ObservableObject {
 
     /// Bounded AX inside the mouse tap: a hung app under the cursor must not
     /// stall the main thread, and with it every event tap, for the system
-    /// default. Hit-tested through the owning application's element rather than
-    /// the system-wide one, so the cap is this call's own — written on the
-    /// system-wide object it would be the process-wide default, which is what
-    /// #938 is about. The caller has already established from the window list
-    /// that this point belongs to `pid`, and drops any window that turns out
-    /// not to.
-    private func elementAt(point: CGPoint, in pid: pid_t) -> AXUIElement? {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.35)
+    /// default.
+    ///
+    /// No cap is written on the system-wide object here — that is the
+    /// process-wide default (#938) — so this one read inherits the launch
+    /// default, and everything reached through it is capped below. Asking the
+    /// owning application's element instead would let the cap be this call's
+    /// own, but that hit test ignores occlusion: it returns that app's element
+    /// even where another process's floating panel covers the point, and the
+    /// `pid` comparison in the caller is what rejects a click that landed on
+    /// something else. `candidate` skips every window that is not layer 0, so
+    /// the panel is never the candidate and the comparison is the only thing
+    /// carrying it.
+    private func elementAt(point: CGPoint) -> AXUIElement? {
+        let system = AXUIElementCreateSystemWide()
         var element: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(app, Float(point.x), Float(point.y), &element) == .success,
+        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success,
               let element
         else { return nil }
         AXUIElementSetMessagingTimeout(element, 0.35)
