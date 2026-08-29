@@ -133,8 +133,7 @@ final class FocusFollowsMouseService {
               let rawElement
         else { return nil }
         AXUIElementSetMessagingTimeout(rawElement, 0.25)
-        guard let window = topLevelWindow(from: rawElement) else { return nil }
-        AXUIElementSetMessagingTimeout(window, 0.25)
+        guard let window = topLevelWindow(from: rawElement, cappedAt: 0.25) else { return nil }
         guard stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String),
               let windowID = AXWindowResolver.windowID(for: window)
         else { return nil }
@@ -148,7 +147,11 @@ final class FocusFollowsMouseService {
                       isFocused: boolAttribute(window, kAXFocusedAttribute as String))
     }
 
-    private func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
+    /// The cap is the caller's, and written here rather than where the result
+    /// is used: an element read out of another one is a fresh element and takes
+    /// the process-wide default, so a caller that forgets puts every read off it
+    /// on the global.
+    private func topLevelWindow(from element: AXUIElement, cappedAt timeout: Float) -> AXUIElement? {
         if stringAttribute(element, kAXRoleAttribute as String) == (kAXWindowRole as String) {
             return element
         }
@@ -156,7 +159,9 @@ final class FocusFollowsMouseService {
         guard AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &value) == .success,
               let value, CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
-        return (value as! AXUIElement)
+        let window = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(window, timeout)
+        return window
     }
 
     private func stringAttribute(_ element: AXUIElement, _ name: String) -> String? {

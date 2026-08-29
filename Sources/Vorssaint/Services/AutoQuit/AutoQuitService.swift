@@ -480,12 +480,9 @@ final class AutoQuitService: ObservableObject {
 
     private func standardWindows(of appElement: AXUIElement) -> [AXUIElement] {
         var result: [AXUIElement] = []
-        var value: CFTypeRef?
-        if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
-           let windows = value as? [AXUIElement] {
-            for window in windows {
-                AXUIElementSetMessagingTimeout(window, 0.35)
-                if Self.isStandardWindow(window) { Self.appendUnique(window, to: &result) }
+        if let windows = Self.windowsAttribute(appElement, cappedAt: 0.35) {
+            for window in windows where Self.isStandardWindow(window) {
+                Self.appendUnique(window, to: &result)
             }
         }
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
@@ -528,6 +525,18 @@ final class AutoQuitService: ObservableObject {
     /// 0.35 and the click tap at 0.15. An element produced here is a fresh one:
     /// it takes the process-wide default, not the cap on the element it was
     /// read from, so leaving it uncapped puts it on whatever the global says.
+    /// Every element in the list, for the same reason as the one above: a
+    /// caller that picks one of them still asked the others something first.
+    private static func windowsAttribute(_ appElement: AXUIElement,
+                                         cappedAt timeout: Float) -> [AXUIElement]? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement]
+        else { return nil }
+        for window in windows { AXUIElementSetMessagingTimeout(window, timeout) }
+        return windows
+    }
+
     private static func windowAttribute(_ appElement: AXUIElement,
                                         _ attribute: String,
                                         cappedAt timeout: Float) -> AXUIElement? {

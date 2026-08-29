@@ -15194,9 +15194,12 @@ struct MetricsTests {
 
         // A messaging timeout written on the system-wide element is the default
         // for every Accessibility question this process asks, whoever asks it
-        // (`AXUIElement.h`). Six features wrote it believing it was their own,
-        // three different values, last writer wins, so how long a frozen app
-        // held the cursor depended on which unrelated feature ran last (#938).
+        // (`AXUIElement.h`). Several features wrote it believing it was their
+        // own, last writer wins, so how long a frozen app held the cursor
+        // depended on which unrelated feature had run most recently (#938).
+        // A count belongs in that issue, not here: this rule is what keeps the
+        // number at one, so a comment restating it is a comment waiting to be
+        // wrong.
         //
         // Two rules, both matched on Apple's symbol rather than our own names.
         //
