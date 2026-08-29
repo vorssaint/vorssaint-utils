@@ -62,7 +62,7 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Settings backups now keep machine-local program paths out of exported files and preserve local exceptions across a restore. Thanks to @iltonandrew.
 - Uninstalling a feature now removes it from Command Bar pins in Settings.
 - Pressing Escape in the clipboard history quick panel now clears batch selection or closes the panel directly instead of closing the preview pane first. Thanks to @naveenkrdy.
-- Adding points to a custom fan curve now updates and saves the curve instead of discarding the new point.
+- Adding points to a custom fan curve now preserves every sensor and saves the point without crashing. Thanks to @azusatea122602.
 - The battery icon in the menu bar now preserves its rectangular aspect ratio when split into its own item instead of rendering as a square. Thanks to @Yahddyyp.
 - Cleaning Mode now uses a forgiving 6-second press window for the Escape unlock gesture and resets the count when modifier keys are pressed while wiping. Thanks to @iltonandrew.
 - Dock previews now move to the vacated screen edge when an auto-hiding Dock slides away instead of floating detached. Thanks to @iltonandrew.
