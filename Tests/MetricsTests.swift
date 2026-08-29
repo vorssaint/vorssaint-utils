@@ -15194,13 +15194,37 @@ struct MetricsTests {
 
         // A messaging timeout written on the system-wide element is the default
         // for every Accessibility question this process asks, whoever asks it
-        // (`AXUIElement.h`). Five features wrote it believing it was their own,
+        // (`AXUIElement.h`). Six features wrote it believing it was their own,
         // three different values, last writer wins, so how long a frozen app
         // held the cursor depended on which unrelated feature ran last (#938).
-        // The rule is who may write it, matched on Apple's symbols rather than
-        // our own names: a file is only judged to hold the system-wide element
-        // when it says so itself, in `AXUIElementCreateSystemWide()`.
-        var systemWideTimeoutWriters: [String] = []
+        //
+        // Two rules, both matched on Apple's symbol rather than our own names.
+        //
+        // The first is who may hold that element at all. A file that never
+        // names `AXUIElementCreateSystemWide` cannot write the global whatever
+        // it calls its variables, so the list below is the whole surface, and a
+        // new file joining it is a decision rather than an accident.
+        //
+        //   AppDelegate — writes it, once at launch, on purpose: the floor for
+        //   every path that caps nothing of its own.
+        //
+        //   WindowMaximizer, AutoQuitService, WindowLayoutService,
+        //   FocusFollowsMouseService — hold it for a hit test and must not
+        //   write on it. A hit test through an application element ignores
+        //   occlusion, so these four ask the system what is actually on top;
+        //   the elements they get back carry their own caps.
+        let mayHoldSystemWide = ["App/AppDelegate.swift",
+                                 "Services/WindowMaximizer.swift",
+                                 "Services/AutoQuit/AutoQuitService.swift",
+                                 "Services/WindowLayout/WindowLayoutService.swift",
+                                 "Services/FocusFollowsMouse/FocusFollowsMouseService.swift"]
+        // The second is what may be done with it there. Outside `AppDelegate`
+        // the element may only be bound to a name — never handed to another
+        // function, since a helper that caps what it is given turns one
+        // argument into a global write with no `SetMessagingTimeout` on the
+        // line to find. `bounded(AXUIElementCreateSystemWide())` is exactly
+        // that shape, and it is the shape this code recommends elsewhere.
+        var systemWideViolations: [String] = []
         for file in appSources.sorted() {
             guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
                                            encoding: .utf8) else { continue }
@@ -15209,42 +15233,58 @@ struct MetricsTests {
                 line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
             }
             var systemWideNames: Set<String> = []
-            for line in lines where !isComment(line) {
-                // The name is whatever the declaration binds, which is the last
-                // word before the `=` and before any type annotation: both
-                // `let system = …` and `let system: AXUIElement = …` bind
-                // `system`, and a rule that reads the second one as
-                // `AXUIElement` is walked past by an ordinary spelling.
-                guard line.contains("= AXUIElementCreateSystemWide()"),
-                      let name = line.components(separatedBy: "=").first?
-                          .components(separatedBy: ":").first?
-                          .components(separatedBy: .whitespaces)
-                          .last(where: { !$0.isEmpty })
-                else { continue }
-                systemWideNames.insert(name)
+            for (index, raw) in lines.enumerated() where !isComment(raw) {
+                let line = raw.replacingOccurrences(of: "self.", with: "")
+                    .replacingOccurrences(of: "Self.", with: "")
+                guard line.contains("AXUIElementCreateSystemWide") else { continue }
+                guard mayHoldSystemWide.contains(file) else {
+                    systemWideViolations.append("\(file):\(index + 1) holds the system-wide element")
+                    continue
+                }
+                guard file != "App/AppDelegate.swift" else { continue }
+                // A binding and nothing else: `… = AXUIElementCreateSystemWide()`
+                // ends the statement, so anything after it is a hand-off.
+                if line.trimmingCharacters(in: .whitespaces)
+                    .hasSuffix("= AXUIElementCreateSystemWide()"),
+                   let name = line.components(separatedBy: "=").first?
+                       .components(separatedBy: ":").first?
+                       .components(separatedBy: .whitespaces)
+                       .last(where: { !$0.isEmpty }) {
+                    systemWideNames.insert(name)
+                } else {
+                    systemWideViolations.append("\(file):\(index + 1) passes the system-wide element on")
+                }
             }
-            // Enumerated unfiltered, so the line number reported is the line in
-            // the file rather than a position in a filtered copy of it.
-            for (index, rawLine) in lines.enumerated() where !isComment(rawLine)
-                && { let line = rawLine.replacingOccurrences(of: "self.", with: "")
-                     return line.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()")
-                         || systemWideNames.contains(where: { line.contains("AXUIElementSetMessagingTimeout(\($0)") }) }() {
-                systemWideTimeoutWriters.append("\(file):\(index + 1)")
+            // Matched on the argument rather than on the spelling of the line:
+            // the receiver in front of the name is whatever the call site felt
+            // like writing — `systemElement`, `self.systemElement`,
+            // `Self.shared.systemElement` — and a rule that reads the line
+            // instead of the argument is retired by any of them.
+            for (index, raw) in lines.enumerated() where !isComment(raw) {
+                guard let call = raw.range(of: "AXUIElementSetMessagingTimeout(") else { continue }
+                let argument = raw[call.upperBound...]
+                    .components(separatedBy: ",").first?
+                    .trimmingCharacters(in: .whitespaces) ?? ""
+                if systemWideNames.contains(where: { argument == $0 || argument.hasSuffix(".\($0)") }) {
+                    systemWideViolations.append("\(file):\(index + 1) writes the process-wide default")
+                }
             }
         }
-        // Every entry states why that one write is right, and stops being right
-        // when the reason expires.
-        //
-        //   AppDelegate — the deliberate floor, set once at launch, so a path
-        //   that caps nothing of its own still waits a bounded time.
-        let allowedSystemWideTimeoutWriters = ["App/AppDelegate.swift"]
-        let unexpectedWriters = systemWideTimeoutWriters.filter { entry in
-            !allowedSystemWideTimeoutWriters.contains { entry.hasPrefix($0 + ":") }
+        expect(!appSources.isEmpty && systemWideViolations.isEmpty,
+               "the process-wide Accessibility timeout has one writer: \(systemWideViolations)")
+        let holders = mayHoldSystemWide.filter { file in
+            guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
+                                           encoding: .utf8) else { return false }
+            return source.contains("AXUIElementCreateSystemWide")
         }
-        expect(!appSources.isEmpty && unexpectedWriters.isEmpty,
-               "only the listed files set the process-wide Accessibility timeout: \(unexpectedWriters)")
-        expect(systemWideTimeoutWriters.count == allowedSystemWideTimeoutWriters.count,
-               "every allowed process-wide timeout writer is still there: \(systemWideTimeoutWriters)")
+        expect(holders.count == mayHoldSystemWide.count,
+               "every file allowed to hold the system-wide element still does: \(holders)")
+        // And the floor itself is still written, since the four that hold the
+        // element without capping it are relying on there being one.
+        let launchFloor = (try? String(contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
+                                       encoding: .utf8)) ?? ""
+        expect(launchFloor.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()"),
+               "the launch default that every uncapped read falls back to is still set")
         // The Dock preview hit test reads Accessibility on the main thread on
         // every mouse-move sample along the Dock's edge, and the process it
         // questions is the Dock — the one that stops answering (issue #971).

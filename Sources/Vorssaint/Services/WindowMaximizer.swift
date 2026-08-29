@@ -280,12 +280,10 @@ final class WindowMaximizer: ObservableObject {
         guard !isApplicationElement(element) else { return nil }
         if role(of: element) == (kAXWindowRole as String) { return element }
 
-        if let window = elementAttribute(element, kAXWindowAttribute as String) {
-            AXUIElementSetMessagingTimeout(window, 0.35)
+        if let window = elementAttribute(element, kAXWindowAttribute as String, cappedAt: 0.35) {
             if role(of: window) == (kAXWindowRole as String) { return window }
         }
-        if let window = elementAttribute(element, kAXTopLevelUIElementAttribute as String) {
-            AXUIElementSetMessagingTimeout(window, 0.35)
+        if let window = elementAttribute(element, kAXTopLevelUIElementAttribute as String, cappedAt: 0.35) {
             if role(of: window) == (kAXWindowRole as String) { return window }
         }
 
@@ -297,7 +295,7 @@ final class WindowMaximizer: ObservableObject {
         // already ends with no window in that case.
         var current = element
         for _ in 0..<8 {
-            guard let parent = elementAttribute(current, kAXParentAttribute as String) else { return nil }
+            guard let parent = elementAttribute(current, kAXParentAttribute as String, cappedAt: 0.35) else { return nil }
             if isApplicationElement(parent) { return nil }
             if role(of: parent) == (kAXWindowRole as String) { return parent }
             current = parent
@@ -310,7 +308,7 @@ final class WindowMaximizer: ObservableObject {
             (attribute: kAXZoomButtonAttribute as String, allowsNativeFallback: true),
             (attribute: kAXFullScreenButtonAttribute as String, allowsNativeFallback: false)
         ] {
-            guard let button = elementAttribute(window, entry.attribute),
+            guard let button = elementAttribute(window, entry.attribute, cappedAt: 0.35),
                   boolAttribute(button, kAXEnabledAttribute as String, default: true),
                   let frame = frame(of: button),
                   frame.insetBy(dx: -3, dy: -3).contains(point)
@@ -431,13 +429,21 @@ final class WindowMaximizer: ObservableObject {
         return size
     }
 
-    private func elementAttribute(_ element: AXUIElement, _ attribute: String) -> AXUIElement? {
+    /// The cap is the caller's because an element read out of another one is a
+    /// fresh element: it takes the process-wide default rather than the cap on
+    /// the element it came from, so leaving it uncapped puts the walk above and
+    /// every read off it on whatever the global says.
+    private func elementAttribute(_ element: AXUIElement,
+                                  _ attribute: String,
+                                  cappedAt timeout: Float) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success,
               let value,
               CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
-        return (value as! AXUIElement)
+        let child = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(child, timeout)
+        return child
     }
 
     private func pid(of element: AXUIElement) -> pid_t? {
