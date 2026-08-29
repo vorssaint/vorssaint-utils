@@ -15212,15 +15212,18 @@ struct MetricsTests {
         //   every path that caps nothing of its own.
         //
         //   WindowMaximizer, AutoQuitService, WindowLayoutService,
-        //   FocusFollowsMouseService — hold it for a hit test and must not
-        //   write on it. A hit test through an application element ignores
-        //   occlusion, so these four ask the system what is actually on top;
-        //   the elements they get back carry their own caps.
+        //   FocusFollowsMouseService, DockPreviewService — hold it for a hit
+        //   test and must not write on it. A hit test through an application
+        //   element answers for that app's hierarchy whatever is drawn over
+        //   the point, and each of these has a caller that relies on the
+        //   answer being what is actually on top; the elements they get back
+        //   carry their own caps.
         let mayHoldSystemWide = ["App/AppDelegate.swift",
                                  "Services/WindowMaximizer.swift",
                                  "Services/AutoQuit/AutoQuitService.swift",
                                  "Services/WindowLayout/WindowLayoutService.swift",
-                                 "Services/FocusFollowsMouse/FocusFollowsMouseService.swift"]
+                                 "Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
+                                 "Services/DockPreview/DockPreviewService.swift"]
         // The second is what may be done with it there. Outside `AppDelegate`
         // the element may be bound to a name and asked to hit-test a point, and
         // nothing else. Anything further is a hand-off: a helper that caps what
@@ -15303,14 +15306,12 @@ struct MetricsTests {
         // The Dock preview hit test reads Accessibility on the main thread on
         // every mouse-move sample along the Dock's edge, and the process it
         // questions is the Dock — the one that stops answering (issue #971).
-        // Its cap has to be written on the elements it holds: written on the
-        // system-wide object it is the process-wide default, which six other
-        // features already write with three different values, so hovering the
-        // Dock would change how long window layout and focus-follows-mouse
-        // wait. The rule is the absence of that element here rather than of one
-        // spelling of the write, since the write can be reached through any
-        // name the element is given. Comment lines are dropped first, since the
-        // symbol appears in the reasoning right above the code.
+        // #938 counts it as the file that queried Accessibility and capped
+        // nothing at all, so the rule is that it caps something: the two doors
+        // an element comes through carry it, and a read added later is covered
+        // without anyone remembering to. Which element may hold the
+        // process-wide default is the rule above, and this file is on that list
+        // for its hit test like the other four.
         let dockPreviewLines = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
             encoding: .utf8)) ?? "")
@@ -15318,8 +15319,6 @@ struct MetricsTests {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
         expect(dockPreviewLines.contains { $0.contains("AXUIElementSetMessagingTimeout") },
                "dock preview caps how long it waits for the Dock to answer")
-        expect(!dockPreviewLines.contains { $0.contains("AXUIElementCreateSystemWide") },
-               "dock preview never holds the element whose timeout is the process-wide default")
 
         // Asking an application element for its role switches a Chromium app's
         // renderers into full accessibility mode for the rest of the process's

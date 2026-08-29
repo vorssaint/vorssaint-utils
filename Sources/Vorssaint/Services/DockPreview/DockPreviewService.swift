@@ -1115,16 +1115,17 @@ final class DockPreviewService: ObservableObject {
             ownProcessID: getpid()
         ) else { return nil }
 
-        // Hit-tested through the Dock's own application element rather than the
-        // system-wide one, so this read carries the cap below like every other
-        // read here; a timeout written on the system-wide object would be the
-        // process-wide default. The guard above has already established that the
-        // Dock owns this point and the loop below drops any candidate that is
-        // not the Dock's, so narrowing the search to its hierarchy removes no
-        // case that reaches here.
+        // Asked of the system-wide element, so this read alone runs on the
+        // launch default: a timeout written on that object is the process-wide
+        // one (#938), and the application element that could carry a cap
+        // answers for its own hierarchy whatever is drawn over it.
+        // `dockOwnsPoint` above skips a window of ours on the point rather than
+        // rejecting it, so a pinned preview panel over the strip reaches here,
+        // and the `pid` comparison below is what keeps it from opening a
+        // preview for the icon underneath.
+        let system = AXUIElementCreateSystemWide()
         var rawElement: AXUIElement?
-        guard let dock = bounded(AXUIElementCreateApplication(dockPID)),
-              AXUIElementCopyElementAtPosition(dock, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
+        guard AXUIElementCopyElementAtPosition(system, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
               let element = bounded(rawElement)
         else { return nil }
 
