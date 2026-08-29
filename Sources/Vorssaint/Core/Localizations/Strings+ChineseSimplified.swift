@@ -528,6 +528,14 @@ extension Strings {
         shelfActionOpen: "打开",
         shelfActionOpenWith: "打开方式",
         shelfActionAirDrop: "通过 AirDrop 共享",
+        shelfActionRename: "重命名…",
+        shelfActionMoveToTrash: "移到废纸篓",
+        shelfRenamePromptTitle: "重命名“%@”",
+        shelfRenameConfirm: "重命名",
+        shelfRenameCancel: "取消",
+        shelfRenameCollisionMessage: "此处已存在名为“%@”的文件。",
+        shelfRenameFailedMessage: "无法重命名此项目。",
+        shelfTrashFailedMessage: "无法将此项目移到废纸篓。",
 
         breakdownMeasuring: "测量中…",
 

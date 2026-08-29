@@ -529,6 +529,14 @@ extension Strings {
         shelfActionOpen: "열기",
         shelfActionOpenWith: "다음으로 열기",
         shelfActionAirDrop: "AirDrop으로 공유",
+        shelfActionRename: "이름 변경…",
+        shelfActionMoveToTrash: "휴지통으로 이동",
+        shelfRenamePromptTitle: "“%@” 이름 변경",
+        shelfRenameConfirm: "변경",
+        shelfRenameCancel: "취소",
+        shelfRenameCollisionMessage: "“%@” 이름의 파일이 이미 있습니다.",
+        shelfRenameFailedMessage: "이 항목의 이름을 변경할 수 없습니다.",
+        shelfTrashFailedMessage: "이 항목을 휴지통으로 이동할 수 없습니다.",
 
         breakdownMeasuring: "측정 중…",
 

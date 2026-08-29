@@ -528,6 +528,14 @@ extension Strings {
         shelfActionOpen: "Ouvrir",
         shelfActionOpenWith: "Ouvrir avec",
         shelfActionAirDrop: "Partager par AirDrop",
+        shelfActionRename: "Renommer…",
+        shelfActionMoveToTrash: "Déplacer vers la Corbeille",
+        shelfRenamePromptTitle: "Renommer « %@ »",
+        shelfRenameConfirm: "Renommer",
+        shelfRenameCancel: "Annuler",
+        shelfRenameCollisionMessage: "Un fichier nommé « %@ » existe déjà ici.",
+        shelfRenameFailedMessage: "Impossible de renommer cet élément.",
+        shelfTrashFailedMessage: "Impossible de déplacer cet élément vers la Corbeille.",
 
         breakdownMeasuring: "Mesure…",
 

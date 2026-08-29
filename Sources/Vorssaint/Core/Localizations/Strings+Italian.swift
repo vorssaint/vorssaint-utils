@@ -528,6 +528,14 @@ extension Strings {
         shelfActionOpen: "Apri",
         shelfActionOpenWith: "Apri con",
         shelfActionAirDrop: "Condividi con AirDrop",
+        shelfActionRename: "Rinomina…",
+        shelfActionMoveToTrash: "Sposta nel Cestino",
+        shelfRenamePromptTitle: "Rinomina “%@”",
+        shelfRenameConfirm: "Rinomina",
+        shelfRenameCancel: "Annulla",
+        shelfRenameCollisionMessage: "Esiste già un file chiamato “%@” in questa posizione.",
+        shelfRenameFailedMessage: "Impossibile rinominare questo elemento.",
+        shelfTrashFailedMessage: "Impossibile spostare questo elemento nel Cestino.",
 
         breakdownMeasuring: "Misurazione…",
 

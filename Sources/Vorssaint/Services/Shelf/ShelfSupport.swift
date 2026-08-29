@@ -502,6 +502,18 @@ enum ShelfPersistenceSupport {
     }
 }
 
+enum ShelfFileActionSupport {
+    /// A name fit to pass to `FileManager.moveItem`: trimmed, non-empty, and
+    /// free of the path separator the filesystem itself forbids. Everything
+    /// else (length, reserved characters Finder rejects) is left to the
+    /// filesystem call to reject, rather than duplicated here.
+    static func validatedName(_ name: String) -> String? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("/") else { return nil }
+        return trimmed
+    }
+}
+
 enum ShelfBatchSupport {
     /// Restores original drop order after resolving every provider in a
     /// multi-item drop in parallel, which completes out of order, and

@@ -528,6 +528,14 @@ extension Strings {
         shelfActionOpen: "Aç",
         shelfActionOpenWith: "Birlikte aç",
         shelfActionAirDrop: "AirDrop ile paylaş",
+        shelfActionRename: "Yeniden Adlandır…",
+        shelfActionMoveToTrash: "Çöp Kutusuna Taşı",
+        shelfRenamePromptTitle: "“%@” yeniden adlandırılsın",
+        shelfRenameConfirm: "Yeniden Adlandır",
+        shelfRenameCancel: "İptal",
+        shelfRenameCollisionMessage: "Burada “%@” adında bir dosya zaten var.",
+        shelfRenameFailedMessage: "Bu öge yeniden adlandırılamadı.",
+        shelfTrashFailedMessage: "Bu öge Çöp Kutusuna taşınamadı.",
 
         breakdownMeasuring: "Ölçülüyor…",
 

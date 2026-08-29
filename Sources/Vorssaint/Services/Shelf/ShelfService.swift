@@ -1282,6 +1282,76 @@ final class ShelfService: ObservableObject {
         }
     }
 
+    enum RenameError: Error {
+        case invalidName, nameTaken, filesystemError
+    }
+
+    /// Renames a single file item's underlying file in place and heals its
+    /// bookmark and title, the same way a move behind the app's back is
+    /// healed elsewhere. Synchronous: a same-volume rename is effectively
+    /// instant, and the caller is already on the main thread reacting to a
+    /// dialog's result.
+    func renameItem(_ id: UUID, to rawName: String) -> Result<Void, RenameError> {
+        guard let name = ShelfFileActionSupport.validatedName(rawName) else { return .failure(.invalidName) }
+        guard let target = item(withID: id), case let .file(url) = target.payload else {
+            return .failure(.filesystemError)
+        }
+        let destination = url.deletingLastPathComponent().appendingPathComponent(name)
+        guard destination.path != url.path else { return .success(()) }
+        guard !FileManager.default.fileExists(atPath: destination.path) else { return .failure(.nameTaken) }
+        do {
+            try FileManager.default.moveItem(at: url, to: destination)
+        } catch {
+            return .failure(.filesystemError)
+        }
+        let renamed = Item(id: target.id, payload: .file(destination),
+                           title: destination.lastPathComponent,
+                           icon: target.icon, isImage: target.isImage,
+                           hasContentThumbnail: target.hasContentThumbnail,
+                           bookmark: (try? destination.bookmarkData()) ?? target.bookmark)
+        replaceItem(renamed)
+        noteInteraction()
+        return .success(())
+    }
+
+    /// Sends this tile's files (or, if it is part of the current selection,
+    /// every file in the selection) to the Trash, and drops only the ones
+    /// that actually made it there from the shelf; a partial failure leaves
+    /// the rest in place rather than losing track of them. This is the one
+    /// path that deletes a user's own original — everywhere else the shelf
+    /// only ever forgets a reference or retires a payload it wrote itself.
+    /// Runs off the main thread: Trash on a network volume can stall, and
+    /// nothing here needs to block the panel.
+    func moveToTrash(startingAt item: Item, completion: ((Bool) -> Void)? = nil) {
+        let candidates = selection.contains(item.id) ? selectedItems() : [item]
+        let leaves = livingDragItems(in: dragItems(for: candidates)).filter {
+            if case .file = $0.payload { return true }
+            return false
+        }
+        guard !leaves.isEmpty else {
+            completion?(true)
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fm = FileManager.default
+            var trashedIDs: [UUID] = []
+            var allSucceeded = true
+            for leaf in leaves {
+                guard case let .file(url) = leaf.payload else { continue }
+                do {
+                    try fm.trashItem(at: url, resultingItemURL: nil)
+                    trashedIDs.append(leaf.id)
+                } catch {
+                    allSucceeded = false
+                }
+            }
+            DispatchQueue.main.async { [weak self] in
+                if !trashedIDs.isEmpty { self?.removeItems(trashedIDs) }
+                completion?(allSucceeded)
+            }
+        }
+    }
+
     func beginInternalDrag(ids: [UUID]) {
         activeInternalDragIDs = ids
         internalDragWasMerged = false

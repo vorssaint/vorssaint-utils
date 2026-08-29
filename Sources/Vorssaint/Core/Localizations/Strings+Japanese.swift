@@ -528,6 +528,14 @@ extension Strings {
         shelfActionOpen: "開く",
         shelfActionOpenWith: "このアプリケーションで開く",
         shelfActionAirDrop: "AirDropで共有",
+        shelfActionRename: "名称変更…",
+        shelfActionMoveToTrash: "ゴミ箱に入れる",
+        shelfRenamePromptTitle: "「%@」の名称を変更",
+        shelfRenameConfirm: "変更",
+        shelfRenameCancel: "キャンセル",
+        shelfRenameCollisionMessage: "「%@」という名前のファイルはすでに存在します。",
+        shelfRenameFailedMessage: "この項目の名称を変更できませんでした。",
+        shelfTrashFailedMessage: "この項目をゴミ箱に入れられませんでした。",
 
         breakdownMeasuring: "計測中…",
 

@@ -7125,6 +7125,19 @@ struct MetricsTests {
             hasDroppableContent: { fatalError("droppable check must stay lazy") }),
                "an unchanged pasteboard outside the Dock skips the content inspection")
 
+        // MARK: Shelf file actions (rename)
+
+        expect(ShelfFileActionSupport.validatedName("report.pdf") == "report.pdf",
+               "a plain name validates unchanged")
+        expect(ShelfFileActionSupport.validatedName("  report.pdf  ") == "report.pdf",
+               "surrounding whitespace is trimmed")
+        expect(ShelfFileActionSupport.validatedName("") == nil,
+               "an empty name is rejected")
+        expect(ShelfFileActionSupport.validatedName("   ") == nil,
+               "a whitespace-only name is rejected")
+        expect(ShelfFileActionSupport.validatedName("a/b") == nil,
+               "a name containing the path separator is rejected")
+
         // MARK: Shelf reveal
 
         let revealChildA = UUID()

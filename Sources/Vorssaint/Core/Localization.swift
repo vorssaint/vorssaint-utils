@@ -651,6 +651,14 @@ struct Strings {
     let shelfActionOpen: String
     let shelfActionOpenWith: String
     let shelfActionAirDrop: String
+    let shelfActionRename: String
+    let shelfActionMoveToTrash: String
+    let shelfRenamePromptTitle: String       // + old name
+    let shelfRenameConfirm: String
+    let shelfRenameCancel: String
+    let shelfRenameCollisionMessage: String  // + attempted name
+    let shelfRenameFailedMessage: String
+    let shelfTrashFailedMessage: String
 
     // MARK: Panel — per-app breakdown
     let breakdownMeasuring: String
@@ -1651,6 +1659,14 @@ extension Strings {
         shelfActionOpen: "Abrir",
         shelfActionOpenWith: "Abrir com",
         shelfActionAirDrop: "Compartilhar por AirDrop",
+        shelfActionRename: "Renomear…",
+        shelfActionMoveToTrash: "Mover para o Lixo",
+        shelfRenamePromptTitle: "Renomear “%@”",
+        shelfRenameConfirm: "Renomear",
+        shelfRenameCancel: "Cancelar",
+        shelfRenameCollisionMessage: "Já existe um arquivo chamado “%@” aqui.",
+        shelfRenameFailedMessage: "Não foi possível renomear este item.",
+        shelfTrashFailedMessage: "Não foi possível mover este item para o Lixo.",
 
         breakdownMeasuring: "Medindo…",
 
@@ -2631,6 +2647,14 @@ extension Strings {
         shelfActionOpen: "Open",
         shelfActionOpenWith: "Open With",
         shelfActionAirDrop: "Share with AirDrop",
+        shelfActionRename: "Rename…",
+        shelfActionMoveToTrash: "Move to Trash",
+        shelfRenamePromptTitle: "Rename “%@”",
+        shelfRenameConfirm: "Rename",
+        shelfRenameCancel: "Cancel",
+        shelfRenameCollisionMessage: "A file named “%@” already exists here.",
+        shelfRenameFailedMessage: "Couldn't rename this item.",
+        shelfTrashFailedMessage: "Couldn't move this item to the Trash.",
 
         breakdownMeasuring: "Measuring…",
 

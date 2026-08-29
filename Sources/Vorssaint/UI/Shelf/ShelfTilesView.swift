@@ -500,12 +500,36 @@ final class ShelfTileView: NSView, NSDraggingSource {
         menu.addItem(airDrop)
         menu.addItem(.separator())
 
+        let rename = NSMenuItem(title: strings.shelfActionRename,
+                                action: #selector(renameFile),
+                                keyEquivalent: "")
+        rename.target = self
+        rename.isEnabled = renameEligible
+        menu.addItem(rename)
+
         let reveal = NSMenuItem(title: strings.cleanerRevealInFinder,
                                 action: #selector(revealFiles),
                                 keyEquivalent: "")
         reveal.target = self
         menu.addItem(reveal)
+        menu.addItem(.separator())
+
+        let moveToTrash = NSMenuItem(title: strings.shelfActionMoveToTrash,
+                                     action: #selector(trashFiles),
+                                     keyEquivalent: "")
+        moveToTrash.target = self
+        menu.addItem(moveToTrash)
         return menu
+    }
+
+    /// Rename only makes sense for one plain file: a pile has no filesystem
+    /// name of its own, and Finder disables Rename the same way once more
+    /// than one item is selected.
+    private var renameEligible: Bool {
+        guard case .file = item.payload else { return false }
+        let scopeCount = ShelfService.shared.selection.contains(item.id)
+            ? ShelfService.shared.selection.count : 1
+        return scopeCount == 1
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -572,6 +596,48 @@ final class ShelfTileView: NSView, NSDraggingSource {
         let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
         guard !urls.isEmpty else { return }
         NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    @objc private func renameFile() {
+        guard case let .file(url) = item.payload else { return }
+        let strings = L10n.shared.s
+        let alert = NSAlert()
+        alert.messageText = String(format: strings.shelfRenamePromptTitle, url.lastPathComponent)
+        alert.addButton(withTitle: strings.shelfRenameConfirm)
+        alert.addButton(withTitle: strings.shelfRenameCancel)
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = url.lastPathComponent
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let attemptedName = field.stringValue
+        if case let .failure(renameError) = ShelfService.shared.renameItem(item.id, to: attemptedName) {
+            showRenameError(renameError, attemptedName: attemptedName)
+        }
+    }
+
+    private func showRenameError(_ error: ShelfService.RenameError, attemptedName: String) {
+        let strings = L10n.shared.s
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        switch error {
+        case .invalidName, .filesystemError:
+            alert.messageText = strings.shelfRenameFailedMessage
+        case .nameTaken:
+            alert.messageText = String(format: strings.shelfRenameCollisionMessage, attemptedName)
+        }
+        alert.runModal()
+    }
+
+    @objc private func trashFiles() {
+        ShelfService.shared.moveToTrash(startingAt: item) { allSucceeded in
+            guard !allSucceeded else { return }
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = L10n.shared.s.shelfTrashFailedMessage
+            alert.runModal()
+        }
     }
 
     private func commonApplications(for urls: [URL]) -> [URL] {

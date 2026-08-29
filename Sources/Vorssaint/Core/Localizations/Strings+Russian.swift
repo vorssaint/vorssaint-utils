@@ -529,6 +529,14 @@ extension Strings {
         shelfActionOpen: "Открыть",
         shelfActionOpenWith: "Открыть с помощью",
         shelfActionAirDrop: "Поделиться через AirDrop",
+        shelfActionRename: "Переименовать…",
+        shelfActionMoveToTrash: "Переместить в Корзину",
+        shelfRenamePromptTitle: "Переименовать «%@»",
+        shelfRenameConfirm: "Переименовать",
+        shelfRenameCancel: "Отмена",
+        shelfRenameCollisionMessage: "Файл с именем «%@» уже существует здесь.",
+        shelfRenameFailedMessage: "Не удалось переименовать этот элемент.",
+        shelfTrashFailedMessage: "Не удалось переместить этот элемент в Корзину.",
 
         breakdownMeasuring: "Измерение…",
 
