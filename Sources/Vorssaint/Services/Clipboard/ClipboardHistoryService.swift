@@ -1374,6 +1374,17 @@ enum ClipboardImageStore {
         return image
     }
 
+    /// The Finder icon for a path, cached: the workspace lookup is a round
+    /// trip, and a list row asks for it every time it is drawn.
+    static func fileIcon(atPath path: String) -> NSImage {
+        if let cached = fileIcons.object(forKey: path as NSString) { return cached }
+        let icon = NSWorkspace.shared.icon(forFile: path)
+        fileIcons.setObject(icon, forKey: path as NSString)
+        return icon
+    }
+
+    private static let fileIcons = NSCache<NSString, NSImage>()
+
     static func isImageFile(atPath path: String) -> Bool {
         ClipboardHistoryImageSupport.isImageFilePath(path)
     }

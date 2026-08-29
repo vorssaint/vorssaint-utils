@@ -169,12 +169,18 @@ struct ClipboardQuickPanelView: View {
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                entryRow(entry,
-                         shortcutIndex: shortcutIndex(for: entry),
-                         isSelected: history.quickSelectionIsVisible
-                            && history.selectedQuickEntryID == entry.id,
-                         isBatchSelected: history.isQuickBatchSelected(entry),
-                         isHovered: hoveredEntryID == entry.id)
+                QuickEntryRow(entry: entry,
+                              shortcutIndex: shortcutIndex(for: entry),
+                              isSelected: history.quickSelectionIsVisible
+                                 && history.selectedQuickEntryID == entry.id,
+                              isBatchSelected: history.isQuickBatchSelected(entry),
+                              isHovered: hoveredEntryID == entry.id,
+                              canReorderEntries: canReorderEntries,
+                              previewIsEditing: previewIsEditing,
+                              language: l10n.language,
+                              hoveredEntryID: $hoveredEntryID,
+                              previewEntryID: $previewEntryID)
+                    .equatable()
                     .id(entry.id)
                 if index < entries.count - 1 {
                     Divider()
@@ -197,11 +203,89 @@ struct ClipboardQuickPanelView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func entryRow(_ entry: ClipboardHistoryEntry,
-                          shortcutIndex: Int?,
-                          isSelected: Bool,
-                          isBatchSelected: Bool,
-                          isHovered: Bool) -> some View {
+
+    private var footer: some View {
+        HStack(spacing: 8) {
+            if history.quickBatchCount > 0 {
+                Button(String(format: text.pasteSelectedFormat, history.quickBatchCount)) {
+                    history.copySelectedQuickEntry()
+                }
+                .buttonStyle(.borderedProminent)
+                Button(String(format: text.copySelectedFormat, history.quickBatchCount)) {
+                    history.copySelectedQuickEntryOnly()
+                }
+                Button(text.clearSelection) {
+                    history.clearQuickBatchSelection()
+                }
+            } else {
+                Button {
+                    history.clearRecent()
+                } label: {
+                    Label(text.clearRecent, systemImage: "trash")
+                }
+                .disabled(history.recentEntries.isEmpty)
+            }
+            Spacer()
+            HStack(spacing: 5) {
+                Image(systemName: "doc.on.clipboard")
+                Text("\(history.entries.count)")
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundStyle(.secondary)
+        }
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private func shortcutIndex(for entry: ClipboardHistoryEntry) -> Int? {
+        guard let index = filtered.firstIndex(where: { $0.id == entry.id }), index < 9 else { return nil }
+        return index
+    }
+
+    private func scrollSelectedEntry(with proxy: ScrollViewProxy) {
+        guard history.quickSelectionIsVisible, let id = history.selectedQuickEntryID else { return }
+        // No anchor and no animation: the list moves only when the selected
+        // row is off screen, and then straight to it, so every arrow press
+        // costs the same and the rows never redraw mid-slide.
+        proxy.scrollTo(id)
+    }
+}
+
+/// One row of the list, a view of its own with value inputs so SwiftUI can
+/// skip the rows a change did not touch. Before this every hover, and every
+/// row passing under a still pointer during a scroll, rebuilt the whole list,
+/// which is what made a flick stall for a quarter second at a time.
+private struct QuickEntryRow: View, Equatable {
+    let entry: ClipboardHistoryEntry
+    let shortcutIndex: Int?
+    let isSelected: Bool
+    let isBatchSelected: Bool
+    let isHovered: Bool
+    let canReorderEntries: Bool
+    let previewIsEditing: Bool
+    let language: AppLanguage
+    @Binding var hoveredEntryID: UUID?
+    @Binding var previewEntryID: UUID?
+
+    private var history: ClipboardHistoryService { .shared }
+    private var l10n: L10n { .shared }
+    private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(language) }
+
+    // The bindings are channels back to the list, not part of what the row
+    // looks like, so they stay out of the comparison.
+    static func == (lhs: QuickEntryRow, rhs: QuickEntryRow) -> Bool {
+        lhs.entry == rhs.entry
+            && lhs.shortcutIndex == rhs.shortcutIndex
+            && lhs.isSelected == rhs.isSelected
+            && lhs.isBatchSelected == rhs.isBatchSelected
+            && lhs.isHovered == rhs.isHovered
+            && lhs.canReorderEntries == rhs.canReorderEntries
+            && lhs.previewIsEditing == rhs.previewIsEditing
+            && lhs.language == rhs.language
+    }
+
+    var body: some View {
         HStack(alignment: .center, spacing: 9) {
             Button {
                 history.toggleQuickBatchSelection(entry)
@@ -445,7 +529,7 @@ struct ClipboardQuickPanelView: View {
         guard entry.kind == .files,
               let path = entry.filePaths.first(where: { FileManager.default.fileExists(atPath: $0) })
         else { return nil }
-        return NSWorkspace.shared.icon(forFile: path)
+        return ClipboardImageStore.fileIcon(atPath: path)
     }
 
     private func kindSymbol(_ kind: ClipboardHistoryEntryKind) -> String {
@@ -463,53 +547,6 @@ struct ClipboardQuickPanelView: View {
         if isSelected { return Color.accentColor.opacity(isHovered ? 0.13 : 0.09) }
         if isHovered { return Color.primary.opacity(0.055) }
         return .clear
-    }
-
-    private var footer: some View {
-        HStack(spacing: 8) {
-            if history.quickBatchCount > 0 {
-                Button(String(format: text.pasteSelectedFormat, history.quickBatchCount)) {
-                    history.copySelectedQuickEntry()
-                }
-                .buttonStyle(.borderedProminent)
-                Button(String(format: text.copySelectedFormat, history.quickBatchCount)) {
-                    history.copySelectedQuickEntryOnly()
-                }
-                Button(text.clearSelection) {
-                    history.clearQuickBatchSelection()
-                }
-            } else {
-                Button {
-                    history.clearRecent()
-                } label: {
-                    Label(text.clearRecent, systemImage: "trash")
-                }
-                .disabled(history.recentEntries.isEmpty)
-            }
-            Spacer()
-            HStack(spacing: 5) {
-                Image(systemName: "doc.on.clipboard")
-                Text("\(history.entries.count)")
-            }
-            .font(.system(size: 10.5, weight: .medium))
-            .foregroundStyle(.secondary)
-        }
-        .controlSize(.small)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-    }
-
-    private func shortcutIndex(for entry: ClipboardHistoryEntry) -> Int? {
-        guard let index = filtered.firstIndex(where: { $0.id == entry.id }), index < 9 else { return nil }
-        return index
-    }
-
-    private func scrollSelectedEntry(with proxy: ScrollViewProxy) {
-        guard history.quickSelectionIsVisible, let id = history.selectedQuickEntryID else { return }
-        // No anchor and no animation: the list moves only when the selected
-        // row is off screen, and then straight to it, so every arrow press
-        // costs the same and the rows never redraw mid-slide.
-        proxy.scrollTo(id)
     }
 }
 
