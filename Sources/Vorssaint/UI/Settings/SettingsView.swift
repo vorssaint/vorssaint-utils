@@ -11,11 +11,17 @@ struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
+        SuperKeySource.capsLock.rawValue
     @State private var searchQuery = ""
 
     /// The one map of pages, shared with the command bar (SettingsDirectory).
     private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
-        SettingsDirectory.sections(l10n.s, language: l10n.language)
+        SettingsDirectory.sections(
+            l10n.s,
+            language: l10n.language,
+            superKeySource: SuperKeySource.sanitized(superKeySourceRaw)
+        )
     }
 
     var body: some View {
@@ -874,12 +880,15 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
+    @AppStorage(DefaultsKey.switcherScreenPlacement) private var switcherScreenPlacement = SwitcherScreenPlacement.fallback.rawValue
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
+    @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
+    @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
@@ -919,6 +928,20 @@ struct SwitcherSettings: View {
                                 GlobalShortcutRole.switcher.savedShortcut.displayString))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    HStack {
+                        Text(l10n.s.switcherAppearanceDelay)
+                        Slider(value: switcherAppearanceDelayBinding,
+                               in: Double(SwitcherSupport.appearanceDelayMillisecondsRange.lowerBound)
+                                   ... Double(SwitcherSupport.appearanceDelayMillisecondsRange.upperBound),
+                               step: 25)
+                            .disabled(!switcherEnabled)
+                        Text("\(sanitizedSwitcherAppearanceDelay) ms")
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 72, alignment: .trailing)
+                    }
+                    SettingsCaptionText(l10n.s.switcherAppearanceDelayCaption)
 
                     Toggle(l10n.s.switcherSearchPin, isOn: $switcherSearchPinEnabled)
                         .disabled(!switcherEnabled)
@@ -975,6 +998,16 @@ struct SwitcherSettings: View {
                         .onChange(of: switcherShowFullscreenWindows) { _, _ in
                             AppSwitcher.shared.syncWithPreferences()
                         }
+
+                    Picker(l10n.s.switcherScreenPlacementLabel, selection: $switcherScreenPlacement) {
+                        Text(l10n.s.switcherScreenPlacementPointer).tag(SwitcherScreenPlacement.pointer.rawValue)
+                        Text(l10n.s.switcherScreenPlacementMenuBar).tag(SwitcherScreenPlacement.menuBar.rawValue)
+                        Text(l10n.s.switcherScreenPlacementActiveWindow).tag(SwitcherScreenPlacement.activeWindow.rawValue)
+                    }
+                    .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherScreenPlacementCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)
@@ -1033,6 +1066,9 @@ struct SwitcherSettings: View {
                                     .frame(width: 52, alignment: .trailing)
                             }
                             SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
+                            Toggle(l10n.s.dockPreviewQuitAppOnClose,
+                                   isOn: $dockPreviewQuitAppOnClose)
+                            SettingsCaptionText(l10n.s.dockPreviewQuitAppOnCloseCaption)
                         }
                     }
                 } header: {
@@ -1130,6 +1166,20 @@ struct SwitcherSettings: View {
         Binding(
             get: { DockPreviewSupport.sanitizedBackgroundOpacity(dockPreviewBackgroundOpacity) },
             set: { dockPreviewBackgroundOpacity = DockPreviewSupport.sanitizedBackgroundOpacity($0) }
+        )
+    }
+
+    private var sanitizedSwitcherAppearanceDelay: Int {
+        SwitcherSupport.sanitizedAppearanceDelay(milliseconds: switcherAppearanceDelay)
+    }
+
+    private var switcherAppearanceDelayBinding: Binding<Double> {
+        Binding(
+            get: { Double(sanitizedSwitcherAppearanceDelay) },
+            set: {
+                switcherAppearanceDelay = SwitcherSupport.sanitizedAppearanceDelay(
+                    milliseconds: Int($0.rounded()))
+            }
         )
     }
 

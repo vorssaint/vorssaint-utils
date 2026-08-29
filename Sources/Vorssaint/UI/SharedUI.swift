@@ -170,6 +170,11 @@ struct HUDBackdrop: View {
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(plateOpacity)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .strokeBorder(colorScheme == .dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 0.8)
                 )
         } else {
@@ -224,29 +229,6 @@ private struct HUDBackdropMaterial: NSViewRepresentable {
         view.layer?.cornerRadius = cornerRadius
         view.layer?.cornerCurve = .continuous
         view.layer?.masksToBounds = true
-    }
-}
-
-/// Plays an animated image. SwiftUI's Image shows only the first frame of a
-/// GIF, so anything that has to move goes through AppKit.
-struct AnimatedGIFView: NSViewRepresentable {
-    let image: NSImage
-
-    func makeNSView(context: Context) -> NSImageView {
-        let view = NSImageView()
-        view.imageAlignment = .alignCenter
-        view.imageScaling = .scaleProportionallyUpOrDown
-        view.animates = true
-        view.wantsLayer = true
-        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-        return view
-    }
-
-    func updateNSView(_ view: NSImageView, context: Context) {
-        guard view.image !== image else { return }
-        view.image = image
-        view.animates = true
     }
 }
 

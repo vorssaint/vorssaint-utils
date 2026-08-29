@@ -89,11 +89,10 @@ struct FanControlCurveEditor: View {
             }
 
             if curve.wrappedValue.points.count < FanControlPolicy.maximumCurvePointCount,
-               nextPoint(for: curve.wrappedValue.points) != nil {
+               FanControlPolicy.nextCurvePoint(for: curve.wrappedValue.points) != nil {
                 Button {
-                    guard let point = nextPoint(for: curves[curveIndex].points) else { return }
-                    curves[curveIndex].points.append(point)
-                    curves[curveIndex].points.sort { $0.temperature < $1.temperature }
+                    guard let updated = FanControlPolicy.addingCurvePoint(to: curves[curveIndex].points) else { return }
+                    curves[curveIndex].points = updated
                 } label: {
                     Label(strings.addPoint, systemImage: "plus")
                 }
@@ -135,7 +134,9 @@ struct FanControlCurveEditor: View {
                 .disabled(disabled)
 
             Button {
-                curves[curveIndex].points.remove(at: pointIndex)
+                var points = curves[curveIndex].points
+                points.remove(at: pointIndex)
+                curves[curveIndex].points = points
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 8, weight: .bold))
@@ -179,7 +180,7 @@ struct FanControlCurveEditor: View {
         let upper = pointIndex == points.count - 1
             ? FanControlPolicy.maximumCurveTemperature
             : points[pointIndex + 1].temperature - 1
-        return lower...upper
+        return lower...max(lower, upper)
     }
 
     private func levelRange(curveIndex: Int, pointIndex: Int) -> ClosedRange<Int> {
@@ -190,7 +191,7 @@ struct FanControlCurveEditor: View {
         let upper = pointIndex == points.count - 1
             ? FanControlPolicy.maximumCoolingLevel
             : points[pointIndex + 1].coolingLevel
-        return lower...upper
+        return lower...max(lower, upper)
     }
 
     private func sourceOptions(at index: Int) -> [FanControlTemperatureSource] {
@@ -227,37 +228,6 @@ struct FanControlCurveEditor: View {
         case .hottestCPU: return strings.hottestCPU
         case .hottestGPU: return strings.hottestGPU
         }
-    }
-
-    private func nextPoint(for points: [FanControlCurvePoint]) -> FanControlCurvePoint? {
-        guard let first = points.first, let last = points.last else { return nil }
-        var best: (index: Int, gap: Int)?
-        for index in 1..<points.count {
-            let gap = points[index].temperature - points[index - 1].temperature
-            if gap > 1, gap > (best?.gap ?? 0) { best = (index, gap) }
-        }
-        if let best {
-            let lower = points[best.index - 1]
-            let upper = points[best.index]
-            let temperature = lower.temperature + best.gap / 2
-            let rawLevel = Double(lower.coolingLevel + upper.coolingLevel) / 2
-            let level = Int((rawLevel / Double(FanControlPolicy.coolingLevelStep)).rounded())
-                * FanControlPolicy.coolingLevelStep
-            return FanControlCurvePoint(temperature: temperature, coolingLevel: level)
-        }
-        if last.temperature < FanControlPolicy.maximumCurveTemperature {
-            return FanControlCurvePoint(
-                temperature: min(FanControlPolicy.maximumCurveTemperature, last.temperature + 10),
-                coolingLevel: last.coolingLevel
-            )
-        }
-        if first.temperature > FanControlPolicy.minimumCurveTemperature {
-            return FanControlCurvePoint(
-                temperature: max(FanControlPolicy.minimumCurveTemperature, first.temperature - 10),
-                coolingLevel: first.coolingLevel
-            )
-        }
-        return nil
     }
 }
 

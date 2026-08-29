@@ -39,6 +39,7 @@ enum SettingsSearchSupport {
             recorder.microphoneToggle,
             recorder.qualityLabel,
             recorder.frameRateLabel,
+            strings.ocrRemoveLineBreaksToggle,
             strings.ocrQRToggle,
             strings.colorPickerFormatLabel,
         ]
@@ -71,11 +72,15 @@ enum SettingsWindowSupport {
     /// Tall default so every sidebar entry is visible on regular screens.
     static let preferredContentHeight: Double = 838
 
+    static func isValidContentSize(width: Double, height: Double) -> Bool {
+        width >= minContentWidth && height >= minContentHeight
+    }
+
     /// A saved size wins when it is at least the minimum (0 means unset);
     /// otherwise the tall default, capped to the screen's available height.
     static func initialContentSize(savedWidth: Double, savedHeight: Double,
                                    availableHeight: Double) -> (width: Double, height: Double) {
-        if savedWidth >= minContentWidth, savedHeight >= minContentHeight {
+        if isValidContentSize(width: savedWidth, height: savedHeight) {
             return (savedWidth, savedHeight)
         }
         let height = min(preferredContentHeight, max(availableHeight, minContentHeight))

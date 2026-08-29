@@ -36,10 +36,9 @@ final class FeatureRuntime: ObservableObject {
     /// exits, so the fresh instance starts without the uninstalled features.
     func relaunchApp() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"]
-        try? task.run()
+        // Its own session: the reopen fires after we terminate, so the child
+        // has to outlive the session it was started from.
+        _ = try? DetachedProcess.spawn("/bin/sh", ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"])
         NSApp.terminate(nil)
     }
 
@@ -78,7 +77,7 @@ final class FeatureRuntime: ObservableObject {
         UserDefaults.standard.set(available, forKey: feature.availabilityKey)
         if available { loadedThisSession.insert(feature) }
         Self.bindings[feature]?()
-        revision += 1
+        finishAvailabilityChange()
     }
 
     /// Applies a hub preset: its features become the installed set, with
@@ -111,7 +110,7 @@ final class FeatureRuntime: ObservableObject {
         for feature in selected where feature.isAvailable {
             Self.bindings[feature]?()
         }
-        revision += 1
+        finishAvailabilityChange()
     }
 
     /// Bulk install or uninstall for the hub's "all" buttons: one revision
@@ -124,7 +123,7 @@ final class FeatureRuntime: ObservableObject {
             Self.bindings[feature]?()
             changed = true
         }
-        if changed { revision += 1 }
+        if changed { finishAvailabilityChange() }
     }
 
     /// Launch path: replaces the old unconditional sync block. Only available
@@ -141,6 +140,13 @@ final class FeatureRuntime: ObservableObject {
         for feature in features where feature.isAvailable {
             Self.bindings[feature]?()
         }
+    }
+
+    /// One bump for Settings, and the Command Bar drops rows of features that
+    /// just left the hub so a pin cannot linger as a bare id.
+    private func finishAvailabilityChange() {
+        revision += 1
+        CommandBarService.shared.noteHubChange()
     }
 
     /// What each feature must re-evaluate when its availability (or a

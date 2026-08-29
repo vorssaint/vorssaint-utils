@@ -228,6 +228,48 @@ enum FanControlPolicy {
         return true
     }
 
+    static func nextCurvePoint(for points: [FanControlCurvePoint]) -> FanControlCurvePoint? {
+        guard points.count < maximumCurvePointCount,
+              let first = points.first,
+              let last = points.last else { return nil }
+        var best: (index: Int, gap: Int)?
+        for index in 1..<points.count {
+            let gap = points[index].temperature - points[index - 1].temperature
+            if gap > 1, gap > (best?.gap ?? 0) { best = (index, gap) }
+        }
+        if let best {
+            let lower = points[best.index - 1]
+            let upper = points[best.index]
+            let temperature = lower.temperature + best.gap / 2
+            let rawLevel = Double(lower.coolingLevel + upper.coolingLevel) / 2
+            let level = Int((rawLevel / Double(coolingLevelStep)).rounded())
+                * coolingLevelStep
+            return FanControlCurvePoint(temperature: temperature, coolingLevel: level)
+        }
+        if last.temperature < maximumCurveTemperature {
+            return FanControlCurvePoint(
+                temperature: min(maximumCurveTemperature, last.temperature + 10),
+                coolingLevel: last.coolingLevel
+            )
+        }
+        if first.temperature > minimumCurveTemperature {
+            return FanControlCurvePoint(
+                temperature: max(minimumCurveTemperature, first.temperature - 10),
+                coolingLevel: first.coolingLevel
+            )
+        }
+        return nil
+    }
+
+    static func addingCurvePoint(to points: [FanControlCurvePoint]) -> [FanControlCurvePoint]? {
+        guard let point = nextCurvePoint(for: points) else { return nil }
+        var updated = points
+        updated.append(point)
+        updated.sort { $0.temperature < $1.temperature }
+        guard validCurve(FanControlCurve(sensor: .hottestSoC, points: updated)) else { return nil }
+        return updated
+    }
+
     static func curveCoolingLevel(curves: [FanControlCurve],
                                   temperatures: [FanControlTemperatureReading],
                                   previousLevel: Int? = nil) -> Int? {
@@ -297,7 +339,14 @@ enum FanControlPolicy {
         let preferredCPU = validCPU.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.key, platform: platform)
         }
-        let cpu = (preferredCPU.isEmpty ? validCPU : preferredCPU).map(\.value)
+        let cpu: [Double]
+        if TemperatureSensorSelector.hasCPUCoreSet(platform: platform) {
+            cpu = preferredCPU.map(\.value)
+        } else if platform == .generic {
+            cpu = validCPU.map(\.value)
+        } else {
+            cpu = []
+        }
         let gpu = gpuReadings.filter {
             $0 >= TemperatureSensorSelector.minimumChipTemperature && validTemperature($0)
         }

@@ -134,6 +134,11 @@ enum ClipboardHistoryEditing {
     /// again merely to draw its list preview.
     static let previewCharacters = 2_000
 
+    struct EncodedHistory {
+        let entries: [ClipboardHistoryEntry]
+        let data: Data
+    }
+
     static func storableText(_ text: String) -> String? {
         guard text.count <= maxCharacters,
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -162,7 +167,8 @@ enum ClipboardHistoryEditing {
             return result
         }
         let pinned = retained(entries.filter(\.isPinned), limit: nil)
-        let recent = retained(entries.filter { !$0.isPinned }, limit: max(0, recentLimit))
+        let recentLimitOrNil = recentLimit <= 0 ? nil : recentLimit
+        let recent = retained(entries.filter { !$0.isPinned }, limit: recentLimitOrNil)
         return pinned + recent
     }
 
@@ -175,6 +181,38 @@ enum ClipboardHistoryEditing {
     static func canLoadEncodedHistory(byteCount: Int?) -> Bool {
         guard let byteCount else { return false }
         return byteCount >= 0 && byteCount <= maxEncodedHistoryBytes
+    }
+
+    /// Encodes a readable snapshot without ever writing a file the next
+    /// launch would reject. JSON escaping can make stored data much larger
+    /// than the raw UTF-8 text budget, so the encoded bound must be enforced
+    /// on the actual bytes rather than estimated from the strings.
+    static func encodedHistory(_ entries: [ClipboardHistoryEntry],
+                               byteLimit: Int = maxEncodedHistoryBytes) -> EncodedHistory? {
+        guard byteLimit >= 2 else { return nil }
+        let encoder = JSONEncoder()
+        let ordered = entries.filter(\.isPinned) + entries.filter { !$0.isPinned }
+        var retained: [ClipboardHistoryEntry] = []
+        var encodedEntries: [Data] = []
+        var encodedSize = 2 // Opening and closing brackets.
+
+        for entry in ordered {
+            guard let encoded = try? encoder.encode(entry) else { return nil }
+            let addedSize = encoded.count + (encodedEntries.isEmpty ? 0 : 1)
+            guard encodedSize + addedSize <= byteLimit else { continue }
+            retained.append(entry)
+            encodedEntries.append(encoded)
+            encodedSize += addedSize
+        }
+
+        var data = Data(capacity: encodedSize)
+        data.append(0x5B)
+        for (index, encoded) in encodedEntries.enumerated() {
+            if index > 0 { data.append(0x2C) }
+            data.append(encoded)
+        }
+        data.append(0x5D)
+        return EncodedHistory(entries: retained, data: data)
     }
 }
 
@@ -277,6 +315,24 @@ enum ClipboardHistorySelection {
 enum ClipboardHistoryPreview {
     static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
         selectionIsVisible && !hasModifiers
+    }
+}
+
+enum ClipboardHistoryEscape {
+    enum Action: Equatable {
+        case clearBatchSelection
+        case hideWindow
+    }
+
+    /// Esc backs out one layer at a time - selection, then the window.
+    /// Preview is a persistent view setting, not a layer: only clicking its
+    /// own toggle turns it off (or Space, but only once arrow-key navigation
+    /// has made a row's selection visible - see `ClipboardHistoryPreview
+    /// .handlesSpace`; while the search field has focus, Space just types),
+    /// so a keystroke meant to close the panel can never silently re-hide
+    /// it first.
+    static func action(batchCount: Int) -> Action {
+        batchCount > 0 ? .clearBatchSelection : .hideWindow
     }
 }
 
@@ -492,4 +548,3 @@ enum ClipboardHistoryImageSupport {
         return fileManager.fileExists(atPath: path)
     }
 }
-

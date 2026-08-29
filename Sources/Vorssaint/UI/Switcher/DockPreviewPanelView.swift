@@ -83,6 +83,13 @@ private struct DockPreviewPanelContent: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var draggingWindowID: CGWindowID?
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
+    @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var quitAppOnClose = false
+
+    private var closeActionTitle: String {
+        DockPreviewSupport.closeAction(quitAppOnClose: quitAppOnClose) == .quitApp
+            ? l10n.s.panelQuit
+            : l10n.s.dockPreviewCloseWindow
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -99,6 +106,7 @@ private struct DockPreviewPanelContent: View {
                                 isSelected: selectedWindowID == window.windowID,
                                 isPanelPinned: isPinned,
                                 onTogglePinned: onTogglePinned,
+                                closeActionTitle: closeActionTitle,
                                 onCommit: {
                                     onCommit(window)
                                 },
@@ -355,6 +363,7 @@ private struct DockPreviewCard: View {
     let isSelected: Bool
     let isPanelPinned: Bool
     let onTogglePinned: () -> Void
+    let closeActionTitle: String
     let onCommit: () -> Void
     let onClose: () -> Void
     let onToggleMinimized: () -> Void
@@ -494,7 +503,7 @@ private struct DockPreviewCard: View {
         Button(role: .destructive) {
             onClose()
         } label: {
-            Label(l10n.s.dockPreviewCloseWindow, systemImage: "xmark.circle")
+            Label(closeActionTitle, systemImage: "xmark.circle")
         }
     }
 
@@ -579,8 +588,8 @@ private struct DockPreviewCard: View {
         .opacity(showsPreviewControls ? 1 : 0)
         .allowsHitTesting(showsPreviewControls)
         .onHover { isCloseHovering = $0 }
-        .help(l10n.s.dockPreviewCloseWindow)
-        .accessibilityLabel(l10n.s.dockPreviewCloseWindow)
+        .help(closeActionTitle)
+        .accessibilityLabel(closeActionTitle)
     }
 
     private var minimizeButton: some View {
