@@ -3432,6 +3432,45 @@ struct MetricsTests {
         expect(backgroundISOKeyIsValid,
                "layout-dependent shortcut labels are safe to read off the main thread")
 
+        let testAlphanumericKeys: [Int] = [
+            kVK_ANSI_A, kVK_ANSI_B, kVK_ANSI_C, kVK_ANSI_D, kVK_ANSI_E, kVK_ANSI_F,
+            kVK_ANSI_G, kVK_ANSI_H, kVK_ANSI_I, kVK_ANSI_J, kVK_ANSI_K, kVK_ANSI_L,
+            kVK_ANSI_M, kVK_ANSI_N, kVK_ANSI_O, kVK_ANSI_P, kVK_ANSI_Q, kVK_ANSI_R,
+            kVK_ANSI_S, kVK_ANSI_T, kVK_ANSI_U, kVK_ANSI_V, kVK_ANSI_W, kVK_ANSI_X,
+            kVK_ANSI_Y, kVK_ANSI_Z,
+            kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4,
+            kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9,
+        ]
+        for keyCode in testAlphanumericKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: [.command])
+            expect(shortcut.isValid, "alphanumeric key \(keyCode) is a valid shortcut")
+            expect(!shortcut.displayString.isEmpty && !shortcut.displayString.contains("Key "),
+                   "alphanumeric key \(keyCode) produces a real cap in displayString")
+        }
+
+        let structuralKeys: [(Int, String)] = [
+            (kVK_Tab, "Tab"), (kVK_Space, "Space"), (kVK_Return, "Return"),
+            (kVK_Escape, "Esc"), (kVK_LeftArrow, "←"), (kVK_RightArrow, "→"),
+            (kVK_UpArrow, "↑"), (kVK_DownArrow, "↓"),
+        ]
+        for (keyCode, expectedCap) in structuralKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: [.control, .option])
+            expect(shortcut.displayString.hasSuffix(expectedCap),
+                   "special key \(keyCode) prints \(expectedCap)")
+        }
+
+        let layoutDependentKeys: [Int] = [
+            kVK_ANSI_LeftBracket, kVK_ANSI_RightBracket, kVK_ANSI_Semicolon,
+            kVK_ANSI_Quote, kVK_ANSI_Comma, kVK_ANSI_Period, kVK_ANSI_Slash,
+            kVK_ANSI_Grave, kVK_ANSI_Minus, kVK_ANSI_Equal, kVK_ANSI_Backslash,
+        ]
+        for keyCode in layoutDependentKeys {
+            let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: [.command])
+            expect(shortcut.isValid, "layout-dependent key \(keyCode) is a valid shortcut")
+            expect(!shortcut.displayString.isEmpty && !shortcut.displayString.contains("Key "),
+                   "layout-dependent key \(keyCode) produces a real cap in displayString")
+        }
+
         // The native full screen action, wired like the sixths: real strings,
         // a stable id, and no system-wide key claimed until someone asks.
         expect(WindowLayoutAction.allCases.contains(.fullScreen)
@@ -8864,7 +8903,8 @@ struct MetricsTests {
         }
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
-        expect(defaultSwitcherHints.apps == "⌘Tab" && defaultSwitcherHints.windows == "⌘ `",
+        expect(defaultSwitcherHints.apps == GlobalShortcut.switcherDefault.displayString
+                && defaultSwitcherHints.windows == GlobalShortcut.switcherWindowDefault.displayString,
                "App Switcher icon-row hints describe default app and window shortcuts")
         let customSwitcherHints = SwitcherSupport.shortcutHints(
             for: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.option]),
