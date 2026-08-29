@@ -15219,11 +15219,12 @@ struct MetricsTests {
                                  "Services/WindowLayout/WindowLayoutService.swift",
                                  "Services/FocusFollowsMouse/FocusFollowsMouseService.swift"]
         // The second is what may be done with it there. Outside `AppDelegate`
-        // the element may only be bound to a name — never handed to another
-        // function, since a helper that caps what it is given turns one
-        // argument into a global write with no `SetMessagingTimeout` on the
-        // line to find. `bounded(AXUIElementCreateSystemWide())` is exactly
-        // that shape, and it is the shape this code recommends elsewhere.
+        // the element may be bound to a name and asked to hit-test a point, and
+        // nothing else. Anything further is a hand-off: a helper that caps what
+        // it is given turns one argument into a global write with no
+        // `AXUIElementSetMessagingTimeout` anywhere near it, and splitting that
+        // across two lines hides it from any rule that reads only the line the
+        // symbol appears on.
         var systemWideViolations: [String] = []
         for file in appSources.sorted() {
             guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
@@ -15232,41 +15233,49 @@ struct MetricsTests {
             func isComment(_ line: String) -> Bool {
                 line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
             }
-            var systemWideNames: Set<String> = []
-            for (index, raw) in lines.enumerated() where !isComment(raw) {
-                let line = raw.replacingOccurrences(of: "self.", with: "")
-                    .replacingOccurrences(of: "Self.", with: "")
+            // Whole-identifier matching, so a name is not found inside a longer
+            // one and a receiver in front of it does not hide it.
+            func mentions(_ line: String, _ name: String) -> Bool {
+                var searched = line[line.startIndex...]
+                while let found = searched.range(of: name) {
+                    let before = found.lowerBound == line.startIndex
+                        ? nil : line[line.index(before: found.lowerBound)]
+                    let after = found.upperBound == line.endIndex ? nil : line[found.upperBound]
+                    func isIdentifier(_ c: Character?) -> Bool {
+                        guard let c else { return false }
+                        return c.isLetter || c.isNumber || c == "_"
+                    }
+                    if !isIdentifier(before) && !isIdentifier(after) { return true }
+                    searched = line[found.upperBound...]
+                }
+                return false
+            }
+            var bindings: [String: Int] = [:]
+            for (index, line) in lines.enumerated() where !isComment(line) {
                 guard line.contains("AXUIElementCreateSystemWide") else { continue }
                 guard mayHoldSystemWide.contains(file) else {
                     systemWideViolations.append("\(file):\(index + 1) holds the system-wide element")
                     continue
                 }
                 guard file != "App/AppDelegate.swift" else { continue }
-                // A binding and nothing else: `… = AXUIElementCreateSystemWide()`
-                // ends the statement, so anything after it is a hand-off.
                 if line.trimmingCharacters(in: .whitespaces)
                     .hasSuffix("= AXUIElementCreateSystemWide()"),
                    let name = line.components(separatedBy: "=").first?
                        .components(separatedBy: ":").first?
                        .components(separatedBy: .whitespaces)
                        .last(where: { !$0.isEmpty }) {
-                    systemWideNames.insert(name)
+                    bindings[name] = index
                 } else {
                     systemWideViolations.append("\(file):\(index + 1) passes the system-wide element on")
                 }
             }
-            // Matched on the argument rather than on the spelling of the line:
-            // the receiver in front of the name is whatever the call site felt
-            // like writing — `systemElement`, `self.systemElement`,
-            // `Self.shared.systemElement` — and a rule that reads the line
-            // instead of the argument is retired by any of them.
-            for (index, raw) in lines.enumerated() where !isComment(raw) {
-                guard let call = raw.range(of: "AXUIElementSetMessagingTimeout(") else { continue }
-                let argument = raw[call.upperBound...]
-                    .components(separatedBy: ",").first?
-                    .trimmingCharacters(in: .whitespaces) ?? ""
-                if systemWideNames.contains(where: { argument == $0 || argument.hasSuffix(".\($0)") }) {
-                    systemWideViolations.append("\(file):\(index + 1) writes the process-wide default")
+            for (name, boundAt) in bindings {
+                for (index, line) in lines.enumerated()
+                where index != boundAt && !isComment(line) && mentions(line, name) {
+                    guard line.contains("AXUIElementCopyElementAtPosition(\(name),") else {
+                        systemWideViolations.append("\(file):\(index + 1) uses the system-wide element for something other than a hit test")
+                        continue
+                    }
                 }
             }
         }
