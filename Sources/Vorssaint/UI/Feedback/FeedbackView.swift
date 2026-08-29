@@ -171,6 +171,9 @@ struct FeedbackView: View {
             diagnosticRow("macOS", diagnostics.macOS)
             if let model = diagnostics.macModel { diagnosticRow("Mac", model) }
             diagnosticRow(l10n.s.languageLabel, diagnostics.language)
+            diagnosticRow(l10n.s.betaBadgeLabel, diagnostics.isBeta ? "✓" : "○")
+            diagnosticRow(strings.diagnosticsChannelLabel,
+                          diagnostics.updateChannel.replacingOccurrences(of: "-", with: " ").capitalized)
         }
         .font(.caption.monospaced())
         .foregroundStyle(.secondary)

@@ -14,6 +14,8 @@ private struct SwitcherSourceContext {
     let windowID: CGWindowID?
     let windowOwnerPID: pid_t?
     let isFullscreen: Bool
+    /// Window server bounds of the source window; `.zero` for an app-only entry.
+    let frame: CGRect
 }
 
 /// A shortcut press already owned by the switcher while the window list is
@@ -109,6 +111,10 @@ final class AppSwitcher: ObservableObject {
     private var userNavigated = false
     /// Mouse position when the panel appeared; hover is inert until it moves.
     private var hoverAnchor: NSPoint?
+    /// The card currently under the pointer. Kept separate from selection so
+    /// a middle click on panel chrome can never close an unrelated window.
+    private var hoveredWindowIndex: Int?
+    private var swallowingMiddleMouseUp = false
     /// Fires while the pointer stays on the last visible overflow icon.
     private var iconRowEdgeHoverWork: DispatchWorkItem?
     private var iconRowEdgeHoverIndex: Int?
@@ -572,27 +578,32 @@ final class AppSwitcher: ObservableObject {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
             if type == .otherMouseDown,
                let panel,
+               let hoveredWindowIndex,
+               windows.indices.contains(hoveredWindowIndex),
                SwitcherSupport.isMiddleClickInsidePanel(
                    eventType: type,
                    buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
                    panelIsVisible: panel.isVisible,
                    panelFrame: panel.frame,
-                   location: NSEvent.mouseLocation
+                   location: NSEvent.mouseLocation,
+                   itemIsHovered: true
                ) {
-                closeSelectedWindow()
+                swallowingMiddleMouseUp = true
+                self.hoveredWindowIndex = nil
+                closeWindow(windows[hoveredWindowIndex])
                 return nil
             }
+            swallowingMiddleMouseUp = false
             dismissForClickOutsidePanel()
             return Unmanaged.passUnretained(event)
         case .otherMouseUp:
-            if let panel,
-               SwitcherSupport.shouldSwallowMiddleMouseUp(
+            let shouldSwallow = SwitcherSupport.shouldSwallowMiddleMouseUp(
                    eventType: type,
                    buttonNumber: event.getIntegerValueField(.mouseEventButtonNumber),
-                   panelIsVisible: panel.isVisible,
-                   panelFrame: panel.frame,
-                   location: NSEvent.mouseLocation
-               ) {
+                   swallowedMouseDown: swallowingMiddleMouseUp
+               )
+            swallowingMiddleMouseUp = false
+            if shouldSwallow {
                 return nil
             }
             return Unmanaged.passUnretained(event)
@@ -787,12 +798,15 @@ final class AppSwitcher: ObservableObject {
         searchQuery = ""
         isSearchPinned = false
         self.windows = list
+        // Optional.map: a session that starts with no source clears the
+        // context instead of keeping the previous session's.
         sessionSourceContext = source.map { source in
             SwitcherSourceContext(itemID: source.id,
                                   pid: source.pid,
                                   windowID: source.windowID,
                                   windowOwnerPID: source.windowOwnerPID,
-                                  isFullscreen: source.isFullscreen)
+                                  isFullscreen: source.isFullscreen,
+                                  frame: source.frame)
         }
         sessionStartWindowID = source?.windowID
         // The layout pass below reads usesWindowRow, which depends on the
@@ -948,16 +962,21 @@ final class AppSwitcher: ObservableObject {
     }
 
     /// Hover-selection from the panel. Ignored until the mouse really moves:
-    /// the panel opens centered on the cursor's screen, and the card that
+    /// the panel may open centered on the cursor's screen, and the card that
     /// happens to sit under a stationary pointer must not steal the selection.
     func hoverSelect(index: Int) {
-        guard sessionActive else { return }
+        guard sessionActive, windows.indices.contains(index) else { return }
+        hoveredWindowIndex = index
         let mouse = NSEvent.mouseLocation
         if let anchor = hoverAnchor {
             guard hypot(mouse.x - anchor.x, mouse.y - anchor.y) > 4 else { return }
             hoverAnchor = nil
         }
         select(index: index)
+    }
+
+    func hoverSelectEnded(index: Int) {
+        if hoveredWindowIndex == index { hoveredWindowIndex = nil }
     }
 
     /// Icon-row hover. Selects the tile, then only the last visible overflow
@@ -969,6 +988,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     func hoverSelectIconRowEnded(index: Int) {
+        hoverSelectEnded(index: index)
         guard iconRowEdgeHoverIndex == iconRowIndex(forSelectionIndex: index) else { return }
         cancelIconRowEdgeHover()
     }
@@ -1277,6 +1297,7 @@ final class AppSwitcher: ObservableObject {
         isSearchPinned = false
         totalWindowCount = 0
         hoverAnchor = nil
+        hoveredWindowIndex = nil
         cancelIconRowEdgeHover()
         iconRowFirstVisibleIndex = 0
         userNavigated = false
@@ -1383,8 +1404,48 @@ final class AppSwitcher: ObservableObject {
         SwitcherSupport.capturesPreviews(simpleMode: simpleModeEnabled)
     }
 
+    // MARK: - Placement screen
+
+    private var screenPlacement: SwitcherScreenPlacement {
+        SwitcherScreenPlacement.placement(
+            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherScreenPlacement))
+    }
+
+    /// The screen the panel is laid out on. Every choice falls back to the
+    /// pointer's screen, which exists whenever any display does: the menu bar
+    /// screen goes missing only mid-reconfiguration, and the active window's
+    /// screen is unknown for an app-only source or a window parked entirely
+    /// off screen.
+    private var placementScreen: NSScreen? {
+        switch screenPlacement {
+        case .pointer:
+            return NSScreen.withMouse
+        case .menuBar:
+            return NSScreen.withMenuBar ?? NSScreen.withMouse
+        case .activeWindow:
+            return activeWindowScreen ?? NSScreen.withMouse
+        }
+    }
+
+    /// The screen showing most of the window that was in front when the
+    /// session began. The source frame comes from the window server, so it is
+    /// matched against `CGDisplayBounds` rather than the flipped AppKit frames.
+    private var activeWindowScreen: NSScreen? {
+        guard let frame = sessionSourceContext?.frame else { return nil }
+        let screens = NSScreen.screens
+        let bounds = screens.map { CGDisplayBounds($0.displayID) }
+        guard let index = SwitcherSupport.displayIndex(showingMostOf: frame, displayBounds: bounds) else {
+            return nil
+        }
+        return screens[index]
+    }
+
+    private var placementVisibleFrame: CGRect {
+        placementScreen?.visibleFrame ?? NSScreen.pointerVisibleFrame
+    }
+
     private func recomputeLayouts(for items: [SwitcherItem]) {
-        guard let screen = NSScreen.withMouse ?? NSScreen.screens.first else { return }
+        guard let screen = placementScreen ?? NSScreen.screens.first else { return }
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
@@ -1403,7 +1464,7 @@ final class AppSwitcher: ObservableObject {
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: usesWindowRow ? windows.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
-            screenVisibleFrame: NSScreen.pointerVisibleFrame,
+            screenVisibleFrame: placementVisibleFrame,
             showsShortcutHints: showsShortcutHints,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
@@ -1526,7 +1587,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func centeredFrame(for size: CGSize) -> NSRect {
-        let screen = NSScreen.pointerVisibleFrame
+        let screen = placementVisibleFrame
         return NSRect(x: screen.midX - size.width / 2,
                       y: screen.midY - size.height / 2,
                       width: size.width,
@@ -1554,7 +1615,7 @@ final class AppSwitcher: ObservableObject {
 }
 
 /// Grid metrics for one switcher session: large cards laid out in as many
-/// rows as needed, sized to the screen under the cursor — no sideways
+/// rows as needed, sized to the screen the panel opens on — no sideways
 /// scrolling, no squinting.
 struct SwitcherGrid: Equatable {
     let columns: Int

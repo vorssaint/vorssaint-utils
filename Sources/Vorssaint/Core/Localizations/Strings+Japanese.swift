@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
         dockPreviewOpenDelay: "表示までの待ち時間",
         dockPreviewOpenDelayCaption: "ポインタをアイコンに置いてからパネルが開くまでの時間です。",
+        dockPreviewQuitAppOnClose: "× ボタンでアプリを終了",
+        dockPreviewQuitAppOnCloseCaption: "Dock Preview では、× はそのウインドウだけを閉じる代わりにアプリ全体を終了します。",
         dockClickMinimize: "Dock クリックでしまう",
         dockClickMinimizeCaption: "手前のアプリの Dock アイコンをクリックするとウインドウをしまいます。もう一度クリックすると戻ります。",
         dockClickCycleWindows: "Dock クリックでウインドウを切り替え",
@@ -674,6 +676,8 @@ extension Strings {
         diskSection: "ディスク",
         diskUsed: "使用済み",
         diskFree: "空き",
+        diskAvailable: "利用可能",
+        diskPurgeable: "パージ可能",
         diskInternal: "内蔵",
         diskExternal: "外部",
         diskSelect: "ディスクを選択",
@@ -907,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "通知設定を開く…",
         launchAtLoginNeedsApplications: "ログイン時に開けない場所からアプリが実行されています。Vorssaintをアプリケーションフォルダにドラッグし、そこから開いてもう一度オンにしてください。",
         launchAtLoginNeedsApproval: "ログイン項目は登録されていますが、システム設定ではオフのままです。「システム設定 › 一般 › ログイン項目と機能拡張」を開き、「ログイン時に開く」でVorssaintをオンにしてください。",
+        ocrRemoveLineBreaksToggle: "改行を削除",
+        ocrRemoveLineBreaksCaption: "認識したテキストの改行を取り除き、1つの段落としてペーストします。",
         ocrQRToggle: "QRコードを読み取る",
         ocrQRCaption: "選択した範囲にQRコードがあると、その内容をコピーまたは開けるように表示します。",
         ocrQRCopied: "QRコードをコピーしました",
@@ -966,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "通常の順序",
         switcherMinimizedPlacementEnd: "最後に配置",
         switcherMinimizedPlacementHidden: "非表示",
-        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示" 
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示",
+        switcherScreenPlacementLabel: "表示先",
+        switcherScreenPlacementPointer: "ポインタのある画面",
+        switcherScreenPlacementMenuBar: "メニューバーのある画面",
+        switcherScreenPlacementActiveWindow: "アクティブなウインドウのある画面",
+        switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。"
     )
 }

@@ -3,6 +3,7 @@
 
 import AppKit
 
+SuperKeyMappingGuard.runIfRequestedAndExit()
 Defaults.register()
 
 if CommandLine.arguments.contains("--selftest") {

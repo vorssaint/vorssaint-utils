@@ -36,10 +36,9 @@ final class FeatureRuntime: ObservableObject {
     /// exits, so the fresh instance starts without the uninstalled features.
     func relaunchApp() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"]
-        try? task.run()
+        // Its own session: the reopen fires after we terminate, so the child
+        // has to outlive the session it was started from.
+        _ = try? DetachedProcess.spawn("/bin/sh", ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"])
         NSApp.terminate(nil)
     }
 

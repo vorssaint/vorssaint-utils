@@ -71,7 +71,7 @@ final class WindowLayoutService: ObservableObject {
     /// Read on every pointer event, so it is resolved once instead of per
     /// click.
     private static let ownProcessID = Int64(getpid())
-    private let frameTolerance: CGFloat = 8
+    private let frameTolerance = WindowLayoutGeometry.frameTolerance
     private let anchorTolerance: CGFloat = 36
     private let moveGestureUpdateInterval: TimeInterval = 1.0 / 120.0
     // AX frame mutations are not atomic. Complex windows can visibly render

@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Verringere ihn, um mehr von dem zu sehen, was hinter dem Panel liegt.",
         dockPreviewOpenDelay: "Öffnungsverzögerung",
         dockPreviewOpenDelayCaption: "Wie lange der Zeiger auf einem Symbol ruhen muss, bevor sich das Panel öffnet.",
+        dockPreviewQuitAppOnClose: "App mit der ×-Taste beenden",
+        dockPreviewQuitAppOnCloseCaption: "In Dock Preview beendet × die gesamte App, statt nur dieses Fenster zu schließen.",
         dockClickMinimize: "Klick aufs Dock-Symbol minimiert",
         dockClickMinimizeCaption: "Die Fenster der aktiven App werden beim Klick auf ihr Dock-Symbol im Dock abgelegt. Ein weiterer Klick holt sie zurück.",
         dockClickCycleWindows: "Klick aufs Dock-Symbol wechselt Fenster",
@@ -674,6 +676,8 @@ extension Strings {
         diskSection: "Festplatten",
         diskUsed: "belegt",
         diskFree: "frei",
+        diskAvailable: "verfügbar",
+        diskPurgeable: "löschbar",
         diskInternal: "Intern",
         diskExternal: "Extern",
         diskSelect: "Festplatte wählen",
@@ -907,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Mitteilungseinstellungen öffnen…",
         launchAtLoginNeedsApplications: "Die App läuft von einem Ort, der das Öffnen bei der Anmeldung nicht erlaubt. Ziehe Vorssaint in den Ordner Programme, öffne die App von dort und schalte die Option wieder ein.",
         launchAtLoginNeedsApproval: "Das Anmeldeobjekt ist registriert, in den Systemeinstellungen aber weiterhin aus. Öffne Systemeinstellungen › Allgemein › Anmeldeobjekte & Erweiterungen und schalte Vorssaint unter „Bei der Anmeldung öffnen“ ein.",
+        ocrRemoveLineBreaksToggle: "Zeilenumbrüche entfernen",
+        ocrRemoveLineBreaksCaption: "Entfernt Zeilenumbrüche, damit kopierter Text als ein Absatz eingefügt wird.",
         ocrQRToggle: "QR-Codes lesen",
         ocrQRCaption: "Enthält der Bereich einen QR-Code, wird sein Inhalt zum Kopieren oder Öffnen gezeigt.",
         ocrQRCopied: "QR-Code kopiert",
@@ -966,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normale Reihenfolge",
         switcherMinimizedPlacementEnd: "Ans Ende stellen",
         switcherMinimizedPlacementHidden: "Ausblenden",
-        switcherShowFullscreenWindows: "Vollbildfenster anzeigen" 
+        switcherShowFullscreenWindows: "Vollbildfenster anzeigen",
+        switcherScreenPlacementLabel: "Anzeigen auf",
+        switcherScreenPlacementPointer: "Bildschirm mit dem Zeiger",
+        switcherScreenPlacementMenuBar: "Bildschirm mit der Menüleiste",
+        switcherScreenPlacementActiveWindow: "Bildschirm mit dem aktiven Fenster",
+        switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind."
     )
 }

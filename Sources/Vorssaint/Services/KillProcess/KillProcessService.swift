@@ -19,6 +19,9 @@ struct KillProcessEntry: Identifiable, Equatable {
     let bundleURL: URL?
     let groupedCount: Int
     let isProtected: Bool
+    /// Kernel start time in microseconds. A PID alone is reusable and is not a
+    /// safe identity for a destructive action confirmed from an old row.
+    let startedAt: UInt64?
 
     var id: pid_t { pid }
 }
@@ -36,7 +39,17 @@ final class KillProcessService: ObservableObject {
     }
 
     private enum DirectKillResult {
-        case killed, alreadyGone, needsAdmin, failed
+        case killed, alreadyGone, needsAdmin, failed, stale
+    }
+
+    private struct KillTarget {
+        let pid: pid_t
+        let startedAt: UInt64
+    }
+
+    private struct AdminKillTarget {
+        let target: KillTarget
+        let startDescription: String
     }
 
     @Published private(set) var entries: [KillProcessEntry] = []
@@ -68,14 +81,24 @@ final class KillProcessService: ObservableObject {
     var filteredEntries: [KillProcessEntry] {
         let ascending = sortAscending
         let sorted = entries.sorted { lhs, rhs in
-            let result: Bool
             switch sortBy {
-            case .cpu: result = lhs.cpuPercent > rhs.cpuPercent
-            case .memory: result = lhs.memoryBytes > rhs.memoryBytes
-            case .name: result = lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedDescending
-            case .pid: result = lhs.pid < rhs.pid
+            case .cpu:
+                return KillProcessSupport.numberComesBefore(lhs.cpuPercent, rhs.cpuPercent,
+                                                            lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                            ascending: ascending)
+            case .memory:
+                return KillProcessSupport.numberComesBefore(lhs.memoryBytes, rhs.memoryBytes,
+                                                            lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                            ascending: ascending)
+            case .name:
+                return KillProcessSupport.nameComesBefore(lhs.name, rhs.name,
+                                                          lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                          ascending: ascending)
+            case .pid:
+                return KillProcessSupport.numberComesBefore(Double(lhs.pid), Double(rhs.pid),
+                                                            lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                            ascending: ascending)
             }
-            return ascending ? !result : result
         }
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !needle.isEmpty else { return sorted }
@@ -92,7 +115,7 @@ final class KillProcessService: ObservableObject {
             sortAscending.toggle()
         } else {
             sortBy = value
-            sortAscending = false
+            sortAscending = value == .name
         }
         UserDefaults.standard.set(sortBy.rawValue, forKey: DefaultsKey.killProcessSortBy)
         UserDefaults.standard.set(sortAscending, forKey: DefaultsKey.killProcessSortAscending)
@@ -154,19 +177,20 @@ final class KillProcessService: ObservableObject {
     // MARK: - Kill
 
     func kill(_ entry: KillProcessEntry, force: Bool) {
-        guard !entry.isProtected else { return }
+        guard !entry.isProtected, let target = Self.target(for: entry) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            let removed = self.killBatch([entry.pid], force: force, adminPromptProcessName: entry.name)
+            let removed = self.killBatch([target], force: force, adminPromptProcessName: entry.name)
             self.finishKill(removed: removed)
         }
     }
 
     /// Kills every currently listed process sharing this exact name.
     func killAll(named name: String, force: Bool) {
-        let pids = entries.filter { $0.name == name && !$0.isProtected }.map(\.pid)
-        guard !pids.isEmpty else { return }
+        let targets = entries.filter { $0.name == name && !$0.isProtected }
+            .compactMap(Self.target(for:))
+        guard !targets.isEmpty else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            let removed = self.killBatch(pids, force: force, adminPromptProcessName: name)
+            let removed = self.killBatch(targets, force: force, adminPromptProcessName: name)
             self.finishKill(removed: removed)
         }
     }
@@ -174,12 +198,14 @@ final class KillProcessService: ObservableObject {
     /// Kills a process together with every descendant, deepest first, so a
     /// parent never outlives children it might otherwise try to restart.
     func killTree(_ entry: KillProcessEntry, force: Bool) {
-        guard !entry.isProtected else { return }
+        guard !entry.isProtected, let root = Self.target(for: entry) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
-            let candidates = [entry.pid] + Self.descendants(of: entry.pid)
-            let safePids = candidates.filter { !Self.isProtected(pid: $0) }
-            let ordered = safePids.reversed()
-            let removed = self.killBatch(Array(ordered), force: force, adminPromptProcessName: entry.name)
+            guard Self.identityMatches(root) else { return }
+            let descendants = Self.descendants(of: entry.pid)
+                .filter { !Self.isProtected(pid: $0) }
+                .compactMap(Self.currentTarget(pid:))
+            let targets = Array(descendants.reversed()) + [root]
+            let removed = self.killBatch(targets, force: force, adminPromptProcessName: entry.name)
             self.finishKill(removed: removed)
         }
     }
@@ -187,35 +213,53 @@ final class KillProcessService: ObservableObject {
     /// Sends the direct-kill signal to every pid, then escalates every pid
     /// that came back EPERM through a single `AdminShell` prompt, so killing
     /// several processes owned by another user asks for the password once.
-    private func killBatch(_ pids: [pid_t], force: Bool, adminPromptProcessName: String) -> Set<pid_t> {
+    private func killBatch(_ targets: [KillTarget],
+                           force: Bool,
+                           adminPromptProcessName: String) -> Set<pid_t> {
         var removed = Set<pid_t>()
-        var needsAdmin: [pid_t] = []
-        for pid in pids {
-            guard !Self.isProtected(pid: pid) else { continue }
-            switch Self.attemptDirectKill(pid: pid, force: force) {
-            case .killed, .alreadyGone: removed.insert(pid)
-            case .needsAdmin: needsAdmin.append(pid)
-            case .failed: break
+        var needsAdmin: [AdminKillTarget] = []
+        for target in targets {
+            guard !Self.isProtected(pid: target.pid), Self.identityMatches(target) else { continue }
+            switch Self.attemptDirectKill(target: target, force: force) {
+            case .killed, .alreadyGone:
+                removed.insert(target.pid)
+            case .needsAdmin:
+                if let description = Self.currentStartDescription(pid: target.pid),
+                   Self.identityMatches(target) {
+                    needsAdmin.append(AdminKillTarget(target: target,
+                                                      startDescription: description))
+                }
+            case .failed, .stale:
+                break
             }
         }
         guard !needsAdmin.isEmpty else { return removed }
 
         let signalFlag = force ? "-9" : "-15"
-        let command = "/bin/kill \(signalFlag) " + needsAdmin.map(String.init).joined(separator: " ")
+        let command = needsAdmin.map { candidate in
+            let pid = candidate.target.pid
+            return "if [ \"$(LC_ALL=C /bin/ps -p \(pid) -o lstart= | /usr/bin/xargs)\" = '\(candidate.startDescription)' ]; then /bin/kill \(signalFlag) \(pid); fi"
+        }.joined(separator: "; ")
         let prompt = String(format: FeatureStrings.killProcess(L10n.shared.language).adminPromptFormat,
                             adminPromptProcessName)
         if AdminShell.runSync(command, prompt: prompt) {
-            removed.formUnion(needsAdmin)
+            for candidate in needsAdmin where !Self.identityMatches(candidate.target) {
+                removed.insert(candidate.target.pid)
+            }
         }
         return removed
     }
 
-    private static func attemptDirectKill(pid: pid_t, force: Bool) -> DirectKillResult {
+    private static func attemptDirectKill(target: KillTarget, force: Bool) -> DirectKillResult {
+        guard identityMatches(target) else { return .stale }
+        let pid = target.pid
         if let running = NSRunningApplication(processIdentifier: pid),
            !running.isTerminated, running.activationPolicy == .regular {
+            guard identityMatches(target) else { return .stale }
             return (force ? running.forceTerminate() : running.terminate()) ? .killed : .failed
         }
         let signal = force ? SIGKILL : SIGTERM
+        guard identityMatches(target) else { return .stale }
         if Darwin.kill(pid, signal) == 0 { return .killed }
         switch errno {
         case EPERM: return .needsAdmin
@@ -262,14 +306,16 @@ final class KillProcessService: ObservableObject {
     // MARK: - Restart
 
     func canRestart(_ entry: KillProcessEntry) -> Bool {
-        !entry.isProtected && entry.bundleURL != nil
+        !entry.isProtected && entry.bundleURL != nil && entry.startedAt != nil
     }
 
     /// Terminates the app, waits for the real termination notification (not
     /// a fixed delay), then relaunches it - the same sequence
     /// `CommandBarService.restart` uses for its own restart row.
     func restart(_ entry: KillProcessEntry) {
-        guard !entry.isProtected, let url = entry.bundleURL else { return }
+        guard !entry.isProtected,
+              let url = entry.bundleURL,
+              let target = Self.target(for: entry) else { return }
         cancelPendingRestart()
         pendingRestartPID = entry.pid
         pendingRestartURL = url
@@ -281,8 +327,14 @@ final class KillProcessService: ObservableObject {
                   terminated.processIdentifier == self?.pendingRestartPID else { return }
             self?.completeRestart()
         }
-        DispatchQueue.global(qos: .userInitiated).async {
-            _ = Self.attemptDirectKill(pid: entry.pid, force: false)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = Self.attemptDirectKill(target: target, force: false)
+            switch result {
+            case .failed, .needsAdmin, .stale:
+                DispatchQueue.main.async { self?.cancelPendingRestart() }
+            case .killed, .alreadyGone:
+                break
+            }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
             guard self?.pendingRestartPID == entry.pid else { return }
@@ -316,6 +368,41 @@ final class KillProcessService: ObservableObject {
         KillProcessSupport.isProtected(pid: pid, name: name, path: path)
     }
 
+    private static func target(for entry: KillProcessEntry) -> KillTarget? {
+        guard let startedAt = entry.startedAt else { return nil }
+        return KillTarget(pid: entry.pid, startedAt: startedAt)
+    }
+
+    private static func currentTarget(pid: pid_t) -> KillTarget? {
+        currentStartTime(pid: pid).map { KillTarget(pid: pid, startedAt: $0) }
+    }
+
+    private static func identityMatches(_ target: KillTarget) -> Bool {
+        currentStartTime(pid: target.pid) == target.startedAt
+    }
+
+    private static func currentStartTime(pid: pid_t,
+                                         expectedParent: pid_t? = nil,
+                                         expectedPath: String? = nil) -> UInt64? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        if let expectedParent, pid_t(info.pbi_ppid) != expectedParent { return nil }
+        if let expectedPath, expectedPath.contains("/") {
+            var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+            guard proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count)) > 0,
+                  String(cString: pathBuffer) == expectedPath else { return nil }
+        }
+        return info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec
+    }
+
+    private static func currentStartDescription(pid: pid_t) -> String? {
+        let result = Shell.run("/usr/bin/env", ["LC_ALL=C", "/bin/ps", "-p", String(pid),
+                                                "-o", "lstart="])
+        guard result.status == 0 else { return nil }
+        return KillProcessSupport.normalizedStartDescription(result.output)
+    }
+
     // MARK: - Snapshot
 
     /// Nil on a failed or clearly-wrong snapshot (a timed-out or non-zero
@@ -344,7 +431,11 @@ final class KillProcessService: ObservableObject {
             let shortName = commandPath.contains("/")
                 ? (commandPath as NSString).lastPathComponent : commandPath
             let running = NSRunningApplication(processIdentifier: pid)
+            let startedAt = currentStartTime(pid: pid,
+                                             expectedParent: ppid,
+                                             expectedPath: commandPath)
             let isProt = isProtected(pid: pid, name: shortName, path: commandPath)
+                || startedAt == nil
             rows.append(KillProcessEntry(
                 pid: pid,
                 ppid: ppid,
@@ -355,7 +446,8 @@ final class KillProcessService: ObservableObject {
                 isRegularApp: running?.activationPolicy == .regular,
                 bundleURL: running?.bundleURL,
                 groupedCount: 1,
-                isProtected: isProt))
+                isProtected: isProt,
+                startedAt: startedAt))
         }
         return rows
     }
@@ -369,9 +461,10 @@ final class KillProcessService: ObservableObject {
             byOwner[ResponsibleProcess.owner(of: row.pid), default: []].append(row)
         }
         return byOwner.compactMap { owner, members in
-            guard let primary = members.first(where: { $0.pid == owner }) ?? members.first else { return nil }
+            guard let primary = members.first(where: { $0.pid == owner }) else { return nil }
             let running = NSRunningApplication(processIdentifier: owner)
             let isProt = isProtected(pid: owner, name: primary.name, path: primary.path)
+                || primary.startedAt == nil
             return KillProcessEntry(
                 pid: owner,
                 ppid: primary.ppid,
@@ -382,7 +475,8 @@ final class KillProcessService: ObservableObject {
                 isRegularApp: running?.activationPolicy == .regular,
                 bundleURL: running?.bundleURL,
                 groupedCount: members.count,
-                isProtected: isProt)
+                isProtected: isProt,
+                startedAt: primary.startedAt)
         }
     }
 }

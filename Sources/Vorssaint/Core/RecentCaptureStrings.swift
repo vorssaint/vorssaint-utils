@@ -147,7 +147,7 @@ extension RecentCaptureStrings {
 
     static let zhHans = RecentCaptureStrings(
         title: "最近捕捉",
-        empty: "截取屏幕或保存录屏后，就会显示在这里。",
+        empty: "截取屏幕或存储录屏后，就会显示在这里。",
         screenshot: "截图",
         recording: "录屏",
         restore: "恢复",

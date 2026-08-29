@@ -174,10 +174,10 @@ enum SelfUninstall {
             .appendingPathComponent("vorssaint-uninstall-\(pid)-\(UUID().uuidString).sh")
         do {
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/sh")
-            task.arguments = [scriptURL.path, app, "\(pid)"]
-            try task.run()
+            // Its own session: the script's first act is to wait for this app
+            // to exit, so a child left in our session would be torn down with
+            // us before it ever gets to move the bundle.
+            try DetachedProcess.spawn("/bin/sh", [scriptURL.path, app, "\(pid)"])
             NSApp.terminate(nil)
         } catch {
             try? FileManager.default.removeItem(at: scriptURL)

@@ -341,6 +341,8 @@ struct Strings {
     let dockPreviewBackgroundOpacityCaption: String
     let dockPreviewOpenDelay: String
     let dockPreviewOpenDelayCaption: String
+    let dockPreviewQuitAppOnClose: String
+    let dockPreviewQuitAppOnCloseCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -806,6 +808,8 @@ struct Strings {
     let diskSection: String
     let diskUsed: String
     let diskFree: String
+    let diskAvailable: String
+    let diskPurgeable: String
     let diskInternal: String
     let diskExternal: String
     let diskSelect: String
@@ -1051,6 +1055,8 @@ struct Strings {
     let cleanerNotifOpenSettings: String
     let launchAtLoginNeedsApplications: String
     let launchAtLoginNeedsApproval: String
+    let ocrRemoveLineBreaksToggle: String
+    let ocrRemoveLineBreaksCaption: String
     let ocrQRToggle: String
     let ocrQRCaption: String
     let ocrQRCopied: String
@@ -1111,6 +1117,11 @@ struct Strings {
     let switcherMinimizedPlacementEnd: String
     let switcherMinimizedPlacementHidden: String
     let switcherShowFullscreenWindows: String
+    let switcherScreenPlacementLabel: String
+    let switcherScreenPlacementPointer: String
+    let switcherScreenPlacementMenuBar: String
+    let switcherScreenPlacementActiveWindow: String
+    let switcherScreenPlacementCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1337,6 +1348,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockPreviewOpenDelay: "Atraso de abertura",
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
+        dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
+        dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -1786,6 +1799,8 @@ extension Strings {
         diskSection: "Discos",
         diskUsed: "usado",
         diskFree: "livre",
+        diskAvailable: "disponível",
+        diskPurgeable: "purgável",
         diskInternal: "Interno",
         diskExternal: "Externo",
         diskSelect: "Selecionar disco",
@@ -2019,6 +2034,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Abrir Ajustes de Notificações…",
         launchAtLoginNeedsApplications: "O app está rodando de um lugar que não permite abrir no login. Arraste o Vorssaint para a pasta Aplicativos, abra de lá e ligue de novo.",
         launchAtLoginNeedsApproval: "O item de login está registrado, mas continua desligado nos Ajustes do Sistema. Abra Ajustes do Sistema › Geral › Itens de Início e Extensões e ligue o Vorssaint em «Abrir ao iniciar sessão».",
+        ocrRemoveLineBreaksToggle: "Remover quebras de linha",
+        ocrRemoveLineBreaksCaption: "Remove as quebras de linha para que o texto copiado seja colado como um único parágrafo.",
         ocrQRToggle: "Ler QR codes",
         ocrQRCaption: "Se a área tiver um QR code, o conteúdo dele aparece para copiar ou abrir.",
         ocrQRCopied: "QR code copiado",
@@ -2078,7 +2095,12 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia",
+        switcherScreenPlacementLabel: "Mostrar em",
+        switcherScreenPlacementPointer: "Tela com o ponteiro",
+        switcherScreenPlacementMenuBar: "Tela com a barra de menus",
+        switcherScreenPlacementActiveWindow: "Tela com a janela ativa",
+        switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada."
     )
 }
 
@@ -2306,6 +2328,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockPreviewOpenDelay: "Open delay",
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
+        dockPreviewQuitAppOnClose: "Quit the app with the × button",
+        dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app's windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -2755,6 +2779,8 @@ extension Strings {
         diskSection: "Disks",
         diskUsed: "used",
         diskFree: "free",
+        diskAvailable: "available",
+        diskPurgeable: "purgeable",
         diskInternal: "Internal",
         diskExternal: "External",
         diskSelect: "Select disk",
@@ -2988,6 +3014,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Open Notification Settings…",
         launchAtLoginNeedsApplications: "The app is running from a place that cannot open at login. Drag Vorssaint to the Applications folder, open it from there and turn this on again.",
         launchAtLoginNeedsApproval: "The login item is registered but still switched off in System Settings. Open System Settings › General › Login Items & Extensions and turn Vorssaint on under Open at Login.",
+        ocrRemoveLineBreaksToggle: "Remove line breaks",
+        ocrRemoveLineBreaksCaption: "Removes line breaks so copied text pastes as one paragraph.",
         ocrQRToggle: "Read QR codes",
         ocrQRCaption: "If the area has a QR code, its content is shown to copy or open.",
         ocrQRCopied: "QR code copied",
@@ -3047,6 +3075,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",
-        switcherShowFullscreenWindows: "Show fullscreen windows"
+        switcherShowFullscreenWindows: "Show fullscreen windows",
+        switcherScreenPlacementLabel: "Show on",
+        switcherScreenPlacementPointer: "Screen with the pointer",
+        switcherScreenPlacementMenuBar: "Screen with the menu bar",
+        switcherScreenPlacementActiveWindow: "Screen with the active window",
+        switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected."
     )
 }

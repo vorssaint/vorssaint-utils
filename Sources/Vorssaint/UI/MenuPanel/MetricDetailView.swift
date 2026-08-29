@@ -396,12 +396,18 @@ struct MetricDetailView: View {
                 return [row(l10n.s.diskSection, l10n.s.diskNoDisks)]
             }
             let activity = diskActivity(from: snapshot.disk)
-            return [
+            var rows: [MetricDetailRow] = [
                 row(disk.name, "\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)"),
-                row(l10n.s.diskFree, MetricFormat.diskBytes(disk.freeBytes)),
+                row(l10n.s.diskAvailable, MetricFormat.diskBytes(disk.freeBytes)),
+            ]
+            if let purgeable = disk.purgeableBytes, purgeable >= 500_000_000 {
+                rows.append(row(l10n.s.diskPurgeable, MetricFormat.diskBytes(purgeable)))
+            }
+            rows.append(contentsOf: [
                 row(l10n.s.diskRead, activity.map { MetricFormat.bytesPerSec($0.read) } ?? l10n.s.networkMeasuring),
                 row(l10n.s.diskWrite, activity.map { MetricFormat.bytesPerSec($0.write) } ?? l10n.s.networkMeasuring),
-            ]
+            ])
+            return rows
         case .battery:
             let power = snapshot.power
             var rows: [MetricDetailRow] = []
@@ -498,7 +504,7 @@ struct MetricDetailView: View {
             return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
         case .disk:
             guard let disk = primaryDisk(from: snapshot.disk) else { return l10n.s.diskNoDisks }
-            return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskFree)"
+            return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)"
         case .battery:
             if PowerSampler.hasInternalBattery {
                 return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery

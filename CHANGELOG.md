@@ -6,28 +6,57 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, App Switcher and snippet controls, broadens app update and safe cleanup discovery, and hardens Volume Mixer audio rendering and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+
 ### Added
+- Dock Preview now includes an option in Settings to quit an app from a thumbnail's × button instead of closing only that window. Thanks to @arefshal.
+- Copy Text from Screen now includes an option in Settings to remove line breaks and join recognized lines as a single paragraph with script-aware spacing. Thanks to @ywu73.
 - Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
 - Super key can now use Caps Lock or the right Command, Option, Control or Shift key, with the chosen key shown across Settings, shortcuts and the menu panel. Thanks to @JoanLaRosa.
 - The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
+- The App Switcher can now open on the screen under the pointer, the screen with the menu bar or the screen with the active window. Thanks to @noahjstewart.
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
 
 ### Changed
+- The screenshot editor drag-out handle now uses a dedicated icon instead of a preview thumbnail. Thanks to @Yahddyyp.
+- Simplified Chinese terminology is now unified across the app to match native macOS conventions for copying, saving, app names and confirmations. Thanks to @PathGao.
+- The disk space readout now shows available and physical used space using macOS volume metrics and displays purgeable capacity when present.
 - App Updates now finds newer versions for other installed apps through a privacy-preserving public online catalog and opens those apps so their own updater remains in control.
 - The Uninstaller now finds more support files, containers, preference panes and plugins through verified app identifiers and signed ownership, searches nested vendor folders and opens every result in Finder. Name-related finds start unchecked.
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 
 ### Fixed
+- Moving a window to the next or previous display now preserves its point size and edge insets instead of scaling proportionally. Thanks to @DiogoDuart3.
+- Volume Mixer now silences unwritten output frames to prevent stuttering from stale audio buffers and bounds concurrent teardowns so stalled system audio cleanup does not block other apps or background threads. Thanks to @PathGao.
+- App updates, uninstallation, bundle migration and relaunch helpers now run detached in their own session, ensuring they complete when the app terminates under session management. Thanks to @PathGao.
+- App Switcher now recognizes floating and undescribed workspace windows from professional media apps.
+- Super key now restores its source when the app is force-quit, preventing Caps Lock or a right-side modifier from being left inactive.
+- App Switcher now rejects stale hidden-Space surfaces without hiding real fullscreen windows on another Space. Thanks to @naveenkrdy.
+- App Switcher middle-click now closes only the card under the pointer and leaves panel chrome untouched.
+- Multi-line text snippets now paste every line in order while preserving rich clipboard content and keeping transient text out of history. Thanks to @fermincasagrande.
+- Text snippets now keep their trigger buffer when typed on the macOS Accessibility Keyboard. Thanks to @fermincasagrande.
+- Dock click actions and previews now stay behind fullscreen content and sample high-rate pointer movement without overloading the hover tap. Thanks to @iltonandrew.
+- Clipboard history now trims against the encoded file size before saving, preventing its store from becoming unreadable.
+- Kill Process now sorts consistently and revalidates the exact process before terminating it, preventing a recycled process identifier from targeting a different process.
+- Music launch blocking now fails open when its media-key listener is unavailable.
+- Radial Menu favicon downloads now stay on the link origin and reject cross-origin redirects, oversized payloads and unsafe image dimensions.
+- Feedback reports now show human-readable beta and update-channel diagnostics.
+- CPU temperature and Fan Control curves now use only mapped processor sensors, recognize M3 core readings and distinguish an unavailable helper from unsupported hardware.
 - Settings now enforces its design minimum size across window resizing, layout updates and window restore, preventing the sidebar and preferences from compressing or clipping.
 - Scratchpad windows now drag reliably from anywhere in the top bar, keep generous resize borders and minimum dimensions, and include a close button on each tab.
+- Screenshot editor windows now enforce their designed minimum size across manual and accessibility resizing, preventing the canvas and tools from compressing into a narrow strip. Thanks to @iltonandrew.
 - Text-heavy floating panels now keep their content readable over bright windows when Liquid Glass is enabled.
 - Auto-quit now retries watching windows when accessibility initially lists no open window, ensuring apps quit properly when their last window is closed. Thanks to @iltonandrew.
 - Screen recording settings in Traditional Chinese (Taiwan) now use the standard microphone term 麥克風 instead of the Hong Kong Cantonese term 咪高風. Thanks to @watain666.
 - Mouse exceptions now match non-bundled executable programs and Java runtimes alongside regular application bundles. Thanks to @iltonandrew.
+- Settings backups now keep machine-local program paths out of exported files and preserve local exceptions across a restore. Thanks to @iltonandrew.
 - Uninstalling a feature now removes it from Command Bar pins in Settings.
 - Pressing Escape in the clipboard history quick panel now clears batch selection or closes the panel directly instead of closing the preview pane first. Thanks to @naveenkrdy.
 - Adding points to a custom fan curve now updates and saves the curve instead of discarding the new point.
 - The battery icon in the menu bar now preserves its rectangular aspect ratio when split into its own item instead of rendering as a square. Thanks to @Yahddyyp.
+- Cleaning Mode now uses a forgiving 6-second press window for the Escape unlock gesture and resets the count when modifier keys are pressed while wiping. Thanks to @iltonandrew.
+- Dock previews now move to the vacated screen edge when an auto-hiding Dock slides away instead of floating detached. Thanks to @iltonandrew.
 
 ## [3.3.3-beta.3] - 2026-08-26
 
@@ -86,6 +115,7 @@ All notable changes to this project are documented here. The format follows
 - Sound Mixer now includes an option to hide inactive applications while keeping custom volume and output selections visible. Thanks to @ruvelro.
 - Sound Mixer now includes an option to use finer volume steps with keyboard volume keys and rollers. Thanks to @ruvelro.
 - Finder Cut & Paste now includes an option in Settings to show or hide the floating panel for staged files, and automatically hides the panel when Finder is in the background.
+- Dock Preview can now optionally quit an app from a thumbnail's × button instead of closing only that window.
 
 ### Changed
 - Command Bar settings no longer put a command key glyph in front of "Open the bar now", read as one paragraph rather than four separate cards, and name what the shortcut opens. Thanks to @PathGao.
