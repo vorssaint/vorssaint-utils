@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, App Switcher and snippet controls, broadens app update and safe cleanup discovery, and hardens Volume Mixer audio rendering and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
 
 ### Added
+- Eject all disks can now exclude specific drives in Settings, keeping backup drives and permanent storage mounted when ejecting other external disks.
 - Dock Preview now includes an option in Settings to quit an app from a thumbnail's × button instead of closing only that window. Thanks to @arefshal.
 - Copy Text from Screen now includes an option in Settings to remove line breaks and join recognized lines as a single paragraph with script-aware spacing. Thanks to @ywu73.
 - Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
@@ -27,6 +28,11 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 
 ### Fixed
+- App Switcher now enumerates windows on a background queue, keeping shortcuts and typing responsive even when apps delay Accessibility responses. Thanks to @MaximilianMauroner.
+- App Switcher now lists windows from apps that draw their own title bar or use borderless windows. Thanks to @PathGao.
+- Switching capture modes in the screen capture chooser now transitions smoothly without flickering or restarting the overlay session.
+- Clicking long text previews in the menu panel's clipboard section now keeps the preview confined to its row instead of overflowing across neighboring items. Thanks to @andreisuslov.
+- Navigating clipboard history with arrow keys now prevents hovering pointers from fighting keyboard selection, keeps the list responsive during scrolling and renders large text previews without layout pauses. Thanks to @andreisuslov.
 - Moving a window to the next or previous display now preserves its point size and edge insets instead of scaling proportionally. Thanks to @DiogoDuart3.
 - Volume Mixer now silences unwritten output frames to prevent stuttering from stale audio buffers and bounds concurrent teardowns so stalled system audio cleanup does not block other apps or background threads. Thanks to @PathGao.
 - App updates, uninstallation, bundle migration and relaunch helpers now run detached in their own session, ensuring they complete when the app terminates under session management. Thanks to @PathGao.
