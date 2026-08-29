@@ -1115,10 +1115,17 @@ final class DockPreviewService: ObservableObject {
             ownProcessID: getpid()
         ) else { return nil }
 
-        let system = AXUIElementCreateSystemWide()
+        // Hit-tested through the Dock's own application element rather than the
+        // system-wide one, so this read carries the cap below like every other
+        // read here; a timeout written on the system-wide object would be the
+        // process-wide default. The guard above has already established that the
+        // Dock owns this point and the loop below drops any candidate that is
+        // not the Dock's, so narrowing the search to its hierarchy removes no
+        // case that reaches here.
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
-              let element = rawElement
+        guard let dock = bounded(AXUIElementCreateApplication(dockPID)),
+              AXUIElementCopyElementAtPosition(dock, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
+              let element = bounded(rawElement)
         else { return nil }
 
         for candidate in elementAndParents(from: element) {
@@ -1314,7 +1321,39 @@ final class DockPreviewService: ObservableObject {
               let value,
               CFGetTypeID(value) == AXUIElementGetTypeID()
         else { return nil }
-        return (value as! AXUIElement)
+        let child = value as! AXUIElement
+        return bounded(child)
+    }
+
+    /// Caps how long one Accessibility question about the Dock may take.
+    ///
+    /// These reads run on the main thread — the event tap's run-loop source is
+    /// on the main run loop and `handleOnMain` stays there — and they fire on
+    /// every mouse-move sample along the Dock's edge. The process they question
+    /// is the Dock, which is the one that stops answering (#971). Each step is a
+    /// guard, so a Dock that has stopped answering costs the hit test alone and
+    /// a Dock that answers it and then stops costs three.
+    ///
+    /// Per element on purpose. Setting a timeout on the system-wide object sets
+    /// the process-wide default, and six features here already write that
+    /// global with three different values; hovering the Dock must not change how
+    /// long window layout or focus-follows-mouse wait. Measured on 26.6.2: a
+    /// value written to an element survives a later write to the global, and a
+    /// new element inherits whichever global was written last.
+    ///
+    /// The value matches what `AppDelegate` writes to the global at launch, so
+    /// a read here answers or gives up exactly when it does today. Tightening it
+    /// is a separate question: a read that gives up sooner is a hover that opens
+    /// no preview, and one that lands in the classifier reads as a pointer that
+    /// left the Dock, which closes a preview already open. That trade wants the
+    /// timeout signal in #1086 first, so a read that ran out is no longer
+    /// indistinguishable from an answer.
+    private static let messagingTimeout: Float = 0.35
+
+    private func bounded(_ element: AXUIElement?) -> AXUIElement? {
+        guard let element else { return nil }
+        AXUIElementSetMessagingTimeout(element, Self.messagingTimeout)
+        return element
     }
 
     private func stringAttribute(_ element: AXUIElement, _ attribute: String) -> String? {
