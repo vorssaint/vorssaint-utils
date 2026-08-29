@@ -569,7 +569,6 @@ final class ShelfService: ObservableObject {
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
         guard let items = pasteboard.pasteboardItems, !items.isEmpty else { return false }
-        let hasReadablePromises = pasteboardHasReadableFilePromises(pasteboard)
         let directTypes: Set<String> = [
             NSPasteboard.PasteboardType.fileURL.rawValue,
             NSPasteboard.PasteboardType.string.rawValue,
@@ -585,18 +584,20 @@ final class ShelfService: ObservableObject {
             "NSURLPboardType"
         ]
         let supportedUTTypes: [UTType] = [.fileURL, .gif, .image, .url, .text, .plainText]
+        var hasPromiseType = false
 
         for item in items {
             for type in item.types {
                 if directTypes.contains(type.rawValue) { return true }
-                if Self.filePromiseTypeIdentifiers.contains(type.rawValue), hasReadablePromises {
-                    return true
+                if Self.filePromiseTypeIdentifiers.contains(type.rawValue) {
+                    hasPromiseType = true
+                    continue
                 }
                 guard let utType = UTType(type.rawValue) else { continue }
                 if supportedUTTypes.contains(where: { utType.conforms(to: $0) }) { return true }
             }
         }
-        return false
+        return hasPromiseType && pasteboardHasReadableFilePromises(pasteboard)
     }
 
     private func eventBelongsToDock(_ event: NSEvent) -> Bool {
