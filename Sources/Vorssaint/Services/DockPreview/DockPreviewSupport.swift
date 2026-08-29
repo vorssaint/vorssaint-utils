@@ -69,6 +69,11 @@ struct DockPreviewCloseState: Equatable {
     let shouldEndSession: Bool
 }
 
+enum DockPreviewCloseAction: Equatable {
+    case closeWindow
+    case quitApp
+}
+
 struct DockPreviewMouseDownDecision: Equatable {
     let shouldEndSession: Bool
 }
@@ -90,6 +95,20 @@ struct HoverCorridor: Equatable {
 }
 
 enum DockPreviewSupport {
+    static func closeAction(quitAppOnClose: Bool) -> DockPreviewCloseAction {
+        quitAppOnClose ? .quitApp : .closeWindow
+    }
+
+    static func performCloseAction(quitAppOnClose: Bool,
+                                   requestQuit: () -> Bool,
+                                   closeWindow: () -> Void) {
+        if closeAction(quitAppOnClose: quitAppOnClose) == .quitApp,
+           requestQuit() {
+            return
+        }
+        closeWindow()
+    }
+
     /// How long the cursor must rest on an icon before its panel opens. Long
     /// enough that the Dock can be crossed on the way somewhere else, short
     /// enough that a cursor which stopped is answered. Adjustable: that line

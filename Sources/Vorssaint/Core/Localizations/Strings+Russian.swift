@@ -226,6 +226,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Уменьшите, чтобы видеть больше того, что находится за панелью.",
         dockPreviewOpenDelay: "Задержка открытия",
         dockPreviewOpenDelayCaption: "Сколько указатель должен оставаться на значке, прежде чем откроется панель.",
+        dockPreviewQuitAppOnClose: "Завершать приложение кнопкой ×",
+        dockPreviewQuitAppOnCloseCaption: "В Dock Preview кнопка × завершает всё приложение, а не закрывает только это окно.",
         dockClickMinimize: "Сворачивать кликом по Dock",
         dockClickMinimizeCaption: "Окна активного приложения сворачиваются при клике по его значку в Dock. Кликните ещё раз, чтобы вернуть их.",
         dockClickCycleWindows: "Кликом по Dock переключать окна",
@@ -971,6 +973,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Обычный порядок",
         switcherMinimizedPlacementEnd: "В конец списка",
         switcherMinimizedPlacementHidden: "Скрывать",
-        switcherShowFullscreenWindows: "Показывать полноэкранные окна"
+        switcherShowFullscreenWindows: "Показывать полноэкранные окна",
+        switcherScreenPlacementLabel: "Показывать на",
+        switcherScreenPlacementPointer: "Экран с указателем",
+        switcherScreenPlacementMenuBar: "Экран со строкой меню",
+        switcherScreenPlacementActiveWindow: "Экран с активным окном",
+        switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов."
     )
 }

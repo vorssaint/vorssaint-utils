@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "调低后可以看到更多面板后面的内容。",
         dockPreviewOpenDelay: "打开延迟",
         dockPreviewOpenDelayCaption: "指针停在图标上多久之后才打开面板。",
+        dockPreviewQuitAppOnClose: "使用 × 按钮退出 App",
+        dockPreviewQuitAppOnCloseCaption: "在 Dock Preview 中，× 会退出整个 App，而不只是关闭该窗口。",
         dockClickMinimize: "点按 Dock 图标最小化",
         dockClickMinimizeCaption: "点按最前面 App 的 Dock 图标可将其窗口最小化。再次点按即可恢复。",
         dockClickCycleWindows: "点按 Dock 图标切换窗口",
@@ -970,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "正常顺序",
         switcherMinimizedPlacementEnd: "放到末尾",
         switcherMinimizedPlacementHidden: "隐藏",
-        switcherShowFullscreenWindows: "显示全屏窗口"
+        switcherShowFullscreenWindows: "显示全屏窗口",
+        switcherScreenPlacementLabel: "显示在",
+        switcherScreenPlacementPointer: "指针所在的屏幕",
+        switcherScreenPlacementMenuBar: "菜单栏所在的屏幕",
+        switcherScreenPlacementActiveWindow: "活跃窗口所在的屏幕",
+        switcherScreenPlacementCaption: "连接多个屏幕时，切换器在哪个屏幕上打开。"
     )
 }

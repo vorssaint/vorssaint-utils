@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
         dockPreviewOpenDelay: "表示までの待ち時間",
         dockPreviewOpenDelayCaption: "ポインタをアイコンに置いてからパネルが開くまでの時間です。",
+        dockPreviewQuitAppOnClose: "× ボタンでアプリを終了",
+        dockPreviewQuitAppOnCloseCaption: "Dock Preview では、× はそのウインドウだけを閉じる代わりにアプリ全体を終了します。",
         dockClickMinimize: "Dock クリックでしまう",
         dockClickMinimizeCaption: "手前のアプリの Dock アイコンをクリックするとウインドウをしまいます。もう一度クリックすると戻ります。",
         dockClickCycleWindows: "Dock クリックでウインドウを切り替え",
@@ -970,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "通常の順序",
         switcherMinimizedPlacementEnd: "最後に配置",
         switcherMinimizedPlacementHidden: "非表示",
-        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示"
+        switcherShowFullscreenWindows: "フルスクリーンのウインドウを表示",
+        switcherScreenPlacementLabel: "表示先",
+        switcherScreenPlacementPointer: "ポインタのある画面",
+        switcherScreenPlacementMenuBar: "メニューバーのある画面",
+        switcherScreenPlacementActiveWindow: "アクティブなウインドウのある画面",
+        switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。"
     )
 }

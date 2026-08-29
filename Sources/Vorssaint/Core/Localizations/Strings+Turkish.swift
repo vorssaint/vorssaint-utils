@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
         dockPreviewOpenDelay: "Açılma gecikmesi",
         dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
+        dockPreviewQuitAppOnClose: "× düğmesiyle uygulamadan çık",
+        dockPreviewQuitAppOnCloseCaption: "Dock Preview'da × yalnızca o pencereyi kapatmak yerine uygulamadan tamamen çıkar.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
         dockClickMinimizeCaption: "Etkin uygulamanın pencereleri Dock simgesine tıklandığında küçülür. Geri getirmek için yeniden tıklayın.",
         dockClickCycleWindows: "Dock simgesine tıklayınca pencere değiştir",
@@ -970,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal sıralama",
         switcherMinimizedPlacementEnd: "Sona yerleştir",
         switcherMinimizedPlacementHidden: "Gizle",
-        switcherShowFullscreenWindows: "Tam ekran pencereleri göster"
+        switcherShowFullscreenWindows: "Tam ekran pencereleri göster",
+        switcherScreenPlacementLabel: "Şurada göster",
+        switcherScreenPlacementPointer: "İmlecin olduğu ekran",
+        switcherScreenPlacementMenuBar: "Menü çubuğunun olduğu ekran",
+        switcherScreenPlacementActiveWindow: "Etkin pencerenin olduğu ekran",
+        switcherScreenPlacementCaption: "Birden fazla ekran bağlıyken değiştiricinin hangi ekranda açılacağını belirler."
     )
 }

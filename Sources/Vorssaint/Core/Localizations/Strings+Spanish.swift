@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Bájalo para ver más de lo que hay detrás del panel.",
         dockPreviewOpenDelay: "Retardo de apertura",
         dockPreviewOpenDelayCaption: "Cuánto tiempo debe reposar el puntero sobre un icono antes de que se abra el panel.",
+        dockPreviewQuitAppOnClose: "Salir de la app con el botón ×",
+        dockPreviewQuitAppOnCloseCaption: "En Dock Preview, × cierra toda la app en lugar de cerrar solo esa ventana.",
         dockClickMinimize: "Clic en el Dock para minimizar",
         dockClickMinimizeCaption: "Las ventanas de la app activa se minimizan al hacer clic en su icono del Dock. Vuelve a hacer clic para recuperarlas.",
         dockClickCycleWindows: "Clic en el Dock para alternar ventanas",
@@ -970,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Orden normal",
         switcherMinimizedPlacementEnd: "Colocar al final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa"
+        switcherShowFullscreenWindows: "Mostrar ventanas en pantalla completa",
+        switcherScreenPlacementLabel: "Mostrar en",
+        switcherScreenPlacementPointer: "Pantalla con el puntero",
+        switcherScreenPlacementMenuBar: "Pantalla con la barra de menús",
+        switcherScreenPlacementActiveWindow: "Pantalla con la ventana activa",
+        switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada."
     )
 }

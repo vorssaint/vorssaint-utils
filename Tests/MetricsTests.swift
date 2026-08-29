@@ -2342,6 +2342,46 @@ struct MetricsTests {
         expect(WindowSwitchMinimizedPlacement.allCases.map(\.rawValue) == ["normal", "end", "hidden"],
                "every minimized placement case has a stable raw value")
 
+        // MARK: Which display the switcher opens on
+        expect(registeredDefaults[DefaultsKey.switcherScreenPlacement] as? String
+               == SwitcherScreenPlacement.pointer.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherScreenPlacement),
+               "App Switcher keeps opening on the pointer's screen by default and carries the choice in backups")
+        expect(SwitcherScreenPlacement.placement(storedValue: nil) == .pointer
+               && SwitcherScreenPlacement.placement(storedValue: "") == .pointer
+               && SwitcherScreenPlacement.placement(storedValue: "bogus") == .pointer,
+               "an unset or unreadable screen placement falls back to the pointer's screen")
+        expect(SwitcherScreenPlacement.allCases.map(\.rawValue) == ["pointer", "menuBar", "activeWindow"]
+               && SwitcherScreenPlacement.allCases.allSatisfy {
+                   SwitcherScreenPlacement.placement(storedValue: $0.rawValue) == $0
+               },
+               "every screen placement choice has a stable raw value that survives preferences")
+        let leftDisplay = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let rightDisplay = CGRect(x: 1920, y: 0, width: 1440, height: 900)
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 2000, y: 100, width: 800, height: 600),
+                                            displayBounds: [leftDisplay, rightDisplay]) == 1,
+               "a window inside one display resolves to that display")
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 1500, y: 100, width: 1000, height: 600),
+                                            displayBounds: [leftDisplay, rightDisplay]) == 1
+               && SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 1500, y: 100, width: 700, height: 600),
+                                               displayBounds: [leftDisplay, rightDisplay]) == 0,
+               "a window straddling two displays belongs to the one showing more of it, whichever comes first")
+        // Window-server coordinates grow downward, so a display below the
+        // menu bar display has a positive y origin. An AppKit frame for the
+        // same window would carry a negative y and land on the wrong display.
+        let upperDisplay = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let lowerDisplay = CGRect(x: 0, y: 1080, width: 1920, height: 1080)
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 200, y: 1300, width: 800, height: 600),
+                                            displayBounds: [upperDisplay, lowerDisplay]) == 1
+               && SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 200, y: -800, width: 800, height: 600),
+                                               displayBounds: [upperDisplay, lowerDisplay]) == nil,
+               "stacked displays resolve by window-server y, and a bottom-left-origin frame would touch no display")
+        expect(SwitcherSupport.displayIndex(showingMostOf: CGRect(x: 5000, y: 100, width: 800, height: 600),
+                                            displayBounds: [leftDisplay, rightDisplay]) == nil
+               && SwitcherSupport.displayIndex(showingMostOf: .zero, displayBounds: [leftDisplay, rightDisplay]) == nil
+               && SwitcherSupport.displayIndex(showingMostOf: leftDisplay, displayBounds: []) == nil,
+               "a window touching no display, an entry without a frame, or no display at all leave the screen to the fallback")
+
         // MARK: Switcher entries for apps with no window (issue #351)
         expect(SwitcherWindowlessApps.mode(storedValue: nil) == .finder
                && SwitcherWindowlessApps.mode(storedValue: "") == .finder
@@ -2463,6 +2503,39 @@ struct MetricsTests {
                "Dock Preview is opt-in for clean installs")
         expect(registeredDefaults[DefaultsKey.dockPreviewBackgroundOpacity] as? Double == 1.0,
                "the Dock Preview panel starts fully solid")
+        expect(registeredDefaults[DefaultsKey.dockPreviewQuitAppOnClose] as? Bool == false,
+               "the Dock Preview close button closes one window by default")
+        expect(DockPreviewSupport.closeAction(quitAppOnClose: false) == .closeWindow
+                && DockPreviewSupport.closeAction(quitAppOnClose: true) == .quitApp,
+               "the Dock Preview close preference selects exactly one close action")
+        var dockPreviewQuitRequests = 0
+        var dockPreviewWindowCloseRequests = 0
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: false,
+            requestQuit: {
+                dockPreviewQuitRequests += 1
+                return true
+            },
+            closeWindow: { dockPreviewWindowCloseRequests += 1 }
+        )
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: true,
+            requestQuit: {
+                dockPreviewQuitRequests += 1
+                return true
+            },
+            closeWindow: { dockPreviewWindowCloseRequests += 1 }
+        )
+        DockPreviewSupport.performCloseAction(
+            quitAppOnClose: true,
+            requestQuit: {
+                dockPreviewQuitRequests += 1
+                return false
+            },
+            closeWindow: { dockPreviewWindowCloseRequests += 1 }
+        )
+        expect(dockPreviewQuitRequests == 2 && dockPreviewWindowCloseRequests == 2,
+               "Dock Preview closes a window normally, waits after an accepted quit, and falls back after refusal")
         expect(registeredDefaults[DefaultsKey.dockClickHide] as? Bool == false,
                "hiding the active app from its Dock icon is opt-in")
         expect(DockPreviewSupport.sanitizedBackgroundOpacity(0.7) == 0.7,
@@ -4744,14 +4817,60 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rectForDisplay(current: rightHalfWindow,
                                                    sourceVisibleFrame: visibleFrame,
                                                    destinationVisibleFrame: nextDisplayFrame)
-               == CGRect(x: 2400, y: 80, width: 960, height: 1000),
-               "window layout display transfer preserves relative placement and size")
+               == CGRect(x: 2640, y: 220, width: 720, height: 860),
+               "window layout display transfer keeps a right-half on the right and under the menu bar")
+        let leftHalfWindow = CGRect(x: 0, y: 40, width: 720, height: 860)
+        expect(WindowLayoutGeometry.rectForDisplay(current: leftHalfWindow,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == CGRect(x: 1440, y: 220, width: 720, height: 860),
+               "window layout display transfer keeps a left-half on the left and under the menu bar")
         let oversizedWindow = CGRect(x: -40, y: 0, width: 2000, height: 1200)
         expect(WindowLayoutGeometry.rectForDisplay(current: oversizedWindow,
                                                    sourceVisibleFrame: visibleFrame,
                                                    destinationVisibleFrame: nextDisplayFrame)
                == nextDisplayFrame,
                "window layout display transfer clamps oversized windows to the destination visible frame")
+        expect(WindowLayoutGeometry.rectForDisplay(current: visibleFrame,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "display transfer fills the destination when the window already fills the source")
+        let almostFilled = CGRect(x: 4, y: 44, width: 1432, height: 852)
+        expect(WindowLayoutGeometry.rectForDisplay(current: almostFilled,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "display transfer treats a window within settle tolerance of maximize as filling the destination")
+        let ultrawideFrame = CGRect(x: 1440, y: 0, width: 3440, height: 1400)
+        expect(WindowLayoutGeometry.rectForDisplay(current: currentWindow,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 1640, y: 700, width: 800, height: 500),
+               "display transfer keeps a laptop window's size and top-left insets on an ultrawide")
+        let nearFullWidth = CGRect(x: 2, y: 200, width: 1436, height: 500)
+        expect(WindowLayoutGeometry.rectForDisplay(current: nearFullWidth,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 1442, y: 700, width: 1436, height: 500),
+               "display transfer keeps a near-full-width window's left inset on an ultrawide")
+        let nearFullWidthRightish = CGRect(x: 6, y: 200, width: 1432, height: 500)
+        expect(WindowLayoutGeometry.rectForDisplay(current: nearFullWidthRightish,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 1446, y: 700, width: 1432, height: 500),
+               "display transfer does not treat a few points of leftover width as a right edge")
+        let shortDisplay = CGRect(x: 1440, y: 80, width: 1920, height: 400)
+        let shrunkWindow = WindowLayoutGeometry.rectForDisplay(current: currentWindow,
+                                                               sourceVisibleFrame: visibleFrame,
+                                                               destinationVisibleFrame: shortDisplay)
+        expect(shrunkWindow == CGRect(x: 1640, y: 80, width: 800, height: 400),
+               "display transfer shrinks a taller window to fit a shorter display")
+        expect(WindowLayoutGeometry.rectForDisplay(current: shrunkWindow,
+                                                   sourceVisibleFrame: shortDisplay,
+                                                   destinationVisibleFrame: visibleFrame)
+               == CGRect(x: 200, y: 500, width: 800, height: 400),
+               "display transfer does not restore the original height after shrinking to fit")
         let horizontalDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: -1200, y: -200, width: 1200, height: 1920),
@@ -4785,16 +4904,16 @@ struct MetricsTests {
                "window layout leaves one display and invalid selections unchanged")
         let portraitFrame = CGRect(x: -1200, y: -200, width: 1200, height: 1800)
         let scaledFrame = CGRect(x: 1440, y: 100, width: 2000, height: 1000)
-        let portraitWindow = CGRect(x: -900, y: 250, width: 600, height: 900)
+        let portraitWindow = CGRect(x: -900, y: 1000, width: 600, height: 400)
         let scaledWindow = WindowLayoutGeometry.rectForDisplay(current: portraitWindow,
                                                                sourceVisibleFrame: portraitFrame,
                                                                destinationVisibleFrame: scaledFrame)
-        expect(scaledWindow == CGRect(x: 1940, y: 350, width: 1000, height: 500)
+        expect(scaledWindow == CGRect(x: 1740, y: 500, width: 600, height: 400)
                 && WindowLayoutGeometry.rectForDisplay(current: scaledWindow,
                                                        sourceVisibleFrame: scaledFrame,
                                                        destinationVisibleFrame: portraitFrame)
                     == portraitWindow,
-               "display transfer preserves relative size and placement across rotated and scaled frames")
+               "display transfer keeps size and edge insets across rotated frames")
         expect(WindowLayoutAction.shortcutActions.count == WindowLayoutAction.allCases.count,
                "every window layout action can register a global shortcut")
         expect(WindowLayoutAction.shortcutActions.contains(.previousDisplay)
@@ -10486,6 +10605,13 @@ struct MetricsTests {
             expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
                    && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
                    "\(prefix) App Switcher current-desktop caption is present without em dash")
+            expect([strings.switcherScreenPlacementLabel,
+                    strings.switcherScreenPlacementPointer,
+                    strings.switcherScreenPlacementMenuBar,
+                    strings.switcherScreenPlacementActiveWindow,
+                    strings.switcherScreenPlacementCaption]
+                   .allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) App Switcher screen placement labels are present without em dash")
             expect(!strings.switcherOtherDesktop.isEmpty
                    && !strings.switcherOtherDesktop.contains("—"),
                    "\(prefix) App Switcher other-desktop label is present without em dash")
@@ -10542,6 +10668,11 @@ struct MetricsTests {
             expect(!strings.dockPreviewOpenDelayCaption.isEmpty
                    && !strings.dockPreviewOpenDelayCaption.contains("—"),
                    "\(prefix) Dock Preview open delay caption is present without em dash")
+            expect(!strings.dockPreviewQuitAppOnClose.isEmpty
+                   && !strings.dockPreviewQuitAppOnClose.contains("—")
+                   && !strings.dockPreviewQuitAppOnCloseCaption.isEmpty
+                   && !strings.dockPreviewQuitAppOnCloseCaption.contains("—"),
+                   "\(prefix) Dock Preview quit-on-close labels are present without em dash")
             expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
             expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
@@ -15074,6 +15205,11 @@ struct MetricsTests {
         // and its element off one line. An application element handed to a
         // helper, stored in a property, or passed inline is still on review to
         // catch; both reads found so far were written the direct way.
+        // Both scans below report real line numbers, so neither may filter its
+        // array before enumerating: comments drop out in the predicate instead.
+        func isCommentLine(_ line: String) -> Bool {
+            line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+        }
         var applicationRoleReads: [String] = []
         for file in appSources.sorted() {
             guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
@@ -15089,7 +15225,7 @@ struct MetricsTests {
             }
             for (index, line) in lines.enumerated()
             where line.contains("kAXRoleAttribute")
-                && !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+                && !isCommentLine(line)
                 && applicationElements.contains(where: { line.contains("(\($0), ") }) {
                 applicationRoleReads.append("\(file):\(index + 1)")
             }
@@ -15106,13 +15242,15 @@ struct MetricsTests {
             guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
                                            encoding: .utf8) else { continue }
             let lines = source.components(separatedBy: "\n")
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             // Per occurrence and in order: a guard sitting anywhere in the file
             // would let a second walk go unguarded, and one written after the
             // read would let the read happen first, which is the whole failure.
-            for (index, line) in lines.enumerated() where line.contains("role(of: parent)") {
+            for (index, line) in lines.enumerated()
+            where line.contains("role(of: parent)") && !isCommentLine(line) {
+                // The window reads raw lines so the report above stays in real
+                // line numbers; a commented-out guard must not count as one.
                 let guarded = lines[max(0, index - 3)..<index]
-                    .contains { $0.contains("isApplicationElement(parent)") }
+                    .contains { $0.contains("isApplicationElement(parent)") && !isCommentLine($0) }
                 if !guarded { unguardedParentWalks.append("\(file):\(index + 1)") }
             }
         }

@@ -341,6 +341,8 @@ struct Strings {
     let dockPreviewBackgroundOpacityCaption: String
     let dockPreviewOpenDelay: String
     let dockPreviewOpenDelayCaption: String
+    let dockPreviewQuitAppOnClose: String
+    let dockPreviewQuitAppOnCloseCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -1115,6 +1117,11 @@ struct Strings {
     let switcherMinimizedPlacementEnd: String
     let switcherMinimizedPlacementHidden: String
     let switcherShowFullscreenWindows: String
+    let switcherScreenPlacementLabel: String
+    let switcherScreenPlacementPointer: String
+    let switcherScreenPlacementMenuBar: String
+    let switcherScreenPlacementActiveWindow: String
+    let switcherScreenPlacementCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1341,6 +1348,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockPreviewOpenDelay: "Atraso de abertura",
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
+        dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
+        dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -2086,7 +2095,12 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordem normal",
         switcherMinimizedPlacementEnd: "Colocar no final",
         switcherMinimizedPlacementHidden: "Ocultar",
-        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia"
+        switcherShowFullscreenWindows: "Mostrar janelas em tela cheia",
+        switcherScreenPlacementLabel: "Mostrar em",
+        switcherScreenPlacementPointer: "Tela com o ponteiro",
+        switcherScreenPlacementMenuBar: "Tela com a barra de menus",
+        switcherScreenPlacementActiveWindow: "Tela com a janela ativa",
+        switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada."
     )
 }
 
@@ -2314,6 +2328,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockPreviewOpenDelay: "Open delay",
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
+        dockPreviewQuitAppOnClose: "Quit the app with the × button",
+        dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app's windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",
@@ -3059,6 +3075,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Normal ordering",
         switcherMinimizedPlacementEnd: "Place at end",
         switcherMinimizedPlacementHidden: "Hide",
-        switcherShowFullscreenWindows: "Show fullscreen windows"
+        switcherShowFullscreenWindows: "Show fullscreen windows",
+        switcherScreenPlacementLabel: "Show on",
+        switcherScreenPlacementPointer: "Screen with the pointer",
+        switcherScreenPlacementMenuBar: "Screen with the menu bar",
+        switcherScreenPlacementActiveWindow: "Screen with the active window",
+        switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected."
     )
 }

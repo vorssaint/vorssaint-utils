@@ -240,6 +240,11 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 }
 
 enum WindowLayoutGeometry {
+    /// Points the settle path allows a window to miss its target by. Display
+    /// transfer uses the same value to treat a window as filling the source
+    /// or flush with an edge, so tuning settle cannot split those checks.
+    static let frameTolerance: CGFloat = 8
+
     static func effectiveAction(for action: WindowLayoutAction,
                                 current _: CGRect,
                                 visibleFrame _: CGRect,
@@ -531,19 +536,78 @@ enum WindowLayoutGeometry {
               destinationVisibleFrame.height > 0
         else { return current.integral }
 
-        let widthRatio = min(max(current.width / sourceVisibleFrame.width, 0.08), 1)
-        let heightRatio = min(max(current.height / sourceVisibleFrame.height, 0.08), 1)
-        let xRatio = (current.minX - sourceVisibleFrame.minX) / sourceVisibleFrame.width
-        let yRatio = (current.minY - sourceVisibleFrame.minY) / sourceVisibleFrame.height
+        // Scaling by each screen's size stretches a laptop window across an
+        // ultrawide and squashes it onto a portrait panel. Keep the current
+        // size, only shrinking to fit, and keep the same edge insets rather
+        // than spreading leftover space. A window that already fills the
+        // source still fills the destination, so Maximize stays Maximize.
+        if current.width >= sourceVisibleFrame.width - frameTolerance,
+           current.height >= sourceVisibleFrame.height - frameTolerance {
+            return destinationVisibleFrame.integral
+        }
 
-        let width = min(destinationVisibleFrame.width, max(1, destinationVisibleFrame.width * widthRatio))
-        let height = min(destinationVisibleFrame.height, max(1, destinationVisibleFrame.height * heightRatio))
-        let unclampedX = destinationVisibleFrame.minX + destinationVisibleFrame.width * xRatio
-        let unclampedY = destinationVisibleFrame.minY + destinationVisibleFrame.height * yRatio
-        let x = min(max(unclampedX, destinationVisibleFrame.minX), destinationVisibleFrame.maxX - width)
-        let y = min(max(unclampedY, destinationVisibleFrame.minY), destinationVisibleFrame.maxY - height)
+        let width = min(destinationVisibleFrame.width, max(1, current.width))
+        let height = min(destinationVisibleFrame.height, max(1, current.height))
+        let x = unscaledOrigin(sourceMin: sourceVisibleFrame.minX,
+                               sourceMax: sourceVisibleFrame.maxX,
+                               currentMin: current.minX,
+                               currentMax: current.maxX,
+                               destinationMin: destinationVisibleFrame.minX,
+                               destinationMax: destinationVisibleFrame.maxX,
+                               size: width,
+                               preferMax: false)
+        let y = unscaledOrigin(sourceMin: sourceVisibleFrame.minY,
+                               sourceMax: sourceVisibleFrame.maxY,
+                               currentMin: current.minY,
+                               currentMax: current.maxY,
+                               destinationMin: destinationVisibleFrame.minY,
+                               destinationMax: destinationVisibleFrame.maxY,
+                               size: height,
+                               preferMax: true)
+        let clampedX = min(max(x, destinationVisibleFrame.minX),
+                           destinationVisibleFrame.maxX - width)
+        let clampedY = min(max(y, destinationVisibleFrame.minY),
+                           destinationVisibleFrame.maxY - height)
+        return CGRect(x: clampedX, y: clampedY, width: width, height: height).integral
+    }
 
-        return CGRect(x: x, y: y, width: width, height: height).integral
+    /// Keeps the inset from the leading edge of an axis, unless the window is
+    /// already flush with the trailing one. Horizontal placement prefers the
+    /// left so a window in the middle of a laptop does not fly to the middle
+    /// of an ultrawide; a right-half stays on the right. Vertical placement
+    /// prefers the top (AppKit maxY, under the menu bar) so a full-height
+    /// window is not dropped onto the dock of a taller display.
+    private static func unscaledOrigin(sourceMin: CGFloat,
+                                       sourceMax: CGFloat,
+                                       currentMin: CGFloat,
+                                       currentMax: CGFloat,
+                                       destinationMin: CGFloat,
+                                       destinationMax: CGFloat,
+                                       size: CGFloat,
+                                       preferMax: Bool) -> CGFloat {
+        let minInset = currentMin - sourceMin
+        let maxInset = sourceMax - currentMax
+        let sourceSlack = (sourceMax - sourceMin) - (currentMax - currentMin)
+        // Near-zero leftover space makes flush-edge detection a coin flip:
+        // a 1pt jitter picks left vs right and becomes a thousand-point
+        // jump on an ultrawide. Keep the preferred-edge inset instead;
+        // the caller already clamps.
+        if sourceSlack <= frameTolerance {
+            if preferMax {
+                return destinationMax - maxInset - size
+            }
+            return destinationMin + minInset
+        }
+        if preferMax {
+            if minInset <= frameTolerance, minInset < maxInset {
+                return destinationMin + minInset
+            }
+            return destinationMax - maxInset - size
+        }
+        if maxInset <= frameTolerance, maxInset < minInset {
+            return destinationMax - maxInset - size
+        }
+        return destinationMin + minInset
     }
 
     static func adjacentDisplayIndex(currentIndex: Int,

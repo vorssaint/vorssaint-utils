@@ -226,6 +226,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "낮추면 패널 뒤에 있는 것이 더 많이 보입니다.",
         dockPreviewOpenDelay: "열림 지연",
         dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
+        dockPreviewQuitAppOnClose: "× 버튼으로 앱 종료",
+        dockPreviewQuitAppOnCloseCaption: "Dock Preview에서 ×는 해당 윈도우만 닫는 대신 앱 전체를 종료합니다.",
         dockClickMinimize: "Dock 클릭으로 최소화",
         dockClickMinimizeCaption: "앞에 있는 앱의 Dock 아이콘을 클릭하면 윈도우를 최소화합니다. 다시 클릭하면 복원됩니다.",
         dockClickCycleWindows: "Dock 클릭으로 윈도우 전환",
@@ -971,6 +973,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "일반 순서",
         switcherMinimizedPlacementEnd: "끝으로 보내기",
         switcherMinimizedPlacementHidden: "숨기기",
-        switcherShowFullscreenWindows: "전체 화면 윈도우 표시"
+        switcherShowFullscreenWindows: "전체 화면 윈도우 표시",
+        switcherScreenPlacementLabel: "표시 위치",
+        switcherScreenPlacementPointer: "포인터가 있는 화면",
+        switcherScreenPlacementMenuBar: "메뉴 막대가 있는 화면",
+        switcherScreenPlacementActiveWindow: "활성 윈도우가 있는 화면",
+        switcherScreenPlacementCaption: "화면이 두 개 이상 연결되어 있을 때 전환기를 어느 화면에 표시할지 선택합니다."
     )
 }
