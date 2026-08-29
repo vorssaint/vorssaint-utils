@@ -121,16 +121,17 @@ struct ClipboardQuickPanelView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    // Lazy: a large history would otherwise build every row,
-                    // and decode every image thumbnail, each time the panel
-                    // opens.
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            section(title: text.pinned, entries: history.pinnedEntries)
-                            section(title: text.recent, entries: history.recentEntries,
-                                    followsSection: !history.pinnedEntries.isEmpty)
+                    // A plain stack for an ordinary history: with every row
+                    // already laid out, scrolling is the clip view moving and
+                    // nothing else, which is what makes it smooth. Only a
+                    // very large history goes lazy, where building every row
+                    // (and decoding every thumbnail) on open would cost more
+                    // than the placement work a lazy stack does per tick.
+                    Group {
+                        if filtered.count <= Self.eagerRowLimit {
+                            VStack(alignment: .leading, spacing: 0) { sections }
                         } else {
-                            section(title: text.newestFirst, entries: filtered)
+                            LazyVStack(alignment: .leading, spacing: 0) { sections }
                         }
                     }
                     .padding(.horizontal, 10)
@@ -153,6 +154,19 @@ struct ClipboardQuickPanelView: View {
 
     /// Emits the header and rows straight into the enclosing lazy stack. If
     /// wrapped, the whole section becomes one lazy unit and builds every row.
+    private static let eagerRowLimit = 300
+
+    @ViewBuilder
+    private var sections: some View {
+        if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            section(title: text.pinned, entries: history.pinnedEntries)
+            section(title: text.recent, entries: history.recentEntries,
+                    followsSection: !history.pinnedEntries.isEmpty)
+        } else {
+            section(title: text.newestFirst, entries: filtered)
+        }
+    }
+
     @ViewBuilder
     private func section(title: String, entries: [ClipboardHistoryEntry],
                          followsSection: Bool = false) -> some View {
