@@ -445,7 +445,11 @@ final class FinderCutPaste: ObservableObject {
               // Type-check before casting: this runs inside the event tap, so
               // an unexpected CF type must degrade gracefully, never crash.
               CFGetTypeID(focused) == AXUIElementGetTypeID() else { return false }
+        // The focused element is a fresh element, and a fresh one takes the
+        // process-wide default rather than the cap on the element it came from,
+        // so the role read below needs its own or it waits the default here.
         let element = focused as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, 0.15)
         var roleRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, "AXRole" as CFString, &roleRef) == .success,
               let role = roleRef as? String else { return false }

@@ -489,8 +489,7 @@ final class AutoQuitService: ObservableObject {
             }
         }
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
-            if let window = Self.windowAttribute(appElement, attribute as String) {
-                AXUIElementSetMessagingTimeout(window, 0.35)
+            if let window = Self.windowAttribute(appElement, attribute as String, cappedAt: 0.35) {
                 if Self.isStandardWindow(window) { Self.appendUnique(window, to: &result) }
             }
         }
@@ -524,12 +523,21 @@ final class AutoQuitService: ObservableObject {
         windows.append(window)
     }
 
-    private static func windowAttribute(_ appElement: AXUIElement, _ attribute: String) -> AXUIElement? {
+    /// The cap travels with the caller because this is the door elements come
+    /// through on two paths that wait different lengths — the observer walk at
+    /// 0.35 and the click tap at 0.15. An element produced here is a fresh one:
+    /// it takes the process-wide default, not the cap on the element it was
+    /// read from, so leaving it uncapped puts it on whatever the global says.
+    private static func windowAttribute(_ appElement: AXUIElement,
+                                        _ attribute: String,
+                                        cappedAt timeout: Float) -> AXUIElement? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(appElement, attribute as CFString, &value) == .success,
               let value,
               CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return (value as! AXUIElement)
+        let element = value as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, timeout)
+        return element
     }
 
     private static func boolAttribute(_ element: AXUIElement, _ attribute: String, default defaultValue: Bool = false) -> Bool {
@@ -765,7 +773,7 @@ final class AutoQuitService: ObservableObject {
     private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {
         guard candidate.pid != getpid(), observers[candidate.pid] != nil else { return nil }
         guard let element = elementAt(point: point, in: candidate.pid),
-              let window = Self.topLevelWindow(from: element)
+              let window = Self.topLevelWindow(from: element, cappedAt: 0.15)
         else { return candidate.pid }
 
         var pid: pid_t = 0
@@ -774,7 +782,7 @@ final class AutoQuitService: ObservableObject {
         guard pid == candidate.pid else { return nil }
 
         guard Self.isStandardWindow(window),
-              let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String),
+              let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String, cappedAt: 0.15),
               Self.boolAttribute(closeButton, kAXEnabledAttribute as String, default: true),
               let buttonFrame = Self.frame(of: closeButton)
         else { return candidate.pid }
@@ -817,14 +825,15 @@ final class AutoQuitService: ObservableObject {
         return CFEqual(element, AXUIElementCreateApplication(pid))
     }
 
-    private static func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
+    private static func topLevelWindow(from element: AXUIElement,
+                                       cappedAt timeout: Float) -> AXUIElement? {
         guard !isApplicationElement(element) else { return nil }
         if role(of: element) == (kAXWindowRole as String) { return element }
-        if let window = windowAttribute(element, kAXWindowAttribute as String),
+        if let window = windowAttribute(element, kAXWindowAttribute as String, cappedAt: timeout),
            role(of: window) == (kAXWindowRole as String) {
             return window
         }
-        if let window = windowAttribute(element, kAXTopLevelUIElementAttribute as String),
+        if let window = windowAttribute(element, kAXTopLevelUIElementAttribute as String, cappedAt: timeout),
            role(of: window) == (kAXWindowRole as String) {
             return window
         }
@@ -837,7 +846,7 @@ final class AutoQuitService: ObservableObject {
         // already ends with no window in that case.
         var current = element
         for _ in 0..<8 {
-            guard let parent = windowAttribute(current, kAXParentAttribute as String) else { return nil }
+            guard let parent = windowAttribute(current, kAXParentAttribute as String, cappedAt: timeout) else { return nil }
             if isApplicationElement(parent) { return nil }
             if role(of: parent) == (kAXWindowRole as String) { return parent }
             current = parent
