@@ -137,6 +137,7 @@ struct ClipboardQuickPanelView: View {
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .background(ScrollBounceDisabler())
                 .onChange(of: history.quickSelectionIndex) { _, _ in
                     scrollSelectedEntry(with: proxy)
                 }
@@ -234,6 +235,9 @@ struct ClipboardQuickPanelView: View {
         .contentShape(Rectangle())
         .contextMenu { entryActions(entry) }
         .onHover { hovering in
+            // A row arriving under a pointer that has not moved since the
+            // arrow keys took over is not a hover.
+            if hovering, NSEvent.mouseLocation == history.keyboardSelectionPointer { return }
             withAnimation(.easeOut(duration: 0.1)) {
                 hoveredEntryID = hovering ? entry.id : (hoveredEntryID == entry.id ? nil : hoveredEntryID)
             }
@@ -502,8 +506,32 @@ struct ClipboardQuickPanelView: View {
 
     private func scrollSelectedEntry(with proxy: ScrollViewProxy) {
         guard history.quickSelectionIsVisible, let id = history.selectedQuickEntryID else { return }
-        withAnimation(.easeOut(duration: 0.12)) {
-            proxy.scrollTo(id, anchor: .center)
+        // No anchor and no animation: the list moves only when the selected
+        // row is off screen, and then straight to it, so every arrow press
+        // costs the same and the rows never redraw mid-slide.
+        proxy.scrollTo(id)
+    }
+}
+
+/// Turns off the rubber-band bounce of the enclosing scroll view. SwiftUI's
+/// `scrollBounceBehavior` still bounces once the content is taller than the
+/// view, and a list of rows has nothing to show past its ends.
+private struct ScrollBounceDisabler: NSViewRepresentable {
+    func makeNSView(context: Context) -> BounceDisablingView { BounceDisablingView() }
+    func updateNSView(_ view: BounceDisablingView, context: Context) { view.apply() }
+
+    final class BounceDisablingView: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            apply()
+        }
+
+        func apply() {
+            // The scroll view is an ancestor only once SwiftUI has placed
+            // this view, which is after the current layout pass.
+            DispatchQueue.main.async { [weak self] in
+                self?.enclosingScrollView?.verticalScrollElasticity = .none
+            }
         }
     }
 }
