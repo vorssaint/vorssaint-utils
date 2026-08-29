@@ -103,24 +103,46 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    /// Direct representations are held until a promise either succeeds or
-    /// fails. A lock makes the one-shot fallback safe when multiple promise
-    /// receivers complete on the operation queue at the same time.
+    /// Direct representations are held until every promise receiver has
+    /// reported. A successful receiver suppresses the fallback, so one failed
+    /// attachment cannot add a stray subject while another attachment lands.
     private final class PromiseFallbackState {
-        let items: [Item]
-        private let lock = NSLock()
-        private var consumed = false
-
-        init(items: [Item]) {
-            self.items = items
+        enum FailureAction {
+            case wait
+            case fallback([Item])
+            case report
         }
 
-        func take() -> [Item]? {
+        let items: [Item]
+        private let lock = NSLock()
+        private let receiverCount: Int
+        private var resolvedReceivers = Set<Int>()
+        private var hasSuccess = false
+        private var fallbackConsumed = false
+
+        init(items: [Item], receiverCount: Int) {
+            self.items = items
+            self.receiverCount = receiverCount
+        }
+
+        func recordSuccess(for receiverID: Int) -> [Item]? {
             lock.lock()
             defer { lock.unlock() }
-            guard !consumed else { return nil }
-            consumed = true
-            return items
+            guard resolvedReceivers.insert(receiverID).inserted else { return nil }
+            hasSuccess = true
+            guard !fallbackConsumed else { return nil }
+            fallbackConsumed = true
+            return items.isEmpty ? nil : items
+        }
+
+        func recordFailure(for receiverID: Int) -> FailureAction {
+            lock.lock()
+            defer { lock.unlock() }
+            guard resolvedReceivers.insert(receiverID).inserted else { return .wait }
+            guard resolvedReceivers.count == receiverCount else { return .wait }
+            guard !hasSuccess, !fallbackConsumed else { return .report }
+            fallbackConsumed = true
+            return items.isEmpty ? .report : .fallback(items)
         }
     }
 
@@ -1706,11 +1728,12 @@ final class ShelfService: ObservableObject {
     /// the item is built on the main thread.
     private func receivePromisedFiles(_ promises: [NSFilePromiseReceiver],
                                       mergingInto targetID: UUID? = nil,
-                                      fallbackItems: [Item] = []) -> Bool {
+        fallbackItems: [Item] = []) -> Bool {
         guard !promises.isEmpty else { return false }
-        let fallbackState = fallbackItems.isEmpty ? nil : PromiseFallbackState(items: fallbackItems)
+        let fallbackState = PromiseFallbackState(items: fallbackItems,
+                                                 receiverCount: promises.count)
         var scheduled = false
-        for promise in promises {
+        for (receiverID, promise) in promises.enumerated() {
             // A receiver can represent more than one file, so keep its
             // staging directory alive until the existing temp-file sweep.
             // Removing it from the first callback could delete a later file
@@ -1721,7 +1744,12 @@ final class ShelfService: ObservableObject {
                 at: destination,
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700])) != nil else {
-                if !fallbackPromisedItems(fallbackState, mergingInto: targetID) {
+                switch fallbackState.recordFailure(for: receiverID) {
+                case .wait:
+                    continue
+                case let .fallback(items):
+                    fallbackPromisedItems(items, mergingInto: targetID)
+                case .report:
                     reportPromiseFailure()
                 }
                 continue
@@ -1733,21 +1761,31 @@ final class ShelfService: ObservableObject {
                 guard let self else { return }
                 guard error == nil else {
                     try? FileManager.default.removeItem(at: url)
-                    if !self.fallbackPromisedItems(fallbackState, mergingInto: targetID) {
+                    switch fallbackState.recordFailure(for: receiverID) {
+                    case .wait:
+                        return
+                    case let .fallback(items):
+                        self.fallbackPromisedItems(items, mergingInto: targetID)
+                    case .report:
                         self.reportPromiseFailure()
                     }
                     return
                 }
                 guard let storedURL = self.storePromisedFile(url) else {
                     try? FileManager.default.removeItem(at: url)
-                    if !self.fallbackPromisedItems(fallbackState, mergingInto: targetID) {
+                    switch fallbackState.recordFailure(for: receiverID) {
+                    case .wait:
+                        return
+                    case let .fallback(items):
+                        self.fallbackPromisedItems(items, mergingInto: targetID)
+                    case .report:
                         self.reportPromiseFailure()
                     }
                     return
                 }
                 let title = url.lastPathComponent
                 try? FileManager.default.removeItem(at: url)
-                let fallback = fallbackState?.take()
+                let fallback = fallbackState.recordSuccess(for: receiverID)
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
                     if let fallback { self.discardOwnedPayloads(in: fallback) }
@@ -1785,9 +1823,8 @@ final class ShelfService: ObservableObject {
     /// usable image, whereas Outlook's subject flavor must not create a
     /// duplicate tile while its promised file is still pending.
     @discardableResult
-    private func fallbackPromisedItems(_ state: PromiseFallbackState?,
+    private func fallbackPromisedItems(_ fallbackItems: [Item],
                                        mergingInto targetID: UUID?) -> Bool {
-        guard let state, let fallbackItems = state.take() else { return false }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             if let targetID, self.merge(fallbackItems, into: targetID) {
