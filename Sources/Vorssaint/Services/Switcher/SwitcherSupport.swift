@@ -515,17 +515,32 @@ enum SwitcherSupport {
             || lower.hasPrefix("com.adobe.characteranimator")
     }
 
-    /// Some full-screen playback surfaces keep a nonstandard Accessibility
-    /// subrole. A screen-sized AX window is still a real switch target, while
-    /// smaller utility surfaces remain filtered. Compatibility-hosted windows
-    /// retain their existing role-based exception at every size.
+    /// Whether a window whose Accessibility subrole is not a standard one is
+    /// still a switch target.
+    ///
+    /// `AXUnknown` is the absence of a description, not a description of a
+    /// utility surface: apps that draw their own title bar ship borderless
+    /// windows, and macOS reports those as an undescribed `AXWindow`. The
+    /// window server tells those apart from overlays for us — an ordinary
+    /// window sits at the normal window level, while a HUD or panel floats
+    /// above it — so a normal-level undescribed window is a real window
+    /// whoever shipped it (issues #215, #512). Compatibility-hosted windows
+    /// keep their own exception for the surfaces that resolve to no window
+    /// server id at all (issue #274), and a screen-sized surface stays
+    /// switchable so full-screen playback on another desktop is not lost.
+    ///
+    /// Every subrole the app did describe is left alone: a dialog, a sheet or
+    /// a floating panel is filtered as before unless it fills the screen.
     static func isSwitchableNonstandardWindow(role: String?,
                                               subrole: String?,
                                               fillsScreen: Bool,
+                                              hasNormalWindowLevel: Bool,
                                               acceptsUndescribedSubroles: Bool) -> Bool {
         guard role == "AXWindow" else { return false }
-        if acceptsUndescribedSubroles && subrole == "AXUnknown" { return true }
-        return fillsScreen && (subrole == "AXUnknown" || subrole == "AXFloatingWindow")
+        if subrole == "AXUnknown" {
+            return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
+        }
+        return fillsScreen && subrole == "AXFloatingWindow"
     }
 
     /// Finds the regular app that contains an accessory helper bundle.
