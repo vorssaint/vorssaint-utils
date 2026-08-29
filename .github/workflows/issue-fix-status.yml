@@ -96,8 +96,10 @@ on:
     workflows: [Release]
     types: [completed]
   schedule:
-    # Once a day is enough for a two-week clock.
-    - cron: '23 7 * * *'
+    # Once a day is enough for a two-week clock, and late is as good as
+    # on time for one: GitHub queues the top of the hour heavily and runs
+    # it when it can, which costs this job nothing.
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 permissions:
