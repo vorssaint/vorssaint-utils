@@ -1715,8 +1715,12 @@ final class WindowLayoutService: ObservableObject {
 
     private func gestureTarget(at point: CGPoint,
                                requiresResize: Bool) -> WindowGestureTarget? {
+        // No cap is written here: the only handle this hit test has is the
+        // system-wide object, and a timeout on that is the process-wide default
+        // (#938). The gesture fires on a press rather than on movement, so this
+        // is one read per drag and it inherits the launch default. Everything
+        // after it is capped on the element itself.
         let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.25)
         var rawElement: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &rawElement) == .success,
               let element = rawElement

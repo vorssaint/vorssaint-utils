@@ -129,7 +129,7 @@ final class WindowMaximizer: ObservableObject {
 
     private func target(at point: CGPoint) -> ClickTarget? {
         guard let candidate = WindowServerTrafficLightHitTest.candidate(at: point, button: .zoom),
-              let element = elementAt(point: point),
+              let element = elementAt(point: point, in: candidate.pid),
               let window = topLevelWindow(from: element),
               role(of: window) == (kAXWindowRole as String),
               pid(of: window) == candidate.pid,
@@ -237,14 +237,19 @@ final class WindowMaximizer: ObservableObject {
             && sizeSettable.boolValue
     }
 
-    private func elementAt(point: CGPoint) -> AXUIElement? {
-        let system = AXUIElementCreateSystemWide()
-        // Bounded AX inside the mouse tap: a hung app under the cursor must
-        // not stall the main thread (and with it every event tap) for the
-        // 6 second default timeout.
-        AXUIElementSetMessagingTimeout(system, 0.35)
+    /// Bounded AX inside the mouse tap: a hung app under the cursor must not
+    /// stall the main thread, and with it every event tap, for the system
+    /// default. Hit-tested through the owning application's element rather than
+    /// the system-wide one, so the cap is this call's own — written on the
+    /// system-wide object it would be the process-wide default, which is what
+    /// #938 is about. The caller has already established from the window list
+    /// that this point belongs to `pid`, and drops any window that turns out
+    /// not to.
+    private func elementAt(point: CGPoint, in pid: pid_t) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.35)
         var element: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success,
+        guard AXUIElementCopyElementAtPosition(app, Float(point.x), Float(point.y), &element) == .success,
               let element
         else { return nil }
         AXUIElementSetMessagingTimeout(element, 0.35)

@@ -15192,6 +15192,57 @@ struct MetricsTests {
         expect(!appSources.isEmpty && unboundedOperationWaits.isEmpty,
                "no operation queue is waited on without a deadline: \(unboundedOperationWaits)")
 
+        // A messaging timeout written on the system-wide element is the default
+        // for every Accessibility question this process asks, whoever asks it
+        // (`AXUIElement.h`). Five features wrote it believing it was their own,
+        // three different values, last writer wins, so how long a frozen app
+        // held the cursor depended on which unrelated feature ran last (#938).
+        // The rule is who may write it, matched on Apple's symbols rather than
+        // our own names: a file is only judged to hold the system-wide element
+        // when it says so itself, in `AXUIElementCreateSystemWide()`.
+        var systemWideTimeoutWriters: [String] = []
+        for file in appSources.sorted() {
+            guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
+                                           encoding: .utf8) else { continue }
+            let lines = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            var systemWideNames: Set<String> = []
+            for line in lines {
+                guard line.contains("= AXUIElementCreateSystemWide()"),
+                      let name = line.components(separatedBy: "=").first?
+                          .components(separatedBy: .whitespaces)
+                          .last(where: { !$0.isEmpty })
+                else { continue }
+                systemWideNames.insert(name)
+            }
+            for (index, line) in lines.enumerated()
+            where line.contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()")
+                || systemWideNames.contains(where: { line.contains("AXUIElementSetMessagingTimeout(\($0)") }) {
+                systemWideTimeoutWriters.append("\(file):\(index + 1)")
+            }
+        }
+        // Every entry states why that one write is right, and stops being right
+        // when the reason expires.
+        //
+        //   AppDelegate — the deliberate floor, set once at launch, so a path
+        //   that caps nothing of its own still waits a bounded time.
+        //
+        //   FinderCutPaste — open. It asks the system-wide element for
+        //   `AXFocusedUIElement`, and asking the frontmost application's
+        //   element instead is not the same question: measured on 26.6.2 the
+        //   system-wide read failed where the application read answered. That
+        //   is a behaviour change and wants its own reasoning, not a rider on
+        //   this one.
+        let allowedSystemWideTimeoutWriters = ["App/AppDelegate.swift",
+                                               "Services/Finder/FinderCutPaste.swift"]
+        let unexpectedWriters = systemWideTimeoutWriters.filter { entry in
+            !allowedSystemWideTimeoutWriters.contains { entry.hasPrefix($0 + ":") }
+        }
+        expect(!appSources.isEmpty && unexpectedWriters.isEmpty,
+               "only the listed files set the process-wide Accessibility timeout: \(unexpectedWriters)")
+        expect(systemWideTimeoutWriters.count == allowedSystemWideTimeoutWriters.count,
+               "every allowed process-wide timeout writer is still there: \(systemWideTimeoutWriters)")
+
         // Asking an application element for its role switches a Chromium app's
         // renderers into full accessibility mode for the rest of the process's
         // life (issue #953). It was fixed at the liveness probe, then found

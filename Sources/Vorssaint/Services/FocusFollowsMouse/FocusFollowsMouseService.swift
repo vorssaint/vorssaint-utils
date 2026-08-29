@@ -8,11 +8,14 @@ import CoreGraphics
 final class FocusFollowsMouseService {
     static let shared = FocusFollowsMouseService()
 
-    private let systemElement: AXUIElement = {
-        let element = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(element, 0.25)
-        return element
-    }()
+    /// No cap is written on this element: it is the system-wide object, and a
+    /// timeout there is the process-wide default (#938). This service is the
+    /// one that can least afford to set it — its queries run on `queryQueue`,
+    /// so a slow answer costs it nothing but a focus change deferred to the
+    /// next tick, while three features that stall the main thread inside an
+    /// event tap were inheriting whatever it wrote. The elements this hit test
+    /// returns are capped below.
+    private let systemElement = AXUIElementCreateSystemWide()
     private let queryQueue = DispatchQueue(label: "com.vorssaint.focus-follows-mouse")
     private var timer: Timer?
     private var mouseMonitor: Any?

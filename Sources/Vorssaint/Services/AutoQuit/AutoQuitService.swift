@@ -764,7 +764,7 @@ final class AutoQuitService: ObservableObject {
 
     private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {
         guard candidate.pid != getpid(), observers[candidate.pid] != nil else { return nil }
-        guard let element = elementAt(point: point),
+        guard let element = elementAt(point: point, in: candidate.pid),
               let window = Self.topLevelWindow(from: element)
         else { return candidate.pid }
 
@@ -782,15 +782,21 @@ final class AutoQuitService: ObservableObject {
         return buttonFrame.insetBy(dx: -4, dy: -4).contains(point) ? pid : nil
     }
 
-    private func elementAt(point: CGPoint) -> AXUIElement? {
-        let system = AXUIElementCreateSystemWide()
-        // This runs while a click is being handled, and the app being asked is
-        // the one that was just told to close, which is exactly when an app
-        // stops answering. A short limit here means a slow answer is dropped
-        // rather than holding this app, and every tap it runs, still.
-        AXUIElementSetMessagingTimeout(system, 0.15)
+    /// This runs while a click is being handled, and the app being asked is the
+    /// one that was just told to close, which is exactly when an app stops
+    /// answering. A short limit here means a slow answer is dropped rather than
+    /// holding this app, and every tap it runs, still.
+    ///
+    /// Hit-tested through that app's own element rather than the system-wide
+    /// one, so the limit belongs to this call; written on the system-wide
+    /// object it would be the process-wide default (#938). The caller has the
+    /// pid from the window list already and rejects any window that does not
+    /// match it.
+    private func elementAt(point: CGPoint, in pid: pid_t) -> AXUIElement? {
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.15)
         var element: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success
+        guard AXUIElementCopyElementAtPosition(app, Float(point.x), Float(point.y), &element) == .success
         else { return nil }
         if let element { AXUIElementSetMessagingTimeout(element, 0.15) }
         return element
