@@ -281,6 +281,12 @@ private struct QuickEntryRow: View, Equatable {
     let language: AppLanguage
     @Binding var hoveredEntryID: UUID?
     @Binding var previewEntryID: UUID?
+    /// The pane follows a row only once the pointer has rested on it: while
+    /// rows stream under a still pointer during a scroll, every one of them
+    /// would otherwise redraw the pane, and a long entry costs a frame or two
+    /// each time.
+    @State private var previewFollowTask: Task<Void, Never>?
+    private static let previewFollowDelay: Duration = .milliseconds(120)
 
     private var history: ClipboardHistoryService { .shared }
     private var l10n: L10n { .shared }
@@ -339,8 +345,13 @@ private struct QuickEntryRow: View, Equatable {
             withAnimation(.easeOut(duration: 0.1)) {
                 hoveredEntryID = hovering ? entry.id : (hoveredEntryID == entry.id ? nil : hoveredEntryID)
             }
-            if hovering, !previewIsEditing {
-                previewEntryID = entry.id
+            previewFollowTask?.cancel()
+            guard hovering, !previewIsEditing else { return }
+            let id = entry.id
+            previewFollowTask = Task { @MainActor in
+                try? await Task.sleep(for: Self.previewFollowDelay)
+                guard !Task.isCancelled else { return }
+                previewEntryID = id
             }
         }
         .onTapGesture { activate(entry) }
