@@ -14136,6 +14136,32 @@ struct MetricsTests {
                                                      isEjectable: true, isLocal: true,
                                                      isRootFileSystem: true),
                "the volume the Mac booted from is never ejected, even on an external drive")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                     isEjectable: true, isLocal: true,
+                                                     isRootFileSystem: false,
+                                                     volumeName: "Time Machine",
+                                                     excludedVolumes: ["time machine"]),
+               "a volume matching an excluded name case-insensitively is not offered for eject")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                     isEjectable: true, isLocal: true,
+                                                     isRootFileSystem: false,
+                                                     volumeName: "SD Card",
+                                                     volumeUUID: "1234-5678-ABCD",
+                                                     excludedVolumes: ["1234-5678-abcd"]),
+               "a volume matching an excluded UUID is not offered for eject")
+        expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                    isEjectable: true, isLocal: true,
+                                                    isRootFileSystem: false,
+                                                    volumeName: "USB Flash",
+                                                    excludedVolumes: ["Time Machine"]),
+               "a volume not on the exclusion list is offered for eject")
+        expect(Defaults.sanitizedDiskExclusionList(["  Backup  ", "backup", "", "  ", "Photos", "PHOTOS"])
+                == ["Backup", "Photos"],
+               "sanitized disk exclusion list trims and deduplicates case-insensitively")
+        expect(Defaults.registeredDefaults[DefaultsKey.diskEjectExcludedVolumes] is [String],
+               "disk eject exclusions are registered as an empty string array")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.diskEjectExcludedVolumes),
+               "disk eject exclusions travel in backups")
 
         // MARK: Screenshot tool
 
@@ -16707,6 +16733,15 @@ struct MetricsTests {
                    "every window preview exclusion string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible window preview exclusion strings (\(language.rawValue))")
+        }
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.diskExclusions(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 6 && values.allSatisfy { !$0.isEmpty },
+                   "every disk exclusion string is set for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible disk exclusion strings (\(language.rawValue))")
         }
 
         for language in AppLanguage.allCases {

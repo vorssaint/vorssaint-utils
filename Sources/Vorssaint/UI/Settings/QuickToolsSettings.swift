@@ -75,6 +75,7 @@ struct QuickToolsSettings: View {
                                   systemImage: "keyboard")
                         }
                     }
+                    DiskExclusionsList()
                     Text(FeatureStrings.quickToggles(l10n.language).panelCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)

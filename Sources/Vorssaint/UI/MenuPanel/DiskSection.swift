@@ -75,6 +75,7 @@ struct DiskSection: View {
         var seen = Set<String>()
         return disks.filter { disk in
             guard disk.canEject, let id = disk.ejectBSDName else { return false }
+            guard !protection.isExcluded(disk: disk) else { return false }
             return seen.insert(id).inserted
         }
     }

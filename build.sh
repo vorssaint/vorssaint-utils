@@ -170,10 +170,8 @@ fi
 discard_test_preferences() {
     local preferences="$HOME/Library/Preferences" name
     for name in "vorss.tests." "com.vorssaint.tests."; do
-        find "$preferences" -maxdepth 1 -name "$name*.plist" -delete 2>/dev/null || true
+        rm -f "$preferences"/$name*.plist
     done
-    # The harness has no bundle identifier, so `UserDefaults.standard` writes
-    # a file named after the executable.
     rm -f "$preferences/metrics-tests.plist"
     local survivors
     survivors=$(find "$preferences" -maxdepth 1 \
@@ -294,6 +292,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift \
         Sources/Vorssaint/Core/WindowPreviewExclusionStrings.swift \
+        Sources/Vorssaint/Core/DiskExclusionStrings.swift \
         Sources/Vorssaint/Core/SwitcherAppRulesStrings.swift \
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift \
