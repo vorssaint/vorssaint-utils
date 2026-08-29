@@ -501,7 +501,7 @@ enum WindowEnumerator {
         let app = AXUIElementCreateApplication(pid)
         // This runs on the main thread (tap callback and activation warm-ups):
         // an app that is not servicing its run loop would hold every AX call
-        // for the 6 second default timeout, and a blocked main thread stalls
+        // for the default timeout, and a blocked main thread stalls
         // the event taps with it, freezing typing system wide (issue #189).
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []

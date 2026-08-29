@@ -172,7 +172,7 @@ final class AutoQuitService: ObservableObject {
 
         let appElement = AXUIElementCreateApplication(pid)
         // A launching app that is busy (say, blocked on a Keychain prompt)
-        // would hold every synchronous AX call below for the 6 second default
+        // would hold every synchronous AX call below for the default
         // timeout apiece, freezing the main thread and every event tap with
         // it: typing dies system wide (issue #189). Give up fast and retry
         // with growing spacing until the app services its run loop again.
@@ -335,7 +335,7 @@ final class AutoQuitService: ObservableObject {
 
         let appElement = AXUIElementCreateApplication(pid)
         // Bounded AX: an unresponsive app must not hold the main thread
-        // (and with it every event tap) for the 6 second default timeout.
+        // (and with it every event tap) for the default timeout.
         AXUIElementSetMessagingTimeout(appElement, 0.35)
         let hasMinimizedWindow = hasKnownMinimizedWindow(pid: pid, appElement: appElement)
         let hasVisibleWindow = hasUserFacingWindow(pid: pid, appElement: appElement)
