@@ -427,11 +427,8 @@ final class FinderCutPaste: ObservableObject {
     /// paste shortcuts must be left to the system (e.g. renaming a file).
     private func isEditingText() -> Bool {
         let system = AXUIElementCreateSystemWide()
-        // The whole session's typing waits for this tap to answer, and this
-        // question goes to whichever app is in front. A file browser reading a
-        // share that went away is exactly the app that stops answering, so the
-        // wait is kept short enough not to be felt.
-        AXUIElementSetMessagingTimeout(system, 0.15)
+        // No cap here: on the system-wide element a timeout is the default for
+        // every question this process asks, whoever asks it (#938).
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(system, "AXFocusedUIElement" as CFString, &focused) == .success,
               let focused,

@@ -602,7 +602,7 @@ enum WindowEnumerator {
         guard !isCancelled() else { return nil }
         let app = AXUIElementCreateApplication(pid)
         // An app that is not servicing its run loop would hold every AX call
-        // for the 6 second default timeout. The Switcher's serial session queue
+        // for the default timeout. The Switcher's serial session queue
         // must stay available for later shortcuts. The six synchronous
         // listWindows(for:) Dock and preview callers run on main, where a long
         // wait also stalls the event taps (issue #189).
