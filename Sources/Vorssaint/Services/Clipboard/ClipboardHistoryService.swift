@@ -627,6 +627,12 @@ final class ClipboardHistoryService: ObservableObject {
                 // ignoreNextChange() consumed while the read was running.
                 guard changeCount > self.lastChangeCount else { return }
                 self.lastChangeCount = changeCount
+                // The pasteboard changed to something this check is about to
+                // decide not to record (an ignored app, a concealed/secret
+                // copy, or an image with the images toggle off): the menu bar
+                // preview must not keep advertising the previous entry as
+                // still current. A recording path below sets this back.
+                self.latestPasteboardEntry = nil
                 guard self.isRunning, !excludedSource, let content else { return }
                 switch content {
                 case .files(let paths): self.promoteFiles(paths)
@@ -888,6 +894,11 @@ final class ClipboardHistoryService: ObservableObject {
         entries = decoded
         normalizeEntryOrder()
         trimToLimit()
+        // Seeds the menu bar preview with the best guess of what is actually
+        // on the pasteboard before any capture has happened this launch. nil
+        // means "nothing" from here on (see captureIfChanged/pasteboardWasCleared),
+        // so this is the one place it starts as "unknown" instead.
+        latestPasteboardEntry = recentEntries.first
         // Sweep image files that lost their entry (crash between write and save).
         ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
         // A history read from the legacy blob migrates right away instead of

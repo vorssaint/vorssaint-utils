@@ -163,11 +163,6 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
-        ClipboardHistoryService.shared.$entries
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.syncClipboardPreviewItem() }
-            .store(in: &cancellables)
-
         ClipboardHistoryService.shared.$latestPasteboardEntry
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.syncClipboardPreviewItem() }
@@ -689,7 +684,13 @@ final class StatusItemController {
         // it. macOS does not reliably restore a dragged position for an item
         // recreated later — it would otherwise land back at the default spot
         // the next time something is copied.
-        let entry = history.latestPasteboardEntry ?? history.recentEntries.first
+        //
+        // No fallback to recentEntries here: latestPasteboardEntry is seeded
+        // at load and kept correct from then on (nil means the pasteboard was
+        // actually cleared, or the last change was deliberately not recorded),
+        // so falling back to history would undo exactly that — e.g. auto
+        // clear wiping the pasteboard while the entry stays in history.
+        let entry = history.latestPasteboardEntry
         let maxCharacters = Defaults.sanitizedClipboardMenuBarPreviewLength(
             defaults.integer(forKey: DefaultsKey.clipboardHistoryMenuBarPreviewLength))
         let text = entry?.menuBarText(maxCharacters: maxCharacters) ?? ""
