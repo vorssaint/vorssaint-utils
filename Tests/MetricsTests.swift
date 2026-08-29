@@ -15368,11 +15368,19 @@ struct MetricsTests {
         let holders = mayHoldSystemWide.filter { code($0).contains("AXUIElementCreateSystemWide") }
         expect(holders.count == mayHoldSystemWide.count,
                "every file allowed to hold the system-wide element still does: \(holders)")
-        // And the floor itself is still written, since the four that hold the
-        // element without capping it are relying on there being one.
-        expect(code("App/AppDelegate.swift")
+        // And the floor itself is still set, since every hit test listed above
+        // runs on it. Both halves are checked: a write nobody calls is not a
+        // floor, and the string outlives the call that reaches it.
+        let launchSource = code("App/AppDelegate.swift")
+        expect(launchSource
                    .contains("AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide()"),
                "the launch default that every uncapped read falls back to is still set")
+        // Excluding the declaration, or deleting the call leaves the function
+        // matching its own name and the rule passes on dead code.
+        expect(launchSource.components(separatedBy: "\n").contains {
+                   $0.contains("boundAccessibilityWaits()") && !$0.contains("func ")
+               },
+               "the launch default is still reached from startup")
         // The Dock preview hit test reads Accessibility on the main thread on
         // every mouse-move sample along the Dock's edge, and the process it
         // questions is the Dock — the one that stops answering (issue #971).
@@ -15381,7 +15389,7 @@ struct MetricsTests {
         // an element comes through carry it, and a read added later is covered
         // without anyone remembering to. Which element may hold the
         // process-wide default is the rule above, and this file is on that list
-        // for its hit test like the other four.
+        // for its hit test like the other holders.
         let dockPreviewLines = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
             encoding: .utf8)) ?? "")
