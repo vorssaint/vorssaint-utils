@@ -2416,12 +2416,19 @@ final class CommandBarService: ObservableObject {
 
     // MARK: - Monitors
 
+    /// The letter a keystroke means to the bar's shortcuts: what the key
+    /// prints, or where it sits when it prints no Latin letter.
+    private static func shortcutCharacter(for event: NSEvent) -> Character? {
+        KeyboardLetters.shortcutCharacter(typedCharacter: event.charactersIgnoringModifiers,
+                                          keyCode: Int(event.keyCode))
+    }
+
     /// Sends one editing shortcut down the responder chain, to the field
     /// editor of whichever panel is key. Answers whether something took it,
     /// so a combination nobody wanted is handed back to the field untouched.
     private func sendEditingAction(for event: NSEvent) -> Bool {
         let action: Selector
-        switch event.charactersIgnoringModifiers?.lowercased() {
+        switch Self.shortcutCharacter(for: event) {
         case "a": action = #selector(NSText.selectAll(_:))
         case "c": action = #selector(NSText.copy(_:))
         case "x": action = #selector(NSText.cut(_:))
@@ -2485,10 +2492,15 @@ final class CommandBarService: ObservableObject {
                 // Letters are read as they are printed on the keyboard, not by
                 // where the key sits: on AZERTY the key marked A is where Q
                 // lives on ANSI, so matching by position took every Cmd+A for
-                // a quit and swallowed it before the field could answer.
+                // a quit and swallowed it before the field could answer. A
+                // layout that prints no Latin letter has none to answer with,
+                // so the key's position stands in there, which is where macOS
+                // resolves that layout's command shortcuts: without it ⌘Q goes
+                // unrecognised on Cyrillic and Greek and the menu quits the
+                // app behind the bar.
                 let onlyCommand = event.modifierFlags
                     .intersection([.command, .option, .shift, .control]) == [.command]
-                switch event.charactersIgnoringModifiers?.lowercased() {
+                switch Self.shortcutCharacter(for: event) {
                 case "q", "w", "m", "h":
                     // The app's menu owns these combinations and the panel is
                     // key, so they would quit, close or hide Vorssaint while

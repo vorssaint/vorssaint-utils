@@ -1232,11 +1232,11 @@ enum SwitcherSupport {
     /// their command shortcuts (measured: with Command held both translate
     /// that key to "w").
     static func letterAction(typedCharacter: String?, keyCode: Int64, pinSearchEnabled: Bool) -> SwitcherLetterAction? {
-        guard let letter = latinLetter(in: typedCharacter) else {
-            switch keyCode {
-            case USKeyPosition.w: return .closeWindow
-            case USKeyPosition.q: return .quitApp
-            case USKeyPosition.s where pinSearchEnabled: return .pinSearch
+        guard let letter = KeyboardLetters.latinLetter(in: typedCharacter) else {
+            switch KeyboardLetters.usPositionCharacter(for: Int(keyCode)) {
+            case "w": return .closeWindow
+            case "q": return .quitApp
+            case "s" where pinSearchEnabled: return .pinSearch
             default: return nil
             }
         }
@@ -1252,7 +1252,7 @@ enum SwitcherSupport {
             // the original typed character is non-ASCII, to avoid triggering on
             // remapped Latin layouts where the US-S key types another ASCII letter.
             if pinSearchEnabled,
-               keyCode == USKeyPosition.s,
+               KeyboardLetters.usPositionCharacter(for: Int(keyCode)) == "s",
                let typed = typedCharacter,
                !typed.unicodeScalars.allSatisfy({ $0.isASCII }) {
                 return .pinSearch
@@ -1263,26 +1263,6 @@ enum SwitcherSupport {
 
     /// Key positions on the US keyboard, the fallback for layouts with no
     /// Latin letters of their own.
-    private enum USKeyPosition {
-        static let q: Int64 = 12
-        static let w: Int64 = 13
-        static let s: Int64 = 1
-    }
-
-    /// The plain letter a keystroke typed, when it typed one. Accents fold
-    /// away, so a letter of a Latin alphabet is never mistaken for one of the
-    /// keys above.
-    private static func latinLetter(in text: String?) -> Character? {
-        guard let folded = text?.folding(options: [.diacriticInsensitive, .caseInsensitive],
-                                         locale: .current),
-              folded.count == 1,
-              let letter = folded.first,
-              letter.isASCII,
-              letter.isLetter
-        else { return nil }
-        return letter
-    }
-
     static func filteredSearchIDs(records: [SwitcherSearchRecord], query: String) -> [String] {
         let tokens = normalizedSearchTokens(query)
         guard !tokens.isEmpty else { return records.map(\.id) }

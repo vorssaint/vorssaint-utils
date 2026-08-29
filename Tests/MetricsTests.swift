@@ -9874,6 +9874,32 @@ struct MetricsTests {
                "App Switcher panel follows a remapped Latin letter instead of the physical S position")
         expect(SwitcherSupport.letterAction(typedCharacter: "ы", keyCode: 1, pinSearchEnabled: true) == .pinSearch,
                "App Switcher panel falls back to the physical S position on a non-Latin layout")
+
+        // The same reading, shared with the Command Bar: the letter the key
+        // prints wins, punctuation it prints outright comes next, and the US
+        // position is the last resort.
+        expect(KeyboardLetters.shortcutCharacter(typedCharacter: "a", keyCode: 12) == "a"
+               && KeyboardLetters.shortcutCharacter(typedCharacter: "Q", keyCode: 0) == "q",
+               "a shortcut reads the letter the key prints, wherever the layout puts it")
+        // AZERTY types its comma on the US M key: read by position it would be
+        // a ⌘M the app's menu swallows as a minimise.
+        expect(KeyboardLetters.shortcutCharacter(typedCharacter: ",", keyCode: 46) == ","
+               && KeyboardLetters.shortcutCharacter(typedCharacter: "m", keyCode: 43) == "m",
+               "a comma the keyboard prints stays a comma, and the M next to it stays an M")
+        // Cyrillic prints no Latin letter, so the key position stands in —
+        // without it ⌘Q goes unrecognised and the menu quits the app.
+        expect(KeyboardLetters.shortcutCharacter(typedCharacter: "й", keyCode: 12) == "q"
+               && KeyboardLetters.shortcutCharacter(typedCharacter: "ф", keyCode: 0) == "a"
+               && KeyboardLetters.shortcutCharacter(typedCharacter: "б", keyCode: 43) == ",",
+               "a layout that prints no Latin letter answers by the key's position")
+        expect(KeyboardLetters.shortcutCharacter(typedCharacter: nil, keyCode: 35) == "p"
+               && KeyboardLetters.shortcutCharacter(typedCharacter: "", keyCode: 40) == "k",
+               "a key that prints nothing at all still answers by its position")
+        expect(KeyboardLetters.shortcutCharacter(typedCharacter: "é", keyCode: 14) == "e",
+               "an accent folds away rather than hiding the letter underneath")
+        expect(KeyboardLetters.shortcutCharacter(typedCharacter: "&", keyCode: 18) == "&"
+               && KeyboardLetters.usPositionCharacter(for: 18) == nil,
+               "the digit row is nobody's letter, so it is left to the code that reads it by position")
         let switcherPanelFrame = CGRect(x: 400, y: 300, width: 600, height: 400)
         expect(SwitcherSupport.shouldDismissForClick(panelIsVisible: true,
                                                      panelFrame: switcherPanelFrame,
