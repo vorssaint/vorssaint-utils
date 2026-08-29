@@ -15199,8 +15199,10 @@ struct MetricsTests {
         // system-wide object it is the process-wide default, which six other
         // features already write with three different values, so hovering the
         // Dock would change how long window layout and focus-follows-mouse
-        // wait. Comment lines are dropped first, since both spellings appear in
-        // the reasoning right above the code.
+        // wait. The rule is the absence of that element here rather than of one
+        // spelling of the write, since the write can be reached through any
+        // name the element is given. Comment lines are dropped first, since the
+        // symbol appears in the reasoning right above the code.
         let dockPreviewLines = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
             encoding: .utf8)) ?? "")
@@ -15208,9 +15210,8 @@ struct MetricsTests {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
         expect(dockPreviewLines.contains { $0.contains("AXUIElementSetMessagingTimeout") },
                "dock preview caps how long it waits for the Dock to answer")
-        expect(!dockPreviewLines.contains { $0.contains("AXUIElementSetMessagingTimeout(system")
-                                            || $0.contains("bounded(system") },
-               "dock preview caps its own elements, never the process-wide default")
+        expect(!dockPreviewLines.contains { $0.contains("AXUIElementCreateSystemWide") },
+               "dock preview never holds the element whose timeout is the process-wide default")
 
         // Asking an application element for its role switches a Chromium app's
         // renderers into full accessibility mode for the rest of the process's

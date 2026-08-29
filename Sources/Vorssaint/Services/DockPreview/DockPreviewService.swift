@@ -1115,9 +1115,16 @@ final class DockPreviewService: ObservableObject {
             ownProcessID: getpid()
         ) else { return nil }
 
-        let system = AXUIElementCreateSystemWide()
+        // Hit-tested through the Dock's own application element rather than the
+        // system-wide one, so this read carries the cap below like every other
+        // read here; a timeout written on the system-wide object would be the
+        // process-wide default. The guard above has already established that the
+        // Dock owns this point and the loop below drops any candidate that is
+        // not the Dock's, so narrowing the search to its hierarchy removes no
+        // case that reaches here.
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
+        guard let dock = bounded(AXUIElementCreateApplication(dockPID)),
+              AXUIElementCopyElementAtPosition(dock, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
               let element = bounded(rawElement)
         else { return nil }
 
@@ -1323,9 +1330,9 @@ final class DockPreviewService: ObservableObject {
     /// These reads run on the main thread — the event tap's run-loop source is
     /// on the main run loop and `handleOnMain` stays there — and they fire on
     /// every mouse-move sample along the Dock's edge. The process they question
-    /// is the Dock, which is the one that stops answering (#971). The walk gives
-    /// up on its first failure, so a Dock that has stopped answering costs a few
-    /// of these per sample rather than the whole chain.
+    /// is the Dock, which is the one that stops answering (#971). Each step is a
+    /// guard, so a Dock that has stopped answering costs the hit test alone and
+    /// a Dock that answers it and then stops costs three.
     ///
     /// Per element on purpose. Setting a timeout on the system-wide object sets
     /// the process-wide default, and six features here already write that
