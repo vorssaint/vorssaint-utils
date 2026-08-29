@@ -103,6 +103,27 @@ final class ShelfService: ObservableObject {
         }
     }
 
+    /// Direct representations are held until a promise either succeeds or
+    /// fails. A lock makes the one-shot fallback safe when multiple promise
+    /// receivers complete on the operation queue at the same time.
+    private final class PromiseFallbackState {
+        let items: [Item]
+        private let lock = NSLock()
+        private var consumed = false
+
+        init(items: [Item]) {
+            self.items = items
+        }
+
+        func take() -> [Item]? {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !consumed else { return nil }
+            consumed = true
+            return items
+        }
+    }
+
     @Published private(set) var items: [Item] = [] {
         didSet {
             contentRevision &+= 1
@@ -1127,7 +1148,7 @@ final class ShelfService: ObservableObject {
                 guard let self else {
                     return DispatchQueue.main.async { completion(nil) }
                 }
-                guard error == nil, let url, self.isReadableFile(url),
+                guard error == nil, let url, self.isUsablePromiseFile(url),
                       let storedURL = self.storePromisedFile(url) else {
                     // Some providers register the promise UTI alongside a
                     // usable image, URL, or text representation. A failed or
@@ -1189,13 +1210,26 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    private func isReadableFile(_ url: URL) -> Bool {
+    private func isUsablePromiseFile(_ url: URL) -> Bool {
         guard url.isFileURL,
               FileManager.default.fileExists(atPath: url.path),
               FileManager.default.isReadableFile(atPath: url.path),
               let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
               values.isRegularFile == true else { return false }
-        return true
+
+        // A provider can expose the promise UTI through this item-provider
+        // path. Foundation then writes that short identifier into a regular
+        // temporary file, which passes filesystem checks but is not the
+        // promised content. Reject that placeholder so direct loaders below
+        // get a chance to handle the same provider.
+        guard url.pathExtension.isEmpty,
+              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
+              data.count <= 256,
+              let identifier = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !identifier.isEmpty,
+              UTType(identifier) != nil else { return true }
+        return false
     }
 
     func removeItem(_ id: UUID) {
@@ -1475,7 +1509,9 @@ final class ShelfService: ObservableObject {
         }
         let promises = filePromises(from: pasteboard)
         if !promises.isEmpty {
-            return receivePromisedFiles(promises, mergingInto: targetID)
+            return receivePromisedFiles(promises,
+                                        mergingInto: targetID,
+                                        fallbackItems: items(from: pasteboard))
         }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
@@ -1505,7 +1541,10 @@ final class ShelfService: ObservableObject {
             // Promise-backed drops may also advertise auxiliary text or URL
             // flavors, such as Outlook's subject. The promised file is the
             // authoritative Shelf item, so do not add those flavors twice.
-            return receivePromisedFiles(promises)
+            // Direct representations are kept only as a failure fallback,
+            // which preserves Chromium image drags without duplicating
+            // Outlook's promised message or attachment.
+            return receivePromisedFiles(promises, fallbackItems: items(from: pasteboard))
         }
         let fileURLs = fileURLs(from: pasteboard)
         if fileURLs.count > 1 {
@@ -1665,8 +1704,10 @@ final class ShelfService: ObservableObject {
     /// completion handler returns, so it is copied into the Shelf store before
     /// the item is built on the main thread.
     private func receivePromisedFiles(_ promises: [NSFilePromiseReceiver],
-                                      mergingInto targetID: UUID? = nil) -> Bool {
+                                      mergingInto targetID: UUID? = nil,
+                                      fallbackItems: [Item] = []) -> Bool {
         guard !promises.isEmpty else { return false }
+        let fallbackState = fallbackItems.isEmpty ? nil : PromiseFallbackState(items: fallbackItems)
         var scheduled = false
         for promise in promises {
             // A receiver can represent more than one file, so keep its
@@ -1679,7 +1720,9 @@ final class ShelfService: ObservableObject {
                 at: destination,
                 withIntermediateDirectories: true,
                 attributes: [.posixPermissions: 0o700])) != nil else {
-                reportPromiseFailure()
+                if !fallbackPromisedItems(fallbackState, mergingInto: targetID) {
+                    reportPromiseFailure()
+                }
                 continue
             }
             scheduled = true
@@ -1689,18 +1732,24 @@ final class ShelfService: ObservableObject {
                 guard let self else { return }
                 guard error == nil else {
                     try? FileManager.default.removeItem(at: url)
-                    self.reportPromiseFailure()
+                    if !self.fallbackPromisedItems(fallbackState, mergingInto: targetID) {
+                        self.reportPromiseFailure()
+                    }
                     return
                 }
                 guard let storedURL = self.storePromisedFile(url) else {
                     try? FileManager.default.removeItem(at: url)
-                    self.reportPromiseFailure()
+                    if !self.fallbackPromisedItems(fallbackState, mergingInto: targetID) {
+                        self.reportPromiseFailure()
+                    }
                     return
                 }
                 let title = url.lastPathComponent
                 try? FileManager.default.removeItem(at: url)
+                let fallback = fallbackState?.take()
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
+                    if let fallback { self.discardOwnedPayloads(in: fallback) }
                     let item = self.fileItem(for: storedURL, title: title)
                     if let targetID {
                         if self.merge([item], into: targetID) {
@@ -1728,6 +1777,35 @@ final class ShelfService: ObservableObject {
             }
         }
         return scheduled
+    }
+
+    /// Uses direct representations only after promise fulfillment fails. A
+    /// Chromium image can advertise a promise flavor while still carrying a
+    /// usable image, whereas Outlook's subject flavor must not create a
+    /// duplicate tile while its promised file is still pending.
+    @discardableResult
+    private func fallbackPromisedItems(_ state: PromiseFallbackState?,
+                                       mergingInto targetID: UUID?) -> Bool {
+        guard let state, let fallbackItems = state.take() else { return false }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if let targetID, self.merge(fallbackItems, into: targetID) {
+                self.startContentThumbnails(for: fallbackItems)
+                self.lastAddedID = self.dragItems(for: fallbackItems).last?.id
+                self.addSerial &+= 1
+                self.noteInteraction()
+                return
+            }
+
+            let fallback = fallbackItems.count == 1
+                ? fallbackItems[0]
+                : self.batchItem(children: fallbackItems)
+            guard self.append(fallback) else {
+                self.reportPromiseFailure()
+                return
+            }
+        }
+        return true
     }
 
     /// Promise materialization is asynchronous, so a drop cannot return a
