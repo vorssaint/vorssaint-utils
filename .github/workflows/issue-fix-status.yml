@@ -13,6 +13,10 @@ name: Issue fix status
 #   two weeks of silence after that                 ->  the issue is closed,
 #   after a comment saying so and how to reopen it
 #
+# A label put on by hand joins that at the second step: the daily job asks the
+# question the release sweep would have asked, and the same two weeks run from
+# that comment. Nothing is closed on a silence nobody was asked to break.
+#
 #   a description that closes its issue with a    ->  one comment on the pull
 #   keyword, or mentions one and references none        request, before it merges
 #
@@ -421,25 +425,55 @@ jobs:
           echo "closing checks asked before $cutoff"
 
           gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
-            --json number,labels \
+            --json number,author,labels \
             | jq -r --argjson skip "$SKIP_LABELS" \
-                '.[] | select(any(.labels[].name; IN($skip[])) | not) | .number' \
+                '.[] | select(any(.labels[].name; IN($skip[])) | not) | "\(.number) \(.author.login)"' \
             > waiting.txt
 
-          while read -r number; do
+          while read -r number login; do
             [ -n "$number" ] || continue
 
             comments=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
                          --jq '[.[] | {created_at, login: .user.login, body}]' | jq -s add)
 
-            # The clock starts when the reporter was asked, which is the comment,
-            # not the label -- a label notifies nobody, so an issue labelled by
-            # hand has never actually asked anyone anything. Without that comment
-            # this job leaves the issue alone forever, which is what makes it safe
-            # to point at a repository that has been labelled by hand.
+            # The clock starts when the reporter was asked, which is the comment
+            # and not the label -- a label notifies nobody, so a label applied by
+            # hand has asked no one anything yet. It gets asked here, in the same
+            # words the release sweep uses, and its two weeks start from that
+            # comment. Every issue carrying the label ends the same way, whoever
+            # put it there; the only thing the hand-applied ones lack is the
+            # question, so this writes it rather than closing on a silence the
+            # reporter was never told about.
             ask=$(jq -c '[.[] | select(.body | test("vorssaint-fix-status confirm="))] | last' <<<"$comments")
             if [ "$ask" = null ]; then
-              echo "::warning::#$number: carries $CONFIRM_LABEL with no recorded ask, left alone"
+              # Which release: the newest stable one. That is what the label
+              # claims and the only build the reporter can go and get.
+              TAG=$(gh release list --exclude-drafts --exclude-pre-releases \
+                      --limit 1 --json tagName --jq '.[0].tagName // empty')
+              if [ -z "$TAG" ]; then
+                echo "::warning::#$number: no stable release to ask about, left alone"
+                continue
+              fi
+              version=${TAG#v}
+
+              # Expanded heredoc: keep the text free of backticks and `$`.
+              cat > comment.md <<COMMENT
+          The fix for this is in **$version**.
+
+          @$login, could you update to that version and say whether it fixed things
+          on your Mac? We cannot tell from here — yours is the setup that found this.
+
+          Please say **how much of it is fixed**, not only whether it is. If part of what you
+          reported still happens, or something related turned up, say so here and the issue goes
+          back for another look — this is not a last call.
+
+          If nothing arrives in two weeks the issue will be closed as it stands, and a comment
+          reopens it at any point after that.
+
+          <!-- vorssaint-fix-status confirm=$TAG -->
+          COMMENT
+              gh issue comment "$number" --body-file comment.md
+              echo "#$number: labelled by hand, asked about $version, two weeks start now"
               continue
             fi
             asked=$(jq -r '.created_at' <<<"$ask")
