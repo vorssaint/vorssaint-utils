@@ -28,6 +28,7 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 
 ### Fixed
+- Switching capture modes in the screen capture chooser now transitions smoothly without flickering or restarting the overlay session.
 - Clicking long text previews in the menu panel's clipboard section now keeps the preview confined to its row instead of overflowing across neighboring items. Thanks to @andreisuslov.
 - Navigating clipboard history with arrow keys now prevents hovering pointers from fighting keyboard selection, keeps the list responsive during scrolling and renders large text previews without layout pauses. Thanks to @andreisuslov.
 - Moving a window to the next or previous display now preserves its point size and edge insets instead of scaling proportionally. Thanks to @DiogoDuart3.
