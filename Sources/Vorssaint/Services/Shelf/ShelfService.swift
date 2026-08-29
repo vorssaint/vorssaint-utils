@@ -548,6 +548,7 @@ final class ShelfService: ObservableObject {
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
         guard let items = pasteboard.pasteboardItems, !items.isEmpty else { return false }
+        let hasReadablePromises = pasteboardHasReadableFilePromises(pasteboard)
         let directTypes: Set<String> = [
             NSPasteboard.PasteboardType.fileURL.rawValue,
             NSPasteboard.PasteboardType.string.rawValue,
@@ -567,7 +568,9 @@ final class ShelfService: ObservableObject {
         for item in items {
             for type in item.types {
                 if directTypes.contains(type.rawValue) { return true }
-                if Self.filePromiseTypeIdentifiers.contains(type.rawValue) { return true }
+                if Self.filePromiseTypeIdentifiers.contains(type.rawValue), hasReadablePromises {
+                    return true
+                }
                 guard let utType = UTType(type.rawValue) else { continue }
                 if supportedUTTypes.contains(where: { utType.conforms(to: $0) }) { return true }
             }
@@ -1110,9 +1113,10 @@ final class ShelfService: ObservableObject {
     }
 
     /// Turns one dropped provider into an item, preferring richer
-    /// representations first: a file on disk, then GIF data, then a plain
-    /// image, then a URL (file or link), then text. Always calls back
-    /// exactly once, on the main queue, so callers can mutate state from it.
+    /// representations first: a promised file when it produces a readable
+    /// file, then a file on disk, GIF data, a plain image, a URL (file or
+    /// link), and finally text. Always calls back exactly once, on the main
+    /// queue, so callers can mutate state from it.
     private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
         if let promiseType = promisedFileTypeIdentifier(for: provider) {
             // SwiftUI exposes item-based file promises as NSItemProvider file
@@ -1123,17 +1127,29 @@ final class ShelfService: ObservableObject {
                 guard let self else {
                     return DispatchQueue.main.async { completion(nil) }
                 }
-                guard error == nil, let url,
+                guard error == nil, let url, self.isReadableFile(url),
                       let storedURL = self.storePromisedFile(url) else {
-                    self.reportPromiseFailure()
-                    return DispatchQueue.main.async { completion(nil) }
+                    // Some providers register the promise UTI alongside a
+                    // usable image, URL, or text representation. A failed or
+                    // non-file promise must not hide that working fallback.
+                    return self.resolveStandardItem(from: provider) { item in
+                        if item == nil { self.reportPromiseFailure() }
+                        completion(item)
+                    }
                 }
                 let title = provider.suggestedName ?? url.lastPathComponent
                 DispatchQueue.main.async {
                     completion(self.fileItem(for: storedURL, title: title))
                 }
             }
-        } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            return
+        }
+        resolveStandardItem(from: provider, completion: completion)
+    }
+
+    private func resolveStandardItem(from provider: NSItemProvider,
+                                     completion: @escaping (Item?) -> Void) {
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
             _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
                 DispatchQueue.main.async {
                     guard let url, url.isFileURL else { return completion(nil) }
@@ -1171,6 +1187,15 @@ final class ShelfService: ObservableObject {
         } else {
             DispatchQueue.main.async { completion(nil) }
         }
+    }
+
+    private func isReadableFile(_ url: URL) -> Bool {
+        guard url.isFileURL,
+              FileManager.default.fileExists(atPath: url.path),
+              FileManager.default.isReadableFile(atPath: url.path),
+              let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
+              values.isRegularFile == true else { return false }
+        return true
     }
 
     func removeItem(_ id: UUID) {
@@ -1678,15 +1703,21 @@ final class ShelfService: ObservableObject {
                     guard let self else { return }
                     let item = self.fileItem(for: storedURL, title: title)
                     if let targetID {
-                        guard self.merge([item], into: targetID) else {
-                            self.discardOwnedPayloads(in: [item])
-                            self.reportPromiseFailure()
-                            return
+                        if self.merge([item], into: targetID) {
+                            self.startContentThumbnails(for: [item])
+                            self.lastAddedID = item.id
+                            self.addSerial &+= 1
+                            self.noteInteraction()
+                        } else {
+                            // The user may remove the pile while Outlook is
+                            // still fulfilling the promise. Keep the file at
+                            // top level instead of discarding a successful
+                            // materialization just because its target vanished.
+                            guard self.append(item) else {
+                                self.reportPromiseFailure()
+                                return
+                            }
                         }
-                        self.startContentThumbnails(for: [item])
-                        self.lastAddedID = item.id
-                        self.addSerial &+= 1
-                        self.noteInteraction()
                     } else {
                         guard self.append(item) else {
                             self.reportPromiseFailure()
@@ -1852,6 +1883,10 @@ final class ShelfService: ObservableObject {
         }
     }
 
+    private func pasteboardHasReadableFilePromises(_ pasteboard: NSPasteboard) -> Bool {
+        pasteboardHasFilePromises(pasteboard) && !filePromises(from: pasteboard).isEmpty
+    }
+
     private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
         let fileOptions: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: fileOptions) as? [NSURL],
@@ -1866,10 +1901,7 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardCanCreateItem(_ pasteboard: NSPasteboard) -> Bool {
-        if pasteboardHasFilePromises(pasteboard),
-           !filePromises(from: pasteboard).isEmpty {
-            return true
-        }
+        if pasteboardHasReadableFilePromises(pasteboard) { return true }
         if !fileURLs(from: pasteboard).isEmpty {
             return true
         }
