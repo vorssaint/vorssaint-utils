@@ -7,8 +7,8 @@ name: Issue fix status
 #   comment
 #
 #   the next stable release                         ->  every issue still
-#   carrying that label becomes `please confirm`, and its reporter is asked
-#   to check that release
+#   carrying that label becomes `please confirm close`, and its reporter is
+#   asked to check that release
 #
 #   two weeks of silence after that                 ->  the issue is closed,
 #   after a comment saying so and how to reopen it
@@ -45,10 +45,15 @@ name: Issue fix status
 # nothing either: one word from anyone stops it, and it never reads what that
 # word says.
 #
-# `please confirm` carries no version. The version lives in the comment, which
-# is the only part of this the reporter ever sees -- labels are silent, they
-# notify nobody, and a label per release would grow the repository's label list
-# without ever telling anyone anything.
+# `please confirm close` carries no version. The version lives in the comment,
+# which is the only part of this the reporter ever sees -- labels are silent,
+# they notify nobody, and a label per release would grow the repository's label
+# list without ever telling anyone anything.
+#
+# It says `close` because that is what the label is for and the only thing it
+# can lead to: an answer, or a close two weeks later. A bare `confirm` is a
+# bucket -- confirm a repro, confirm a design, confirm a duplicate -- and a
+# label that can mean three things is read as none of them.
 #
 # A `summary` issue is never touched by any of this, wherever it turns up: a
 # long-lived index has no reporter waiting on a build, and a pull request that
@@ -103,7 +108,7 @@ env:
   GH_TOKEN: ${{ github.token }}
   GH_REPO: ${{ github.repository }}
   PENDING_LABEL: fixed (pending release)
-  CONFIRM_LABEL: please confirm
+  CONFIRM_LABEL: please confirm close
   # Labels this bot keeps its hands off entirely. JSON so a name with a space
   # stays one name.
   SKIP_LABELS: '["summary","half"]'
@@ -162,7 +167,7 @@ jobs:
             gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$PENDING_LABEL" --silent
 
             # One fix status at a time. An issue its reporter sent back is still
-            # carrying `please confirm` from the last release, and a new fix puts
+            # carrying `please confirm close` from the last release, and a fix puts
             # it behind the next one.
             if jq -e --arg l "$CONFIRM_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
               gh issue edit "$number" --remove-label "$CONFIRM_LABEL"
@@ -360,7 +365,7 @@ jobs:
 
           # Created once, if the repository has never had it. A release does not
           # mint a label -- the version it carries is in the comment below.
-          gh label create "$CONFIRM_LABEL" --color 7FCFCF \
+          gh label create "$CONFIRM_LABEL" --color 048c23 \
             --description "The fix is in a release; the reporter has two weeks to say whether that build fixed it" \
             || true   # already there
 
