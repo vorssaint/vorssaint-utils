@@ -241,6 +241,19 @@ enum CommandBarCatalog {
                           id: "toggle.scrollInverter.horizontal"),
                 ]
             }
+            if feature == .mouseButtonShortcuts {
+                let buttons = FeatureStrings.mouseButtons(language)
+                return [
+                    entry(for: feature,
+                          key: DefaultsKey.mouseButtonShortcutsEnabled,
+                          name: feature.hubTitle(s, hub: hub),
+                          id: "toggle.mouseButtonShortcuts"),
+                    entry(for: feature,
+                          key: DefaultsKey.mouseSpacesGestureEnabled,
+                          name: buttons.spacesEnableLabel,
+                          id: "toggle.mouseButtonShortcuts.spacesGesture"),
+                ]
+            }
             // Two keys means two different switches; which one a single row
             // would flip is a guess, and a guess here changes the person's Mac.
             guard feature.enabledKeys.count == 1,

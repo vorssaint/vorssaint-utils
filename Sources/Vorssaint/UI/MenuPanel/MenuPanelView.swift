@@ -1094,6 +1094,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
     @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
@@ -1232,7 +1233,7 @@ struct QuickControlsSection: View {
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
         case .radialMenu: return radialMenuEnabled
-        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled
+        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
         }
     }
@@ -1609,18 +1610,23 @@ struct QuickControlsSection: View {
                 }
         case .mouseButtonShortcuts:
             let buttonStrings = FeatureStrings.mouseButtons(l10n.language)
+            // Either switch drives the same tap and needs the same grant
+            // (issue #1012), so every surface on this row reads them
+            // together. Widening one and not the rest is what leaves the
+            // row asking for a permission its own button cannot grant.
+            let buttonsEngaged = mouseButtonShortcutsEnabled || spacesEnabled
             PanelToggleRow(title: buttonStrings.pageTitle,
                            caption: caption(buttonStrings.panelCaption,
-                                            needsAccessibility: mouseButtonShortcutsEnabled),
+                                            needsAccessibility: buttonsEngaged),
                            systemImage: "button.programmable",
                            isOn: $mouseButtonShortcutsEnabled,
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showMouseButtonShortcuts,
-                           needsAttention: mouseButtonShortcutsEnabled && !permissions.accessibility,
+                           needsAttention: buttonsEngaged && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(mouseButtonShortcutsEnabled),
-                           accessoryTitle: mouseButtonShortcutsEnabled ? buttonStrings.manageButton : nil,
+                           permissionAction: accessibilityPermissionAction(buttonsEngaged),
+                           accessoryTitle: buttonsEngaged ? buttonStrings.manageButton : nil,
                            accessoryAction: {
                                SettingsRouter.shared.page = .mouse
                                appDelegate()?.openSettingsWindow()
