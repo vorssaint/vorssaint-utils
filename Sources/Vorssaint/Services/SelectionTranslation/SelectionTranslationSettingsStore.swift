@@ -17,26 +17,34 @@ enum SelectionTranslationKeychain {
     private static let service = "com.vorssaint.selection-translation"
     private static let account = "api-key"
 
-    static func read() -> String {
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
-                                     kSecAttrService as String: service,
-                                     kSecAttrAccount as String: account,
-                                     kSecReturnData as String: true]
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
-              let data = item as? Data else { return "" }
-        return String(data: data, encoding: .utf8) ?? ""
+    enum Error: LocalizedError {
+        case writeFailed(OSStatus)
+
+        var errorDescription: String? {
+            switch self {
+            case .writeFailed:
+                return "无法保存 API 密钥，请检查钥匙串权限后重试。"
+            }
+        }
     }
 
-    static func write(_ value: String) {
+    static func read() -> String {
+        read(service: service, account: account) ?? ""
+    }
+
+    static func write(_ value: String) throws {
         let data = Data(value.utf8)
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
                                     kSecAttrService as String: service,
                                     kSecAttrAccount as String: account]
-        SecItemDelete(query as CFDictionary)
+        let deleteStatus = SecItemDelete(query as CFDictionary)
+        guard deleteStatus == errSecSuccess || deleteStatus == errSecItemNotFound else {
+            throw Error.writeFailed(deleteStatus)
+        }
         var add = query
         add[kSecValueData as String] = data
-        SecItemAdd(add as CFDictionary, nil)
+        let addStatus = SecItemAdd(add as CFDictionary, nil)
+        guard addStatus == errSecSuccess else { throw Error.writeFailed(addStatus) }
     }
 
     static func delete() { 
@@ -45,20 +53,45 @@ enum SelectionTranslationKeychain {
                                     kSecAttrAccount as String: account]
         SecItemDelete(query as CFDictionary)
     }
+
+    private static func read(service: String, account: String) -> String? {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: service,
+                                    kSecAttrAccount as String: account,
+                                    kSecReturnData as String: true]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
 }
 
 enum SelectionTranslationSettingsStore {
-    static func snapshot() -> SelectionTranslationSettingsSnapshot {
-        let defaults = UserDefaults.standard
-        let system = defaults.string(forKey: DefaultsKey.selectionTranslationSystemPrompt) ?? SelectionTranslationPromptTemplates.default.systemPrompt
-        let user = defaults.string(forKey: DefaultsKey.selectionTranslationUserPrompt) ?? SelectionTranslationPromptTemplates.default.userPrompt
+    static let defaultProviderName = "OpenAI-compatible"
+    static let defaultBaseURL = "https://api.openai.com/v1"
+    static let defaultModel = "gpt-4o-mini"
+    static let defaultTargetLanguage = SelectionTranslationLanguage.simplifiedChinese
+    static let defaultSystemPrompt = SelectionTranslationPromptTemplates.default.systemPrompt
+    static let defaultUserPrompt = SelectionTranslationPromptTemplates.default.userPrompt
+
+    static func snapshot(defaults: UserDefaults = .standard,
+                         apiKey: String? = nil) -> SelectionTranslationSettingsSnapshot {
+        func string(_ key: String) -> String {
+            guard let value = defaults.string(forKey: key) else {
+                preconditionFailure("Missing registered default for \(key)")
+            }
+            return value
+        }
+        let system = string(DefaultsKey.selectionTranslationSystemPrompt)
+        let user = string(DefaultsKey.selectionTranslationUserPrompt)
         let prompts = (try? SelectionTranslationPromptTemplates(systemPrompt: system, userPrompt: user)) ?? .default
         return SelectionTranslationSettingsSnapshot(
-            providerName: defaults.string(forKey: DefaultsKey.selectionTranslationProviderName) ?? "OpenAI-compatible",
-            baseURL: defaults.string(forKey: DefaultsKey.selectionTranslationBaseURL) ?? "",
-            model: defaults.string(forKey: DefaultsKey.selectionTranslationModel) ?? "",
-            apiKey: SelectionTranslationKeychain.read(),
-            languages: SelectionTranslationLanguageSelection(target: .matching(defaults.string(forKey: DefaultsKey.selectionTranslationTargetLanguage) ?? "zh-Hans")),
+            providerName: string(DefaultsKey.selectionTranslationProviderName),
+            baseURL: string(DefaultsKey.selectionTranslationBaseURL),
+            model: string(DefaultsKey.selectionTranslationModel),
+            apiKey: apiKey ?? SelectionTranslationKeychain.read(),
+            languages: SelectionTranslationLanguageSelection(target: .matching(
+                string(DefaultsKey.selectionTranslationTargetLanguage))),
             prompts: prompts)
     }
 
@@ -77,6 +110,13 @@ enum SelectionTranslationSettingsStore {
         defaults.set(targetLanguage.rawValue, forKey: DefaultsKey.selectionTranslationTargetLanguage)
         defaults.set(systemPrompt, forKey: DefaultsKey.selectionTranslationSystemPrompt)
         defaults.set(userPrompt, forKey: DefaultsKey.selectionTranslationUserPrompt)
-        SelectionTranslationKeychain.write(apiKey)
+        try SelectionTranslationKeychain.write(apiKey)
+    }
+
+    static func savePrompts(systemPrompt: String, userPrompt: String) throws {
+        _ = try SelectionTranslationPromptTemplates(systemPrompt: systemPrompt, userPrompt: userPrompt)
+        let defaults = UserDefaults.standard
+        defaults.set(systemPrompt, forKey: DefaultsKey.selectionTranslationSystemPrompt)
+        defaults.set(userPrompt, forKey: DefaultsKey.selectionTranslationUserPrompt)
     }
 }

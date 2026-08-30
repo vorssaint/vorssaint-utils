@@ -3,6 +3,37 @@
 
 import Foundation
 
+struct SelectionTranslationTiming: Equatable, Sendable {
+    let startedAt: Date?
+    let elapsed: TimeInterval
+    let isRunning: Bool
+
+    init(startedAt: Date? = nil, elapsed: TimeInterval = 0, isRunning: Bool = false) {
+        self.startedAt = startedAt
+        self.elapsed = elapsed
+        self.isRunning = isRunning
+    }
+
+    static let idle = Self()
+
+    static func running(at date: Date) -> Self {
+        Self(startedAt: date, elapsed: 0, isRunning: true)
+    }
+
+    func stopped(at date: Date) -> Self {
+        guard isRunning, let startedAt else { return self }
+        return Self(startedAt: startedAt,
+                    elapsed: max(0, date.timeIntervalSince(startedAt)),
+                    isRunning: false)
+    }
+}
+
+enum SelectionTranslationPanelSizing {
+    static let defaultWidth: CGFloat = 500
+    static let minimumWidth: CGFloat = 500
+    static let maximumWidth: CGFloat = 760
+}
+
 enum SelectionTranslationLanguage: String, CaseIterable, Codable, Identifiable, Sendable {
     case automatic = "auto"
     case simplifiedChinese = "zh-Hans"
@@ -36,27 +67,33 @@ enum SelectionTranslationLanguage: String, CaseIterable, Codable, Identifiable, 
         }
     }
 
-    var qwenCode: String {
+    var qwenTranslationName: String {
         switch self {
         case .automatic: "auto"
-        case .simplifiedChinese: "zh"
-        case .traditionalChinese: "zh_tw"
-        case .english: "en"
-        case .japanese: "ja"
-        case .korean: "ko"
-        case .french: "fr"
-        case .german: "de"
-        case .spanish: "es"
-        case .italian: "it"
-        case .portuguese: "pt"
-        case .russian: "ru"
+        case .simplifiedChinese: "Chinese"
+        case .traditionalChinese: "Traditional Chinese"
+        case .english: "English"
+        case .japanese: "Japanese"
+        case .korean: "Korean"
+        case .french: "French"
+        case .german: "German"
+        case .spanish: "Spanish"
+        case .italian: "Italian"
+        case .portuguese: "Portuguese"
+        case .russian: "Russian"
         }
     }
 
+    static var sourceOptions: [Self] { allCases }
     static var targetOptions: [Self] { allCases.filter { $0 != .automatic } }
 
     static func matching(_ rawValue: String) -> Self {
-        allCases.first(where: { $0.rawValue == rawValue }) ?? .simplifiedChinese
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return allCases.first(where: {
+            $0.rawValue.caseInsensitiveCompare(value) == .orderedSame
+                || $0.displayName.caseInsensitiveCompare(value) == .orderedSame
+                || $0.qwenTranslationName.caseInsensitiveCompare(value) == .orderedSame
+        }) ?? .simplifiedChinese
     }
 }
 
@@ -64,21 +101,72 @@ struct SelectionTranslationLanguageSelection: Equatable, Sendable {
     var source: SelectionTranslationLanguage = .automatic
     var target: SelectionTranslationLanguage = .simplifiedChinese
 
-    mutating func swap() {
-        guard source != .automatic else {
-            source = target
-            target = source == .english ? .simplifiedChinese : .english
-            return
+    init(source: SelectionTranslationLanguage = .automatic,
+         target: SelectionTranslationLanguage = .simplifiedChinese) {
+        self.source = source
+        self.target = target == .automatic ? .english : target
+    }
+
+    func swapped() -> Self {
+        if source == .automatic {
+            return Self(source: target, target: target == .english ? .simplifiedChinese : .english)
         }
-        (source, target) = (target, source)
+        return Self(source: target, target: source)
+    }
+
+}
+
+struct SelectionTranslationDraft: Equatable, Sendable {
+    var source: String
+    var languages: SelectionTranslationLanguageSelection
+
+    init(source: String = "", languages: SelectionTranslationLanguageSelection = .init()) {
+        self.source = source
+        self.languages = languages
+    }
+}
+
+enum SelectionTranslationFailureAction: Equatable, Sendable {
+    case openAccessibilitySettings
+    case openSettings
+    case retry
+}
+
+enum SelectionTranslationShortcutStatus: Equatable, Sendable {
+    case disabled
+    case registered
+    case conflict
+
+    var isError: Bool {
+        if case .conflict = self { return true }
+        return false
+    }
+}
+
+enum SelectionTranslationWorkflow {
+    static func shouldSubmit(draft: SelectionTranslationDraft) -> Bool {
+        !draft.source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    static func retryDraft(current: SelectionTranslationDraft,
+                           committed: SelectionTranslationDraft?) -> SelectionTranslationDraft {
+        committed ?? current
     }
 }
 
 struct SelectionTranslationProviderConfiguration: Equatable, Sendable {
-    enum ValidationError: Error, Equatable {
+    enum ValidationError: LocalizedError, Equatable {
         case unsupportedURL
         case emptyModel
         case emptyAPIKey
+
+        var errorDescription: String? {
+            switch self {
+            case .unsupportedURL: return "服务地址必须是 HTTPS，或本机回环地址。"
+            case .emptyModel: return "请填写模型名称。"
+            case .emptyAPIKey: return "请在划词翻译设置中填写 API 密钥。"
+            }
+        }
     }
 
     let baseURL: URL
@@ -146,15 +234,10 @@ struct SelectionTranslationPromptTemplates: Equatable, Sendable {
     }
 
     func renderUserPrompt(source: String, sourceLanguage: String, targetLanguage: String) -> String {
-        let rendered = userPrompt
+        userPrompt
             .replacingOccurrences(of: "{{from}}", with: sourceLanguage)
             .replacingOccurrences(of: "{{to}}", with: targetLanguage)
             .replacingOccurrences(of: "{{text}}", with: source)
-        guard sourceLanguage != SelectionTranslationLanguage.automatic.displayName,
-              !userPrompt.contains("{{from}}") else {
-            return rendered
-        }
-        return "The source language is \(sourceLanguage).\n\n\(rendered)"
     }
 
     static let `default` = try! SelectionTranslationPromptTemplates(
@@ -176,6 +259,50 @@ struct SelectionTranslationPromptTemplates: Equatable, Sendable {
     )
 }
 
+enum SelectionTranslationModelRouting {
+    static func isQwenMachineTranslationModel(_ model: String) -> Bool {
+        let normalized = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalized.hasPrefix("qwen-mt-flash") || normalized.hasPrefix("qwen-mt-lite")
+    }
+}
+
+enum SelectionTranslationMessageBuilder {
+    static func messages(model: String,
+                         source: String,
+                         systemPrompt: String,
+                         userPrompt: String) -> [[String: String]] {
+        if SelectionTranslationModelRouting.isQwenMachineTranslationModel(model) {
+            return [["role": "user", "content": source]]
+        }
+        return [
+            ["role": "system", "content": systemPrompt],
+            ["role": "user", "content": userPrompt]
+        ]
+    }
+}
+
+enum SelectionTranslationRequestBodyBuilder {
+    static func body(model: String,
+                     messages: [[String: String]],
+                     sourceLanguage: SelectionTranslationLanguage,
+                     targetLanguage: SelectionTranslationLanguage,
+                     stream: Bool) -> [String: Any] {
+        var body: [String: Any] = [
+            "model": model,
+            "messages": messages,
+            "stream": stream
+        ]
+        if SelectionTranslationModelRouting.isQwenMachineTranslationModel(model) {
+            body["translation_options"] = [
+                "source_lang": sourceLanguage.qwenTranslationName,
+                "target_lang": targetLanguage.qwenTranslationName
+            ]
+        }
+        return body
+    }
+
+}
+
 struct SelectionTranslationTokenUsage: Equatable, Sendable {
     let inputTokens: Int
     let outputTokens: Int
@@ -184,12 +311,6 @@ struct SelectionTranslationTokenUsage: Equatable, Sendable {
 
     static let zero = Self(inputTokens: 0, outputTokens: 0, totalTokens: 0, isEstimated: false)
 
-    func adding(_ other: Self) -> Self {
-        Self(inputTokens: inputTokens + other.inputTokens,
-             outputTokens: outputTokens + other.outputTokens,
-             totalTokens: totalTokens + other.totalTokens,
-             isEstimated: isEstimated || other.isEstimated)
-    }
 }
 
 enum SelectionTranslationTokenEstimator {

@@ -14,20 +14,18 @@ enum SelectionTranslationClientError: LocalizedError, Equatable {
     case invalidResponse
     case httpStatus(Int, String)
     case emptyTranslation
-    case cancelled
 
     var errorDescription: String? {
+        let text = FeatureStrings.selectionTranslation(L10n.shared.language)
         switch self {
-        case .invalidResponse: return "The translation service returned an invalid response."
-        case let .httpStatus(code, message): return "Translation service returned HTTP \(code): \(message)"
-        case .emptyTranslation: return "The translation service returned no text."
-        case .cancelled: return "Translation cancelled."
+        case .invalidResponse: return text.invalidResponse
+        case let .httpStatus(code, message): return String(format: text.httpStatusFormat, code, message)
+        case .emptyTranslation: return text.emptyTranslation
         }
     }
 }
 
 struct SelectionTranslationResult: Sendable {
-    let text: String
     let usage: SelectionTranslationTokenUsage
 }
 
@@ -42,7 +40,7 @@ final class SelectionTranslationClient {
         let (bytes, response) = try await URLSession.shared.bytes(for: urlRequest)
         guard let http = response as? HTTPURLResponse else { throw SelectionTranslationClientError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else {
-            let message = "Request failed"
+            let message = await Self.errorMessage(from: bytes)
             throw SelectionTranslationClientError.httpStatus(http.statusCode, message)
         }
 
@@ -69,13 +67,12 @@ final class SelectionTranslationClient {
             throw SelectionTranslationClientError.emptyTranslation
         }
         if usage.totalTokens == 0 { usage = SelectionTranslationTokenEstimator.estimate(inputText: request.source, outputText: aggregate) }
-        return SelectionTranslationResult(text: aggregate, usage: usage)
+        return SelectionTranslationResult(usage: usage)
     }
 
     func testConnection(_ request: SelectionTranslationRequest) async throws {
-        var probe = request
-        probe = SelectionTranslationRequest(source: "Hello", languages: request.languages,
-                                            prompts: request.prompts, provider: request.provider)
+        let probe = SelectionTranslationRequest(source: "Hello", languages: request.languages,
+                                                prompts: request.prompts, provider: request.provider)
         _ = try await translate(probe, onText: { _ in })
     }
 
@@ -86,13 +83,17 @@ final class SelectionTranslationClient {
         result.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let from = request.languages.source.displayName
         let to = request.languages.target.displayName
-        let messages: [[String: String]] = [
-            ["role": "system", "content": request.prompts.renderSystemPrompt(sourceLanguage: from, targetLanguage: to)],
-            ["role": "user", "content": request.prompts.renderUserPrompt(source: request.source, sourceLanguage: from, targetLanguage: to)]
-        ]
-        result.httpBody = try JSONSerialization.data(withJSONObject: [
-            "model": request.provider.model, "messages": messages, "stream": stream
-        ])
+        let messages = SelectionTranslationMessageBuilder.messages(
+            model: request.provider.model,
+            source: request.source,
+            systemPrompt: request.prompts.renderSystemPrompt(sourceLanguage: from, targetLanguage: to),
+            userPrompt: request.prompts.renderUserPrompt(source: request.source, sourceLanguage: from, targetLanguage: to))
+        result.httpBody = try JSONSerialization.data(withJSONObject: SelectionTranslationRequestBodyBuilder.body(
+            model: request.provider.model,
+            messages: messages,
+            sourceLanguage: request.languages.source,
+            targetLanguage: request.languages.target,
+            stream: stream))
         return result
     }
 
@@ -104,5 +105,26 @@ final class SelectionTranslationClient {
         return SelectionTranslationTokenUsage(inputTokens: input, outputTokens: output,
                                               totalTokens: total == 0 ? input + output : total,
                                               isEstimated: false)
+    }
+
+    private static func errorMessage(from bytes: URLSession.AsyncBytes, limit: Int = 64 * 1024) async -> String {
+        var data = Data()
+        do {
+            for try await byte in bytes {
+                data.append(byte)
+                if data.count >= limit { break }
+            }
+        } catch {
+            // Keep the HTTP status useful even when the body stream is broken.
+        }
+        let body = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !body.isEmpty else { return FeatureStrings.selectionTranslation(L10n.shared.language).requestFailed }
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let error = object["error"] as? [String: Any],
+           let message = error["message"] as? String,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return message.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return body
     }
 }

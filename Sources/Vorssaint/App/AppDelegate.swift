@@ -108,7 +108,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         setUpPopover()
         bindManagers()
-        _ = SelectionTranslationPanelController.shared
 
         HotkeyManager.shared.onActivate = { KeepAwakeManager.shared.toggle() }
         HotkeyManager.shared.syncWithPreferences()

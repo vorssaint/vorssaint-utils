@@ -105,10 +105,11 @@ final class TransientPaste {
 
     /// Nil means at least one advertised flavor could not be preserved, so the
     /// transient paste fails open instead of clearing incomplete user data.
-    private static func snapshot(of pasteboard: NSPasteboard) -> [NSPasteboardItem]? {
+    static func snapshot(of pasteboard: NSPasteboard) -> [NSPasteboardItem]? {
         guard let items = pasteboard.pasteboardItems else {
             return pasteboard.types?.isEmpty == false ? nil : []
         }
+
         var snapshot: [NSPasteboardItem] = []
         for item in items {
             let copy = NSPasteboardItem()
@@ -121,54 +122,68 @@ final class TransientPaste {
         return snapshot
     }
 
+    /// Sends a synthetic key only after all physical modifiers are released.
+    /// Quick tools that are invoked by a chord use this to avoid turning a
+    /// plain Command-C/V into the trigger chord plus C/V in the front app.
+    static func postKeyWhenModifiersReleased(keyCode: CGKeyCode,
+                                             flags: CGEventFlags,
+                                             attempt: Int = 0,
+                                             willPost: (() -> Void)? = nil,
+                                             completion: @escaping (Bool) -> Void) {
+        let held = CGEventSource.flagsState(.combinedSessionState)
+            .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
+        if attempt >= 100 {
+            completion(false)
+            return
+        }
+        guard held.isEmpty else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
+                Self.postKeyWhenModifiersReleased(keyCode: keyCode,
+                                                   flags: flags,
+                                                   attempt: attempt + 1,
+                                                   willPost: willPost,
+                                                   completion: completion)
+            }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+            guard !IsSecureEventInputEnabled(),
+                  let keyDown = CGEvent(keyboardEventSource: nil,
+                                        virtualKey: keyCode,
+                                        keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: nil,
+                                      virtualKey: keyCode,
+                                      keyDown: false)
+            else {
+                completion(false)
+                return
+            }
+            keyDown.flags = flags
+            keyUp.flags = flags
+            willPost?()
+            keyDown.post(tap: .cghidEventTap)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+                keyUp.post(tap: .cghidEventTap)
+                completion(true)
+            }
+        }
+    }
+
     private static func postPasteWhenModifiersReleased(attempt: Int,
                                                        willPost: (() -> Void)?,
                                                        didPost: (() -> Void)?,
                                                        didFail: (() -> Void)?,
                                                        completion: @escaping () -> Void) {
-        let held = CGEventSource.flagsState(.combinedSessionState)
-            .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
-        if held.isEmpty || attempt >= 100 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                postPasteShortcut(willPost: willPost) { succeeded in
-                    if succeeded {
-                        didPost?()
-                    } else {
-                        didFail?()
-                    }
-                    completion()
-                }
+        postKeyWhenModifiersReleased(keyCode: CGKeyCode(kVK_ANSI_V),
+                                     flags: .maskCommand,
+                                     attempt: attempt,
+                                     willPost: willPost) { succeeded in
+            if succeeded {
+                didPost?()
+            } else {
+                didFail?()
             }
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
-            postPasteWhenModifiersReleased(attempt: attempt + 1,
-                                           willPost: willPost,
-                                           didPost: didPost,
-                                           didFail: didFail,
-                                           completion: completion)
-        }
-    }
-
-    private static func postPasteShortcut(willPost: (() -> Void)?,
-                                          completion: @escaping (Bool) -> Void) {
-        guard let keyDown = CGEvent(keyboardEventSource: nil,
-                                    virtualKey: CGKeyCode(kVK_ANSI_V),
-                                    keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: CGKeyCode(kVK_ANSI_V),
-                                  keyDown: false)
-        else {
-            completion(false)
-            return
-        }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        willPost?()
-        keyDown.post(tap: .cghidEventTap)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
-            keyUp.post(tap: .cghidEventTap)
-            completion(true)
+            completion()
         }
     }
 }
