@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Baissez-le pour voir davantage ce qui se trouve derrière le panneau.",
         dockPreviewOpenDelay: "Délai d'ouverture",
         dockPreviewOpenDelayCaption: "Combien de temps le pointeur doit rester sur une icône avant que le panneau s'ouvre.",
+        dockPreviewQuitAppOnClose: "Quitter l'app avec le bouton ×",
+        dockPreviewQuitAppOnCloseCaption: "Dans Dock Preview, × quitte toute l'app au lieu de fermer uniquement cette fenêtre.",
         dockClickMinimize: "Réduire d'un clic sur le Dock",
         dockClickMinimizeCaption: "Les fenêtres de l'app active se réduisent d'un clic sur son icône du Dock. Cliquez à nouveau pour les faire revenir.",
         dockClickCycleWindows: "Clic sur le Dock pour alterner les fenêtres",
@@ -674,6 +676,8 @@ extension Strings {
         diskSection: "Disques",
         diskUsed: "utilisé",
         diskFree: "libre",
+        diskAvailable: "disponible",
+        diskPurgeable: "purgeable",
         diskInternal: "Interne",
         diskExternal: "Externe",
         diskSelect: "Choisir un disque",
@@ -907,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Ouvrir les réglages de notifications…",
         launchAtLoginNeedsApplications: "L'app s'exécute depuis un emplacement qui ne permet pas l'ouverture à la connexion. Glissez Vorssaint dans le dossier Applications, ouvrez l'app depuis ce dossier et réactivez l'option.",
         launchAtLoginNeedsApproval: "L'élément d'ouverture est enregistré, mais il reste désactivé dans les Réglages Système. Ouvrez Réglages Système › Général › Ouverture et extensions, puis activez Vorssaint sous « Ouvrir à la session ».",
+        ocrRemoveLineBreaksToggle: "Supprimer les sauts de ligne",
+        ocrRemoveLineBreaksCaption: "Supprime les sauts de ligne afin que le texte copié soit collé en un seul paragraphe.",
         ocrQRToggle: "Lire les codes QR",
         ocrQRCaption: "Si la zone contient un code QR, son contenu s'affiche pour le copier ou l'ouvrir.",
         ocrQRCopied: "Code QR copié",
@@ -966,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordre normal",
         switcherMinimizedPlacementEnd: "Placer à la fin",
         switcherMinimizedPlacementHidden: "Masquer",
-        switcherShowFullscreenWindows: "Afficher les fenêtres plein écran" 
+        switcherShowFullscreenWindows: "Afficher les fenêtres plein écran",
+        switcherScreenPlacementLabel: "Afficher sur",
+        switcherScreenPlacementPointer: "Écran avec le pointeur",
+        switcherScreenPlacementMenuBar: "Écran avec la barre des menus",
+        switcherScreenPlacementActiveWindow: "Écran avec la fenêtre active",
+        switcherScreenPlacementCaption: "Sur quel écran le sélecteur s'ouvre quand plusieurs sont connectés."
     )
 }

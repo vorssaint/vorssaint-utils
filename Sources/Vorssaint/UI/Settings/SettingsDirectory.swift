@@ -11,13 +11,51 @@ struct SettingsDirectoryItem: Identifiable {
     /// Labels of options living inside the page, so a search finds a page by
     /// what it contains, in the user's language.
     var keywords: [String] = []
+    /// Feature ownership for keyword rows on shared pages. `nil` means the
+    /// setting belongs to the page itself and remains searchable whenever the
+    /// page is visible.
+    var keywordFeatures: [AppFeature?] = []
     var id: SettingsPage { page }
+
+    init(page: SettingsPage, title: String, icon: String,
+         keywords: [String] = [],
+         featureKeywords: [(feature: AppFeature, titles: [String])] = []) {
+        self.page = page
+        self.title = title
+        self.icon = icon
+        self.keywords = keywords + featureKeywords.flatMap(\.titles)
+        keywordFeatures = Array(repeating: nil, count: keywords.count)
+            + featureKeywords.flatMap { entry in
+                Array(repeating: Optional(entry.feature), count: entry.titles.count)
+            }
+    }
 }
 
 /// The single map of the Settings window: sections, pages, icons and search
 /// keywords. The sidebar renders it; the command bar searches it. One list,
 /// so a page added here is findable everywhere at once.
 enum SettingsDirectory {
+    /// Destination-aware rows for focused Settings search. The regular
+    /// directory remains page-based so blank-query sidebar identity and
+    /// command-bar behavior do not change.
+    static func searchItems(_ s: Strings,
+                            language: AppLanguage) -> [SettingsSearchItem] {
+        let pageItems = sections(s, language: language).flatMap(\.items).map { item in
+            SettingsSearchItem(id: .page(item.page),
+                               destination: FeatureSettingsDestination(item.page),
+                               title: item.title,
+                               icon: item.icon,
+                               keywords: item.keywords,
+                               keywordFeatures: item.keywordFeatures)
+        }
+        let hub = FeatureStrings.hub(language)
+        let featureItems = SettingsSearchSupport.featureItems(language: language) { feature in
+            feature.hubTitle(s, hub: hub)
+        }
+        return SettingsSearchSupport.combinedItems(pageItems: pageItems,
+                                                   featureItems: featureItems)
+    }
+
     static func sections(_ s: Strings,
                          language: AppLanguage,
                          superKeySource: SuperKeySource = SuperKeyService.shared.source)
@@ -26,57 +64,75 @@ enum SettingsDirectory {
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
-                                      keywords: [s.launchAtLogin, s.languageLabel, s.showMenuBarIcon,
-                                                 s.musicBlockTitle, s.musicBlockSection,
-                                                 FeatureStrings.appearance(language).label,
-                                                 FeatureStrings.appearance(language).dark]),
+                                       keywords: [s.launchAtLogin, s.languageLabel, s.showMenuBarIcon,
+                                                  FeatureStrings.appearance(language).label,
+                                                  FeatureStrings.appearance(language).dark],
+                                       featureKeywords: [
+                                        (.musicBlock, [s.musicBlockTitle, s.musicBlockSection]),
+                                       ]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.
                 SettingsDirectoryItem(page: .features, title: FeatureStrings.hub(language).pageTitle,
-                                      icon: "square.grid.2x2",
-                                      keywords: AppFeature.allCases.map {
-                                          $0.hubTitle(s, hub: FeatureStrings.hub(language))
-                                      }),
+                                       icon: "square.grid.2x2",
+                                       featureKeywords: AppFeature.allCases.map {
+                                        ($0, [$0.hubTitle(s, hub: FeatureStrings.hub(language))])
+                                       }),
                 SettingsDirectoryItem(page: .energy, title: s.tabEnergy, icon: "bolt.fill",
-                                      keywords: [s.keepAwakeTitle, s.clamshellTitle,
-                                                 s.defaultDurationLabel, s.showCountdown,
-                                                 s.extraBrightnessName,
-                                                 s.keepAwakeActiveIconLabel,
-                                                 s.keepAwakeActiveIconCoffee,
-                                                 s.keepAwakeActiveIconEye,
-                                                 FeatureStrings.brightness(language).pageTitle,
-                                                 FeatureStrings.brightness(language).osdToggle,
-                                                 FeatureStrings.keepAwakeAutomation(language)
-                                                     .externalDisplayToggle,
-                                                 FeatureStrings.keepAwakeAutomation(language).powerToggle,
-                                                 FeatureStrings.keepAwakeDisplaySleep(language)
-                                                     .allowDisplaySleep,
-                                                 FeatureStrings.bluetoothSleep(language).pageTitle,
-                                                 FeatureStrings.bluetoothSleep(language).enable]),
+                                       featureKeywords: [
+                                        (.keepAwake, [s.keepAwakeTitle, s.clamshellTitle,
+                                                      s.defaultDurationLabel, s.showCountdown,
+                                                      s.keepAwakeActiveIconLabel,
+                                                      s.keepAwakeActiveIconCoffee,
+                                                      s.keepAwakeActiveIconEye,
+                                                      FeatureStrings.keepAwakeAutomation(language)
+                                                        .externalDisplayToggle,
+                                                      FeatureStrings.keepAwakeAutomation(language)
+                                                        .powerToggle,
+                                                      FeatureStrings.keepAwakeDisplaySleep(language)
+                                                        .allowDisplaySleep]),
+                                        (.brightness, [FeatureStrings.brightness(language).pageTitle,
+                                                       FeatureStrings.brightness(language).osdToggle]),
+                                        (.extraBrightness, [s.extraBrightnessName]),
+                                        (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
+                                                           FeatureStrings.bluetoothSleep(language).enable]),
+                                       ]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                                      keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
-                                                 s.monitorMemoryPressureDot,
-                                                 FeatureStrings.fanControl(language).menuBarTitle]),
+                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle],
+                                       featureKeywords: [
+                                        (.monitorMemory, [s.monitorMemoryPressureDot]),
+                                        (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
+                                       ]),
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
-                                      keywords: [s.invertMouseScroll, s.invertVerticalScroll,
-                                                 s.invertHorizontalScroll, s.middleClickTapPicker,
-                                                 s.focusFollowsMouseName, s.focusFollowsMouseDelay,
-                                                 s.smoothScrollName, s.mouseNavigationEnable,
-                                                 FeatureStrings.mouseButtons(language).pageTitle,
-                                                 FeatureStrings.mouseButtons(language).sideWheelLeftName,
-                                                 FeatureStrings.mouseButtons(language).sideWheelRightName,
-                                                 FeatureStrings.mouseExceptions(language).listTitle]),
+                                       featureKeywords: [
+                                        (.scrollInverter, [s.invertMouseScroll, s.invertVerticalScroll,
+                                                           s.invertHorizontalScroll]),
+                                        (.middleClick, [s.middleClickTapPicker]),
+                                        (.focusFollowsMouse, [s.focusFollowsMouseName,
+                                                              s.focusFollowsMouseDelay]),
+                                        (.smoothScroll, [s.smoothScrollName]),
+                                        (.mouseNavigation, [s.mouseNavigationEnable]),
+                                        (.mouseButtonShortcuts,
+                                         [FeatureStrings.mouseButtons(language).pageTitle,
+                                          FeatureStrings.mouseButtons(language).sideWheelLeftName,
+                                          FeatureStrings.mouseButtons(language).sideWheelRightName,
+                                          FeatureStrings.mouseExceptions(language).listTitle]),
+                                       ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
-                                      keywords: [s.switcherEnable, s.dockClickMinimize, s.dockClickHide,
-                                                 s.dockClickCycleWindows, s.switcherWindowlessApps,
-                                                 s.switcherShowShortcutHints,
-                                                 FeatureStrings.switcherAppRules(language).listTitle,
-                                                 FeatureStrings.switcherAppRules(language).showWithoutWindows,
-                                                 FeatureStrings.switcherAppRules(language).windowsOnly,
-                                                 FeatureStrings.switcherAppRules(language).hidden,
-                                                 FeatureStrings.windowPreviewExclusions(language).listTitle]),
+                                       featureKeywords: [
+                                        (.switcher, [s.switcherEnable, s.switcherWindowlessApps,
+                                                     s.switcherShowShortcutHints,
+                                                     FeatureStrings.switcherAppRules(language).listTitle,
+                                                     FeatureStrings.switcherAppRules(language)
+                                                        .showWithoutWindows,
+                                                     FeatureStrings.switcherAppRules(language).windowsOnly,
+                                                     FeatureStrings.switcherAppRules(language).hidden]),
+                                        (.dockClick, [s.dockClickMinimize, s.dockClickHide,
+                                                      s.dockClickCycleWindows]),
+                                        (.dockPreview,
+                                         [FeatureStrings.windowPreviewExclusions(language).listTitle]),
+                                       ]),
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,
                                       icon: "rectangle.3.group",
@@ -89,20 +145,28 @@ enum SettingsDirectory {
             ]),
             (categories.files, [
                 SettingsDirectoryItem(page: .clipboard, title: FeatureStrings.clipboard(language).title,
-                                      icon: "doc.on.clipboard",
-                                      keywords: [FeatureStrings.clipboard(language).limit,
-                                                 FeatureStrings.clipboard(language).skipSensitive,
-                                                 FeatureStrings.clipboard(language).pasteImageAsFile,
-                                                 FeatureStrings.clipboard(language).autoClearEnable,
-                                                 FeatureStrings.clipboard(language).autoClearOnSleep,
-                                                 FeatureStrings.clipboard(language).autoClearOnDisplaySleep,
-                                                 FeatureStrings.clipboard(language).autoClearOnScreenLock,
-                                                 FeatureStrings.clipboardIgnoredApps(language).listTitle]),
+                                       icon: "doc.on.clipboard",
+                                       featureKeywords: [
+                                        (.clipboardHistory, [FeatureStrings.clipboard(language).limit,
+                                                             FeatureStrings.clipboard(language).skipSensitive,
+                                                             FeatureStrings.clipboard(language).pasteImageAsFile,
+                                                             FeatureStrings.clipboard(language).autoClearEnable,
+                                                             FeatureStrings.clipboard(language).autoClearOnSleep,
+                                                             FeatureStrings.clipboard(language)
+                                                                .autoClearOnDisplaySleep,
+                                                             FeatureStrings.clipboard(language)
+                                                                .autoClearOnScreenLock,
+                                                             FeatureStrings.clipboardIgnoredApps(language)
+                                                                .listTitle]),
+                                       ]),
                 SettingsDirectoryItem(page: .cutPaste,
-                                      title: FeatureStrings.finderRename(language).pageTitle,
-                                      icon: "filemenu.and.selection",
-                                      keywords: [s.cutPasteEnable,
-                                                 FeatureStrings.finderRename(language).enableLabel]),
+                                       title: FeatureStrings.finderRename(language).pageTitle,
+                                       icon: "filemenu.and.selection",
+                                       featureKeywords: [
+                                        (.finderCutPaste, [s.cutPasteEnable]),
+                                        (.finderRename,
+                                         [FeatureStrings.finderRename(language).enableLabel]),
+                                       ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
                                       keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle]),
                 SettingsDirectoryItem(page: .media, title: s.mediaName, icon: "photo.on.rectangle.angled",
@@ -139,19 +203,25 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.commandBar(language).openButton,
                                                  FeatureStrings.commandBar(language).searchPlaceholder]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
-                                      keywords: [s.launcherName, s.micMuteName,
-                                                 s.micMuteMenuBarToggle,
-                                                 FeatureStrings.quickToggles(language).pageTitle,
-                                                 FeatureStrings.quickToggles(language).darkModeToDark,
-                                                 FeatureStrings.quickToggles(language).emptyTrashTitle,
-                                                 FeatureStrings.brightness(language).keyboardLight,
-                                                 FeatureStrings.cameraPreview(language).pageTitle,
-                                                 FeatureStrings.scratchpad(language).pageTitle]),
+                                       featureKeywords: [
+                                        (.quickLauncher, [s.launcherName]),
+                                        (.micMute, [s.micMuteName, s.micMuteMenuBarToggle]),
+                                        (.quickToggles, [FeatureStrings.quickToggles(language).pageTitle,
+                                                         FeatureStrings.quickToggles(language)
+                                                            .darkModeToDark,
+                                                         FeatureStrings.quickToggles(language)
+                                                            .emptyTrashTitle,
+                                                         FeatureStrings.brightness(language)
+                                                            .keyboardLight]),
+                                        (.cameraPreview,
+                                         [FeatureStrings.cameraPreview(language).pageTitle]),
+                                        (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
+                                       ]),
                 SettingsDirectoryItem(page: .screenshot,
-                                      title: FeatureStrings.screenshot(language).screenCaptureTitle,
-                                      icon: "camera.viewfinder",
-                                      keywords: SettingsSearchSupport.screenCaptureKeywords(
-                                        s, language: language)),
+                                       title: FeatureStrings.screenshot(language).screenCaptureTitle,
+                                       icon: "camera.viewfinder",
+                                       featureKeywords: SettingsSearchSupport
+                                        .screenCaptureFeatureKeywords(s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,

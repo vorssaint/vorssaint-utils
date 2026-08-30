@@ -244,7 +244,17 @@ extension WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS가 같은 가장자리를 사용 중입니다. 데스크탑 및 Dock에서 윈도우 타일링을 끄면 Vorssaint가 사용할 수 있습니다.",
         edgeSnapOpenSystemSettings: "데스크탑 및 Dock 열기",
         edgeSnapWaitingForSystem: "Vorssaint에서 켜졌습니다. macOS 타일링을 끄면 바로 작동합니다.",
-        marginMaximize: "여백 두고 최대화"
+        marginMaximize: "여백 두고 최대화",
+        gapsSection: "간격",
+        gapsCaption: "스냅된 윈도우 사이, 그리고 윈도우와 화면 가장자리 사이의 간격입니다.",
+        windowGap: "윈도우 간격",
+        screenGap: "화면 간격",
+        gapNone: "없음",
+        gapTiny: "아주 작게",
+        gapSmall: "작게",
+        gapMedium: "중간",
+        gapLarge: "크게",
+        gapExtraLarge: "아주 크게"
     )
 }
 
@@ -964,7 +974,7 @@ struct ClipboardFeatureStrings {
     static let zhHans = ClipboardFeatureStrings(
         title: "剪贴板",
         enable: "保存剪贴板历史",
-        caption: "保存复制过的文本，方便之后再次使用。所有内容都保存在本机，可随时清除。",
+        caption: "保存拷贝过的文本，方便之后再次使用。所有内容都保存在本机，可随时清除。",
         localNote: "一切都保留在这台 Mac 上。特别大的内容会被忽略。",
         skipSensitive: "跳过疑似敏感文本",
         skipSensitiveCaption: "避免保存像密码、令牌或密钥的短文本。",
@@ -973,7 +983,7 @@ struct ClipboardFeatureStrings {
         showInPanel: "在面板中显示",
         shortcut: "历史快捷键",
         shortcutCaption: "打开快速窗口，支持搜索、固定项目，以及用 ⌘1 到 ⌘9 粘贴到上一个 App。",
-        shortcutHint: "点击整行即可粘贴到上一个 App。⌘+点击可选择多项；⌘C 仅复制不粘贴。",
+        shortcutHint: "点击整行即可粘贴到上一个 App。⌘+点击可选择多项；⌘C 仅拷贝不粘贴。",
         clickRowShortcut: "点击整行",
         commandClickShortcut: "⌘ 点击",
         pinned: "已固定",
@@ -983,28 +993,28 @@ struct ClipboardFeatureStrings {
         clearRecent: "清除最近项目",
         clearAll: "清除未固定项目",
         empty: "没有保存的文本",
-        disabled: "启用历史记录后即可开始保存复制的文本。",
-        search: "搜索复制的文本",
-        copy: "复制",
-        copied: "已复制",
+        disabled: "启用历史记录后即可开始保存拷贝的文本。",
+        search: "搜索拷贝的文本",
+        copy: "拷贝",
+        copied: "已拷贝",
         delete: "删除项目",
         selectMultiple: "加入堆叠",
         unselectMultiple: "从堆叠移除",
         selectShortcutAction: "选择",
         pasteSelectedFormat: "粘贴 %d 项",
-        copySelectedFormat: "复制 %d 项",
+        copySelectedFormat: "拷贝 %d 项",
         clearSelection: "清除选择",
         moveUp: "上移",
         moveDown: "下移",
         noResults: "没有结果",
         newestFirst: "最新优先",
         active: "正在保存新文本",
-        includeImagesFiles: "同时保存复制的图片和文件",
+        includeImagesFiles: "同时保存拷贝的图片和文件",
         includeImagesFilesCaption: "图片会进入历史记录，文件会以其位置链接的形式被记住。可以像文本一样固定和粘贴。",
         imageEntryLabel: "图片",
         fileCountFormat: "%d 个文件",
-        pasteImageAsFile: "将复制的图片粘贴为文件",
-        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将复制的图片以 PNG 格式保存到当前文件夹。",
+        pasteImageAsFile: "将拷贝的图片粘贴为文件",
+        pasteImageAsFileCaption: "Finder 处于活动状态时，按 ⌘V 会将拷贝的图片以 PNG 格式存储到当前文件夹。",
         previewLabel: "预览",
         edit: "编辑",
         cancel: "取消",
@@ -1188,6 +1198,16 @@ struct WindowLayoutFeatureStrings {
     let edgeSnapOpenSystemSettings: String
     let edgeSnapWaitingForSystem: String
     let marginMaximize: String
+    let gapsSection: String
+    let gapsCaption: String
+    let windowGap: String
+    let screenGap: String
+    let gapNone: String
+    let gapTiny: String
+    let gapSmall: String
+    let gapMedium: String
+    let gapLarge: String
+    let gapExtraLarge: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1246,7 +1266,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
         edgeSnapOpenSystemSettings: "Open Desktop & Dock",
         edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
-        marginMaximize: "Maximize with Margin"
+        marginMaximize: "Maximize with Margin",
+        gapsSection: "Gaps",
+        gapsCaption: "Space between snapped windows, and between windows and the screen edge.",
+        windowGap: "Window gap",
+        screenGap: "Screen gap",
+        gapNone: "None",
+        gapTiny: "Tiny",
+        gapSmall: "Small",
+        gapMedium: "Medium",
+        gapLarge: "Large",
+        gapExtraLarge: "Extra large"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1306,7 +1336,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "O macOS está usando as mesmas bordas. Desligue o encaixe em Mesa e Dock para o Vorssaint assumir.",
         edgeSnapOpenSystemSettings: "Abrir Mesa e Dock",
         edgeSnapWaitingForSystem: "Ativado no Vorssaint. Começa a funcionar assim que o encaixe do macOS for desligado.",
-        marginMaximize: "Maximizar com margem"
+        marginMaximize: "Maximizar com margem",
+        gapsSection: "Espaçamento",
+        gapsCaption: "Espaço entre janelas ajustadas e entre as janelas e a borda da tela.",
+        windowGap: "Espaço entre janelas",
+        screenGap: "Espaço até a borda da tela",
+        gapNone: "Nenhum",
+        gapTiny: "Minúsculo",
+        gapSmall: "Pequeno",
+        gapMedium: "Médio",
+        gapLarge: "Grande",
+        gapExtraLarge: "Extragrande"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1366,7 +1406,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS aynı kenarları kullanıyor. Vorssaint’ın devralması için Masaüstü ve Dock’taki pencere döşemeyi kapatın.",
         edgeSnapOpenSystemSettings: "Masaüstü ve Dock’u Aç",
         edgeSnapWaitingForSystem: "Vorssaint’ta açık. macOS döşemesi kapanınca çalışmaya başlar.",
-        marginMaximize: "Kenar boşluklu büyüt"
+        marginMaximize: "Kenar boşluklu büyüt",
+        gapsSection: "Boşluklar",
+        gapsCaption: "Yaslanan pencereler arasındaki ve pencerelerle ekran kenarı arasındaki boşluk.",
+        windowGap: "Pencere boşluğu",
+        screenGap: "Ekran boşluğu",
+        gapNone: "Yok",
+        gapTiny: "Çok küçük",
+        gapSmall: "Küçük",
+        gapMedium: "Orta",
+        gapLarge: "Büyük",
+        gapExtraLarge: "Çok büyük"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1426,7 +1476,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS использует те же края. Отключите размещение окон в разделе «Рабочий стол и Dock», чтобы их использовал Vorssaint.",
         edgeSnapOpenSystemSettings: "Открыть «Рабочий стол и Dock»",
         edgeSnapWaitingForSystem: "Включено в Vorssaint. Заработает сразу после отключения размещения окон macOS.",
-        marginMaximize: "Развернуть с отступом"
+        marginMaximize: "Развернуть с отступом",
+        gapsSection: "Отступы",
+        gapsCaption: "Расстояние между прикреплёнными окнами и между окнами и краем экрана.",
+        windowGap: "Отступ между окнами",
+        screenGap: "Отступ от края экрана",
+        gapNone: "Нет",
+        gapTiny: "Крошечный",
+        gapSmall: "Маленький",
+        gapMedium: "Средний",
+        gapLarge: "Большой",
+        gapExtraLarge: "Очень большой"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1486,7 +1546,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS usa los mismos bordes. Desactiva el ajuste de ventanas en Escritorio y Dock para que Vorssaint tome el control.",
         edgeSnapOpenSystemSettings: "Abrir Escritorio y Dock",
         edgeSnapWaitingForSystem: "Activado en Vorssaint. Funcionará en cuanto se desactive el ajuste de ventanas de macOS.",
-        marginMaximize: "Maximizar con margen"
+        marginMaximize: "Maximizar con margen",
+        gapsSection: "Espaciado",
+        gapsCaption: "Espacio entre ventanas ajustadas y entre las ventanas y el borde de la pantalla.",
+        windowGap: "Espacio entre ventanas",
+        screenGap: "Espacio hasta el borde de la pantalla",
+        gapNone: "Ninguno",
+        gapTiny: "Diminuto",
+        gapSmall: "Pequeño",
+        gapMedium: "Mediano",
+        gapLarge: "Grande",
+        gapExtraLarge: "Extragrande"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -1546,7 +1616,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS verwendet dieselben Ränder. Deaktiviere die Fensteranordnung unter Schreibtisch & Dock, damit Vorssaint übernimmt.",
         edgeSnapOpenSystemSettings: "Schreibtisch & Dock öffnen",
         edgeSnapWaitingForSystem: "In Vorssaint aktiviert. Es funktioniert, sobald die Fensteranordnung von macOS aus ist.",
-        marginMaximize: "Mit Rand maximieren"
+        marginMaximize: "Mit Rand maximieren",
+        gapsSection: "Abstände",
+        gapsCaption: "Abstand zwischen angedockten Fenstern sowie zwischen Fenstern und dem Bildschirmrand.",
+        windowGap: "Fensterabstand",
+        screenGap: "Abstand zum Bildschirmrand",
+        gapNone: "Kein",
+        gapTiny: "Winzig",
+        gapSmall: "Klein",
+        gapMedium: "Mittel",
+        gapLarge: "Groß",
+        gapExtraLarge: "Sehr groß"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -1606,7 +1686,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS utilise les mêmes bords. Désactivez le placement des fenêtres dans Bureau et Dock pour laisser Vorssaint prendre le relais.",
         edgeSnapOpenSystemSettings: "Ouvrir Bureau et Dock",
         edgeSnapWaitingForSystem: "Activé dans Vorssaint. Il fonctionnera dès que le placement des fenêtres de macOS sera désactivé.",
-        marginMaximize: "Agrandir avec marge"
+        marginMaximize: "Agrandir avec marge",
+        gapsSection: "Espacements",
+        gapsCaption: "Espace entre les fenêtres ancrées et entre les fenêtres et le bord de l'écran.",
+        windowGap: "Espace entre fenêtres",
+        screenGap: "Espace au bord de l'écran",
+        gapNone: "Aucun",
+        gapTiny: "Minuscule",
+        gapSmall: "Petit",
+        gapMedium: "Moyen",
+        gapLarge: "Grand",
+        gapExtraLarge: "Très grand"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -1666,7 +1756,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS usa gli stessi bordi. Disattiva l’affiancamento in Scrivania e Dock per lasciare il controllo a Vorssaint.",
         edgeSnapOpenSystemSettings: "Apri Scrivania e Dock",
         edgeSnapWaitingForSystem: "Attivato in Vorssaint. Funzionerà appena l’affiancamento di macOS sarà disattivato.",
-        marginMaximize: "Massimizza con margine"
+        marginMaximize: "Massimizza con margine",
+        gapsSection: "Spaziatura",
+        gapsCaption: "Spazio tra le finestre agganciate e tra le finestre e il bordo dello schermo.",
+        windowGap: "Spazio tra finestre",
+        screenGap: "Spazio dal bordo dello schermo",
+        gapNone: "Nessuno",
+        gapTiny: "Minuscolo",
+        gapSmall: "Piccolo",
+        gapMedium: "Medio",
+        gapLarge: "Grande",
+        gapExtraLarge: "Molto grande"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -1726,7 +1826,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOSが同じ画面端を使用しています。Vorssaintで使うには「デスクトップとDock」でウインドウのタイル表示をオフにしてください。",
         edgeSnapOpenSystemSettings: "デスクトップとDockを開く",
         edgeSnapWaitingForSystem: "Vorssaintでオンになっています。macOSのタイル表示をオフにすると動作します。",
-        marginMaximize: "余白付きで最大化"
+        marginMaximize: "余白付きで最大化",
+        gapsSection: "間隔",
+        gapsCaption: "スナップしたウインドウ同士、およびウインドウと画面端の間隔です。",
+        windowGap: "ウインドウの間隔",
+        screenGap: "画面端との間隔",
+        gapNone: "なし",
+        gapTiny: "極小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -1786,7 +1896,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS 正在使用相同的屏幕边缘。请在“桌面与程序坞”中关闭窗口平铺，让 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "打开桌面与程序坞",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中开启。关闭 macOS 窗口平铺后即可使用。",
-        marginMaximize: "带边距最大化"
+        marginMaximize: "带边距最大化",
+        gapsSection: "间距",
+        gapsCaption: "贴靠窗口之间以及窗口与屏幕边缘之间的间距。",
+        windowGap: "窗口间距",
+        screenGap: "屏幕边距",
+        gapNone: "无",
+        gapTiny: "极小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -1846,7 +1966,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
-        marginMaximize: "保留邊距最大化"
+        marginMaximize: "保留邊距最大化",
+        gapsSection: "間距",
+        gapsCaption: "貼齊視窗之間以及視窗與螢幕邊緣之間的間距。",
+        windowGap: "視窗間距",
+        screenGap: "螢幕邊距",
+        gapNone: "無",
+        gapTiny: "極小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -1906,7 +2036,17 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS 正在使用相同的螢幕邊緣。請在「桌面與 Dock」關閉視窗並排，讓 Vorssaint 接管。",
         edgeSnapOpenSystemSettings: "開啟桌面與 Dock",
         edgeSnapWaitingForSystem: "已在 Vorssaint 中開啟。關閉 macOS 視窗並排後即可使用。",
-        marginMaximize: "保留邊距最大化"
+        marginMaximize: "保留邊距最大化",
+        gapsSection: "間距",
+        gapsCaption: "貼齊視窗之間以及視窗與螢幕邊緣之間的間距。",
+        windowGap: "視窗間距",
+        screenGap: "螢幕邊距",
+        gapNone: "無",
+        gapTiny: "極小",
+        gapSmall: "小",
+        gapMedium: "中",
+        gapLarge: "大",
+        gapExtraLarge: "特大"
     )
 }
 

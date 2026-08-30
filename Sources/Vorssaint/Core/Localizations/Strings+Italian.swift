@@ -225,6 +225,8 @@ extension Strings {
         dockPreviewBackgroundOpacityCaption: "Abbassalo per vedere di più di ciò che sta dietro al pannello.",
         dockPreviewOpenDelay: "Ritardo di apertura",
         dockPreviewOpenDelayCaption: "Quanto a lungo il puntatore deve restare su un'icona prima che il pannello si apra.",
+        dockPreviewQuitAppOnClose: "Chiudi l'app con il pulsante ×",
+        dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × chiude l'intera app invece della sola finestra.",
         dockClickMinimize: "Riduci con un clic sul Dock",
         dockClickMinimizeCaption: "Le finestre dell'app attiva si riducono nel Dock cliccando la sua icona. Fai clic di nuovo per ripristinarle.",
         dockClickCycleWindows: "Clic sul Dock per alternare le finestre",
@@ -674,6 +676,8 @@ extension Strings {
         diskSection: "Dischi",
         diskUsed: "usato",
         diskFree: "libero",
+        diskAvailable: "disponibile",
+        diskPurgeable: "eliminabile",
         diskInternal: "Interno",
         diskExternal: "Esterno",
         diskSelect: "Scegli disco",
@@ -907,6 +911,8 @@ extension Strings {
         cleanerNotifOpenSettings: "Apri impostazioni notifiche…",
         launchAtLoginNeedsApplications: "L'app è in esecuzione da una posizione che non consente l'apertura all'accesso. Trascina Vorssaint nella cartella Applicazioni, aprila da lì e riattiva l'opzione.",
         launchAtLoginNeedsApproval: "L'elemento di login è registrato, ma in Impostazioni di Sistema resta disattivato. Apri Impostazioni di Sistema › Generali › Elementi login ed estensioni e attiva Vorssaint sotto «Apri all'accesso».",
+        ocrRemoveLineBreaksToggle: "Rimuovi interruzioni di riga",
+        ocrRemoveLineBreaksCaption: "Rimuove le interruzioni di riga, così il testo copiato viene incollato come un unico paragrafo.",
         ocrQRToggle: "Leggi i codici QR",
         ocrQRCaption: "Se l'area contiene un codice QR, il suo contenuto viene mostrato per copiarlo o aprirlo.",
         ocrQRCopied: "Codice QR copiato",
@@ -966,6 +972,11 @@ extension Strings {
         switcherMinimizedPlacementNormal: "Ordine normale",
         switcherMinimizedPlacementEnd: "Sposta alla fine",
         switcherMinimizedPlacementHidden: "Nascondi",
-        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero" 
+        switcherShowFullscreenWindows: "Mostra le finestre a schermo intero",
+        switcherScreenPlacementLabel: "Mostra su",
+        switcherScreenPlacementPointer: "Schermo con il puntatore",
+        switcherScreenPlacementMenuBar: "Schermo con la barra dei menu",
+        switcherScreenPlacementActiveWindow: "Schermo con la finestra attiva",
+        switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno."
     )
 }

@@ -56,6 +56,23 @@ enum MouseAppExceptionSupport {
         }
     }
 
+    static func windows(from descriptions: [[String: Any]]) -> [Window] {
+        descriptions.compactMap { info in
+            guard let raw = info[kCGWindowBounds as String] as? [String: Any],
+                  let x = (raw["X"] as? NSNumber)?.doubleValue,
+                  let y = (raw["Y"] as? NSNumber)?.doubleValue,
+                  let width = (raw["Width"] as? NSNumber)?.doubleValue,
+                  let height = (raw["Height"] as? NSNumber)?.doubleValue,
+                  let layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+            else { return nil }
+            return Window(frame: CGRect(x: x, y: y, width: width, height: height),
+                          layer: layer,
+                          alpha: (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
+                          processID: pid)
+        }
+    }
+
     /// Ordinary windows sit at layer 0 and an app's floating panels at 3;
     /// both belong to the app the user is working in. Above that is the
     /// system's own furniture (Dock, menu bar, notifications) and below it

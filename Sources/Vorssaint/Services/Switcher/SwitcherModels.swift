@@ -31,6 +31,10 @@ struct SwitcherItem: Identifiable, Equatable {
     let isFullscreen: Bool
     /// The window belongs only to Spaces that are not currently visible.
     let isOnHiddenSpace: Bool
+    /// Window-server coordinates, top-left origin: `kCGWindowBounds`, or the
+    /// Accessibility position and size when the window server has no usable
+    /// bounds. Never an AppKit (bottom-left) frame, so it can be compared with
+    /// `CGDisplayBounds` directly. `.zero` for an entry without a window.
     let frame: CGRect
 
     /// The window whose thumbnail represents this entry.

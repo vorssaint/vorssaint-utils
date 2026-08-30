@@ -88,6 +88,14 @@ struct SettingsDestinationRequest: Equatable {
     let destination: FeatureSettingsDestination
 }
 
+/// A one-shot request to reveal a specific feature's row inside the Features
+/// hub, correlated with the destination request that carries it by sharing
+/// the same request id.
+struct SettingsFeatureTargetRequest: Equatable {
+    let id: UUID
+    let feature: AppFeature
+}
+
 /// Selects a Settings destination and publishes a fresh request identity even
 /// when callers ask for the same page and anchor repeatedly.
 final class SettingsRouter: ObservableObject {
@@ -97,18 +105,26 @@ final class SettingsRouter: ObservableObject {
     @Published private(set) var destination = FeatureSettingsDestination(.general)
     @Published private(set) var requestID = UUID()
     @Published private(set) var pendingDestinationRequest: SettingsDestinationRequest?
+    /// One-shot hint for the Features hub: which feature row to reveal once
+    /// the requested page lands. Always set (to nil when no target is given)
+    /// on every `request`, so a stale target from an earlier search can never
+    /// leak into a later, unrelated navigation.
+    @Published private(set) var pendingFeatureTarget: SettingsFeatureTargetRequest?
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
 
     private init() {}
 
-    func request(_ destination: FeatureSettingsDestination) {
+    func request(_ destination: FeatureSettingsDestination, targetFeature: AppFeature? = nil) {
         let requestID = UUID()
         self.destination = destination
         page = destination.page
         pendingDestinationRequest = SettingsDestinationRequest(id: requestID,
                                                                destination: destination)
+        pendingFeatureTarget = targetFeature.map {
+            SettingsFeatureTargetRequest(id: requestID, feature: $0)
+        }
         self.requestID = requestID
     }
 
@@ -117,6 +133,14 @@ final class SettingsRouter: ObservableObject {
     func consumeDestinationRequest(id: UUID) {
         guard pendingDestinationRequest?.id == id else { return }
         pendingDestinationRequest = nil
+    }
+
+    /// Clears only the feature target a view actually revealed. Mirrors
+    /// `consumeDestinationRequest`: a newer request that arrived while the
+    /// Features hub was still laying out must survive.
+    func consumeFeatureTarget(id: UUID) {
+        guard pendingFeatureTarget?.id == id else { return }
+        pendingFeatureTarget = nil
     }
 }
 

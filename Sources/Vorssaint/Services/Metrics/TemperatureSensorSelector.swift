@@ -10,6 +10,7 @@ enum CPUTemperaturePlatform: Equatable {
     case appleM3Family
     case appleM4Family
     case appleM5Family
+    case unmappedAppleSilicon
     case generic
 }
 
@@ -63,18 +64,18 @@ enum TemperatureSensorSelector {
         case 3: return .appleM3Family
         case 4: return .appleM4Family
         case 5: return .appleM5Family
-        default: return .generic
+        default: return brand.hasPrefix("Apple ") ? .unmappedAppleSilicon : .generic
         }
     }
 
     static func currentPlatform() -> CPUTemperaturePlatform {
         var size = 0
         guard sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0) == 0, size > 0 else {
-            return .generic
+            return .unmappedAppleSilicon
         }
         var buffer = [CChar](repeating: 0, count: size)
         guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else {
-            return .generic
+            return .unmappedAppleSilicon
         }
         return platform(brandString: String(cString: buffer))
     }
@@ -88,14 +89,20 @@ enum TemperatureSensorSelector {
         if let value = core.map({ $0.value }).max() {
             return value
         }
-        return valid.map { $0.value }.max()
+        switch platform {
+        case .generic:
+            return valid.map { $0.value }.max()
+        case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family,
+             .appleM5Family, .unmappedAppleSilicon:
+            return nil
+        }
     }
 
     static func hasCPUCoreSet(platform: CPUTemperaturePlatform) -> Bool {
         switch platform {
         case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family, .appleM5Family:
             return true
-        case .generic: return false
+        case .unmappedAppleSilicon, .generic: return false
         }
     }
 
@@ -111,13 +118,14 @@ enum TemperatureSensorSelector {
             return appleM4CPUCoreKeys.contains(key)
         case .appleM5Family:
             return appleM5CPUCoreKeys.contains(key)
-        case .generic:
+        case .unmappedAppleSilicon, .generic:
             return false
         }
     }
 
     static func isCPUTemperatureKey(_ key: String,
                                     platform: CPUTemperaturePlatform) -> Bool {
+        if platform == .unmappedAppleSilicon { return false }
         if key.hasPrefix("Tp") || key.hasPrefix("Te") { return true }
         return platform == .appleM3Family && key.hasPrefix("Tf")
     }

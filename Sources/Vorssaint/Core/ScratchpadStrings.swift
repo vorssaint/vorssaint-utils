@@ -413,7 +413,7 @@ extension ScratchpadFeatureStrings {
         padActions: "草稿板操作",
         renamePad: "重命名草稿板",
         closePad: "关闭草稿板",
-        saveName: "存储",
+        saveName: "保存",
         cancel: "取消",
         deletePadMessageFormat: "删除“%@”及其中的全部内容？",
         padLimitFormat: "最多可保留 %d 个草稿板",

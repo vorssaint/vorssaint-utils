@@ -47,6 +47,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         beginStartupWatch()
         Self.boundAccessibilityWaits()
+        // Resolve the Accessibility Keyboard's pid now. The lookup is async, so
+        // a feature that asks first and has no second chance — the switcher
+        // judges a click only after cancelSession() has already run — would
+        // otherwise be told "not running" once per launch.
+        _ = AssistiveKeyboard.isRunning
 
         // Finish the on-disk rename for installs carried over from a pre-2.5
         // build, or retire a leftover old-named bundle. Returns true when we are
@@ -1499,10 +1504,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// process, so this is how the uninstaller picks up a just-granted grant.
     func relaunchApp() {
         let path = Bundle.main.bundlePath
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.3; /usr/bin/open \"$1\"", "vorssaint-relaunch", path]
-        try? task.run()
+        // Its own session: the reopen fires after we terminate, so the child
+        // has to outlive the session it was started from.
+        _ = try? DetachedProcess.spawn(
+            "/bin/sh",
+            ["-c", "sleep 0.3; /usr/bin/open \"$1\"", "vorssaint-relaunch", path])
         NSApp.terminate(nil)
     }
 
