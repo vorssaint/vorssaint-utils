@@ -1687,7 +1687,7 @@ final class ShelfService: ObservableObject {
     /// the item is built on the main thread.
     private func receivePromisedFiles(_ promises: [NSFilePromiseReceiver],
                                       mergingInto targetID: UUID? = nil,
-        fallbackItems: [Item] = []) -> Bool {
+                                      fallbackItems: [Item] = []) -> Bool {
         guard !promises.isEmpty else { return false }
         let fallbackState = PromiseFallbackState(items: fallbackItems,
                                                  receiverCount: promises.count)
