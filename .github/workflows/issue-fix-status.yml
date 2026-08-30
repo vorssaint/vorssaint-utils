@@ -65,14 +65,12 @@ name: Issue fix status
 # the issues most often referenced, so the number that reaches these jobs most
 # is the one that must never be labelled or closed by them.
 #
-# A `half` issue is held back for the same reason at a smaller scale: two root
-# causes were reported together, one of them was fixed, and neither label above
-# is true of the other one. Labelling the whole report fixed signs for a
-# reporter who never got their half, and two weeks later this file would close
-# it on them. The label comes off when someone splits the report or lands the
-# rest; until then the fix status on it is a person's call, not this file's.
-# A closing keyword aimed at one is still shouted about, exactly as for
-# `summary` -- that is the case where GitHub, not this file, does the damage.
+# A `half` issue is tracked on the same release timeline, but with tailored
+# wording: two root causes were reported together, one of them was fixed, and
+# the release sweep tells the reporter which part landed and that the rest
+# remains open. The same two-week silence timer applies, closing the issue if
+# the landed part was all that was needed, while any reply reopens it for
+# further work.
 #
 # Both labels and both comments are addressed to the person who filed the
 # report, and most of them are not developers. Nothing in what they read says
