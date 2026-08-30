@@ -8,7 +8,7 @@
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint, Bluetooth'u yalnızca bağlı çevre birimlerinin pil düzeyini okumak için kullanır. Hiçbir veri Mac'inden çıkmaz.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint, mikrofonunuzu yalnızca ekran kaydı için açtığınızda kaydeder. Geçici bir bağlantı oluşturmadığınız sürece ses Mac'inizde kalır.";
+"NSMicrophoneUsageDescription" = "Vorssaint, ekran kaydı için mikrofonu açtığınızda veya Dikte'yi başlattığınızda kayıt yapar. Dikte sesi seçtiğiniz sağlayıcıya gönderilir; diğer mikrofon sesi geçici bağlantı oluşturmadığınız sürece Mac'inizde kalır.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint, kameranızı yalnızca açtığınız önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez veya Mac'inizden çıkmaz.";

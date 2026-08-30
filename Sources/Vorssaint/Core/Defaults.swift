@@ -567,6 +567,13 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
 
+    // Global voice dictation. Provider credentials live only in Keychain.
+    static let dictationEnabled = "dictationEnabled"
+    static let dictationShortcut = "dictationShortcut"
+    static let dictationProvider = "dictationProvider"
+    static let dictationOpenAIModel = "dictationOpenAIModel"
+    static let dictationGroqModel = "dictationGroqModel"
+
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
@@ -1239,6 +1246,11 @@ enum Defaults {
         DefaultsKey.recorderEditorPresets: Data(),
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
+        DefaultsKey.dictationEnabled: false,
+        DefaultsKey.dictationShortcut: GlobalShortcut.dictationDefault.storageValue,
+        DefaultsKey.dictationProvider: DictationProvider.openAI.rawValue,
+        DefaultsKey.dictationOpenAIModel: DictationProvider.openAI.defaultModel.id,
+        DefaultsKey.dictationGroqModel: DictationProvider.groq.defaultModel.id,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
