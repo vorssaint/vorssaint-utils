@@ -12,16 +12,34 @@ import SwiftUI
 struct FeatureHubSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @ObservedObject private var router = SettingsRouter.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
         SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
+    /// Tracks the feature-target request currently being revealed, so a
+    /// delayed retry from an older request cannot act after a newer one has
+    /// already taken over (same convention as `SettingsSectionFocusModifier`).
+    @State private var revealID = UUID()
+    /// The row briefly tinted after a search or Command Bar selection lands
+    /// on it, mirroring the section highlight `SettingsSectionFocusModifier`
+    /// gives an ordinary page anchor.
+    @State private var highlightedFeature: AppFeature?
 
     private enum Tab { case features, permissions }
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
     var body: some View {
+        ScrollViewReader { proxy in
+            content
+                .onAppear { revealPendingFeatureTarget(using: proxy) }
+                .onChange(of: router.requestID) { _, _ in revealPendingFeatureTarget(using: proxy) }
+        }
+    }
+
+    private var content: some View {
         Form {
             Section {
                 Picker("", selection: $tab) {
@@ -98,6 +116,52 @@ struct FeatureHubSettings: View {
         }
     }
 
+    /// Consumes a pending Feature Hub target: switches off the Permissions
+    /// tab if needed and scrolls the requested row into view. Retried once
+    /// after the first run-loop turn, the same allowance
+    /// `SettingsSectionFocusModifier` gives a freshly installed Form to
+    /// register its row identities.
+    private func revealPendingFeatureTarget(using proxy: ScrollViewProxy) {
+        guard let request = router.pendingFeatureTarget else { return }
+        router.consumeFeatureTarget(id: request.id)
+        revealID = request.id
+        if tab == .permissions { tab = .features }
+        DispatchQueue.main.async {
+            guard self.revealID == request.id else { return }
+            reveal(request.feature, using: proxy)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                guard self.revealID == request.id else { return }
+                reveal(request.feature, using: proxy)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    guard self.revealID == request.id else { return }
+                    clearHighlight()
+                }
+            }
+        }
+    }
+
+    private func reveal(_ feature: AppFeature, using proxy: ScrollViewProxy) {
+        if reduceMotion {
+            proxy.scrollTo(feature, anchor: .center)
+            highlightedFeature = feature
+        } else {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                proxy.scrollTo(feature, anchor: .center)
+                highlightedFeature = feature
+            }
+        }
+    }
+
+    private func clearHighlight() {
+        if reduceMotion {
+            highlightedFeature = nil
+        } else {
+            withAnimation(.easeOut(duration: 0.25)) {
+                highlightedFeature = nil
+            }
+        }
+    }
+
     /// Three one-click starting points. Nobody arrives wanting 37 decisions;
     /// a preset shapes the app in one move and everything else stays one
     /// click away in the list below.
@@ -149,8 +213,10 @@ struct FeatureHubSettings: View {
                         hub: hub,
                         symbolName: feature == .superKey
                             ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
-                            : feature.symbolName
+                            : feature.symbolName,
+                        isHighlighted: highlightedFeature == feature
                     )
+                        .id(feature)
                 }
                 if group == .monitor,
                    !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
@@ -231,6 +297,7 @@ private struct FeatureHubRow: View {
     let feature: AppFeature
     let hub: FeatureHubStrings
     let symbolName: String
+    var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
 
@@ -303,6 +370,11 @@ private struct FeatureHubRow: View {
             }
         }
         .padding(.vertical, 1)
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.accentColor.opacity(isHighlighted ? 0.10 : 0))
+                .allowsHitTesting(false)
+        }
     }
 
     private func rowContent(showsChevron: Bool) -> some View {

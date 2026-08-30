@@ -95,24 +95,33 @@ enum SpaceWindowBridge {
         }
     }
 
+    /// Captures AppKit's display identity while the caller is on main. The
+    /// resulting values are safe to carry to window-enumeration workers.
+    static func displayIDsByUUID() -> [String: CGDirectDisplayID] {
+        var map: [String: CGDirectDisplayID] = [:]
+        for screen in NSScreen.screens {
+            guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                  let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
+                  let uuidStr = CFUUIDCreateString(nil, uuid) as String?
+            else { continue }
+            map[uuidStr] = screenNum
+        }
+        return map
+    }
+
+    /// Main-thread callers can keep using the AppKit-backed display mapping.
     static func topology() -> Topology? {
+        topology(displayIDsByUUID: displayIDsByUUID())
+    }
+
+    /// Resolves Space topology using display values captured by the caller.
+    /// This overload does not access AppKit and is safe for worker queues.
+    static func topology(displayIDsByUUID: [String: CGDirectDisplayID]) -> Topology? {
         guard connection != 0, let copyManagedDisplaySpaces,
               let displayDicts = copyManagedDisplaySpaces(connection)?
                 .takeRetainedValue() as? [[String: Any]],
               !displayDicts.isEmpty
         else { return nil }
-
-        let screenMap: [String: CGDirectDisplayID] = {
-            var map: [String: CGDirectDisplayID] = [:]
-            for screen in NSScreen.screens {
-                guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
-                      let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
-                      let uuidStr = CFUUIDCreateString(nil, uuid) as String?
-                else { continue }
-                map[uuidStr] = screenNum
-            }
-            return map
-        }()
 
         var displays: [Topology.DisplayInfo] = []
         for display in displayDicts {
@@ -126,7 +135,7 @@ enum SpaceWindowBridge {
             })
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
-            let displayID = uuidStr.flatMap { screenMap[$0] }
+            let displayID = uuidStr.flatMap { displayIDsByUUID[$0] }
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
                                                  fullscreenSpaces: fullscreenSpaces,

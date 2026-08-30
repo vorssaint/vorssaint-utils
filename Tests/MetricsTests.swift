@@ -377,6 +377,40 @@ struct MetricsTests {
                "clipboard quick window starts keyboard navigation on the first item")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,
                "clipboard quick window keeps an empty selection index safe")
+
+        // MARK: Settings search navigation
+
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: -1, count: 3) == 2,
+               "Settings search Up wraps from first to last")
+        expect(SettingsSearchSupport.moveSelection(index: 2, delta: 1, count: 3) == 0,
+               "Settings search Down wraps from last to first")
+        expect(SettingsSearchSupport.moveSelection(index: nil, delta: 1, count: 3) == 0,
+               "Settings search Down starts a nil selection at the first result")
+        expect(SettingsSearchSupport.moveSelection(index: nil, delta: -1, count: 3) == 2,
+               "Settings search Up starts a nil selection at the last result")
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: 1, count: 0) == nil,
+               "Settings search navigation leaves an empty result set unselected")
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: 10, count: 3) == 1,
+               "Settings search navigation wraps large positive deltas")
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: -10, count: 3) == 2,
+               "Settings search navigation wraps large negative deltas")
+        expect(SettingsSearchSupport.clampedSelection(index: 4, count: 2) == 1,
+               "Settings search selection clamps after results shrink")
+        expect(SettingsSearchSupport.reconciledSelection(index: 2,
+                                                         previousIDs: ["a", "b", "c"],
+                                                         resultIDs: ["a", "b"]) == 1,
+               "Settings search reconciliation clamps after results shrink")
+        expect(SettingsSearchSupport.reconciledSelection(index: nil,
+                                                         previousIDs: [String](),
+                                                         resultIDs: ["new"]) == 0,
+               "Settings search selects the first newly available result")
+        expect(SettingsSearchSupport.clampedSelection(index: 0, count: 0) == nil,
+               "Settings search clamping clears an empty result set")
+        expect(SettingsSearchSupport.reconciledSelection(index: 1,
+                                                         previousIDs: ["a", "b", "c"],
+                                                         resultIDs: ["b", "a"]) == 0,
+               "Settings search selection follows the same result after reranking")
+
         expect(!ClipboardHistoryPreview.handlesSpace(selectionIsVisible: false, hasModifiers: false),
                "clipboard preview leaves spaces typed into search alone")
         expect(ClipboardHistoryPreview.handlesSpace(selectionIsVisible: true, hasModifiers: false),
@@ -1929,19 +1963,19 @@ struct MetricsTests {
         // to end of file, and quietly restore the whole-file search this
         // replaced — a failure that makes the slice bigger, so an empty check
         // cannot see it. Hence the count assertion below.
-        let beginSessionParts = (switcherSource.components(separatedBy: "private func beginPendingSession")
+        let finishSessionParts = (switcherSource.components(separatedBy: "private func finishPendingSession")
             .last ?? "").components(separatedBy: "\n    private func ")
-        let beginSessionBody = beginSessionParts.first ?? ""
-        expect(beginSessionParts.count > 1,
-               "the App Switcher ordering guard finds the end of beginPendingSession")
-        let switcherCode = beginSessionBody
+        let finishSessionBody = finishSessionParts.first ?? ""
+        expect(finishSessionParts.count > 1,
+               "the App Switcher ordering guard finds the end of finishPendingSession")
+        let switcherCode = finishSessionBody
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
         let scopeAssign = switcherCode.range(of: "sessionScope = pending.scope")
         let startLayout = switcherCode.range(of: "recomputeLayouts(for: list)")
-        expect(!beginSessionBody.isEmpty,
-               "the App Switcher session-start ordering guard finds beginPendingSession")
+        expect(!finishSessionBody.isEmpty,
+               "the App Switcher session-start ordering guard finds finishPendingSession")
         expect(scopeAssign != nil && startLayout != nil
                && scopeAssign!.lowerBound < startLayout!.lowerBound,
                "the App Switcher session scope is assigned before the session-start layout pass")
@@ -2176,6 +2210,22 @@ struct MetricsTests {
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
                "App Switcher reports no foreground window when the app in front owns none")
+        expect(SwitcherSupport.needsFocusedWindowLookup(frontmostPID: 101,
+                                                        items: [offscreenWindow]),
+               "App Switcher resolves the focused window when no foreground window is visible")
+        expect(!SwitcherSupport.needsFocusedWindowLookup(frontmostPID: 101,
+                                                         items: [embeddedWindow, offscreenWindow]),
+               "App Switcher skips focused-window AX lookup for one visible foreground window")
+        let secondVisibleWindow = SwitcherItem.window(id: 79,
+                                                      title: "Second",
+                                                      appName: "Primary",
+                                                      pid: 101,
+                                                      isOnScreen: true,
+                                                      frame: CGRect(x: 40, y: 40,
+                                                                    width: 800, height: 500))
+        expect(SwitcherSupport.needsFocusedWindowLookup(frontmostPID: 101,
+                                                        items: [embeddedWindow, secondVisibleWindow]),
+               "App Switcher resolves the focused window for multiple visible foreground windows")
         expect(SwitcherSupport.initialSelectionPosition(pids: [101, 202, 303],
                                                         hasForegroundEntry: true,
                                                         frontmostPID: 101,
@@ -2284,38 +2334,58 @@ struct MetricsTests {
             role: "AXWindow",
             subrole: "AXUnknown",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher accepts a screen-sized window with a nonstandard subrole")
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXFloatingWindow",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher accepts a screen-sized floating playback surface")
         expect(!SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXUnknown",
             fillsScreen: false,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher filters a smaller window with a nonstandard subrole")
         expect(!SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXGroup",
             subrole: "AXUnknown",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher requires a real window role for a full-screen surface")
         expect(!SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXDialog",
             fillsScreen: true,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: false),
                "App Switcher does not turn a screen-sized dialog into a playback window")
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXUnknown",
             fillsScreen: false,
+            hasNormalWindowLevel: false,
             acceptsUndescribedSubroles: true),
                "App Switcher preserves hosted windows with custom chrome")
+        expect(SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXUnknown",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher accepts an ordinary window from an app that describes none")
+        expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+            role: "AXWindow",
+            subrole: "AXFloatingWindow",
+            fillsScreen: false,
+            hasNormalWindowLevel: true,
+            acceptsUndescribedSubroles: false),
+               "App Switcher keeps a described floating panel filtered at the normal window level")
         expect(SwitcherSupport.sessionSourceItem(frontmostPID: nil,
                                                  focusedWindowID: nil,
                                                  items: [embeddedWindow]) == nil,
@@ -4776,6 +4846,53 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 480, y: 40, width: 960, height: 860),
                "window layout right two thirds targets the final two thirds")
+        expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16)
+               == CGRect(x: 0, y: 40, width: 712, height: 860),
+               "the window gap shaves half the gap off the shared edge and leaves screen edges flush")
+        expect(WindowLayoutGeometry.rect(for: .rightHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16)
+               == CGRect(x: 728, y: 40, width: 712, height: 860),
+               "two gapped halves end up exactly one window gap apart")
+        expect(WindowLayoutGeometry.rect(for: .centerThird, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16)
+               == CGRect(x: 488, y: 40, width: 464, height: 860),
+               "a middle placement gives up half the gap on each shared edge")
+        expect(WindowLayoutGeometry.rect(for: .topLeft, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 32)
+               == CGRect(x: 0, y: 486, width: 704, height: 414),
+               "a corner shaves only its two interior edges")
+        expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 688, height: 796),
+               "the screen gap insets the visible frame before placement")
+        expect(WindowLayoutGeometry.rect(for: .maximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 1376, height: 796),
+               "maximize respects the screen gap and ignores the window gap")
+        expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 680, height: 796),
+               "window and screen gaps combine")
+        expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 64)
+               == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),
+               "centering has no neighbours, so the window gap leaves it alone")
+        expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 64)
+               == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
+               "margin maximize keeps its own margin instead of the window gap")
+        expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
+               "margin maximize keeps its plain percentage margin under a screen gap instead of compounding")
+        expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
+                                         screenGap: 32)
+               == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),
+               "centering keeps the window's size under a screen gap instead of clamping to the inset frame")
+        expect(WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
+               == CGRect(x: 10, y: 10, width: 80, height: 80),
+               "an oversized screen gap keeps 80pt of layout space instead of inverting the frame")
         let sixthLayouts: [(WindowLayoutAction, CGRect, CGRect)] = [
             (.topLeftSixth,
              CGRect(x: 0, y: 470, width: 480, height: 430),
@@ -4817,14 +4934,60 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rectForDisplay(current: rightHalfWindow,
                                                    sourceVisibleFrame: visibleFrame,
                                                    destinationVisibleFrame: nextDisplayFrame)
-               == CGRect(x: 2400, y: 80, width: 960, height: 1000),
-               "window layout display transfer preserves relative placement and size")
+               == CGRect(x: 2640, y: 220, width: 720, height: 860),
+               "window layout display transfer keeps a right-half on the right and under the menu bar")
+        let leftHalfWindow = CGRect(x: 0, y: 40, width: 720, height: 860)
+        expect(WindowLayoutGeometry.rectForDisplay(current: leftHalfWindow,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == CGRect(x: 1440, y: 220, width: 720, height: 860),
+               "window layout display transfer keeps a left-half on the left and under the menu bar")
         let oversizedWindow = CGRect(x: -40, y: 0, width: 2000, height: 1200)
         expect(WindowLayoutGeometry.rectForDisplay(current: oversizedWindow,
                                                    sourceVisibleFrame: visibleFrame,
                                                    destinationVisibleFrame: nextDisplayFrame)
                == nextDisplayFrame,
                "window layout display transfer clamps oversized windows to the destination visible frame")
+        expect(WindowLayoutGeometry.rectForDisplay(current: visibleFrame,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "display transfer fills the destination when the window already fills the source")
+        let almostFilled = CGRect(x: 4, y: 44, width: 1432, height: 852)
+        expect(WindowLayoutGeometry.rectForDisplay(current: almostFilled,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: nextDisplayFrame)
+               == nextDisplayFrame,
+               "display transfer treats a window within settle tolerance of maximize as filling the destination")
+        let ultrawideFrame = CGRect(x: 1440, y: 0, width: 3440, height: 1400)
+        expect(WindowLayoutGeometry.rectForDisplay(current: currentWindow,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 1640, y: 700, width: 800, height: 500),
+               "display transfer keeps a laptop window's size and top-left insets on an ultrawide")
+        let nearFullWidth = CGRect(x: 2, y: 200, width: 1436, height: 500)
+        expect(WindowLayoutGeometry.rectForDisplay(current: nearFullWidth,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 1442, y: 700, width: 1436, height: 500),
+               "display transfer keeps a near-full-width window's left inset on an ultrawide")
+        let nearFullWidthRightish = CGRect(x: 6, y: 200, width: 1432, height: 500)
+        expect(WindowLayoutGeometry.rectForDisplay(current: nearFullWidthRightish,
+                                                   sourceVisibleFrame: visibleFrame,
+                                                   destinationVisibleFrame: ultrawideFrame)
+               == CGRect(x: 1446, y: 700, width: 1432, height: 500),
+               "display transfer does not treat a few points of leftover width as a right edge")
+        let shortDisplay = CGRect(x: 1440, y: 80, width: 1920, height: 400)
+        let shrunkWindow = WindowLayoutGeometry.rectForDisplay(current: currentWindow,
+                                                               sourceVisibleFrame: visibleFrame,
+                                                               destinationVisibleFrame: shortDisplay)
+        expect(shrunkWindow == CGRect(x: 1640, y: 80, width: 800, height: 400),
+               "display transfer shrinks a taller window to fit a shorter display")
+        expect(WindowLayoutGeometry.rectForDisplay(current: shrunkWindow,
+                                                   sourceVisibleFrame: shortDisplay,
+                                                   destinationVisibleFrame: visibleFrame)
+               == CGRect(x: 200, y: 500, width: 800, height: 400),
+               "display transfer does not restore the original height after shrinking to fit")
         let horizontalDisplays = [
             CGRect(x: 0, y: 0, width: 1440, height: 900),
             CGRect(x: -1200, y: -200, width: 1200, height: 1920),
@@ -4858,16 +5021,16 @@ struct MetricsTests {
                "window layout leaves one display and invalid selections unchanged")
         let portraitFrame = CGRect(x: -1200, y: -200, width: 1200, height: 1800)
         let scaledFrame = CGRect(x: 1440, y: 100, width: 2000, height: 1000)
-        let portraitWindow = CGRect(x: -900, y: 250, width: 600, height: 900)
+        let portraitWindow = CGRect(x: -900, y: 1000, width: 600, height: 400)
         let scaledWindow = WindowLayoutGeometry.rectForDisplay(current: portraitWindow,
                                                                sourceVisibleFrame: portraitFrame,
                                                                destinationVisibleFrame: scaledFrame)
-        expect(scaledWindow == CGRect(x: 1940, y: 350, width: 1000, height: 500)
+        expect(scaledWindow == CGRect(x: 1740, y: 500, width: 600, height: 400)
                 && WindowLayoutGeometry.rectForDisplay(current: scaledWindow,
                                                        sourceVisibleFrame: scaledFrame,
                                                        destinationVisibleFrame: portraitFrame)
                     == portraitWindow,
-               "display transfer preserves relative size and placement across rotated and scaled frames")
+               "display transfer keeps size and edge insets across rotated frames")
         expect(WindowLayoutAction.shortcutActions.count == WindowLayoutAction.allCases.count,
                "every window layout action can register a global shortcut")
         expect(WindowLayoutAction.shortcutActions.contains(.previousDisplay)
@@ -7583,6 +7746,325 @@ struct MetricsTests {
                     title: FeatureStrings.screenshot(.enUS).screenCaptureTitle,
                     keywords: captureSearchKeywords),
                "Screen capture tools and their options find the one settings page")
+
+        let settingsFeatureTitles: [AppFeature: String] = [
+            .homebrew: "Homebrew",
+            .cameraPreview: "Camera Preview",
+            .screenRecorder: "Screen Recorder",
+            .micMute: "Mic Mute",
+            .diskImageInstaller: "Disk Image Installer",
+        ]
+        let featureSearchItems = SettingsSearchSupport.featureItems(language: .enUS) { feature in
+            settingsFeatureTitles[feature] ?? feature.rawValue
+        }
+        let expectedFeatureSearchDestinations: [(AppFeature, FeatureSettingsDestination)] = [
+            (.homebrew, FeatureSettingsDestination(.homebrew)),
+            (.cameraPreview, FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)),
+            (.screenRecorder, FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)),
+            (.micMute, FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)),
+            (.diskImageInstaller, FeatureSettingsDestination(.features)),
+        ]
+        for (feature, destination) in expectedFeatureSearchDestinations {
+            let item = featureSearchItems.first { $0.id == .feature(feature) }
+            expect(item?.destination == destination,
+                   "\(settingsFeatureTitles[feature] ?? feature.rawValue) keeps its exact Settings destination")
+            expect(item?.icon == feature.symbolName,
+                   "\(settingsFeatureTitles[feature] ?? feature.rawValue) uses its feature symbol")
+        }
+        expect(featureSearchItems.count == AppFeature.allCases.count
+                && Set(featureSearchItems.map(\.id)).count == AppFeature.allCases.count,
+               "generated Settings feature results have one stable identity per feature")
+
+        for language in AppLanguage.allCases {
+            let pageTitle = FeatureStrings.clipboard(language).title
+            let clipboardPage = SettingsSearchItem(
+                id: .page(.clipboard), destination: FeatureSettingsDestination(.clipboard),
+                title: pageTitle, icon: "doc.on.clipboard")
+            let featureItems = SettingsSearchSupport.featureItems(language: language) {
+                $0 == .clipboardHistory ? pageTitle : $0.rawValue
+            }
+            let items = SettingsSearchSupport.combinedItems(
+                pageItems: [clipboardPage], featureItems: featureItems)
+            let clipboardHistory = items.first { $0.id == .feature(.clipboardHistory) }
+            expect(clipboardHistory?.title == FeatureStrings.commandBar(language).sourceClipboard
+                    && clipboardHistory?.destination
+                        == FeatureSettingsDestination(.clipboard, sectionAnchor: .clipboardHistory),
+                   "\(language.rawValue) labels and routes Clipboard history as a section result")
+            expect(items.contains { $0.id == .page(.clipboard) }
+                    && clipboardPage.title != clipboardHistory?.title,
+                   "\(language.rawValue) distinguishes Clipboard page and history search labels")
+        }
+
+        // MARK: Settings search structural deduplication
+        let structuralPage = SettingsSearchItem(
+            id: .page(.homebrew), destination: FeatureSettingsDestination(.homebrew),
+            title: "Dedicated Packages Page", icon: "shippingbox", keywords: ["Formulae"])
+        let structuralFeature = SettingsSearchItem(
+            id: .feature(.homebrew), destination: FeatureSettingsDestination(.homebrew),
+            title: "Generated Homebrew Feature", icon: "externaldrive", feature: .homebrew)
+        let structurallyMerged = SettingsSearchSupport.combinedItems(
+            pageItems: [structuralPage], featureItems: [structuralFeature])
+        expect(structurallyMerged.map(\.id) == [.page(.homebrew)]
+                && structurallyMerged.first?.title == "Dedicated Packages Page"
+                && structurallyMerged.first?.icon == "shippingbox"
+                && structurallyMerged.first?.keywords == ["Formulae"]
+                && structurallyMerged.first?.feature == .homebrew,
+               "differently titled Homebrew rows merge into the stable page row")
+
+        let monitorPage = SettingsSearchItem(id: .page(.monitor),
+                                             destination: FeatureSettingsDestination(.monitor),
+                                             title: "Monitor", icon: "display")
+        let monitorCPUFeature = SettingsSearchSupport.featureItems(language: .enUS) {
+            $0 == .monitorCPU ? "Generated CPU Monitor" : $0.rawValue
+        }.first { $0.id == .feature(.monitorCPU) }!
+        let multiFeatureMerged = SettingsSearchSupport.combinedItems(
+            pageItems: [monitorPage], featureItems: [monitorCPUFeature])
+        expect(monitorPage.destination == monitorCPUFeature.destination
+                && monitorCPUFeature.destination == AppFeature.monitorCPU.settingsDestination
+                && monitorCPUFeature.destination.sectionAnchor == nil
+                && multiFeatureMerged.map(\.id) == [.page(.monitor), .feature(.monitorCPU)],
+               "the real shared Monitor destination does not merge a multi-feature page")
+
+        let actionCoveredMappings: [(SettingsPage, AppFeature)] = [
+            (.cleaner, .cleaner),
+            (.uninstaller, .uninstaller),
+            (.appUpdates, .appUpdates),
+        ]
+        let actionCoveredPages = actionCoveredMappings.map { page, feature in
+            SettingsSearchItem(id: .page(page), destination: FeatureSettingsDestination(page),
+                               title: "Dedicated \(feature.rawValue) Page", icon: "gearshape")
+        }
+        let actionCoveredFeatures = SettingsSearchSupport.featureItems(language: .enUS) {
+            "Generated \($0.rawValue) Feature"
+        }.filter { item in
+            actionCoveredMappings.contains { _, feature in item.id == .feature(feature) }
+        }
+        let actionCoveredItems = SettingsSearchSupport.combinedItems(
+            pageItems: actionCoveredPages, featureItems: actionCoveredFeatures)
+        for (page, feature) in actionCoveredMappings {
+            expect(actionCoveredItems.first { $0.id == .page(page) }?.feature == feature
+                    && !actionCoveredItems.contains { $0.id == .feature(feature) },
+                   "the differently titled \(feature.rawValue) rows keep only the page identity")
+        }
+
+        let dedicatedSettingsItems = [
+            SettingsSearchItem(id: .page(.features),
+                                destination: FeatureSettingsDestination(.features),
+                                title: "Features", icon: "square.grid.2x2",
+                                keywords: ["Homebrew", "Camera Preview"],
+                                keywordFeatures: [.homebrew, .cameraPreview]),
+            SettingsSearchItem(id: .page(.appUpdates),
+                                destination: FeatureSettingsDestination(.appUpdates),
+                                title: "App Updates", icon: "arrow.down.app",
+                                keywords: ["Homebrew"]),
+            SettingsSearchItem(id: .page(.quickTools),
+                                destination: FeatureSettingsDestination(.quickTools),
+                                title: "Quick Tools", icon: "wand.and.rays",
+                                keywords: ["Camera Preview"]),
+            SettingsSearchItem(id: .page(.homebrew),
+                                destination: FeatureSettingsDestination(.homebrew),
+                                title: "Homebrew", icon: "shippingbox"),
+        ]
+        let combinedSettingsItems = SettingsSearchSupport.combinedItems(
+            pageItems: dedicatedSettingsItems,
+            featureItems: featureSearchItems)
+        expect(combinedSettingsItems.filter {
+            $0.title == "Homebrew" && $0.destination == FeatureSettingsDestination(.homebrew)
+        }.count == 1
+                && combinedSettingsItems.contains { $0.id == .page(.homebrew) },
+               "the explicit Homebrew page result replaces its equivalent generated result")
+        expect(combinedSettingsItems.filter {
+            $0.destination == FeatureSettingsDestination(.appUpdates)
+        }.count == 1
+                && combinedSettingsItems.contains { $0.id == .page(.appUpdates) },
+               "a structurally one-to-one App Updates result is deduplicated to the page")
+        expect(combinedSettingsItems.contains { $0.id == .feature(.diskImageInstaller) },
+               "a differently named feature remains discoverable through its Features fallback")
+        expect(combinedSettingsItems.first { $0.id == .page(.homebrew) }?.feature == .homebrew,
+               "a deduplicated Homebrew page result keeps its feature identity")
+        expect(combinedSettingsItems.first { $0.id == .page(.features) }?.feature == nil,
+               "a generic page result that does not merge with a feature carries no feature identity")
+        expect(combinedSettingsItems.first { $0.id == .feature(.diskImageInstaller) }?.feature
+                == .diskImageInstaller,
+               "a feature-only result carries its own feature identity")
+
+        // MARK: Settings search routing
+
+        let homebrewPageItem = combinedSettingsItems.first { $0.id == .page(.homebrew) }!
+        let unavailableHomebrewRoute = SettingsSearchSupport.route(for: homebrewPageItem) { _ in false }
+        expect(unavailableHomebrewRoute.destination == FeatureSettingsDestination(.features)
+                && unavailableHomebrewRoute.targetFeature == .homebrew,
+               "an unavailable Homebrew result preserves its identity and targets its Feature Hub row")
+        let availableHomebrewRoute = SettingsSearchSupport.route(for: homebrewPageItem) { _ in true }
+        expect(availableHomebrewRoute.destination == FeatureSettingsDestination(.homebrew)
+                && availableHomebrewRoute.targetFeature == nil,
+               "an available Homebrew result still opens its own dedicated page with no row to reveal")
+
+        let cameraPreviewItem = featureSearchItems.first { $0.id == .feature(.cameraPreview) }!
+        let unavailableCameraRoute = SettingsSearchSupport.route(for: cameraPreviewItem) { $0 != .cameraPreview }
+        expect(unavailableCameraRoute.destination == FeatureSettingsDestination(.features)
+                && unavailableCameraRoute.targetFeature == .cameraPreview,
+               "an unavailable grouped feature targets its own row even while its shared page stays visible")
+        let availableCameraRoute = SettingsSearchSupport.route(for: cameraPreviewItem) { _ in true }
+        expect(availableCameraRoute.destination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
+                && availableCameraRoute.targetFeature == nil,
+               "an available grouped feature keeps opening its anchored section directly")
+
+        let diskImageItem = featureSearchItems.first { $0.id == .feature(.diskImageInstaller) }!
+        let diskImageRoute = SettingsSearchSupport.route(for: diskImageItem) { _ in true }
+        expect(diskImageRoute.destination == FeatureSettingsDestination(.features)
+                && diskImageRoute.targetFeature == .diskImageInstaller,
+               "Disk Image Installer, whose own destination is Features, still targets its exact row")
+
+        let genericFeaturesItem = SettingsSearchItem(id: .page(.features),
+                                                     destination: FeatureSettingsDestination(.features),
+                                                     title: "Features", icon: "square.grid.2x2")
+        let genericFeaturesRoute = SettingsSearchSupport.route(for: genericFeaturesItem) { _ in true }
+        expect(genericFeaturesRoute.destination == FeatureSettingsDestination(.features)
+                && genericFeaturesRoute.targetFeature == nil,
+               "a generic Features selection carries no feature target")
+
+        let hiddenPageItem = SettingsSearchItem(id: .page(.shelf),
+                                                destination: FeatureSettingsDestination(.shelf),
+                                                title: "Shelf", icon: "tray.full")
+        let hiddenPageRoute = SettingsSearchSupport.route(for: hiddenPageItem) { _ in false }
+        expect(hiddenPageRoute.destination == FeatureSettingsDestination(.features)
+                && hiddenPageRoute.targetFeature == nil,
+               "a page result with no merged feature identity still falls back to Features generically")
+
+        let homebrewMatches = SettingsSearchSupport.matchingItems(
+            query: "  HOMEBREW ", items: combinedSettingsItems)
+        expect(homebrewMatches.first?.destination == FeatureSettingsDestination(.homebrew)
+                && homebrewMatches.map(\.id)
+                    == [.page(.homebrew), .page(.features), .page(.appUpdates)],
+               "an exact Homebrew title ranks before earlier generic keyword matches")
+        let cameraPreviewMatches = SettingsSearchSupport.matchingItems(
+            query: "Camera Preview", items: combinedSettingsItems)
+        expect(cameraPreviewMatches.first?.destination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
+                && cameraPreviewMatches.map(\.id)
+                    == [.feature(.cameraPreview), .page(.features), .page(.quickTools)],
+               "an exact Camera Preview feature ranks before its page containers")
+
+        let keywordBeforePartialTitle = SettingsSearchItem(
+            id: .page(.features), destination: FeatureSettingsDestination(.features),
+            title: "Features", icon: "square.grid.2x2", keywords: ["Homebrew Packages"])
+        let partialTitleAfterKeyword = SettingsSearchItem(
+            id: .page(.appUpdates), destination: FeatureSettingsDestination(.appUpdates),
+            title: "Homebrew Packages", icon: "arrow.down.app")
+        let partialMatches = SettingsSearchSupport.matchingItems(
+            query: "brew", items: [keywordBeforePartialTitle, partialTitleAfterKeyword])
+        expect(partialMatches.map(\.id) == [.page(.appUpdates), .page(.features)],
+               "partial title containment ranks before an earlier keyword-only match")
+
+        let tiedTitleMatches = [
+            SettingsSearchItem(id: .page(.quickTools),
+                               destination: FeatureSettingsDestination(.quickTools),
+                               title: "Camera Tools", icon: "wand.and.rays"),
+            SettingsSearchItem(id: .feature(.cameraPreview),
+                               destination: FeatureSettingsDestination(
+                                 .quickTools, sectionAnchor: .cameraPreview),
+                               title: "Camera Controls", icon: "web.camera"),
+        ]
+        expect(SettingsSearchSupport.matchingItems(query: "camera", items: tiedTitleMatches)
+                .map(\.id) == tiedTitleMatches.map(\.id),
+               "Settings search preserves source order between equal-rank matches")
+        expect(SettingsSearchSupport.matchingItems(query: "  \n", items: tiedTitleMatches)
+                .map(\.id) == tiedTitleMatches.map(\.id),
+               "a blank Settings query preserves every item in source order")
+
+        // MARK: Grouped Settings search suggestions
+        let cameraGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "Camera Preview", items: combinedSettingsItems,
+            isAvailable: { _ in true })
+        expect(cameraGroups.map(\.id) == [.quickTools, .features]
+                && cameraGroups.first?.pageItem.title == "Quick Tools",
+               "an exact utility match puts its main Settings page first")
+        expect(cameraGroups.first?.parentMatches == false
+                && cameraGroups.first?.suggestions.map(\.title) == ["Camera Preview"]
+                && cameraGroups.first?.suggestions.first?.item.destination
+                    == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview),
+               "a grouped utility row retains its exact anchored destination")
+        expect(cameraGroups.last?.suggestions.map(\.title) == ["Camera Preview"],
+               "every other main page containing the query remains represented")
+        let installedCameraHubRoute = cameraGroups.last?.suggestions.first.map {
+            SettingsSearchSupport.route(for: $0, isAvailable: { _ in true })
+        }
+        expect(installedCameraHubRoute?.destination == FeatureSettingsDestination(.features)
+                && installedCameraHubRoute?.targetFeature == .cameraPreview,
+               "an installed utility's Features result reveals its exact uninstall row")
+
+        let homebrewGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "Homebrew", items: combinedSettingsItems,
+            isAvailable: { _ in true })
+        expect(homebrewGroups.map(\.id) == [.homebrew, .features, .appUpdates]
+                && homebrewGroups.first?.parentMatches == true
+                && homebrewGroups.first?.suggestions.isEmpty == true,
+               "a matching main page is shown once before grouped keyword matches")
+
+        let settingPage = SettingsSearchItem(
+            id: .page(.energy), destination: FeatureSettingsDestination(.energy),
+            title: "Energy", icon: "bolt.fill",
+            keywords: ["Keep awake", "Show countdown", "Show remaining duration"])
+        let settingGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "show", items: [settingPage], isAvailable: { _ in true })
+        expect(settingGroups.count == 1
+                && settingGroups[0].id == .energy
+                && !settingGroups[0].parentMatches
+                && settingGroups[0].suggestions.map(\.title)
+                    == ["Show countdown", "Show remaining duration"],
+               "all matching setting labels are listed beneath their main page")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: " \n ", items: [settingPage],
+                    isAvailable: { _ in true }).isEmpty,
+               "a blank query does not replace the normal Settings sidebar with groups")
+
+        let availabilityPage = SettingsSearchItem(
+            id: .page(.quickTools), destination: FeatureSettingsDestination(.quickTools),
+            title: "Quick Tools", icon: "wand.and.rays",
+            keywords: ["Camera Preview", "Open camera automatically", "Scratchpad Notes"],
+            keywordFeatures: [.cameraPreview, .cameraPreview, .scratchpad])
+        let availabilityHub = SettingsSearchItem(
+            id: .page(.features), destination: FeatureSettingsDestination(.features),
+            title: "Features", icon: "square.grid.2x2",
+            keywords: ["Camera Preview", "scratchpad"],
+            keywordFeatures: [.cameraPreview, .scratchpad])
+        let availabilityFeatures = featureSearchItems.filter {
+            $0.id == .feature(.cameraPreview) || $0.id == .feature(.scratchpad)
+        }
+        let availabilityItems = [availabilityHub, availabilityPage] + availabilityFeatures
+        let onlyScratchpadAvailable: (AppFeature) -> Bool = { $0 == .scratchpad }
+        let unavailableCameraGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "camera", items: availabilityItems,
+            isAvailable: onlyScratchpadAvailable)
+        let unavailableCameraSuggestion = unavailableCameraGroups.first?.suggestions.first
+        let groupedUnavailableCameraRoute = unavailableCameraSuggestion.map {
+            SettingsSearchSupport.route(for: $0.item, isAvailable: onlyScratchpadAvailable)
+        }
+        expect(unavailableCameraGroups.count == 1
+                && unavailableCameraGroups[0].id == .features
+                && unavailableCameraGroups[0].suggestions.map(\.title) == ["Camera Preview"]
+                && groupedUnavailableCameraRoute?.destination == FeatureSettingsDestination(.features)
+                && groupedUnavailableCameraRoute?.targetFeature == .cameraPreview,
+               "an unavailable utility remains navigable through its exact Features row")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: "automatically", items: availabilityItems,
+                    isAvailable: onlyScratchpadAvailable).isEmpty,
+               "setting fields owned by an unavailable utility stay out of suggestions")
+        let availableScratchpadGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "scratchpad", items: availabilityItems,
+            isAvailable: onlyScratchpadAvailable)
+        expect(availableScratchpadGroups.first?.id == .quickTools
+                && availableScratchpadGroups[0].suggestions.map(\.title)
+                    == ["scratchpad", "Scratchpad Notes"]
+                && availableScratchpadGroups[0].suggestions.first?.item.destination
+                    == FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad),
+               "an installed utility remains searchable on a shared Settings page")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: "Quick Tools", items: availabilityItems,
+                    isAvailable: { _ in false }).isEmpty,
+               "a main page with no installed utilities is not suggested")
 
         let freshSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
                                                                  availableHeight: 1200)
@@ -11657,6 +12139,20 @@ struct MetricsTests {
                 && FanControlPolicy.nextCurvePoint(for: iterativePoints) == nil
                 && FanControlPolicy.addingCurvePoint(to: iterativePoints) == nil,
                "adding fan curve points fills up to the maximum point limit with strictly valid curves")
+        let secondCurve = FanControlCurve(sensor: .averageCPU,
+                                          points: defaultCurve.points)
+        var updatedCurves = [defaultCurve, secondCurve]
+        if let secondPoints = FanControlPolicy.addingCurvePoint(to: updatedCurves[1].points) {
+            updatedCurves[1].points = secondPoints
+        }
+        let storedUpdatedCurves = FanControlConfiguration.decodeCurves(
+            FanControlConfiguration.encodeCurves(updatedCurves) ?? ""
+        )
+        expect(updatedCurves.count == 2
+                && updatedCurves.first == defaultCurve
+                && updatedCurves[1].points == addedPoints
+                && storedUpdatedCurves == updatedCurves,
+               "adding a point to the second fan curve preserves every valid stored curve")
         let m3FanTemperatures = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: [("Te05", 44), ("Tf4E", 53), ("Tf4F", 76)],
             gpuReadings: [48],
@@ -12549,6 +13045,31 @@ struct MetricsTests {
         settingsRouter.consumeDestinationRequest(id: repeatedSettingsRequestID)
         expect(settingsRouter.pendingDestinationRequest == nil,
                "a handled Settings destination request is cleared")
+
+        let featuresDestination = FeatureSettingsDestination(.features)
+        settingsRouter.request(featuresDestination, targetFeature: .homebrew)
+        let firstFeatureTargetRequestID = settingsRouter.requestID
+        expect(settingsRouter.pendingFeatureTarget?.id == firstFeatureTargetRequestID
+                && settingsRouter.pendingFeatureTarget?.feature == .homebrew,
+               "requesting Features with a target feature publishes a matching feature-target request")
+        settingsRouter.request(featuresDestination, targetFeature: .homebrew)
+        let secondFeatureTargetRequestID = settingsRouter.requestID
+        expect(secondFeatureTargetRequestID != firstFeatureTargetRequestID
+                && settingsRouter.pendingFeatureTarget?.id == secondFeatureTargetRequestID,
+               "repeated requests for the same target feature remain observable")
+        settingsRouter.consumeFeatureTarget(id: firstFeatureTargetRequestID)
+        expect(settingsRouter.pendingFeatureTarget?.id == secondFeatureTargetRequestID,
+               "consuming an older feature-target request cannot clear a newer target")
+        settingsRouter.consumeFeatureTarget(id: secondFeatureTargetRequestID)
+        expect(settingsRouter.pendingFeatureTarget == nil,
+               "a handled feature-target request is cleared")
+        settingsRouter.request(featuresDestination, targetFeature: .diskImageInstaller)
+        expect(settingsRouter.pendingFeatureTarget?.feature == .diskImageInstaller,
+               "requesting a different target feature is observable")
+        settingsRouter.request(repeatedDestination)
+        expect(settingsRouter.pendingFeatureTarget == nil,
+               "a later generic request clears any unconsumed feature target so it cannot leak into unrelated navigation")
+
         settingsRouter.cleanerTool = "tool-id"
         settingsRouter.request(FeatureSettingsDestination(.cleaner))
         expect(settingsRouter.page == .cleaner && settingsRouter.cleanerTool == "tool-id",
@@ -13828,6 +14349,32 @@ struct MetricsTests {
                                                      isEjectable: true, isLocal: true,
                                                      isRootFileSystem: true),
                "the volume the Mac booted from is never ejected, even on an external drive")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: false,
+                                                     isEjectable: true, isLocal: true,
+                                                     isRootFileSystem: false,
+                                                     volumeName: "Time Machine",
+                                                     excludedVolumes: ["time machine"]),
+               "a volume matching an excluded name case-insensitively is not offered for eject")
+        expect(!QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                     isEjectable: true, isLocal: true,
+                                                     isRootFileSystem: false,
+                                                     volumeName: "SD Card",
+                                                     volumeUUID: "1234-5678-ABCD",
+                                                     excludedVolumes: ["1234-5678-abcd"]),
+               "a volume matching an excluded UUID is not offered for eject")
+        expect(QuickTogglesSupport.shouldOfferEject(isInternal: false, isRemovable: true,
+                                                    isEjectable: true, isLocal: true,
+                                                    isRootFileSystem: false,
+                                                    volumeName: "USB Flash",
+                                                    excludedVolumes: ["Time Machine"]),
+               "a volume not on the exclusion list is offered for eject")
+        expect(Defaults.sanitizedDiskExclusionList(["  Backup  ", "backup", "", "  ", "Photos", "PHOTOS"])
+                == ["Backup", "Photos"],
+               "sanitized disk exclusion list trims and deduplicates case-insensitively")
+        expect(Defaults.registeredDefaults[DefaultsKey.diskEjectExcludedVolumes] is [String],
+               "disk eject exclusions are registered as an empty string array")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.diskEjectExcludedVolumes),
+               "disk eject exclusions travel in backups")
 
         // MARK: Screenshot tool
 
@@ -14366,6 +14913,14 @@ struct MetricsTests {
                 && captureSelectionSource.contains(
                     ".opacity(options.selectedTool == .recording ? 1 : 0)"),
                "capture modes reserve the recording controls' height so the chooser never jumps")
+        expect(captureSelectionSource.contains("screenCaptureToolDidChange()")
+                && captureSelectionSource.contains("screenCaptureOptions?.onSelectionChange ="),
+               "capture mode changes update the active overlay session in place without tearing down windows")
+        let captureServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift",
+            encoding: .utf8)) ?? ""
+        expect(!captureServiceSource.contains("replaceSelection"),
+               "the capture service does not cancel and recreate selection controllers when changing modes")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -16399,6 +16954,15 @@ struct MetricsTests {
                    "every window preview exclusion string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible window preview exclusion strings (\(language.rawValue))")
+        }
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.diskExclusions(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 6 && values.allSatisfy { !$0.isEmpty },
+                   "every disk exclusion string is set for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "no em-dash in visible disk exclusion strings (\(language.rawValue))")
         }
 
         for language in AppLanguage.allCases {
@@ -19472,6 +20036,77 @@ struct MetricsTests {
             expect(name.map { value in sweptNamespaces.contains { value.hasPrefix($0) } } == true,
                    "defaults suite \(argument) is named inside a namespace build.sh sweeps")
         }
+
+        // MARK: Every temp dir build.sh stages in is swept when the script ends
+        // `mktemp -d` lands outside the repo, so a dir the script does not
+        // remove survives the run — a successful one as much as a failed one.
+        // The sweep is therefore a trap, and a staging dir added later leaks on
+        // every build until it is named in cleanup(). The names are read out of
+        // the script so the two cannot drift apart.
+        // The trap has to be installed before the first dir exists: a failure
+        // between `mktemp -d` and a later `trap` leaks exactly as before.
+        let sweepInstalled = buildScript.range(of: "trap cleanup EXIT")?.lowerBound
+        let firstStaged = buildScript.range(of: "mktemp -d")?.lowerBound
+        expect(sweepInstalled != nil && firstStaged != nil && sweepInstalled! < firstStaged!,
+               "build.sh installs the temp dir sweep before it stages the first dir")
+        // zsh runs the EXIT trap on HUP but not on INT or TERM, so the signals
+        // have to reach it through `exit` or Ctrl-C leaks the staged bundle.
+        let signalsRouted = buildScript.range(of: "trap 'exit 1' INT TERM HUP")?.lowerBound
+        expect(signalsRouted != nil && firstStaged != nil && signalsRouted! < firstStaged!,
+               "build.sh routes interrupts through the sweep before it stages the first dir")
+        let cleanupBody = buildScript.components(separatedBy: "cleanup() {")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let stagedTempDirs = buildScript.components(separatedBy: "=\"$(mktemp -d)\"")
+            .dropLast()
+            .compactMap {
+                $0.split(whereSeparator: { $0.isNewline || $0 == " " || $0 == "\t" })
+                    .last.map(String.init)
+            }
+        expect(!stagedTempDirs.isEmpty, "the staged temp dirs read back out of build.sh")
+        // A dir reached through a path suffix — `X="$(mktemp -d)/name"` — puts
+        // the parent in no variable at all, which is how the bundle staging dir
+        // leaked. Every call has to be captured whole to be sweepable.
+        expect(buildScript.components(separatedBy: "mktemp -d").count - 1 == stagedTempDirs.count,
+               "every mktemp -d in build.sh is a whole capture — no path suffix, no other spelling")
+        for variable in Set(stagedTempDirs) {
+            expect(cleanupBody.contains("\"$\(variable)\""),
+                   "temp dir \(variable) is swept by build.sh cleanup()")
+            // The sweep runs under `set -u` before the dir is staged: an entry
+            // whose variable is not empty first aborts cleanup() at that line,
+            // leaving everything listed below it unswept and the exit status
+            // untouched. The empty assignment is the third line of the pattern.
+            // The leading newline keeps ICON_TMP off STAGE_ICON_TMP.
+            let initialized = buildScript.range(of: "\n\(variable)=\"\"")?.lowerBound
+            expect(initialized != nil && sweepInstalled != nil && initialized! < sweepInstalled!,
+                   "temp dir \(variable) is empty before the sweep is installed")
+        }
+
+        // MARK: An identity-less Developer build creates its stable signing identity
+        // An ad-hoc signature changes hash on every build, so macOS orphans
+        // Accessibility and Screen Recording grants on each rebuild while
+        // System Settings keeps showing them as granted. build.sh therefore
+        // routes identity-less --dev builds through Tools/setup-signing.sh
+        // before signing. The needle is the invocation at the start of a
+        // command line: the ad-hoc fallback's advice string also names the
+        // script, and must not satisfy this check.
+        let runsSigningSetup = buildScript.components(separatedBy: "\n").contains {
+            $0.range(of: #"^\s*(if\s+!?\s*)?\./Tools/setup-signing\.sh"#,
+                     options: .regularExpression) != nil
+        }
+        expect(runsSigningSetup,
+               "an identity-less Developer build invokes Tools/setup-signing.sh itself")
+        // The setup script must run against the stock /usr/bin/openssl, which
+        // is LibreSSL: it rejects OpenSSL 3's -legacy flag outright, and the
+        // script once died on exactly that with its stderr discarded. The
+        // portable spelling names the PBE algorithms instead of the flag.
+        let signingSetup = (try? String(contentsOfFile: "Tools/setup-signing.sh",
+                                         encoding: .utf8)) ?? ""
+        expect(!signingSetup.isEmpty, "the signing setup script reads back for its shape check")
+        let signingSetupCode = signingSetup.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+            .joined(separator: "\n")
+        expect(!signingSetupCode.contains("-legacy"),
+               "setup-signing.sh avoids the -legacy flag the stock LibreSSL openssl rejects")
 
         // MARK: Uninstallation paths stay aligned across SelfUninstall and Tools/uninstall.sh
         let selfUninstallSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/SelfUninstall.swift",
