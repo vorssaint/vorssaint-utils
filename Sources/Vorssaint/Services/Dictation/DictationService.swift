@@ -14,12 +14,14 @@ final class DictationService: ObservableObject {
     @Published private(set) var state: DictationState = .idle
     @Published private(set) var level: Float = 0
     @Published private(set) var shortcutRegistrationFailed = false
+    @Published private(set) var secondaryShortcutRegistrationFailed = false
 
     private let keychain: KeychainStoring
     private let client: DictationTranscriptionClient
     private let recorder: DictationAudioRecorder
     private let hud = DictationHUD()
     private let hotkey = QuickToolHotkey(id: 25)
+    private let secondaryHotkey = QuickToolHotkey(id: 27)
     private let cancelHotkey = QuickToolHotkey(id: 26)
     private var transcriptionTask: Task<Void, Never>?
     private var localEscapeMonitor: Any?
@@ -28,6 +30,12 @@ final class DictationService: ObservableObject {
     private var target: Target?
     private var sessionConfiguration: SessionConfiguration?
     private var dismissWork: DispatchWorkItem?
+    private var primaryGesture = DictationShortcutGesture()
+    private var secondaryGesture = DictationShortcutGesture()
+    private var activeSlot: DictationShortcutSlot?
+    private var configuredProfiles: [DictationShortcutSlot: DictationShortcutProfile] = [:]
+    private var configuredShortcuts: [DictationShortcutSlot: GlobalShortcut] = [:]
+    private var configuredEnabled: [DictationShortcutSlot: Bool] = [:]
 
     private init(keychain: KeychainStoring = KeychainStore.shared,
                  client: DictationTranscriptionClient = DictationTranscriptionClient(),
@@ -36,7 +44,10 @@ final class DictationService: ObservableObject {
         self.keychain = keychain
         self.client = client
         self.recorder = recorder
-        hotkey.onPress = { [weak self] in self?.toggle() }
+        hotkey.onPress = { [weak self] in self?.shortcutDown(.primary) }
+        hotkey.onRelease = { [weak self] in self?.shortcutUp(.primary) }
+        secondaryHotkey.onPress = { [weak self] in self?.shortcutDown(.secondary) }
+        secondaryHotkey.onRelease = { [weak self] in self?.shortcutUp(.secondary) }
         cancelHotkey.onPress = { [weak self] in self?.cancel() }
         recorder.onLevel = { [weak self] level in
             self?.level = level
@@ -84,17 +95,35 @@ final class DictationService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled)
         if !enabled {
             shortcutRegistrationFailed = false
+            secondaryShortcutRegistrationFailed = false
             hotkey.unregister()
+            secondaryHotkey.unregister()
             cancel(event: .disable)
+            configuredProfiles.removeAll()
+            configuredShortcuts.removeAll()
+            configuredEnabled.removeAll()
             return
         }
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.dictationShortcut,
                                             fallback: .dictationDefault)
+        prepareForRegistration(.primary, enabled: true, shortcut: shortcut,
+                               profile: profile(for: .primary))
         shortcutRegistrationFailed = !hotkey.sync(enabled: true, shortcut: shortcut)
+        let secondaryEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dictationSecondaryEnabled)
+        let secondary = GlobalShortcut.saved(for: DefaultsKey.dictationSecondaryShortcut,
+                                              fallback: .dictationSecondaryDefault)
+        let conflicts = secondaryEnabled && secondary == shortcut
+        let registerSecondary = secondaryEnabled && !conflicts
+        prepareForRegistration(.secondary, enabled: registerSecondary, shortcut: secondary,
+                               profile: profile(for: .secondary))
+        let secondaryRegistered = secondaryHotkey.sync(enabled: registerSecondary,
+                                                        shortcut: secondary)
+        secondaryShortcutRegistrationFailed = conflicts || !secondaryRegistered
     }
 
     func suspend() {
         hotkey.unregister()
+        secondaryHotkey.unregister()
         cancel(event: .disable)
     }
 
@@ -109,17 +138,57 @@ final class DictationService: ObservableObject {
         }
     }
 
+    private func shortcutDown(_ slot: DictationShortcutSlot) {
+        if let activeSlot, activeSlot != slot { return }
+        let mode = profile(for: slot).mode
+        let now = ProcessInfo.processInfo.systemUptime
+        let action: DictationShortcutAction?
+        if slot == .primary {
+            action = primaryGesture.keyDown(at: now, mode: mode, sessionIsActive: sessionID != nil)
+        } else {
+            action = secondaryGesture.keyDown(at: now, mode: mode, sessionIsActive: sessionID != nil)
+        }
+        perform(action, slot: slot)
+    }
+
+    private func shortcutUp(_ slot: DictationShortcutSlot) {
+        if state == .processing {
+            cancelGesture(slot)
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        let action: DictationShortcutAction?
+        if slot == .primary {
+            action = primaryGesture.keyUp(at: now, sessionIsActive: sessionID != nil)
+        } else {
+            action = secondaryGesture.keyUp(at: now, sessionIsActive: sessionID != nil)
+        }
+        guard activeSlot == nil || activeSlot == slot else { return }
+        perform(action, slot: slot)
+    }
+
+    private func perform(_ action: DictationShortcutAction?, slot: DictationShortcutSlot) {
+        switch action {
+        case .begin: begin(profile: profile(for: slot))
+        case .stop:
+            if state == .listening { stopAndTranscribe() }
+            else if state != .processing { cancel() }
+        case nil: break
+        }
+    }
+
     func cancel() {
         cancel(event: .cancel)
     }
 
-    private func begin() {
+    private func begin(profile: DictationShortcutProfile? = nil) {
         guard AppFeature.dictation.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled) else { return }
         dismissWork?.cancel()
         dismissWork = nil
-        let provider = provider
-        let model = model(for: provider)
+        let profile = profile ?? self.profile(for: .primary)
+        let provider = profile.provider
+        let model = profile.model
         let apiKey: String
         do {
             guard let key = try storedKey(for: provider),
@@ -135,10 +204,12 @@ final class DictationService: ObservableObject {
         }
         let id = UUID()
         sessionID = id
+        activeSlot = profile.slot
         target = Target.capture()
         sessionConfiguration = SessionConfiguration(provider: provider,
                                                     model: model,
-                                                    apiKey: apiKey)
+                                                    apiKey: apiKey,
+                                                    profile: profile)
         switch Permissions.shared.microphone {
         case .granted:
             startRecording(sessionID: id)
@@ -282,6 +353,7 @@ final class DictationService: ObservableObject {
         sessionID = nil
         target = nil
         sessionConfiguration = nil
+        clearGestures()
         recorder.discardFile()
         removeEscapeHandlers()
         state = .idle
@@ -296,6 +368,7 @@ final class DictationService: ObservableObject {
         sessionID = nil
         target = nil
         sessionConfiguration = nil
+        clearGestures()
         state = .failure(failure)
         level = 0
         showHUD(failure: failure)
@@ -320,6 +393,7 @@ final class DictationService: ObservableObject {
         sessionID = nil
         target = nil
         sessionConfiguration = nil
+        clearGestures()
         level = 0
         state = DictationLifecycle.transition(from: state, event: event).state
         hud.hide()
@@ -355,11 +429,20 @@ final class DictationService: ObservableObject {
 
     private func showHUD(failure: DictationFailure? = nil) {
         let strings = FeatureStrings.dictation(L10n.shared.language)
+        let activation = FeatureStrings.dictationActivation(L10n.shared.language)
         let opensSettings = failure == .microphoneDenied
             || failure == .accessibilityRequiredCopied
         hud.show(state: state,
                  level: level,
                  strings: strings,
+                 sessionDetail: sessionConfiguration.map {
+                     "\(activation.modeName($0.profile.mode)) · "
+                         + "\(strings.providerName($0.provider)) · \($0.model.id)"
+                 },
+                 listeningHint: sessionConfiguration.map {
+                     $0.profile.mode == .toggle
+                         ? strings.stopHint : activation.modeName($0.profile.mode)
+                 },
                  opensSettings: opensSettings) {
             if failure == .microphoneDenied {
                 Permissions.shared.openMicrophoneSettings()
@@ -375,10 +458,59 @@ final class DictationService: ObservableObject {
         return provider.sanitizedModel(UserDefaults.standard.string(forKey: key))
     }
 
+    private func profile(for slot: DictationShortcutSlot) -> DictationShortcutProfile {
+        let defaults = UserDefaults.standard
+        let secondary = slot == .secondary
+        let providerKey = secondary ? DefaultsKey.dictationSecondaryProvider : DefaultsKey.dictationProvider
+        let provider = DictationProvider(rawValue: defaults.string(forKey: providerKey) ?? "")
+            ?? (secondary ? .groq : .openAI)
+        let modelKey: String
+        if secondary {
+            modelKey = provider == .openAI ? DefaultsKey.dictationSecondaryOpenAIModel
+                : DefaultsKey.dictationSecondaryGroqModel
+        } else {
+            modelKey = provider == .openAI ? DefaultsKey.dictationOpenAIModel
+                : DefaultsKey.dictationGroqModel
+        }
+        let modeKey = secondary ? DefaultsKey.dictationSecondaryMode : DefaultsKey.dictationMode
+        let mode = DictationShortcutMode(rawValue: defaults.string(forKey: modeKey) ?? "") ?? .toggle
+        return DictationShortcutProfile(slot: slot, mode: mode, provider: provider,
+                                        model: provider.sanitizedModel(defaults.string(forKey: modelKey)))
+    }
+
+    private func prepareForRegistration(_ slot: DictationShortcutSlot,
+                                        enabled: Bool,
+                                        shortcut: GlobalShortcut,
+                                        profile: DictationShortcutProfile) {
+        let wasConfigured = configuredEnabled[slot] != nil
+        let changed = configuredEnabled[slot] != enabled
+            || configuredShortcuts[slot] != shortcut
+            || configuredProfiles[slot] != profile
+        if wasConfigured && changed {
+            cancelGesture(slot)
+            if activeSlot == slot { cancel(event: .disable) }
+        }
+        configuredEnabled[slot] = enabled
+        configuredShortcuts[slot] = shortcut
+        configuredProfiles[slot] = profile
+    }
+
+    private func cancelGesture(_ slot: DictationShortcutSlot) {
+        if slot == .primary { primaryGesture.cancel() }
+        else { secondaryGesture.cancel() }
+    }
+
+    private func clearGestures() {
+        primaryGesture.cancel()
+        secondaryGesture.cancel()
+        activeSlot = nil
+    }
+
     private struct SessionConfiguration {
         let provider: DictationProvider
         let model: DictationModel
         let apiKey: String
+        let profile: DictationShortcutProfile
     }
 
     private struct Target {

@@ -70,6 +70,27 @@ struct DictationFeatureStrings {
     }
 }
 
+struct DictationActivationStrings {
+    let activation: String
+    let primary: String
+    let secondary: String
+    let toggle: String
+    let pushToTalk: String
+    let hybrid: String
+
+    func modeName(_ mode: DictationShortcutMode) -> String {
+        switch mode {
+        case .toggle: return toggle
+        case .pushToTalk: return pushToTalk
+        case .hybrid: return hybrid
+        }
+    }
+
+    func intro(_ mode: DictationShortcutMode, toggleIntro: String) -> String {
+        mode == .toggle ? toggleIntro : modeName(mode)
+    }
+}
+
 extension FeatureStrings {
     static func dictation(_ language: AppLanguage) -> DictationFeatureStrings {
         switch language {
@@ -86,6 +107,24 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        }
+    }
+
+    static func dictationActivation(_ language: AppLanguage) -> DictationActivationStrings {
+        switch language {
+        case .enUS: return .init(activation: "Activation", primary: "Primary profile", secondary: "Secondary profile", toggle: "Toggle", pushToTalk: "Hold to talk", hybrid: "Hybrid")
+        case .ptBR: return .init(activation: "Ativação", primary: "Perfil primário", secondary: "Perfil secundário", toggle: "Alternar", pushToTalk: "Manter pressionado", hybrid: "Híbrido")
+        case .tr: return .init(activation: "Etkinleştirme", primary: "Birincil profil", secondary: "İkincil profil", toggle: "Aç/kapat", pushToTalk: "Konuşmak için basılı tut", hybrid: "Karma")
+        case .ru: return .init(activation: "Активация", primary: "Основной профиль", secondary: "Дополнительный профиль", toggle: "Переключение", pushToTalk: "Удерживать для речи", hybrid: "Гибридный")
+        case .es: return .init(activation: "Activación", primary: "Perfil principal", secondary: "Perfil secundario", toggle: "Alternar", pushToTalk: "Mantener para hablar", hybrid: "Híbrido")
+        case .de: return .init(activation: "Aktivierung", primary: "Primäres Profil", secondary: "Sekundäres Profil", toggle: "Umschalten", pushToTalk: "Zum Sprechen halten", hybrid: "Hybrid")
+        case .fr: return .init(activation: "Activation", primary: "Profil principal", secondary: "Profil secondaire", toggle: "Basculer", pushToTalk: "Maintenir pour parler", hybrid: "Hybride")
+        case .it: return .init(activation: "Attivazione", primary: "Profilo principale", secondary: "Profilo secondario", toggle: "Attiva/disattiva", pushToTalk: "Tieni premuto per parlare", hybrid: "Ibrido")
+        case .ja: return .init(activation: "起動", primary: "メインプロファイル", secondary: "サブプロファイル", toggle: "切り替え", pushToTalk: "長押しで話す", hybrid: "ハイブリッド")
+        case .ko: return .init(activation: "활성화", primary: "기본 프로필", secondary: "보조 프로필", toggle: "전환", pushToTalk: "누르고 말하기", hybrid: "하이브리드")
+        case .zhHans: return .init(activation: "激活", primary: "主要配置", secondary: "次要配置", toggle: "切换", pushToTalk: "按住说话", hybrid: "混合")
+        case .zhTW: return .init(activation: "啟用方式", primary: "主要設定檔", secondary: "次要設定檔", toggle: "切換", pushToTalk: "按住說話", hybrid: "混合")
+        case .zhHK: return .init(activation: "啟用方式", primary: "主要設定檔", secondary: "次要設定檔", toggle: "切換", pushToTalk: "按住講話", hybrid: "混合")
         }
     }
 }

@@ -573,6 +573,13 @@ enum DefaultsKey {
     static let dictationProvider = "dictationProvider"
     static let dictationOpenAIModel = "dictationOpenAIModel"
     static let dictationGroqModel = "dictationGroqModel"
+    static let dictationMode = "dictationMode"
+    static let dictationSecondaryEnabled = "dictationSecondaryEnabled"
+    static let dictationSecondaryShortcut = "dictationSecondaryShortcut"
+    static let dictationSecondaryMode = "dictationSecondaryMode"
+    static let dictationSecondaryProvider = "dictationSecondaryProvider"
+    static let dictationSecondaryOpenAIModel = "dictationSecondaryOpenAIModel"
+    static let dictationSecondaryGroqModel = "dictationSecondaryGroqModel"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1251,6 +1258,13 @@ enum Defaults {
         DefaultsKey.dictationProvider: DictationProvider.openAI.rawValue,
         DefaultsKey.dictationOpenAIModel: DictationProvider.openAI.defaultModel.id,
         DefaultsKey.dictationGroqModel: DictationProvider.groq.defaultModel.id,
+        DefaultsKey.dictationMode: DictationShortcutMode.toggle.rawValue,
+        DefaultsKey.dictationSecondaryEnabled: false,
+        DefaultsKey.dictationSecondaryShortcut: GlobalShortcut.dictationSecondaryDefault.storageValue,
+        DefaultsKey.dictationSecondaryMode: DictationShortcutMode.toggle.rawValue,
+        DefaultsKey.dictationSecondaryProvider: DictationProvider.groq.rawValue,
+        DefaultsKey.dictationSecondaryOpenAIModel: DictationProvider.openAI.defaultModel.id,
+        DefaultsKey.dictationSecondaryGroqModel: DictationProvider.groq.defaultModel.id,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,

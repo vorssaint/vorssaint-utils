@@ -12653,9 +12653,55 @@ struct MetricsTests {
             DefaultsKey.dictationProvider,
             DefaultsKey.dictationOpenAIModel,
             DefaultsKey.dictationGroqModel,
+            DefaultsKey.dictationMode,
+            DefaultsKey.dictationSecondaryEnabled,
+            DefaultsKey.dictationSecondaryShortcut,
+            DefaultsKey.dictationSecondaryMode,
+            DefaultsKey.dictationSecondaryProvider,
+            DefaultsKey.dictationSecondaryOpenAIModel,
+            DefaultsKey.dictationSecondaryGroqModel,
         ]
         expect(dictationPreferenceKeys.isSubset(of: SettingsBackupSupport.exportKeys()),
                "dictation's non-secret preferences travel in Settings backups")
+        expect(Defaults.registeredDefaults[DefaultsKey.dictationMode] as? String
+                    == DictationShortcutMode.toggle.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryEnabled] as? Bool == false,
+               "existing dictation upgrades to a primary toggle profile with secondary disabled")
+
+        var toggleGesture = DictationShortcutGesture()
+        expect(toggleGesture.keyDown(at: 0, mode: .toggle, sessionIsActive: false) == .begin
+                && toggleGesture.keyDown(at: 0.1, mode: .toggle, sessionIsActive: true) == nil
+                && toggleGesture.keyUp(at: 0.2, sessionIsActive: true) == nil
+                && toggleGesture.keyDown(at: 0.3, mode: .toggle, sessionIsActive: true) == .stop,
+               "toggle ignores repeat and release and stops on the next down")
+        var holdGesture = DictationShortcutGesture()
+        expect(holdGesture.keyDown(at: 1, mode: .pushToTalk, sessionIsActive: false) == .begin
+                && holdGesture.keyUp(at: 1.1, sessionIsActive: true) == .stop
+                && holdGesture.keyUp(at: 1.2, sessionIsActive: true) == nil,
+               "hold-to-talk starts and stops exactly once")
+        var hybridTap = DictationShortcutGesture()
+        expect(hybridTap.keyDown(at: 2, mode: .hybrid, sessionIsActive: false) == .begin
+                && hybridTap.keyUp(at: 2.499, sessionIsActive: true) == nil,
+               "a hybrid tap below 500 ms stays hands-free")
+        var hybridHold = DictationShortcutGesture()
+        expect(hybridHold.keyDown(at: 3, mode: .hybrid, sessionIsActive: false) == .begin
+                && hybridHold.keyUp(at: 3.5, sessionIsActive: true) == .stop,
+               "a hybrid hold at 500 ms stops on release")
+        hybridHold.cancel()
+        expect(hybridHold.pressedAt == nil,
+               "gesture teardown clears a pressed shortcut")
+        var modeSnapshot = DictationShortcutGesture()
+        _ = modeSnapshot.keyDown(at: 4, mode: .pushToTalk, sessionIsActive: false)
+        expect(modeSnapshot.pressedMode == .pushToTalk
+                && modeSnapshot.keyUp(at: 4.1, sessionIsActive: true) == .stop,
+               "key up uses the mode captured by its matching key down")
+        var activeHold = DictationShortcutGesture()
+        expect(activeHold.keyDown(at: 5, mode: .pushToTalk, sessionIsActive: true) == nil
+                && activeHold.keyUp(at: 5.1, sessionIsActive: true) == .stop,
+               "an active hold session has one deterministic release action")
+        var orphanRelease = DictationShortcutGesture()
+        expect(orphanRelease.keyUp(at: 6, sessionIsActive: true) == nil,
+               "an orphan release never stops an active session")
         expect(SettingsBackupSupport.exportKeys().filter {
             $0.localizedCaseInsensitiveContains("apiKey")
                 || $0.localizedCaseInsensitiveContains("secret")
@@ -12687,6 +12733,8 @@ struct MetricsTests {
         expect(dictationServiceSource.contains("transcriptionTask?.cancel()")
                 && dictationServiceSource.contains("recorder.cancel()")
                 && dictationServiceSource.contains("hotkey.unregister()")
+                && dictationServiceSource.contains("secondaryHotkey.unregister()")
+                && dictationServiceSource.contains("clearGestures()")
                 && dictationServiceSource.contains("cancelHotkey.unregister()")
                 && dictationServiceSource.contains("NSEvent.removeMonitor")
                 && dictationServiceSource.contains("hud.hide()")
@@ -12714,7 +12762,24 @@ struct MetricsTests {
             expect(values.allSatisfy {
                 !$0.contains("TODO") && !$0.contains("TBD") && !$0.contains("—")
             }, "dictation has no placeholder or em-dash text for \(language.rawValue)")
+            let activationValues = Mirror(reflecting: FeatureStrings.dictationActivation(language)).children
+                .compactMap { $0.value as? String }
+            expect(activationValues.count == 6 && activationValues.allSatisfy { !$0.isEmpty },
+                   "dictation activation has every localized field for \(language.rawValue)")
         }
+        let hotkeySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift",
+            encoding: .utf8)) ?? ""
+        expect(hotkeySource.contains("kEventHotKeyPressed")
+                && hotkeySource.contains("kEventHotKeyReleased")
+                && hotkeySource.contains("onRelease")
+                && hotkeySource.contains("let status = InstallEventHandler")
+                && hotkeySource.contains("instance.generation == generation"),
+               "quick-tool hotkeys route Carbon pressed and released events")
+        expect(dictationServiceSource.contains("if state == .processing")
+                && dictationServiceSource.contains("prepareForRegistration")
+                && dictationServiceSource.contains("secondaryHotkey.sync(enabled: registerSecondary"),
+               "dictation ignores late processing releases and resets reconfigured slots")
         let dictationInfoPlist = (try? String(contentsOfFile: "Resources/Info.plist",
                                               encoding: .utf8)) ?? ""
         expect(dictationInfoPlist.contains("start Dictation") && dictationInfoPlist.contains("provider you choose"),

@@ -11,6 +11,12 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationProvider) private var providerRaw = DictationProvider.openAI.rawValue
     @AppStorage(DefaultsKey.dictationOpenAIModel) private var openAIModel = DictationProvider.openAI.defaultModel.id
     @AppStorage(DefaultsKey.dictationGroqModel) private var groqModel = DictationProvider.groq.defaultModel.id
+    @AppStorage(DefaultsKey.dictationMode) private var modeRaw = DictationShortcutMode.toggle.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryEnabled) private var secondaryEnabled = false
+    @AppStorage(DefaultsKey.dictationSecondaryMode) private var secondaryModeRaw = DictationShortcutMode.toggle.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryProvider) private var secondaryProviderRaw = DictationProvider.groq.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryOpenAIModel) private var secondaryOpenAIModel = DictationProvider.openAI.defaultModel.id
+    @AppStorage(DefaultsKey.dictationSecondaryGroqModel) private var secondaryGroqModel = DictationProvider.groq.defaultModel.id
     @State private var keyDraft = ""
     @State private var status: Status?
     @State private var testing = false
@@ -21,8 +27,12 @@ struct DictationSettings: View {
     }
 
     private var strings: DictationFeatureStrings { FeatureStrings.dictation(l10n.language) }
+    private var activation: DictationActivationStrings { FeatureStrings.dictationActivation(l10n.language) }
     private var provider: DictationProvider {
         DictationProvider(rawValue: providerRaw) ?? .openAI
+    }
+    private var mode: DictationShortcutMode {
+        DictationShortcutMode(rawValue: modeRaw) ?? .toggle
     }
 
     var body: some View {
@@ -30,17 +40,9 @@ struct DictationSettings: View {
             Section {
                 Toggle(strings.enable, isOn: $enabled)
                     .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
-                Text(strings.intro)
+                Text(activation.intro(mode, toggleIntro: strings.intro))
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                ShortcutPreferenceRow(role: .dictation, isEnabled: enabled) {
-                    service.syncWithPreferences()
-                }
-                if enabled, service.shortcutRegistrationFailed {
-                    Text(l10n.s.shortcutUnavailable)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
                 if enabled, permissions.microphone == .denied {
                     PermissionRow(kind: .microphone)
                 }
@@ -52,6 +54,50 @@ struct DictationSettings: View {
             }
 
             Section {
+                Text(activation.primary).font(.headline)
+                Picker(strings.shortcut, selection: $modeRaw) {
+                    ForEach(DictationShortcutMode.allCases) { mode in
+                        Text(activation.modeName(mode)).tag(mode.rawValue)
+                    }
+                }
+                .onChange(of: modeRaw) { _, _ in service.syncWithPreferences() }
+                ShortcutPreferenceRow(role: .dictation, isEnabled: enabled) {
+                    service.syncWithPreferences()
+                }
+                if enabled, service.shortcutRegistrationFailed {
+                    Text(l10n.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)
+                }
+                Divider()
+                Toggle(activation.secondary, isOn: $secondaryEnabled)
+                    .onChange(of: secondaryEnabled) { _, _ in service.syncWithPreferences() }
+                if secondaryEnabled {
+                    Picker(strings.shortcut, selection: $secondaryModeRaw) {
+                        ForEach(DictationShortcutMode.allCases) { mode in
+                            Text(activation.modeName(mode)).tag(mode.rawValue)
+                        }
+                    }
+                    .onChange(of: secondaryModeRaw) { _, _ in service.syncWithPreferences() }
+                    Picker(strings.provider, selection: $secondaryProviderRaw) {
+                        ForEach(DictationProvider.allCases) { provider in
+                            Text(strings.providerName(provider)).tag(provider.rawValue)
+                        }
+                    }
+                    .onChange(of: secondaryProviderRaw) { _, _ in service.syncWithPreferences() }
+                    Picker(strings.model, selection: secondaryModelBinding) {
+                        ForEach(secondaryProvider.models) { model in Text(model.id).tag(model.id) }
+                    }
+                    .onChange(of: secondaryOpenAIModel) { _, _ in service.syncWithPreferences() }
+                    .onChange(of: secondaryGroqModel) { _, _ in service.syncWithPreferences() }
+                    ShortcutPreferenceRow(role: .dictationSecondary, isEnabled: enabled) {
+                        service.syncWithPreferences()
+                    }
+                    if service.secondaryShortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)
+                    }
+                }
+            } header: { Text(activation.activation) }
+
+            Section {
                 Picker(strings.provider, selection: $providerRaw) {
                     ForEach(DictationProvider.allCases) { provider in
                         Text(strings.providerName(provider)).tag(provider.rawValue)
@@ -61,12 +107,15 @@ struct DictationSettings: View {
                     cancelConfigurationTest()
                     status = nil
                     loadKey()
+                    service.syncWithPreferences()
                 }
                 Picker(strings.model, selection: modelBinding) {
                     ForEach(provider.models) { model in
                         Text(model.id).tag(model.id)
                     }
                 }
+                .onChange(of: openAIModel) { _, _ in service.syncWithPreferences() }
+                .onChange(of: groqModel) { _, _ in service.syncWithPreferences() }
                 SecureField(strings.apiKey, text: $keyDraft)
                     .textContentType(.password)
                 HStack(spacing: 8) {
@@ -105,6 +154,19 @@ struct DictationSettings: View {
             provider == .openAI ? openAIModel : groqModel
         }, set: { value in
             if provider == .openAI { openAIModel = value } else { groqModel = value }
+        })
+    }
+
+    private var secondaryProvider: DictationProvider {
+        DictationProvider(rawValue: secondaryProviderRaw) ?? .groq
+    }
+
+    private var secondaryModelBinding: Binding<String> {
+        Binding(get: {
+            secondaryProvider == .openAI ? secondaryOpenAIModel : secondaryGroqModel
+        }, set: { value in
+            if secondaryProvider == .openAI { secondaryOpenAIModel = value }
+            else { secondaryGroqModel = value }
         })
     }
 

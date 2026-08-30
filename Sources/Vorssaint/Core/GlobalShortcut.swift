@@ -215,6 +215,8 @@ struct GlobalShortcut: Equatable, Hashable {
                                                       modifiers: [.control, .option, .command])
     static let dictationDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_R),
                                                  modifiers: [.control, .option, .command])
+    static let dictationSecondaryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_F),
+                                                          modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -619,6 +621,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case commandBar
     case screenRecorder
     case dictation
+    case dictationSecondary
 
     var id: String { storageKey }
 
@@ -647,6 +650,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return DefaultsKey.commandBarShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
         case .dictation: return DefaultsKey.dictationShortcut
+        case .dictationSecondary: return DefaultsKey.dictationSecondaryShortcut
         }
     }
 
@@ -675,6 +679,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return .commandBarDefault
         case .screenRecorder: return .screenRecorderDefault
         case .dictation: return .dictationDefault
+        case .dictationSecondary: return .dictationSecondaryDefault
         }
     }
 
@@ -711,6 +716,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .dictation: return FeatureStrings.dictation(L10n.shared.language).title
+        case .dictationSecondary:
+            return FeatureStrings.dictationActivation(L10n.shared.language).secondary
         }
     }
 
@@ -756,6 +763,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .dictation: return [DefaultsKey.dictationEnabled]
+        case .dictationSecondary: return [DefaultsKey.dictationEnabled,
+                                          DefaultsKey.dictationSecondaryEnabled]
         }
     }
 
@@ -784,6 +793,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
         case .dictation: return .dictation
+        case .dictationSecondary: return .dictation
         }
     }
 

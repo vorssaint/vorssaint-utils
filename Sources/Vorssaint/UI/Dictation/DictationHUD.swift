@@ -13,12 +13,16 @@ final class DictationHUD {
     func show(state: DictationState,
               level: Float,
               strings: DictationFeatureStrings,
+              sessionDetail: String? = nil,
+              listeningHint: String? = nil,
               opensSettings: Bool = false,
               onOpenSettings: (() -> Void)? = nil) {
         let content = content ?? ContentView(frame: CGRect(origin: .zero, size: size))
         content.update(state: state,
                        level: level,
                        strings: strings,
+                       sessionDetail: sessionDetail,
+                       listeningHint: listeningHint,
                        opensSettings: opensSettings,
                        onOpenSettings: onOpenSettings)
         self.content = content
@@ -114,6 +118,8 @@ final class DictationHUD {
         func update(state: DictationState,
                     level: Float,
                     strings: DictationFeatureStrings,
+                    sessionDetail: String?,
+                    listeningHint: String?,
                     opensSettings: Bool,
                     onOpenSettings: (() -> Void)?) {
             self.onOpenSettings = onOpenSettings
@@ -130,7 +136,7 @@ final class DictationHUD {
                 detail.stringValue = ""
             case .listening:
                 title.stringValue = strings.listening
-                detail.stringValue = "\(strings.stopHint) · \(strings.cancelHint)"
+                detail.stringValue = "\(listeningHint ?? strings.stopHint) · \(strings.cancelHint)"
             case .processing:
                 title.stringValue = strings.processing
                 detail.stringValue = strings.cancelHint
@@ -140,6 +146,10 @@ final class DictationHUD {
                 icon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill",
                                      accessibilityDescription: nil)
                 icon.contentTintColor = .systemOrange
+            }
+            if let sessionDetail, !sessionDetail.isEmpty {
+                detail.stringValue = detail.stringValue.isEmpty
+                    ? sessionDetail : "\(detail.stringValue) · \(sessionDetail)"
             }
             setAccessibilityLabel([title.stringValue, detail.stringValue]
                 .filter { !$0.isEmpty }.joined(separator: ". "))
