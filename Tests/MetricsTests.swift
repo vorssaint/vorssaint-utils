@@ -21335,6 +21335,60 @@ struct MetricsTests {
                "a container an earlier version left world readable is tightened on the next write")
         try? FileManager.default.removeItem(at: privateRoot)
 
+        // MARK: File-promise fallback coordination
+
+        // A non-item-based receiver can report several files through one
+        // reader callback sequence. A first failure must wait for the later
+        // success, and the successful promise must discard the direct
+        // fallback while still reporting the partial failure once the batch
+        // is complete.
+        let multiFileFallback = ShelfPromiseFallbackCoordinator(
+            items: ["subject"], receiverCount: 1)
+        multiFileFallback.registerReceiver(expectedFileCount: 2)
+        let firstFailure = multiFileFallback.recordFailure()
+        expect(firstFailure.fallback == nil && !firstFailure.reportFailure,
+               "a failed file waits for the remaining callbacks")
+        let laterSuccess = multiFileFallback.recordSuccess()
+        expect(laterSuccess.discardFallback == ["subject"]
+                && laterSuccess.fallback == nil
+                && !laterSuccess.reportFailure,
+               "a later success consumes the direct fallback without early feedback")
+        let multiFileCompletion = multiFileFallback.finishRegistration()
+        expect(multiFileCompletion?.reportFailure == true,
+               "a completed partial promise reports the failed file once")
+
+        // The reverse order must have the same result: success suppresses the
+        // fallback, but a later failed file still produces feedback instead of
+        // disappearing behind the already-consumed success.
+        let reverseOrderFallback = ShelfPromiseFallbackCoordinator(
+            items: ["subject"], receiverCount: 1)
+        reverseOrderFallback.registerReceiver(expectedFileCount: 2)
+        let firstSuccess = reverseOrderFallback.recordSuccess()
+        expect(firstSuccess.discardFallback == ["subject"]
+                && !firstSuccess.reportFailure,
+               "an early success suppresses fallback without early feedback")
+        let laterFailure = reverseOrderFallback.recordFailure()
+        expect(!laterFailure.reportFailure,
+               "a later failure waits until registration is complete")
+        let reverseCompletion = reverseOrderFallback.finishRegistration()
+        expect(reverseCompletion?.fallback == nil
+                && reverseCompletion?.reportFailure == true,
+               "a later failure after success is reported at batch completion")
+
+        // A completely failed multi-receiver batch still uses the direct
+        // representation, but only after every expected file callback fails.
+        let allFailureFallback = ShelfPromiseFallbackCoordinator(
+            items: ["image"], receiverCount: 2)
+        allFailureFallback.registerReceiver(expectedFileCount: 2)
+        allFailureFallback.registerReceiver(expectedFileCount: 1)
+        _ = allFailureFallback.recordFailure()
+        _ = allFailureFallback.recordFailure()
+        let finalFailure = allFailureFallback.recordFailure()
+        let allFailureCompletion = allFailureFallback.finishRegistration()
+        expect(finalFailure.fallback == nil && allFailureCompletion?.fallback == ["image"]
+                && allFailureCompletion?.reportFailure == false,
+               "the direct fallback is deferred until every promised file fails")
+
         // MARK: Result
 
         // MARK: Every defaults suite stays inside a namespace build.sh sweeps

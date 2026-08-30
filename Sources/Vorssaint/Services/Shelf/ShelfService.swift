@@ -103,48 +103,7 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    /// Direct representations are held until every promise receiver has
-    /// reported. A successful receiver suppresses the fallback, so one failed
-    /// attachment cannot add a stray subject while another attachment lands.
-    private final class PromiseFallbackState {
-        enum FailureAction {
-            case wait
-            case fallback([Item])
-            case report
-        }
-
-        let items: [Item]
-        private let lock = NSLock()
-        private let receiverCount: Int
-        private var resolvedReceivers = Set<Int>()
-        private var hasSuccess = false
-        private var fallbackConsumed = false
-
-        init(items: [Item], receiverCount: Int) {
-            self.items = items
-            self.receiverCount = receiverCount
-        }
-
-        func recordSuccess(for receiverID: Int) -> [Item]? {
-            lock.lock()
-            defer { lock.unlock() }
-            guard resolvedReceivers.insert(receiverID).inserted else { return nil }
-            hasSuccess = true
-            guard !fallbackConsumed else { return nil }
-            fallbackConsumed = true
-            return items.isEmpty ? nil : items
-        }
-
-        func recordFailure(for receiverID: Int) -> FailureAction {
-            lock.lock()
-            defer { lock.unlock() }
-            guard resolvedReceivers.insert(receiverID).inserted else { return .wait }
-            guard resolvedReceivers.count == receiverCount else { return .wait }
-            guard !hasSuccess, !fallbackConsumed else { return .report }
-            fallbackConsumed = true
-            return items.isEmpty ? .report : .fallback(items)
-        }
-    }
+    private typealias PromiseFallbackState = ShelfPromiseFallbackCoordinator<Item>
 
     @Published private(set) var items: [Item] = [] {
         didSet {
@@ -1732,63 +1691,48 @@ final class ShelfService: ObservableObject {
         guard !promises.isEmpty else { return false }
         let fallbackState = PromiseFallbackState(items: fallbackItems,
                                                  receiverCount: promises.count)
-        var scheduled = false
-        for (receiverID, promise) in promises.enumerated() {
-            // A receiver can represent more than one file, so keep its
-            // staging directory alive until the existing temp-file sweep.
-            // Removing it from the first callback could delete a later file
-            // that is still being materialized by the same receiver.
-            let destination = tempDir.appendingPathComponent("Promise-\(UUID().uuidString)",
-                                                             isDirectory: true)
-            guard (try? FileManager.default.createDirectory(
-                at: destination,
-                withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o700])) != nil else {
-                switch fallbackState.recordFailure(for: receiverID) {
-                case .wait:
-                    continue
-                case let .fallback(items):
-                    fallbackPromisedItems(items, mergingInto: targetID)
-                case .report:
-                    reportPromiseFailure()
-                }
-                continue
+        // Apple requires all receivers from one drag to use the same
+        // destination. The reader still runs once per promised file, so the
+        // fallback barrier counts the fileNames reported after each receiver
+        // is activated rather than counting receivers themselves.
+        let destination = tempDir.appendingPathComponent("Promise-\(UUID().uuidString)",
+                                                         isDirectory: true)
+        guard (try? FileManager.default.createDirectory(
+            at: destination,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700])) != nil else {
+            if fallbackItems.isEmpty {
+                reportPromiseFailure()
+                return false
             }
-            scheduled = true
+            return fallbackPromisedItems(fallbackItems, mergingInto: targetID)
+        }
+
+        for promise in promises {
             promise.receivePromisedFiles(atDestination: destination,
                                          options: [:],
                                          operationQueue: promiseOperationQueue) { [weak self] url, error in
                 guard let self else { return }
                 guard error == nil else {
                     try? FileManager.default.removeItem(at: url)
-                    switch fallbackState.recordFailure(for: receiverID) {
-                    case .wait:
-                        return
-                    case let .fallback(items):
-                        self.fallbackPromisedItems(items, mergingInto: targetID)
-                    case .report:
-                        self.reportPromiseFailure()
-                    }
+                    let outcome = fallbackState.recordFailure()
+                    self.applyPromiseFallback(outcome, mergingInto: targetID)
                     return
                 }
                 guard let storedURL = self.storePromisedFile(url) else {
                     try? FileManager.default.removeItem(at: url)
-                    switch fallbackState.recordFailure(for: receiverID) {
-                    case .wait:
-                        return
-                    case let .fallback(items):
-                        self.fallbackPromisedItems(items, mergingInto: targetID)
-                    case .report:
-                        self.reportPromiseFailure()
-                    }
+                    let outcome = fallbackState.recordFailure()
+                    self.applyPromiseFallback(outcome, mergingInto: targetID)
                     return
                 }
                 let title = url.lastPathComponent
                 try? FileManager.default.removeItem(at: url)
-                let fallback = fallbackState.recordSuccess(for: receiverID)
+                let outcome = fallbackState.recordSuccess()
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
-                    if let fallback { self.discardOwnedPayloads(in: fallback) }
+                    if let fallback = outcome.discardFallback {
+                        self.discardOwnedPayloads(in: fallback)
+                    }
                     let item = self.fileItem(for: storedURL, title: title)
                     if let targetID {
                         if self.merge([item], into: targetID) {
@@ -1812,10 +1756,32 @@ final class ShelfService: ObservableObject {
                             return
                         }
                     }
+                    if outcome.reportFailure {
+                        self.reportPromiseFailure()
+                    }
                 }
             }
+            // `fileNames` is populated by AppKit when the receiver is
+            // activated. Keep one defensive slot for an unusual receiver that
+            // does not publish names, so a receiver failure still resolves the
+            // batch instead of waiting forever.
+            fallbackState.registerReceiver(expectedFileCount: promise.fileNames.count)
         }
-        return scheduled
+
+        if let outcome = fallbackState.finishRegistration() {
+            applyPromiseFallback(outcome, mergingInto: targetID)
+        }
+        return true
+    }
+
+    private func applyPromiseFallback(_ outcome: PromiseFallbackState.CallbackOutcome,
+                                      mergingInto targetID: UUID?) {
+        if let fallback = outcome.fallback {
+            fallbackPromisedItems(fallback, mergingInto: targetID)
+        }
+        if outcome.reportFailure {
+            reportPromiseFailure()
+        }
     }
 
     /// Uses direct representations only after promise fulfillment fails. A
