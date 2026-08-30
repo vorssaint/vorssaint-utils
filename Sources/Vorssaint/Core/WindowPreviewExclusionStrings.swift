@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -134,5 +135,13 @@ extension WindowPreviewExclusionStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "當其中一個 App 位於前景時，視窗縮圖會暫停更新。"
+    )
+
+    static let ar = WindowPreviewExclusionStrings(
+        sectionTitle: "مصغّرات النوافذ",
+        listTitle: "الإيقاف المؤقت في هذه التطبيقات",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "تتوقف مصغّرات النوافذ عندما يكون أحد هذه التطبيقات في المقدمة."
     )
 }

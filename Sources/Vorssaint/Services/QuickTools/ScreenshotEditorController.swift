@@ -988,7 +988,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         // the hosting controller then maintains contentMinSize itself.
         let content = ScreenshotEditorView(model: model, controller: self)
             .frame(minWidth: minimumSize.width, minHeight: minimumSize.height)
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.appLayoutDirection())
         host.sizingOptions = [.minSize]
         let window = NSWindow(contentViewController: host)
         // One continuous surface: the canvas fills the window and the

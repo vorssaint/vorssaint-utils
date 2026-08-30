@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -165,5 +166,15 @@ extension BluetoothSleepStrings {
         restoreToggle: "Mac 喚醒時重新開啟藍牙",
         restoreCaption: "只在藍牙是由 Vorssaint 關閉時。",
         unsupported: "這部 Mac 沒有藍牙控制器。"
+    )
+
+    static let ar = BluetoothSleepStrings(
+        pageTitle: "بلوتوث عند السكون",
+        hubDescription: "يُوقف بلوتوث أثناء سكون الـ Mac، حتى لا تتصل به السماعات الموضوعة في الحقيبة.",
+        enable: "إيقاف بلوتوث عند سكون الـ Mac",
+        enableCaption: "إذا كان بلوتوث متوقفًا أصلًا قبل السكون فلن يُمس، وسيبقى متوقفًا عند الاستيقاظ.",
+        restoreToggle: "إعادة تشغيل بلوتوث عند استيقاظ الـ Mac",
+        restoreCaption: "فقط إذا كان Vorssaint هو من أوقفه.",
+        unsupported: "لا يحتوي هذا الـ Mac على وحدة بلوتوث."
     )
 }

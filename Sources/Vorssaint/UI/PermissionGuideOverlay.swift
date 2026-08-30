@@ -47,7 +47,7 @@ final class PermissionGuideOverlay {
             self?.dismiss()
         }
 
-        let host = NSHostingView(rootView: view)
+        let host = NSHostingView(rootView: view.appLayoutDirection())
         let size = host.fittingSize
         let screen = NSScreen.main ?? NSScreen.screens.first
         let visible = screen?.visibleFrame ?? .zero

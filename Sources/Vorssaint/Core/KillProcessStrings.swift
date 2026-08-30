@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -487,5 +488,38 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "無法結束處理程序",
         killFailedMessage: "該處理程序可能已經結束，或需要額外的權限。",
         adminPromptFormat: "Vorssaint 需要管理員權限才能結束「%@」。"
+    )
+
+    static let ar = KillProcessFeatureStrings(
+        pageTitle: "إنهاء العمليات",
+        browseSubtitle: "استعراض وإنهاء",
+        hubDescription: "ابحث في العمليات الجارية وأجبرها على الإنهاء أو أعِد تشغيلها أو أنهِ شجرة العمليات",
+        searchPlaceholder: "التصفية حسب الاسم",
+        columnProcess: "العملية",
+        columnCPU: "المعالج",
+        columnMemory: "الذاكرة",
+        columnPID: "المعرّف",
+        groupToggle: "تجميع العمليات المرتبطة",
+        groupCaption: "يجمع العمليات المساعِدة تحت التطبيق المسؤول عنها.",
+        commandBarToggle: "الإظهار في شريط الأوامر",
+        commandBarCaption: "يضيف العمليات الجارية إلى شريط الأوامر، لتتمكن من العثور عليها وإنهائها دون فتح الإعدادات.",
+        refreshTooltip: "تحديث",
+        pidLabelFormat: "المعرّف %d",
+        processCountFormat: "%d عملية",
+        killButton: "إنهاء",
+        forceKillButton: "إنهاء إجباري",
+        killAllFormat: "إنهاء كل «%@»",
+        killTreeButton: "إنهاء شجرة العمليات",
+        restartButton: "إعادة التشغيل",
+        copyPID: "نسخ المعرّف",
+        copyPath: "نسخ المسار",
+        emptyStateTitle: "لم يتم العثور على عمليات",
+        confirmKillFormat: "إنهاء %@؟",
+        confirmForceKillFormat: "إنهاء %@ إجباريًا؟",
+        confirmKillAllFormat: "إنهاء كل عمليات «%@»؟",
+        confirmKillTreeFormat: "إنهاء %@ وكل العمليات المتفرعة عنه؟",
+        killFailedTitle: "تعذّر إنهاء العملية",
+        killFailedMessage: "قد تكون العملية قد انتهت بالفعل أو تتطلب صلاحيات إضافية.",
+        adminPromptFormat: "يحتاج Vorssaint إلى صلاحيات المسؤول لإنهاء «%@»."
     )
 }

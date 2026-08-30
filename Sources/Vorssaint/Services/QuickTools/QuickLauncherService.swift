@@ -325,7 +325,7 @@ final class QuickLauncherService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: QuickLauncherView())
+        let host = NSHostingController(rootView: QuickLauncherView().appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

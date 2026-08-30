@@ -213,3 +213,25 @@ struct BrandBadge: View {
         .frame(width: size, height: size)
     }
 }
+
+/// Mirrors the interface for right-to-left languages. macOS only flips an app on
+/// its own when the *system* language is right to left, and Vorssaint picks its
+/// language from its own setting, so every window and panel root applies this.
+struct AppLayoutDirection: ViewModifier {
+    @ObservedObject private var l10n = L10n.shared
+
+    func body(content: Content) -> some View {
+        content.environment(\.layoutDirection,
+                            l10n.language.isRightToLeft ? .rightToLeft : .leftToRight)
+    }
+}
+
+extension View {
+    /// Applied where SwiftUI meets AppKit, so the whole tree below follows the
+    /// reading order of the chosen language.
+    func appLayoutDirection() -> MirroredView<Self> { modifier(AppLayoutDirection()) }
+}
+
+/// What `appLayoutDirection()` produces. Spelled out for the few AppKit hosts
+/// that name their root view's type because they replace it in place.
+typealias MirroredView<Content: View> = ModifiedContent<Content, AppLayoutDirection>

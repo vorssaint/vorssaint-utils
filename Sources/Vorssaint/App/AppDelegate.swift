@@ -351,7 +351,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // dismissal, right-click menus and live Settings previews stay predictable.
         popover.animates = false
         popover.delegate = self
-        let host = NSHostingController(rootView: MenuPanelView())
+        let host = NSHostingController(rootView: MenuPanelView().appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         AppAppearanceController.shared.follow(panel: popover)
@@ -1318,7 +1318,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // dismissal, so it stays open beside Settings for a live preview.
         let createdWindow = settingsWindow == nil
         if settingsWindow == nil {
-            let host = NSHostingController(rootView: SettingsView())
+            let host = NSHostingController(rootView: SettingsView().appLayoutDirection())
             // Empty on purpose: any automatic option here (.intrinsicContentSize,
             // .maxSize, .preferredContentSize) lets SwiftUI's content - which
             // varies wildly page to page, from a short toggle list to Kill
@@ -1373,7 +1373,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         closePopover()
         let host = NSHostingController(rootView: FeedbackView(initialKind: kind) { [weak self] in
             self?.feedbackWindow?.close()
-        })
+        }.appLayoutDirection())
         if let window = feedbackWindow {
             window.contentViewController = host
         } else {
@@ -1522,7 +1522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let host = NSHostingController(rootView: OnboardingView(mode: mode) { [weak self] in
             self?.markOnboardingComplete()
             self?.onboardingWindow?.close()
-        })
+        }.appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         let isFirstRun = !UserDefaults.standard.bool(forKey: DefaultsKey.hasOnboarded)
@@ -1584,7 +1584,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     }
                 }
             }
-        ))
+        ).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = L10n.shared.s.highlightsTitle
@@ -1636,7 +1636,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.markUpdateShowcaseIntroSeen()
                 self?.updateShowcaseWindow?.close()
             }
-        ))
+        ).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = L10n.shared.s.updateShowcaseTitle
@@ -1682,7 +1682,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.markSupportUpdateIntroSeen()
                 self?.supportIntroWindow?.close()
             }
-        ))
+        ).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = L10n.shared.s.discordIntroTitle
@@ -1747,7 +1747,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             onCancel: { [weak self] in
                 self?.updatePreviewWindow?.close()
             }
-        ))
+        ).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         let window = NSWindow(contentViewController: host)
         window.title = L10n.shared.s.tabReleaseNotes

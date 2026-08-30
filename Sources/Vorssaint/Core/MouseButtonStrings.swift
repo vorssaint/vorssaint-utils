@@ -45,6 +45,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -386,5 +387,31 @@ extension MouseButtonFeatureStrings {
         panelCaption: "額外按鍵和側滾輪方向會按下你選擇的按鍵組合。",
         sideWheelLeftName: "側滾輪向左",
         sideWheelRightName: "側滾輪向右"
+    )
+
+    static let ar = MouseButtonFeatureStrings(
+        pageTitle: "اختصارات أزرار الماوس",
+        hubDescription: "تضغط الأزرار الإضافية واتجاهات العجلة الجانبية مجموعة مفاتيح تختارها.",
+        enableLabel: "استخدام الأزرار الإضافية كاختصارات",
+        enableCaption: "يمكن لكل زر إضافي أو اتجاه للعجلة الجانبية أن يضغط مجموعة مفاتيح نيابةً عنك. وما دام له اختصار، فسيتوقف عن أداء وظيفته السابقة.",
+        addButton: "إضافة زر أو عجلة جانبية",
+        captureWaiting: "اضغط الآن زرًا إضافيًا أو حرّك العجلة الجانبية.",
+        captureCancel: "إلغاء",
+        captureBlind: "لا يستطيع Vorssaint مراقبة الماوس في الوقت الحالي.",
+        captureUnsupported: "لا يمكن تعيين اختصار لهذا المدخل. استخدم زرًا إضافيًا أو اتجاهًا للعجلة الجانبية.",
+        captureWheel: "هذا الزر يفتح القائمة الدائرية أصلًا. اختر زرًا آخر، أو حرّره من هناك أولًا.",
+        captureExists: "هذا الزر أو الاتجاه موجود في القائمة أدناه.",
+        captureHint: "إذا لم يحدث شيء، فقد يكون برنامج الماوس الخاص بك يستخدم هذا الزر بالفعل.",
+        backButtonName: "الزر الجانبي للخلف",
+        forwardButtonName: "الزر الجانبي للأمام",
+        otherButtonFormat: "الزر %d",
+        setShortcutButton: "تعيين اختصار",
+        removeButton: "إزالة",
+        emptyCaption: "لا توجد اختصارات بعد. أضِف زرًا أو اتجاهًا للعجلة الجانبية.",
+        rowWheelNote: "هذا الزر يفتح القائمة الدائرية حاليًا، لذا فالاختصار في الانتظار.",
+        manageButton: "الإعداد…",
+        panelCaption: "تضغط الأزرار الإضافية واتجاهات العجلة الجانبية مجموعات مفاتيح تختارها.",
+        sideWheelLeftName: "العجلة الجانبية لليسار",
+        sideWheelRightName: "العجلة الجانبية لليمين"
     )
 }

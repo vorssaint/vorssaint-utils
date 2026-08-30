@@ -33,7 +33,7 @@ final class QRResultController {
             strings: strings,
             copy: { [weak self] in self?.copy(reading.payload) },
             open: { [weak self] in reading.url.map { self?.open($0) } })
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.appLayoutDirection())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 

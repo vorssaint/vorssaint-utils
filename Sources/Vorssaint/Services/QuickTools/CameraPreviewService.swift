@@ -296,7 +296,7 @@ final class CameraPreviewService: ObservableObject {
         panel.isOpaque = false
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CameraPreviewView())
+        let host = NSHostingController(rootView: CameraPreviewView().appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

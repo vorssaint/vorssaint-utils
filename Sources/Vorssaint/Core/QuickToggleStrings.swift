@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -417,5 +418,33 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "啟動螢幕保護程式",
         screenSaverCaption: "在所有顯示器上立即啟動。",
         actionFailed: "無法完成。"
+    )
+
+    static let ar = QuickToggleFeatureStrings(
+        pageTitle: "التبديلات السريعة",
+        hubDescription: "إجراءات بنقرة واحدة مثل الوضع الداكن والمهملات",
+        panelCaption: "إجراءات نظام بنقرة واحدة في لوحة شريط القائمة وفي اللوحة السريعة.",
+        darkModeToDark: "التبديل إلى الوضع الداكن",
+        darkModeToLight: "التبديل إلى الوضع الفاتح",
+        darkModeCaption: "يغيّر مظهر النظام بأكمله.",
+        emptyTrashTitle: "إفراغ المهملات",
+        emptyTrashCaption: "يزيل كل شيء من المهملات.",
+        emptyTrashConfirmTitle: "إفراغ المهملات؟",
+        emptyTrashConfirmMessage: "ستُزال كل العناصر الموجودة في المهملات. ولا يمكن التراجع عن ذلك.",
+        emptyTrashConfirmButton: "إفراغ المهملات",
+        ejectTitle: "إخراج كل الأقراص",
+        ejectCaption: "يُخرج كل قرص خارجي بأمان.",
+        hiddenFilesShow: "إظهار الملفات المخفية",
+        hiddenFilesHide: "إخفاء الملفات المخفية",
+        desktopIconsHide: "إخفاء أيقونات سطح المكتب",
+        desktopIconsShow: "إظهار أيقونات سطح المكتب",
+        finderRestartCaption: "يُعاد تشغيل Finder لتطبيق ذلك.",
+        lockScreenTitle: "قفل الشاشة",
+        lockScreenCaption: "يطلب كلمة السر للعودة.",
+        displayOffTitle: "إيقاف الشاشة",
+        displayOffCaption: "يواصل الـ Mac عمله والشاشة مطفأة.",
+        screenSaverTitle: "بدء حافظة الشاشة",
+        screenSaverCaption: "تبدأ فورًا على كل الشاشات.",
+        actionFailed: "تعذّر الإكمال."
     )
 }

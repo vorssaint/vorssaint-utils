@@ -1,0 +1,23 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "يستخدم Vorssaint الأتمتة لنقل الملفات في Finder، وإرسال العناصر إلى المهملات، وفتح أوامر Terminal عندما تطلب إجراءات Homebrew.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "يصل Vorssaint إلى صوت كل تطبيق على حدة لضبط مستوى صوته في الخالط فقط. ولا يُسجَّل شيء ولا يغادر أي شيء الـ Mac الخاص بك.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "يستخدم Vorssaint بلوتوث لقراءة مستوى بطارية الملحقات الموصولة فقط. ولا يغادر أي شيء الـ Mac الخاص بك.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "يسجّل Vorssaint الميكروفون فقط عندما تفعّله لتسجيل الشاشة. ويبقى الصوت على الـ Mac الخاص بك ما لم تختر إنشاء رابط مؤقت.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "يعرض Vorssaint الكاميرا في نافذة المعاينة التي تفتحها فقط، لتتحقق من مظهرك قبل المكالمة. ولا يُسجَّل شيء ولا يغادر أي شيء الـ Mac الخاص بك.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "يفحص Vorssaint البيانات الوصفية المحلية في مجلد التنزيلات لمراجعة ملفات WhatsApp المؤكدة التي تختارها أو تنظيمها أو نقلها إلى المهملات فقط.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";
+"NSDocumentsFolderUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";
+"NSNetworkVolumesUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";
+"NSRemovableVolumesUsageDescription" = "ينظّم Vorssaint تنزيلات WhatsApp المؤكدة في مجلد وجهة تختاره صراحةً.";

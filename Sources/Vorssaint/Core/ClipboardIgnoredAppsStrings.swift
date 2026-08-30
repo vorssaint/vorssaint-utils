@@ -26,6 +26,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -120,5 +121,12 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         caption: "在這些 App 裡複製的內容都不會存進歷史。"
+    )
+
+    static let ar = ClipboardIgnoredAppsStrings(
+        listTitle: "التطبيقات المستثناة",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "لا يُحفظ أي شيء تنسخه في هذه التطبيقات ضمن السجل."
     )
 }

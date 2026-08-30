@@ -8,7 +8,7 @@ import SwiftUI
 /// feature owns no window, observer or timer.
 enum BrightnessOSD {
     private static var panel: NSPanel?
-    private static var host: NSHostingController<BrightnessOSDView>?
+    private static var host: NSHostingController<MirroredView<BrightnessOSDView>>?
     private static var dismissWork: DispatchWorkItem?
     private static var generation = 0
 
@@ -28,12 +28,13 @@ enum BrightnessOSD {
         // shows dozens of updates a second, and rebuilding the SwiftUI host
         // for each would burn CPU for no visual difference.
         let panel = ensurePanel()
-        let host: NSHostingController<BrightnessOSDView>
+        let host: NSHostingController<MirroredView<BrightnessOSDView>>
         if let existing = Self.host {
-            existing.rootView = BrightnessOSDView(brightness: brightness)
+            existing.rootView = BrightnessOSDView(brightness: brightness).appLayoutDirection()
             host = existing
         } else {
-            host = NSHostingController(rootView: BrightnessOSDView(brightness: brightness))
+            host = NSHostingController(rootView: BrightnessOSDView(brightness: brightness)
+                .appLayoutDirection())
             Self.host = host
             panel.contentViewController = host
         }

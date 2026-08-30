@@ -33,6 +33,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -168,5 +169,15 @@ extension PermissionGuideStrings {
         waiting: "正在等待權限…",
         granted: "已授予權限！",
         closeHelp: "關閉"
+    )
+
+    static let ar = PermissionGuideStrings(
+        title: "بقيت خطوة واحدة",
+        stepOpen: "فتح macOS «إعدادات النظام» على القائمة الصحيحة.",
+        stepToggle: "فعّل Vorssaint في تلك القائمة.",
+        stepReturn: "عُد إلى هنا. ستلاحظ هذه البطاقة الأمر تلقائيًا.",
+        waiting: "في انتظار الإذن…",
+        granted: "تم منح الإذن!",
+        closeHelp: "إغلاق"
     )
 }

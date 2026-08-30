@@ -88,12 +88,13 @@ silently fall out of sync.
 
 Vorssaint ships these locales today: English (US), Português (Brasil),
 Türkçe, Русский, Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文,
-繁體中文（台灣） and 繁體中文（香港）. The non-base translations live in
+繁體中文（台灣）, 繁體中文（香港） and العربية. The non-base translations live in
 `Core/Localizations/`. To add a language, add a case to `AppLanguage`, provide
 a complete `Strings` catalog and all feature-specific string catalogs, register
 the locale in `Resources/Info.plist`, add localized permission prompts under
 `Resources/<locale>.lproj/` when needed, and extend the localization coverage
-tests.
+tests. A right-to-left language also sets `AppLanguage.isRightToLeft`, which the
+window roots read through `appLayoutDirection()` to mirror the interface.
 
 ## Sensors on new chips
 

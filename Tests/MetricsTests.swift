@@ -305,6 +305,7 @@ struct MetricsTests {
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
             (.zhHK, "剪貼簿", "視窗排列", "工具", "提示"),
+            (.ar, "الحافظة", "تخطيط النوافذ", "الأدوات", "التنبيهات"),
         ]
         for (language, clipboardTitle, windowTitle, utilitiesTitle, alertsTitle) in featureTitles {
             expect(FeatureStrings.clipboard(language).title == clipboardTitle,
@@ -5661,7 +5662,7 @@ struct MetricsTests {
         let sizeTargetStrings: [(String, Strings)] = [
             ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
             ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
-            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
+            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW), ("ar", .ar),
         ]
         for (name, strings) in sizeTargetStrings {
             expect(!strings.mediaSizingResolution.isEmpty
@@ -11003,9 +11004,12 @@ struct MetricsTests {
             (.ko, .ko),
             (.zhHans, .zhHans),
             (.zhTW, .zhTW),
-            (.zhHK, .zhHK)
+            (.zhHK, .zhHK),
+            (.ar, .ar)
         ]
         expect(localizedStrings.count == AppLanguage.allCases.count, "all app languages are covered by tests")
+        expect(AppLanguage.allCases.filter(\.isRightToLeft) == [.ar],
+               "Arabic is the only right-to-left interface language")
         for (language, strings) in localizedStrings {
             let prefix = "localization \(language.rawValue)"
             expect(strings.quickToolsTab == strings.launcherName,
@@ -12837,6 +12841,7 @@ struct MetricsTests {
                 case .zhHans: return .zhHans
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK
+                case .ar: return .ar
                 }
             }()
             expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty
