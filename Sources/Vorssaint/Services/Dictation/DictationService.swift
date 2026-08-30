@@ -384,14 +384,20 @@ final class DictationService: ObservableObject {
     private struct Target {
         let pid: pid_t
         let element: AXUIElement?
+        let focusIdentity: DictationFocusIdentity?
 
         static func capture() -> Target? {
             guard let front = NSWorkspace.shared.frontmostApplication else { return nil }
             let pid = front.processIdentifier
-            guard AXIsProcessTrusted() else { return Target(pid: pid, element: nil) }
+            guard AXIsProcessTrusted() else {
+                return Target(pid: pid, element: nil, focusIdentity: nil)
+            }
             let app = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(app, 0.25)
-            return Target(pid: pid, element: focusedElement(in: app))
+            let element = focusedElement(in: app)
+            return Target(pid: pid,
+                          element: element,
+                          focusIdentity: element.flatMap(identity(for:)))
         }
 
         var isFocused: Bool {
@@ -400,7 +406,10 @@ final class DictationService: ObservableObject {
             let app = AXUIElementCreateApplication(pid)
             AXUIElementSetMessagingTimeout(app, 0.25)
             guard let current = Self.focusedElement(in: app) else { return false }
-            return CFEqual(element, current)
+            if CFEqual(element, current) { return true }
+            guard let focusIdentity,
+                  let currentIdentity = Self.identity(for: current) else { return false }
+            return focusIdentity.matches(currentIdentity)
         }
 
         private static func focusedElement(in app: AXUIElement) -> AXUIElement? {
@@ -411,6 +420,48 @@ final class DictationService: ObservableObject {
                   CFGetTypeID(value) == AXUIElementGetTypeID()
             else { return nil }
             return (value as! AXUIElement)
+        }
+
+        private static func identity(for element: AXUIElement) -> DictationFocusIdentity? {
+            guard let role = stringAttribute(kAXRoleAttribute as CFString, from: element) else {
+                return nil
+            }
+            return DictationFocusIdentity(
+                role: role,
+                subrole: stringAttribute(kAXSubroleAttribute as CFString, from: element),
+                identifier: stringAttribute(kAXIdentifierAttribute as CFString, from: element),
+                domIdentifier: stringAttribute("AXDOMIdentifier" as CFString, from: element),
+                placeholder: stringAttribute("AXPlaceholderValue" as CFString, from: element),
+                description: stringAttribute(kAXDescriptionAttribute as CFString, from: element),
+                frame: frame(of: element))
+        }
+
+        private static func stringAttribute(_ attribute: CFString,
+                                            from element: AXUIElement) -> String? {
+            var value: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success,
+                  let string = value as? String else { return nil }
+            let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        private static func frame(of element: AXUIElement) -> CGRect? {
+            var positionValue: CFTypeRef?
+            var sizeValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString,
+                                                &positionValue) == .success,
+                  AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString,
+                                                &sizeValue) == .success,
+                  let positionValue,
+                  let sizeValue,
+                  CFGetTypeID(positionValue) == AXValueGetTypeID(),
+                  CFGetTypeID(sizeValue) == AXValueGetTypeID() else { return nil }
+            var position = CGPoint.zero
+            var size = CGSize.zero
+            guard AXValueGetValue(positionValue as! AXValue, .cgPoint, &position),
+                  AXValueGetValue(sizeValue as! AXValue, .cgSize, &size) else { return nil }
+            return CGRect(x: position.x.rounded(), y: position.y.rounded(),
+                          width: size.width.rounded(), height: size.height.rounded())
         }
     }
 }

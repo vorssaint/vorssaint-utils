@@ -12624,6 +12624,22 @@ struct MetricsTests {
                     accessibilityGranted: true,
                     originalTargetIsFocused: false) == .copy(.focusChangedCopied),
                "missing Accessibility and changed focus copy instead of pasting elsewhere")
+        let originalWebField = DictationFocusIdentity(
+            role: "AXTextArea", subrole: nil, identifier: nil,
+            domIdentifier: "issue-comment", placeholder: "Leave a comment",
+            description: nil, frame: CGRect(x: 40, y: 80, width: 600, height: 180))
+        let recreatedWebField = DictationFocusIdentity(
+            role: "AXTextArea", subrole: nil, identifier: nil,
+            domIdentifier: "issue-comment", placeholder: "Leave a comment",
+            description: nil, frame: CGRect(x: 40, y: 80, width: 600, height: 180))
+        let differentWebField = DictationFocusIdentity(
+            role: "AXTextArea", subrole: nil, identifier: nil,
+            domIdentifier: "new-issue", placeholder: "Leave a comment",
+            description: nil, frame: CGRect(x: 40, y: 400, width: 600, height: 180))
+        expect(originalWebField.matches(recreatedWebField),
+               "dictation recognizes a browser field after AX recreates its wrapper")
+        expect(!originalWebField.matches(differentWebField),
+               "dictation still rejects a genuinely different browser field")
         let disabledDuringUpload = DictationLifecycle.transition(from: .processing, event: .disable)
         expect(disabledDuringUpload.state == .idle
                 && disabledDuringUpload.effects.contains(.cancelAll)
