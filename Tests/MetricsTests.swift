@@ -16477,7 +16477,8 @@ struct MetricsTests {
         // what makes disagreeing impossible, and pinning the spelling of
         // `a || b` here would go red on a rename that broke nothing.
         let panelButtonRow = menuPanelLines.firstIndex {
-            isCodeLine($0) && $0.contains("PanelToggleRow(title: buttonStrings.pageTitle,")
+            isCodeLine($0) && $0.contains("PanelToggleRow(")
+                && $0.contains("title: buttonStrings.pageTitle,")
         }.map {
             menuPanelLines[$0...].prefix(24).filter(isCodeLine).joined().filter { !$0.isWhitespace }
         } ?? ""
