@@ -60,6 +60,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 
@@ -78,6 +79,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -146,6 +148,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let zhHK = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
         allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+    )
+
+    static let ar = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "السماح للشاشة بالسكون",
+        allowDisplaySleepCaption: "يُبقي الـ Mac مستيقظًا بينما تتبع الشاشة مؤقّت سكونها المعتاد."
     )
 }
 
@@ -434,5 +441,16 @@ extension KeepAwakeAutomationStrings {
         matchAny: "任一",
         matchAll: "所有",
         automationCaptionAll: "只有當所有已選條件都符合時才啟動。"
+    )
+
+    static let ar = KeepAwakeAutomationStrings(
+        automationSection: "الأتمتة",
+        automationCaption: "تبدأ عند تحقق أي شرط محدد.",
+        automationOff: "متوقف",
+        externalDisplayToggle: "شاشة خارجية",
+        externalDisplayActive: "نشط أثناء توصيل شاشة خارجية",
+        powerToggle: "الطاقة",
+        powerActive: "نشط أثناء التوصيل بالطاقة",
+        automationActive: "نشط لتحقق أحد الشروط التلقائية"
     )
 }

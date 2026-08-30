@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -191,5 +192,17 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "未偵測到相機",
         permName: "相機",
         permExplain: "只在預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會離開你的 Mac。"
+    )
+
+    static let ar = CameraPreviewFeatureStrings(
+        pageTitle: "معاينة الكاميرا",
+        hubDescription: "يفتح مرآة عائمة تعرض الكاميرا",
+        panelCaption: "تحقّق من مظهرك قبل المكالمة",
+        openButton: "فتح المعاينة",
+        cameraMenuLabel: "الكاميرا",
+        deniedMessage: "الوصول إلى الكاميرا لـ Vorssaint مُعطّل في إعدادات النظام.",
+        noCameraMessage: "لم يتم اكتشاف أي كاميرا",
+        permName: "الكاميرا",
+        permExplain: "يعرض الكاميرا في نافذة المعاينة فقط، لتتحقق من مظهرك قبل المكالمة. لا يُسجَّل أي شيء ولا يغادر أي شيء الـ Mac."
     )
 }

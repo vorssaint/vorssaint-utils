@@ -108,7 +108,7 @@ final class ScreenshotQuickPreviewController {
             finishShowing()
             return
         }
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.appLayoutDirection())
         let size = Self.size(showingLink: model.sharedRecord != nil)
         let panel = ScreenshotQuickPreviewPanel(
             contentRect: CGRect(origin: .zero, size: size),
