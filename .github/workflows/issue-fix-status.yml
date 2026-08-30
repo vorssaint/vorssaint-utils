@@ -116,8 +116,13 @@ env:
   PENDING_LABEL: fixed (pending release)
   CONFIRM_LABEL: please confirm close
   # Labels this bot keeps its hands off entirely. JSON so a name with a space
-  # stays one name.
-  SKIP_LABELS: '["summary","half"]'
+  # stays one name. `half` is deliberately not one of them: a report whose
+  # landed part reaches a release is asked and timed like any other, because
+  # that part may be the one the reporter wanted, and silence leaves nothing to
+  # act on -- a remainder that still bites someone comes back as its own report.
+  # It only changes what the release comment says, below.
+  SKIP_LABELS: '["summary"]'
+  HALF_LABEL: half
   CONFIRM_DAYS: 14
 
 jobs:
@@ -378,22 +383,42 @@ jobs:
           # `gh issue list` never returns pull requests.
           gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
             --json number,author,labels \
-            | jq -r --argjson skip "$SKIP_LABELS" \
-                '.[] | select(any(.labels[].name; IN($skip[])) | not) | "\(.number) \(.author.login)"' \
+            | jq -r --argjson skip "$SKIP_LABELS" --arg half "$HALF_LABEL" \
+                '.[] | select(any(.labels[].name; IN($skip[])) | not)
+                     | "\(.number) \(.author.login) \(any(.labels[].name; . == $half))"' \
             > pending.txt
 
           # Everything waiting moves, including labels applied by hand. Waiting
           # means the fix is on main and no stable release had gone out since;
           # this is that release. Nothing here reads a commit, so an issue whose
           # label arrived without one is no longer stuck waiting forever.
-          while read -r number login; do
+          while read -r number login half; do
             [ -n "$number" ] || continue
 
             gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$CONFIRM_LABEL" --silent
             gh issue edit "$number" --remove-label "$PENDING_LABEL" || true
 
             # Expanded heredoc: keep the text free of backticks and `$`.
-            cat > comment.md <<COMMENT
+            if [ "$half" = true ]; then
+              # Asked about the half that landed, not about a fix it never got.
+              # Same timer as everything else.
+              cat > comment.md <<COMMENT
+          Part of what you reported is fixed, and that part is out now, in **$version**.
+
+          @$login, the rest of this issue is not fixed. The comment above names which part
+          that is, and it still stands after this release.
+
+          Could you update and say where that leaves you? The half that landed may be the
+          half you needed. If it is not, say what still happens on your Mac and the issue
+          goes back for another look.
+
+          If nothing arrives in two weeks the issue will be closed as it stands, including
+          the part that is still open. A comment reopens it at any point after that.
+
+          <!-- vorssaint-fix-status confirm=$TAG half=true -->
+          COMMENT
+            else
+              cat > comment.md <<COMMENT
           The fix for this is out now, in **$version**.
 
           @$login, could you update to that version and say whether it fixed things
@@ -408,6 +433,7 @@ jobs:
 
           <!-- vorssaint-fix-status confirm=$TAG -->
           COMMENT
+            fi
             gh issue comment "$number" --body-file comment.md
             echo "#$number: moved to $CONFIRM_LABEL on $TAG"
           done < pending.txt
