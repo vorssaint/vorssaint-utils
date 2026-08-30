@@ -903,6 +903,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
@@ -1062,7 +1063,8 @@ struct MouseSettings: View {
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
-            || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
+            || ((mouseButtonShortcutsEnabled || spacesEnabled)
+                && AppFeature.mouseButtonShortcuts.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
         return anyEngaged && !permissions.accessibility
     }

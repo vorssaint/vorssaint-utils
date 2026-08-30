@@ -198,7 +198,8 @@ extension AppFeature {
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .mouseNavigation: return [DefaultsKey.mouseNavigationEnabled]
-        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled]
+        case .mouseButtonShortcuts: return [DefaultsKey.mouseButtonShortcutsEnabled,
+                                            DefaultsKey.mouseSpacesGestureEnabled]
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
