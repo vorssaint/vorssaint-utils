@@ -357,6 +357,8 @@ enum DefaultsKey {
     static let panelNavigationEnabled = "panelNavigationEnabled" // legacy: the panel always navigates by sections since 3.1.8
     static let updateLastInstallFailure = "updateLastInstallFailure" // last installer step that failed (fail-copy etc.)
     static let windowLayoutHiddenActions = "windowLayoutHiddenActions" // comma-separated action ids hidden from the grid
+    static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
+    static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
 
@@ -421,6 +423,7 @@ enum DefaultsKey {
     static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
 
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause thumbnail capture while these apps are in front
+    static let diskEjectExcludedVolumes = "diskEjectExcludedVolumes" // volume names/UUIDs excluded from Eject all disks
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
     static let pastePlainShortcut = "pastePlainShortcut"
@@ -1011,6 +1014,8 @@ enum Defaults {
         DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,
         DefaultsKey.windowLayoutHiddenActions: "",
+        DefaultsKey.windowLayoutWindowGap: 0,
+        DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
@@ -1125,6 +1130,7 @@ enum Defaults {
         DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
+        DefaultsKey.diskEjectExcludedVolumes: [String](),
         DefaultsKey.pastePlainEnabled: false,
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
         DefaultsKey.finderRenameEnabled: false,
@@ -1666,6 +1672,18 @@ enum Defaults {
 
     static func sanitizedAutoQuitExceptions(_ bundleIDs: [String]) -> [String] {
         sanitizedBundleIdentifierList(mandatoryAutoQuitExceptionBundleIDs + bundleIDs)
+    }
+
+    static func sanitizedDiskExclusionList(_ list: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for raw in list {
+            let item = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = item.lowercased()
+            guard !item.isEmpty, seen.insert(lower).inserted else { continue }
+            result.append(item)
+        }
+        return result
     }
 
     static func sanitizedPanelItemOrder(_ raw: String, defaultOrder: [String]) -> [String] {

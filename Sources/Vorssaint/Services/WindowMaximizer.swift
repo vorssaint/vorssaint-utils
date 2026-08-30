@@ -239,10 +239,8 @@ final class WindowMaximizer: ObservableObject {
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
-        // Bounded AX inside the mouse tap: a hung app under the cursor must
-        // not stall the main thread (and with it every event tap) for the
-        // 6 second default timeout.
-        AXUIElementSetMessagingTimeout(system, 0.35)
+        // No cap here: on the system-wide element a timeout is the default for
+        // every question this process asks, whoever asks it (#938).
         var element: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success,
               let element

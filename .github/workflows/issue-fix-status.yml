@@ -7,11 +7,15 @@ name: Issue fix status
 #   comment
 #
 #   the next stable release                         ->  every issue still
-#   carrying that label becomes `please confirm`, and its reporter is asked
-#   to check that release
+#   carrying that label becomes `please confirm close`, and its reporter is
+#   asked to check that release
 #
 #   two weeks of silence after that                 ->  the issue is closed,
 #   after a comment saying so and how to reopen it
+#
+# A label put on by hand joins that at the second step: the daily job asks the
+# question the release sweep would have asked, and the same two weeks run from
+# that comment. Nothing is closed on a silence nobody was asked to break.
 #
 #   a description that closes its issue with a    ->  one comment on the pull
 #   keyword, or mentions one and references none        request, before it merges
@@ -45,16 +49,30 @@ name: Issue fix status
 # nothing either: one word from anyone stops it, and it never reads what that
 # word says.
 #
-# `please confirm` carries no version. The version lives in the comment, which
-# is the only part of this the reporter ever sees -- labels are silent, they
-# notify nobody, and a label per release would grow the repository's label list
-# without ever telling anyone anything.
+# `please confirm close` carries no version. The version lives in the comment,
+# which is the only part of this the reporter ever sees -- labels are silent,
+# they notify nobody, and a label per release would grow the repository's label
+# list without ever telling anyone anything.
+#
+# It says `close` because that is what the label is for and the only thing it
+# can lead to: an answer, or a close two weeks later. A bare `confirm` is a
+# bucket -- confirm a repro, confirm a design, confirm a duplicate -- and a
+# label that can mean three things is read as none of them.
 #
 # A `summary` issue is never touched by any of this, wherever it turns up: a
 # long-lived index has no reporter waiting on a build, and a pull request that
 # fixes one line of a fifty-line audit has not fixed the audit. They are also
 # the issues most often referenced, so the number that reaches these jobs most
 # is the one that must never be labelled or closed by them.
+#
+# A `half` issue is held back for the same reason at a smaller scale: two root
+# causes were reported together, one of them was fixed, and neither label above
+# is true of the other one. Labelling the whole report fixed signs for a
+# reporter who never got their half, and two weeks later this file would close
+# it on them. The label comes off when someone splits the report or lands the
+# rest; until then the fix status on it is a person's call, not this file's.
+# A closing keyword aimed at one is still shouted about, exactly as for
+# `summary` -- that is the case where GitHub, not this file, does the damage.
 #
 # Both labels and both comments are addressed to the person who filed the
 # report, and most of them are not developers. Nothing in what they read says
@@ -78,8 +96,10 @@ on:
     workflows: [Release]
     types: [completed]
   schedule:
-    # Once a day is enough for a two-week clock.
-    - cron: '23 7 * * *'
+    # Once a day is enough for a two-week clock, and late is as good as
+    # on time for one: GitHub queues the top of the hour heavily and runs
+    # it when it can, which costs this job nothing.
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 permissions:
@@ -94,8 +114,10 @@ env:
   GH_TOKEN: ${{ github.token }}
   GH_REPO: ${{ github.repository }}
   PENDING_LABEL: fixed (pending release)
-  CONFIRM_LABEL: please confirm
-  SKIP_LABEL: summary
+  CONFIRM_LABEL: please confirm close
+  # Labels this bot keeps its hands off entirely. JSON so a name with a space
+  # stays one name.
+  SKIP_LABELS: '["summary","half"]'
   CONFIRM_DAYS: 14
 
 jobs:
@@ -138,8 +160,10 @@ jobs:
             }
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
-            if jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
-              echo "#$number: $SKIP_LABEL, left alone"
+            skip=$(jq -r --argjson skip "$SKIP_LABELS" \
+                     'first(.labels[].name | select(IN($skip[]))) // empty' <<<"$issue")
+            if [ -n "$skip" ]; then
+              echo "#$number: $skip, left alone"
               continue
             fi
             jq -e --arg l "$PENDING_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null && continue
@@ -149,7 +173,7 @@ jobs:
             gh api "repos/$GH_REPO/issues/$number/labels" -f "labels[]=$PENDING_LABEL" --silent
 
             # One fix status at a time. An issue its reporter sent back is still
-            # carrying `please confirm` from the last release, and a new fix puts
+            # carrying `please confirm close` from the last release, and a fix puts
             # it behind the next one.
             if jq -e --arg l "$CONFIRM_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
               gh issue edit "$number" --remove-label "$CONFIRM_LABEL"
@@ -248,7 +272,8 @@ jobs:
             # GitHub closes a long-lived index on merge and nothing here would
             # have said a word. The skip belongs to the `missing` form alone.
             if [ "$form" != closing ] \
-               && jq -e --arg l "$SKIP_LABEL" 'any(.labels[]; .name == $l)' <<<"$issue" >/dev/null; then
+               && jq -e --argjson skip "$SKIP_LABELS" \
+                    'any(.labels[].name; IN($skip[]))' <<<"$issue" >/dev/null; then
               continue
             fi
             printf '%s\t%s\n' "$number" "$(jq -r '.title' <<<"$issue")" >> hits.txt
@@ -346,15 +371,15 @@ jobs:
 
           # Created once, if the repository has never had it. A release does not
           # mint a label -- the version it carries is in the comment below.
-          gh label create "$CONFIRM_LABEL" --color 7FCFCF \
+          gh label create "$CONFIRM_LABEL" --color 048c23 \
             --description "The fix is in a release; the reporter has two weeks to say whether that build fixed it" \
             || true   # already there
 
           # `gh issue list` never returns pull requests.
           gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
             --json number,author,labels \
-            | jq -r --arg l "$SKIP_LABEL" \
-                '.[] | select(any(.labels[]; .name == $l) | not) | "\(.number) \(.author.login)"' \
+            | jq -r --argjson skip "$SKIP_LABELS" \
+                '.[] | select(any(.labels[].name; IN($skip[])) | not) | "\(.number) \(.author.login)"' \
             > pending.txt
 
           # Everything waiting moves, including labels applied by hand. Waiting
@@ -402,25 +427,55 @@ jobs:
           echo "closing checks asked before $cutoff"
 
           gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
-            --json number,labels \
-            | jq -r --arg l "$SKIP_LABEL" \
-                '.[] | select(any(.labels[]; .name == $l) | not) | .number' \
+            --json number,author,labels \
+            | jq -r --argjson skip "$SKIP_LABELS" \
+                '.[] | select(any(.labels[].name; IN($skip[])) | not) | "\(.number) \(.author.login)"' \
             > waiting.txt
 
-          while read -r number; do
+          while read -r number login; do
             [ -n "$number" ] || continue
 
             comments=$(gh api --paginate "repos/$GH_REPO/issues/$number/comments" \
                          --jq '[.[] | {created_at, login: .user.login, body}]' | jq -s add)
 
-            # The clock starts when the reporter was asked, which is the comment,
-            # not the label -- a label notifies nobody, so an issue labelled by
-            # hand has never actually asked anyone anything. Without that comment
-            # this job leaves the issue alone forever, which is what makes it safe
-            # to point at a repository that has been labelled by hand.
+            # The clock starts when the reporter was asked, which is the comment
+            # and not the label -- a label notifies nobody, so a label applied by
+            # hand has asked no one anything yet. It gets asked here, in the same
+            # words the release sweep uses, and its two weeks start from that
+            # comment. Every issue carrying the label ends the same way, whoever
+            # put it there; the only thing the hand-applied ones lack is the
+            # question, so this writes it rather than closing on a silence the
+            # reporter was never told about.
             ask=$(jq -c '[.[] | select(.body | test("vorssaint-fix-status confirm="))] | last' <<<"$comments")
             if [ "$ask" = null ]; then
-              echo "::warning::#$number: carries $CONFIRM_LABEL with no recorded ask, left alone"
+              # Which release: the newest stable one. That is what the label
+              # claims and the only build the reporter can go and get.
+              TAG=$(gh release list --exclude-drafts --exclude-pre-releases \
+                      --limit 1 --json tagName --jq '.[0].tagName // empty')
+              if [ -z "$TAG" ]; then
+                echo "::warning::#$number: no stable release to ask about, left alone"
+                continue
+              fi
+              version=${TAG#v}
+
+              # Expanded heredoc: keep the text free of backticks and `$`.
+              cat > comment.md <<COMMENT
+          The fix for this is in **$version**.
+
+          @$login, could you update to that version and say whether it fixed things
+          on your Mac? We cannot tell from here — yours is the setup that found this.
+
+          Please say **how much of it is fixed**, not only whether it is. If part of what you
+          reported still happens, or something related turned up, say so here and the issue goes
+          back for another look — this is not a last call.
+
+          If nothing arrives in two weeks the issue will be closed as it stands, and a comment
+          reopens it at any point after that.
+
+          <!-- vorssaint-fix-status confirm=$TAG -->
+          COMMENT
+              gh issue comment "$number" --body-file comment.md
+              echo "#$number: labelled by hand, asked about $version, two weeks start now"
               continue
             fi
             asked=$(jq -r '.created_at' <<<"$ask")

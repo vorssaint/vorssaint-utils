@@ -8,11 +8,9 @@ import CoreGraphics
 final class FocusFollowsMouseService {
     static let shared = FocusFollowsMouseService()
 
-    private let systemElement: AXUIElement = {
-        let element = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(element, 0.25)
-        return element
-    }()
+    /// No cap on this one: on the system-wide element a timeout is the default
+    /// for every question this process asks, whoever asks it (#938).
+    private let systemElement = AXUIElementCreateSystemWide()
     private let queryQueue = DispatchQueue(label: "com.vorssaint.focus-follows-mouse")
     private var timer: Timer?
     private var mouseMonitor: Any?

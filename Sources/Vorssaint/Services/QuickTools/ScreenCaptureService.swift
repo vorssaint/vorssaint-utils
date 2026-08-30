@@ -205,24 +205,6 @@ final class ScreenCaptureService: ObservableObject {
             self.route(outcome, selected: options.selectedTool,
                        recorderAudio: options.recorderAudio)
         }
-        options.onSelectionChange = { [weak self, weak controller, weak options] in
-            guard let self, let controller, let options else { return }
-            self.replaceSelection(controller, options: options)
-        }
-    }
-
-    private func replaceSelection(_ controller: ScreenshotSelectionController,
-                                  options: ScreenCaptureSelectionOptions) {
-        guard selection === controller, self.options === options else { return }
-        controller.prepareForCapturePolicyChange()
-        selection = nil
-        controller.cancel()
-        DispatchQueue.main.async { [weak self, weak options] in
-            guard let self, let options, self.selection == nil,
-                  self.options === options,
-                  options.selectedTool.feature.isAvailable else { return }
-            self.startSelection(options: options)
-        }
     }
 
     private func route(_ outcome: ScreenshotSelectionController.Outcome,

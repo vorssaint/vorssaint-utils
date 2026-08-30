@@ -536,7 +536,9 @@ enum WindowEdgeSnapSupport {
 
             let targetFrame = WindowLayoutGeometry.rect(for: action,
                                                         current: screen.visibleFrame,
-                                                        visibleFrame: screen.visibleFrame)
+                                                        visibleFrame: screen.visibleFrame,
+                                                        windowGap: WindowLayoutGaps.windowGap,
+                                                        screenGap: WindowLayoutGaps.screenGap)
             return WindowEdgeSnapTarget(action: action,
                                         frame: targetFrame.integral,
                                         visibleFrame: screen.visibleFrame)
