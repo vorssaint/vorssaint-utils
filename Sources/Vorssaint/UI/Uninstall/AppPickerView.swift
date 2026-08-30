@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 
 struct AppPickerView: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @State private var apps: [InstalledApps.InstalledApp] = []
     @State private var query = ""
     @State private var isLoading = false
@@ -116,20 +117,27 @@ struct AppPickerView: View {
             .frame(maxWidth: .infinity)
             .frame(height: compact ? 150 : 360)
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(apps) { app in
-                        Button {
-                            onSelect(app.url)
-                        } label: {
-                            AppPickerRow(app: app, compact: compact)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(apps) { app in
+                            Button {
+                                onSelect(app.url)
+                            } label: {
+                                AppPickerRow(app: app, compact: compact)
+                            }
+                            .buttonStyle(.plain)
+                            .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-\(app.url.path)") },
+                                              actions: PanelRowActions(activate: { onSelect(app.url) }))
+                            .id(app.url.path)
                         }
-                        .buttonStyle(.plain)
-                        .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-\(app.url.path)") },
-                                          actions: PanelRowActions(activate: { onSelect(app.url) }))
                     }
+                    .padding(.vertical, 3)
                 }
-                .padding(.vertical, 3)
+                .onChange(of: navigator.focus) { _, focus in
+                    guard let path = focusedAppPath(focus, in: apps) else { return }
+                    proxy.scrollTo(path, anchor: .center)
+                }
             }
             .frame(height: compact ? 235 : nil)
         }
@@ -145,6 +153,13 @@ struct AppPickerView: View {
                 isLoading = false
             }
         }
+    }
+
+    private func focusedAppPath(_ focus: PanelFocusTarget?, in apps: [InstalledApps.InstalledApp]) -> String? {
+        guard case .row(let row)? = focus,
+              row.section == keyboardSection,
+              let localID = row.local as? String else { return nil }
+        return apps.first { localID == "appPicker-\($0.url.path)" }?.url.path
     }
 }
 

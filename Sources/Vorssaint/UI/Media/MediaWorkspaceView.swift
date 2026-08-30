@@ -51,6 +51,7 @@ private enum MediaCompressionLevel: String, CaseIterable, Identifiable {
 
 struct MediaWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @ObservedObject private var media = MediaService.shared
     @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
@@ -152,9 +153,15 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: compact ? 10 : 14) {
             header
             toolPicker
-            ScrollView {
-                content
-                    .padding(.trailing, 1)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    content
+                        .padding(.trailing, 1)
+                }
+                .onChange(of: navigator.focus) { _, focus in
+                    guard let anchor = focusedContentAnchor(focus) else { return }
+                    proxy.scrollTo(anchor, anchor: .center)
+                }
             }
             .frame(maxHeight: compact ? 430 : .infinity)
         }
@@ -212,14 +219,34 @@ struct MediaWorkspaceView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-tool") : nil,
+                          actions: selectionActions(selectedToolBinding, values: MediaTool.allCases))
     }
 
     private var content: some View {
         VStack(alignment: .leading, spacing: compact ? 9 : 12) {
-            fileCard
-            optionsCard
-            actionRow
-            statusCard
+            fileCard.id("media-file")
+            optionsCard.id("media-options")
+            actionRow.id("media-actions")
+            statusCard.id("media-status")
+        }
+    }
+
+    private func focusedContentAnchor(_ focus: PanelFocusTarget?) -> String? {
+        guard compact,
+              case .row(let row)? = focus,
+              row.section == .utilities,
+              let localID = row.local as? String,
+              localID.hasPrefix("media-") else { return nil }
+        switch localID {
+        case "media-chooseInput", "media-clearInput", "media-chooseOutput":
+            return "media-file"
+        case "media-run", "media-editVideo", "media-cancel":
+            return "media-actions"
+        case "media-revealOutput", "media-copyText", "media-copySummary", "media-runAgain":
+            return "media-status"
+        default:
+            return "media-options"
         }
     }
 
@@ -318,7 +345,8 @@ struct MediaWorkspaceView: View {
                 sizingPicker(selection: $videoSizingRaw)
                 if videoSizing == .resolution {
                     compressionRow(value: $videoQuality)
-                    stepperInt(l10n.s.mediaMaxSize, value: $videoMaxDimension, range: 640...3840, step: 320, suffix: "px")
+                    stepperInt(l10n.s.mediaMaxSize, value: $videoMaxDimension, range: 640...3840, step: 320,
+                               suffix: "px", keyboardID: "media-videoMaxDimension")
                 } else {
                     targetSizeRow(value: $videoTargetMegabytes)
                 }
@@ -331,7 +359,8 @@ struct MediaWorkspaceView: View {
                 if gifSizing == .resolution {
                     fpsSliderRow(value: $gifFPS, range: 1...30)
                     HStack(spacing: 10) {
-                        stepperInt(l10n.s.mediaWidth, value: $gifWidth, range: 160...1600, step: 80, suffix: "px")
+                        stepperInt(l10n.s.mediaWidth, value: $gifWidth, range: 160...1600, step: 80,
+                                   suffix: "px", keyboardID: "media-gifWidth")
                     }
                 } else {
                     targetSizeRow(value: $gifTargetMegabytes)
@@ -339,7 +368,7 @@ struct MediaWorkspaceView: View {
                 Toggle(l10n.s.mediaLoopGIF, isOn: $gifLoops)
                     .toggleStyle(.checkbox)
                     .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-gifLoops") : nil,
-                                      actions: PanelRowActions(activate: { gifLoops.toggle() }))
+                                      actions: toggleActions($gifLoops))
             }
             .panelCard()
         case .imageCompressor:
@@ -353,6 +382,9 @@ struct MediaWorkspaceView: View {
                     Text("PDF").tag(MediaImageFormat.pdf.rawValue)
                 }
                 .pickerStyle(.segmented)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-imageFormat") : nil,
+                                  actions: selectionActions($imageFormatRaw,
+                                                           values: MediaImageFormat.allCases.map(\.rawValue)))
                 compressionRow(value: $imageQuality)
                 imageResizeSection
                 DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded,
@@ -369,7 +401,7 @@ struct MediaWorkspaceView: View {
                             Toggle(l10n.s.mediaStripMetadata, isOn: $imageStripMetadata)
                                 .toggleStyle(.checkbox)
                                 .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-stripMetadata") : nil,
-                                                  actions: PanelRowActions(activate: { imageStripMetadata.toggle() }))
+                                                  actions: toggleActions($imageStripMetadata))
                         }
                         imageBackgroundSection
                         imageWatermarkSection
@@ -377,7 +409,7 @@ struct MediaWorkspaceView: View {
                         Toggle(imageText.preserveDate, isOn: $imagePreserveModificationDate)
                             .toggleStyle(.checkbox)
                             .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-preserveDate") : nil,
-                                              actions: PanelRowActions(activate: { imagePreserveModificationDate.toggle() }))
+                                              actions: toggleActions($imagePreserveModificationDate))
                     }
                     .padding(.top, 6)
                     .disclosureIndent()
@@ -391,6 +423,8 @@ struct MediaWorkspaceView: View {
                     Text(l10n.s.mediaOCRFast).tag(false)
                 }
                 .pickerStyle(.segmented)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-ocrMode") : nil,
+                                  actions: selectionActions($textAccurate, values: [true, false]))
             }
             .panelCard()
         }
@@ -606,6 +640,9 @@ struct MediaWorkspaceView: View {
                     }
                 }
                 .labelsHidden()
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-profile") : nil,
+                                  actions: selectionActions($imageSelectedProfileID,
+                                                           values: [""] + imageProfiles.map(\.id)))
                 .onChange(of: imageSelectedProfileID) { _, value in
                     guard !value.isEmpty,
                           let profile = imageProfiles.first(where: { $0.id == value }) else { return }
@@ -778,19 +815,27 @@ struct MediaWorkspaceView: View {
                 Text(imageText.resizeExact).tag(MediaImageResizeKind.exact.rawValue)
             }
             .pickerStyle(.menu)
+            .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-resizeKind") : nil,
+                              actions: selectionActions($imageResizeKindRaw,
+                                                       values: MediaImageResizeKind.allCases.map(\.rawValue)))
             switch MediaImageResizeKind.sanitized(imageResizeKindRaw) {
             case .none:
                 EmptyView()
             case .maxDimension:
-                stepperInt(l10n.s.mediaMaxSize, value: $imageMaxDimension, range: 64...20_000, step: 128, suffix: "px")
+                stepperInt(l10n.s.mediaMaxSize, value: $imageMaxDimension, range: 64...20_000, step: 128,
+                           suffix: "px", keyboardID: "media-imageMaxDimension")
             case .width:
-                stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64, suffix: "px")
+                stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64,
+                           suffix: "px", keyboardID: "media-imageWidth")
             case .height:
-                stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64, suffix: "px")
+                stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64,
+                           suffix: "px", keyboardID: "media-imageHeight")
             case .exact:
                 HStack(spacing: 10) {
-                    stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64, suffix: "px")
-                    stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64, suffix: "px")
+                    stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64,
+                               suffix: "px", keyboardID: "media-imageExactWidth")
+                    stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64,
+                               suffix: "px", keyboardID: "media-imageExactHeight")
                 }
                 Picker("", selection: $imageExactResizeModeRaw) {
                     Text(imageText.exactStretch).tag(MediaImageExactResizeMode.stretch.rawValue)
@@ -799,6 +844,9 @@ struct MediaWorkspaceView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-exactResizeMode") : nil,
+                                  actions: selectionActions($imageExactResizeModeRaw,
+                                                           values: MediaImageExactResizeMode.allCases.map(\.rawValue)))
             }
         }
     }
@@ -812,6 +860,9 @@ struct MediaWorkspaceView: View {
                 Text(imageText.watermarkBoth).tag(MediaImageWatermarkKind.textAndLogo.rawValue)
             }
             .pickerStyle(.menu)
+            .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-watermarkKind") : nil,
+                              actions: selectionActions($imageWatermarkKindRaw,
+                                                       values: MediaImageWatermarkKind.allCases.map(\.rawValue)))
             if currentWatermarkKind == .text || currentWatermarkKind == .textAndLogo {
                 TextField(imageText.watermarkTextPlaceholder, text: $imageWatermarkText)
                     .textFieldStyle(.roundedBorder)
@@ -852,11 +903,17 @@ struct MediaWorkspaceView: View {
                     Text(imageText.bottomRight).tag(MediaImageWatermarkPosition.bottomRight.rawValue)
                 }
                 .pickerStyle(.menu)
-                stepperDouble(imageText.opacity, value: $imageWatermarkOpacity, range: 0.1...1, step: 0.05, suffix: "%") {
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-watermarkPosition") : nil,
+                                  actions: selectionActions($imageWatermarkPositionRaw,
+                                                           values: MediaImageWatermarkPosition.allCases.map(\.rawValue)))
+                stepperDouble(imageText.opacity, value: $imageWatermarkOpacity, range: 0.1...1, step: 0.05,
+                              suffix: "%", keyboardID: "media-watermarkOpacity") {
                     "\(Int(($0 * 100).rounded()))"
                 }
-                stepperInt(imageText.margin, value: $imageWatermarkMargin, range: 0...2000, step: 8, suffix: "px")
-                stepperDouble(imageText.scale, value: $imageWatermarkScale, range: 0.05...0.8, step: 0.01, suffix: "%") {
+                stepperInt(imageText.margin, value: $imageWatermarkMargin, range: 0...2000, step: 8,
+                           suffix: "px", keyboardID: "media-watermarkMargin")
+                stepperDouble(imageText.scale, value: $imageWatermarkScale, range: 0.05...0.8, step: 0.01,
+                              suffix: "%", keyboardID: "media-watermarkScale") {
                     "\(Int(($0 * 100).rounded()))"
                 }
             }
@@ -870,6 +927,9 @@ struct MediaWorkspaceView: View {
             Text(imageText.backgroundBlack).tag(MediaImageBackground.black.rawValue)
         }
         .pickerStyle(.segmented)
+        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-background") : nil,
+                          actions: selectionActions($imageBackgroundRaw,
+                                                   values: MediaImageBackground.allCases.map(\.rawValue)))
     }
 
     private var imageRenameSection: some View {
@@ -907,6 +967,8 @@ struct MediaWorkspaceView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
+        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-sizing") : nil,
+                          actions: selectionActions(selection, values: MediaSizingMode.allCases.map(\.rawValue)))
     }
 
     private func targetSizeRow(value: Binding<Int>) -> some View {
@@ -974,6 +1036,8 @@ struct MediaWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
             Slider(value: value, in: range, step: 1)
+                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-gifFPS") : nil,
+                                  actions: numericActions(value, range: range, step: 1))
         }
     }
 
@@ -1021,7 +1085,7 @@ struct MediaWorkspaceView: View {
     }
 
     private func stepperInt(_ label: String, value: Binding<Int>, range: ClosedRange<Int>,
-                            step: Int, suffix: String) -> some View {
+                            step: Int, suffix: String, keyboardID: String) -> some View {
         Stepper(value: value, in: range, step: step) {
             HStack(spacing: 4) {
                 Text(label)
@@ -1032,6 +1096,8 @@ struct MediaWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .panelKeyboardRow(compact ? PanelRowID(.utilities, keyboardID) : nil,
+                          actions: numericActions(value, range: range, step: step))
     }
 
     private func stepperDouble(_ label: String,
@@ -1039,6 +1105,7 @@ struct MediaWorkspaceView: View {
                                range: ClosedRange<Double>,
                                step: Double,
                                suffix: String,
+                               keyboardID: String,
                                display: @escaping (Double) -> String) -> some View {
         Stepper(value: value, in: range, step: step) {
             HStack(spacing: 4) {
@@ -1050,6 +1117,51 @@ struct MediaWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .panelKeyboardRow(compact ? PanelRowID(.utilities, keyboardID) : nil,
+                          actions: numericActions(value, range: range, step: step))
+    }
+
+    private func toggleActions(_ value: Binding<Bool>) -> PanelRowActions {
+        PanelRowActions(activate: { value.wrappedValue.toggle() }, adjust: { direction, _ in
+            let enabled = direction == .increase
+            guard value.wrappedValue != enabled else { return false }
+            value.wrappedValue = enabled
+            return true
+        })
+    }
+
+    private func selectionActions<Value: Equatable>(_ value: Binding<Value>, values: [Value]) -> PanelRowActions {
+        PanelRowActions(adjust: { direction, _ in
+            guard let index = values.firstIndex(of: value.wrappedValue) else { return false }
+            let next = index + (direction == .increase ? 1 : -1)
+            guard values.indices.contains(next) else { return false }
+            value.wrappedValue = values[next]
+            return true
+        })
+    }
+
+    private func numericActions<Value: BinaryFloatingPoint>(_ value: Binding<Value>,
+                                                             range: ClosedRange<Value>,
+                                                             step: Value) -> PanelRowActions {
+        PanelRowActions(adjust: { direction, fine in
+            let amount = fine ? step / 5 : step
+            let next = min(range.upperBound, max(range.lowerBound,
+                                                 value.wrappedValue + (direction == .increase ? amount : -amount)))
+            guard next != value.wrappedValue else { return false }
+            value.wrappedValue = next
+            return true
+        })
+    }
+
+    private func numericActions(_ value: Binding<Int>, range: ClosedRange<Int>, step: Int) -> PanelRowActions {
+        PanelRowActions(adjust: { direction, fine in
+            let amount = fine ? 1 : step
+            let next = min(range.upperBound, max(range.lowerBound,
+                                                 value.wrappedValue + (direction == .increase ? amount : -amount)))
+            guard next != value.wrappedValue else { return false }
+            value.wrappedValue = next
+            return true
+        })
     }
 
     private var inputTitle: String {

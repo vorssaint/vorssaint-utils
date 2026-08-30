@@ -100,6 +100,15 @@ struct MixerSection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.mixer, "options"),
+                              actions: PanelRowActions(
+                                  activate: { optionsExpanded.toggle() },
+                                  adjust: { direction, _ in
+                                      let wantsExpanded = direction == .increase
+                                      guard wantsExpanded != optionsExpanded else { return false }
+                                      optionsExpanded = wantsExpanded
+                                      return true
+                                  }))
 
             if optionsExpanded {
                 VStack(alignment: .leading, spacing: 8) {
@@ -155,6 +164,12 @@ struct MixerSection: View {
                 .frame(width: 164)
                 .disabled(universalOutputDevices.isEmpty)
                 .help(l10n.s.mixerSystemOutputTooltip)
+                .panelKeyboardRow(universalOutputDevices.isEmpty ? nil : PanelRowID(.mixer, "systemOutputDevice"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      adjustDeviceSelection(universalOutputSelectionBinding,
+                                                            devices: universalOutputDevices.map(\.uid),
+                                                            direction: direction)
+                                  }))
             }
 
             if let volume = mixer.systemOutputVolume {
@@ -239,6 +254,12 @@ struct MixerSection: View {
                 .frame(width: 164)
                 .disabled(systemSoundOutputDevices.isEmpty)
                 .help(l10n.s.mixerSoundEffectsOutputTooltip)
+                .panelKeyboardRow(systemSoundOutputDevices.isEmpty ? nil : PanelRowID(.mixer, "soundEffectsDevice"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      adjustDeviceSelection(systemSoundOutputSelectionBinding,
+                                                            devices: systemSoundOutputDevices.map(\.uid),
+                                                            direction: direction)
+                                  }))
             }
 
             if systemSoundOutputDevices.isEmpty {
@@ -285,6 +306,21 @@ struct MixerSection: View {
         )
     }
 
+    /// Menu pickers do not receive the popover's arrows once panel navigation
+    /// is engaged, so cycle their visible device IDs directly.
+    private func adjustDeviceSelection(_ selection: Binding<String>, devices: [String],
+                                       direction: PanelAdjustDirection) -> Bool {
+        guard !devices.isEmpty else { return false }
+        let current = selection.wrappedValue
+        var choices = [MixerRoutingSupport.systemDefaultSelectionID] + devices
+        if !choices.contains(current) { choices.append(current) }
+        guard let index = choices.firstIndex(of: current) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard choices.indices.contains(next) else { return false }
+        selection.wrappedValue = choices[next]
+        return true
+    }
+
     private var headphoneDisconnectProtectionToggle: some View {
         VStack(alignment: .leading, spacing: 3) {
             Toggle(l10n.s.mixerLowerOnHeadphonesDisconnect,
@@ -325,6 +361,10 @@ struct MixerSection: View {
                                   }))
             }
         }
+        .panelKeyboardRow(PanelRowID(.mixer, "headphonesDisconnect"),
+                          actions: PanelRowActions(activate: {
+                              lowerOnHeadphonesDisconnect.toggle()
+                          }))
     }
 
     private var headphonesDisconnectVolumeBinding: Binding<Int> {
@@ -366,6 +406,10 @@ struct MixerSection: View {
                              systemImage: "exclamationmark.triangle")
             }
         }
+        .panelKeyboardRow(PanelRowID(.mixer, "preciseVolumeRoller"),
+                          actions: PanelRowActions(activate: {
+                              preciseVolumeRollerEnabled.toggle()
+                          }))
     }
 
     private var soundOutputSwitcherControls: some View {
@@ -418,11 +462,20 @@ struct MixerSection: View {
                             }
                             .toggleStyle(.checkbox)
                             .controlSize(.small)
+                            .panelKeyboardRow(PanelRowID(.mixer, "soundOutputSwitcherDevice-\(device.uid)"),
+                                              actions: PanelRowActions(activate: {
+                                                  let binding = soundOutputSwitcherSelectionBinding(for: device.uid)
+                                                  binding.wrappedValue.toggle()
+                                              }))
                         }
                     }
                 }
             }
         }
+        .panelKeyboardRow(PanelRowID(.mixer, "soundOutputSwitcher"),
+                          actions: PanelRowActions(activate: {
+                              soundOutputSwitcherEnabled.toggle()
+                          }))
     }
 
     private func soundOutputSwitcherSelectionBinding(for uid: String) -> Binding<Bool> {
@@ -482,6 +535,12 @@ struct MixerSection: View {
                 .frame(width: 164)
                 .disabled(inputManager.inputDevices.isEmpty)
                 .help(l10n.s.mixerInputTooltip)
+                .panelKeyboardRow(inputManager.inputDevices.isEmpty ? nil : PanelRowID(.mixer, "inputDevice"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      adjustDeviceSelection(inputSelectionBinding,
+                                                            devices: inputManager.inputDevices.map(\.uid),
+                                                            direction: direction)
+                                  }))
             }
 
             if inputManager.inputDevices.isEmpty {
@@ -571,6 +630,15 @@ struct MixerSection: View {
             .accessibilityValue(mixer.hiddenApps.isEmpty
                                 ? l10n.s.mixerAllShown
                                 : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
+            .panelKeyboardRow(PanelRowID(.mixer, "visibleApps"),
+                              actions: PanelRowActions(
+                                  activate: { showListChooser.toggle() },
+                                  adjust: { direction, _ in
+                                      let wantsExpanded = direction == .increase
+                                      guard wantsExpanded != showListChooser else { return false }
+                                      showListChooser = wantsExpanded
+                                      return true
+                                  }))
 
             if showListChooser {
                 ForEach(listChoices) { choice in
@@ -583,6 +651,11 @@ struct MixerSection: View {
                     .toggleStyle(.checkbox)
                     .controlSize(.small)
                     .disabled(!choice.canToggle)
+                    .panelKeyboardRow(choice.canToggle ? PanelRowID(.mixer, "visibleApp-\(choice.id)") : nil,
+                                      actions: PanelRowActions(activate: {
+                                          let binding = listedBinding(for: choice)
+                                          binding.wrappedValue.toggle()
+                                      }))
                 }
             }
         }
@@ -614,6 +687,8 @@ struct MixerSection: View {
                 .controlSize(.mini)
                 .accessibilityLabel(label)
         }
+        .panelKeyboardRow(PanelRowID(.mixer, "hideInactiveApps"),
+                          actions: PanelRowActions(activate: { hideInactiveApps.toggle() }))
     }
 
     private var visibleApps: [MixerApp] {
@@ -707,6 +782,10 @@ struct MixerSection: View {
                 Permissions.shared.openAudioCaptureSettings()
             }
             .controlSize(.small)
+            .panelKeyboardRow(PanelRowID(.mixer, "audioCaptureSettings"),
+                              actions: PanelRowActions(activate: {
+                                  Permissions.shared.openAudioCaptureSettings()
+                              }))
         }
     }
 }
@@ -792,11 +871,12 @@ private struct MixerRow: View {
                                           accessibilityLabel: app.name)
 
                         EditableVolumePercent(currentPercent: Int((app.volume * 100).rounded()),
-                                              maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
-                                              width: 42,
-                                              editorID: "app:\(app.id)",
-                                              editingID: $editingVolumeID,
-                                              accessibilityLabel: app.name) {
+                                               maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
+                                               width: 42,
+                                               editorID: "app:\(app.id)",
+                                               editingID: $editingVolumeID,
+                                               accessibilityLabel: app.name,
+                                               keyboardRow: PanelRowID(.mixer, "appPercent-\(app.id)")) {
                             HStack(spacing: 2) {
                                 if isBoosting {
                                     Image(systemName: "bolt.fill")
@@ -824,6 +904,10 @@ private struct MixerRow: View {
                         .help(l10n.s.mixerResetTooltip)
                         .opacity(isAtUnity ? 0 : 1)
                         .disabled(isAtUnity)
+                        .panelKeyboardRow(isAtUnity ? nil : PanelRowID(.mixer, "appReset-\(app.id)"),
+                                          actions: PanelRowActions(activate: {
+                                              mixer.setVolume(1, for: app)
+                                          }))
 
                         Button {
                             mixer.toggleMute(app)
@@ -836,6 +920,10 @@ private struct MixerRow: View {
                                 .frame(width: 16)
                         }
                         .buttonStyle(.plain)
+                        .panelKeyboardRow(PanelRowID(.mixer, "appMute-\(app.id)"),
+                                          actions: PanelRowActions(activate: {
+                                              mixer.toggleMute(app)
+                                          }))
                     }
 
                     if app.outputDeviceUnavailable {
@@ -866,9 +954,10 @@ private struct MixerRow: View {
         // isBypassed above): nothing here for the arrow keys to adjust.
         guard !app.isBypassed else { return PanelRowActions() }
         return PanelRowActions(adjust: { direction, fine in
-            guard let next = adjustedVolume(app.volume, direction: direction,
-                                            fine: fine, maximum: AppVolumeMixer.maxVolume) else { return false }
-            mixer.setVolume(next, for: app)
+            guard let current = mixer.apps.first(where: { $0.id == app.id }),
+                  let next = adjustedVolume(current.volume, direction: direction,
+                                             fine: fine, maximum: AppVolumeMixer.maxVolume) else { return false }
+            mixer.setVolume(next, for: current)
             return true
         })
     }
@@ -898,6 +987,10 @@ private struct MixerRow: View {
         .controlSize(.small)
         .frame(width: 112)
         .help(l10n.s.mixerOutputTooltip)
+        .panelKeyboardRow(PanelRowID(.mixer, "appOutput-\(app.id)"),
+                          actions: PanelRowActions(adjust: { direction, _ in
+                              adjustOutputDevice(direction)
+                          }))
     }
 
     private var outputSelectionBinding: Binding<String> {
@@ -908,6 +1001,19 @@ private struct MixerRow: View {
                                          for: app)
             }
         )
+    }
+
+    private func adjustOutputDevice(_ direction: PanelAdjustDirection) -> Bool {
+        let devices = mixer.outputDevices.map(\.uid)
+        guard !devices.isEmpty else { return false }
+        let current = outputSelectionBinding.wrappedValue
+        var choices = [MixerRoutingSupport.systemDefaultSelectionID] + devices
+        if !choices.contains(current) { choices.append(current) }
+        guard let index = choices.firstIndex(of: current) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard choices.indices.contains(next) else { return false }
+        outputSelectionBinding.wrappedValue = choices[next]
+        return true
     }
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
@@ -924,6 +1030,7 @@ private struct EditableVolumePercent<Label: View>: View {
     let editorID: String
     @Binding var editingID: String?
     let accessibilityLabel: String
+    var keyboardRow: PanelRowID? = nil
     @ViewBuilder let label: () -> Label
     let onCommit: (Double) -> Void
 
@@ -970,6 +1077,7 @@ private struct EditableVolumePercent<Label: View>: View {
             .accessibilityHidden(isEditing)
         }
         .frame(width: width, alignment: .trailing)
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: beginEditing))
     }
 
     private func beginEditing() {

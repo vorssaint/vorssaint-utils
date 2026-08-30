@@ -6,6 +6,7 @@ import SwiftUI
 struct PanelClipboardView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var enabled = false
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @State private var query = ""
@@ -116,13 +117,17 @@ struct PanelClipboardView: View {
         } else if filteredEntries.isEmpty {
             emptyState(text.noResults)
         } else {
-            ScrollView {
-                // Lazy: a large history would otherwise build every row, and
-                // decode every image thumbnail, each time the panel opens.
-                LazyVStack(alignment: .leading, spacing: 7) {
-                    ForEach(filteredEntries) { entry in
-                        entryRow(entry)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(filteredEntries) { entry in
+                            entryRow(entry).id(entry.id)
+                        }
                     }
+                }
+                .onChange(of: navigator.focus) { _, focus in
+                    guard let entryID = focusedEntryID(focus) else { return }
+                    proxy.scrollTo(entryID, anchor: .center)
                 }
             }
             .frame(maxHeight: 260)
@@ -136,6 +141,13 @@ struct PanelClipboardView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 72)
             .panelCard()
+    }
+
+    private func focusedEntryID(_ focus: PanelFocusTarget?) -> UUID? {
+        guard case .row(let row)? = focus,
+              row.section == .utilities,
+              let localID = row.local as? String else { return nil }
+        return filteredEntries.first { localID.hasPrefix("clipboard-\($0.id)-") }?.id
     }
 
     private var shortcut: GlobalShortcut {

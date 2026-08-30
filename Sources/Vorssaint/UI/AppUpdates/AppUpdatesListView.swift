@@ -10,6 +10,7 @@ struct AppUpdatesListView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = AppUpdatesService.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @AppStorage(DefaultsKey.appUpdatesIncludeOnlineCatalog)
     private var includeOnlineCatalog = true
     @State private var showOperationDetails = false
@@ -163,7 +164,7 @@ struct AppUpdatesListView: View {
 
     @ViewBuilder
     private var list: some View {
-        let rows = LazyVStack(alignment: .leading, spacing: Self.compactRowSpacing) {
+        let rows = VStack(alignment: .leading, spacing: Self.compactRowSpacing) {
             ForEach(updates.items) { item in
                 row(item)
             }
@@ -173,8 +174,14 @@ struct AppUpdatesListView: View {
         if compact {
             // Height lands on whole rows, so the list never ends with half a
             // row peeking out of the panel.
-            ScrollView { rows }
-                .frame(height: Self.compactHeight(rowCount: updates.items.count))
+            ScrollViewReader { proxy in
+                ScrollView { rows }
+                    .onChange(of: navigator.focus) { _, focus in
+                        guard let itemID = focusedItemID(focus) else { return }
+                        proxy.scrollTo(itemID, anchor: .center)
+                    }
+            }
+            .frame(height: Self.compactHeight(rowCount: updates.items.count))
         } else {
             rows
         }
@@ -252,6 +259,18 @@ struct AppUpdatesListView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(0.035))
         )
+        .id(item.id)
+    }
+
+    private func focusedItemID(_ focus: PanelFocusTarget?) -> String? {
+        guard case .row(let row)? = focus,
+              row.section == keyboardSection,
+              let localID = row.local as? String else { return nil }
+        for item in updates.items where localID == "appUpdates-\(item.id)-select"
+            || localID == "appUpdates-\(item.id)-update" {
+            return item.id
+        }
+        return nil
     }
 
     private func icon(for item: AppUpdatesSupport.Item) -> NSImage {

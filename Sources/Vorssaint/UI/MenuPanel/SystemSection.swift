@@ -669,7 +669,7 @@ struct SystemSection: View {
                     }
                 }
                 if alertsExpanded {
-                    MonitorAlertsControls(compact: true)
+                    MonitorAlertsControls(compact: true, keyboardSection: .system)
                 }
             }
         }

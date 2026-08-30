@@ -138,6 +138,12 @@ final class PanelKeyboardNavigator: ObservableObject {
         focus = .tab(id)
     }
 
+    /// Moves the ring within a horizontal row group (icon/color swatches).
+    /// The caller has already checked that the destination exists.
+    func focusRow(_ id: PanelRowID) {
+        focus = .row(id)
+    }
+
     func clearFocus() {
         focus = nil
     }
@@ -282,12 +288,15 @@ final class PanelKeyboardNavigator: ObservableObject {
             moveTab(backward: true)
             return true
         case .chrome:
+            if focus == .chrome(.footerQuit) {
+                focus = .chrome(.footerSettings)
+            }
             return true
         case .row(let id):
-            guard let actions = rowActions[id] else { return true }
+            guard let actions = rowActions[id] else { return false }
             if let adjust = actions.adjust { return adjust(.decrease, fine) }
             if let exit = actions.exit { return exit() }
-            return true
+            return false
         }
     }
 
@@ -297,12 +306,15 @@ final class PanelKeyboardNavigator: ObservableObject {
             moveTab(backward: false)
             return true
         case .chrome:
+            if focus == .chrome(.footerSettings) {
+                focus = .chrome(.footerQuit)
+            }
             return true
         case .row(let id):
-            guard let actions = rowActions[id] else { return true }
+            guard let actions = rowActions[id] else { return false }
             if let adjust = actions.adjust { return adjust(.increase, fine) }
             if let enter = actions.enter { return enter() }
-            return true
+            return false
         }
     }
 

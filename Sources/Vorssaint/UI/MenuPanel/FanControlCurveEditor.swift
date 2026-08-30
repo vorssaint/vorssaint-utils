@@ -54,6 +54,10 @@ struct FanControlCurveEditor: View {
                 .pickerStyle(.menu)
                 .controlSize(.small)
                 .disabled(disabled)
+                .panelKeyboardRow(disabled ? nil : PanelRowID(.fanControl, "sensor-\(curveIndex)"),
+                                  actions: PanelRowActions(adjust: { direction, _ in
+                                      adjustSensor(curveIndex: curveIndex, direction: direction)
+                                  }))
 
                 Spacer(minLength: 4)
 
@@ -192,6 +196,16 @@ struct FanControlCurveEditor: View {
         let next = min(range.upperBound, max(range.lowerBound, binding.wrappedValue + delta))
         guard next != binding.wrappedValue else { return false }
         binding.wrappedValue = next
+        return true
+    }
+
+    private func adjustSensor(curveIndex: Int, direction: PanelAdjustDirection) -> Bool {
+        let options = sourceOptions(at: curveIndex)
+        let current = curves[curveIndex].sensor
+        guard let index = options.firstIndex(of: current) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard options.indices.contains(next) else { return false }
+        curves[curveIndex].sensor = options[next]
         return true
     }
 

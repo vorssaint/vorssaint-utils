@@ -74,7 +74,9 @@ struct KeepAwakeIconPicker: View {
         .help(icon.title(l10n.s))
         .accessibilityLabel(icon.title(l10n.s))
         .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "keepAwakeIcon-\(icon.rawValue)") },
-                          actions: PanelRowActions(activate: { iconValue = icon.rawValue }))
+                          actions: PanelRowActions(activate: { iconValue = icon.rawValue },
+                                                   enter: { moveIconFocus(from: icon, forward: true) },
+                                                   exit: { moveIconFocus(from: icon, forward: false) }))
     }
 
     /// Split out of `iconButton` so its background/overlay ternaries (and the
@@ -121,7 +123,31 @@ struct KeepAwakeIconPicker: View {
         .help(tint.title(l10n.s))
         .accessibilityLabel(tint.title(l10n.s))
         .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "keepAwakeTint-\(tint.rawValue)") },
-                          actions: PanelRowActions(activate: { tintValue = tint.rawValue }))
+                          actions: PanelRowActions(activate: { tintValue = tint.rawValue },
+                                                   enter: { moveTintFocus(from: tint, forward: true) },
+                                                   exit: { moveTintFocus(from: tint, forward: false) }))
+    }
+
+    private func moveIconFocus(from icon: KeepAwakeActiveIcon, forward: Bool) -> Bool {
+        moveFocus(from: icon, choices: KeepAwakeActiveIcon.allCases, forward: forward) { choice in
+            "keepAwakeIcon-\(choice.rawValue)"
+        }
+    }
+
+    private func moveTintFocus(from tint: KeepAwakeIconTint, forward: Bool) -> Bool {
+        moveFocus(from: tint, choices: KeepAwakeIconTint.allCases, forward: forward) { choice in
+            "keepAwakeTint-\(choice.rawValue)"
+        }
+    }
+
+    private func moveFocus<Choice: Equatable>(from current: Choice, choices: [Choice], forward: Bool,
+                                               localID: (Choice) -> String) -> Bool {
+        guard let keyboardSection,
+              let index = choices.firstIndex(of: current) else { return false }
+        let destination = forward ? index + 1 : index - 1
+        guard choices.indices.contains(destination) else { return false }
+        PanelKeyboardNavigator.shared.focusRow(PanelRowID(keyboardSection, localID(choices[destination])))
+        return true
     }
 
     /// Split out of `tintButton` for the same reason as `iconGlyph`.

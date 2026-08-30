@@ -158,7 +158,7 @@ struct MenuPanelView: View {
     /// always trails the content.
     private func syncNavigatorChrome() {
         var leading: [PanelChromeID] = []
-        if updates.state.showsMenuPanelBanner { leading.append(.updateBanner) }
+        if case .available = updates.state { leading.append(.updateBanner) }
         if AppInfo.isBeta { leading.append(.headerFeedback) }
         if selectedMetric != nil { leading.append(.metricBack) }
         navigator.configureChrome(leading: leading, trailing: [.footerSettings, .footerQuit])
@@ -626,9 +626,9 @@ struct UtilitiesSection: View {
                     showUninstaller = false
                 }
             } else if showCleanerPanel {
-                PanelCleanerView {
+                PanelCleanerView(onClose: {
                     showCleanerPanel = false
-                }
+                }, keyboardSection: .utilities)
             } else if showURLCleaner {
                 PanelURLCleanerView {
                     showURLCleaner = false
@@ -1899,6 +1899,10 @@ struct QuickControlsSection: View {
         .padding(.leading, 31)
         .padding(.trailing, 4)
         .padding(.bottom, 2)
+        .panelKeyboardRow(switcherSimpleMode ? nil : PanelRowID(.controls, "switcherIconRowMode"),
+                          actions: PanelRowActions(activate: {
+                              switcherIconRowMode.toggle()
+                          }))
     }
 
     private var switcherPermissionAction: (() -> Void)? {
@@ -2532,7 +2536,8 @@ struct KeepAwakeCard: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        DurationPicker(selection: $defaultDuration)
+                        DurationPicker(selection: $defaultDuration,
+                                       keyboardRow: PanelRowID(.keepAwake, "duration"))
                     }
                 }
 
@@ -2737,7 +2742,8 @@ struct KeepAwakeCard: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
-            KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval)
+            KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval,
+                                                keyboardRow: PanelRowID(.keepAwake, "mouseJiggleInterval"))
         }
     }
 
@@ -2866,6 +2872,7 @@ struct KeepAwakeCard: View {
 struct DurationPicker: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selection: Int
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Picker("", selection: $selection) {
@@ -2881,11 +2888,24 @@ struct DurationPicker: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .fixedSize()
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(adjust: { direction, _ in
+            adjustSelection(direction)
+        }))
+    }
+
+    private func adjustSelection(_ direction: PanelAdjustDirection) -> Bool {
+        let values = [15, 30, 60, 120, 240, 480, 0]
+        guard let index = values.firstIndex(of: selection) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard values.indices.contains(next) else { return false }
+        selection = values[next]
+        return true
     }
 }
 
 struct KeepAwakeMouseJiggleIntervalPicker: View {
     @Binding var selection: Int
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Picker("", selection: $selection) {
@@ -2897,6 +2917,18 @@ struct KeepAwakeMouseJiggleIntervalPicker: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .fixedSize()
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(adjust: { direction, _ in
+            adjustSelection(direction)
+        }))
+    }
+
+    private func adjustSelection(_ direction: PanelAdjustDirection) -> Bool {
+        let values = Defaults.allowedKeepAwakeMouseJiggleIntervals
+        guard let index = values.firstIndex(of: selection) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard values.indices.contains(next) else { return false }
+        selection = values[next]
+        return true
     }
 
     static func label(for minutes: Int) -> String {

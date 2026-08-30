@@ -9,6 +9,7 @@ struct PanelHomebrewView: View {
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @State private var query = ""
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var mode: PanelHomebrewMode = .search
@@ -150,6 +151,10 @@ struct PanelHomebrewView: View {
         }
         .labelsHidden()
         .pickerStyle(.segmented)
+        .panelKeyboardRow(PanelRowID(.utilities, "homebrew-mode"),
+                          actions: PanelRowActions(adjust: { direction, _ in
+                              adjustMode(direction)
+                          }))
     }
 
     @ViewBuilder
@@ -217,6 +222,10 @@ struct PanelHomebrewView: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
+            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-searchKind"),
+                              actions: PanelRowActions(adjust: { direction, _ in
+                                  adjustSearchKind(direction)
+                              }))
             Text(l10n.s.homebrewKeyboardHint)
                 .font(.system(size: 9))
                 .foregroundStyle(.tertiary)
@@ -235,6 +244,10 @@ struct PanelHomebrewView: View {
             }
             .labelsHidden()
             .pickerStyle(.segmented)
+            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-filter"),
+                              actions: PanelRowActions(adjust: { direction, _ in
+                                  adjustFilter(direction)
+                              }))
 
             HStack(spacing: 7) {
                 Button {
@@ -338,15 +351,19 @@ struct PanelHomebrewView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 5) {
+                        VStack(alignment: .leading, spacing: 5) {
                             Color.clear
                                 .frame(height: 0)
                                 .id(Self.packageListTopID)
                             ForEach(packages) { package in
-                                row(package)
+                                row(package).id(package.id)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .onChange(of: navigator.focus) { _, focus in
+                        guard let packageID = focusedPackageID(focus, in: packages) else { return }
+                        proxy.scrollTo(packageID, anchor: .center)
                     }
                     .onChange(of: homebrew.operationStatus?.result) { _, result in
                         guard result == .succeeded,
@@ -368,6 +385,17 @@ struct PanelHomebrewView: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .background(Capsule().fill(Color.primary.opacity(0.07)))
+    }
+
+    private func focusedPackageID(_ focus: PanelFocusTarget?, in packages: [HomebrewPackage]) -> String? {
+        guard case .row(let row)? = focus,
+              row.section == .utilities,
+              let localID = row.local as? String else { return nil }
+        for package in packages where localID == "homebrew-package-\(package.id)"
+            || localID == "homebrew-update-\(package.id)" {
+            return package.id
+        }
+        return nil
     }
 
     private func row(_ package: HomebrewPackage) -> some View {
@@ -784,6 +812,27 @@ struct PanelHomebrewView: View {
         homebrew.search(query: query, kind: searchKind)
     }
 
+    private func adjustMode(_ direction: PanelAdjustDirection) -> Bool {
+        adjust(&mode, choices: PanelHomebrewMode.allCases, direction: direction)
+    }
+
+    private func adjustSearchKind(_ direction: PanelAdjustDirection) -> Bool {
+        adjust(&searchKind, choices: HomebrewPackageKind.allCases, direction: direction)
+    }
+
+    private func adjustFilter(_ direction: PanelAdjustDirection) -> Bool {
+        adjust(&filter, choices: PanelHomebrewFilter.allCases, direction: direction)
+    }
+
+    private func adjust<Choice: Equatable>(_ selection: inout Choice, choices: [Choice],
+                                            direction: PanelAdjustDirection) -> Bool {
+        guard let index = choices.firstIndex(of: selection) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard choices.indices.contains(next) else { return false }
+        selection = choices[next]
+        return true
+    }
+
     private func selected(_ package: HomebrewPackage) -> Bool {
         homebrew.selectedPackage?.id == package.id
     }
@@ -888,6 +937,12 @@ private struct PanelHomebrewSearchField: NSViewRepresentable {
         func control(_ control: NSControl,
                      textView: NSTextView,
                      doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                // The panel's key monitor leaves text fields alone, so make
+                // Escape explicitly return control to panel navigation.
+                control.window?.makeFirstResponder(nil)
+                return true
+            }
             if commandSelector == #selector(NSResponder.insertNewline(_:)) {
                 text = (control as? NSSearchField)?.stringValue ?? text
                 submit()

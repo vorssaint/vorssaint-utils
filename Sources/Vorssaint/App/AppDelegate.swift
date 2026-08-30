@@ -928,6 +928,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let window = popover.contentViewController?.view.window
 
         if event.keyCode == UInt16(kVK_Escape) {
+            // Let a native field editor or confirmation dialog cancel itself
+            // before Escape backs out of the hosted utility/popover.
+            if PanelInteractionState.shared.isPresentingPopoverModal
+                || (window.map(isTextEditingActive) ?? false) {
+                return event
+            }
             // Metric detail and a hosted utility sub-panel each push a level;
             // Escape backs out of those before it ever closes the popover.
             if PanelKeyboardNavigator.shared.popTopLevel() { return nil }
@@ -941,11 +947,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             return event
         }
 
-        // A real AppKit control the user already clicked into (a native
-        // slider, a checkbox in a hosted tool that keeps the popover open
-        // for a multi-step flow) keeps first claim on Space/Return over the
-        // navigator, so switching between mouse and keyboard mid-session
-        // never steals the key out from under whatever is actually focused.
+        // A real AppKit control the user already clicked into keeps its own
+        // horizontal adjustment keys. Up and Down always remain panel
+        // navigation, even after a slider, picker, or stepper was clicked.
         if isHoldOpenKeyForwardable(event, in: window) {
             window.firstResponder?.keyDown(with: event)
             return nil
@@ -970,7 +974,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func isPlainPopoverHoldKey(_ event: NSEvent) -> Bool {
         let blockedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
         guard event.modifierFlags.intersection(blockedModifiers).isEmpty else { return false }
-        return event.keyCode == 49 || event.keyCode == 36 || event.keyCode == 76
+        switch event.keyCode {
+        case 49, 36, 76, // Space, Return, keypad Enter
+             UInt16(kVK_LeftArrow), UInt16(kVK_RightArrow):
+            return true
+        default:
+            return false
+        }
     }
 
     private func isTextEditingActive(in window: NSWindow) -> Bool {

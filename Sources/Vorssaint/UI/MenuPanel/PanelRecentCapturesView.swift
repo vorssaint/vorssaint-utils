@@ -20,6 +20,7 @@ struct PanelRecentCapturesView: View {
 struct RecentCapturesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = RecentCaptureService.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
@@ -99,11 +100,17 @@ struct RecentCapturesView: View {
                 .frame(height: 92)
                 .panelCard()
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 7) {
-                    ForEach(visibleEntries) { entry in
-                        row(entry)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(visibleEntries) { entry in
+                            row(entry).id(entry.id)
+                        }
                     }
+                }
+                .onChange(of: navigator.focus) { _, focus in
+                    guard let entryID = focusedEntryID(focus) else { return }
+                    proxy.scrollTo(entryID, anchor: .center)
                 }
             }
             .frame(maxHeight: 300)
@@ -151,6 +158,15 @@ struct RecentCapturesView: View {
             Spacer(minLength: 0)
         }
         .panelCard()
+    }
+
+    private func focusedEntryID(_ focus: PanelFocusTarget?) -> RecentCaptureEntry.ID? {
+        guard case .row(let row)? = focus,
+              row.section == keyboardSection,
+              let localID = row.local as? String else { return nil }
+        return visibleEntries.first {
+            localID == "recentCapture-\($0.id)-open" || localID == "recentCapture-\($0.id)-remove"
+        }?.id
     }
 
     @ViewBuilder

@@ -306,6 +306,8 @@ struct PanelSection<Content: View>: View {
                 .fill(isEditing ? Color.accentColor : Color.clear)
         )
         .help(isEditing ? l10n.s.uninstallerDoneTitle : l10n.s.menuEdit)
+        .panelKeyboardRow(editButtonVisible ? PanelRowID(id, "edit") : nil,
+                          actions: PanelRowActions(activate: toggleEditing), cornerRadius: 6)
     }
 
     private func resetButton(_ action: @escaping () -> Void) -> some View {
@@ -324,6 +326,8 @@ struct PanelSection<Content: View>: View {
                 .fill(Color.primary.opacity(0.07))
         )
         .help(l10n.s.mixerOutputDefault)
+        .panelKeyboardRow(PanelRowID(id, "reset"),
+                          actions: PanelRowActions(activate: action), cornerRadius: 7)
     }
 
     private var isEditing: Bool { supportsEditing && editButtonVisible && editing }
