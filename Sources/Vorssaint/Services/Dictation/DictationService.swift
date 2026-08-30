@@ -275,7 +275,8 @@ final class DictationService: ObservableObject {
                 let text = try await self.client.transcribe(file: file,
                                                             provider: configuration.provider,
                                                             model: configuration.model,
-                                                            apiKey: configuration.apiKey)
+                                                            apiKey: configuration.apiKey,
+                                                            language: configuration.profile.language)
                 guard !Task.isCancelled, self.sessionID == id else { return }
                 let hasSpeech = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 let completed = DictationLifecycle.transition(
@@ -438,6 +439,7 @@ final class DictationService: ObservableObject {
                  sessionDetail: sessionConfiguration.map {
                      "\(activation.modeName($0.profile.mode)) · "
                          + "\(strings.providerName($0.provider)) · \($0.model.id)"
+                         + ($0.profile.language == .automatic ? "" : " · \($0.profile.language.displayName)")
                  },
                  listeningHint: sessionConfiguration.map {
                      $0.profile.mode == .toggle
@@ -474,8 +476,11 @@ final class DictationService: ObservableObject {
         }
         let modeKey = secondary ? DefaultsKey.dictationSecondaryMode : DefaultsKey.dictationMode
         let mode = DictationShortcutMode(rawValue: defaults.string(forKey: modeKey) ?? "") ?? .toggle
+        let languageKey = secondary ? DefaultsKey.dictationSecondaryLanguage : DefaultsKey.dictationLanguage
+        let language = DictationLanguage(rawValue: defaults.string(forKey: languageKey) ?? "") ?? .automatic
         return DictationShortcutProfile(slot: slot, mode: mode, provider: provider,
-                                        model: provider.sanitizedModel(defaults.string(forKey: modelKey)))
+                                        model: provider.sanitizedModel(defaults.string(forKey: modelKey)),
+                                        language: language)
     }
 
     private func prepareForRegistration(_ slot: DictationShortcutSlot,

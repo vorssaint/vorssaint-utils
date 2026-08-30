@@ -23,6 +23,7 @@ struct DictationShortcutProfile: Equatable {
     let mode: DictationShortcutMode
     let provider: DictationProvider
     let model: DictationModel
+    let language: DictationLanguage
 }
 
 enum DictationShortcutAction: Equatable {

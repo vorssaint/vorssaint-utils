@@ -12,8 +12,10 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationOpenAIModel) private var openAIModel = DictationProvider.openAI.defaultModel.id
     @AppStorage(DefaultsKey.dictationGroqModel) private var groqModel = DictationProvider.groq.defaultModel.id
     @AppStorage(DefaultsKey.dictationMode) private var modeRaw = DictationShortcutMode.toggle.rawValue
+    @AppStorage(DefaultsKey.dictationLanguage) private var languageRaw = DictationLanguage.automatic.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryEnabled) private var secondaryEnabled = false
     @AppStorage(DefaultsKey.dictationSecondaryMode) private var secondaryModeRaw = DictationShortcutMode.toggle.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryLanguage) private var secondaryLanguageRaw = DictationLanguage.automatic.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryProvider) private var secondaryProviderRaw = DictationProvider.groq.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryOpenAIModel) private var secondaryOpenAIModel = DictationProvider.openAI.defaultModel.id
     @AppStorage(DefaultsKey.dictationSecondaryGroqModel) private var secondaryGroqModel = DictationProvider.groq.defaultModel.id
@@ -61,6 +63,12 @@ struct DictationSettings: View {
                     }
                 }
                 .onChange(of: modeRaw) { _, _ in service.syncWithPreferences() }
+                Picker(activation.language, selection: $languageRaw) {
+                    ForEach(DictationLanguage.allCases) { language in
+                        Text(language.displayName).tag(language.rawValue)
+                    }
+                }
+                .onChange(of: languageRaw) { _, _ in service.syncWithPreferences() }
                 ShortcutPreferenceRow(role: .dictation, isEnabled: enabled) {
                     service.syncWithPreferences()
                 }
@@ -77,6 +85,12 @@ struct DictationSettings: View {
                         }
                     }
                     .onChange(of: secondaryModeRaw) { _, _ in service.syncWithPreferences() }
+                    Picker(activation.language, selection: $secondaryLanguageRaw) {
+                        ForEach(DictationLanguage.allCases) { language in
+                            Text(language.displayName).tag(language.rawValue)
+                        }
+                    }
+                    .onChange(of: secondaryLanguageRaw) { _, _ in service.syncWithPreferences() }
                     Picker(strings.provider, selection: $secondaryProviderRaw) {
                         ForEach(DictationProvider.allCases) { provider in
                             Text(strings.providerName(provider)).tag(provider.rawValue)

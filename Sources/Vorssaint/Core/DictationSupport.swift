@@ -46,6 +46,42 @@ enum DictationProvider: String, CaseIterable, Identifiable {
     }
 }
 
+/// Language hint sent to the provider. Automatic detection remains available,
+/// while an explicit ISO-639-1 hint improves recognition for multilingual users.
+enum DictationLanguage: String, CaseIterable, Identifiable {
+    case automatic
+    case portugueseBrazil = "pt"
+    case english = "en"
+    case spanish = "es"
+    case french = "fr"
+    case german = "de"
+    case italian = "it"
+    case japanese = "ja"
+    case korean = "ko"
+    case chinese = "zh"
+
+    var id: String { rawValue }
+
+    var apiCode: String? {
+        self == .automatic ? nil : rawValue
+    }
+
+    var displayName: String {
+        switch self {
+        case .automatic: return "Automático"
+        case .portugueseBrazil: return "Português (Brasil)"
+        case .english: return "English"
+        case .spanish: return "Español"
+        case .french: return "Français"
+        case .german: return "Deutsch"
+        case .italian: return "Italiano"
+        case .japanese: return "日本語"
+        case .korean: return "한국어"
+        case .chinese: return "中文"
+        }
+    }
+}
+
 struct DictationModel: Equatable, Hashable, Identifiable {
     let id: String
     let provider: DictationProvider
@@ -213,6 +249,7 @@ struct DictationMultipartBody {
     let data: Data
 
     init(model: String,
+         language: DictationLanguage = .automatic,
          fileName: String,
          mimeType: String,
          audio: Data,
@@ -225,6 +262,11 @@ struct DictationMultipartBody {
         body.appendUTF8("--\(boundary)\r\n")
         body.appendUTF8("Content-Disposition: form-data; name=\"model\"\r\n\r\n")
         body.appendUTF8(model)
+        if let languageCode = language.apiCode {
+            body.appendUTF8("\r\n--\(boundary)\r\n")
+            body.appendUTF8("Content-Disposition: form-data; name=\"language\"\r\n\r\n")
+            body.appendUTF8(languageCode)
+        }
         body.appendUTF8("\r\n--\(boundary)\r\n")
         body.appendUTF8("Content-Disposition: form-data; name=\"response_format\"\r\n\r\n")
         body.appendUTF8("json")

@@ -24,7 +24,8 @@ final class DictationTranscriptionClient {
     func transcribe(file: URL,
                     provider: DictationProvider,
                     model: DictationModel,
-                    apiKey: String) async throws -> String {
+                    apiKey: String,
+                    language: DictationLanguage = .automatic) async throws -> String {
         guard model.provider == provider else { throw DictationFailure.invalidResponse }
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw DictationFailure.missingKey }
@@ -48,6 +49,7 @@ final class DictationTranscriptionClient {
             throw DictationFailure.noSpeech
         }
         let multipart = try DictationMultipartBody(model: model.id,
+                                                    language: language,
                                                     fileName: "dictation.m4a",
                                                     mimeType: "audio/mp4",
                                                     audio: audio)

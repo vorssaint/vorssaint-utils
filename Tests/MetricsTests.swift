@@ -12527,8 +12527,12 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.dictationOpenAIModel] as? String
                     == DictationProvider.openAI.defaultModel.id
                 && Defaults.registeredDefaults[DefaultsKey.dictationGroqModel] as? String
-                    == DictationProvider.groq.defaultModel.id,
-               "dictation defaults stay disabled and select valid provider models")
+                    == DictationProvider.groq.defaultModel.id
+                && Defaults.registeredDefaults[DefaultsKey.dictationLanguage] as? String
+                    == DictationLanguage.automatic.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryLanguage] as? String
+                    == DictationLanguage.automatic.rawValue,
+               "dictation defaults stay disabled and use automatic language detection")
         expect(GlobalShortcutRole.dictation.storageKey == DefaultsKey.dictationShortcut
                 && GlobalShortcutRole.dictation.requiredEnableKeys == [DefaultsKey.dictationEnabled]
                 && GlobalShortcutRole.dictation.feature == .dictation,
@@ -12544,6 +12548,10 @@ struct MetricsTests {
                 && DictationProvider.groq.transcriptionURL.host == "api.groq.com"
                 && DictationProvider.groq.sanitizedModel("not-a-model") == groqModel,
                "Groq dictation uses only its fixed endpoint and sanitizes its model")
+        expect(DictationLanguage.portugueseBrazil.apiCode == "pt"
+                && DictationLanguage.automatic.apiCode == nil
+                && DictationLanguage.portugueseBrazil.displayName == "Português (Brasil)",
+               "dictation language choices map to provider-safe ISO codes")
 
         let multipart = try? DictationMultipartBody(
             model: openAIModel.id,
@@ -12560,6 +12568,20 @@ struct MetricsTests {
                 && multipartText.contains("Content-Type: audio/mp4")
                 && multipartText.hasSuffix("--BOUNDARY--\r\n"),
                "the native multipart builder carries model, JSON response request and M4A bytes")
+        let portugueseMultipart = try? DictationMultipartBody(
+            model: openAIModel.id,
+            language: .portugueseBrazil,
+            fileName: "dictation.m4a",
+            mimeType: "audio/mp4",
+            audio: Data("VOICE".utf8),
+            boundary: "LANGUAGE")
+        let portugueseMultipartText = portugueseMultipart.flatMap {
+            String(data: $0.data, encoding: .utf8)
+        } ?? ""
+        expect(portugueseMultipartText.contains("name=\"language\"")
+                && portugueseMultipartText.contains("\r\n\r\npt\r\n")
+                && !multipartText.contains("name=\"language\""),
+               "automatic detection omits the hint and Portuguese sends pt")
         expect((try? DictationMultipartBody(model: openAIModel.id,
                                             fileName: "dictation.m4a",
                                             mimeType: "audio/mp4",
@@ -12764,7 +12786,7 @@ struct MetricsTests {
             }, "dictation has no placeholder or em-dash text for \(language.rawValue)")
             let activationValues = Mirror(reflecting: FeatureStrings.dictationActivation(language)).children
                 .compactMap { $0.value as? String }
-            expect(activationValues.count == 6 && activationValues.allSatisfy { !$0.isEmpty },
+            expect(activationValues.count == 7 && activationValues.allSatisfy { !$0.isEmpty },
                    "dictation activation has every localized field for \(language.rawValue)")
         }
         let hotkeySource = (try? String(
