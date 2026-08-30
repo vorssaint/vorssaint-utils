@@ -835,6 +835,16 @@ struct Strings {
     let diskOpenInFinder: String
     let diskStorageSettings: String
     let diskNoDisks: String
+    let diskSpeedTest: String
+    let diskSpeedQuick: String
+    let diskSpeedStandard: String
+    let diskSpeedDescription: String
+    let diskSpeedPreparing: String
+    let diskSpeedFlushing: String
+    let diskSpeedLastTest: String
+    let diskSpeedNeedsSpace: String
+    let diskSpeedReadOnly: String
+    let diskSpeedUnavailable: String
 
     // MARK: Panel — power
     let powerSection: String
@@ -1829,6 +1839,16 @@ extension Strings {
         diskOpenInFinder: "Abrir",
         diskStorageSettings: "Armazenamento",
         diskNoDisks: "Nenhum disco montado encontrado.",
+        diskSpeedTest: "Teste de velocidade do disco",
+        diskSpeedQuick: "Rápido · 1 GB",
+        diskSpeedStandard: "Padrão · 3×4 GB",
+        diskSpeedDescription: "Grava e remove arquivos temporários. O modo Padrão faz três passagens de 4 GB e mostra a mediana; outras atividades do disco podem afetar o resultado.",
+        diskSpeedPreparing: "Preparando…",
+        diskSpeedFlushing: "Sincronizando com o disco…",
+        diskSpeedLastTest: "Último teste",
+        diskSpeedNeedsSpace: "É necessário ter pelo menos %@ disponível.",
+        diskSpeedReadOnly: "Este disco é somente leitura.",
+        diskSpeedUnavailable: "O disco não está disponível ou não pôde ser testado.",
 
         powerSection: "Energia",
         powerSystem: "Sistema",
@@ -2812,6 +2832,16 @@ extension Strings {
         diskOpenInFinder: "Open",
         diskStorageSettings: "Storage",
         diskNoDisks: "No mounted disks found.",
+        diskSpeedTest: "Disk speed test",
+        diskSpeedQuick: "Quick · 1 GB",
+        diskSpeedStandard: "Standard · 3×4 GB",
+        diskSpeedDescription: "Writes and removes temporary files. Standard runs three 4 GB passes and reports the median; other disk activity can affect results.",
+        diskSpeedPreparing: "Preparing…",
+        diskSpeedFlushing: "Syncing to disk…",
+        diskSpeedLastTest: "Last test",
+        diskSpeedNeedsSpace: "At least %@ available is required.",
+        diskSpeedReadOnly: "This disk is read-only.",
+        diskSpeedUnavailable: "The disk is unavailable or could not be tested.",
 
         powerSection: "Power",
         powerSystem: "System",

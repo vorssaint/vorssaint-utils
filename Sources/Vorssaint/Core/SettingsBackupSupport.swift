@@ -121,6 +121,8 @@ enum SettingsBackupSupport {
         DefaultsKey.screenshotSharingDeveloperEndpoint,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
+        // A benchmark belongs to one physical disk on this Mac, not portable settings.
+        DefaultsKey.diskBenchmarkResults,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]

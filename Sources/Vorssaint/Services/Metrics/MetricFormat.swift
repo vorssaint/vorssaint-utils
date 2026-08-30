@@ -200,6 +200,13 @@ enum MetricFormat {
             : String(format: "%.0f %@", value, unit)
     }
 
+    static func diskBenchmarkRate(_ bytesPerSecond: Double) -> String {
+        let megabytesPerSecond = (bytesPerSecond.isFinite ? max(0, bytesPerSecond) : 0) / 1_000_000
+        return megabytesPerSecond < 100
+            ? String(format: "%.1f MB/s", megabytesPerSecond)
+            : String(format: "%.0f MB/s", megabytesPerSecond)
+    }
+
     /// A throughput, e.g. "1.2 MB/s". Used in the panel.
     static func bytesPerSec(_ bytesPerSecond: Double) -> String {
         let (value, unit) = scale(bytesPerSecond)

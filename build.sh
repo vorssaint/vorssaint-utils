@@ -351,6 +351,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift \
+        Sources/Vorssaint/Services/Metrics/DiskBenchmarkSupport.swift \
+        Sources/Vorssaint/Services/Metrics/DiskBenchmarkService.swift \
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift \
         Sources/Vorssaint/Services/Metrics/MaxCapacityProbe.swift \
         Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
