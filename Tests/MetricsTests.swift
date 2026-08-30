@@ -377,6 +377,40 @@ struct MetricsTests {
                "clipboard quick window starts keyboard navigation on the first item")
         expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,
                "clipboard quick window keeps an empty selection index safe")
+
+        // MARK: Settings search navigation
+
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: -1, count: 3) == 2,
+               "Settings search Up wraps from first to last")
+        expect(SettingsSearchSupport.moveSelection(index: 2, delta: 1, count: 3) == 0,
+               "Settings search Down wraps from last to first")
+        expect(SettingsSearchSupport.moveSelection(index: nil, delta: 1, count: 3) == 0,
+               "Settings search Down starts a nil selection at the first result")
+        expect(SettingsSearchSupport.moveSelection(index: nil, delta: -1, count: 3) == 2,
+               "Settings search Up starts a nil selection at the last result")
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: 1, count: 0) == nil,
+               "Settings search navigation leaves an empty result set unselected")
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: 10, count: 3) == 1,
+               "Settings search navigation wraps large positive deltas")
+        expect(SettingsSearchSupport.moveSelection(index: 0, delta: -10, count: 3) == 2,
+               "Settings search navigation wraps large negative deltas")
+        expect(SettingsSearchSupport.clampedSelection(index: 4, count: 2) == 1,
+               "Settings search selection clamps after results shrink")
+        expect(SettingsSearchSupport.reconciledSelection(index: 2,
+                                                         previousIDs: ["a", "b", "c"],
+                                                         resultIDs: ["a", "b"]) == 1,
+               "Settings search reconciliation clamps after results shrink")
+        expect(SettingsSearchSupport.reconciledSelection(index: nil,
+                                                         previousIDs: [String](),
+                                                         resultIDs: ["new"]) == 0,
+               "Settings search selects the first newly available result")
+        expect(SettingsSearchSupport.clampedSelection(index: 0, count: 0) == nil,
+               "Settings search clamping clears an empty result set")
+        expect(SettingsSearchSupport.reconciledSelection(index: 1,
+                                                         previousIDs: ["a", "b", "c"],
+                                                         resultIDs: ["b", "a"]) == 0,
+               "Settings search selection follows the same result after reranking")
+
         expect(!ClipboardHistoryPreview.handlesSpace(selectionIsVisible: false, hasModifiers: false),
                "clipboard preview leaves spaces typed into search alone")
         expect(ClipboardHistoryPreview.handlesSpace(selectionIsVisible: true, hasModifiers: false),
@@ -4814,6 +4848,53 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 480, y: 40, width: 960, height: 860),
                "window layout right two thirds targets the final two thirds")
+        expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16)
+               == CGRect(x: 0, y: 40, width: 712, height: 860),
+               "the window gap shaves half the gap off the shared edge and leaves screen edges flush")
+        expect(WindowLayoutGeometry.rect(for: .rightHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16)
+               == CGRect(x: 728, y: 40, width: 712, height: 860),
+               "two gapped halves end up exactly one window gap apart")
+        expect(WindowLayoutGeometry.rect(for: .centerThird, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16)
+               == CGRect(x: 488, y: 40, width: 464, height: 860),
+               "a middle placement gives up half the gap on each shared edge")
+        expect(WindowLayoutGeometry.rect(for: .topLeft, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 32)
+               == CGRect(x: 0, y: 486, width: 704, height: 414),
+               "a corner shaves only its two interior edges")
+        expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 688, height: 796),
+               "the screen gap insets the visible frame before placement")
+        expect(WindowLayoutGeometry.rect(for: .maximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 1376, height: 796),
+               "maximize respects the screen gap and ignores the window gap")
+        expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 680, height: 796),
+               "window and screen gaps combine")
+        expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 64)
+               == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),
+               "centering has no neighbours, so the window gap leaves it alone")
+        expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 64)
+               == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
+               "margin maximize keeps its own margin instead of the window gap")
+        expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         windowGap: 16, screenGap: 32)
+               == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
+               "margin maximize keeps its plain percentage margin under a screen gap instead of compounding")
+        expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
+                                         screenGap: 32)
+               == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),
+               "centering keeps the window's size under a screen gap instead of clamping to the inset frame")
+        expect(WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
+               == CGRect(x: 10, y: 10, width: 80, height: 80),
+               "an oversized screen gap keeps 80pt of layout space instead of inverting the frame")
         let sixthLayouts: [(WindowLayoutAction, CGRect, CGRect)] = [
             (.topLeftSixth,
              CGRect(x: 0, y: 470, width: 480, height: 430),
@@ -7667,6 +7748,333 @@ struct MetricsTests {
                     title: FeatureStrings.screenshot(.enUS).screenCaptureTitle,
                     keywords: captureSearchKeywords),
                "Screen capture tools and their options find the one settings page")
+
+        let settingsFeatureTitles: [AppFeature: String] = [
+            .homebrew: "Homebrew",
+            .cameraPreview: "Camera Preview",
+            .screenRecorder: "Screen Recorder",
+            .micMute: "Mic Mute",
+            .diskImageInstaller: "Disk Image Installer",
+        ]
+        let featureSearchItems = SettingsSearchSupport.featureItems(language: .enUS) { feature in
+            settingsFeatureTitles[feature] ?? feature.rawValue
+        }
+        let expectedFeatureSearchDestinations: [(AppFeature, FeatureSettingsDestination)] = [
+            (.homebrew, FeatureSettingsDestination(.homebrew)),
+            (.cameraPreview, FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)),
+            (.screenRecorder, FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)),
+            (.micMute, FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)),
+            (.diskImageInstaller, FeatureSettingsDestination(.features)),
+        ]
+        for (feature, destination) in expectedFeatureSearchDestinations {
+            let item = featureSearchItems.first { $0.id == .feature(feature) }
+            expect(item?.destination == destination,
+                   "\(settingsFeatureTitles[feature] ?? feature.rawValue) keeps its exact Settings destination")
+            expect(item?.icon == feature.symbolName,
+                   "\(settingsFeatureTitles[feature] ?? feature.rawValue) uses its feature symbol")
+        }
+        expect(featureSearchItems.count == AppFeature.allCases.count
+                && Set(featureSearchItems.map(\.id)).count == AppFeature.allCases.count,
+               "generated Settings feature results have one stable identity per feature")
+
+        for language in AppLanguage.allCases {
+            let pageTitle = FeatureStrings.clipboard(language).title
+            let clipboardPage = SettingsSearchItem(
+                id: .page(.clipboard), destination: FeatureSettingsDestination(.clipboard),
+                title: pageTitle, icon: "doc.on.clipboard")
+            let featureItems = SettingsSearchSupport.featureItems(language: language) {
+                $0 == .clipboardHistory ? pageTitle : $0.rawValue
+            }
+            let items = SettingsSearchSupport.combinedItems(
+                pageItems: [clipboardPage], featureItems: featureItems)
+            let clipboardHistory = items.first { $0.id == .feature(.clipboardHistory) }
+            expect(clipboardHistory?.title == FeatureStrings.commandBar(language).sourceClipboard
+                    && clipboardHistory?.destination
+                        == FeatureSettingsDestination(.clipboard, sectionAnchor: .clipboardHistory),
+                   "\(language.rawValue) labels and routes Clipboard history as a section result")
+            expect(items.contains { $0.id == .page(.clipboard) }
+                    && clipboardPage.title != clipboardHistory?.title,
+                   "\(language.rawValue) distinguishes Clipboard page and history search labels")
+        }
+
+        // MARK: Settings search structural deduplication
+        let structuralPage = SettingsSearchItem(
+            id: .page(.homebrew), destination: FeatureSettingsDestination(.homebrew),
+            title: "Dedicated Packages Page", icon: "shippingbox", keywords: ["Formulae"])
+        let structuralFeature = SettingsSearchItem(
+            id: .feature(.homebrew), destination: FeatureSettingsDestination(.homebrew),
+            title: "Generated Homebrew Feature", icon: "externaldrive", feature: .homebrew)
+        let structurallyMerged = SettingsSearchSupport.combinedItems(
+            pageItems: [structuralPage], featureItems: [structuralFeature])
+        expect(structurallyMerged.map(\.id) == [.page(.homebrew)]
+                && structurallyMerged.first?.title == "Dedicated Packages Page"
+                && structurallyMerged.first?.icon == "shippingbox"
+                && structurallyMerged.first?.keywords == ["Formulae"]
+                && structurallyMerged.first?.feature == .homebrew,
+               "differently titled Homebrew rows merge into the stable page row")
+
+        let monitorPage = SettingsSearchItem(id: .page(.monitor),
+                                             destination: FeatureSettingsDestination(.monitor),
+                                             title: "Monitor", icon: "display")
+        let monitorCPUFeature = SettingsSearchSupport.featureItems(language: .enUS) {
+            $0 == .monitorCPU ? "Generated CPU Monitor" : $0.rawValue
+        }.first { $0.id == .feature(.monitorCPU) }!
+        let multiFeatureMerged = SettingsSearchSupport.combinedItems(
+            pageItems: [monitorPage], featureItems: [monitorCPUFeature])
+        expect(monitorPage.destination == monitorCPUFeature.destination
+                && monitorCPUFeature.destination == AppFeature.monitorCPU.settingsDestination
+                && monitorCPUFeature.destination.sectionAnchor == nil
+                && multiFeatureMerged.map(\.id) == [.page(.monitor), .feature(.monitorCPU)],
+               "the real shared Monitor destination does not merge a multi-feature page")
+
+        let actionCoveredMappings: [(SettingsPage, AppFeature)] = [
+            (.cleaner, .cleaner),
+            (.uninstaller, .uninstaller),
+            (.appUpdates, .appUpdates),
+            (.archiveTools, .archiveTools),
+        ]
+        let actionCoveredPages = actionCoveredMappings.map { page, feature in
+            SettingsSearchItem(id: .page(page), destination: FeatureSettingsDestination(page),
+                               title: "Dedicated \(feature.rawValue) Page", icon: "gearshape")
+        }
+        let actionCoveredFeatures = SettingsSearchSupport.featureItems(language: .enUS) {
+            "Generated \($0.rawValue) Feature"
+        }.filter { item in
+            actionCoveredMappings.contains { _, feature in item.id == .feature(feature) }
+        }
+        let actionCoveredItems = SettingsSearchSupport.combinedItems(
+            pageItems: actionCoveredPages, featureItems: actionCoveredFeatures)
+        for (page, feature) in actionCoveredMappings {
+            expect(actionCoveredItems.first { $0.id == .page(page) }?.feature == feature
+                    && !actionCoveredItems.contains { $0.id == .feature(feature) },
+                   "the differently titled \(feature.rawValue) rows keep only the page identity")
+        }
+        let archiveSearchItem = actionCoveredItems.first { $0.id == .page(.archiveTools) }
+        let unavailableArchiveRoute = archiveSearchItem.map {
+            SettingsSearchSupport.route(for: $0) { _ in false }
+        }
+        expect(unavailableArchiveRoute?.destination == FeatureSettingsDestination(.features)
+                && unavailableArchiveRoute?.targetFeature == .archiveTools,
+               "an unavailable Archive tools page targets its exact Feature Hub row")
+
+        let dedicatedSettingsItems = [
+            SettingsSearchItem(id: .page(.features),
+                                destination: FeatureSettingsDestination(.features),
+                                title: "Features", icon: "square.grid.2x2",
+                                keywords: ["Homebrew", "Camera Preview"],
+                                keywordFeatures: [.homebrew, .cameraPreview]),
+            SettingsSearchItem(id: .page(.appUpdates),
+                                destination: FeatureSettingsDestination(.appUpdates),
+                                title: "App Updates", icon: "arrow.down.app",
+                                keywords: ["Homebrew"]),
+            SettingsSearchItem(id: .page(.quickTools),
+                                destination: FeatureSettingsDestination(.quickTools),
+                                title: "Quick Tools", icon: "wand.and.rays",
+                                keywords: ["Camera Preview"]),
+            SettingsSearchItem(id: .page(.homebrew),
+                                destination: FeatureSettingsDestination(.homebrew),
+                                title: "Homebrew", icon: "shippingbox"),
+        ]
+        let combinedSettingsItems = SettingsSearchSupport.combinedItems(
+            pageItems: dedicatedSettingsItems,
+            featureItems: featureSearchItems)
+        expect(combinedSettingsItems.filter {
+            $0.title == "Homebrew" && $0.destination == FeatureSettingsDestination(.homebrew)
+        }.count == 1
+                && combinedSettingsItems.contains { $0.id == .page(.homebrew) },
+               "the explicit Homebrew page result replaces its equivalent generated result")
+        expect(combinedSettingsItems.filter {
+            $0.destination == FeatureSettingsDestination(.appUpdates)
+        }.count == 1
+                && combinedSettingsItems.contains { $0.id == .page(.appUpdates) },
+               "a structurally one-to-one App Updates result is deduplicated to the page")
+        expect(combinedSettingsItems.contains { $0.id == .feature(.diskImageInstaller) },
+               "a differently named feature remains discoverable through its Features fallback")
+        expect(combinedSettingsItems.first { $0.id == .page(.homebrew) }?.feature == .homebrew,
+               "a deduplicated Homebrew page result keeps its feature identity")
+        expect(combinedSettingsItems.first { $0.id == .page(.features) }?.feature == nil,
+               "a generic page result that does not merge with a feature carries no feature identity")
+        expect(combinedSettingsItems.first { $0.id == .feature(.diskImageInstaller) }?.feature
+                == .diskImageInstaller,
+               "a feature-only result carries its own feature identity")
+
+        // MARK: Settings search routing
+
+        let homebrewPageItem = combinedSettingsItems.first { $0.id == .page(.homebrew) }!
+        let unavailableHomebrewRoute = SettingsSearchSupport.route(for: homebrewPageItem) { _ in false }
+        expect(unavailableHomebrewRoute.destination == FeatureSettingsDestination(.features)
+                && unavailableHomebrewRoute.targetFeature == .homebrew,
+               "an unavailable Homebrew result preserves its identity and targets its Feature Hub row")
+        let availableHomebrewRoute = SettingsSearchSupport.route(for: homebrewPageItem) { _ in true }
+        expect(availableHomebrewRoute.destination == FeatureSettingsDestination(.homebrew)
+                && availableHomebrewRoute.targetFeature == nil,
+               "an available Homebrew result still opens its own dedicated page with no row to reveal")
+
+        let cameraPreviewItem = featureSearchItems.first { $0.id == .feature(.cameraPreview) }!
+        let unavailableCameraRoute = SettingsSearchSupport.route(for: cameraPreviewItem) { $0 != .cameraPreview }
+        expect(unavailableCameraRoute.destination == FeatureSettingsDestination(.features)
+                && unavailableCameraRoute.targetFeature == .cameraPreview,
+               "an unavailable grouped feature targets its own row even while its shared page stays visible")
+        let availableCameraRoute = SettingsSearchSupport.route(for: cameraPreviewItem) { _ in true }
+        expect(availableCameraRoute.destination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
+                && availableCameraRoute.targetFeature == nil,
+               "an available grouped feature keeps opening its anchored section directly")
+
+        let diskImageItem = featureSearchItems.first { $0.id == .feature(.diskImageInstaller) }!
+        let diskImageRoute = SettingsSearchSupport.route(for: diskImageItem) { _ in true }
+        expect(diskImageRoute.destination == FeatureSettingsDestination(.features)
+                && diskImageRoute.targetFeature == .diskImageInstaller,
+               "Disk Image Installer, whose own destination is Features, still targets its exact row")
+
+        let genericFeaturesItem = SettingsSearchItem(id: .page(.features),
+                                                     destination: FeatureSettingsDestination(.features),
+                                                     title: "Features", icon: "square.grid.2x2")
+        let genericFeaturesRoute = SettingsSearchSupport.route(for: genericFeaturesItem) { _ in true }
+        expect(genericFeaturesRoute.destination == FeatureSettingsDestination(.features)
+                && genericFeaturesRoute.targetFeature == nil,
+               "a generic Features selection carries no feature target")
+
+        let hiddenPageItem = SettingsSearchItem(id: .page(.shelf),
+                                                destination: FeatureSettingsDestination(.shelf),
+                                                title: "Shelf", icon: "tray.full")
+        let hiddenPageRoute = SettingsSearchSupport.route(for: hiddenPageItem) { _ in false }
+        expect(hiddenPageRoute.destination == FeatureSettingsDestination(.features)
+                && hiddenPageRoute.targetFeature == nil,
+               "a page result with no merged feature identity still falls back to Features generically")
+
+        let homebrewMatches = SettingsSearchSupport.matchingItems(
+            query: "  HOMEBREW ", items: combinedSettingsItems)
+        expect(homebrewMatches.first?.destination == FeatureSettingsDestination(.homebrew)
+                && homebrewMatches.map(\.id)
+                    == [.page(.homebrew), .page(.features), .page(.appUpdates)],
+               "an exact Homebrew title ranks before earlier generic keyword matches")
+        let cameraPreviewMatches = SettingsSearchSupport.matchingItems(
+            query: "Camera Preview", items: combinedSettingsItems)
+        expect(cameraPreviewMatches.first?.destination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
+                && cameraPreviewMatches.map(\.id)
+                    == [.feature(.cameraPreview), .page(.features), .page(.quickTools)],
+               "an exact Camera Preview feature ranks before its page containers")
+
+        let keywordBeforePartialTitle = SettingsSearchItem(
+            id: .page(.features), destination: FeatureSettingsDestination(.features),
+            title: "Features", icon: "square.grid.2x2", keywords: ["Homebrew Packages"])
+        let partialTitleAfterKeyword = SettingsSearchItem(
+            id: .page(.appUpdates), destination: FeatureSettingsDestination(.appUpdates),
+            title: "Homebrew Packages", icon: "arrow.down.app")
+        let partialMatches = SettingsSearchSupport.matchingItems(
+            query: "brew", items: [keywordBeforePartialTitle, partialTitleAfterKeyword])
+        expect(partialMatches.map(\.id) == [.page(.appUpdates), .page(.features)],
+               "partial title containment ranks before an earlier keyword-only match")
+
+        let tiedTitleMatches = [
+            SettingsSearchItem(id: .page(.quickTools),
+                               destination: FeatureSettingsDestination(.quickTools),
+                               title: "Camera Tools", icon: "wand.and.rays"),
+            SettingsSearchItem(id: .feature(.cameraPreview),
+                               destination: FeatureSettingsDestination(
+                                 .quickTools, sectionAnchor: .cameraPreview),
+                               title: "Camera Controls", icon: "web.camera"),
+        ]
+        expect(SettingsSearchSupport.matchingItems(query: "camera", items: tiedTitleMatches)
+                .map(\.id) == tiedTitleMatches.map(\.id),
+               "Settings search preserves source order between equal-rank matches")
+        expect(SettingsSearchSupport.matchingItems(query: "  \n", items: tiedTitleMatches)
+                .map(\.id) == tiedTitleMatches.map(\.id),
+               "a blank Settings query preserves every item in source order")
+
+        // MARK: Grouped Settings search suggestions
+        let cameraGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "Camera Preview", items: combinedSettingsItems,
+            isAvailable: { _ in true })
+        expect(cameraGroups.map(\.id) == [.quickTools, .features]
+                && cameraGroups.first?.pageItem.title == "Quick Tools",
+               "an exact utility match puts its main Settings page first")
+        expect(cameraGroups.first?.parentMatches == false
+                && cameraGroups.first?.suggestions.map(\.title) == ["Camera Preview"]
+                && cameraGroups.first?.suggestions.first?.item.destination
+                    == FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview),
+               "a grouped utility row retains its exact anchored destination")
+        expect(cameraGroups.last?.suggestions.map(\.title) == ["Camera Preview"],
+               "every other main page containing the query remains represented")
+        let installedCameraHubRoute = cameraGroups.last?.suggestions.first.map {
+            SettingsSearchSupport.route(for: $0, isAvailable: { _ in true })
+        }
+        expect(installedCameraHubRoute?.destination == FeatureSettingsDestination(.features)
+                && installedCameraHubRoute?.targetFeature == .cameraPreview,
+               "an installed utility's Features result reveals its exact uninstall row")
+
+        let homebrewGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "Homebrew", items: combinedSettingsItems,
+            isAvailable: { _ in true })
+        expect(homebrewGroups.map(\.id) == [.homebrew, .features, .appUpdates]
+                && homebrewGroups.first?.parentMatches == true
+                && homebrewGroups.first?.suggestions.isEmpty == true,
+               "a matching main page is shown once before grouped keyword matches")
+
+        let settingPage = SettingsSearchItem(
+            id: .page(.energy), destination: FeatureSettingsDestination(.energy),
+            title: "Energy", icon: "bolt.fill",
+            keywords: ["Keep awake", "Show countdown", "Show remaining duration"])
+        let settingGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "show", items: [settingPage], isAvailable: { _ in true })
+        expect(settingGroups.count == 1
+                && settingGroups[0].id == .energy
+                && !settingGroups[0].parentMatches
+                && settingGroups[0].suggestions.map(\.title)
+                    == ["Show countdown", "Show remaining duration"],
+               "all matching setting labels are listed beneath their main page")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: " \n ", items: [settingPage],
+                    isAvailable: { _ in true }).isEmpty,
+               "a blank query does not replace the normal Settings sidebar with groups")
+
+        let availabilityPage = SettingsSearchItem(
+            id: .page(.quickTools), destination: FeatureSettingsDestination(.quickTools),
+            title: "Quick Tools", icon: "wand.and.rays",
+            keywords: ["Camera Preview", "Open camera automatically", "Scratchpad Notes"],
+            keywordFeatures: [.cameraPreview, .cameraPreview, .scratchpad])
+        let availabilityHub = SettingsSearchItem(
+            id: .page(.features), destination: FeatureSettingsDestination(.features),
+            title: "Features", icon: "square.grid.2x2",
+            keywords: ["Camera Preview", "scratchpad"],
+            keywordFeatures: [.cameraPreview, .scratchpad])
+        let availabilityFeatures = featureSearchItems.filter {
+            $0.id == .feature(.cameraPreview) || $0.id == .feature(.scratchpad)
+        }
+        let availabilityItems = [availabilityHub, availabilityPage] + availabilityFeatures
+        let onlyScratchpadAvailable: (AppFeature) -> Bool = { $0 == .scratchpad }
+        let unavailableCameraGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "camera", items: availabilityItems,
+            isAvailable: onlyScratchpadAvailable)
+        let unavailableCameraSuggestion = unavailableCameraGroups.first?.suggestions.first
+        let groupedUnavailableCameraRoute = unavailableCameraSuggestion.map {
+            SettingsSearchSupport.route(for: $0.item, isAvailable: onlyScratchpadAvailable)
+        }
+        expect(unavailableCameraGroups.count == 1
+                && unavailableCameraGroups[0].id == .features
+                && unavailableCameraGroups[0].suggestions.map(\.title) == ["Camera Preview"]
+                && groupedUnavailableCameraRoute?.destination == FeatureSettingsDestination(.features)
+                && groupedUnavailableCameraRoute?.targetFeature == .cameraPreview,
+               "an unavailable utility remains navigable through its exact Features row")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: "automatically", items: availabilityItems,
+                    isAvailable: onlyScratchpadAvailable).isEmpty,
+               "setting fields owned by an unavailable utility stay out of suggestions")
+        let availableScratchpadGroups = SettingsSearchSupport.groupedMatchingItems(
+            query: "scratchpad", items: availabilityItems,
+            isAvailable: onlyScratchpadAvailable)
+        expect(availableScratchpadGroups.first?.id == .quickTools
+                && availableScratchpadGroups[0].suggestions.map(\.title)
+                    == ["scratchpad", "Scratchpad Notes"]
+                && availableScratchpadGroups[0].suggestions.first?.item.destination
+                    == FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad),
+               "an installed utility remains searchable on a shared Settings page")
+        expect(SettingsSearchSupport.groupedMatchingItems(
+                    query: "Quick Tools", items: availabilityItems,
+                    isAvailable: { _ in false }).isEmpty,
+               "a main page with no installed utilities is not suggested")
 
         let freshSize = SettingsWindowSupport.initialContentSize(savedWidth: 0, savedHeight: 0,
                                                                  availableHeight: 1200)
@@ -11615,6 +12023,15 @@ struct MetricsTests {
 
         expect((AppFeature.availabilityDefaults[AppFeature.archiveTools.availabilityKey] as? Bool) == true,
                "Archive tools ships available because it has no permission or background cost")
+        let settingsDirectoryCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SettingsDirectory.swift",
+            encoding: .utf8)) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false).first ?? "" }
+            .joined(separator: "\n")
+        expect(settingsDirectoryCode.contains("SettingsDirectoryItem(page: .archiveTools,")
+                && settingsDirectoryCode.contains("FeatureStrings.archiveTools(language).title"),
+               "the Settings directory keeps the dedicated Archive tools page searchable")
         let archiveToolsViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Archive/ArchiveToolsView.swift",
             encoding: .utf8)) ?? ""
@@ -12001,6 +12418,20 @@ struct MetricsTests {
                 && FanControlPolicy.nextCurvePoint(for: iterativePoints) == nil
                 && FanControlPolicy.addingCurvePoint(to: iterativePoints) == nil,
                "adding fan curve points fills up to the maximum point limit with strictly valid curves")
+        let secondCurve = FanControlCurve(sensor: .averageCPU,
+                                          points: defaultCurve.points)
+        var updatedCurves = [defaultCurve, secondCurve]
+        if let secondPoints = FanControlPolicy.addingCurvePoint(to: updatedCurves[1].points) {
+            updatedCurves[1].points = secondPoints
+        }
+        let storedUpdatedCurves = FanControlConfiguration.decodeCurves(
+            FanControlConfiguration.encodeCurves(updatedCurves) ?? ""
+        )
+        expect(updatedCurves.count == 2
+                && updatedCurves.first == defaultCurve
+                && updatedCurves[1].points == addedPoints
+                && storedUpdatedCurves == updatedCurves,
+               "adding a point to the second fan curve preserves every valid stored curve")
         let m3FanTemperatures = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: [("Te05", 44), ("Tf4E", 53), ("Tf4F", 76)],
             gpuReadings: [48],
@@ -12899,6 +13330,31 @@ struct MetricsTests {
         settingsRouter.consumeDestinationRequest(id: repeatedSettingsRequestID)
         expect(settingsRouter.pendingDestinationRequest == nil,
                "a handled Settings destination request is cleared")
+
+        let featuresDestination = FeatureSettingsDestination(.features)
+        settingsRouter.request(featuresDestination, targetFeature: .homebrew)
+        let firstFeatureTargetRequestID = settingsRouter.requestID
+        expect(settingsRouter.pendingFeatureTarget?.id == firstFeatureTargetRequestID
+                && settingsRouter.pendingFeatureTarget?.feature == .homebrew,
+               "requesting Features with a target feature publishes a matching feature-target request")
+        settingsRouter.request(featuresDestination, targetFeature: .homebrew)
+        let secondFeatureTargetRequestID = settingsRouter.requestID
+        expect(secondFeatureTargetRequestID != firstFeatureTargetRequestID
+                && settingsRouter.pendingFeatureTarget?.id == secondFeatureTargetRequestID,
+               "repeated requests for the same target feature remain observable")
+        settingsRouter.consumeFeatureTarget(id: firstFeatureTargetRequestID)
+        expect(settingsRouter.pendingFeatureTarget?.id == secondFeatureTargetRequestID,
+               "consuming an older feature-target request cannot clear a newer target")
+        settingsRouter.consumeFeatureTarget(id: secondFeatureTargetRequestID)
+        expect(settingsRouter.pendingFeatureTarget == nil,
+               "a handled feature-target request is cleared")
+        settingsRouter.request(featuresDestination, targetFeature: .diskImageInstaller)
+        expect(settingsRouter.pendingFeatureTarget?.feature == .diskImageInstaller,
+               "requesting a different target feature is observable")
+        settingsRouter.request(repeatedDestination)
+        expect(settingsRouter.pendingFeatureTarget == nil,
+               "a later generic request clears any unconsumed feature target so it cannot leak into unrelated navigation")
+
         settingsRouter.cleanerTool = "tool-id"
         settingsRouter.request(FeatureSettingsDestination(.cleaner))
         expect(settingsRouter.page == .cleaner && settingsRouter.cleanerTool == "tool-id",
