@@ -18,6 +18,24 @@ AGENTS.md
 CLAUDE.md
 E2E/
 
+# Local AI agent and planning workspaces
+.agents/
+.claude/
+.serena/
+_bmad/
+_bmad-output/
+
+# Local environment and secret files
+.env
+.env.*
+!.env.example
+!.env.sample
+*.secret
+*.secrets
+secrets/
+credentials.json
+service-account*.json
+
 # macOS noise
 .DS_Store
 
