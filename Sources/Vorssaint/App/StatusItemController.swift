@@ -707,11 +707,12 @@ final class StatusItemController {
         if button.title != text {
             button.title = text
         }
-        // entry.preview, not entry.text: already whitespace-collapsed and
-        // capped at previewCharacters for every kind, so the tooltip stays a
-        // bounded "fuller preview" rather than an unbounded raw text dump or
-        // (for images/files) the further-truncated menu bar title itself.
-        let tooltip = entry?.preview ?? ""
+        // menuBarText again rather than entry.preview directly: preview's
+        // .files case joins every file name with no bound of its own, so a
+        // large batch of files would otherwise make an unbounded tooltip.
+        // previewCharacters is a much larger cap than the menu bar title's
+        // own character limit, so this still reads as a fuller preview.
+        let tooltip = entry?.menuBarText(maxCharacters: ClipboardHistoryEditing.previewCharacters) ?? ""
         if button.toolTip != tooltip {
             button.toolTip = tooltip
         }

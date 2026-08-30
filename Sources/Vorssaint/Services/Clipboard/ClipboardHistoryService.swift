@@ -145,8 +145,8 @@ final class ClipboardHistoryService: ObservableObject {
                 self?.touch(selectedEntries.map(\.id))
                 // A single-entry selection mirrors the entry above; a real
                 // batch no longer matches any one saved entry's text, so the
-                // menu bar preview falls back to the most recent entry
-                // instead of showing a stale single-entry snapshot.
+                // menu bar preview goes blank instead of keeping a stale
+                // single-entry snapshot on display.
                 self?.latestPasteboardEntry = selectedEntries.count == 1 ? selectedEntries[0] : nil
             }
             completion(copied)
@@ -894,11 +894,14 @@ final class ClipboardHistoryService: ObservableObject {
         entries = decoded
         normalizeEntryOrder()
         trimToLimit()
-        // Seeds the menu bar preview with the best guess of what is actually
-        // on the pasteboard before any capture has happened this launch. nil
-        // means "nothing" from here on (see captureIfChanged/pasteboardWasCleared),
-        // so this is the one place it starts as "unknown" instead.
-        latestPasteboardEntry = recentEntries.first
+        // latestPasteboardEntry is deliberately left nil here rather than
+        // seeded from recentEntries.first: baselinePasteboard() takes
+        // whatever the pasteboard's change count already is as the starting
+        // point, so a copy made while Vorssaint was quit is never seen as a
+        // change once it launches — a seed here would have no way to
+        // self-correct and could advertise stale content for the rest of
+        // the session. The menu bar preview starts blank and fills in on
+        // the first real capture or reused entry instead.
         // Sweep image files that lost their entry (crash between write and save).
         ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
         // A history read from the legacy blob migrates right away instead of
