@@ -424,6 +424,7 @@ enum DefaultsKey {
 
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause thumbnail capture while these apps are in front
     static let diskEjectExcludedVolumes = "diskEjectExcludedVolumes" // volume names/UUIDs excluded from Eject all disks
+    static let diskBenchmarkResults = "diskBenchmarkResultsV1" // latest successful result per physical volume
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
     static let pastePlainShortcut = "pastePlainShortcut"

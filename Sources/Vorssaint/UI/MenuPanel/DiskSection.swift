@@ -8,6 +8,7 @@ struct DiskSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var protection = DiskProtectionService.shared
+    @ObservedObject private var benchmark = DiskBenchmarkService.shared
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
     @AppStorage(DefaultsKey.monitorGraphDisk) private var showGraph = true
@@ -184,8 +185,10 @@ struct DiskSection: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(benchmark.isRunning)
             if disk.canEject {
                 DiskSelectorEjectButton(state: protection.state(for: disk),
+                                        disabled: benchmark.isRunning,
                                         idleHelp: l10n.s.diskEject,
                                         busyHelp: l10n.s.diskEjecting,
                                         readyHelp: l10n.s.diskReadyToRemove,
@@ -387,7 +390,8 @@ struct DiskSection: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(!disk.canEject || protection.state(for: disk) == .ejecting)
+                    .disabled(benchmark.isRunning || !disk.canEject
+                              || protection.state(for: disk) == .ejecting)
 
                     Button {
                         protection.ejectAll(disks)
@@ -397,7 +401,7 @@ struct DiskSection: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(ejectableDisks.isEmpty)
+                    .disabled(benchmark.isRunning || ejectableDisks.isEmpty)
                 }
                 Text(disk.canEject ? ejectCaption(for: disk) : l10n.s.diskNoExternal)
                     .font(.system(size: 9.5))
@@ -458,6 +462,8 @@ struct DiskSection: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+                Divider()
+                DiskBenchmarkView(disk: disk, service: benchmark)
             }
         }
     }
@@ -510,6 +516,7 @@ struct DiskSection: View {
 private struct DiskSelectorEjectButton: View {
     @Environment(\.colorScheme) private var colorScheme
     let state: DiskEjectState?
+    let disabled: Bool
     let idleHelp: String
     let busyHelp: String
     let readyHelp: String
@@ -521,11 +528,11 @@ private struct DiskSelectorEjectButton: View {
         Button(action: action) {
             icon
                 .frame(width: 18, height: 18)
-                .background(Circle().fill(Color.primary.opacity(hovering && !busy ? 0.1 : 0)))
+                .background(Circle().fill(Color.primary.opacity(hovering && !busy && !disabled ? 0.1 : 0)))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(busy)
+        .disabled(busy || disabled)
         .onHover { hovering = $0 }
         .help(help)
         .accessibilityLabel(help)
