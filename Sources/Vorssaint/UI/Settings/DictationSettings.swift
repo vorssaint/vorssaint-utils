@@ -13,9 +13,13 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationGroqModel) private var groqModel = DictationProvider.groq.defaultModel.id
     @AppStorage(DefaultsKey.dictationMode) private var modeRaw = DictationShortcutMode.toggle.rawValue
     @AppStorage(DefaultsKey.dictationLanguage) private var languageRaw = DictationLanguage.automatic.rawValue
+    @AppStorage(DefaultsKey.dictationShortcutKind) private var shortcutKindRaw = DictationShortcutKind.standard.rawValue
+    @AppStorage(DefaultsKey.dictationModifierShortcut) private var modifierShortcutRaw = DictationModifierKey.rightCommand.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryEnabled) private var secondaryEnabled = false
     @AppStorage(DefaultsKey.dictationSecondaryMode) private var secondaryModeRaw = DictationShortcutMode.toggle.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryLanguage) private var secondaryLanguageRaw = DictationLanguage.automatic.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryShortcutKind) private var secondaryShortcutKindRaw = DictationShortcutKind.standard.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryModifierShortcut) private var secondaryModifierShortcutRaw = DictationModifierKey.rightOption.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryProvider) private var secondaryProviderRaw = DictationProvider.groq.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryOpenAIModel) private var secondaryOpenAIModel = DictationProvider.openAI.defaultModel.id
     @AppStorage(DefaultsKey.dictationSecondaryGroqModel) private var secondaryGroqModel = DictationProvider.groq.defaultModel.id
@@ -63,14 +67,31 @@ struct DictationSettings: View {
                     }
                 }
                 .onChange(of: modeRaw) { _, _ in service.syncWithPreferences() }
+                Picker(activation.shortcutKind, selection: $shortcutKindRaw) {
+                    Text(activation.standardShortcut).tag(DictationShortcutKind.standard.rawValue)
+                    Text(activation.singleModifier).tag(DictationShortcutKind.modifier.rawValue)
+                }
+                .onChange(of: shortcutKindRaw) { _, _ in service.syncWithPreferences() }
                 Picker(activation.language, selection: $languageRaw) {
                     ForEach(DictationLanguage.allCases) { language in
                         Text(language.displayName).tag(language.rawValue)
                     }
                 }
                 .onChange(of: languageRaw) { _, _ in service.syncWithPreferences() }
-                ShortcutPreferenceRow(role: .dictation, isEnabled: enabled) {
-                    service.syncWithPreferences()
+                if DictationShortcutKind(rawValue: shortcutKindRaw) == .modifier {
+                    Picker(activation.modifierKey, selection: $modifierShortcutRaw) {
+                        ForEach(DictationModifierKey.allCases) { key in
+                            Text(key.displayName).tag(key.rawValue)
+                        }
+                    }
+                    .onChange(of: modifierShortcutRaw) { _, _ in service.syncWithPreferences() }
+                    Text(activation.modifierWarning)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ShortcutPreferenceRow(role: .dictation, isEnabled: enabled) {
+                        service.syncWithPreferences()
+                    }
                 }
                 if enabled, service.shortcutRegistrationFailed {
                     Text(l10n.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)
@@ -85,6 +106,11 @@ struct DictationSettings: View {
                         }
                     }
                     .onChange(of: secondaryModeRaw) { _, _ in service.syncWithPreferences() }
+                    Picker(activation.shortcutKind, selection: $secondaryShortcutKindRaw) {
+                        Text(activation.standardShortcut).tag(DictationShortcutKind.standard.rawValue)
+                        Text(activation.singleModifier).tag(DictationShortcutKind.modifier.rawValue)
+                    }
+                    .onChange(of: secondaryShortcutKindRaw) { _, _ in service.syncWithPreferences() }
                     Picker(activation.language, selection: $secondaryLanguageRaw) {
                         ForEach(DictationLanguage.allCases) { language in
                             Text(language.displayName).tag(language.rawValue)
@@ -102,8 +128,20 @@ struct DictationSettings: View {
                     }
                     .onChange(of: secondaryOpenAIModel) { _, _ in service.syncWithPreferences() }
                     .onChange(of: secondaryGroqModel) { _, _ in service.syncWithPreferences() }
-                    ShortcutPreferenceRow(role: .dictationSecondary, isEnabled: enabled) {
-                        service.syncWithPreferences()
+                    if DictationShortcutKind(rawValue: secondaryShortcutKindRaw) == .modifier {
+                        Picker(activation.modifierKey, selection: $secondaryModifierShortcutRaw) {
+                            ForEach(DictationModifierKey.allCases) { key in
+                                Text(key.displayName).tag(key.rawValue)
+                            }
+                        }
+                        .onChange(of: secondaryModifierShortcutRaw) { _, _ in service.syncWithPreferences() }
+                        Text(activation.modifierWarning)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ShortcutPreferenceRow(role: .dictationSecondary, isEnabled: enabled) {
+                            service.syncWithPreferences()
+                        }
                     }
                     if service.secondaryShortcutRegistrationFailed {
                         Text(l10n.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)

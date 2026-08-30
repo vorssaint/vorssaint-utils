@@ -12531,7 +12531,11 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.dictationLanguage] as? String
                     == DictationLanguage.automatic.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryLanguage] as? String
-                    == DictationLanguage.automatic.rawValue,
+                    == DictationLanguage.automatic.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationShortcutKind] as? String
+                    == DictationShortcutKind.standard.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationModifierShortcut] as? String
+                    == DictationModifierKey.rightCommand.rawValue,
                "dictation defaults stay disabled and use automatic language detection")
         expect(GlobalShortcutRole.dictation.storageKey == DefaultsKey.dictationShortcut
                 && GlobalShortcutRole.dictation.requiredEnableKeys == [DefaultsKey.dictationEnabled]
@@ -12786,7 +12790,7 @@ struct MetricsTests {
             }, "dictation has no placeholder or em-dash text for \(language.rawValue)")
             let activationValues = Mirror(reflecting: FeatureStrings.dictationActivation(language)).children
                 .compactMap { $0.value as? String }
-            expect(activationValues.count == 7 && activationValues.allSatisfy { !$0.isEmpty },
+            expect(activationValues.count == 12 && activationValues.allSatisfy { !$0.isEmpty },
                    "dictation activation has every localized field for \(language.rawValue)")
         }
         let hotkeySource = (try? String(
@@ -12800,8 +12804,17 @@ struct MetricsTests {
                "quick-tool hotkeys route Carbon pressed and released events")
         expect(dictationServiceSource.contains("if state == .processing")
                 && dictationServiceSource.contains("prepareForRegistration")
-                && dictationServiceSource.contains("secondaryHotkey.sync(enabled: registerSecondary"),
-               "dictation ignores late processing releases and resets reconfigured slots")
+                && dictationServiceSource.contains("secondaryHotkey.sync(enabled: secondaryCarbonEnabled")
+                && dictationServiceSource.contains("modifierShortcutTap.sync(keys: modifierKeys"),
+               "dictation ignores late processing releases and supports modifier shortcuts")
+        let dictationShortcutSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/DictationShortcutSupport.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationShortcutSource.contains("flagsChanged")
+                && dictationShortcutSource.contains("AXIsProcessTrusted()")
+                && dictationShortcutSource.contains("kVK_RightCommand")
+                && dictationShortcutSource.contains("maskSecondaryFn"),
+               "modifier-only dictation shortcuts use an Accessibility-protected flags monitor")
         let dictationInfoPlist = (try? String(contentsOfFile: "Resources/Info.plist",
                                               encoding: .utf8)) ?? ""
         expect(dictationInfoPlist.contains("start Dictation") && dictationInfoPlist.contains("provider you choose"),

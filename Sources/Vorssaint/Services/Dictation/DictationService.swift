@@ -23,6 +23,7 @@ final class DictationService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 25)
     private let secondaryHotkey = QuickToolHotkey(id: 27)
     private let cancelHotkey = QuickToolHotkey(id: 26)
+    private let modifierShortcutTap = DictationModifierShortcutTap()
     private var transcriptionTask: Task<Void, Never>?
     private var localEscapeMonitor: Any?
     private var globalEscapeMonitor: Any?
@@ -35,6 +36,8 @@ final class DictationService: ObservableObject {
     private var activeSlot: DictationShortcutSlot?
     private var configuredProfiles: [DictationShortcutSlot: DictationShortcutProfile] = [:]
     private var configuredShortcuts: [DictationShortcutSlot: GlobalShortcut] = [:]
+    private var configuredShortcutKinds: [DictationShortcutSlot: DictationShortcutKind] = [:]
+    private var configuredModifierKeys: [DictationShortcutSlot: DictationModifierKey] = [:]
     private var configuredEnabled: [DictationShortcutSlot: Bool] = [:]
 
     private init(keychain: KeychainStoring = KeychainStore.shared,
@@ -48,6 +51,8 @@ final class DictationService: ObservableObject {
         hotkey.onRelease = { [weak self] in self?.shortcutUp(.primary) }
         secondaryHotkey.onPress = { [weak self] in self?.shortcutDown(.secondary) }
         secondaryHotkey.onRelease = { [weak self] in self?.shortcutUp(.secondary) }
+        modifierShortcutTap.onPress = { [weak self] key in self?.modifierShortcutDown(key) }
+        modifierShortcutTap.onRelease = { [weak self] key in self?.modifierShortcutUp(key) }
         cancelHotkey.onPress = { [weak self] in self?.cancel() }
         recorder.onLevel = { [weak self] level in
             self?.level = level
@@ -98,32 +103,60 @@ final class DictationService: ObservableObject {
             secondaryShortcutRegistrationFailed = false
             hotkey.unregister()
             secondaryHotkey.unregister()
+            modifierShortcutTap.stop()
             cancel(event: .disable)
             configuredProfiles.removeAll()
             configuredShortcuts.removeAll()
+            configuredShortcutKinds.removeAll()
+            configuredModifierKeys.removeAll()
             configuredEnabled.removeAll()
             return
         }
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.dictationShortcut,
                                             fallback: .dictationDefault)
+        let primaryKind = shortcutKind(for: .primary)
+        let primaryModifier = modifierKey(for: .primary)
         prepareForRegistration(.primary, enabled: true, shortcut: shortcut,
-                               profile: profile(for: .primary))
-        shortcutRegistrationFailed = !hotkey.sync(enabled: true, shortcut: shortcut)
+                               profile: profile(for: .primary), kind: primaryKind,
+                               modifierKey: primaryModifier)
+        let primaryCarbonEnabled = primaryKind == .standard
+        let primaryCarbonRegistered = hotkey.sync(enabled: primaryCarbonEnabled,
+                                                   shortcut: shortcut)
         let secondaryEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dictationSecondaryEnabled)
         let secondary = GlobalShortcut.saved(for: DefaultsKey.dictationSecondaryShortcut,
                                               fallback: .dictationSecondaryDefault)
-        let conflicts = secondaryEnabled && secondary == shortcut
+        let secondaryKind = shortcutKind(for: .secondary)
+        let secondaryModifier = modifierKey(for: .secondary)
+        let modifierConflict = secondaryEnabled
+            && primaryKind == .modifier
+            && secondaryKind == .modifier
+            && primaryModifier == secondaryModifier
+        let carbonConflict = secondaryEnabled
+            && primaryKind == .standard
+            && secondaryKind == .standard
+            && secondary == shortcut
+        let conflicts = modifierConflict || carbonConflict
         let registerSecondary = secondaryEnabled && !conflicts
         prepareForRegistration(.secondary, enabled: registerSecondary, shortcut: secondary,
-                               profile: profile(for: .secondary))
-        let secondaryRegistered = secondaryHotkey.sync(enabled: registerSecondary,
-                                                        shortcut: secondary)
-        secondaryShortcutRegistrationFailed = conflicts || !secondaryRegistered
+                               profile: profile(for: .secondary), kind: secondaryKind,
+                               modifierKey: secondaryModifier)
+        let secondaryCarbonEnabled = registerSecondary && secondaryKind == .standard
+        let secondaryCarbonRegistered = secondaryHotkey.sync(enabled: secondaryCarbonEnabled,
+                                                              shortcut: secondary)
+        var modifierKeys = Set<DictationModifierKey>()
+        if primaryKind == .modifier { modifierKeys.insert(primaryModifier) }
+        if registerSecondary, secondaryKind == .modifier { modifierKeys.insert(secondaryModifier) }
+        let modifierRegistered = modifierShortcutTap.sync(keys: modifierKeys)
+        shortcutRegistrationFailed = primaryKind == .modifier
+            ? !modifierRegistered : !primaryCarbonRegistered
+        secondaryShortcutRegistrationFailed = conflicts || (secondaryKind == .modifier
+            ? (registerSecondary && !modifierRegistered) : (registerSecondary && !secondaryCarbonRegistered))
     }
 
     func suspend() {
         hotkey.unregister()
         secondaryHotkey.unregister()
+        modifierShortcutTap.stop()
         cancel(event: .disable)
     }
 
@@ -149,6 +182,20 @@ final class DictationService: ObservableObject {
             action = secondaryGesture.keyDown(at: now, mode: mode, sessionIsActive: sessionID != nil)
         }
         perform(action, slot: slot)
+    }
+
+    private func modifierShortcutDown(_ key: DictationModifierKey) {
+        guard let slot = configuredModifierKeys.first(where: { $0.value == key })?.key,
+              configuredShortcutKinds[slot] == .modifier,
+              configuredEnabled[slot] == true else { return }
+        shortcutDown(slot)
+    }
+
+    private func modifierShortcutUp(_ key: DictationModifierKey) {
+        guard let slot = configuredModifierKeys.first(where: { $0.value == key })?.key,
+              configuredShortcutKinds[slot] == .modifier,
+              configuredEnabled[slot] == true else { return }
+        shortcutUp(slot)
     }
 
     private func shortcutUp(_ slot: DictationShortcutSlot) {
@@ -460,6 +507,21 @@ final class DictationService: ObservableObject {
         return provider.sanitizedModel(UserDefaults.standard.string(forKey: key))
     }
 
+    private func shortcutKind(for slot: DictationShortcutSlot) -> DictationShortcutKind {
+        let key = slot == .secondary
+            ? DefaultsKey.dictationSecondaryShortcutKind : DefaultsKey.dictationShortcutKind
+        return DictationShortcutKind(rawValue: UserDefaults.standard.string(forKey: key) ?? "")
+            ?? .standard
+    }
+
+    private func modifierKey(for slot: DictationShortcutSlot) -> DictationModifierKey {
+        let key = slot == .secondary
+            ? DefaultsKey.dictationSecondaryModifierShortcut : DefaultsKey.dictationModifierShortcut
+        let fallback: DictationModifierKey = slot == .secondary ? .rightOption : .rightCommand
+        return DictationModifierKey(rawValue: UserDefaults.standard.string(forKey: key) ?? "")
+            ?? fallback
+    }
+
     private func profile(for slot: DictationShortcutSlot) -> DictationShortcutProfile {
         let defaults = UserDefaults.standard
         let secondary = slot == .secondary
@@ -486,10 +548,14 @@ final class DictationService: ObservableObject {
     private func prepareForRegistration(_ slot: DictationShortcutSlot,
                                         enabled: Bool,
                                         shortcut: GlobalShortcut,
-                                        profile: DictationShortcutProfile) {
+                                        profile: DictationShortcutProfile,
+                                        kind: DictationShortcutKind,
+                                        modifierKey: DictationModifierKey) {
         let wasConfigured = configuredEnabled[slot] != nil
         let changed = configuredEnabled[slot] != enabled
             || configuredShortcuts[slot] != shortcut
+            || configuredShortcutKinds[slot] != kind
+            || configuredModifierKeys[slot] != modifierKey
             || configuredProfiles[slot] != profile
         if wasConfigured && changed {
             cancelGesture(slot)
@@ -497,6 +563,8 @@ final class DictationService: ObservableObject {
         }
         configuredEnabled[slot] = enabled
         configuredShortcuts[slot] = shortcut
+        configuredShortcutKinds[slot] = kind
+        configuredModifierKeys[slot] = modifierKey
         configuredProfiles[slot] = profile
     }
 
