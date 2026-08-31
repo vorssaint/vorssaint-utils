@@ -12638,6 +12638,13 @@ struct MetricsTests {
             stagedOutput: URL(fileURLWithPath: "/tmp/out.zip"),
             excludesDSStore: false).contains(".DS_Store"),
                "the archive command can preserve .DS_Store when requested")
+        expect(ArchiveSupport.stageDirectoryIsOutsideSources(
+            URL(fileURLWithPath: "/tmp/staging"),
+            sources: [URL(fileURLWithPath: "/tmp/source", isDirectory: true)])
+                && !ArchiveSupport.stageDirectoryIsOutsideSources(
+                    URL(fileURLWithPath: "/tmp/source/staging"),
+                    sources: [URL(fileURLWithPath: "/tmp/source", isDirectory: true)]),
+               "archive staging rejects a directory inside any selected source root")
 
         let archiveFailureRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-archive-failure-\(UUID().uuidString)", isDirectory: true)
@@ -12650,6 +12657,23 @@ struct MetricsTests {
             sources: [missingArchiveSource], destinationDirectory: archiveFailureRoot,
             excludesDSStore: false, token: CancellationToken()) == .failure(.sourceUnavailable),
                "a source removed after selection reports that it is unavailable")
+        let unsafeArchiveStage = archiveFailureRoot.appendingPathComponent(
+            "replacement", isDirectory: true)
+        try? FileManager.default.createDirectory(at: unsafeArchiveStage,
+                                                 withIntermediateDirectories: true)
+        var unsafeStageCommandRan = false
+        let unsafeStageArchive = ArchiveOperationWorker(
+            stageDirectoryProvider: { _ in unsafeArchiveStage },
+            commandRunner: { _, _, _ in
+                unsafeStageCommandRan = true
+                return BoundedProcessRunner.Result(status: 0, output: Data(), timedOut: false)
+            }).create(
+                sources: [archiveFailureRoot], destinationDirectory: archiveFailureRoot,
+                excludesDSStore: false, token: CancellationToken())
+        expect(unsafeStageArchive == .failure(.cannotPrepare)
+                && !unsafeStageCommandRan
+                && FileManager.default.fileExists(atPath: archiveFailureSource.path),
+               "an unsafe replacement directory is rejected before tar can traverse staged output")
         var abandonedArchiveStage: URL?
         let failedArchive = ArchiveOperationWorker(commandRunner: { path, arguments, _ in
             if path == "/usr/bin/tar", let outputIndex = arguments.firstIndex(of: "-cf"),
@@ -12694,6 +12718,14 @@ struct MetricsTests {
         expect(ArchivePublisher.renameFailureAttempt(for: EINVAL) == .unsupported
                 && ArchivePublisher.renameFailureAttempt(for: EPERM) == .unsupported,
                "unknown exclusive rename errors use the safe copy fallback")
+        let originalFallbackFlags = UInt32(UF_NODUMP)
+        let hiddenFallbackFlags = ArchivePublisher.fallbackCopyFlags(
+            originalFallbackFlags, hidden: true)
+        expect(hiddenFallbackFlags & UInt32(UF_HIDDEN) != 0
+                && hiddenFallbackFlags & UInt32(UF_NODUMP) != 0
+                && ArchivePublisher.fallbackCopyFlags(hiddenFallbackFlags, hidden: false)
+                    == originalFallbackFlags,
+               "fallback copies stay hidden until their complete contents are ready")
 
         let fallbackStage = archiveFailureRoot.appendingPathComponent("fallback-stage.zip")
         let occupiedFallback = archiveFailureRoot.appendingPathComponent("Fallback.zip")
@@ -12704,10 +12736,16 @@ struct MetricsTests {
         let fallbackPublished = try? fallbackPublisher.publish(
             fallbackStage, in: archiveFailureRoot, baseName: "Fallback",
             fileManager: .default, token: CancellationToken())
+        var fallbackPublishedStatus = stat()
+        let fallbackPublishedIsVisible = fallbackPublished?.withUnsafeFileSystemRepresentation { path in
+            guard let path, lstat(path, &fallbackPublishedStatus) == 0 else { return false }
+            return fallbackPublishedStatus.st_flags & UInt32(UF_HIDDEN) == 0
+        } ?? false
         expect(fallbackPublished?.lastPathComponent == "Fallback 2.zip"
                 && !FileManager.default.fileExists(atPath: fallbackStage.path)
                 && (try? Data(contentsOf: occupiedFallback)) == Data("existing".utf8)
-                && fallbackPublished.flatMap { try? Data(contentsOf: $0) } == Data("archive".utf8),
+                && fallbackPublished.flatMap { try? Data(contentsOf: $0) } == Data("archive".utf8)
+                && fallbackPublishedIsVisible,
                "unsupported exclusive rename falls back without replacing an existing archive")
 
         let publishCancellationToken = CancellationToken()

@@ -40,6 +40,18 @@ enum ArchiveSupport {
         return nil
     }
 
+    static func stageDirectoryIsOutsideSources(_ stageDirectory: URL,
+                                               sources: [URL]) -> Bool {
+        let stageComponents = stageDirectory.resolvingSymlinksInPath()
+            .standardizedFileURL.pathComponents
+        return !sources.contains { source in
+            let sourceComponents = source.resolvingSymlinksInPath()
+                .standardizedFileURL.pathComponents
+            guard stageComponents.count >= sourceComponents.count else { return false }
+            return zip(stageComponents, sourceComponents).allSatisfy(==)
+        }
+    }
+
     static func createArguments(sources: [URL], stagedOutput: URL,
                                 excludesDSStore: Bool) -> [String] {
         var arguments = ["-a", "-cf", stagedOutput.path]

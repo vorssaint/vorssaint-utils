@@ -85,6 +85,10 @@ struct ArchivePublisher {
         errorNumber == EEXIST ? .destinationExists : .unsupported
     }
 
+    static func fallbackCopyFlags(_ flags: UInt32, hidden: Bool) -> UInt32 {
+        hidden ? flags | UInt32(UF_HIDDEN) : flags & ~UInt32(UF_HIDDEN)
+    }
+
     private static func systemCopyExclusive(_ sourceURL: URL,
                                             _ destinationURL: URL,
                                             _ token: CancellationToken) -> Attempt {
@@ -110,6 +114,13 @@ struct ArchivePublisher {
         defer {
             if destinationIsOpen { close(destinationDescriptor) }
             if !completed { try? FileManager.default.removeItem(at: destinationURL) }
+        }
+
+        var destinationStatus = stat()
+        guard fstat(destinationDescriptor, &destinationStatus) == 0,
+              fchflags(destinationDescriptor,
+                       fallbackCopyFlags(destinationStatus.st_flags, hidden: true)) == 0 else {
+            return .failed
         }
 
         var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
@@ -140,6 +151,10 @@ struct ArchivePublisher {
             }
         }
         guard !token.isCancelled else { return .failed }
+        guard fsync(destinationDescriptor) == 0,
+              fchflags(destinationDescriptor, destinationStatus.st_flags) == 0 else {
+            return .failed
+        }
         guard close(destinationDescriptor) == 0 else {
             destinationIsOpen = false
             return .failed
@@ -154,12 +169,15 @@ struct ArchivePublisher {
 
 final class ArchiveOperationWorker {
     typealias CommandRunner = (String, [String], CancellationToken) -> BoundedProcessRunner.Result
+    typealias StageDirectoryProvider = (URL) throws -> URL
 
     private let fileManager: FileManager
+    private let stageDirectoryProvider: StageDirectoryProvider
     private let runCommand: CommandRunner
     private let publisher: ArchivePublisher
 
     init(fileManager: FileManager = .default,
+         stageDirectoryProvider: StageDirectoryProvider? = nil,
          commandRunner: @escaping CommandRunner = { path, arguments, token in
              BoundedProcessRunner.run(path, arguments,
                                       timeout: nil,
@@ -169,6 +187,12 @@ final class ArchiveOperationWorker {
          },
          publisher: ArchivePublisher = ArchivePublisher()) {
         self.fileManager = fileManager
+        self.stageDirectoryProvider = stageDirectoryProvider ?? { destinationDirectory in
+            try fileManager.url(for: .itemReplacementDirectory,
+                                in: .userDomainMask,
+                                appropriateFor: destinationDirectory,
+                                create: true)
+        }
         runCommand = commandRunner
         self.publisher = publisher
     }
@@ -185,11 +209,14 @@ final class ArchiveOperationWorker {
 
         let stageRoot: URL
         do {
-            stageRoot = try fileManager.url(for: .itemReplacementDirectory,
-                                            in: .userDomainMask,
-                                            appropriateFor: destinationDirectory,
-                                            create: true)
+            stageRoot = try stageDirectoryProvider(destinationDirectory)
         } catch {
+            return .failure(.cannotPrepare)
+        }
+        guard ArchiveSupport.stageDirectoryIsOutsideSources(stageRoot, sources: sources) else {
+            stageRoot.withUnsafeFileSystemRepresentation { path in
+                if let path { _ = rmdir(path) }
+            }
             return .failure(.cannotPrepare)
         }
         defer { try? fileManager.removeItem(at: stageRoot) }
