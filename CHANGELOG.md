@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls and snippet controls, broadens app update and safe cleanup discovery, and hardens permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves mouse scrolling feel, disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+Vorssaint expands screen text recognition, capture magnifier, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls and snippet controls, broadens app update and safe cleanup discovery, and hardens permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves mouse scrolling feel, disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
 
 ### Added
+- The capture magnifier now shows each screen pixel on a grid with the pointer's position and color, moves one pixel at a time with the arrow keys, copies the color with C without ending the capture, and can optionally open enabled by default from Settings. Thanks to @ruvelro.
 - Mouse settings now include an optional control to disable pointer acceleration for connected mice, restoring the previous system setting when it is turned off or the app quits. Thanks to @CrowKiller.
 - Mouse settings now include an optional filter for rapid accidental extra clicks from worn primary, secondary and middle buttons.
 - Cleaning Mode now offers an option in Settings to keep the screen visible with a discreet corner indicator instead of blacking out the screen.
@@ -94,6 +95,10 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - The Command Bar now offers a compact mode where the bar opens as a field alone and shows results once you type, with Down arrow revealing the full list. Under Command Bar, off by default. Thanks to @kobebrylant.
 - Command Bar script links can now be marked to run on their bare name without an argument, so scripts that work on the clipboard, selection, or files don't need a placeholder word typed after the name. Under Command Bar, off by default. Thanks to @rhukster.
 - Monitor alerts can now warn you when the battery stays above a temperature you choose. Under Monitor alerts, off by default. Thanks to @ywu73.
+- The capture magnifier now shows each screen pixel on a grid with the
+  pointer's position and color, zooms in further, moves one pixel at a time
+  with the arrow keys and copies the color with C without ending the capture.
+  It can also start already enabled from Settings. Thanks to @ruvelro.
 - Radial Menu now supports custom profiles with distinct wheel layouts, color themes, shortcuts, mouse triggers and starter presets, and website links can fetch their actual website icons on demand.
 
 ### Changed
