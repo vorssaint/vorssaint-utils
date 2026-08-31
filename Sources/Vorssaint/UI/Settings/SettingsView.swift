@@ -14,6 +14,29 @@ struct SettingsView: View {
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
         SuperKeySource.capsLock.rawValue
     @State private var searchQuery = ""
+    @State private var activeSearchIndex: Int?
+    @FocusState private var sidebarSearchFocused: Bool
+
+    private struct SearchResultsSnapshot: Equatable {
+        let query: String
+        let groups: [SettingsSearchGroup]
+
+        var isBlank: Bool {
+            query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        var items: [SettingsSearchSuggestion] {
+            groups.flatMap { group in
+                (group.parentMatches ? [group.parentSuggestion] : []) + group.suggestions
+            }
+        }
+
+        var ids: [SettingsSearchSuggestion.ID] { items.map(\.id) }
+
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.query == rhs.query && lhs.ids == rhs.ids
+        }
+    }
 
     /// The one map of pages, shared with the command bar (SettingsDirectory).
     private var sidebarSections: [(title: String, items: [SettingsDirectoryItem])] {
@@ -25,8 +48,16 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        let searchResults = SearchResultsSnapshot(
+            query: searchQuery,
+            groups: SettingsSearchSupport.groupedMatchingItems(
+                query: searchQuery,
+                items: SettingsDirectory.searchItems(l10n.s, language: l10n.language),
+                isAvailable: { features.isAvailable($0) })
+        )
+
         NavigationSplitView {
-            sidebar
+            sidebar(searchResults: searchResults)
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
             // NavigationSplitView's detail slot sometimes queries its content
@@ -48,8 +79,12 @@ struct SettingsView: View {
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear { ensureVisiblePage() }
         .onChange(of: features.revision) { _, _ in ensureVisiblePage() }
+        .onChange(of: searchResults, initial: true) { previous, current in
+            updateSearchSelection(previous: previous, current: current)
+        }
         .onChange(of: router.requestID) { _, _ in
             searchQuery = ""
+            activeSearchIndex = nil
             ensureVisiblePage()
         }
     }
@@ -62,34 +97,47 @@ struct SettingsView: View {
     /// list, where rows can never reach it. Earlier systems keep the classic
     /// opaque sidebar chrome.
     @ViewBuilder
-    private var sidebar: some View {
+    private func sidebar(searchResults: SearchResultsSnapshot) -> some View {
 #if compiler(>=6.2)
         if #available(macOS 27, *) {
-            sidebarList
+            sidebarList(searchResults: searchResults)
                 .searchable(text: $searchQuery,
                             placement: .sidebar,
                             prompt: l10n.s.settingsSearchPlaceholder)
                 .scrollEdgeEffectStyle(.hard, for: .top)
         } else if #available(macOS 26, *) {
             VStack(spacing: 0) {
-                SidebarSearchField(query: $searchQuery)
-                sidebarList
+                SidebarSearchField(query: $searchQuery, isFocused: $sidebarSearchFocused)
+                sidebarList(searchResults: searchResults)
             }
         } else {
-            sidebarList
+            sidebarList(searchResults: searchResults)
                 .searchable(text: $searchQuery,
                             placement: .sidebar,
                             prompt: l10n.s.settingsSearchPlaceholder)
         }
 #else
-        sidebarList
+        sidebarList(searchResults: searchResults)
             .searchable(text: $searchQuery,
                         placement: .sidebar,
                         prompt: l10n.s.settingsSearchPlaceholder)
 #endif
     }
 
-    private var sidebarList: some View {
+    private var hasSearchQuery: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    @ViewBuilder
+    private func sidebarList(searchResults: SearchResultsSnapshot) -> some View {
+        if hasSearchQuery {
+            searchResultsList(searchResults)
+        } else {
+            normalSidebarList
+        }
+    }
+
+    private var normalSidebarList: some View {
         List(selection: $router.page) {
             ForEach(sidebarSections, id: \.title) { section in
                 let items = section.items.filter {
@@ -107,6 +155,182 @@ struct SettingsView: View {
             }
         }
         .listStyle(.sidebar)
+    }
+
+    @ViewBuilder
+    private func searchResultsList(_ searchResults: SearchResultsSnapshot) -> some View {
+        ScrollViewReader { proxy in
+            List {
+                ForEach(searchResults.groups) { group in
+                    searchPageRow(group, searchResults: searchResults)
+                    ForEach(group.suggestions) { suggestion in
+                        searchSuggestionRow(suggestion, searchResults: searchResults)
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .onChange(of: activeSearchIndex) { _, index in
+                guard let index, searchResults.items.indices.contains(index) else { return }
+                let id = searchResults.items[index].id
+                if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+                    proxy.scrollTo(id)
+                } else {
+                    withAnimation(.easeInOut(duration: 0.2)) { proxy.scrollTo(id) }
+                }
+            }
+            .background {
+                SearchKeyMonitor(customSearchFocused: sidebarSearchFocused) { keyCode in
+                    handleSearchKey(keyCode, searchResults: searchResults.items)
+                }
+            }
+        }
+    }
+
+    private func searchPageRow(_ group: SettingsSearchGroup,
+                               searchResults: SearchResultsSnapshot) -> some View {
+        let suggestion = group.parentSuggestion
+        let selectionIndex = searchResults.items.firstIndex { $0.id == suggestion.id }
+        let isSelected = selectionIndex == activeSearchIndex
+        return Button {
+            requestSearchItem(suggestion)
+        } label: {
+            Label(group.pageItem.title, systemImage: group.pageItem.icon)
+                .fontWeight(.semibold)
+                .searchResultRowStyle(isSelected: isSelected)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .id(suggestion.id)
+    }
+
+    private func searchSuggestionRow(_ suggestion: SettingsSearchSuggestion,
+                                     searchResults: SearchResultsSnapshot) -> some View {
+        let selectionIndex = searchResults.items.firstIndex { $0.id == suggestion.id }
+        let isSelected = selectionIndex == activeSearchIndex
+        return Button {
+            requestSearchItem(suggestion)
+        } label: {
+            Label(suggestion.title, systemImage: suggestion.icon)
+                .searchResultRowStyle(isSelected: isSelected)
+                .padding(.leading, 18)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .id(suggestion.id)
+    }
+
+    private func handleSearchKey(_ keyCode: UInt16,
+                                  searchResults: [SettingsSearchSuggestion]) -> Bool {
+        switch keyCode {
+        case 126: // Up
+            guard !searchResults.isEmpty else { return false }
+            activeSearchIndex = SettingsSearchSupport.moveSelection(
+                index: activeSearchIndex, delta: -1, count: searchResults.count)
+            return true
+        case 125: // Down
+            guard !searchResults.isEmpty else { return false }
+            activeSearchIndex = SettingsSearchSupport.moveSelection(
+                index: activeSearchIndex, delta: 1, count: searchResults.count)
+            return true
+        case 36, 76: // Return / Keypad Enter
+            guard let index = activeSearchIndex,
+                  searchResults.indices.contains(index) else { return false }
+            requestSearchItem(searchResults[index])
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func updateSearchSelection(previous: SearchResultsSnapshot,
+                                       current: SearchResultsSnapshot) {
+        guard !current.isBlank, !current.items.isEmpty else {
+            activeSearchIndex = nil
+            return
+        }
+        if previous.query != current.query {
+            activeSearchIndex = 0
+        } else if previous.ids != current.ids {
+            activeSearchIndex = SettingsSearchSupport.reconciledSelection(
+                index: activeSearchIndex,
+                previousIDs: previous.ids,
+                resultIDs: current.ids)
+        }
+    }
+
+    private struct SearchKeyMonitor: NSViewRepresentable {
+        var customSearchFocused: Bool
+        var handleKey: (UInt16) -> Bool
+
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            context.coordinator.install(for: view)
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {
+            context.coordinator.customSearchFocused = customSearchFocused
+            context.coordinator.handleKey = handleKey
+        }
+
+        func makeCoordinator() -> Coordinator {
+            Coordinator(customSearchFocused: customSearchFocused, handleKey: handleKey)
+        }
+
+        static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+            coordinator.removeMonitor()
+        }
+
+        final class Coordinator: NSObject {
+            var customSearchFocused: Bool
+            var handleKey: (UInt16) -> Bool
+            private var monitor: Any?
+
+            init(customSearchFocused: Bool, handleKey: @escaping (UInt16) -> Bool) {
+                self.customSearchFocused = customSearchFocused
+                self.handleKey = handleKey
+            }
+
+            func install(for view: NSView) {
+                monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+                    [weak self, weak view] event in
+                    guard let self, let view, let window = view.window,
+                          event.window === window,
+                          Self.isNavigationKey(event),
+                          let editor = window.firstResponder as? NSTextView,
+                          editor.isFieldEditor,
+                          (customSearchFocused || Self.isSidebarSearchEditor(editor, near: view)),
+                          !editor.hasMarkedText() else { return event }
+                    return handleKey(event.keyCode) ? nil : event
+                }
+            }
+
+            func removeMonitor() {
+                guard let monitor else { return }
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+
+            private static func isNavigationKey(_ event: NSEvent) -> Bool {
+                let blockedModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
+                guard event.modifierFlags.intersection(blockedModifiers).isEmpty else { return false }
+                return [UInt16(126), 125, 36, 76].contains(event.keyCode)
+            }
+
+            private static func isSidebarSearchEditor(_ editor: NSTextView,
+                                                      near monitorView: NSView) -> Bool {
+                guard let searchField = editor.delegate as? NSSearchField else { return false }
+                let searchMidX = searchField.convert(searchField.bounds, to: nil).midX
+                let sidebarFrame = monitorView.convert(monitorView.bounds, to: nil)
+                return sidebarFrame.minX...sidebarFrame.maxX ~= searchMidX
+            }
+        }
+    }
+
+    private func requestSearchItem(_ suggestion: SettingsSearchSuggestion) {
+        activeSearchIndex = nil
+        let routed = SettingsSearchSupport.route(for: suggestion)
+        router.request(routed.destination, targetFeature: routed.targetFeature)
     }
 
     /// The selected page can leave the sidebar when its last feature is
@@ -134,6 +358,7 @@ struct SettingsView: View {
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
+        case .quitProtection: QuitProtectionSettings()
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
@@ -677,10 +902,23 @@ struct MouseSettings: View {
         FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
+    @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
+        SmoothScrollSupport.defaultResponse
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
+    @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
+        Defaults.defaultMouseClickDebounceWindowMs
+    @State private var smoothScrollMoreOptionsExpanded = false
+    @State private var mouseClickDebounceMoreOptionsExpanded = false
+
+    private var mouseClickDebounceText: MouseClickDebounceStrings {
+        FeatureStrings.mouseClickDebounce(l10n.language)
+    }
 
     var body: some View {
         Form {
@@ -689,10 +927,12 @@ struct MouseSettings: View {
                     Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
                         .onChange(of: invertVertical) { _, _ in
                             ScrollInverter.shared.syncWithPreferences()
+                            if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
                     Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
                         .onChange(of: invertHorizontal) { _, _ in
                             ScrollInverter.shared.syncWithPreferences()
+                            if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
                     if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
@@ -733,6 +973,7 @@ struct MouseSettings: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 68, alignment: .trailing)
                         }
+                        MouseExceptionsList(scope: .focusFollowsMouse)
                     }
                 }
                 .settingsSectionAnchor(.focusFollowsMouse)
@@ -740,8 +981,9 @@ struct MouseSettings: View {
             if AppFeature.smoothScroll.isAvailable {
                 Section(l10n.s.smoothScrollName) {
                     Toggle(l10n.s.smoothScrollName, isOn: $smoothScrollEnabled)
-                        .onChange(of: smoothScrollEnabled) { _, _ in
+                        .onChange(of: smoothScrollEnabled) { _, enabled in
                             SmoothScrollService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
                         }
                     Text(l10n.s.smoothScrollCaption)
                         .font(.caption)
@@ -758,16 +1000,46 @@ struct MouseSettings: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 34, alignment: .trailing)
                         }
+                        DisclosureGroup(isExpanded: $smoothScrollMoreOptionsExpanded) {
+                            HStack {
+                                Slider(value: smoothScrollResponseBinding,
+                                       in: Double(SmoothScrollSupport.responseRange.lowerBound)
+                                           ... Double(SmoothScrollSupport.responseRange.upperBound),
+                                       step: 5) {
+                                    Text(l10n.s.smoothScrollResponseLabel)
+                                }
+                                Text("\(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse))%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 42, alignment: .trailing)
+                            }
+                            .padding(.top, 4)
+                        } label: {
+                            Text(mouseClickDebounceText.moreOptions)
+                        }
                         MouseExceptionsList(scope: .smoothScroll)
                     }
                 }
                 .settingsSectionAnchor(.smoothScroll)
             }
+            if AppFeature.mouseAcceleration.isAvailable {
+                Section(l10n.s.mouseAccelerationName) {
+                    Toggle(l10n.s.mouseAccelerationName, isOn: $mouseAccelerationDisabled)
+                        .onChange(of: mouseAccelerationDisabled) { _, _ in
+                            MouseAccelerationService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.mouseAccelerationCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .settingsSectionAnchor(.mouseAcceleration)
+            }
             if AppFeature.mouseNavigation.isAvailable {
                 Section(l10n.s.mouseNavigationSection) {
                     Toggle(l10n.s.mouseNavigationEnable, isOn: $mouseNavigationEnabled)
-                        .onChange(of: mouseNavigationEnabled) { _, _ in
+                        .onChange(of: mouseNavigationEnabled) { _, enabled in
                             MouseNavigationService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
                         }
                     Text(l10n.s.mouseNavigationCaption)
                         .font(.caption)
@@ -786,11 +1058,41 @@ struct MouseSettings: View {
             if AppFeature.mouseButtonShortcuts.isAvailable {
                 MouseButtonShortcutsSection()
             }
+            if AppFeature.mouseClickDebounce.isAvailable {
+                Section(mouseClickDebounceText.title) {
+                    Toggle(mouseClickDebounceText.title, isOn: $mouseClickDebounceEnabled)
+                        .onChange(of: mouseClickDebounceEnabled) { _, enabled in
+                            MouseClickDebounceService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
+                        }
+                    SettingsCaptionText(mouseClickDebounceText.caption)
+                    if mouseClickDebounceEnabled {
+                        DisclosureGroup(isExpanded: $mouseClickDebounceMoreOptionsExpanded) {
+                            Stepper(value: mouseClickDebounceWindowBinding,
+                                    in: Defaults.allowedMouseClickDebounceWindowRange,
+                                    step: 5) {
+                                HStack {
+                                    Text(mouseClickDebounceText.windowLabel)
+                                    Spacer()
+                                    Text("\(Defaults.sanitizedMouseClickDebounceWindow(mouseClickDebounceWindow)) ms")
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                            }
+                            SettingsCaptionText(mouseClickDebounceText.windowCaption)
+                        } label: {
+                            Text(mouseClickDebounceText.moreOptions)
+                        }
+                    }
+                }
+                .settingsSectionAnchor(.mouseClickDebounce)
+            }
             if AppFeature.middleClick.isAvailable {
                 Section(l10n.s.middleClickSection) {
                     Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
-                        .onChange(of: middleClickEnabled) { _, _ in
+                        .onChange(of: middleClickEnabled) { _, enabled in
                             MiddleClickService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
                         }
                     Text(l10n.s.middleClickEnableCaption)
                         .font(.caption)
@@ -838,7 +1140,9 @@ struct MouseSettings: View {
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
-            || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
+            || ((mouseButtonShortcutsEnabled || spacesEnabled)
+                && AppFeature.mouseButtonShortcuts.isAvailable)
+            || (mouseClickDebounceEnabled && AppFeature.mouseClickDebounce.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
@@ -854,12 +1158,29 @@ struct MouseSettings: View {
         )
     }
 
+    private var smoothScrollResponseBinding: Binding<Double> {
+        Binding(
+            get: { Double(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse)) },
+            set: { smoothScrollResponse = Int($0) }
+        )
+    }
+
     private var focusFollowsMouseDelayBinding: Binding<Double> {
         Binding(
             get: { Double(FocusFollowsMouseSupport.sanitizedDelay(focusFollowsMouseDelay)) },
             set: {
                 focusFollowsMouseDelay = Int($0)
                 FocusFollowsMouseService.shared.preferencesDidChange()
+            }
+        )
+    }
+
+    private var mouseClickDebounceWindowBinding: Binding<Int> {
+        Binding(
+            get: { Defaults.sanitizedMouseClickDebounceWindow(mouseClickDebounceWindow) },
+            set: {
+                mouseClickDebounceWindow = Defaults.sanitizedMouseClickDebounceWindow($0)
+                MouseClickDebounceService.shared.syncWithPreferences()
             }
         )
     }
@@ -880,6 +1201,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
+    @AppStorage(DefaultsKey.switcherScreenPlacement) private var switcherScreenPlacement = SwitcherScreenPlacement.fallback.rawValue
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
@@ -887,6 +1209,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
+    @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
@@ -997,6 +1320,16 @@ struct SwitcherSettings: View {
                             AppSwitcher.shared.syncWithPreferences()
                         }
 
+                    Picker(l10n.s.switcherScreenPlacementLabel, selection: $switcherScreenPlacement) {
+                        Text(l10n.s.switcherScreenPlacementPointer).tag(SwitcherScreenPlacement.pointer.rawValue)
+                        Text(l10n.s.switcherScreenPlacementMenuBar).tag(SwitcherScreenPlacement.menuBar.rawValue)
+                        Text(l10n.s.switcherScreenPlacementActiveWindow).tag(SwitcherScreenPlacement.activeWindow.rawValue)
+                    }
+                    .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherScreenPlacementCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)
                     Text(l10n.s.switcherCurrentSpaceOnlyCaption)
@@ -1054,6 +1387,9 @@ struct SwitcherSettings: View {
                                     .frame(width: 52, alignment: .trailing)
                             }
                             SettingsCaptionText(l10n.s.dockPreviewBackgroundOpacityCaption)
+                            Toggle(l10n.s.dockPreviewQuitAppOnClose,
+                                   isOn: $dockPreviewQuitAppOnClose)
+                            SettingsCaptionText(l10n.s.dockPreviewQuitAppOnCloseCaption)
                         }
                     }
                 } header: {
@@ -1676,6 +2012,7 @@ struct PermissionRow: View {
 private struct SidebarSearchField: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var query: String
+    var isFocused: FocusState<Bool>.Binding
 
     var body: some View {
         HStack(spacing: 5) {
@@ -1683,6 +2020,7 @@ private struct SidebarSearchField: View {
                 .foregroundStyle(.secondary)
             TextField(l10n.s.settingsSearchPlaceholder, text: $query)
                 .textFieldStyle(.plain)
+                .focused(isFocused)
                 .onExitCommand { query = "" }
             if !query.isEmpty {
                 Button {
@@ -1701,5 +2039,19 @@ private struct SidebarSearchField: View {
         .padding(.horizontal, 10)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+}
+
+private extension View {
+    func searchResultRowStyle(isSelected: Bool) -> some View {
+        frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+            .padding(.vertical, 4)
+            .padding(.horizontal, 6)
+            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.accentColor.opacity(0.18) : .clear)
+            }
     }
 }

@@ -24,7 +24,7 @@ enum SelfUninstall {
         // on an AX call and freezes the whole machine's input — see the note on
         // `suspendInputInterceptors`.
         DispatchQueue.main.async {
-            suspendInputInterceptors()
+            _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
                 detachFromSystem()
                 removeSudoersRuleIfPresent {           // may show one admin prompt
@@ -37,9 +37,12 @@ enum SelfUninstall {
 
     /// Clears permissions, removes preferences and saved state, sends the app
     /// bundle to the Trash and quits. Used by "Uninstall Vorssaint completely".
-    static func uninstallCompletely() {
+    static func uninstallCompletely(onFailure: @escaping () -> Void) {
         DispatchQueue.main.async {
-            suspendInputInterceptors()
+            guard suspendInputInterceptors() else {
+                onFailure()
+                return
+            }
             DispatchQueue.global(qos: .userInitiated).async {
                 detachFromSystem()
                 removeSudoersRuleIfPresent {
@@ -60,7 +63,7 @@ enum SelfUninstall {
     /// keyboard and clicks (only the mouse cursor keeps moving). Each `stop`/
     /// `suspend`/`deactivate` is idempotent, so calling it when a service is
     /// already off is a no-op.
-    private static func suspendInputInterceptors() {
+    private static func suspendInputInterceptors() -> Bool {
         // Deactivating Cleaning Mode re-syncs the services it paused back to
         // their preferences, so it has to happen before the suspends below,
         // or it would re-arm the very taps this teardown just stopped.
@@ -68,6 +71,9 @@ enum SelfUninstall {
         ScrollInverter.shared.suspend()
         FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()
+        // Its machine-local recovery journal is deleted by a full uninstall,
+        // so the uninstall cannot continue until every HID value is restored.
+        let mouseAccelerationRestored = MouseAccelerationService.shared.stop()
         MouseNavigationService.shared.suspend()
         MouseButtonShortcutService.shared.suspend()
         WindowMaximizer.shared.stop()
@@ -78,6 +84,7 @@ enum SelfUninstall {
         FinderCutPaste.shared.suspend()
         FinderRenameService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
+        MouseClickDebounceService.shared.suspend()
         // Also takes the Super key mapping back out, synchronously, so the
         // key is never left remapped behind a tap that is about to die.
         SuperKeyService.shared.suspend()
@@ -97,19 +104,43 @@ enum SelfUninstall {
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.unmuteForTeardown()
         MicMuteService.shared.suspend()
+        return mouseAccelerationRestored
     }
 
     private static func detachFromSystem() {
         FanControlService.restoreAndUnregisterForRemoval()
-        // Restore normal sleep if a closed-lid session left it disabled.
         if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
-            _ = Sudoers.pmsetDisableSleep(false)
+            restoreSleepBeforeRemoval()
         }
         // Unregister the login item (scoped to our bundle id). The stored
         // intent goes with it, or the startup repair would quietly register
         // the item again after the user asked for a clean detach.
         UserDefaults.standard.set(false, forKey: DefaultsKey.launchAtLoginWanted)
         try? SMAppService.mainApp.unregister()
+    }
+
+    /// Puts normal sleep back before the app goes.
+    ///
+    /// `KeepAwakeManager` is allowed to give up on a failed revert when the app
+    /// is merely quitting, because "the next start repairs a revert that was
+    /// missed". Removal is the one exit with no next start, and the flag that
+    /// would trigger that repair is deleted with the rest of the preferences a
+    /// moment later — so a reinstall does not fix it either, since recovery
+    /// reads the flag before it reads the setting. This is the last chance
+    /// anything has, which is why it may ask for the password the launch-time
+    /// recovery would have asked for.
+    private static func restoreSleepBeforeRemoval() {
+        // The flag can outlive the setting, so a stale one must not put a
+        // password dialog in front of someone uninstalling. Only a reading that
+        // answered, and answered "off", is allowed to skip the rest: a probe
+        // that failed says nothing. Going on then costs a no-op call, and a
+        // dialog only if that call fails too — the case where sleep really may
+        // still be off with nothing else left to put it back.
+        let probe = Shell.run("/usr/bin/pmset", ["-g"])
+        if probe.status == 0, !SudoersSupport.sleepDisabled(inPmsetOutput: probe.output) { return }
+        if Sudoers.pmsetDisableSleep(false) { return }
+        _ = AdminShell.runSync("pmset disablesleep 0",
+                               prompt: L10n.shared.s.adminPromptRecover)
     }
 
     private static func removeSudoersRuleIfPresent(then: @escaping () -> Void) {
@@ -174,10 +205,10 @@ enum SelfUninstall {
             .appendingPathComponent("vorssaint-uninstall-\(pid)-\(UUID().uuidString).sh")
         do {
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            let task = Process()
-            task.executableURL = URL(fileURLWithPath: "/bin/sh")
-            task.arguments = [scriptURL.path, app, "\(pid)"]
-            try task.run()
+            // Its own session: the script's first act is to wait for this app
+            // to exit, so a child left in our session would be torn down with
+            // us before it ever gets to move the bundle.
+            try DetachedProcess.spawn("/bin/sh", [scriptURL.path, app, "\(pid)"])
             NSApp.terminate(nil)
         } catch {
             try? FileManager.default.removeItem(at: scriptURL)

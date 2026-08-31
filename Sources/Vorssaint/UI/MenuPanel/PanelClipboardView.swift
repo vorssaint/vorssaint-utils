@@ -138,11 +138,15 @@ struct PanelClipboardView: View {
     private func entryPreview(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
+            // Deliberately not selectable: clicking a selectable Text swaps in
+            // the selection renderer, which lays the whole preview out and
+            // ignores the line limit, so a long entry paints over the rows
+            // below it. The history window shows the full, selectable text.
             Text(entry.preview)
                 .font(.system(size: 10.5))
                 .lineLimit(3)
                 .truncationMode(.tail)
-                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
             HStack(alignment: .center, spacing: 7) {
                 if let name = entry.imageFile,

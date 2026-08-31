@@ -38,8 +38,16 @@ openssl req -x509 -newkey rsa:2048 -keyout "$WORK/key.pem" -out "$WORK/cert.pem"
     -addext "keyUsage=critical,digitalSignature" \
     -addext "extendedKeyUsage=critical,codeSigning" \
     -addext "basicConstraints=critical,CA:false" 2>/dev/null
-openssl pkcs12 -export -legacy -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-    -out "$WORK/id.p12" -passout pass:"$KCPASS" -name "$IDENTITY" 2>/dev/null
+# The PBE and MAC algorithms are named explicitly: the stock /usr/bin/openssl
+# is LibreSSL, which rejects OpenSSL 3's -legacy flag, while OpenSSL 3's
+# defaults (AES-256, PBKDF2) are newer than what security(1) imports reliably.
+# These three are accepted by both and produce the same portable file.
+openssl pkcs12 -export -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
+    -out "$WORK/id.p12" -passout pass:"$KCPASS" -name "$IDENTITY" \
+    -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 || {
+    echo "✗ openssl pkcs12 could not export the identity." >&2
+    exit 1
+}
 
 security delete-keychain "$KC" 2>/dev/null || true
 security create-keychain -p "$KCPASS" "$KC"
@@ -50,4 +58,11 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPASS" 
 EXISTING=$(security list-keychains -d user | sed 's/"//g' | xargs)
 security list-keychains -d user -s "$KC" ${=EXISTING}
 
+# Import succeeding is not evidence codesign can see it: read it back the same
+# way build.sh looks it up, so a broken search list fails here and not as a
+# silent ad-hoc fallback three builds later.
+security find-identity -p codesigning 2>/dev/null | grep -q "$IDENTITY" || {
+    echo "✗ Identity imported but codesign cannot find it; keychain search list may be off." >&2
+    exit 1
+}
 echo "✓ Created signing identity '$IDENTITY'. Future ./build.sh runs use it automatically."

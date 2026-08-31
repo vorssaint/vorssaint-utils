@@ -69,6 +69,11 @@ struct DockPreviewCloseState: Equatable {
     let shouldEndSession: Bool
 }
 
+enum DockPreviewCloseAction: Equatable {
+    case closeWindow
+    case quitApp
+}
+
 struct DockPreviewMouseDownDecision: Equatable {
     let shouldEndSession: Bool
 }
@@ -90,6 +95,20 @@ struct HoverCorridor: Equatable {
 }
 
 enum DockPreviewSupport {
+    static func closeAction(quitAppOnClose: Bool) -> DockPreviewCloseAction {
+        quitAppOnClose ? .quitApp : .closeWindow
+    }
+
+    static func performCloseAction(quitAppOnClose: Bool,
+                                   requestQuit: () -> Bool,
+                                   closeWindow: () -> Void) {
+        if closeAction(quitAppOnClose: quitAppOnClose) == .quitApp,
+           requestQuit() {
+            return
+        }
+        closeWindow()
+    }
+
     /// How long the cursor must rest on an icon before its panel opens. Long
     /// enough that the Dock can be crossed on the way somewhere else, short
     /// enough that a cursor which stopped is answered. Adjustable: that line
@@ -127,6 +146,11 @@ enum DockPreviewSupport {
     /// A little slack around the panel so the cursor grazing its edge doesn't
     /// flicker the session between "inside" and "leaving".
     static let panelStayMargin: CGFloat = 6
+    /// How far the pointer may drift and still count as the one the panel moved
+    /// out from under when an auto-hidden Dock leaves. Wide enough for the jitter
+    /// of a hand resting on a mouse, far short of a deliberate move away — tune
+    /// here if a real desk proves either end of that wrong.
+    static let reattachGraceTravel: CGFloat = 24
     static let edgePadding: CGFloat = 8
     static let panelGap: CGFloat = 6
     static let autohidePanelGap: CGFloat = 0
@@ -319,6 +343,48 @@ enum DockPreviewSupport {
         }
 
         return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// Pulls a preview back to the screen edge after an auto-hidden Dock slides
+    /// away. The other axis stays put so the panel does not jump away from the
+    /// app icon the user chose.
+    static func panelFrameWhenDockHidden(_ panelFrame: CGRect,
+                                         screenVisibleFrame: CGRect,
+                                         orientation: DockPreviewOrientation,
+                                         padding: CGFloat = edgePadding) -> CGRect {
+        var frame = panelFrame
+        switch orientation {
+        case .bottom:
+            frame.origin.y = screenVisibleFrame.minY + padding
+        case .left:
+            frame.origin.x = screenVisibleFrame.minX + padding
+        case .right:
+            frame.origin.x = screenVisibleFrame.maxX - panelFrame.width - padding
+        }
+        return frame
+    }
+
+    /// A panel already pulled into the space an auto-hidden Dock left keeps
+    /// that attachment when its cards change size. Rebuilding from the icon is
+    /// still useful for the new dimensions; only its Dock-facing axis is put
+    /// back at the screen edge.
+    static func resizedPanelFrame(_ dockAnchoredFrame: CGRect,
+                                  didReattachForSession: Bool,
+                                  screenVisibleFrame: CGRect,
+                                  orientation: DockPreviewOrientation) -> CGRect {
+        guard didReattachForSession else { return dockAnchoredFrame }
+        return panelFrameWhenDockHidden(dockAnchoredFrame,
+                                        screenVisibleFrame: screenVisibleFrame,
+                                        orientation: orientation)
+    }
+
+    /// The Dock window only needs watching until it disappears once. The
+    /// timer itself covers repeated mouse moves before that happens; the
+    /// session flag covers the moves after it has.
+    static func shouldStartDockVisibilityTimer(hasActiveTimer: Bool,
+                                               didReattachForSession: Bool,
+                                               autohide: Bool) -> Bool {
+        !hasActiveTimer && !didReattachForSession && autohide
     }
 
     /// Whether the panel draws a header row. A hovered panel has no use for

@@ -169,6 +169,7 @@ final class ShelfService: ObservableObject {
     @Published private(set) var dockedJustCaught = false
     private var dockedFlashWork: DispatchWorkItem?
     private var dockedEndWork: DispatchWorkItem?
+    private var dockDwellStart: TimeInterval?
     /// The global monitor cannot see every way a drag ends (drops on our own
     /// windows, cancelled drags, mouse-ups the drag machinery consumes), so a
     /// small timer watches the physical button while a drag holds the docked
@@ -428,7 +429,7 @@ final class ShelfService: ObservableObject {
                     self.handleDrag(event)
                 }
                 if defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled) {
-                    self.handleDragForDock()
+                    self.handleDragForDock(event)
                 }
                 if defaults.bool(forKey: DefaultsKey.shelfEdgeDragEnabled) {
                     self.handleDragForEdge(event)
@@ -452,6 +453,7 @@ final class ShelfService: ObservableObject {
         dockedWatchdog = nil
         dockedEndWork?.cancel()
         dockedEndWork = nil
+        dockDwellStart = nil
         dockedDragActive = false
         dockedProximate = false
         edgeDwellMatch = nil
@@ -614,12 +616,12 @@ final class ShelfService: ObservableObject {
     }
 
     /// A qualifying drag is in flight: keep the pill under the icon as a small,
-    /// minimized target, and let the card open only while the pointer is near
+    /// minimized target, and let the card open only when the pointer dwells near
     /// it. It never hides mid drag on its own account. If the classic shelf
     /// panel comes up instead (shake, shortcut, or now an edge peek), that
     /// panel is the target and `syncDockedShelf` steps the docked one aside
     /// for as long as the classic panel is visible, one shelf at a time.
-    private func handleDragForDock() {
+    private func handleDragForDock(_ event: NSEvent) {
         guard dockedFeatureOn, automaticOpenAllowed, !isVisible,
               !isInternalDragActive, isContentDragActive() else { return }
         // Drag events still flowing means the drag is alive: a pending end
@@ -628,8 +630,41 @@ final class ShelfService: ObservableObject {
         dockedEndWork = nil
         var changed = false
         if !dockedDragActive { dockedDragActive = true; changed = true }
-        let near = mouseNearDock(NSEvent.mouseLocation)
-        if near != dockedProximate { dockedProximate = near; changed = true }
+
+        let mouse = NSEvent.mouseLocation
+        let now = event.timestamp
+        let anchor = statusItemFrameProvider?()
+        let screen = anchor.flatMap { rect in
+            NSScreen.screens.first { $0.frame.intersects(rect) }
+        }?.frame ?? NSScreen.main?.frame
+
+        let near = ShelfDockDragSupport.isPointNearDock(
+            point: mouse,
+            isProximate: dockedProximate,
+            panelFrame: dockedPanel?.frame,
+            anchorFrame: anchor,
+            screenFrame: screen)
+
+        if dockedProximate {
+            if !near {
+                dockedProximate = false
+                dockDwellStart = nil
+                changed = true
+            }
+        } else {
+            if near {
+                if dockDwellStart == nil {
+                    dockDwellStart = now
+                }
+                if let start = dockDwellStart, ShelfDockDragSupport.hasDwelled(since: start, now: now) {
+                    dockedProximate = true
+                    changed = true
+                }
+            } else {
+                dockDwellStart = nil
+            }
+        }
+
         startDockedWatchdog()
         if changed { scheduleDockedSync() }
     }
@@ -640,6 +675,7 @@ final class ShelfService: ObservableObject {
     /// as a single cancellable work item so the monitor and the watchdog can
     /// both call this without racing each other.
     private func endDockedDrag() {
+        dockDwellStart = nil
         guard dockedDragActive, dockedEndWork == nil else { return }
         dockedWatchdog?.invalidate()
         dockedWatchdog = nil
@@ -825,27 +861,11 @@ final class ShelfService: ObservableObject {
         scheduleDockedSync()
     }
 
-    /// True when the pointer is close enough to the docked shelf to open it. It
-    /// uses the shown card's own frame once open (so moving onto it to drop
-    /// keeps it open) and a generous band hanging under the icon while still a
-    /// pill (so a little approach is enough to trigger it).
-    private func mouseNearDock(_ mouse: NSPoint) -> Bool {
-        guard let anchor = statusItemFrameProvider?() else { return false }
-        if dockedProximate, let frame = dockedPanel?.frame {
-            return frame.insetBy(dx: -72, dy: -72).contains(mouse)
-        }
-        guard let screen = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) ?? NSScreen.withMouse
-        else { return false }
-        let band = NSRect(x: anchor.midX - 150,
-                          y: screen.frame.maxY - 200,
-                          width: 300, height: 200)
-        return band.contains(mouse)
-    }
-
     /// Called by the docked view when a drop lands on it: settle back to the
     /// pill with a brief green tick, so the catch reads without the card
     /// staying in the way.
     func dockDidAccept() {
+        dockDwellStart = nil
         dockedJustCaught = true
         dockedCollapsed = true
         dockedForcedOpen = false

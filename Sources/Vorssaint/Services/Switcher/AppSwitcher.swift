@@ -14,6 +14,8 @@ private struct SwitcherSourceContext {
     let windowID: CGWindowID?
     let windowOwnerPID: pid_t?
     let isFullscreen: Bool
+    /// Window server bounds of the source window; `.zero` for an app-only entry.
+    let frame: CGRect
 }
 
 /// A shortcut press already owned by the switcher while the window list is
@@ -104,6 +106,10 @@ final class AppSwitcher: ObservableObject {
     private var routePendingSessionStart: SwitcherPendingSessionStart?
     private var sessionStartGeneration: UInt64 = 0
 
+    /// Enumeration touches every regular app through Accessibility, so it runs
+    /// away from the event tap on one serial queue.
+    private let enumerationQueue = DispatchQueue(label: "com.vorssaint.switcher.enumeration",
+                                                  qos: .userInitiated)
     private var pendingShow: DispatchWorkItem?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
@@ -728,8 +734,7 @@ final class AppSwitcher: ObservableObject {
         }) else { return }
         guard Permissions.shared.accessibility,
               AXIsProcessTrusted(),
-              lifecycleLock.withLock({ tap != nil && !shouldStopTapThread }),
-              let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+              lifecycleLock.withLock({ tap != nil && !shouldStopTapThread })
         else {
             discardPendingSessionStart(generation: generation)
             return
@@ -744,32 +749,86 @@ final class AppSwitcher: ObservableObject {
         }) else { return }
         let allApps = requested.scope == .allApps
         let mergeWindowsByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
-        let allWindows = WindowEnumerator.listWindows(
-            groupByApp: allApps && mergeWindowsByApp,
-            preservingGroupedWindows: SwitcherSupport.preservesGroupedWindowsDuringEnumeration(
-                allApps: allApps,
-                mergeWindowsByApp: mergeWindowsByApp,
-                simpleMode: simpleModeEnabled
-            )
+        let groupByApp = allApps && mergeWindowsByApp
+        let preservesGroupedWindows = SwitcherSupport.preservesGroupedWindowsDuringEnumeration(
+            allApps: allApps,
+            mergeWindowsByApp: mergeWindowsByApp,
+            simpleMode: simpleModeEnabled
         )
-        let windows: [SwitcherItem]
-        switch requested.scope {
-        case .allApps:
-            guard !allWindows.isEmpty else {
-                discardPendingSessionStart(generation: generation)
-                return
-            }
-            windows = allWindows
-        case .frontmostApp:
-            let scoped = SwitcherSupport.frontmostAppWindows(allItems: allWindows,
-                                                             frontmostPID: reportedFrontPID)
-            guard !scoped.isEmpty else {
-                discardPendingSessionStart(generation: generation)
-                return
-            }
-            windows = scoped
+        guard let reportedFrontPID = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            discardPendingSessionStart(generation: generation)
+            return
         }
-        let focusedSourceWindowID = focusedWindowID(for: reportedFrontPID)
+        let enumerationSnapshot = WindowEnumerator.snapshot()
+        enumerationQueue.async { [weak self] in
+            guard let self,
+                  self.routeLock.withLock({
+                      SwitcherSupport.isCurrentSessionStart(
+                          generation: generation,
+                          pendingGeneration: self.routePendingSessionStart?.generation
+                      )
+                  })
+            else { return }
+            let allWindows = WindowEnumerator.enumerateSwitcherWindows(
+                groupByApp: groupByApp,
+                preservingGroupedWindows: preservesGroupedWindows,
+                snapshot: enumerationSnapshot,
+                isCancelled: { [weak self] in
+                    guard let self else { return true }
+                    return !self.routeLock.withLock {
+                        SwitcherSupport.isCurrentSessionStart(
+                            generation: generation,
+                            pendingGeneration: self.routePendingSessionStart?.generation
+                        )
+                    }
+                }
+            )
+            guard self.routeLock.withLock({
+                SwitcherSupport.isCurrentSessionStart(
+                    generation: generation,
+                    pendingGeneration: self.routePendingSessionStart?.generation
+                )
+            }) else { return }
+            let sessionWindows: [SwitcherItem]
+            switch requested.scope {
+            case .allApps:
+                sessionWindows = allWindows
+            case .frontmostApp:
+                sessionWindows = SwitcherSupport.frontmostAppWindows(
+                    allItems: allWindows,
+                    frontmostPID: reportedFrontPID)
+            }
+            let needsFocusedWindowLookup = !sessionWindows.isEmpty
+                && SwitcherSupport.needsFocusedWindowLookup(
+                    frontmostPID: reportedFrontPID,
+                    items: sessionWindows)
+            let focusedSourceWindowID = needsFocusedWindowLookup
+                ? self.focusedWindowID(for: reportedFrontPID,
+                                       accessibilityGranted: enumerationSnapshot.accessibilityGranted)
+                : nil
+            DispatchQueue.main.async { [weak self] in
+                self?.finishPendingSession(generation: generation,
+                                           reportedFrontPID: reportedFrontPID,
+                                           focusedSourceWindowID: focusedSourceWindowID,
+                                           windows: sessionWindows)
+            }
+        }
+    }
+
+    private func finishPendingSession(generation: UInt64,
+                                      reportedFrontPID: pid_t,
+                                      focusedSourceWindowID: CGWindowID?,
+                                      windows: [SwitcherItem]) {
+        guard routeLock.withLock({
+            SwitcherSupport.isCurrentSessionStart(
+                generation: generation,
+                pendingGeneration: routePendingSessionStart?.generation
+            )
+        }) else { return }
+        guard !windows.isEmpty else {
+            discardPendingSessionStart(generation: generation)
+            return
+        }
         // The foreground window is what a session is measured against, and it
         // does not always exist: an app left with no windows, or with all of
         // them minimized or on another Space, still owns the keyboard. The
@@ -796,12 +855,15 @@ final class AppSwitcher: ObservableObject {
         searchQuery = ""
         isSearchPinned = false
         self.windows = list
+        // Optional.map: a session that starts with no source clears the
+        // context instead of keeping the previous session's.
         sessionSourceContext = source.map { source in
             SwitcherSourceContext(itemID: source.id,
                                   pid: source.pid,
                                   windowID: source.windowID,
                                   windowOwnerPID: source.windowOwnerPID,
-                                  isFullscreen: source.isFullscreen)
+                                  isFullscreen: source.isFullscreen,
+                                  frame: source.frame)
         }
         sessionStartWindowID = source?.windowID
         // The layout pass below reads usesWindowRow, which depends on the
@@ -928,11 +990,11 @@ final class AppSwitcher: ObservableObject {
         return groups[groupIndex].representativeIndex
     }
 
-    private func focusedWindowID(for pid: pid_t) -> CGWindowID? {
-        guard Permissions.shared.accessibility else { return nil }
+    private func focusedWindowID(for pid: pid_t, accessibilityGranted: Bool) -> CGWindowID? {
+        guard accessibilityGranted else { return nil }
         let app = AXUIElementCreateApplication(pid)
-        // The tap thread waits on the session start, so a hung frontmost app
-        // must not hold the keyboard hostage for the 6s default AX timeout.
+        // This runs on the serial session enumeration queue. A hung frontmost
+        // app must not delay this session for the 6s default AX timeout.
         AXUIElementSetMessagingTimeout(app, 0.35)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
@@ -957,7 +1019,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     /// Hover-selection from the panel. Ignored until the mouse really moves:
-    /// the panel opens centered on the cursor's screen, and the card that
+    /// the panel may open centered on the cursor's screen, and the card that
     /// happens to sit under a stationary pointer must not steal the selection.
     func hoverSelect(index: Int) {
         guard sessionActive, windows.indices.contains(index) else { return }
@@ -1399,8 +1461,48 @@ final class AppSwitcher: ObservableObject {
         SwitcherSupport.capturesPreviews(simpleMode: simpleModeEnabled)
     }
 
+    // MARK: - Placement screen
+
+    private var screenPlacement: SwitcherScreenPlacement {
+        SwitcherScreenPlacement.placement(
+            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherScreenPlacement))
+    }
+
+    /// The screen the panel is laid out on. Every choice falls back to the
+    /// pointer's screen, which exists whenever any display does: the menu bar
+    /// screen goes missing only mid-reconfiguration, and the active window's
+    /// screen is unknown for an app-only source or a window parked entirely
+    /// off screen.
+    private var placementScreen: NSScreen? {
+        switch screenPlacement {
+        case .pointer:
+            return NSScreen.withMouse
+        case .menuBar:
+            return NSScreen.withMenuBar ?? NSScreen.withMouse
+        case .activeWindow:
+            return activeWindowScreen ?? NSScreen.withMouse
+        }
+    }
+
+    /// The screen showing most of the window that was in front when the
+    /// session began. The source frame comes from the window server, so it is
+    /// matched against `CGDisplayBounds` rather than the flipped AppKit frames.
+    private var activeWindowScreen: NSScreen? {
+        guard let frame = sessionSourceContext?.frame else { return nil }
+        let screens = NSScreen.screens
+        let bounds = screens.map { CGDisplayBounds($0.displayID) }
+        guard let index = SwitcherSupport.displayIndex(showingMostOf: frame, displayBounds: bounds) else {
+            return nil
+        }
+        return screens[index]
+    }
+
+    private var placementVisibleFrame: CGRect {
+        placementScreen?.visibleFrame ?? NSScreen.pointerVisibleFrame
+    }
+
     private func recomputeLayouts(for items: [SwitcherItem]) {
-        guard let screen = NSScreen.withMouse ?? NSScreen.screens.first else { return }
+        guard let screen = placementScreen ?? NSScreen.screens.first else { return }
         grid = SwitcherGrid.compute(count: max(items.count, 1), on: screen)
         let appGroups = SwitcherSupport.appGroups(items: items)
         iconRowLayout = SwitcherIconRowLayout.compute(
@@ -1419,7 +1521,7 @@ final class AppSwitcher: ObservableObject {
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: usesWindowRow ? windows.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
-            screenVisibleFrame: NSScreen.pointerVisibleFrame,
+            screenVisibleFrame: placementVisibleFrame,
             showsShortcutHints: showsShortcutHints,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
@@ -1542,7 +1644,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func centeredFrame(for size: CGSize) -> NSRect {
-        let screen = NSScreen.pointerVisibleFrame
+        let screen = placementVisibleFrame
         return NSRect(x: screen.midX - size.width / 2,
                       y: screen.midY - size.height / 2,
                       width: size.width,
@@ -1570,7 +1672,7 @@ final class AppSwitcher: ObservableObject {
 }
 
 /// Grid metrics for one switcher session: large cards laid out in as many
-/// rows as needed, sized to the screen under the cursor — no sideways
+/// rows as needed, sized to the screen the panel opens on — no sideways
 /// scrolling, no squinting.
 struct SwitcherGrid: Equatable {
     let columns: Int

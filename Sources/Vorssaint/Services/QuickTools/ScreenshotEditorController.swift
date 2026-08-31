@@ -980,8 +980,16 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        let screen = NSScreen.pointerVisibleFrame
+        let minimumSize = ScreenshotSupport.editorMinimumContentSize(visibleSize: screen.size)
+        // The hosting view rewrites the window's size limits on its first
+        // layout pass, so a contentMinSize set on the window is silently
+        // lost. Declare the minimum on the hosted view and track just that:
+        // the hosting controller then maintains contentMinSize itself.
         let content = ScreenshotEditorView(model: model, controller: self)
+            .frame(minWidth: minimumSize.width, minHeight: minimumSize.height)
         let host = NSHostingController(rootView: content)
+        host.sizingOptions = [.minSize]
         let window = NSWindow(contentViewController: host)
         // One continuous surface: the canvas fills the window and the
         // controls float over it, so the editor reads as a single object.
@@ -1000,13 +1008,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         // Chrome must equal the view's designed margins exactly (rail 64 +
         // sides, action band above, style band below), so a fresh window
         // opens with zero leftover stage around the capture.
-        let screen = NSScreen.pointerVisibleFrame
         let contentSize = ScreenshotSupport.editorContentSize(
             imagePointSize: model.pointSize,
             visibleSize: screen.size)
-        let minimumSize = ScreenshotSupport.editorMinimumContentSize(visibleSize: screen.size)
         window.setContentSize(contentSize)
-        window.contentMinSize = minimumSize
         window.center()
 
         self.window = window

@@ -440,13 +440,31 @@ final class ClipboardHistoryService: ObservableObject {
         quickSelectionIndex = clampedQuickSelectionIndex(for: filteredQuickEntries.count)
     }
 
-    func removeSelectedQuickEntry() {
-        guard let entry = selectedQuickEntry else { return }
-        remove(entry)
+    func removeSelectedQuickEntries() {
+        let selectedEntries = quickEntriesForPrimaryAction()
+        guard !selectedEntries.isEmpty else { return }
+        let idsToRemove = Set(selectedEntries.map(\.id))
+        entries.removeAll { idsToRemove.contains($0.id) }
+        var selected = quickBatchEntryIDs
+        selected.subtract(idsToRemove)
+        quickBatchEntryIDs = selected
         quickSelectionIndex = clampedQuickSelectionIndex(for: filteredQuickEntries.count)
+        save()
     }
 
+    func removeSelectedQuickEntry() {
+        removeSelectedQuickEntries()
+    }
+
+    /// Where the pointer sat when the keyboard last moved the selection. Rows
+    /// scrolling under a still pointer report hover, and hover would otherwise
+    /// take the preview back from the row the arrow keys chose.
+    private(set) var keyboardSelectionPointer: NSPoint?
+
     func moveQuickSelection(_ delta: Int) {
+        // Out of the way while the keys drive, back at the first real move.
+        NSCursor.setHiddenUntilMouseMoves(true)
+        keyboardSelectionPointer = NSEvent.mouseLocation
         let count = filteredQuickEntries.count
         guard count > 0 else {
             quickSelectionIndex = 0
@@ -1133,8 +1151,11 @@ final class ClipboardHistoryService: ObservableObject {
             guard let self, let panel, event.window === panel else { return event }
             // A multiline editor owns its normal editing keys. The search box
             // uses a field editor, so its existing list shortcuts stay intact.
+            // The read-only preview is a text view too, but the list keeps
+            // the keys over it: only ⌘C and ⌘A, which the list declines below
+            // when nothing is batch-selected, reach it.
             if let textView = panel.firstResponder as? NSTextView,
-               !textView.isFieldEditor {
+               !textView.isFieldEditor, textView.isEditable {
                 return event
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
@@ -1189,9 +1210,10 @@ final class ClipboardHistoryService: ObservableObject {
                 self.togglePinSelectedQuickEntry()
                 return nil
             }
-            if modifiers == [.option],
+            if (modifiers == [.option]
+                || (modifiers == [.command] && ClipboardHistoryBatch.listOwnsDeleteShortcut(batchCount: self.quickBatchCount))),
                event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
-                self.removeSelectedQuickEntry()
+                self.removeSelectedQuickEntries()
                 return nil
             }
             if event.keyCode == UInt16(kVK_DownArrow) {
@@ -1365,6 +1387,17 @@ enum ClipboardImageStore {
                              cost: cgImage.bytesPerRow * cgImage.height)
         return image
     }
+
+    /// The Finder icon for a path, cached: the workspace lookup is a round
+    /// trip, and a list row asks for it every time it is drawn.
+    static func fileIcon(atPath path: String) -> NSImage {
+        if let cached = fileIcons.object(forKey: path as NSString) { return cached }
+        let icon = NSWorkspace.shared.icon(forFile: path)
+        fileIcons.setObject(icon, forKey: path as NSString)
+        return icon
+    }
+
+    private static let fileIcons = NSCache<NSString, NSImage>()
 
     static func isImageFile(atPath path: String) -> Bool {
         ClipboardHistoryImageSupport.isImageFilePath(path)

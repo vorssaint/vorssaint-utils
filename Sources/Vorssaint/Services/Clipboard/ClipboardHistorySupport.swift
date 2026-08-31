@@ -408,6 +408,10 @@ enum ClipboardHistoryBatch {
         batchCount > 0 || queryIsEmpty
     }
 
+    static func listOwnsDeleteShortcut(batchCount: Int) -> Bool {
+        batchCount > 0
+    }
+
     /// The plain-text side of a rich batch, for targets that only take text.
     static func richPlainText(_ parts: [RichPart]) -> String {
         combinedText(parts.compactMap { part in

@@ -144,6 +144,7 @@ struct MetricDetailView: View {
     @ObservedObject private var speed = SpeedTest.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
     let kind: MetricDetailKind
     @State private var processRows: [ProcessUsage] = []
     @State private var processRowsLoading = false
@@ -177,7 +178,7 @@ struct MetricDetailView: View {
             }
             refreshProcessRows(force: true, delay: 0.2)
         }
-        .onReceive(monitor.$snapshot) { _ in refreshProcessRows(force: false, delay: 0.85) }
+        .onReceive(monitor.$snapshot) { _ in refreshProcessRows(force: false) }
         .onDisappear {
             refreshSerial &+= 1
             processRows = []
@@ -396,12 +397,18 @@ struct MetricDetailView: View {
                 return [row(l10n.s.diskSection, l10n.s.diskNoDisks)]
             }
             let activity = diskActivity(from: snapshot.disk)
-            return [
+            var rows: [MetricDetailRow] = [
                 row(disk.name, "\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)"),
-                row(l10n.s.diskFree, MetricFormat.diskBytes(disk.freeBytes)),
+                row(l10n.s.diskAvailable, MetricFormat.diskBytes(disk.freeBytes)),
+            ]
+            if let purgeable = disk.purgeableBytes, purgeable >= 500_000_000 {
+                rows.append(row(l10n.s.diskPurgeable, MetricFormat.diskBytes(purgeable)))
+            }
+            rows.append(contentsOf: [
                 row(l10n.s.diskRead, activity.map { MetricFormat.bytesPerSec($0.read) } ?? l10n.s.networkMeasuring),
                 row(l10n.s.diskWrite, activity.map { MetricFormat.bytesPerSec($0.write) } ?? l10n.s.networkMeasuring),
-            ]
+            ])
+            return rows
         case .battery:
             let power = snapshot.power
             var rows: [MetricDetailRow] = []
@@ -498,7 +505,7 @@ struct MetricDetailView: View {
             return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
         case .disk:
             guard let disk = primaryDisk(from: snapshot.disk) else { return l10n.s.diskNoDisks }
-            return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskFree)"
+            return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)"
         case .battery:
             if PowerSampler.hasInternalBattery {
                 return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
@@ -607,17 +614,27 @@ struct MetricDetailView: View {
                 processRowsLoading = true
             }
         }
-        guard force || Date().timeIntervalSince(lastProcessRefresh) > 4 else { return }
+        guard force || Date().timeIntervalSince(lastProcessRefresh) >= processKind.processRefreshInterval(
+            configuredMonitorInterval: monitorInterval
+        ) * 0.8
+        else { return }
 
         refreshSerial &+= 1
         let serial = refreshSerial
+        let sampleInterval = percentageSampleInterval
+        let cpuPercentage = monitor.snapshot.cpuUsage.map { $0 * 100 }
+        let gpuPercentage = monitor.snapshot.gpuUsage.map { $0 * 100 }
         let run = {
             guard self.refreshSerial == serial,
                   self.kind.processKind == processKind else { return }
             self.lastProcessRefresh = Date()
             self.processRowsLoading = self.processRows.isEmpty
             DispatchQueue.global(qos: .utility).async {
-                let rows = ProcessUsageService.shared.top(processKind, limit: processLimit)
+                let rows = ProcessUsageService.shared.top(processKind,
+                                                          limit: processLimit,
+                                                          sampleInterval: sampleInterval,
+                                                          cpuPercentage: cpuPercentage,
+                                                          gpuPercentage: gpuPercentage)
                 let isWarmingUp = processKind == .network && ProcessUsageService.shared.networkMonitoringIsWarmingUp
                 DispatchQueue.main.async {
                     guard self.refreshSerial == serial,
@@ -637,6 +654,10 @@ struct MetricDetailView: View {
         } else {
             run()
         }
+    }
+
+    private var percentageSampleInterval: TimeInterval {
+        TimeInterval(Defaults.sanitizedMonitorInterval(monitorInterval))
     }
 
     private func startNetworkMonitoringIfNeeded() {

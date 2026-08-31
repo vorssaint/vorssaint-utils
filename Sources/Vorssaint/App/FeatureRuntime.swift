@@ -36,10 +36,9 @@ final class FeatureRuntime: ObservableObject {
     /// exits, so the fresh instance starts without the uninstalled features.
     func relaunchApp() {
         guard let bundleID = Bundle.main.bundleIdentifier else { return }
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"]
-        try? task.run()
+        // Its own session: the reopen fires after we terminate, so the child
+        // has to outlive the session it was started from.
+        _ = try? DetachedProcess.spawn("/bin/sh", ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"])
         NSApp.terminate(nil)
     }
 
@@ -169,10 +168,13 @@ final class FeatureRuntime: ObservableObject {
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
+        .mouseAcceleration: { MouseAccelerationService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
         .middleClick: { MiddleClickService.shared.syncWithPreferences() },
+        .mouseClickDebounce: { MouseClickDebounceService.shared.syncWithPreferences() },
         .keyboardDebounce: { KeyboardDebounceService.shared.syncWithPreferences() },
+        .quitWindowProtection: { QuitProtectionService.shared.syncWithPreferences() },
         .superKey: { SuperKeyService.shared.syncWithPreferences() },
         .textSnippets: {
             TextSnippetService.shared.syncWithPreferences()

@@ -24,6 +24,7 @@ final class AutoQuitService: ObservableObject {
         kAXWindowCreatedNotification,
         kAXMainWindowChangedNotification,
         kAXFocusedWindowChangedNotification,
+        kAXApplicationActivatedNotification,
         kAXApplicationDeactivatedNotification,
         kAXApplicationHiddenNotification,
         kAXApplicationShownNotification
@@ -37,6 +38,7 @@ final class AutoQuitService: ObservableObject {
         kAXWindowCreatedNotification as String,
         kAXWindowDeminiaturizedNotification as String,
         kAXApplicationShownNotification as String,
+        kAXApplicationActivatedNotification as String,
         kAXMainWindowChangedNotification as String,
         kAXFocusedWindowChangedNotification as String
     ])
@@ -109,7 +111,7 @@ final class AutoQuitService: ObservableObject {
         activateToken = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                            object: nil, queue: .main) { [weak self] note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            self?.attach(app)
+            self?.handleAppActivated(app)
         }
         // AX cannot describe a window parked on another Space. Keep such apps
         // dormant after the bounded retry round, then try them again when the
@@ -157,6 +159,18 @@ final class AutoQuitService: ObservableObject {
 
     // MARK: - Per-app observers
 
+    private func handleAppActivated(_ app: NSRunningApplication) {
+        guard running, app.activationPolicy == .regular else { return }
+        let pid = app.processIdentifier
+        guard pid != getpid() else { return }
+        if let observer = observers[pid] {
+            refreshWindows(pid: pid, observer: observer)
+        } else {
+            retryingApps.remove(pid)
+            attach(app)
+        }
+    }
+
     private func attach(_ app: NSRunningApplication) {
         attach(app, attempt: 0)
     }
@@ -172,7 +186,7 @@ final class AutoQuitService: ObservableObject {
 
         let appElement = AXUIElementCreateApplication(pid)
         // A launching app that is busy (say, blocked on a Keychain prompt)
-        // would hold every synchronous AX call below for the 6 second default
+        // would hold every synchronous AX call below for the default
         // timeout apiece, freezing the main thread and every event tap with
         // it: typing dies system wide (issue #189). Give up fast and retry
         // with growing spacing until the app services its run loop again.
@@ -190,7 +204,8 @@ final class AutoQuitService: ObservableObject {
         if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windows) == .cannotComplete {
             guard attempt < 6 else { retryingApps.remove(pid); return }
             retryingApps.insert(pid)
-            let delay = 5.0 * pow(2.0, Double(attempt))
+            let delays = [0.15, 0.4, 1.0, 2.5, 5.0, 10.0]
+            let delay = attempt < delays.count ? delays[attempt] : 5.0 * pow(2.0, Double(attempt))
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.running, !app.isTerminated else { return }
                 self.attach(app, attempt: attempt + 1)
@@ -268,6 +283,9 @@ final class AutoQuitService: ObservableObject {
         if notification == (kAXApplicationDeactivatedNotification as String) {
             return .appDeactivated
         }
+        if notification == (kAXApplicationActivatedNotification as String) {
+            return .appActivated
+        }
         if notification == (kAXMainWindowChangedNotification as String) {
             return .mainWindowChanged
         }
@@ -335,7 +353,7 @@ final class AutoQuitService: ObservableObject {
 
         let appElement = AXUIElementCreateApplication(pid)
         // Bounded AX: an unresponsive app must not hold the main thread
-        // (and with it every event tap) for the 6 second default timeout.
+        // (and with it every event tap) for the default timeout.
         AXUIElementSetMessagingTimeout(appElement, 0.35)
         let hasMinimizedWindow = hasKnownMinimizedWindow(pid: pid, appElement: appElement)
         let hasVisibleWindow = hasUserFacingWindow(pid: pid, appElement: appElement)
@@ -413,10 +431,13 @@ final class AutoQuitService: ObservableObject {
         }
         // Every user window needs a destroy notification. Accessibility can
         // list none despite the window server seeing one, or an individual
-        // registration can fail after the list succeeds.
+        // registration can fail after the list succeeds. An app that has never
+        // yet shown any window also retries during its initial watch window so
+        // apps creating windows asynchronously on launch are caught.
         if AutoQuitSupport.needsWindowWatchRetry(registeredWindows: watchedWindows,
                                                  listedWindows: windows.count,
-                                                 foundUserWindow: foundUserWindow) {
+                                                 foundUserWindow: foundUserWindow,
+                                                 hadPriorWindows: hadWindows[pid] == true) {
             scheduleWindowWatchRetry(pid: pid)
         } else {
             windowWatchRetries[pid] = nil
@@ -659,11 +680,23 @@ final class AutoQuitService: ObservableObject {
               let candidate = WindowServerTrafficLightHitTest.candidate(
                 at: event.location,
                 button: .close,
-                pidIsEligible: { [weak self] pid in self?.observers[pid] != nil }
+                pidIsEligible: { [weak self] pid in
+                    guard let self else { return false }
+                    if self.observers[pid] != nil { return true }
+                    if let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular {
+                        self.retryingApps.remove(pid)
+                        self.attach(app)
+                        return self.observers[pid] != nil
+                    }
+                    return false
+                }
               ),
               AXIsProcessTrusted(),
               let pid = closeButtonPID(at: event.location, candidate: candidate) else {
             return Unmanaged.passUnretained(event)
+        }
+        if let observer = observers[pid] {
+            refreshWindows(pid: pid, observer: observer)
         }
         markCloseButtonRequest(pid: pid)
         return Unmanaged.passUnretained(event)
@@ -684,13 +717,20 @@ final class AutoQuitService: ObservableObject {
                 command: true, control: false)
         }
         guard isCloseShortcut,
-              let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              observers[pid] != nil else { return }
+              let app = NSWorkspace.shared.frontmostApplication,
+              app.activationPolicy == .regular else { return }
+        let pid = app.processIdentifier
+        if observers[pid] == nil {
+            retryingApps.remove(pid)
+            attach(app)
+        }
+        guard let observer = observers[pid] else { return }
         // Cmd+W may close only a tab, so it is a weak signal: re-check windows
         // shortly (a genuinely closed last window fails the check and quits),
         // but never unlock the hidden-app quit path — otherwise closing a tab
         // and hiding the app would terminate an app whose window (with all its
         // tabs) still exists.
+        refreshWindows(pid: pid, observer: observer)
         scheduleWindowChecks(pid: pid)
     }
 
@@ -784,11 +824,8 @@ final class AutoQuitService: ObservableObject {
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
-        // This runs while a click is being handled, and the app being asked is
-        // the one that was just told to close, which is exactly when an app
-        // stops answering. A short limit here means a slow answer is dropped
-        // rather than holding this app, and every tap it runs, still.
-        AXUIElementSetMessagingTimeout(system, 0.15)
+        // No cap here: on the system-wide element a timeout is the default for
+        // every question this process asks, whoever asks it (#938).
         var element: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success
         else { return nil }

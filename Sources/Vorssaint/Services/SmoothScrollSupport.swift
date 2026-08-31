@@ -6,29 +6,88 @@ import Foundation
 /// Pure math for smooth mouse-wheel scrolling, kept free of AppKit so the
 /// unit harness can pin it.
 ///
-/// Each discrete wheel tick adds a distance to a per-axis "remaining" budget;
-/// an animation frame then emits a fraction of what remains, which decays the
-/// jump into a short glide that slows down as it lands.
+/// Each wheel event adds a distance to a per-axis budget. Animation frames
+/// consume that budget according to elapsed time, so the same gesture has the
+/// same shape on displays with different refresh rates.
 enum SmoothScrollSupport {
     struct Axes: Equatable {
         let vertical: Double
         let horizontal: Double
     }
 
-    /// Animation frame length. Sixty steps a second reads as continuous and
-    /// stays far below what event posting can sustain.
+    struct Frame {
+        let vertical: Double
+        let horizontal: Double
+        let finished: Bool
+    }
+
+    struct Engine {
+        private(set) var remainingVertical: Double = 0
+        private(set) var remainingHorizontal: Double = 0
+
+        var isActive: Bool {
+            remainingVertical != 0 || remainingHorizontal != 0
+        }
+
+        /// Adds already-normalized pixel distances. A reversal replaces the
+        /// old tail on that axis so the first opposite tick answers at once.
+        mutating func add(vertical: Double, horizontal: Double) {
+            Self.add(vertical, to: &remainingVertical)
+            Self.add(horizontal, to: &remainingHorizontal)
+        }
+
+        mutating func advance(elapsed: TimeInterval, response: Int) -> Frame {
+            let vertical = SmoothScrollSupport.frameDelta(
+                remaining: remainingVertical,
+                elapsed: elapsed,
+                response: response
+            )
+            let horizontal = SmoothScrollSupport.frameDelta(
+                remaining: remainingHorizontal,
+                elapsed: elapsed,
+                response: response
+            )
+            remainingVertical -= vertical
+            remainingHorizontal -= horizontal
+            return Frame(vertical: vertical, horizontal: horizontal, finished: !isActive)
+        }
+
+        mutating func reset() {
+            remainingVertical = 0
+            remainingHorizontal = 0
+        }
+
+        private static func add(_ distance: Double, to remaining: inout Double) {
+            guard distance.isFinite, distance != 0 else { return }
+            remaining = SmoothScrollSupport.directionsOppose(distance, remaining)
+                ? distance : remaining + distance
+        }
+    }
+
+    /// The timer is only a wakeup cadence; elapsed time controls the motion.
     static let frameInterval: TimeInterval = 1.0 / 60.0
 
-    /// The fraction of the remaining distance emitted per frame. 0.18 at
-    /// sixty frames a second lands a tick in roughly a quarter second.
-    static let emitFactor: Double = 0.18
+    /// A long main-thread stall must not dump an entire old tail in one jump.
+    /// Normal display cadences from 30 Hz upward remain unmodified.
+    static let maximumFrameInterval: TimeInterval = 1.0 / 20.0
 
     /// Leftovers smaller than this are flushed in one final frame.
     static let finishThreshold: Double = 1.0
 
-    /// Adjustable distance of one wheel tick, in pixels.
+    /// Adjustable distance of one wheel tick, in pixels. Keeping the existing
+    /// key and default preserves every current user's scrolling speed.
     static let stepRange = 20...100
     static let defaultStep = 40
+
+    /// Higher response values make the glide follow the wheel sooner. The
+    /// default keeps the former 60 Hz curve's initial movement while making
+    /// the rest independent from the timer cadence.
+    static let responseRange = 0...100
+    static let defaultResponse = 65
+    private static let slowResponseTime: TimeInterval = 0.16
+    private static let fastResponseTime: TimeInterval = 0.04
+    /// Time-based equivalent of the former one-point minimum at 60 Hz.
+    private static let minimumGlideSpeed = 60.0
 
     /// The tick count of a discrete wheel event. High-resolution wheels
     /// report fractions of a line in the fixed-point field while the integer
@@ -82,20 +141,11 @@ enum SmoothScrollSupport {
     /// reversal drops them so the first pixel of the new direction is not
     /// eaten by what the old one left behind.
     static func carry(_ current: Double, continuing distance: Double) -> Double {
-        guard distance != 0, current != 0, (distance < 0) != (current < 0) else { return current }
-        return 0
+        directionsOppose(current, distance) ? 0 : current
     }
 
-    /// The remaining distance after new wheel ticks arrive. Scrolling the
-    /// opposite way abandons what was left instead of fighting it, so a
-    /// direction change reacts instantly.
-    static func remaining(afterTicks ticks: Double, step: Double, current: Double) -> Double {
-        let added = ticks * step
-        guard added != 0 else { return current }
-        if current != 0, (added < 0) != (current < 0) {
-            return added
-        }
-        return current + added
+    private static func directionsOppose(_ lhs: Double, _ rhs: Double) -> Bool {
+        lhs != 0 && rhs != 0 && (lhs < 0) != (rhs < 0)
     }
 
     /// A vertical wheel tick with Shift held scrolls sideways instead. That
@@ -112,14 +162,23 @@ enum SmoothScrollSupport {
         return Axes(vertical: 0, horizontal: vertical)
     }
 
-    /// The distance one frame should emit for this remaining budget: a
-    /// fraction of it, at least one pixel so the glide never stalls, and
-    /// everything once the leftover is small enough to finish.
-    static func frameDelta(remaining: Double) -> Double {
-        guard remaining != 0 else { return 0 }
+    /// Exponential decay has the composition property needed here: two short
+    /// elapsed intervals produce the same remaining distance as one interval
+    /// with their combined duration.
+    static func frameDelta(remaining: Double,
+                           elapsed: TimeInterval,
+                           response: Int) -> Double {
+        guard remaining.isFinite, remaining != 0,
+              elapsed.isFinite, elapsed > 0 else { return 0 }
         let magnitude = abs(remaining)
         if magnitude <= finishThreshold { return remaining }
-        let emitted = max(magnitude * emitFactor, 1.0)
+        let clampedElapsed = min(elapsed, maximumFrameInterval)
+        let normalizedResponse = Double(sanitizedResponse(response) - responseRange.lowerBound)
+            / Double(responseRange.upperBound - responseRange.lowerBound)
+        let responseTime = slowResponseTime
+            - normalizedResponse * (slowResponseTime - fastResponseTime)
+        let eased = magnitude * (1 - exp(-clampedElapsed / responseTime))
+        let emitted = min(magnitude, max(eased, minimumGlideSpeed * clampedElapsed))
         return remaining < 0 ? -emitted : emitted
     }
 
@@ -128,5 +187,9 @@ enum SmoothScrollSupport {
     static func sanitizedStep(_ value: Int) -> Int {
         guard value != 0 else { return defaultStep }
         return min(max(value, stepRange.lowerBound), stepRange.upperBound)
+    }
+
+    static func sanitizedResponse(_ value: Int) -> Int {
+        min(max(value, responseRange.lowerBound), responseRange.upperBound)
     }
 }
