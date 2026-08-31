@@ -368,17 +368,45 @@ enum WindowEdgeSnapSupport {
     static var isSystemTilingEnabled: Bool {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
-        return systemTilingEnabled { key in
-            guard defaults.object(forKey: key) != nil else { return nil }
-            return defaults.bool(forKey: key)
-        }
+        return systemTilingEnabled(
+            valueFor: { key in
+                guard defaults.object(forKey: key) != nil else { return nil }
+                return defaults.bool(forKey: key)
+            },
+            displaysSpan: displaysSpan(spacesPreference("spans-displays"))
+        )
     }
 
     /// The system's edge tiling choices arrive enabled when their preference
     /// has never been written. Keeping this pure makes the conflict gate
     /// testable without changing somebody's desktop settings.
-    static func systemTilingEnabled(valueFor: (String) -> Bool?) -> Bool {
-        systemTilingKeys.contains { valueFor($0) ?? true }
+    ///
+    /// When displays span (Separate Spaces off) those switches are greyed
+    /// out and the system's own tiling is inert, so a missing key must not
+    /// pin the gate on — the warning's own instruction is unreachable then
+    /// (issue #1079).
+    static func systemTilingEnabled(valueFor: (String) -> Bool?,
+                                    displaysSpan: Bool = false) -> Bool {
+        if displaysSpan { return false }
+        return systemTilingKeys.contains { valueFor($0) ?? true }
+    }
+
+    /// Separate Spaces off is the only configuration where displays span.
+    /// An absent preference is Apple's default: one Space per display.
+    static func displaysSpan(_ value: Bool?) -> Bool {
+        value ?? false
+    }
+
+    private static func spacesPreference(_ key: String) -> Bool? {
+        if let defaults = UserDefaults(suiteName: "com.apple.spaces"),
+           defaults.object(forKey: key) != nil {
+            return defaults.bool(forKey: key)
+        }
+        guard let domain = UserDefaults.standard.persistentDomain(forName: "com.apple.spaces"),
+              let raw = domain[key] else { return nil }
+        if let bool = raw as? Bool { return bool }
+        if let number = raw as? NSNumber { return number.boolValue }
+        return nil
     }
 
     static var isSystemTopWindowOverviewDragEnabled: Bool {
