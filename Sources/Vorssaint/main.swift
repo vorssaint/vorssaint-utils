@@ -4,6 +4,8 @@
 import AppKit
 
 Defaults.register()
+MouseAccelerationGuard.runIfRequestedAndExit()
+MouseAccelerationService.recoverPendingAtLaunch()
 
 if CommandLine.arguments.contains("--selftest") {
     SelfTest.runAndExit()

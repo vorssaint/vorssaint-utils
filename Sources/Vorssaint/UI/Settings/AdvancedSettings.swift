@@ -112,7 +112,7 @@ struct AdvancedSettings: View {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
             Button(l10n.s.advancedUninstallButton, role: .destructive) {
                 working = true
-                SelfUninstall.uninstallCompletely()
+                SelfUninstall.uninstallCompletely { working = false }
             }
         } message: {
             Text(l10n.s.advancedUninstallConfirmBody)

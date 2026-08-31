@@ -850,7 +850,6 @@ struct MouseSettings: View {
         let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
-            || (mouseAccelerationDisabled && AppFeature.mouseAcceleration.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || (mouseButtonShortcutsEnabled && AppFeature.mouseButtonShortcuts.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)

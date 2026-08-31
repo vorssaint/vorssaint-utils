@@ -24,7 +24,7 @@ enum SelfUninstall {
         // on an AX call and freezes the whole machine's input — see the note on
         // `suspendInputInterceptors`.
         DispatchQueue.main.async {
-            suspendInputInterceptors()
+            _ = suspendInputInterceptors()
             DispatchQueue.global(qos: .userInitiated).async {
                 detachFromSystem()
                 removeSudoersRuleIfPresent {           // may show one admin prompt
@@ -37,9 +37,12 @@ enum SelfUninstall {
 
     /// Clears permissions, removes preferences and saved state, sends the app
     /// bundle to the Trash and quits. Used by "Uninstall Vorssaint completely".
-    static func uninstallCompletely() {
+    static func uninstallCompletely(onFailure: @escaping () -> Void) {
         DispatchQueue.main.async {
-            suspendInputInterceptors()
+            guard suspendInputInterceptors() else {
+                onFailure()
+                return
+            }
             DispatchQueue.global(qos: .userInitiated).async {
                 detachFromSystem()
                 removeSudoersRuleIfPresent {
@@ -60,7 +63,7 @@ enum SelfUninstall {
     /// keyboard and clicks (only the mouse cursor keeps moving). Each `stop`/
     /// `suspend`/`deactivate` is idempotent, so calling it when a service is
     /// already off is a no-op.
-    private static func suspendInputInterceptors() {
+    private static func suspendInputInterceptors() -> Bool {
         // Deactivating Cleaning Mode re-syncs the services it paused back to
         // their preferences, so it has to happen before the suspends below,
         // or it would re-arm the very taps this teardown just stopped.
@@ -68,6 +71,9 @@ enum SelfUninstall {
         ScrollInverter.shared.suspend()
         FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()
+        // Its machine-local recovery journal is deleted by a full uninstall,
+        // so the uninstall cannot continue until every HID value is restored.
+        let mouseAccelerationRestored = MouseAccelerationService.shared.stop()
         MouseNavigationService.shared.suspend()
         MouseButtonShortcutService.shared.suspend()
         WindowMaximizer.shared.stop()
@@ -97,6 +103,7 @@ enum SelfUninstall {
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.unmuteForTeardown()
         MicMuteService.shared.suspend()
+        return mouseAccelerationRestored
     }
 
     private static func detachFromSystem() {

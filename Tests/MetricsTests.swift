@@ -10780,6 +10780,63 @@ struct MetricsTests {
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
+        expect(MouseAccelerationSupport.validatedRegistryID(nil) == nil
+                && MouseAccelerationSupport.validatedRegistryID(0) == nil
+                && MouseAccelerationSupport.validatedRegistryID(42) == 42,
+               "mouse acceleration never turns a missing registry id into shared identity zero")
+        let mouseIdentity = MouseAccelerationDeviceIdentity(
+            vendorID: 1,
+            productID: 2,
+            locationID: 3,
+            transport: "USB",
+            physicalUniqueID: "physical",
+            serialNumber: "serial"
+        )
+        let mouseRecovery = MouseAccelerationRecoveryEntry(
+            registryID: 42,
+            identity: mouseIdentity,
+            key: MouseAccelerationSupport.mouseAccelerationKey,
+            original: MouseAccelerationStoredValue(rawValue: 45_056, isBoolean: false)
+        )
+        var mouseJournal = MouseAccelerationRecoveryJournal(bootTime: 7, entries: [])
+        mouseJournal.upsert(mouseRecovery)
+        expect(mouseJournal.entry(registryID: 42, identity: mouseIdentity) == mouseRecovery,
+               "mouse acceleration keeps one exact restorable value per live service")
+        let reusedRegistryIdentity = MouseAccelerationDeviceIdentity(
+            vendorID: 9,
+            productID: 9,
+            locationID: 9,
+            transport: "USB",
+            physicalUniqueID: nil,
+            serialNumber: nil
+        )
+        expect(mouseJournal.entry(registryID: 42, identity: reusedRegistryIdentity) == nil,
+               "a reused registry id can never receive another mouse's saved value")
+        expect(mouseIdentity.canMatchAcrossRegistryIDs,
+               "a stable physical identity can recover after a device receives a new registry id")
+        let anonymousMouseIdentity = MouseAccelerationDeviceIdentity(
+            vendorID: nil,
+            productID: nil,
+            locationID: nil,
+            transport: "USB",
+            physicalUniqueID: nil,
+            serialNumber: nil
+        )
+        expect(!anonymousMouseIdentity.canMatchAcrossRegistryIDs,
+               "an anonymous device can never inherit another registry id's saved value")
+        expect(MouseAccelerationSupport.isRestorableKey(MouseAccelerationSupport.linearScalingKey)
+                && MouseAccelerationSupport.isRestorableKey(MouseAccelerationSupport.mouseAccelerationKey)
+                && !MouseAccelerationSupport.isRestorableKey("UserKeyMapping"),
+               "mouse acceleration recovery accepts only its own HID properties")
+        expect(MouseAccelerationSupport.targetValue(
+            for: MouseAccelerationSupport.linearScalingKey,
+            originalIsBoolean: true
+        ) == MouseAccelerationStoredValue(rawValue: 1, isBoolean: true)
+            && MouseAccelerationSupport.targetValue(
+                for: MouseAccelerationSupport.mouseAccelerationKey,
+                originalIsBoolean: false
+            ) == MouseAccelerationStoredValue(rawValue: -1, isBoolean: false),
+               "mouse acceleration uses linear mode when supported and the legacy fallback otherwise")
         expect(AppFeature.switcher.availabilityKey == "featureAvailable.switcher",
                "availability key derives from the raw value")
         expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
@@ -11828,7 +11885,7 @@ struct MetricsTests {
         }
         expect(AppFeature.monitorCPU.energyProfile == .periodic
                 && AppFeature.clipboardHistory.energyProfile == .periodic
-                && AppFeature.mouseAcceleration.energyProfile == .periodic
+                && AppFeature.mouseAcceleration.energyProfile == .idle
                 && AppFeature.textSnippets.energyProfile == .inputs
                 && AppFeature.dockPreview.energyProfile == .mouse
                 && AppFeature.switcher.energyProfile == .keyboard
