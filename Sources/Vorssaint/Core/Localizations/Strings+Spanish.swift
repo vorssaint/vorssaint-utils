@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Botones laterales activos ahora",
         smoothScrollName: "Desplazamiento suave",
         smoothScrollCaption: "Convierte cada paso de la rueda del ratón en un deslizamiento corto y suave. El trackpad no cambia.",
-        smoothScrollStepLabel: "Distancia por paso",
+        smoothScrollStepLabel: "Velocidad de desplazamiento",
         mouseNavigationSection: "Navegación",
         mouseNavigationEnable: "Usar los botones laterales para Atrás y Adelante",
         mouseNavigationCaption: "Convierte los botones Atrás y Adelante del ratón en comandos de navegación para Finder, navegadores y apps compatibles.",
@@ -980,6 +980,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Pantalla con el puntero",
         switcherScreenPlacementMenuBar: "Pantalla con la barra de menús",
         switcherScreenPlacementActiveWindow: "Pantalla con la ventana activa",
-        switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada."
+        switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada.",
+        smoothScrollResponseLabel: "Respuesta",
+        mouseAccelerationName: "Desactivar la aceleración del ratón",
+        mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint."
     )
 }

@@ -100,7 +100,8 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Keyboard and mouse
 
 - **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with clipboard variables plus date and time in any format you like. A searchable quick menu, organized into folders, types any snippet right at your cursor.
-- **Smooth scrolling.** Gives a mouse wheel the glide of a trackpad.
+- **Smooth scrolling.** Gives a mouse wheel a fluid glide with adjustable speed and response.
+- **Pointer acceleration.** Optionally disable acceleration for connected mice while preserving the previous system setting for restoration.
 - **Focus follows mouse.** Install it from Features to bring the window under the
   pointer to the front after an adjustable pause. It waits while you drag or hold a
   modifier key.
@@ -110,6 +111,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Mouse button shortcuts.** Give any extra button or side-wheel direction a key combination of your choice. Click add, use it, record the keys.
 - **Middle click.** A three finger press becomes a real middle click.
 - **Apps to leave alone.** Every feature above can name apps from anywhere on your Mac that drive themselves with the mouse, like 3D and design tools, and it steps aside in those.
+- **Extra click filter.** Ignore rapid accidental extra clicks from worn primary, secondary and middle mouse buttons without delaying normal clicks.
 - **Key debounce.** Filters the double letters a worn keyboard invents.
 - **Super key.** Hold Caps Lock or a right-side modifier key and it counts as the modifier combination you choose, so one key can drive your shortcuts. A tap on its own can switch input sources, switch capitals, press Escape, or do nothing. Keep the selected key at its default action in System Settings › Keyboard › Modifier Keys.
 - **Keyboard shortcuts.** Edit every installed feature's global shortcut from one categorized page, see what is active and use the shorter Super key combination when available.

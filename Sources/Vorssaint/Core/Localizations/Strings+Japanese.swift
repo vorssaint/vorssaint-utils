@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "サイドボタンは現在有効です",
         smoothScrollName: "スムーズスクロール",
         smoothScrollCaption: "マウスホイールの1目盛りを短くなめらかなスライドに変えます。トラックパッドは変わりません。",
-        smoothScrollStepLabel: "1目盛りの距離",
+        smoothScrollStepLabel: "スクロール速度",
         mouseNavigationSection: "ナビゲーション",
         mouseNavigationEnable: "サイドボタンで戻ると進むを操作",
         mouseNavigationCaption: "マウスの戻るボタンと進むボタンを、Finder、ブラウザ、対応アプリのナビゲーション操作に変換します。",
@@ -980,6 +980,9 @@ extension Strings {
         switcherScreenPlacementPointer: "ポインタのある画面",
         switcherScreenPlacementMenuBar: "メニューバーのある画面",
         switcherScreenPlacementActiveWindow: "アクティブなウインドウのある画面",
-        switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。"
+        switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。",
+        smoothScrollResponseLabel: "反応",
+        mouseAccelerationName: "マウス加速を無効にする",
+        mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。"
     )
 }

@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Боковые кнопки сейчас активны",
         smoothScrollName: "Плавная прокрутка",
         smoothScrollCaption: "Превращает каждый щелчок колёсика мыши в короткое плавное скольжение. Трекпад не меняется.",
-        smoothScrollStepLabel: "Расстояние за щелчок",
+        smoothScrollStepLabel: "Скорость прокрутки",
         mouseNavigationSection: "Навигация",
         mouseNavigationEnable: "Использовать боковые кнопки для переходов назад и вперёд",
         mouseNavigationCaption: "Преобразует кнопки мыши Назад и Вперёд в команды навигации для Finder, браузеров и совместимых приложений.",
@@ -981,6 +981,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Экран с указателем",
         switcherScreenPlacementMenuBar: "Экран со строкой меню",
         switcherScreenPlacementActiveWindow: "Экран с активным окном",
-        switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов."
+        switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов.",
+        smoothScrollResponseLabel: "Отклик",
+        mouseAccelerationName: "Отключить ускорение мыши",
+        mouseAccelerationCaption: "Отключает ускорение указателя для подключённых мышей. Прежняя настройка вернётся после выключения функции или выхода из Vorssaint."
     )
 }

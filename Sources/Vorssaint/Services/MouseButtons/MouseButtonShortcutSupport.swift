@@ -65,6 +65,15 @@ enum MouseButtonShortcutSupport {
             || buttonRange.contains(input)
     }
 
+    /// Whether an extra mouse button is physically down right now. This is
+    /// used only to recover state after the system disabled an event tap: an
+    /// Up may have bypassed the tap while it was off, so stale consumed state
+    /// must survive only for buttons that are still held.
+    static func isPressed(_ button: Int64, pressedButtons: Int) -> Bool {
+        guard button >= 0, button < Int64(Int.bitWidth) else { return false }
+        return pressedButtons & (1 << Int(button)) != 0
+    }
+
     /// Resolves only horizontal mouse-wheel movement. Vertical scrolling stays
     /// ordinary scrolling, and the caller first excludes touch gestures.
     static func sideWheelInput(isContinuous: Bool,
