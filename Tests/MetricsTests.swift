@@ -21402,7 +21402,7 @@ struct MetricsTests {
                "a partial receiver failure is reported after the batch completes")
 
         // If an error closes a receiver, a late success from that receiver
-        // must not create a promised tile after fallback has been selected.
+        // must be kept even when fallback has already been selected.
         let lateSuccess = ShelfPromiseFallbackCoordinator(
             items: ["subject"], receiverCount: 1)
         lateSuccess.registerReceiver(0, expectedFileCount: 2)
@@ -21410,9 +21410,9 @@ struct MetricsTests {
         let lateFailureCompletion = lateSuccess.finishRegistration()
         let ignoredLateSuccess = lateSuccess.recordSuccess(for: 0)
         expect(lateFailureCompletion?.fallback == ["subject"]
-                && !ignoredLateSuccess.acceptFile
-                && ignoredLateSuccess.fallback == nil,
-               "a late callback after wholesale failure cannot duplicate fallback")
+                && ignoredLateSuccess.acceptFile
+                && ignoredLateSuccess.discardFallback == nil,
+               "a late callback after wholesale failure is preserved beside fallback")
 
         // A completely failed multi-receiver batch still uses the direct
         // representation, but only after every receiver has failed.
@@ -21440,6 +21440,12 @@ struct MetricsTests {
         expect(!shelfServiceSource.contains(
             "provider.registeredTypeIdentifiers.first"),
                "the promise loader no longer trusts provider type ordering")
+        expect(shelfServiceSource.contains(
+            "] + [UTType(importedAs: filePromiseContentTypeIdentifier)]"),
+               "SwiftUI registers only the promise flavor its loader resolves")
+        expect(!shelfServiceSource.contains(
+            "] + NSFilePromiseReceiver.readableDraggedTypes.map { UTType(importedAs: $0) }"),
+               "SwiftUI does not advertise unresolved promise URL flavors")
 
         // MARK: Result
 

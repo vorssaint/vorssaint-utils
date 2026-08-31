@@ -303,7 +303,7 @@ final class ShelfService: ObservableObject {
     /// that do not have a public declaration in UniformTypeIdentifiers.
     static let swiftUIDropTypes: [UTType] = [
         .fileURL, .image, .url, .text, .plainText
-    ] + NSFilePromiseReceiver.readableDraggedTypes.map { UTType(importedAs: $0) }
+    ] + [UTType(importedAs: filePromiseContentTypeIdentifier)]
 
     static let tileDropTypes: [NSPasteboard.PasteboardType] = [
         .fileURL,

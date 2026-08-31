@@ -69,16 +69,16 @@ final class ShelfPromiseFallbackCoordinator<Value> {
     func recordSuccess(for receiverID: Int) -> CallbackOutcome {
         lock.lock()
         defer { lock.unlock() }
-        guard var receiver = receivers[receiverID], !receiver.isWholesaleFailure else {
-            // A prior error closes a receiver wholesale. Do not let a late
-            // success create a promised tile after the direct fallback was
-            // selected, but still let the caller clean a regular file safely.
+        guard var receiver = receivers[receiverID] else {
             return CallbackOutcome(acceptFile: false,
                                    discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: false)
         }
-        if receiver.isTerminal {
+        // A wholesale error may be reported before the receiver's later
+        // promised files materialize. Keep those files instead of deleting
+        // them, even if direct fallback has already been queued.
+        if !receiver.isWholesaleFailure, receiver.isTerminal {
             // `fileNames` is normally authoritative, but the defensive
             // minimum of one cannot cap a provider that omits its names and
             // then delivers more than one file. Treat the extra callback as
@@ -87,7 +87,8 @@ final class ShelfPromiseFallbackCoordinator<Value> {
             receiver.isTerminal = false
         }
         receiver.completedFileCount += 1
-        if receiver.isExpectedFileCountFinal,
+        if !receiver.isWholesaleFailure,
+           receiver.isExpectedFileCountFinal,
            receiver.completedFileCount >= receiver.expectedFileCount {
             receiver.isTerminal = true
         }
