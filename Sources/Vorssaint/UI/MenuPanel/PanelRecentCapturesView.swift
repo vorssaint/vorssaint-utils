@@ -15,6 +15,13 @@ struct PanelRecentCapturesView: View {
     }
 }
 
+/// Local ids for the per-capture rows, in the one place they are spelled —
+/// see `MediaWorkspaceView` for the same arrangement.
+private enum RecentCaptureKeyboardID {
+    static func open(_ entry: RecentCaptureEntry) -> String { "recentCapture-\(entry.id)-open" }
+    static func remove(_ entry: RecentCaptureEntry) -> String { "recentCapture-\(entry.id)-remove" }
+}
+
 /// The same history surface is used by the menu panel and by the floating
 /// palette opened from editors and the Command Bar.
 struct RecentCapturesView: View {
@@ -108,11 +115,12 @@ struct RecentCapturesView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 7) {
+                    LazyVStack(alignment: .leading, spacing: 7) {
                         ForEach(visibleEntries) { entry in
                             row(entry).id(entry.id)
                         }
                     }
+                    .panelKeyboardRowList(visibleEntries.flatMap(keyboardRows))
                 }
                 .onChange(of: navigator.focus) { _, focus in
                     guard let entryID = focusedEntryID(focus) else { return }
@@ -145,7 +153,7 @@ struct RecentCapturesView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
-                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "recentCapture-\(entry.id)-open") },
+                    .panelKeyboardRow(keyboardRow(RecentCaptureKeyboardID.open(entry)),
                                       actions: PanelRowActions(activate: { history.open(entry) }), cornerRadius: 6)
                     Button {
                         history.remove(entry)
@@ -157,7 +165,7 @@ struct RecentCapturesView: View {
                     .controlSize(.mini)
                     .help(text.remove)
                     .accessibilityLabel(text.remove)
-                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "recentCapture-\(entry.id)-remove") },
+                    .panelKeyboardRow(keyboardRow(RecentCaptureKeyboardID.remove(entry)),
                                       actions: PanelRowActions(activate: { history.remove(entry) }), cornerRadius: 6)
                 }
             }
@@ -166,13 +174,20 @@ struct RecentCapturesView: View {
         .panelCard()
     }
 
+    private func keyboardRow(_ localID: String) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, localID) }
+    }
+
+    /// What one capture contributes to the keyboard order, in the order the
+    /// two buttons sit in the row.
+    private func keyboardRows(for entry: RecentCaptureEntry) -> [PanelRowID] {
+        [RecentCaptureKeyboardID.open(entry), RecentCaptureKeyboardID.remove(entry)]
+            .compactMap(keyboardRow)
+    }
+
     private func focusedEntryID(_ focus: PanelFocusTarget?) -> RecentCaptureEntry.ID? {
-        guard case .row(let row)? = focus,
-              row.section == keyboardSection,
-              let localID = row.local as? String else { return nil }
-        return visibleEntries.first {
-            localID == "recentCapture-\($0.id)-open" || localID == "recentCapture-\($0.id)-remove"
-        }?.id
+        guard case .row(let row)? = focus, row.section == keyboardSection else { return nil }
+        return visibleEntries.first { keyboardRows(for: $0).contains(row) }?.id
     }
 
     @ViewBuilder

@@ -4,6 +4,13 @@
 import AppKit
 import SwiftUI
 
+/// Local ids for the package list's per-package rows, in the one place they
+/// are spelled — see `MediaWorkspaceView` for the same arrangement.
+private enum HomebrewKeyboardID {
+    static func package(_ package: HomebrewPackage) -> String { "homebrew-package-\(package.id)" }
+    static func packageUpdate(_ package: HomebrewPackage) -> String { "homebrew-update-\(package.id)" }
+}
+
 struct PanelHomebrewView: View {
     private static let packageListTopID = "panel-homebrew-package-list-top"
 
@@ -351,7 +358,7 @@ struct PanelHomebrewView: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 5) {
+                        LazyVStack(alignment: .leading, spacing: 5) {
                             Color.clear
                                 .frame(height: 0)
                                 .id(Self.packageListTopID)
@@ -360,6 +367,7 @@ struct PanelHomebrewView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .panelKeyboardRowList(packages.flatMap(keyboardRows))
                     }
                     .onChange(of: navigator.focus) { _, focus in
                         guard let packageID = focusedPackageID(focus, in: packages) else { return }
@@ -387,15 +395,32 @@ struct PanelHomebrewView: View {
             .background(Capsule().fill(Color.primary.opacity(0.07)))
     }
 
-    private func focusedPackageID(_ focus: PanelFocusTarget?, in packages: [HomebrewPackage]) -> String? {
-        guard case .row(let row)? = focus,
-              row.section == .utilities,
-              let localID = row.local as? String else { return nil }
-        for package in packages where localID == "homebrew-package-\(package.id)"
-            || localID == "homebrew-update-\(package.id)" {
-            return package.id
+    /// The one place a package row's identity is spelled, so the list order,
+    /// the rows themselves and the scroll-to lookup below cannot drift apart.
+    private static func packageRow(_ package: HomebrewPackage) -> PanelRowID {
+        PanelRowID(.utilities, HomebrewKeyboardID.package(package))
+    }
+
+    private static func packageUpdateRow(_ package: HomebrewPackage) -> PanelRowID {
+        PanelRowID(.utilities, HomebrewKeyboardID.packageUpdate(package))
+    }
+
+    /// What one list row contributes to the keyboard order, under the same
+    /// conditions `row(_:)` builds it: an upgrade button that is not on screen
+    /// (or is disabled while Homebrew works) is not a stop the arrows offer.
+    private func keyboardRows(for package: HomebrewPackage) -> [PanelRowID] {
+        var rows = [Self.packageRow(package)]
+        if activeStatus(for: package) == nil, package.update != nil, !homebrew.isBusy {
+            rows.append(Self.packageUpdateRow(package))
         }
-        return nil
+        return rows
+    }
+
+    private func focusedPackageID(_ focus: PanelFocusTarget?, in packages: [HomebrewPackage]) -> String? {
+        guard case .row(let row)? = focus, row.section == .utilities else { return nil }
+        return packages.first {
+            row == Self.packageRow($0) || row == Self.packageUpdateRow($0)
+        }?.id
     }
 
     private func row(_ package: HomebrewPackage) -> some View {
@@ -430,7 +455,7 @@ struct PanelHomebrewView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .buttonStyle(.plain)
-            .panelKeyboardRow(PanelRowID(.utilities, "homebrew-package-\(package.id)"),
+            .panelKeyboardRow(Self.packageRow(package),
                               actions: PanelRowActions(activate: { homebrew.select(package) }))
             if activeStatus(for: package) != nil {
                 ProgressView()
@@ -470,7 +495,7 @@ struct PanelHomebrewView: View {
         .disabled(homebrew.isBusy)
         .help("\(l10n.s.homebrewUpgrade): \(update.versionSummary)")
         .accessibilityLabel(l10n.s.homebrewUpgrade)
-        .panelKeyboardRow(homebrew.isBusy ? nil : PanelRowID(.utilities, "homebrew-update-\(package.id)"),
+        .panelKeyboardRow(homebrew.isBusy ? nil : Self.packageUpdateRow(package),
                           actions: PanelRowActions(activate: {
                               presentConfirmation(HomebrewPendingAction(action: .upgrade, package: package))
                           }))

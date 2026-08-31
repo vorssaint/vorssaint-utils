@@ -89,6 +89,34 @@ final class PanelKeyboardNavigatorTests: XCTestCase {
         XCTAssertEqual(navigator.focus, .chrome(.headerFeedback))
     }
 
+    /// A lazy list tears a row down as it scrolls past, but the row keeps its
+    /// place in the order, so focus stays on it instead of snapping back.
+    func testRowStillInTheOrderKeepsFocusWhenItsViewGoesAway() {
+        let row = PanelRowID(section, "second")
+        navigator.registerRow(row, actions: PanelRowActions(activate: {}))
+        navigator.focusRow(row)
+
+        navigator.unregisterRow(row)
+        XCTAssertEqual(navigator.focus, .row(row))
+
+        navigator.configureRowOrder([(PanelRowID(section, "first"), .zero)])
+        XCTAssertEqual(navigator.focus, .tab(section))
+    }
+
+    func testDuplicateRowOrderEntriesCollapseToOne() {
+        let first = PanelRowID(section, "first")
+        navigator.configureRowOrder([
+            (first, CGRect(x: 0, y: 0, width: 10, height: 10)),
+            (PanelRowID(section, "second"), CGRect(x: 0, y: 20, width: 10, height: 10)),
+            (first, CGRect(x: 0, y: 40, width: 10, height: 10)),
+        ])
+
+        navigator.focusRow(first)
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_DownArrow)))
+        XCTAssertEqual(navigator.focus, .row(PanelRowID(section, "second")))
+        XCTAssertEqual(navigator.frame(for: first)?.minY, 40)
+    }
+
     func testFooterLeftAndRightMoveBetweenFooterControls() {
         navigator.focusRow(PanelRowID(section, "second"))
         XCTAssertTrue(navigator.handleKeyDown(key(kVK_DownArrow)))

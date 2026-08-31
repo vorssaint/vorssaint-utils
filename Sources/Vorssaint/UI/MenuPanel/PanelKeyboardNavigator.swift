@@ -154,8 +154,13 @@ final class PanelKeyboardNavigator: ObservableObject {
         rowActions[id] = actions
     }
 
+    /// A row leaving the screen drops its actions. A lazy list tearing down a
+    /// row it has scrolled past does not take that row out of `rowOrder`
+    /// though, so focus stays where it is and the row registers again the
+    /// moment the list scrolls it back into view.
     func unregisterRow(_ id: PanelRowID) {
         rowActions.removeValue(forKey: id)
+        guard !rowOrder.contains(id) else { return }
         if case .row(let focused)? = focus, focused == id {
             focus = fallbackFocus()
         }
@@ -167,8 +172,13 @@ final class PanelKeyboardNavigator: ObservableObject {
     /// document view, so `OverlayScrollView` can scroll a row into view
     /// without knowing anything about the panel's content.
     func configureRowOrder(_ rows: [(id: PanelRowID, frame: CGRect)]) {
-        rowOrder = rows.map(\.id)
-        rowFrames = Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.frame) })
+        // Layout can report the same id twice for a pass while a list
+        // rebuilds. The row keeps the first place it was reported in and the
+        // last frame it was measured at, rather than the panel trapping on a
+        // duplicate key.
+        var seen: Set<PanelRowID> = []
+        rowOrder = rows.map(\.id).filter { seen.insert($0).inserted }
+        rowFrames = Dictionary(rows.map { ($0.id, $0.frame) }, uniquingKeysWith: { _, latest in latest })
         if case .row(let focused)? = focus, !rowOrder.contains(focused) {
             focus = fallbackFocus()
         }
@@ -437,8 +447,13 @@ extension View {
 
 // MARK: - Row registration
 
+/// One entry in the layout-derived row order: either a single measured row,
+/// or a whole lazy list contributing its rows in data order at the position
+/// its container occupies. A `LazyVStack` only builds the rows it can show, so
+/// it reports the order itself instead of leaving the collector to infer one
+/// from frames the rows currently off screen do not have.
 private struct PanelRowGeometry: Equatable {
-    let id: PanelRowID
+    let ids: [PanelRowID]
     let frame: CGRect
 }
 
@@ -453,6 +468,7 @@ private struct PanelRowGeometryPreferenceKey: PreferenceKey {
 private struct PanelKeyboardRowModifier: ViewModifier {
     @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.isMenuPanelHost) private var isMenuPanelHost
+    @Environment(\.isInPanelKeyboardRowList) private var isInRowList
     let id: PanelRowID
     let actions: PanelRowActions
     let cornerRadius: CGFloat
@@ -462,17 +478,67 @@ private struct PanelKeyboardRowModifier: ViewModifier {
             content
                 .background(
                     GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: PanelRowGeometryPreferenceKey.self,
-                            value: [PanelRowGeometry(
-                                id: id,
-                                frame: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)))])
+                        Color.clear.preference(key: PanelRowGeometryPreferenceKey.self,
+                                               value: registeredGeometry(proxy))
                     }
                 )
                 .panelFocusRing(navigator.focus == .row(id), cornerRadius: cornerRadius)
                 .accessibilityAddTraits(navigator.focus == .row(id) ? .isSelected : [])
-                .onAppear { navigator.registerRow(id, actions: actions) }
                 .onDisappear { navigator.unregisterRow(id) }
+        } else {
+            content
+        }
+    }
+
+    /// Re-registers the row on every layout pass and hands back its geometry.
+    /// `onAppear` fires once, so registering there would freeze the actions a
+    /// row was built with — anything they gate on live state (a slider while
+    /// its display is pending, a button that becomes enabled later) would keep
+    /// answering for the first render forever.
+    ///
+    /// Inside a lazy list the row contributes no frame of its own: the list
+    /// reports the whole order at its container's position, and a row scrolled
+    /// out of the inner scroll view has no meaningful place in the panel's
+    /// coordinate space anyway.
+    private func registeredGeometry(_ proxy: GeometryProxy) -> [PanelRowGeometry] {
+        navigator.registerRow(id, actions: actions)
+        guard !isInRowList else { return [] }
+        return [PanelRowGeometry(
+            ids: [id],
+            frame: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)))]
+    }
+}
+
+/// Set on the rows inside a `panelKeyboardRowList` so they leave the ordering
+/// to their container.
+private struct IsInPanelKeyboardRowListKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    fileprivate var isInPanelKeyboardRowList: Bool {
+        get { self[IsInPanelKeyboardRowListKey.self] }
+        set { self[IsInPanelKeyboardRowListKey.self] = newValue }
+    }
+}
+
+private struct PanelKeyboardRowListModifier: ViewModifier {
+    @Environment(\.isMenuPanelHost) private var isMenuPanelHost
+    let ids: [PanelRowID]
+
+    func body(content: Content) -> some View {
+        if isMenuPanelHost {
+            content
+                .environment(\.isInPanelKeyboardRowList, true)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: PanelRowGeometryPreferenceKey.self,
+                            value: [PanelRowGeometry(
+                                ids: ids,
+                                frame: proxy.frame(in: .named(PanelKeyboardNavigator.rowCoordinateSpace)))])
+                    }
+                )
         } else {
             content
         }
@@ -483,8 +549,13 @@ private struct PanelKeyboardRowOrderModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .coordinateSpace(name: PanelKeyboardNavigator.rowCoordinateSpace)
-            .onPreferenceChange(PanelRowGeometryPreferenceKey.self) { rows in
-                let ordered = rows.sorted { $0.frame.minY < $1.frame.minY }.map { ($0.id, $0.frame) }
+            .onPreferenceChange(PanelRowGeometryPreferenceKey.self) { entries in
+                // A list's rows all take their container's frame: the panel's
+                // own scroll view only ever needs to bring the list into view,
+                // and the list scrolls to the focused row from the inside.
+                let ordered = entries
+                    .sorted { $0.frame.minY < $1.frame.minY }
+                    .flatMap { entry in entry.ids.map { ($0, entry.frame) } }
                 PanelKeyboardNavigator.shared.configureRowOrder(ordered)
             }
     }
@@ -535,6 +606,17 @@ extension View {
         } else {
             self
         }
+    }
+
+    /// Marks a lazy list of keyboard rows, in the order its data is in. A
+    /// `LazyVStack` builds only the rows it can show, so the order cannot come
+    /// from measured frames the way a hand-laid section's does — the list
+    /// states it once here and its rows stop reporting positions of their own.
+    /// Pair it with a `ScrollViewReader` that scrolls the focused row into
+    /// view, which is also what builds a row the keyboard reaches before the
+    /// list has.
+    func panelKeyboardRowList(_ ids: [PanelRowID]) -> some View {
+        modifier(PanelKeyboardRowListModifier(ids: ids))
     }
 
     /// Marks the root of a section's scrollable content: establishes the

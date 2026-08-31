@@ -119,7 +119,7 @@ struct AppPickerView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
+                    LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(apps) { app in
                             Button {
                                 onSelect(app.url)
@@ -127,12 +127,13 @@ struct AppPickerView: View {
                                 AppPickerRow(app: app, compact: compact)
                             }
                             .buttonStyle(.plain)
-                            .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-\(app.url.path)") },
+                            .panelKeyboardRow(keyboardRow(for: app),
                                               actions: PanelRowActions(activate: { onSelect(app.url) }))
                             .id(app.url.path)
                         }
                     }
                     .padding(.vertical, 3)
+                    .panelKeyboardRowList(apps.compactMap(keyboardRow))
                 }
                 .onChange(of: navigator.focus) { _, focus in
                     guard let path = focusedAppPath(focus, in: apps) else { return }
@@ -155,11 +156,15 @@ struct AppPickerView: View {
         }
     }
 
+    /// The one place a picker row's identity is spelled, so the list order,
+    /// the rows themselves and the scroll-to lookup below cannot drift apart.
+    private func keyboardRow(for app: InstalledApps.InstalledApp) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, "appPicker-\(app.url.path)") }
+    }
+
     private func focusedAppPath(_ focus: PanelFocusTarget?, in apps: [InstalledApps.InstalledApp]) -> String? {
-        guard case .row(let row)? = focus,
-              row.section == keyboardSection,
-              let localID = row.local as? String else { return nil }
-        return apps.first { localID == "appPicker-\($0.url.path)" }?.url.path
+        guard case .row(let row)? = focus, row.section == keyboardSection else { return nil }
+        return apps.first { keyboardRow(for: $0) == row }?.url.path
     }
 }
 
