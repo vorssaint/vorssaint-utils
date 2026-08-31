@@ -25,6 +25,8 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationSecondaryProvider) private var secondaryProviderRaw = DictationProvider.groq.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryOpenAIModel) private var secondaryOpenAIModel = DictationProvider.openAI.defaultModel.id
     @AppStorage(DefaultsKey.dictationSecondaryGroqModel) private var secondaryGroqModel = DictationProvider.groq.defaultModel.id
+    @AppStorage(DefaultsKey.dictationPauseMedia) private var pauseMedia = false
+    @AppStorage(DefaultsKey.dictationMediaResumeDelay) private var mediaResumeDelay = 0
     @State private var keyDraft = ""
     @State private var status: Status?
     @State private var testing = false
@@ -155,6 +157,17 @@ struct DictationSettings: View {
                     }
                 }
             } header: { Text(activation.activation) }
+
+            Section {
+                Toggle("Pausar mídia durante o ditado", isOn: $pauseMedia)
+                Picker("Retomar mídia após", selection: $mediaResumeDelay) {
+                    ForEach(0 ... 5, id: \.self) { seconds in
+                        Text(seconds == 0 ? "Imediatamente" : "\(seconds) s")
+                            .tag(seconds)
+                    }
+                }
+                .disabled(!pauseMedia)
+            }
 
             Section {
                 Picker(strings.provider, selection: $providerRaw) {

@@ -12534,6 +12534,8 @@ struct MetricsTests {
                     == DictationLanguage.automatic.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationMicrophone] as? String == ""
                 && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryMicrophone] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.dictationPauseMedia] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.dictationMediaResumeDelay] as? Int == 0
                 && Defaults.registeredDefaults[DefaultsKey.dictationShortcutKind] as? String
                     == DictationShortcutKind.standard.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationModifierShortcut] as? String
@@ -12691,6 +12693,8 @@ struct MetricsTests {
             DefaultsKey.dictationSecondaryShortcut,
             DefaultsKey.dictationSecondaryMode,
             DefaultsKey.dictationSecondaryMicrophone,
+            DefaultsKey.dictationPauseMedia,
+            DefaultsKey.dictationMediaResumeDelay,
             DefaultsKey.dictationSecondaryProvider,
             DefaultsKey.dictationSecondaryOpenAIModel,
             DefaultsKey.dictationSecondaryGroqModel,
@@ -12725,6 +12729,24 @@ struct MetricsTests {
             devices: [DictationInputDeviceDescriptor(uid: "other", name: "Other", isDefault: false)])
             .effectiveUID == nil,
                "dictation microphone routing reports no device when the fallback list has no default")
+        expect(DictationMediaPolicy.begin(enabled: true, playback: .playing)
+                    == DictationMediaDecision(action: .pause, shouldResume: true)
+                && DictationMediaPolicy.begin(enabled: true, playback: .paused)
+                    == DictationMediaDecision(action: .none, shouldResume: false)
+                && DictationMediaPolicy.begin(enabled: false, playback: .playing)
+                    == DictationMediaDecision(action: .none, shouldResume: false),
+               "dictation pauses media only when enabled and already playing")
+        expect(DictationMediaPolicy.end(enabled: true, shouldResume: true, playback: .paused)
+                    == .resume
+                && DictationMediaPolicy.end(enabled: true, shouldResume: true, playback: .playing)
+                    == .none
+                && DictationMediaPolicy.end(enabled: true, shouldResume: false, playback: .paused)
+                    == .none,
+               "dictation resumes only media it paused and only while it remains paused")
+        expect(DictationMediaPolicy.sanitizedDelay(-1) == 0
+                && DictationMediaPolicy.sanitizedDelay(3) == 3
+                && DictationMediaPolicy.sanitizedDelay(99) == 5,
+               "dictation media resumption delay is clamped to zero through five seconds")
 
         var toggleGesture = DictationShortcutGesture()
         expect(toggleGesture.keyDown(at: 0, mode: .toggle, sessionIsActive: false) == .begin
@@ -12785,6 +12807,9 @@ struct MetricsTests {
         let dictationDeviceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Core/DictationInputDeviceSupport.swift",
             encoding: .utf8)) ?? ""
+        let dictationMediaSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationMediaController.swift",
+            encoding: .utf8)) ?? ""
         let dictationRecorderSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
             encoding: .utf8)) ?? ""
@@ -12814,6 +12839,10 @@ struct MetricsTests {
                 && dictationDeviceSource.contains("kAudioHardwarePropertyDefaultInputDevice")
                 && dictationDeviceSource.contains("DictationInputDeviceRouting.resolve"),
                "dictation enumerates input devices and resolves a saved microphone with fallback")
+        expect(dictationMediaSource.contains("MPNowPlayingInfoCenter")
+                && dictationMediaSource.contains("postPlayPause")
+                && dictationMediaSource.contains("dictationMediaResumeDelay"),
+               "dictation media control uses native now-playing state and a bounded resume delay")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),

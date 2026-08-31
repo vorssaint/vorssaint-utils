@@ -286,12 +286,15 @@ final class DictationService: ObservableObject {
             cancel(event: .disable)
             return
         }
+        DictationMediaController.shared.begin()
         do {
             try recorder.start(microphoneUID: sessionConfiguration?.profile.microphoneUID)
         } catch let failure as DictationFailure {
+            DictationMediaController.shared.end()
             fail(failure)
             return
         } catch {
+            DictationMediaController.shared.end()
             fail(.microphoneUnavailable)
             return
         }
@@ -309,12 +312,15 @@ final class DictationService: ObservableObject {
         do {
             file = try recorder.stop()
         } catch let failure as DictationFailure {
+            DictationMediaController.shared.end()
             fail(failure)
             return
         } catch {
+            DictationMediaController.shared.end()
             fail(.noSpeech)
             return
         }
+        DictationMediaController.shared.end()
         let transition = DictationLifecycle.transition(from: state, event: .stop)
         state = transition.state
         level = 0
@@ -424,6 +430,7 @@ final class DictationService: ObservableObject {
         transcriptionTask?.cancel()
         transcriptionTask = nil
         recorder.cancel()
+        DictationMediaController.shared.end()
         removeEscapeHandlers()
         sessionID = nil
         sessionConfiguration = nil

@@ -46,6 +46,45 @@ enum DictationProvider: String, CaseIterable, Identifiable {
     }
 }
 
+enum DictationMediaPlayback: Equatable {
+    case playing
+    case paused
+    case stopped
+    case unknown
+}
+
+enum DictationMediaAction: Equatable {
+    case none
+    case pause
+    case resume
+}
+
+struct DictationMediaDecision: Equatable {
+    let action: DictationMediaAction
+    let shouldResume: Bool
+}
+
+enum DictationMediaPolicy {
+    static func begin(enabled: Bool,
+                      playback: DictationMediaPlayback) -> DictationMediaDecision {
+        guard enabled, playback == .playing else {
+            return DictationMediaDecision(action: .none, shouldResume: false)
+        }
+        return DictationMediaDecision(action: .pause, shouldResume: true)
+    }
+
+    static func end(enabled: Bool,
+                    shouldResume: Bool,
+                    playback: DictationMediaPlayback) -> DictationMediaAction {
+        guard enabled, shouldResume, playback == .paused else { return .none }
+        return .resume
+    }
+
+    static func sanitizedDelay(_ value: Int) -> Int {
+        min(5, max(0, value))
+    }
+}
+
 /// Language hint sent to the provider. Automatic detection remains available,
 /// while an explicit ISO-639-1 hint improves recognition for multilingual users.
 enum DictationLanguage: String, CaseIterable, Identifiable {
