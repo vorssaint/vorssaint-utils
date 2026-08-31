@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Boutons latéraux actifs en ce moment",
         smoothScrollName: "Défilement fluide",
         smoothScrollCaption: "Transforme chaque cran de la molette de la souris en un court glissement fluide. Le trackpad ne change pas.",
-        smoothScrollStepLabel: "Distance par cran",
+        smoothScrollStepLabel: "Vitesse de défilement",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Utiliser les boutons latéraux pour Précédent et Suivant",
         mouseNavigationCaption: "Transforme les boutons Précédent et Suivant de la souris en commandes de navigation dans le Finder, les navigateurs et les apps compatibles.",
@@ -980,6 +980,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Écran avec le pointeur",
         switcherScreenPlacementMenuBar: "Écran avec la barre des menus",
         switcherScreenPlacementActiveWindow: "Écran avec la fenêtre active",
-        switcherScreenPlacementCaption: "Sur quel écran le sélecteur s'ouvre quand plusieurs sont connectés."
+        switcherScreenPlacementCaption: "Sur quel écran le sélecteur s'ouvre quand plusieurs sont connectés.",
+        smoothScrollResponseLabel: "Réactivité",
+        mouseAccelerationName: "Désactiver l’accélération de la souris",
+        mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint."
     )
 }

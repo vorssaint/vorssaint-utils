@@ -56,6 +56,9 @@ final class MouseButtonShortcutService: ObservableObject {
     /// True while the tap only exists to swallow the pending Up of a button
     /// whose Down it consumed; no new press is claimed in this state.
     private var isDraining = false
+    /// A tap whose event mask changed is rebuilt after its already-consumed
+    /// buttons release. Rebuilding before then would leak unmatched Up events.
+    private var restartAfterDrain = false
     /// Timestamp (ns, event clock) of the last touch gesture phase. This keeps
     /// side-wheel capture from claiming a trackpad's phaseless tail.
     private var lastGesturePhaseTimestamp: UInt64?
@@ -79,7 +82,19 @@ final class MouseButtonShortcutService: ObservableObject {
         var tracker: MouseSpacesGestureSupport.Tracker
     }
 
-    private init() {}
+    private init() {
+        // A switched-away session cannot keep a filter tap alive just to drain
+        // a button: WindowServer would make the session on screen wait for it.
+        // Tear down immediately on resign and rebuild from preferences on return.
+        SessionActivity.shared.onChange { [weak self] active in
+            guard let self else { return }
+            if active {
+                self.syncWithPreferences()
+            } else {
+                self.tearDownTap(replayPendingSpacesPress: false)
+            }
+        }
+    }
 
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
@@ -91,6 +106,17 @@ final class MouseButtonShortcutService: ObservableObject {
             || mappings[MouseButtonShortcutSupport.sideWheelLeftInput] != nil
             || mappings[MouseButtonShortcutSupport.sideWheelRightInput] != nil)
         spacesButton = MouseButtonShortcutSupport.spacesGestureButton()
+        let canOwnTap = SessionActivitySupport.tapShouldRun(
+            featureWanted: true,
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive
+        )
+        guard canOwnTap else {
+            // Neither a switched-away nor an untrusted session may wait for a
+            // future Up. Clear custody and hand the event chain back now.
+            tearDownTap(replayPendingSpacesPress: false)
+            return
+        }
         // A press held for a button that just stopped being the gesture's is
         // owed back to the app, whatever happens to the tap next.
         if let spacesGesture, spacesGesture.button != spacesButton {
@@ -104,19 +130,29 @@ final class MouseButtonShortcutService: ObservableObject {
             stop()
             return
         }
-        isDraining = false
         // A tap the system disabled (Accessibility revoked and regranted)
         // never revives on its own; rebuild it instead of keeping the corpse.
         // Torn down directly, not through stop(): a dead tap can no longer
         // deliver the pending Up of a held button, so draining for it would
         // only keep the corpse and leave every mapped button silent.
         if let tap, !CGEvent.tapIsEnabled(tap: tap) {
-            tearDownTap()
+            tearDownTap(replayPendingSpacesPress: false)
+        }
+        if isDraining, tap != nil {
+            // The feature was turned back on before the old consumed press
+            // released. Finish that pair first, then rebuild with current prefs.
+            restartAfterDrain = true
+            return
         }
         start()
     }
 
-    func suspend() { stop() }
+    /// Force-stops the tap regardless of preferences. Unlike a normal toggle
+    /// off, an app/session teardown cannot wait indefinitely for a future Up.
+    func suspend() {
+        let mayReplayPendingPress = SessionActivity.shared.isActive && AXIsProcessTrusted()
+        tearDownTap(replayPendingSpacesPress: mayReplayPendingPress)
+    }
 
     /// Starts and stops reporting which extra button arrives, for the
     /// Settings capture row. Syncs on both edges: the way in may need to
@@ -152,6 +188,14 @@ final class MouseButtonShortcutService: ObservableObject {
 
     private func start() {
         if tap != nil, tapIncludesSideWheel != wantsSideWheelEvents {
+            if !consumedButtons.isEmpty {
+                Self.hasActiveSideWheelInterest = false
+                MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
+                isDraining = true
+                restartAfterDrain = true
+                isRunning = false
+                return
+            }
             tearDownTap()
         }
         guard tap == nil else {
@@ -206,6 +250,7 @@ final class MouseButtonShortcutService: ObservableObject {
     private func stop() {
         Self.hasActiveSideWheelInterest = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
+        restartAfterDrain = false
         // A button whose Down this tap consumed must have its Up consumed by
         // the same tap, or the app under the pointer receives half a click.
         // With a claimed button still physically held, the tap stays alive
@@ -220,12 +265,16 @@ final class MouseButtonShortcutService: ObservableObject {
         tearDownTap()
     }
 
-    private func tearDownTap() {
+    private func tearDownTap(replayPendingSpacesPress: Bool = true) {
         Self.hasActiveSideWheelInterest = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
         // A press still held back has to go back to the app before the tap
         // holding it disappears, or that click is simply lost.
-        flushSpacesPress(proxy: nil, at: nil)
+        if replayPendingSpacesPress {
+            flushSpacesPress(proxy: nil, at: nil)
+        } else {
+            spacesGesture = nil
+        }
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -242,6 +291,7 @@ final class MouseButtonShortcutService: ObservableObject {
         preflightedSideWheelTimestamp = nil
         preflightedSideWheelInput = nil
         isDraining = false
+        restartAfterDrain = false
         isRunning = false
     }
 
@@ -251,9 +301,37 @@ final class MouseButtonShortcutService: ObservableObject {
             preflightedSideWheelTimestamp = nil
             preflightedSideWheelInput = nil
             // While the tap was off the rest of that press went straight to
-            // the app, so nothing can still be held back for it.
+            // the app. Keep custody only for buttons that are still physically
+            // held; a released button's Up has already bypassed this tap.
             flushSpacesPress(proxy: nil, at: nil)
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            consumedButtons = consumedButtons.filter {
+                MouseButtonShortcutSupport.isPressed(
+                    $0, pressedButtons: NSEvent.pressedMouseButtons)
+            }
+
+            let enabled = AppFeature.mouseButtonShortcuts.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)
+            let wanted = (enabled && !mappings.isEmpty) || isCapturing || spacesButton != nil
+            let shouldRun = SessionActivitySupport.tapShouldRun(
+                featureWanted: wanted || !consumedButtons.isEmpty,
+                accessibilityGranted: AXIsProcessTrusted(),
+                sessionIsActive: SessionActivity.shared.isActive
+            )
+            if shouldRun, let tap,
+               !restartAfterDrain || !consumedButtons.isEmpty {
+                if !wanted || restartAfterDrain {
+                    isDraining = true
+                    isRunning = false
+                }
+                CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                // Invalidating a tap from its own callback stack is unsafe.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.tearDownTap(replayPendingSpacesPress: false)
+                    self.syncWithPreferences()
+                }
+            }
             return Unmanaged.passUnretained(event)
         }
         if type == .scrollWheel {
@@ -339,9 +417,13 @@ final class MouseButtonShortcutService: ObservableObject {
             // The drain existed only for this release; finishing outside the
             // callback keeps the mach port teardown off the tap's own stack.
             if isDraining, consumedButtons.isEmpty {
+                let shouldRestart = restartAfterDrain
                 DispatchQueue.main.async { [weak self] in
                     guard let self, self.isDraining, self.consumedButtons.isEmpty else { return }
                     self.tearDownTap()
+                    if shouldRestart {
+                        self.syncWithPreferences()
+                    }
                 }
             }
         }
@@ -402,7 +484,9 @@ final class MouseButtonShortcutService: ObservableObject {
         // reached the app on its own, and the press would be left down with
         // nothing to lift it. A press that already fired owes nothing back.
         guard !gesture.tracker.didFire,
-              NSEvent.pressedMouseButtons & (1 << Int(gesture.button)) != 0 else { return }
+              MouseButtonShortcutSupport.isPressed(
+                  gesture.button, pressedButtons: NSEvent.pressedMouseButtons
+              ) else { return }
         replaySpacesPress(gesture.down, proxy: proxy, at: point)
     }
 

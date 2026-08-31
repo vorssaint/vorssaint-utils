@@ -7,9 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse button shortcuts and snippet controls, broadens app update and safe cleanup discovery, and hardens permission guide recovery, Smooth Scroll and Scroll Inverter session switching, Accessibility timeouts, Volume Mixer audio rendering and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls and snippet controls, broadens app update and safe cleanup discovery, and hardens permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves mouse scrolling feel, disk space metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
 
 ### Added
+- Mouse settings now include an optional control to disable pointer acceleration for connected mice, restoring the previous system setting when it is turned off or the app quits. Thanks to @CrowKiller.
+- Mouse settings now include an optional filter for rapid accidental extra clicks from worn primary, secondary and middle buttons.
 - Cleaning Mode now offers an option in Settings to keep the screen visible with a discreet corner indicator instead of blacking out the screen.
 - Mouse button shortcuts can now switch Spaces or open Mission Control and App Exposé by holding an extra button and dragging. Thanks to @iltonandrew.
 - Window Layout now offers configurable window and screen gaps, so snapped windows can keep a preset distance from each other and from the screen edge. Thanks to @marcelharinck.
@@ -23,6 +25,8 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
 
 ### Changed
+- The docked shelf now uses a calibrated trigger area and requires a brief hover over the collapsed pill before expanding, preventing fast drags across the menu bar from opening the full card.
+- Smooth scrolling now feels consistent on standard and high-refresh displays, with adjustable speed and response and no lost wheel distance.
 - The menu panel's Settings button now opens the settings page of whichever hosted utility is currently on screen. Thanks to @andreisuslov.
 - Settings sidebar search and the Command Bar now group results beneath their main page, support arrow key navigation and deep-link directly to exact section anchors and Feature Hub rows. Thanks to @pergioa.
 - The screenshot editor drag-out handle now uses a dedicated icon instead of a preview thumbnail. Thanks to @Yahddyyp.
@@ -33,10 +37,15 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 
 ### Fixed
+- Shortcut fields and key display now read key caps from the active keyboard layout, so non-QWERTY layouts such as AZERTY display the keys actually pressed.
+- The Uninstaller and Cleaner leftover scans now accept two-component bundle identifiers, allowing apps with two-part domain names to be selected and cleaned.
 - The permission guide card now offers a start-over option when an entry left by an earlier app build is stuck on in System Settings, and adds a relaunch button once Screen Recording is granted. Thanks to @andreisuslov.
 - Uninstallation now verifies that sleep was restored and asks for admin authorization if the passwordless restore fails, preventing closed-lid sleep prevention from remaining permanently disabled on the Mac. Thanks to @mugurc.
 - Screenshot quick preview no longer takes keyboard focus when presented, keeping keystrokes in the active app until the preview is clicked. Thanks to @iltonandrew.
-- Smooth Scroll and Scroll Inverter now release their event taps during fast user switching and rebuild them on return, preventing background scroll stalls. Thanks to @iltonandrew.
+- Smooth Scroll and Scroll Inverter now step aside during fast user switching and resume on return, preventing background scroll stalls. Thanks to @iltonandrew.
+- Mouse navigation, button shortcuts and middle click now step aside outside the active login session or after Accessibility access is removed, preventing input stalls.
+- Focus follows mouse now leaves chosen apps alone and tracks the final pointer position during drags before changing focus.
+- Cleaning Mode now ends when its login session leaves the screen, preventing its input lock from affecting another active user.
 - Window capture now includes attached sheets, alerts and modal dialogs stacked on the clicked window instead of omitting them from the capture. Thanks to @iltonandrew.
 - Accessibility messaging now uses a single, consistent process-wide timeout floor instead of allowing separate features to overwrite the shared limit. Thanks to @PathGao.
 - App Switcher now enumerates windows on a background queue, keeping shortcuts and typing responsive even when apps delay Accessibility responses. Thanks to @MaximilianMauroner.
@@ -48,6 +57,7 @@ Vorssaint expands screen text recognition, clipboard, Super key, Dock Preview, A
 - Volume Mixer now silences unwritten output frames to prevent stuttering from stale audio buffers and bounds concurrent teardowns so stalled system audio cleanup does not block other apps or background threads. Thanks to @PathGao.
 - App updates, uninstallation, bundle migration and relaunch helpers now run detached in their own session, ensuring they complete when the app terminates under session management. Thanks to @PathGao.
 - App Switcher now recognizes floating and undescribed workspace windows from professional media apps.
+- App Switcher now keeps adaptive app icons stable when navigating selection in dark mode instead of briefly flickering their light artwork. Thanks to @EugeneCarldotme.
 - Super key now restores its source when the app is force-quit, preventing Caps Lock or a right-side modifier from being left inactive.
 - App Switcher now rejects stale hidden-Space surfaces without hiding real fullscreen windows on another Space. Thanks to @naveenkrdy.
 - App Switcher middle-click now closes only the card under the pointer and leaves panel chrome untouched.

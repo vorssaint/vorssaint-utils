@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Seitentasten gerade aktiv",
         smoothScrollName: "Sanftes Scrollen",
         smoothScrollCaption: "Verwandelt jeden Rastschritt des Mausrads in ein kurzes, sanftes Gleiten. Das Trackpad bleibt unverändert.",
-        smoothScrollStepLabel: "Distanz pro Schritt",
+        smoothScrollStepLabel: "Scrollgeschwindigkeit",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Seitentasten für Zurück und Vor verwenden",
         mouseNavigationCaption: "Wandelt die Maus-Tasten Zurück und Vor in Navigationsbefehle für Finder, Browser und kompatible Apps um.",
@@ -980,6 +980,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Bildschirm mit dem Zeiger",
         switcherScreenPlacementMenuBar: "Bildschirm mit der Menüleiste",
         switcherScreenPlacementActiveWindow: "Bildschirm mit dem aktiven Fenster",
-        switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind."
+        switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind.",
+        smoothScrollResponseLabel: "Reaktion",
+        mouseAccelerationName: "Mausbeschleunigung deaktivieren",
+        mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt."
     )
 }
