@@ -924,14 +924,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
-        guard popover.isShown else { return event }
-        let window = popover.contentViewController?.view.window
+        guard popover.isShown,
+              let window = popover.contentViewController?.view.window,
+              event.window === window || NSApp.keyWindow === window else {
+            return event
+        }
 
         if event.keyCode == UInt16(kVK_Escape) {
             // Let a native field editor or confirmation dialog cancel itself
             // before Escape backs out of the hosted utility/popover.
             if PanelInteractionState.shared.isPresentingPopoverModal
-                || (window.map(isTextEditingActive) ?? false) {
+                || isTextEditingActive(in: window) {
                 return event
             }
             // Metric detail and a hosted utility sub-panel each push a level;
@@ -943,7 +946,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         // Text controls inside the popover, especially the Homebrew search
         // field, keep their own keys — the navigator never sees them.
-        guard let window, !isTextEditingActive(in: window) else {
+        guard !isTextEditingActive(in: window) else {
             return event
         }
 
