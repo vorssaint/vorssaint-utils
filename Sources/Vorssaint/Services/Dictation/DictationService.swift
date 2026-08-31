@@ -441,7 +441,7 @@ final class DictationService: ObservableObject {
             audioFileName: nil,
             processingDuration: processingDuration,
             failure: nil)
-        try? DictationHistoryStore.shared.save(entry, audioURL: keepAudio ? audioURL : nil)
+        _ = try? DictationHistoryStore.shared.save(entry, audioURL: keepAudio ? audioURL : nil)
         _ = DictationHistoryStore.shared.removeExpired(
             days: UserDefaults.standard.integer(forKey: DefaultsKey.dictationHistoryRetentionDays))
     }
