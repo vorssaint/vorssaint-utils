@@ -1663,6 +1663,16 @@ struct MetricsTests {
         expectEqual(MetricFormat.percent(1), "100%", "percent full")
         expectEqual(MetricFormat.percent(1.4), "100%", "percent clamps high")
         expectEqual(MetricFormat.percent(-0.2), "0%", "percent clamps low")
+        expectClose(MetricFormat.boundedPercentage(130), 100,
+                    "process percentage clamps above full hardware utilization")
+        expectClose(MetricFormat.boundedPercentage(-5), 0,
+                    "process percentage clamps negative utilization")
+        expectClose(MetricFormat.normalizedCPUPercentage(872, processorCount: 18), 48.4444,
+                    "multicore process CPU becomes whole-machine utilization")
+        expectClose(MetricFormat.normalizedCPUPercentage(1300, processorCount: 18), 72.2222,
+                    "high multicore process CPU stays below the normalized maximum")
+        expectClose(MetricFormat.normalizedCPUPercentage(2400, processorCount: 18), 100,
+                    "impossible process CPU readings clamp to full utilization")
         expectEqual(MetricFormat.menuBarMemoryPercent(used: 79, total: 100), "79%",
                     "menu bar memory shows the current RAM percentage")
         expectEqual(MetricFormat.menuBarMemoryPercent(used: nil, total: 100), "--%",

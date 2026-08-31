@@ -9,7 +9,7 @@ import IOKit
 struct ProcessUsage: Identifiable, Equatable {
     let pid: pid_t
     let name: String
-    /// CPU/GPU: percentage (0–100+). Memory: bytes. Network: total bytes/s.
+    /// CPU/GPU/energy: percentage (0–100). Memory: bytes. Network: total bytes/s.
     let value: Double
     let networkDownBytesPerSec: Double?
     let networkUpBytesPerSec: Double?
@@ -193,7 +193,9 @@ final class ProcessUsageService {
             .filter { _, score in score.value >= 2 }
             .sorted { $0.value.value > $1.value.value }
             .map { pid, score in
-                ProcessUsage(pid: pid, name: score.name, value: score.value)
+                ProcessUsage(pid: pid,
+                             name: score.name,
+                             value: MetricFormat.boundedPercentage(score.value))
             }
         cacheLock.lock()
         energyCache = cachedRows(from: rows)
@@ -337,8 +339,17 @@ final class ProcessUsageService {
         cacheLock.unlock()
 
         let result = Shell.run("/bin/ps", ["-Aceo", "pid,pcpu,comm", "-r"])
+        let processorCount = ProcessInfo.processInfo.activeProcessorCount
         let rows = result.status == 0
             ? groupedByApp(parsePS(result.output, maxRows: rawProcessRowLimit(for: limit)) { Double($0) ?? 0 })
+                .map { row in
+                    ProcessUsage(pid: row.pid,
+                                 name: row.name,
+                                 value: MetricFormat.normalizedCPUPercentage(
+                                     row.value,
+                                     processorCount: processorCount
+                                 ))
+                }
             : nil
         return finishCPU(rows, limit: limit)
     }
@@ -520,7 +531,12 @@ final class ProcessUsageService {
             guard percent >= 0.05 else { continue }
             rows.append(ProcessUsage(pid: pid, name: "pid \(pid)", value: min(percent, 100)))
         }
-        return finishGPU(groupedByApp(rows), limit: limit)
+        let groupedRows = groupedByApp(rows).map { row in
+            ProcessUsage(pid: row.pid,
+                         name: row.name,
+                         value: MetricFormat.boundedPercentage(row.value))
+        }
+        return finishGPU(groupedRows, limit: limit)
     }
 
     private func finishCPU(_ rows: [ProcessUsage]?, limit: Int) -> [ProcessUsage] {

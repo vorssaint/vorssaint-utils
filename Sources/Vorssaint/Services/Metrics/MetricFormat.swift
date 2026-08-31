@@ -265,6 +265,19 @@ enum MetricFormat {
         "\(Int((max(0, min(1, fraction)) * 100).rounded()))%"
     }
 
+    /// Keeps process breakdown values on the same 0...100 scale as the
+    /// aggregate hardware meters.
+    static func boundedPercentage(_ percentage: Double) -> Double {
+        guard percentage.isFinite else { return 0 }
+        return max(0, min(100, percentage))
+    }
+
+    /// `ps` reports 100% per fully occupied core. Convert that multicore value
+    /// into a percentage of the machine's currently schedulable CPU capacity.
+    static func normalizedCPUPercentage(_ percentage: Double, processorCount: Int) -> Double {
+        boundedPercentage(percentage / Double(max(1, processorCount)))
+    }
+
     /// Smooths the GPU usage readout enough to hide one-sample compositor spikes
     /// from opening the menu panel, without hiding sustained load.
     static func stabilizedGPUUsage(previous: Double?, current: Double) -> Double {
