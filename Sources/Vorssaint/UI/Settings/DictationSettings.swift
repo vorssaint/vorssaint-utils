@@ -182,6 +182,9 @@ struct DictationSettings: View {
                     }
                 }
                 .disabled(!historyEnabled)
+                NavigationLink("Abrir histórico") {
+                    DictationHistoryView()
+                }
             }
 
             Section {

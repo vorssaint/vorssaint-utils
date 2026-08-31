@@ -34,6 +34,13 @@ final class DictationHistoryStore {
         return entries.sorted { $0.createdAt > $1.createdAt }
     }
 
+    func audioURL(for fileName: String) -> URL? {
+        guard let directory = historyDirectory else { return nil }
+        let url = directory.appendingPathComponent(fileName)
+        guard isBoundedPath(url, within: directory), isSafeAudioFile(url) else { return nil }
+        return url
+    }
+
     @discardableResult
     func save(_ entry: DictationHistoryEntry, audioURL: URL?) throws -> DictationHistoryEntry {
         guard let directory = historyDirectory, let manifestURL else {

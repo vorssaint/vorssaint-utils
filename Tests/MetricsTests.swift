@@ -12846,6 +12846,9 @@ struct MetricsTests {
         let dictationHistoryStoreSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationHistoryStore.swift",
             encoding: .utf8)) ?? ""
+        let dictationHistoryViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/DictationHistoryView.swift",
+            encoding: .utf8)) ?? ""
         let dictationRecorderSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
             encoding: .utf8)) ?? ""
@@ -12884,6 +12887,11 @@ struct MetricsTests {
                 && dictationHistoryStoreSource.contains("isBoundedPath")
                 && dictationHistoryStoreSource.contains("manifest.json"),
                "dictation history owns a private manifest and bounds audio deletion to its directory")
+        expect(dictationHistoryViewSource.contains("AVAudioPlayer")
+                && dictationHistoryViewSource.contains("1×")
+                && dictationHistoryViewSource.contains("2×")
+                && dictationHistoryViewSource.contains("confirmationDialog"),
+               "dictation history offers local playback at two rates and confirms deletion")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),
