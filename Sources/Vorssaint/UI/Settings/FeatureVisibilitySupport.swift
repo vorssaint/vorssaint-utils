@@ -29,6 +29,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case mouseNavigation
     case mouseButtonShortcuts
     case middleClick
+    case mouseClickDebounce
     case switcher
     case dock
     case dockClick
@@ -45,6 +46,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case micMute
     case cameraPreview
     case scratchpad
+    case cleaningMode
     case soundOutputSwitcher
     case fanControl
 
@@ -53,12 +55,12 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .panelConfiguration, .musicBlocking: return .general
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-             .middleClick:
+             .middleClick, .mouseClickDebounce:
             return .mouse
         case .switcher, .dock, .dockClick: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
-        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad:
+        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode:
             return .quickTools
         case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
@@ -89,6 +91,14 @@ struct SettingsDestinationRequest: Equatable {
     let destination: FeatureSettingsDestination
 }
 
+/// A one-shot request to reveal a specific feature's row inside the Features
+/// hub, correlated with the destination request that carries it by sharing
+/// the same request id.
+struct SettingsFeatureTargetRequest: Equatable {
+    let id: UUID
+    let feature: AppFeature
+}
+
 /// Selects a Settings destination and publishes a fresh request identity even
 /// when callers ask for the same page and anchor repeatedly.
 final class SettingsRouter: ObservableObject {
@@ -98,18 +108,26 @@ final class SettingsRouter: ObservableObject {
     @Published private(set) var destination = FeatureSettingsDestination(.general)
     @Published private(set) var requestID = UUID()
     @Published private(set) var pendingDestinationRequest: SettingsDestinationRequest?
+    /// One-shot hint for the Features hub: which feature row to reveal once
+    /// the requested page lands. Always set (to nil when no target is given)
+    /// on every `request`, so a stale target from an earlier search can never
+    /// leak into a later, unrelated navigation.
+    @Published private(set) var pendingFeatureTarget: SettingsFeatureTargetRequest?
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
 
     private init() {}
 
-    func request(_ destination: FeatureSettingsDestination) {
+    func request(_ destination: FeatureSettingsDestination, targetFeature: AppFeature? = nil) {
         let requestID = UUID()
         self.destination = destination
         page = destination.page
         pendingDestinationRequest = SettingsDestinationRequest(id: requestID,
                                                                destination: destination)
+        pendingFeatureTarget = targetFeature.map {
+            SettingsFeatureTargetRequest(id: requestID, feature: $0)
+        }
         self.requestID = requestID
     }
 
@@ -118,6 +136,14 @@ final class SettingsRouter: ObservableObject {
     func consumeDestinationRequest(id: UUID) {
         guard pendingDestinationRequest?.id == id else { return }
         pendingDestinationRequest = nil
+    }
+
+    /// Clears only the feature target a view actually revealed. Mirrors
+    /// `consumeDestinationRequest`: a newer request that arrived while the
+    /// Features hub was still laying out must survive.
+    func consumeFeatureTarget(id: UUID) {
+        guard pendingFeatureTarget?.id == id else { return }
+        pendingFeatureTarget = nil
     }
 }
 
@@ -155,6 +181,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseButtonShortcuts)
         case .middleClick:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .middleClick)
+        case .mouseClickDebounce:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseClickDebounce)
         case .keyboardDebounce: return FeatureSettingsDestination(.keyDebounce)
         case .textSnippets: return FeatureSettingsDestination(.textSnippets)
         case .superKey: return FeatureSettingsDestination(.superKey)
@@ -198,7 +226,7 @@ extension AppFeature {
         case .screenOCR:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenOCR)
         case .cleaningMode:
-            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+            return FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode)
         case .mediaTools: return FeatureSettingsDestination(.media)
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
@@ -239,7 +267,7 @@ enum FeatureVisibilitySupport {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-                             .middleClick]
+                             .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]
         case .autoQuit: return [.autoQuit]
@@ -248,7 +276,7 @@ enum FeatureVisibilitySupport {
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .micMute,
-                                  .cameraPreview, .scratchpad]
+                                  .cameraPreview, .scratchpad, .cleaningMode]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]
         case .homebrew: return [.homebrew]

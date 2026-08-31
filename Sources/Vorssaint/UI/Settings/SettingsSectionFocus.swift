@@ -86,11 +86,11 @@ private struct SettingsSectionFocusModifier: ViewModifier {
 
     private func focus(_ anchor: SettingsSectionAnchor, using proxy: ScrollViewProxy) {
         if reduceMotion {
-            proxy.scrollTo(anchor, anchor: .center)
+            proxy.scrollTo(anchor)
             focusedAnchor = anchor
         } else {
             withAnimation(.easeInOut(duration: 0.3)) {
-                proxy.scrollTo(anchor, anchor: .center)
+                proxy.scrollTo(anchor)
                 focusedAnchor = anchor
             }
         }

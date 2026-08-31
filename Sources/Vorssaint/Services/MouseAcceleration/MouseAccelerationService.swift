@@ -7,7 +7,7 @@ import HIDEventSystem
 
 /// Applies macOS's per-device linear pointer mode to ordinary mouse devices.
 /// Trackpads are deliberately excluded.
-final class MouseAccelerationService: ObservableObject {
+final class MouseAccelerationService {
     static let shared = MouseAccelerationService()
 
     private let defaults = UserDefaults.standard

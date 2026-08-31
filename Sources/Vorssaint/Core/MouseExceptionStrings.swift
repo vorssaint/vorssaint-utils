@@ -12,11 +12,13 @@ struct MouseExceptionStrings {
     let captionNavigation: String
     let captionButtonShortcuts: String
     let captionMiddleClick: String
+    let captionFocusFollowsMouse: String
 
     func caption(for scope: MouseExceptionScope) -> String {
         switch scope {
         case .smoothScroll: return captionSmoothScroll
         case .scrollDirection: return captionScrollDirection
+        case .focusFollowsMouse: return captionFocusFollowsMouse
         case .navigation: return captionNavigation
         case .buttonShortcuts: return captionButtonShortcuts
         case .middleClick: return captionMiddleClick
@@ -52,8 +54,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "The wheel keeps its plain steps in these apps, for apps that read it their own way, like 3D and design tools.",
         captionScrollDirection: "The wheel keeps the direction macOS gives it in these apps.",
         captionNavigation: "The side buttons keep doing whatever these apps already do with them.",
-        captionButtonShortcuts: "Your button shortcuts stay quiet in these apps, and the press reaches them instead.",
-        captionMiddleClick: "A three finger click stays a normal click in these apps."
+        captionButtonShortcuts: "Your extra mouse buttons stay quiet in these apps, and the press reaches them instead.",
+        captionMiddleClick: "A three finger click stays a normal click in these apps.",
+        captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps."
     )
 
     static let ptBR = MouseExceptionStrings(
@@ -63,8 +66,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "Nestes apps a roda continua com os passos normais, para apps que leem a roda do jeito deles, como ferramentas de 3D e design.",
         captionScrollDirection: "Nestes apps a roda mantém o sentido que o macOS dá a ela.",
         captionNavigation: "Nestes apps os botões laterais continuam fazendo o que eles já fazem.",
-        captionButtonShortcuts: "Nestes apps seus atalhos de botão ficam quietos e o clique chega no app.",
-        captionMiddleClick: "Nestes apps o clique de três dedos continua um clique normal."
+        captionButtonShortcuts: "Nestes apps seus botões extras ficam quietos e o clique chega no app.",
+        captionMiddleClick: "Nestes apps o clique de três dedos continua um clique normal.",
+        captionFocusFollowsMouse: "Nestes apps passar o mouse não muda o foco nem traz a janela para frente."
     )
 
     static let tr = MouseExceptionStrings(
@@ -74,8 +78,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "Bu uygulamalarda tekerlek normal adımlarında kalır; tekerleği kendine göre okuyan 3B ve tasarım araçları için.",
         captionScrollDirection: "Bu uygulamalarda tekerlek macOS'un verdiği yönde kalır.",
         captionNavigation: "Bu uygulamalarda yan düğmeler zaten yaptıkları işi yapmayı sürdürür.",
-        captionButtonShortcuts: "Bu uygulamalarda düğme kısayollarınız sessiz kalır ve basma uygulamaya ulaşır.",
-        captionMiddleClick: "Bu uygulamalarda üç parmak tıklaması normal tıklama olarak kalır."
+        captionButtonShortcuts: "Bu uygulamalarda ekstra düğmeleriniz sessiz kalır ve basma uygulamaya ulaşır.",
+        captionMiddleClick: "Bu uygulamalarda üç parmak tıklaması normal tıklama olarak kalır.",
+        captionFocusFollowsMouse: "Bu uygulamalarda imleci bekletmek odağı değiştirmez veya pencereyi öne getirmez."
     )
 
     static let ru = MouseExceptionStrings(
@@ -85,8 +90,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "В этих приложениях колесо крутится обычными шагами: для тех, кто читает его по-своему, например 3D-редакторов и графических программ.",
         captionScrollDirection: "В этих приложениях колесо сохраняет направление, которое даёт macOS.",
         captionNavigation: "В этих приложениях боковые кнопки продолжают делать то, что уже делают.",
-        captionButtonShortcuts: "В этих приложениях ваши кнопочные сочетания молчат, а нажатие доходит до приложения.",
-        captionMiddleClick: "В этих приложениях щелчок тремя пальцами остаётся обычным щелчком."
+        captionButtonShortcuts: "В этих приложениях ваши дополнительные кнопки молчат, а нажатие доходит до приложения.",
+        captionMiddleClick: "В этих приложениях щелчок тремя пальцами остаётся обычным щелчком.",
+        captionFocusFollowsMouse: "В этих приложениях наведение не меняет фокус и не выводит окно на передний план."
     )
 
     static let es = MouseExceptionStrings(
@@ -96,8 +102,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "En estas apps la rueda mantiene sus pasos normales, para las que la leen a su manera, como las de 3D y diseño.",
         captionScrollDirection: "En estas apps la rueda mantiene el sentido que le da macOS.",
         captionNavigation: "En estas apps los botones laterales siguen haciendo lo que ya hacen.",
-        captionButtonShortcuts: "En estas apps tus atajos de botón se quedan callados y la pulsación llega a la app.",
-        captionMiddleClick: "En estas apps el clic con tres dedos sigue siendo un clic normal."
+        captionButtonShortcuts: "En estas apps tus botones extra se quedan callados y la pulsación llega a la app.",
+        captionMiddleClick: "En estas apps el clic con tres dedos sigue siendo un clic normal.",
+        captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente."
     )
 
     static let de = MouseExceptionStrings(
@@ -107,8 +114,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "In diesen Apps behält das Rad seine normalen Schritte, für Apps, die es selbst auswerten, etwa 3D- und Design-Werkzeuge.",
         captionScrollDirection: "In diesen Apps behält das Rad die Richtung, die macOS ihm gibt.",
         captionNavigation: "In diesen Apps tun die Seitentasten weiter, was sie dort schon tun.",
-        captionButtonShortcuts: "In diesen Apps bleiben deine Tastenkürzel still und der Druck erreicht die App.",
-        captionMiddleClick: "In diesen Apps bleibt ein Klick mit drei Fingern ein normaler Klick."
+        captionButtonShortcuts: "In diesen Apps bleiben deine Zusatztasten still und der Druck erreicht die App.",
+        captionMiddleClick: "In diesen Apps bleibt ein Klick mit drei Fingern ein normaler Klick.",
+        captionFocusFollowsMouse: "In diesen Apps ändert ein Verweilen des Zeigers weder den Fokus noch die Fensterreihenfolge."
     )
 
     static let fr = MouseExceptionStrings(
@@ -118,8 +126,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "Dans ces apps la molette garde ses crans normaux, pour celles qui la lisent à leur façon, comme les outils 3D et de design.",
         captionScrollDirection: "Dans ces apps la molette garde le sens que macOS lui donne.",
         captionNavigation: "Dans ces apps les boutons latéraux continuent de faire ce qu'ils y font déjà.",
-        captionButtonShortcuts: "Dans ces apps vos raccourcis de bouton se taisent et l'appui atteint l'app.",
-        captionMiddleClick: "Dans ces apps un clic à trois doigts reste un clic normal."
+        captionButtonShortcuts: "Dans ces apps vos boutons supplémentaires se taisent et l'appui atteint l'app.",
+        captionMiddleClick: "Dans ces apps un clic à trois doigts reste un clic normal.",
+        captionFocusFollowsMouse: "Dans ces apps le survol ne change pas le focus et ne place pas la fenêtre au premier plan."
     )
 
     static let it = MouseExceptionStrings(
@@ -129,8 +138,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "In queste app la rotellina mantiene i suoi scatti normali, per quelle che la leggono a modo loro, come gli strumenti 3D e di design.",
         captionScrollDirection: "In queste app la rotellina mantiene il verso che le dà macOS.",
         captionNavigation: "In queste app i pulsanti laterali continuano a fare quello che già fanno.",
-        captionButtonShortcuts: "In queste app le tue scorciatoie sui pulsanti restano zitte e la pressione arriva all'app.",
-        captionMiddleClick: "In queste app un clic con tre dita resta un clic normale."
+        captionButtonShortcuts: "In queste app i tuoi pulsanti extra restano zitti e la pressione arriva all'app.",
+        captionMiddleClick: "In queste app un clic con tre dita resta un clic normale.",
+        captionFocusFollowsMouse: "In queste app il passaggio del puntatore non cambia il focus né porta avanti la finestra."
     )
 
     static let ja = MouseExceptionStrings(
@@ -140,8 +150,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "これらのAppではホイールが元の刻みのままになります。3Dやデザインのツールのように、ホイールを独自に読むApp向けです。",
         captionScrollDirection: "これらのAppではホイールの向きがmacOSのままになります。",
         captionNavigation: "これらのAppでは横のボタンが元々の働きを続けます。",
-        captionButtonShortcuts: "これらのAppではボタンの割り当てが働かず、押した操作がAppに届きます。",
-        captionMiddleClick: "これらのAppでは3本指のクリックが普通のクリックのままです。"
+        captionButtonShortcuts: "これらのAppでは拡張ボタンが働かず、押した操作がAppに届きます。",
+        captionMiddleClick: "これらのAppでは3本指のクリックが普通のクリックのままです。",
+        captionFocusFollowsMouse: "これらのAppではポインタを止めてもフォーカスやウインドウの前後関係は変わりません。"
     )
 
     static let ko = MouseExceptionStrings(
@@ -151,8 +162,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "이 앱들에서는 휠이 원래 단계 그대로 움직입니다. 3D나 디자인 도구처럼 휠을 자기 방식으로 읽는 앱을 위한 것입니다.",
         captionScrollDirection: "이 앱들에서는 휠 방향이 macOS가 주는 그대로 유지됩니다.",
         captionNavigation: "이 앱들에서는 측면 버튼이 원래 하던 일을 계속합니다.",
-        captionButtonShortcuts: "이 앱들에서는 버튼 단축키가 조용히 있고 누름이 앱에 전달됩니다.",
-        captionMiddleClick: "이 앱들에서는 세 손가락 클릭이 보통 클릭으로 남습니다."
+        captionButtonShortcuts: "이 앱들에서는 추가 버튼이 조용히 있고 누름이 앱에 전달됩니다.",
+        captionMiddleClick: "이 앱들에서는 세 손가락 클릭이 보통 클릭으로 남습니다.",
+        captionFocusFollowsMouse: "이 앱들에서는 포인터를 올려 두어도 포커스나 윈도우 순서가 바뀌지 않습니다."
     )
 
     static let zhHans = MouseExceptionStrings(
@@ -162,8 +174,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "在这些 App 里滚轮保持原本的档位，适合自己解读滚轮的 App，比如 3D 和设计工具。",
         captionScrollDirection: "在这些 App 里滚轮保持 macOS 给它的方向。",
         captionNavigation: "在这些 App 里侧键继续做它们本来做的事。",
-        captionButtonShortcuts: "在这些 App 里按键快捷键保持安静，按下会传给 App。",
-        captionMiddleClick: "在这些 App 里三指点按仍是普通点按。"
+        captionButtonShortcuts: "在这些 App 里额外按键保持安静，按下会传给 App。",
+        captionMiddleClick: "在这些 App 里三指点按仍是普通点按。",
+        captionFocusFollowsMouse: "在这些 App 里悬停不会改变焦点，也不会将窗口置于前方。"
     )
 
     static let zhTW = MouseExceptionStrings(
@@ -173,8 +186,9 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "在這些 App 裡滾輪保持原本的段落，適合自己解讀滾輪的 App，例如 3D 和設計工具。",
         captionScrollDirection: "在這些 App 裡滾輪保持 macOS 給它的方向。",
         captionNavigation: "在這些 App 裡側鍵繼續做它們原本做的事。",
-        captionButtonShortcuts: "在這些 App 裡按鍵快速鍵保持安靜，按下會傳給 App。",
-        captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。"
+        captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
+        captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
+        captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。"
     )
 
     static let zhHK = MouseExceptionStrings(
@@ -184,7 +198,8 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "在這些 App 裡滾輪保持原本的段落，適合自己解讀滾輪的 App，例如 3D 和設計工具。",
         captionScrollDirection: "在這些 App 裡滾輪保持 macOS 給它的方向。",
         captionNavigation: "在這些 App 裡側鍵繼續做它們原本做的事。",
-        captionButtonShortcuts: "在這些 App 裡按鍵快速鍵保持安靜，按下會傳給 App。",
-        captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。"
+        captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
+        captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
+        captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。"
     )
 }

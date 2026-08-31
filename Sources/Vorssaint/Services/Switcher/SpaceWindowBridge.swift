@@ -78,6 +78,7 @@ enum SpaceWindowBridge {
         struct DisplayInfo {
             let displayID: CGDirectDisplayID?
             let spaces: [UInt64]
+            let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
         }
 
@@ -87,37 +88,57 @@ enum SpaceWindowBridge {
         var orderedSpacesPerDisplay: [[UInt64]] { displays.map(\.spaces) }
         /// The Space currently showing on each display.
         var visibleSpaces: Set<UInt64> { Set(displays.compactMap(\.currentSpace)) }
+        /// Native fullscreen Spaces. Managed-display dictionaries use type 4
+        /// for these and type 0 for ordinary desktops on current macOS.
+        var fullscreenSpaces: Set<UInt64> {
+            displays.reduce(into: []) { $0.formUnion($1.fullscreenSpaces) }
+        }
     }
 
+    /// Captures AppKit's display identity while the caller is on main. The
+    /// resulting values are safe to carry to window-enumeration workers.
+    static func displayIDsByUUID() -> [String: CGDirectDisplayID] {
+        var map: [String: CGDirectDisplayID] = [:]
+        for screen in NSScreen.screens {
+            guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
+                  let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
+                  let uuidStr = CFUUIDCreateString(nil, uuid) as String?
+            else { continue }
+            map[uuidStr] = screenNum
+        }
+        return map
+    }
+
+    /// Main-thread callers can keep using the AppKit-backed display mapping.
     static func topology() -> Topology? {
+        topology(displayIDsByUUID: displayIDsByUUID())
+    }
+
+    /// Resolves Space topology using display values captured by the caller.
+    /// This overload does not access AppKit and is safe for worker queues.
+    static func topology(displayIDsByUUID: [String: CGDirectDisplayID]) -> Topology? {
         guard connection != 0, let copyManagedDisplaySpaces,
               let displayDicts = copyManagedDisplaySpaces(connection)?
                 .takeRetainedValue() as? [[String: Any]],
               !displayDicts.isEmpty
         else { return nil }
 
-        let screenMap: [String: CGDirectDisplayID] = {
-            var map: [String: CGDirectDisplayID] = [:]
-            for screen in NSScreen.screens {
-                guard let screenNum = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value,
-                      let uuid = CGDisplayCreateUUIDFromDisplayID(screenNum)?.takeRetainedValue(),
-                      let uuidStr = CFUUIDCreateString(nil, uuid) as String?
-                else { continue }
-                map[uuidStr] = screenNum
-            }
-            return map
-        }()
-
         var displays: [Topology.DisplayInfo] = []
         for display in displayDicts {
-            let row = (display["Spaces"] as? [[String: Any]])?
-                .compactMap { ($0["id64"] as? NSNumber)?.uint64Value } ?? []
+            let spaceDictionaries = display["Spaces"] as? [[String: Any]] ?? []
+            let row = spaceDictionaries
+                .compactMap { ($0["id64"] as? NSNumber)?.uint64Value }
             guard !row.isEmpty else { continue }
+            let fullscreenSpaces = Set(spaceDictionaries.compactMap { space -> UInt64? in
+                guard (space["type"] as? NSNumber)?.intValue == 4 else { return nil }
+                return (space["id64"] as? NSNumber)?.uint64Value
+            })
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
-            let displayID = uuidStr.flatMap { screenMap[$0] }
+            let displayID = uuidStr.flatMap { displayIDsByUUID[$0] }
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
+                                                 fullscreenSpaces: fullscreenSpaces,
                                                  currentSpace: current?.uint64Value))
         }
         guard !displays.isEmpty else { return nil }
@@ -254,6 +275,17 @@ enum SpaceWindowBridge {
         fileprivate var hotKeyID: Int32 { self == .left ? 79 : 81 }
     }
 
+    /// The two Mission Control overviews, by their system symbolic hotkey ids
+    /// (32 is "Mission Control", 33 is "Application windows"). The window
+    /// server refuses software-simulated touch gestures, so an overview is
+    /// opened the same way the keyboard opens it (issue #1012).
+    enum SpaceOverview {
+        case missionControl
+        case appExpose
+
+        fileprivate var hotKeyID: Int32 { self == .missionControl ? 32 : 33 }
+    }
+
     struct SpaceShortcut {
         let keyCode: CGKeyCode
         let flags: CGEventFlags
@@ -263,12 +295,23 @@ enum SpaceWindowBridge {
     /// Space over, honoring user remaps. Nil when the shortcut is disabled or
     /// unreadable, in which case no synthetic travel is attempted.
     static func spaceShortcut(_ direction: SpaceDirection) -> SpaceShortcut? {
+        registeredShortcut(direction.hotKeyID)
+    }
+
+    /// The same lookup for the overviews. Nil when the user switched that
+    /// shortcut off in System Settings, which is the one honest answer: with
+    /// no registered combination there is nothing to press.
+    static func overviewShortcut(_ overview: SpaceOverview) -> SpaceShortcut? {
+        registeredShortcut(overview.hotKeyID)
+    }
+
+    private static func registeredShortcut(_ hotKeyID: Int32) -> SpaceShortcut? {
         guard let symbolicHotKeyValue, let symbolicHotKeyEnabled,
-              symbolicHotKeyEnabled(direction.hotKeyID) else { return nil }
+              symbolicHotKeyEnabled(hotKeyID) else { return nil }
         var options: UInt32 = 0
         var keyCode: UInt32 = 0
         var modifiers: UInt32 = 0
-        guard symbolicHotKeyValue(direction.hotKeyID, &options, &keyCode, &modifiers) == .success,
+        guard symbolicHotKeyValue(hotKeyID, &options, &keyCode, &modifiers) == .success,
               keyCode != 0
         else { return nil }
         return SpaceShortcut(keyCode: CGKeyCode(keyCode),

@@ -339,7 +339,14 @@ enum FanControlPolicy {
         let preferredCPU = validCPU.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.key, platform: platform)
         }
-        let cpu = (preferredCPU.isEmpty ? validCPU : preferredCPU).map(\.value)
+        let cpu: [Double]
+        if TemperatureSensorSelector.hasCPUCoreSet(platform: platform) {
+            cpu = preferredCPU.map(\.value)
+        } else if platform == .generic {
+            cpu = validCPU.map(\.value)
+        } else {
+            cpu = []
+        }
         let gpu = gpuReadings.filter {
             $0 >= TemperatureSensorSelector.minimumChipTemperature && validTemperature($0)
         }

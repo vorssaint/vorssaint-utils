@@ -172,7 +172,7 @@ final class AutoQuitService: ObservableObject {
 
         let appElement = AXUIElementCreateApplication(pid)
         // A launching app that is busy (say, blocked on a Keychain prompt)
-        // would hold every synchronous AX call below for the 6 second default
+        // would hold every synchronous AX call below for the default
         // timeout apiece, freezing the main thread and every event tap with
         // it: typing dies system wide (issue #189). Give up fast and retry
         // with growing spacing until the app services its run loop again.
@@ -335,7 +335,7 @@ final class AutoQuitService: ObservableObject {
 
         let appElement = AXUIElementCreateApplication(pid)
         // Bounded AX: an unresponsive app must not hold the main thread
-        // (and with it every event tap) for the 6 second default timeout.
+        // (and with it every event tap) for the default timeout.
         AXUIElementSetMessagingTimeout(appElement, 0.35)
         let hasMinimizedWindow = hasKnownMinimizedWindow(pid: pid, appElement: appElement)
         let hasVisibleWindow = hasUserFacingWindow(pid: pid, appElement: appElement)
@@ -784,11 +784,8 @@ final class AutoQuitService: ObservableObject {
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
         let system = AXUIElementCreateSystemWide()
-        // This runs while a click is being handled, and the app being asked is
-        // the one that was just told to close, which is exactly when an app
-        // stops answering. A short limit here means a slow answer is dropped
-        // rather than holding this app, and every tap it runs, still.
-        AXUIElementSetMessagingTimeout(system, 0.15)
+        // No cap here: on the system-wide element a timeout is the default for
+        // every question this process asks, whoever asks it (#938).
         var element: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(point.x), Float(point.y), &element) == .success
         else { return nil }
