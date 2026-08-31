@@ -21411,8 +21411,9 @@ struct MetricsTests {
         let ignoredLateSuccess = lateSuccess.recordSuccess(for: 0)
         expect(lateFailureCompletion?.fallback == ["subject"]
                 && ignoredLateSuccess.acceptFile
-                && ignoredLateSuccess.discardFallback == nil,
-               "a late callback after wholesale failure is preserved beside fallback")
+                && ignoredLateSuccess.discardFallback == nil
+                && !ignoredLateSuccess.reportFailure,
+               "a late callback after wholesale failure is preserved without rearming failure feedback")
 
         // A completely failed multi-receiver batch still uses the direct
         // representation, but only after every receiver has failed.

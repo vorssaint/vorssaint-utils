@@ -165,6 +165,10 @@ final class ShelfPromiseFallbackCoordinator<Value> {
                                    fallback: nil,
                                    reportFailure: reportFailureIfReady())
         }
+        // Direct fallback is the user-visible recovery for a completely
+        // failed promise batch. Mark that failure handled so a later file
+        // from the same receiver cannot re-arm the suppressed notification.
+        failureReported = true
         return CallbackOutcome(acceptFile: false,
                                discardFallback: nil,
                                fallback: items,
