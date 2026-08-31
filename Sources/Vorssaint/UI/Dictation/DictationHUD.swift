@@ -111,7 +111,9 @@ final class DictationHUD {
             let buttonWidth = settingsButton.isHidden ? 0 : min(150, settingsButton.intrinsicContentSize.width + 12)
             settingsButton.frame = CGRect(x: bounds.width - buttonWidth - 12,
                                           y: 8, width: buttonWidth, height: 28)
-            let textX: CGFloat = 98
+            // Processing has only the spinner on the left; listening reserves
+            // the waveform beside the recording icon.
+            let textX: CGFloat = progress.isHidden ? 98 : 58
             let textWidth = bounds.width - textX - 14 - (buttonWidth > 0 ? buttonWidth + 8 : 0)
             title.frame = CGRect(x: textX, y: 13, width: textWidth, height: 18)
             detail.frame = CGRect(x: textX, y: 5, width: textWidth, height: 15)
@@ -128,7 +130,7 @@ final class DictationHUD {
             settingsButton.title = strings.openSettings
             settingsButton.isHidden = !opensSettings
             meter.isHidden = state != .listening
-            detail.isHidden = state == .listening
+            detail.isHidden = state == .listening || state == .processing
             meter.level = level
             progress.isHidden = state != .processing
             if state == .processing { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
@@ -144,7 +146,7 @@ final class DictationHUD {
                 detail.stringValue = ""
             case .processing:
                 title.stringValue = strings.processing
-                detail.stringValue = strings.cancelHint
+                detail.stringValue = ""
             case .failure(let failure):
                 title.stringValue = strings.failureMessage(failure)
                 detail.stringValue = ""
