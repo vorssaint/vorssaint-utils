@@ -1121,6 +1121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         endPopoverDriftCorrection()
         PanelInteractionState.shared.viewKeepsPopoverOpen = false
         PanelInteractionState.shared.isPresentingPopoverModal = false
+        PanelInteractionState.shared.hostedSettingsPage = nil
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()
