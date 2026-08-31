@@ -95,6 +95,22 @@ final class PanelKeyboardNavigatorTests: XCTestCase {
         XCTAssertFalse(navigator.handleKeyDown(key(kVK_RightArrow)))
     }
 
+    func testActivationWithoutActionIsNotConsumed() {
+        let row = PanelRowID(section, "first")
+        navigator.registerRow(row, actions: PanelRowActions(adjust: { _, _ in true }))
+        defer { navigator.unregisterRow(row) }
+
+        navigator.focusRow(row)
+        XCTAssertFalse(navigator.handleKeyDown(key(kVK_Return)))
+        XCTAssertFalse(navigator.handleKeyDown(key(kVK_Space)))
+
+        navigator.focusRow(PanelRowID(section, "second"))
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_DownArrow)))
+        XCTAssertEqual(navigator.focus, .chrome(.footerSettings))
+        XCTAssertFalse(navigator.handleKeyDown(key(kVK_Return)))
+        XCTAssertFalse(navigator.handleKeyDown(key(kVK_Space)))
+    }
+
     private func key(_ keyCode: Int, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
         NSEvent.keyEvent(with: .keyDown,
                          location: .zero,

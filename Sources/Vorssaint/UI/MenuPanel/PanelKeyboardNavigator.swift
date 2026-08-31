@@ -370,13 +370,15 @@ final class PanelKeyboardNavigator: ObservableObject {
     private func activateFocused() -> Bool {
         switch focus {
         case .chrome(let id):
-            chromeActivate[id]?()
+            guard let activate = chromeActivate[id] else { return false }
+            activate()
             return true
         case .tab(let id):
             selectTab(id)
             return true
         case .row(let id):
-            rowActions[id]?.activate?()
+            guard let activate = rowActions[id]?.activate else { return false }
+            activate()
             return true
         case nil:
             return false
