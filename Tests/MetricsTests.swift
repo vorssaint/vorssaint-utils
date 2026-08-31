@@ -12891,6 +12891,9 @@ struct MetricsTests {
         expect(dictationServiceSource.contains("DictationHistoryStore.shared.removeExpired")
                 && dictationServiceSource.contains("dictationHistoryRetentionDays"),
                "dictation retention is swept whenever preferences synchronize")
+        expect(dictationServiceSource.contains("preserveFailedRecordingIfEnabled")
+                && dictationServiceSource.contains(".network, .rateLimited, .server"),
+               "recoverable provider failures preserve private audio for a later retry")
         expect(dictationHistoryViewSource.contains("AVAudioPlayer")
                 && dictationHistoryViewSource.contains("1×")
                 && dictationHistoryViewSource.contains("2×")

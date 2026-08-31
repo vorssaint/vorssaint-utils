@@ -463,6 +463,7 @@ final class DictationService: ObservableObject {
     private func fail(_ failure: DictationFailure) {
         transcriptionTask?.cancel()
         transcriptionTask = nil
+        preserveFailedRecordingIfEnabled(failure)
         recorder.cancel()
         DictationMediaController.shared.end()
         removeEscapeHandlers()
@@ -481,6 +482,25 @@ final class DictationService: ObservableObject {
         }
         dismissWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
+    }
+
+    private func preserveFailedRecordingIfEnabled(_ failure: DictationFailure) {
+        guard [.network, .rateLimited, .server].contains(failure),
+              UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistoryEnabled),
+              UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio),
+              let audioURL = recorder.fileURL,
+              let configuration = sessionConfiguration else { return }
+        let entry = DictationHistoryEntry(
+            createdAt: recorder.lastRecordingStartedAt ?? Date(),
+            duration: recorder.lastRecordingDuration ?? 0,
+            provider: configuration.provider,
+            model: configuration.model,
+            language: configuration.profile.language,
+            rawText: "",
+            audioFileName: nil,
+            processingDuration: nil,
+            failure: String(describing: failure))
+        _ = try? DictationHistoryStore.shared.save(entry, audioURL: audioURL)
     }
 
     private func cancel(event: DictationLifecycleEvent) {
