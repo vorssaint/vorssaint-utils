@@ -220,4 +220,22 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
     check(savedSettings.baseURL == "https://example.com/v1" && savedSettings.model == "custom-model",
           "settings snapshot reads saved Vorssaint values")
     isolatedDefaults.removePersistentDomain(forName: settingsSuite)
+
+    let menuPanelSource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+        encoding: .utf8)) ?? ""
+    check(menuPanelSource.contains("case .selectionTranslation"),
+          "the utilities menu includes the selection translation item")
+    check(menuPanelSource.contains("DefaultsKey.panelUtilitySelectionTranslation"),
+          "the selection translation menu item has its own visibility preference")
+    check(menuPanelSource.contains("SelectionTranslationService.shared.openManualDraft()"),
+          "the utilities menu opens a manual translation draft")
+
+    let panelLayoutSource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/PanelLayout.swift",
+        encoding: .utf8)) ?? ""
+    check(panelLayoutSource.contains(".selectionTranslation"),
+          "the utilities section stays available when selection translation is installed")
+    check(Defaults.registeredDefaults["panelUtilitySelectionTranslation"] as? Bool == true,
+          "the selection translation menu item is visible by default")
 }

@@ -499,8 +499,8 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
-         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder
+         uninstaller, cleanURL, cleaning, screenOCR, selectionTranslation, colorPicker,
+         cameraPreview, scratchpad, commandBar, screenRecorder
 
     var id: String { rawValue }
 
@@ -519,6 +519,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cleanURL: return .urlCleaner
         case .cleaning: return .cleaningMode
         case .screenOCR: return .screenOCR
+        case .selectionTranslation: return .selectionTranslation
         case .colorPicker: return .colorPicker
         case .screenshot: return .screenshot
         case .screenRecorder: return .screenRecorder
@@ -533,6 +534,7 @@ struct UtilitiesSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    @ObservedObject private var selectionTranslation = SelectionTranslationService.shared
     @State private var showUninstaller = false
     @State private var showCleanerPanel = false
     @State private var showURLCleaner = false
@@ -552,6 +554,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showClipboard = true
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showWindowLayout = true
     @AppStorage(DefaultsKey.panelUtilityScreenOCR) private var showScreenOCR = true
+    @AppStorage(DefaultsKey.panelUtilitySelectionTranslation) private var showSelectionTranslation = true
     @AppStorage(DefaultsKey.panelUtilityScreenshot) private var showScreenshot = true
     @AppStorage(DefaultsKey.panelUtilityQuickLauncher) private var showQuickLauncher = true
     @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
@@ -710,6 +713,7 @@ struct UtilitiesSection: View {
         case .cleanURL: return showCleanURL
         case .cleaning: return showCleaning
         case .screenOCR: return showScreenOCR
+        case .selectionTranslation: return showSelectionTranslation
         case .colorPicker: return showColorPicker
         case .cameraPreview: return showCameraPreview
         case .scratchpad: return showScratchpad
@@ -832,6 +836,20 @@ struct UtilitiesSection: View {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                         ScreenTextService.shared.capture()
+                                    }
+                                })
+        case .selectionTranslation:
+            UtilityActionButton(title: FeatureStrings.selectionTranslation(l10n.language).title,
+                                caption: FeatureStrings.selectionTranslation(l10n.language).sourcePlaceholder,
+                                systemImage: "character.book.closed",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showSelectionTranslation,
+                                shortcutHint: selectionTranslationShortcutHint,
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        SelectionTranslationService.shared.openManualDraft()
                                     }
                                 })
         case .screenshot:
@@ -1021,6 +1039,7 @@ struct UtilitiesSection: View {
         showCleanURL = true
         showCleaning = true
         showScreenOCR = true
+        showSelectionTranslation = true
         showScreenshot = true
         showColorPicker = true
         showCameraPreview = true
@@ -1032,6 +1051,11 @@ struct UtilitiesSection: View {
     private func grantAccessibility() {
         Permissions.shared.requestAccessibility()
         Permissions.shared.openAccessibilitySettings()
+    }
+
+    private var selectionTranslationShortcutHint: String? {
+        guard selectionTranslation.shortcutStatus == .registered else { return nil }
+        return GlobalShortcutRole.selectionTranslation.savedShortcut.displayString
     }
 }
 

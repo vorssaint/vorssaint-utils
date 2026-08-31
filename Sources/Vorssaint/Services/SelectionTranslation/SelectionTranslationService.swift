@@ -101,6 +101,37 @@ final class SelectionTranslationService: ObservableObject {
         }
     }
 
+    /// Opens a manual draft from the menu bar. Unlike the global shortcut this
+    /// path never reads another app's selection: opening the menu has already
+    /// made Vorssaint the frontmost app, so the user can type or paste safely.
+    func openManualDraft() {
+        guard AppFeature.selectionTranslation.isAvailable else { return }
+
+        var startsNewDraft = false
+        if phase == .idle || phase == .reading {
+            cancelRequestOnly()
+            generation &+= 1
+            let settings = SelectionTranslationSettingsStore.snapshot()
+            panelAnchor = NSEvent.mouseLocation
+            draft = SelectionTranslationDraft(languages: settings.languages)
+            submittedDraft = nil
+            translatedText = ""
+            usage = .zero
+            timing = .idle
+            requiresSubmission = true
+            failureAction = nil
+            providerName = settings.providerName
+            phase = .ready
+            startsNewDraft = true
+        }
+
+        SelectionTranslationPanelController.shared.present(anchor: panelAnchor,
+                                                            focusSourceEditor: startsNewDraft)
+        if startsNewDraft {
+            SelectionTranslationPanelController.shared.focusSourceEditor()
+        }
+    }
+
     func updateSource(_ source: String) {
         invalidateActiveTranslationIfNeeded()
         draft.source = source
