@@ -129,18 +129,39 @@ enum MouseButtonShortcutSupport {
         return mappings[button]
     }
 
-    /// Whether this feature currently owns the button. Mouse navigation asks
-    /// this from its own tap and lets an owned button through, the same
-    /// contract it already keeps with the radial menu; pure defaults reads,
-    /// so asking never wakes the service.
+    /// Whether this feature currently owns the button, for either of the two
+    /// jobs it can give one: pressing a shortcut, or driving the Spaces and
+    /// Mission Control drag. Mouse navigation asks this from its own tap and
+    /// lets an owned button through, the same contract it already keeps with
+    /// the radial menu; pure defaults reads, so asking never wakes the
+    /// service.
     static func claimsButton(_ button: Int64) -> Bool {
         let defaults = UserDefaults.standard
         guard defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
-              defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled),
               !RadialMenuSupport.claimsMouseButton(button) else { return false }
         // Runs inside a HID tap callback during side-button drags: look up
         // just this button's entry instead of decoding the whole dictionary.
         guard canMap(button) else { return false }
+        return hasActiveShortcut(button, defaults) || spacesGestureButton(defaults) == button
+    }
+
+    /// The button the Spaces and Mission Control drag is bound to right now,
+    /// or nil when the gesture is off, unbound, or the button already belongs
+    /// to a shortcut or to the radial menu. Defaults reads only, so both taps
+    /// can ask on the hot path.
+    static func spacesGestureButton(_ defaults: UserDefaults = .standard) -> Int64? {
+        MouseSpacesGestureSupport.boundButton(
+            isAvailable: defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
+            isEnabled: defaults.bool(forKey: DefaultsKey.mouseSpacesGestureEnabled),
+            button: Int64(defaults.integer(forKey: DefaultsKey.mouseSpacesGestureButton)),
+            hasShortcut: { hasActiveShortcut($0, defaults) },
+            claimedByWheel: RadialMenuSupport.claimsMouseButton)
+    }
+
+    /// A stored shortcut that would really fire. A mapping left behind while
+    /// the shortcut switch is off is inert, so it holds no claim on a button.
+    private static func hasActiveShortcut(_ button: Int64, _ defaults: UserDefaults) -> Bool {
+        guard defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled) else { return false }
         let raw = defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String]
         guard let stored = raw?[String(button)] else { return false }
         return GlobalShortcut(storageValue: stored) != nil

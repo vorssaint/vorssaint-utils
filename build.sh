@@ -303,6 +303,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift \
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \
         Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutSupport.swift \
+        Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift \
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptionSupport.swift \
         Sources/Vorssaint/Core/MouseButtonStrings.swift \
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \
@@ -333,6 +334,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift \
         Sources/Vorssaint/Services/SuperKey/SuperKeyMappingGuard.swift \
         Sources/Vorssaint/Core/SuperKeyStrings.swift \
+        Sources/Vorssaint/Services/SessionActivity.swift \
+        Sources/Vorssaint/Services/SessionActivitySupport.swift \
         Sources/Vorssaint/Services/ScrollWheelSupport.swift \
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift \

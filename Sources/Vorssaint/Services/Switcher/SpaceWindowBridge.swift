@@ -275,6 +275,17 @@ enum SpaceWindowBridge {
         fileprivate var hotKeyID: Int32 { self == .left ? 79 : 81 }
     }
 
+    /// The two Mission Control overviews, by their system symbolic hotkey ids
+    /// (32 is "Mission Control", 33 is "Application windows"). The window
+    /// server refuses software-simulated touch gestures, so an overview is
+    /// opened the same way the keyboard opens it (issue #1012).
+    enum SpaceOverview {
+        case missionControl
+        case appExpose
+
+        fileprivate var hotKeyID: Int32 { self == .missionControl ? 32 : 33 }
+    }
+
     struct SpaceShortcut {
         let keyCode: CGKeyCode
         let flags: CGEventFlags
@@ -284,12 +295,23 @@ enum SpaceWindowBridge {
     /// Space over, honoring user remaps. Nil when the shortcut is disabled or
     /// unreadable, in which case no synthetic travel is attempted.
     static func spaceShortcut(_ direction: SpaceDirection) -> SpaceShortcut? {
+        registeredShortcut(direction.hotKeyID)
+    }
+
+    /// The same lookup for the overviews. Nil when the user switched that
+    /// shortcut off in System Settings, which is the one honest answer: with
+    /// no registered combination there is nothing to press.
+    static func overviewShortcut(_ overview: SpaceOverview) -> SpaceShortcut? {
+        registeredShortcut(overview.hotKeyID)
+    }
+
+    private static func registeredShortcut(_ hotKeyID: Int32) -> SpaceShortcut? {
         guard let symbolicHotKeyValue, let symbolicHotKeyEnabled,
-              symbolicHotKeyEnabled(direction.hotKeyID) else { return nil }
+              symbolicHotKeyEnabled(hotKeyID) else { return nil }
         var options: UInt32 = 0
         var keyCode: UInt32 = 0
         var modifiers: UInt32 = 0
-        guard symbolicHotKeyValue(direction.hotKeyID, &options, &keyCode, &modifiers) == .success,
+        guard symbolicHotKeyValue(hotKeyID, &options, &keyCode, &modifiers) == .success,
               keyCode != 0
         else { return nil }
         return SpaceShortcut(keyCode: CGKeyCode(keyCode),

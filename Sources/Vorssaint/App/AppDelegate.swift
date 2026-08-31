@@ -238,6 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Takes the Super key mapping back out before the process goes away.
         SuperKeyService.shared.suspend()
         MiddleClickService.shared.suspend()
+        ScrollInverter.shared.suspend()
         SmoothScrollService.shared.suspend()
         MouseNavigationService.shared.suspend()
         DockPreviewService.shared.stop()

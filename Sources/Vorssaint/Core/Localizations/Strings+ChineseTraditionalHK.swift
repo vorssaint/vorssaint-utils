@@ -804,6 +804,9 @@ extension Strings {
         cleaningOverlaySubtitle: "按 Esc 鍵 5 次即可解鎖",
         cleaningOverlayUnlock: "解鎖",
         cleaningOverlayMouseHint: "滑鼠和觸控板仍可使用",
+        cleaningKeepScreenVisibleToggle: "保持螢幕可見",
+        cleaningKeepScreenVisibleCaption: "在螢幕角落顯示小巧的指示條，而不調暗螢幕內容。",
+        cleaningStartNow: "立即鎖定鍵盤",
         cleaningNeedsAxTitle: "需要輔助使用",
         cleaningNeedsAxBody: "為安全鎖定鍵盤，Vorssaint 需要輔助使用權限。請在「系統設定」中允許後重試。",
 

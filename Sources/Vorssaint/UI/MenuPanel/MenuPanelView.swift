@@ -404,6 +404,9 @@ struct MenuPanelView: View {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
                          horizontalPadding: 7) {
+                // The hosted utility's own page, or the general one from the
+                // panel's lists: the router is sticky, so it is set every time.
+                SettingsRouter.shared.page = PanelInteractionState.shared.hostedSettingsPage ?? .general
                 appDelegate()?.openSettingsWindow()
             }
 
@@ -625,9 +628,32 @@ struct UtilitiesSection: View {
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
         }
-        .onDisappear {
-            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        .onChange(of: hostedSettingsPage) { _, page in
+            PanelInteractionState.shared.hostedSettingsPage = page
         }
+        .onDisappear {
+            // Another section, or a metric, replacing this one takes the
+            // tool off screen with it; a closed panel does not, and keeps it.
+            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            PanelInteractionState.shared.hostedSettingsPage = nil
+        }
+    }
+
+    /// The Settings page that belongs to whichever tool the section is
+    /// showing, derived from the same state as `isHostingUtility` so every
+    /// hosted tool is covered by the one list. Mirrored by the `onChange`
+    /// beside it, and cleared only where this section leaves the screen.
+    private var hostedSettingsPage: SettingsPage? {
+        if showUninstaller { return .uninstaller }
+        if showCleanerPanel { return .cleaner }
+        if showURLCleaner { return .urlCleaner }
+        if showHomebrewPanel { return .homebrew }
+        if showMediaPanel { return .media }
+        if showClipboardPanel { return .clipboard }
+        if showRecentCapturesPanel { return .screenshot }
+        if showWindowLayoutPanel { return .windowLayout }
+        if showAppUpdatesPanel { return .appUpdates }
+        return nil
     }
 
     /// True while the section is showing one of the tools instead of its own
@@ -1094,6 +1120,7 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.textSnippetsEnabled) private var textSnippetsEnabled = false
     @AppStorage(DefaultsKey.radialMenuEnabled) private var radialMenuEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
+    @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
@@ -1232,7 +1259,7 @@ struct QuickControlsSection: View {
         case .middleClick: return middleClickEnabled
         case .textSnippets: return textSnippetsEnabled
         case .radialMenu: return radialMenuEnabled
-        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled
+        case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
         }
     }
@@ -1609,18 +1636,23 @@ struct QuickControlsSection: View {
                 }
         case .mouseButtonShortcuts:
             let buttonStrings = FeatureStrings.mouseButtons(l10n.language)
+            // Either switch drives the same tap and needs the same grant
+            // (issue #1012), so every surface on this row reads them
+            // together. Widening one and not the rest is what leaves the
+            // row asking for a permission its own button cannot grant.
+            let buttonsEngaged = mouseButtonShortcutsEnabled || spacesEnabled
             PanelToggleRow(title: buttonStrings.pageTitle,
                            caption: caption(buttonStrings.panelCaption,
-                                            needsAccessibility: mouseButtonShortcutsEnabled),
+                                            needsAccessibility: buttonsEngaged),
                            systemImage: "button.programmable",
                            isOn: $mouseButtonShortcutsEnabled,
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: $showMouseButtonShortcuts,
-                           needsAttention: mouseButtonShortcutsEnabled && !permissions.accessibility,
+                           needsAttention: buttonsEngaged && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(mouseButtonShortcutsEnabled),
-                           accessoryTitle: mouseButtonShortcutsEnabled ? buttonStrings.manageButton : nil,
+                           permissionAction: accessibilityPermissionAction(buttonsEngaged),
+                           accessoryTitle: buttonsEngaged ? buttonStrings.manageButton : nil,
                            accessoryAction: {
                                SettingsRouter.shared.page = .mouse
                                appDelegate()?.openSettingsWindow()
