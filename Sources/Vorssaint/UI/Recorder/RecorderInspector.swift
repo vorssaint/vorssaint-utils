@@ -274,7 +274,7 @@ struct RecorderInspector: View {
                 model.selectZoom(nil)
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.backward")
                         .font(.system(size: 10, weight: .semibold))
                     Text(strings.backToOptions)
                         .font(.system(size: 11, weight: .medium))
@@ -336,7 +336,7 @@ struct RecorderInspector: View {
                 model.selectLaneItem(.text, id: nil)
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.backward")
                         .font(.system(size: 10, weight: .semibold))
                     Text(strings.backToOptions)
                         .font(.system(size: 11, weight: .medium))

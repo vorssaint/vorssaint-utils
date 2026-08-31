@@ -381,7 +381,7 @@ struct MenuPanelView: View {
                 selectedSection = kind.panelSection
                 MenuPanelFocus.shared.clearMetricFocus()
             } label: {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 11, weight: .semibold))
                     .frame(width: 24, height: 24)
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -1244,7 +1244,7 @@ struct QuickControlsSection: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(editing || isExpanded(category) ? 90 : 0))
@@ -2074,7 +2074,7 @@ struct UtilityActionButton: View {
                         )
                 }
                 if showChevron {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
@@ -2554,7 +2554,7 @@ struct KeepAwakeCard: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
@@ -2621,7 +2621,7 @@ struct KeepAwakeCard: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     automationSummaryBadges
-                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(.tertiary)
                 }
