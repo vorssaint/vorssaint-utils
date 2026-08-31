@@ -295,6 +295,7 @@ enum SettingsSearchSupport {
         let recorder = FeatureStrings.recorder(language)
         return [
             (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
+                           screenshot.loupeStartsOnToggle,
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolArrow]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
