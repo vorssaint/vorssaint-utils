@@ -45,6 +45,12 @@ struct RecentCapturesView: View {
             content
         }
         .onAppear { history.reload() }
+        .onChange(of: confirmingClear) { _, confirming in
+            PanelInteractionState.shared.isPresentingPopoverModal = confirming
+        }
+        .onDisappear {
+            PanelInteractionState.shared.isPresentingPopoverModal = false
+        }
         .confirmationDialog(text.clear,
                             isPresented: $confirmingClear,
                             titleVisibility: .visible) {
