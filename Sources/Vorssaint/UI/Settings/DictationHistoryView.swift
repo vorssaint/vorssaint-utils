@@ -120,7 +120,14 @@ struct DictationHistoryView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
                 .accessibilityHint(expanded ? "Recolher detalhes" : "Abrir controles e detalhes")
+                Button("Copiar", systemImage: "doc.on.doc") { copyText(for: entry) }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.borderless)
+                    .help("Copiar transcrição")
+                    .accessibilityLabel("Copiar transcrição")
             }
             if expanded { expandedContent(for: entry) }
         }
