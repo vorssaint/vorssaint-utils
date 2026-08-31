@@ -20752,6 +20752,37 @@ struct MetricsTests {
                 && CommandBarRowShortcuts.hasRoom(for: "row.0", in: full)
                 && CommandBarRowShortcuts.hasRoom(for: "row.new", in: [:]),
                "a full list says so before the keys are taken, and rebinding is always allowed")
+        expect(CommandBarRowShortcuts.isUsable(
+                    GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.command])),
+               "Command Q is a real combination; the card has to be able to store it")
+        let commandBarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? ""
+        let commandBarCode = commandBarSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        // Ends on the next declaration rather than naming a neighbour: a
+        // rename would find no separator, leave the slice running to end of
+        // file, and quietly restore the whole-file search.
+        let captureBeginParts = (commandBarCode
+            .components(separatedBy: "private func beginCapturingShortcut(")
+            .last ?? "").components(separatedBy: "\n    private func ")
+        let captureBegin = captureBeginParts.first ?? ""
+        expect(captureBeginParts.count > 1,
+               "the Command Bar capture start finds the end of beginCapturingShortcut")
+        expect(captureBegin.contains("ShortcutCapture.begin()")
+                && captureBegin.contains("ShortcutRecordingTap.begin"),
+               "the capture card starts the same pair Settings uses, so Command Q reaches it")
+        let captureEndParts = (commandBarCode
+            .components(separatedBy: "private func endCapturingShortcut()")
+            .last ?? "").components(separatedBy: "\n    private func ")
+        let captureEnd = captureEndParts.first ?? ""
+        expect(captureEndParts.count > 1,
+               "the Command Bar capture stop finds the end of endCapturingShortcut")
+        expect(captureEnd.contains("ShortcutRecordingTap.end()")
+                && captureEnd.contains("ShortcutCapture.end()"),
+               "leaving the card gives the keyboard back")
 
         // Dates and places, answered by the calendar this Mac carries.
         var gregorian = Calendar(identifier: .gregorian)
