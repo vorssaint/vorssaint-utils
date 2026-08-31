@@ -12963,6 +12963,14 @@ struct MetricsTests {
                 && dictationHistoryViewSource.contains("activateFileViewerSelecting")
                 && dictationHistoryViewSource.contains("confirmationDialog"),
                "dictation history offers selection, export, waveform, playback and safe deletion")
+        let dictationHUDSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Dictation/DictationHUD.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationHUDSource.contains("CGSize(width: 300, height: 44)")
+                && dictationHUDSource.contains("detail.isHidden = state == .listening")
+                && dictationHUDSource.contains("record.circle.fill")
+                && dictationHUDSource.contains("pow(max(0, level), 0.55)"),
+               "dictation listening HUD stays compact and amplifies quiet waveform levels visually")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),

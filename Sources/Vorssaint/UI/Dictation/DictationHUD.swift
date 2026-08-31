@@ -6,7 +6,9 @@ import QuartzCore
 
 @MainActor
 final class DictationHUD {
-    private let size = CGSize(width: 430, height: 54)
+    // Listening is intentionally compact: the live state needs only the
+    // recording indicator, waveform and title, leaving the target app visible.
+    private let size = CGSize(width: 300, height: 44)
     private var panel: NSPanel?
     private var content: ContentView?
 
@@ -70,8 +72,8 @@ final class DictationHUD {
     }
 
     private final class ContentView: NSView {
-        let meter = MeterView(frame: CGRect(x: 16, y: 13, width: 40, height: 28))
-        private let icon = NSImageView(frame: CGRect(x: 18, y: 15, width: 24, height: 24))
+        let meter = MeterView(frame: CGRect(x: 52, y: 10, width: 40, height: 24))
+        private let icon = NSImageView(frame: CGRect(x: 16, y: 12, width: 20, height: 20))
         private let title = NSTextField(labelWithString: "")
         private let detail = NSTextField(labelWithString: "")
         private let progress = NSProgressIndicator(frame: CGRect(x: 18, y: 17, width: 20, height: 20))
@@ -108,11 +110,11 @@ final class DictationHUD {
             super.layout()
             let buttonWidth = settingsButton.isHidden ? 0 : min(150, settingsButton.intrinsicContentSize.width + 12)
             settingsButton.frame = CGRect(x: bounds.width - buttonWidth - 12,
-                                          y: 13, width: buttonWidth, height: 28)
-            let textX: CGFloat = 66
+                                          y: 8, width: buttonWidth, height: 28)
+            let textX: CGFloat = 102
             let textWidth = bounds.width - textX - 14 - (buttonWidth > 0 ? buttonWidth + 8 : 0)
-            title.frame = CGRect(x: textX, y: 27, width: textWidth, height: 17)
-            detail.frame = CGRect(x: textX, y: 10, width: textWidth, height: 15)
+            title.frame = CGRect(x: textX, y: 13, width: textWidth, height: 18)
+            detail.frame = CGRect(x: textX, y: 5, width: textWidth, height: 15)
         }
 
         func update(state: DictationState,
@@ -126,6 +128,7 @@ final class DictationHUD {
             settingsButton.title = strings.openSettings
             settingsButton.isHidden = !opensSettings
             meter.isHidden = state != .listening
+            detail.isHidden = state == .listening
             meter.level = level
             progress.isHidden = state != .processing
             if state == .processing { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
@@ -136,7 +139,7 @@ final class DictationHUD {
                 detail.stringValue = ""
             case .listening:
                 title.stringValue = strings.listening
-                detail.stringValue = "\(listeningHint ?? strings.stopHint) · \(strings.cancelHint)"
+                detail.stringValue = ""
             case .processing:
                 title.stringValue = strings.processing
                 detail.stringValue = strings.cancelHint
@@ -146,6 +149,11 @@ final class DictationHUD {
                 icon.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill",
                                      accessibilityDescription: nil)
                 icon.contentTintColor = .systemOrange
+            }
+            if state == .listening {
+                icon.image = NSImage(systemSymbolName: "record.circle.fill",
+                                     accessibilityDescription: nil)
+                icon.contentTintColor = .systemRed
             }
             if let sessionDetail, !sessionDetail.isEmpty {
                 detail.stringValue = detail.stringValue.isEmpty
@@ -174,7 +182,9 @@ final class DictationHUD {
 
         override func draw(_ dirtyRect: NSRect) {
             let heights: [CGFloat] = [0.45, 0.75, 1, 0.7, 0.4]
-            let active = CGFloat(max(0.08, min(1, level)))
+            // Apply visual gain only. The recorded samples are untouched; a
+            // quiet microphone should still produce an unmistakable meter.
+            let active = CGFloat(max(0.10, min(1, pow(max(0, level), 0.55))))
             for (index, weight) in heights.enumerated() {
                 let height = max(3, bounds.height * weight * active)
                 let rect = CGRect(x: CGFloat(index) * 8,
