@@ -1076,6 +1076,58 @@ struct MetricsTests {
         ) == ScrollWheelInversionPlan(vertical: false, horizontal: false),
         "a continuous wheel stays vertical because Shift does not redirect that event type")
 
+        // A scroll tap belongs in the chain only while this login session is
+        // the one on screen: fast user switching leaves the process running
+        // behind another account, where the tap still takes every scroll event
+        // and stalls it (issue #1075).
+        expect(SessionActivitySupport.tapShouldRun(featureWanted: true,
+                                                   accessibilityGranted: true,
+                                                   sessionIsActive: true),
+               "a wanted scroll tap runs in the session on screen")
+        expect(!SessionActivitySupport.tapShouldRun(featureWanted: true,
+                                                    accessibilityGranted: true,
+                                                    sessionIsActive: false),
+               "a wanted scroll tap is handed back while its session is switched away")
+        expect(!SessionActivitySupport.tapShouldRun(featureWanted: false,
+                                                    accessibilityGranted: true,
+                                                    sessionIsActive: true),
+               "an unwanted scroll tap stays off in the session on screen")
+        expect(!SessionActivitySupport.tapShouldRun(featureWanted: true,
+                                                    accessibilityGranted: false,
+                                                    sessionIsActive: true),
+               "a scroll tap needs Accessibility even in the session on screen")
+
+        // Launching into a session that is already switched away is announced
+        // before the tap owners exist to hear it, so the state is read rather
+        // than assumed. Anything unreadable counts as on screen because a
+        // wrong off state would never be corrected.
+        let onConsoleKey = kCGSessionOnConsoleKey as String
+        expect(SessionActivitySupport.isOnConsole([onConsoleKey: true]),
+               "a session dictionary saying it holds the console reads as on screen")
+        expect(!SessionActivitySupport.isOnConsole([onConsoleKey: false]),
+               "a session dictionary saying it does not hold the console reads as off screen")
+        expect(SessionActivitySupport.isOnConsole([onConsoleKey: NSNumber(value: 1)]),
+               "the console flag is read when it arrives as a number")
+        expect(SessionActivitySupport.isOnConsole(nil),
+               "an unreadable session reads as on screen because a wrong off would never be corrected")
+        expect(SessionActivitySupport.isOnConsole([:]),
+               "a session without the console flag reads as on screen because a wrong off would never be corrected")
+        expect(SessionActivitySupport.isOnConsole([onConsoleKey: "unexpected"]),
+               "an unexpected console flag reads as on screen because a wrong off would never be corrected")
+
+        let privateCenter = NotificationCenter()
+        let activity = SessionActivity(center: privateCenter, initialIsActive: { true })
+        var observedTransitions: [Bool] = []
+        activity.onChange { observedTransitions.append($0) }
+        expect(activity.isActive, "session activity starts with the injected initial state")
+        privateCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        expect(!activity.isActive, "session activity transitions to inactive on resign")
+        privateCenter.post(name: NSWorkspace.sessionDidResignActiveNotification, object: nil)
+        privateCenter.post(name: NSWorkspace.sessionDidBecomeActiveNotification, object: nil)
+        expect(activity.isActive, "session activity transitions to active on become-active")
+        expect(observedTransitions == [false, true],
+               "the session activity handler records each state change and ignores duplicate notifications")
+
         expect(MouseNavigationSupport.direction(
             forButtonNumber: MouseNavigationSupport.backButtonNumber) == .back,
                "the first standard mouse side button maps to Back")
@@ -2921,6 +2973,8 @@ struct MetricsTests {
                "keyboard debounce per-key windows start empty")
         expect(registeredDefaults[DefaultsKey.panelUtilityCleaning] as? Bool == true,
                "panel cleaning utility is visible by default")
+        expect(registeredDefaults[DefaultsKey.cleaningModeKeepScreenVisible] as? Bool == false,
+               "cleaning mode keep screen visible is disabled by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityURLCleaner] as? Bool == true,
                "panel URL cleaner utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityUninstaller] as? Bool == true,
@@ -3366,6 +3420,9 @@ struct MetricsTests {
                "dragging windows to screen edges is opt-in")
         expect(registeredDefaults[DefaultsKey.windowGestureEnabled] as? Bool == false,
                "window move and resize gestures are opt-in")
+        expect(registeredDefaults[DefaultsKey.mouseSpacesGestureEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.mouseSpacesGestureButton] as? Int == 0,
+               "the Spaces and Mission Control drag ships off and with no button bound")
         expect(registeredDefaults[DefaultsKey.windowGestureModifiers] as? String == "control+command",
                "window gestures start with the deliberate control-command chord")
         expect(registeredDefaults[DefaultsKey.windowGestureRaiseWindow] as? Bool == false,
@@ -11145,6 +11202,12 @@ struct MetricsTests {
                               strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen OCR strings are present without em dash")
+            let cleaningStrings = [strings.cleaningKeepScreenVisibleToggle, strings.cleaningKeepScreenVisibleCaption,
+                                   strings.cleaningStartNow, strings.cleaningOverlayTitle,
+                                   strings.cleaningOverlaySubtitle, strings.cleaningOverlayUnlock,
+                                   strings.cleaningOverlayMouseHint, strings.cleaningPanelCaption]
+            expect(cleaningStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) cleaning mode strings are present without em dash")
             let highlightsStrings = [strings.highlightsTitle, strings.highlightsTitleClipboardRedesign,
                                      strings.highlightsCaptionDockPreview,
                                      strings.highlightsCaptionScreenshot,
@@ -12564,7 +12627,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.mouseButtons(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 23 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 30 && values.allSatisfy { !$0.isEmpty },
                    "every mouse button string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible mouse button strings (\(language.rawValue))")
@@ -12998,10 +13061,11 @@ struct MetricsTests {
         expect(AppFeature.windowMaximizer.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
                 && AppFeature.mixer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
-                && AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
                "panel-oriented features land on General panel configuration")
+        expect(AppFeature.cleaningMode.settingsDestination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
+               "cleaning mode lands on Quick Tools cleaning mode section")
         expect(AppFeature.musicBlock.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
                 && AppFeature.soundOutputSwitcher.settingsDestination
@@ -14424,6 +14488,65 @@ struct MetricsTests {
             protectedWindowIDs: protectedScreenshotWindows
         ), "screenshot cannot pick its own protected capture UI")
 
+        // A sheet or dialog the app stacked on the clicked window is a window
+        // of its own, so a single-window capture leaves it out of a shot it is
+        // plainly part of (issue #1098). Same app, in front, and lying wholly
+        // inside the clicked window is the shape that describes one; anything
+        // reaching past its edge is left alone, because drawing a window the
+        // person did not choose is worse than leaving a dialog out.
+        typealias CaptureWindow = ScreenshotCapturePolicy.CaptureWindow
+        let capturedWindow = CaptureWindow(
+            id: 1, ownerPID: 500, frame: CGRect(x: 100, y: 100, width: 800, height: 600))
+        let sheet = CaptureWindow(
+            id: 2, ownerPID: 500, frame: CGRect(x: 300, y: 100, width: 400, height: 300))
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [sheet, capturedWindow])
+            == ScreenshotCapturePolicy.AttachedCapturePlan(
+                windowIDs: [1, 2], bounds: capturedWindow.frame),
+               "a sheet on the clicked window joins its capture, the window drawn first")
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [capturedWindow, sheet]) == nil,
+               "a window behind the clicked one is not stacked on it")
+        let windowOfAnotherApp = CaptureWindow(
+            id: 3, ownerPID: 900, frame: CGRect(x: 300, y: 100, width: 400, height: 300))
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [windowOfAnotherApp, capturedWindow]) == nil,
+               "another application's window over the clicked one stays out of the shot")
+        // The case that decides the rule: a compose or second document window
+        // of the same app, in front and overlapping, but reaching past the
+        // edge. It is not what was asked for, so the ordinary capture answers.
+        let composeWindow = CaptureWindow(
+            id: 4, ownerPID: 500, frame: CGRect(x: 700, y: 300, width: 500, height: 400))
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [composeWindow, capturedWindow]) == nil,
+               "a same-app window reaching past the clicked window is not drawn into its shot")
+        let detachedWindow = CaptureWindow(
+            id: 5, ownerPID: 500, frame: CGRect(x: 2_000, y: 100, width: 200, height: 200))
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [detachedWindow, capturedWindow]) == nil,
+               "a window of the same app that does not touch the clicked one is not attached")
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [capturedWindow]) == nil,
+               "a window with nothing stacked on it keeps the ordinary single-window capture")
+        // A sheet is often exactly as wide as the window it drops out of, so
+        // the rule has to take one that matches an edge rather than shrink from
+        // it.
+        let fullWidthSheet = CaptureWindow(
+            id: 6, ownerPID: 500, frame: CGRect(x: 100, y: 100, width: 800, height: 200))
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [fullWidthSheet, capturedWindow])?.windowIDs
+            == [1, 6],
+               "a sheet the full width of its window still joins the capture")
+        // Two stacked windows are drawn in the order they are shown.
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow,
+            frontToBack: [sheet, fullWidthSheet, capturedWindow])?.windowIDs == [1, 6, 2],
+               "what is stacked on the window is drawn back to front")
+        // A target the list does not hold cannot have anything in front of it.
+        expect(ScreenshotCapturePolicy.attachedCapturePlan(
+            target: capturedWindow, frontToBack: [sheet]) == nil,
+               "a window missing from the list does not treat everything as stacked on it")
+
         expect(ScreenshotSupport.sanitizedDelay(5) == 5
                 && ScreenshotSupport.sanitizedDelay(7) == 0
                 && ScreenshotSupport.sanitizedDelay(-3) == 0,
@@ -14922,6 +15045,37 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(!captureServiceSource.contains("replaceSelection"),
                "the capture service does not cancel and recreate selection controllers when changing modes")
+        // The preview appears unasked for, so presenting it must not take the
+        // keyboard away from whatever the person is typing into. Its shortcuts
+        // read a local monitor, which is delivered nothing until the panel is
+        // key. Presenting stays silent and hover takes nothing either; a click
+        // hands the keyboard over in the panel's sendEvent because hosted
+        // SwiftUI content answers presses that never reach mouseDown. Comments
+        // are stripped so prose naming the API cannot answer for the code.
+        let quickPreviewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
+            encoding: .utf8)) ?? ""
+        expect(!quickPreviewSource.isEmpty, "the screenshot preview source reads back for its shape check")
+        let quickPreviewCode = quickPreviewSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        // Split at the hosting controller: the hover closure is built above it,
+        // so the presentation statements are what remains.
+        let presentBody = quickPreviewCode.components(separatedBy: "let host = NSHostingController")
+            .dropFirst().first?.components(separatedBy: "private func").first ?? ""
+        expect(presentBody.contains("orderFrontRegardless()"),
+               "the screenshot preview is presented without activating the app")
+        // A click is the hand-off, and it is read in sendEvent because the
+        // hosted SwiftUI content answers presses that never reach mouseDown.
+        let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
+            .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
+        let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
+        expect(makeKeyCount == panelMakeKeyCount && panelMakeKeyCount >= 1,
+               "presentation and hover never take key focus; only the panel's own click hand-off may")
+        expect(panelBody.contains("sendEvent") && panelBody.contains("leftMouseDown")
+                && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
+               "clicking the screenshot preview takes key focus and still delivers every preview button")
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -16021,7 +16175,8 @@ struct MetricsTests {
                "the mapping dictionary registers empty so it travels with backups")
         expect(Defaults.registeredDefaults[DefaultsKey.panelControlMouseButtonShortcuts] as? Bool == true,
                "the mouse button shortcuts panel row ships visible like its siblings")
-        expect(AppFeature.mouseButtonShortcuts.enabledKeys == [DefaultsKey.mouseButtonShortcutsEnabled]
+        expect(AppFeature.mouseButtonShortcuts.enabledKeys == [DefaultsKey.mouseButtonShortcutsEnabled,
+                                                              DefaultsKey.mouseSpacesGestureEnabled]
                 && AppFeature.mouseButtonShortcuts.permissions == [.accessibility]
                 && AppFeature.mouseButtonShortcuts.group == .mouseKeyboard,
                "the hub knows the feature's switch, permission and group")
@@ -16138,6 +16293,327 @@ struct MetricsTests {
                     for: MouseButtonShortcutSupport.sideWheelRightInput, strings: .enUS) == "Side wheel right"
                 && MouseButtonShortcutSupport.buttonName(for: 5, strings: .enUS) == "Button 6",
                "buttons and side-wheel directions have clear names")
+
+        // MARK: Spaces and Mission Control drag (issue #1012)
+
+        let spaceStep = MouseSpacesGestureSupport.spaceStep
+        let overviewStep = MouseSpacesGestureSupport.overviewStep
+        let spaceCooldown = MouseSpacesGestureSupport.spaceRepeatCooldown
+
+        var dragRight = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(dragRight.advance(to: CGPoint(x: spaceStep - 1, y: 0), now: 0) == nil
+                && dragRight.advance(to: CGPoint(x: spaceStep, y: 0), now: 0.1) == .spaceRight,
+               "one whole step to the right moves one Space to the right, and not a pixel sooner")
+        var dragLeft = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(dragLeft.advance(to: CGPoint(x: -spaceStep, y: 0), now: 0) == .spaceLeft,
+               "the same step to the left moves the other way")
+        var dragUp = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(dragUp.advance(to: CGPoint(x: 0, y: -overviewStep + 1), now: 0) == nil
+                && dragUp.advance(to: CGPoint(x: 0, y: -overviewStep), now: 0.1) == .missionControl,
+               "dragging up opens Mission Control once the vertical step is behind it")
+        var dragDown = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(dragDown.advance(to: CGPoint(x: 0, y: overviewStep), now: 0) == .appExpose,
+               "dragging down opens App Exposé, the way the trackpad swipe does")
+
+        var nudge = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        let nudged = (1...12).compactMap {
+            nudge.advance(to: CGPoint(x: CGFloat($0) * 5, y: CGFloat($0) * 3), now: Double($0) * 0.02)
+        }
+        expect(nudged.isEmpty && !nudge.didFire && nudge.axis == nil,
+               "a drag that stays under both steps does nothing, so the press is still a plain click")
+
+        var wildPointer = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(wildPointer.advance(to: CGPoint(x: CGFloat.nan, y: CGFloat.infinity), now: 0) == nil
+                && !wildPointer.didFire,
+               "a pointer position that is not a number moves nothing")
+
+        var heldDrag = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(heldDrag.advance(to: CGPoint(x: spaceStep, y: 0), now: 0) == .spaceRight
+                && heldDrag.advance(to: CGPoint(x: spaceStep * 2, y: 0), now: spaceCooldown / 2) == nil
+                && heldDrag.advance(to: CGPoint(x: spaceStep * 2 + 1, y: 0),
+                                    now: spaceCooldown + 0.01) == .spaceRight,
+               "a held drag repeats one Space per step, never faster than the slide animation")
+
+        var flick = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        _ = flick.advance(to: CGPoint(x: spaceStep, y: 0), now: 0)
+        _ = flick.advance(to: CGPoint(x: spaceStep * 6, y: 0), now: spaceCooldown / 2)
+        expect(flick.advance(to: CGPoint(x: spaceStep * 6, y: 0),
+                             now: spaceCooldown + 0.01) == .spaceRight
+                && flick.advance(to: CGPoint(x: spaceStep * 6, y: 0),
+                                 now: spaceCooldown * 2 + 0.02) == nil,
+               "a fast flick banks one further Space change, not a burst that outlives the hand")
+
+        var diagonal = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(diagonal.advance(to: CGPoint(x: spaceStep, y: 0), now: 0) == .spaceRight
+                && diagonal.advance(to: CGPoint(x: spaceStep, y: -overviewStep * 3),
+                                    now: spaceCooldown + 0.01) == nil
+                && diagonal.axis == .horizontal,
+               "a press that started switching Spaces never throws up Mission Control halfway through")
+
+        var overviewPress = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(overviewPress.advance(to: CGPoint(x: 0, y: -overviewStep), now: 0) == .missionControl
+                && overviewPress.advance(to: CGPoint(x: 0, y: -overviewStep * 4), now: 1) == nil
+                && overviewPress.didFire,
+               "an overview is a toggle, so one press opens it exactly once")
+
+        var bothAxes = MouseSpacesGestureSupport.Tracker(origin: .zero)
+        expect(bothAxes.advance(to: CGPoint(x: spaceStep, y: overviewStep * 2), now: 0) == .appExpose,
+               "a step past both thresholds is read as the axis that went furthest past its own")
+
+        expect(MouseSpacesGestureSupport.canBind(3) && MouseSpacesGestureSupport.canBind(31)
+                && !MouseSpacesGestureSupport.canBind(2) && !MouseSpacesGestureSupport.canBind(32)
+                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelLeftInput),
+               "the drag lives on an extra button, never on a side-wheel tick there is no way to hold")
+
+        expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
+                                                     hasShortcut: { _ in false },
+                                                     claimedByWheel: { _ in false }) == 4,
+               "an available, enabled and unclaimed button drives the drag")
+        expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
+                                                     hasShortcut: { $0 == 4 },
+                                                     claimedByWheel: { _ in false }) == nil
+                && MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
+                                                         hasShortcut: { _ in false },
+                                                         claimedByWheel: { $0 == 4 }) == nil
+                && MouseSpacesGestureSupport.boundButton(isAvailable: false, isEnabled: true, button: 4,
+                                                         hasShortcut: { _ in false },
+                                                         claimedByWheel: { _ in false }) == nil
+                && MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: false, button: 4,
+                                                         hasShortcut: { _ in false },
+                                                         claimedByWheel: { _ in false }) == nil
+                && MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 0,
+                                                         hasShortcut: { _ in false },
+                                                         claimedByWheel: { _ in false }) == nil,
+               "the drag never takes a button from a shortcut, from the wheel, or from a switched-off hub")
+        expect(MouseButtonShortcutSupport.spacesGestureButton() == nil,
+               "with nothing configured the drag claims no button away from navigation")
+
+        let spacesServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(spacesServiceCode.contains("if button == spacesButton {")
+                && spacesServiceCode.contains("return armSpacesGesture(event, button: button)"),
+               "the bound button's press is held back by the tap that already receives its drags")
+        expect(spacesServiceCode.contains("guard gesture.tracker.didFire else {")
+                && spacesServiceCode.contains(
+                    "replaySpacesPress(gesture.down, proxy: proxy, at: event.location)"),
+               "a press that never fired goes back, so a tap on that button keeps its ordinary click")
+        expect(spacesServiceCode.contains("SpaceWindowBridge.spaceShortcut(.left)")
+                && spacesServiceCode.contains("SpaceWindowBridge.overviewShortcut(.missionControl)")
+                && !spacesServiceCode.contains("DockSwipe"),
+               "the drag asks with the system's own registered combinations, never a simulated gesture")
+
+        let spaceBridgeCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(spaceBridgeCode.contains("self == .left ? 79 : 81")
+                && spaceBridgeCode.contains("self == .missionControl ? 32 : 33")
+                && spaceBridgeCode.contains("CGSIsSymbolicHotKeyEnabled"),
+               "the Space steps and the overviews keep their system symbolic hotkey ids")
+
+        // The drag alone keeps the tap alive with the shortcut switch off, so
+        // the down path must read that switch itself and hand the click back
+        // whole: a mapping left behind is inert and its button is the app's.
+        let spacesServiceLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutService.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        let isCodeLine: (String) -> Bool = {
+            !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
+        }
+
+        let commandBarCatalogLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        let mouseButtonToggleCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("if feature == .mouseButtonShortcuts {")
+        }.map {
+            commandBarCatalogLines[$0...].prefix(18).filter(isCodeLine).joined(separator: "\n")
+        } ?? ""
+        let mouseButtonToggleID = "toggle.\(AppFeature.mouseButtonShortcuts.rawValue)"
+        expect(mouseButtonToggleCode.contains("DefaultsKey.mouseButtonShortcutsEnabled")
+                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub)")
+                && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID)\""),
+               "the Command Bar keeps the mouse-button shortcut row's key, title and stable id")
+        expect(mouseButtonToggleCode.contains("FeatureStrings.mouseButtons(language)")
+                && mouseButtonToggleCode.contains("DefaultsKey.mouseSpacesGestureEnabled")
+                && mouseButtonToggleCode.contains("spacesEnableLabel")
+                && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID).spacesGesture\""),
+               "the Command Bar exposes the Spaces gesture as its own localized toggle row")
+
+        func appStorageProperty(_ key: String, in lines: [String]) -> String? {
+            guard let line = lines.first(where: {
+                isCodeLine($0) && $0.contains("@AppStorage(\(key))")
+            }), let declaration = line.range(of: "private var ") else { return nil }
+            return line[declaration.upperBound...].split(whereSeparator: { $0.isWhitespace || $0 == "=" }).first
+                .map(String.init)
+        }
+
+        let mouseSettingsViewLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SettingsView.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        let menuPanelLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        let shortcutKey = "DefaultsKey.mouseButtonShortcutsEnabled"
+        let spacesKey = "DefaultsKey.mouseSpacesGestureEnabled"
+        let settingsShortcutProperty = appStorageProperty(shortcutKey, in: mouseSettingsViewLines) ?? ""
+        let settingsSpacesProperty = appStorageProperty(spacesKey, in: mouseSettingsViewLines) ?? ""
+        let settingsCode = mouseSettingsViewLines.filter(isCodeLine).joined()
+            .filter { !$0.isWhitespace }
+        expect(!settingsShortcutProperty.isEmpty && !settingsSpacesProperty.isEmpty
+                && settingsCode.contains("(\(settingsShortcutProperty)||\(settingsSpacesProperty))"
+                    + "&&AppFeature.mouseButtonShortcuts.isAvailable"),
+               "the Mouse permission section treats either mouse-button switch as engaged")
+
+        let panelShortcutProperty = appStorageProperty(shortcutKey, in: menuPanelLines) ?? ""
+        let panelSpacesProperty = appStorageProperty(spacesKey, in: menuPanelLines) ?? ""
+        let menuPanelCode = menuPanelLines.filter(isCodeLine).joined()
+            .filter { !$0.isWhitespace }
+        expect(!panelShortcutProperty.isEmpty && !panelSpacesProperty.isEmpty
+                && menuPanelCode.contains("case.mouseButtonShortcuts:return\(panelShortcutProperty)"
+                    + "||\(panelSpacesProperty)"),
+               "the panel category count treats either mouse-button switch as engaged")
+        // The defect this pins is not the operator, it is three arguments on
+        // one row disagreeing: widening `needsAttention` alone leaves the row
+        // asking for a grant while `permissionAction` returns nil and the
+        // caption stays silent. So assert the three read ONE name, and that
+        // the name is defined from both switches -- naming the expression is
+        // what makes disagreeing impossible, and pinning the spelling of
+        // `a || b` here would go red on a rename that broke nothing.
+        let panelButtonRow = menuPanelLines.firstIndex {
+            isCodeLine($0) && $0.contains("PanelToggleRow(title: buttonStrings.pageTitle,")
+        }.map {
+            menuPanelLines[$0...].prefix(24).filter(isCodeLine).joined().filter { !$0.isWhitespace }
+        } ?? ""
+        let engagedName = panelButtonRow.range(of: "needsAttention:").map {
+            String(panelButtonRow[$0.upperBound...].prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+        } ?? ""
+        let engagedDefinition = menuPanelLines.first {
+            isCodeLine($0) && !engagedName.isEmpty && $0.contains("let \(engagedName)")
+        } ?? ""
+        expect(!engagedName.isEmpty
+                && panelButtonRow.contains("needsAccessibility:\(engagedName)")
+                && panelButtonRow.contains("permissionAction:accessibilityPermissionAction(\(engagedName))")
+                && panelButtonRow.contains("accessoryTitle:\(engagedName)?")
+                && !panelShortcutProperty.isEmpty && !panelSpacesProperty.isEmpty
+                && engagedDefinition.contains(panelShortcutProperty)
+                && engagedDefinition.contains(panelSpacesProperty),
+               "the panel mouse-button row's caption, attention state, grant button and "
+                   + "Manage link all read one engaged flag built from both switches")
+
+        // Per call site, not the last one seen: a second one added later must
+        // read the switch too, and a file that lost the call entirely has to
+        // fail rather than pass on an empty search.
+        var shortcutCallSites = 0
+        var callSitesMissingShortcutSwitch: [String] = []
+        for (index, line) in spacesServiceLines.enumerated()
+        where isCodeLine(line)
+            && line.contains("guard let shortcut = MouseButtonShortcutSupport.firesShortcut(") {
+            shortcutCallSites += 1
+            let window = spacesServiceLines[index...].prefix(7)
+            let readsSwitch = window.contains {
+                isCodeLine($0) && $0.contains(
+                    "isEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled)")
+            }
+            let passesPressOn = window.contains {
+                isCodeLine($0) && $0.contains("else { return Unmanaged.passUnretained(event) }")
+            }
+            if !readsSwitch || !passesPressOn {
+                callSitesMissingShortcutSwitch.append("MouseButtonShortcutService.swift:\(index + 1)")
+            }
+        }
+        expect(shortcutCallSites > 0 && callSitesMissingShortcutSwitch.isEmpty,
+               "a tap kept up for the drag alone never fires a mapping the shortcut switch turned "
+                   + "off, and that button's click passes through whole: \(callSitesMissingShortcutSwitch)")
+        expect(spacesServiceLines.contains {
+            isCodeLine($0) && $0.contains(
+                "let wanted = (enabled && !mappings.isEmpty) || isCapturing || spacesButton != nil")
+        }, "a capture holds the tap up by itself: the press asked for may be the drag's, "
+            + "whose switch is not the shortcut switch")
+
+        let mouseSettingsLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MouseButtonSettings.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        // Matched as the whole line, indentation included: at Section-child
+        // depth no outer `if enabled` can quietly re-gate the list behind the
+        // shortcut switch alone.
+        var exceptionsListCoversBothSwitches = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where line == "            if enabled || spacesEnabled {" {
+            var cursor = index + 1
+            while cursor < mouseSettingsLines.count, !isCodeLine(mouseSettingsLines[cursor]) {
+                cursor += 1
+            }
+            exceptionsListCoversBothSwitches = cursor < mouseSettingsLines.count
+                && mouseSettingsLines[cursor].contains("MouseExceptionsList(scope: .buttonShortcuts)")
+        }
+        expect(exceptionsListCoversBothSwitches,
+               "the exception list the tap consults for the drag stays on screen while either switch is on")
+        var spacesSwitchOffDropsBinding = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where isCodeLine(line) && line.contains(".onChange(of: spacesEnabled)") {
+            let window = mouseSettingsLines[index...].prefix(12)
+            let stop = window.firstIndex {
+                $0.trimmingCharacters(in: .whitespaces) == "stopSpacesCapture()"
+            }
+            let clear = window.firstIndex {
+                $0.trimmingCharacters(in: .whitespaces) == "spacesButton = 0"
+            }
+            if let stop, let clear, stop < clear { spacesSwitchOffDropsBinding = true }
+        }
+        expect(spacesSwitchOffDropsBinding,
+               "the drag's own OFF branch drops its binding, so no hidden button ever refuses a shortcut")
+        // The drag capture speaks its own strings: the shortcut capture's
+        // prompt invites the side wheel the drag refuses, and its refusals
+        // point at a list that is off screen with the shortcut switch off.
+        var spacesPromptIsOwn = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where isCodeLine(line) && line.contains("private var spacesRow: some View {") {
+            let window = mouseSettingsLines[index...].prefix(10)
+            spacesPromptIsOwn = window.contains {
+                isCodeLine($0) && $0.contains("Text(text.spacesCaptureWaiting)")
+            } && !window.contains {
+                isCodeLine($0) && $0.contains("text.captureWaiting")
+            }
+        }
+        expect(spacesPromptIsOwn,
+               "the drag capture's waiting prompt never invites the side wheel the drag refuses")
+        var spacesRefusalsAreOwn = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where isCodeLine(line) && line.contains("private func handleSpacesCapture") {
+            let window = mouseSettingsLines[index...].prefix(16)
+            spacesRefusalsAreOwn = window.contains {
+                isCodeLine($0) && $0.contains("text.spacesCaptureUnsupported")
+            } && window.contains {
+                isCodeLine($0) && $0.contains("text.spacesCaptureExists")
+            } && !window.contains {
+                isCodeLine($0) && ($0.contains("text.captureUnsupported") || $0.contains("text.captureExists"))
+            }
+        }
+        expect(spacesRefusalsAreOwn,
+               "the drag capture's refusals recommend only what the drag accepts and point at no list")
+        // A button half-way through becoming a shortcut is still spoken for.
+        // startSpacesCapture() calls stopCapture(), which clears `capturing`
+        // and the feedback but leaves `pendingButton` and its row standing, so
+        // without this clause the drag takes a button the shortcut flow is
+        // still holding — and finishing that shortcut then drives the binding
+        // to nil while the drag's row goes on naming the button.
+        var spacesCaptureRefusesPending = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where isCodeLine(line) && line.contains("private func handleSpacesCapture") {
+            let window = mouseSettingsLines[index...].prefix(16)
+            spacesCaptureRefusesPending = window.contains {
+                isCodeLine($0) && $0.contains("pendingButton == seen")
+            }
+        }
+        expect(spacesCaptureRefusesPending,
+               "the drag capture refuses a button that is mid-way through becoming a shortcut")
 
         // A synthesized press has to carry the same flags a finger produces,
         // or the system matches it against no shortcut of its own (issue #401).
@@ -16989,6 +17465,8 @@ struct MetricsTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
         expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
+               "the cleaning mode keep screen visible choice travels with the settings backup")
         expect(backupKeys.contains(DefaultsKey.appearance),
                "the light or dark choice travels with the settings backup")
         expect(Set([
@@ -17247,9 +17725,6 @@ struct MetricsTests {
         // one moved leaves the code present and the entries still deleted.
         // Strip comments before asserting: "X appears before Y" would otherwise
         // be satisfied by a doc comment mentioning either.
-        let isCodeLine: (String) -> Bool = {
-            !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
-        }
         let backupServiceLines = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SettingsBackup.swift",
             encoding: .utf8)) ?? "").components(separatedBy: "\n")
@@ -20113,6 +20588,37 @@ struct MetricsTests {
         expect(!signingSetupCode.contains("-legacy"),
                "setup-signing.sh avoids the -legacy flag the stock LibreSSL openssl rejects")
 
+        // MARK: Both scroll taps are handed back across a session switch
+        // The tap owners cannot be reached from this list (they need the event
+        // chain), so the wiring is pinned as text: each service follows the
+        // session and asks before re-arming a tap the window server disabled.
+        // Comments are stripped so prose naming the API cannot answer for it.
+        let sessionActivitySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/SessionActivity.swift",
+            encoding: .utf8)) ?? ""
+        expect(sessionActivitySource.contains("sessionDidResignActiveNotification")
+                && sessionActivitySource.contains("sessionDidBecomeActiveNotification"),
+               "the session watcher follows both halves of a fast user switch")
+        for tapOwner in ["Sources/Vorssaint/Services/ScrollInverter.swift",
+                         "Sources/Vorssaint/Services/SmoothScrollService.swift"] {
+            let source = (try? String(contentsOfFile: tapOwner, encoding: .utf8)) ?? ""
+            expect(!source.isEmpty, "\(tapOwner) reads back for its session-switch check")
+            let code = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            expect(code.contains("SessionActivity.shared.onChange"),
+                   "\(tapOwner) rebuilds its tap when the session comes back")
+            let rearm = code.components(separatedBy: "tapDisabledByTimeout")
+                .dropFirst().first?.components(separatedBy: "return").first ?? ""
+            expect(rearm.contains("SessionActivity.shared.isActive"),
+                   "\(tapOwner) does not re-arm a disabled tap into a switched-away session")
+            // Switching a tap off leaves the process owning it, which is what
+            // the window server waits on; the ten other tap owners already
+            // invalidate the port on the way out.
+            expect(code.contains("CFMachPortInvalidate"),
+                   "\(tapOwner) hands its tap back rather than only disabling it")
+        }
+
         // MARK: Uninstallation paths stay aligned across SelfUninstall and Tools/uninstall.sh
         let selfUninstallSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/SelfUninstall.swift",
                                               encoding: .utf8)) ?? ""
@@ -20127,6 +20633,22 @@ struct MetricsTests {
         }
         expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+        // Restoring sleep used to be fired and forgotten at both exits. A
+        // failure there leaves `pmset disablesleep 1` set system-wide, and
+        // removal deletes the flag that launch-time recovery reads before it
+        // reads the setting, so nothing repairs it afterwards — a reinstall
+        // included.
+        let uninstallerSource = (try? String(contentsOfFile: "Sources/Vorssaint/Support/Uninstaller.swift",
+                                             encoding: .utf8)) ?? ""
+        expect(!uninstallerSource.isEmpty,
+               "uninstaller entry point reads back for the sleep restore check")
+        expect(!selfUninstallSource.contains("_ = Sudoers.pmsetDisableSleep")
+                && !uninstallerSource.contains("_ = Sudoers.pmsetDisableSleep"),
+               "neither uninstall path discards the result of restoring sleep")
+        expect(selfUninstallSource.contains("adminPromptRecover"),
+               "in-app uninstall escalates a failed sleep restore to the password prompt")
+        expect(uninstallScriptSource.contains("SleepDisabled"),
+               "script uninstall reads the sleep setting back for itself")
 
         // MARK: Detached command reruns (counted last, so a late rerun still fails)
         // The `||` form reran the whole installer — as root — on every non-zero

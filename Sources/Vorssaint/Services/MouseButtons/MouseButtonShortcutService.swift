@@ -12,8 +12,18 @@ import CoreGraphics
 /// get (the Settings caption promises exactly that). Nothing is installed
 /// while the feature is off or while no button is mapped. Requires
 /// Accessibility for the modifying event tap and the posted keys.
+///
+/// One button may instead hold and drag for Spaces and Mission Control
+/// (issue #1012). That press is only held back, not taken: it becomes the
+/// app's ordinary click again the moment the release arrives without the
+/// pointer having gone anywhere. Same tap, because the drags it measures are
+/// events this one already receives.
 final class MouseButtonShortcutService: ObservableObject {
     static let shared = MouseButtonShortcutService()
+    /// Marks the press this service hands back to the system, so the tap it
+    /// re-enters does not take it straight back. The window gesture tags its
+    /// own replayed presses the same way.
+    private static let replayedPressMarker: Int64 = 0x564F5253
     /// Read by Smooth Scroll before it touches any side-wheel fields. False
     /// while this feature is off, unavailable, untrusted or has no wheel map.
     private(set) static var hasActiveSideWheelInterest = false
@@ -55,6 +65,19 @@ final class MouseButtonShortcutService: ObservableObject {
     /// the session tap. Matching its timestamp avoids doing that lookup twice.
     private var preflightedSideWheelTimestamp: UInt64?
     private var preflightedSideWheelInput: Int64?
+    /// The button the Spaces and Mission Control drag is bound to, or nil.
+    private var spacesButton: Int64?
+    /// The held press being watched for such a drag. Only touched from the tap
+    /// callback and from preference changes, both on the main thread.
+    private var spacesGesture: SpacesGesturePress?
+
+    /// A press on the bound button while it may still turn out to be a drag.
+    /// The copy is what goes back to the app when it never does.
+    private struct SpacesGesturePress {
+        let button: Int64
+        let down: CGEvent
+        var tracker: MouseSpacesGestureSupport.Tracker
+    }
 
     private init() {}
 
@@ -67,7 +90,16 @@ final class MouseButtonShortcutService: ObservableObject {
         wantsSideWheelEvents = enabled && (isCapturing
             || mappings[MouseButtonShortcutSupport.sideWheelLeftInput] != nil
             || mappings[MouseButtonShortcutSupport.sideWheelRightInput] != nil)
-        let wanted = enabled && (!mappings.isEmpty || isCapturing)
+        spacesButton = MouseButtonShortcutSupport.spacesGestureButton()
+        // A press held for a button that just stopped being the gesture's is
+        // owed back to the app, whatever happens to the tap next.
+        if let spacesGesture, spacesGesture.button != spacesButton {
+            flushSpacesPress(proxy: nil, at: nil)
+        }
+        // Capture holds the tap up by itself: the press being asked for may
+        // be the drag's, and the drag's switch is not the shortcut switch.
+        // Either capture row only exists while its own switch is on.
+        let wanted = (enabled && !mappings.isEmpty) || isCapturing || spacesButton != nil
         guard wanted else {
             stop()
             return
@@ -147,10 +179,10 @@ final class MouseButtonShortcutService: ObservableObject {
             place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
-            callback: { _, type, event, userInfo in
+            callback: { proxy, type, event, userInfo in
                 guard let userInfo else { return Unmanaged.passUnretained(event) }
                 let service = Unmanaged<MouseButtonShortcutService>.fromOpaque(userInfo).takeUnretainedValue()
-                return service.handle(type: type, event: event)
+                return service.handle(proxy: proxy, type: type, event: event)
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
@@ -191,6 +223,9 @@ final class MouseButtonShortcutService: ObservableObject {
     private func tearDownTap() {
         Self.hasActiveSideWheelInterest = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
+        // A press still held back has to go back to the app before the tap
+        // holding it disappears, or that click is simply lost.
+        flushSpacesPress(proxy: nil, at: nil)
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
@@ -210,16 +245,24 @@ final class MouseButtonShortcutService: ObservableObject {
         isRunning = false
     }
 
-    private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func handle(proxy: CGEventTapProxy?, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             sideWheelGesture.reset()
             preflightedSideWheelTimestamp = nil
             preflightedSideWheelInput = nil
+            // While the tap was off the rest of that press went straight to
+            // the app, so nothing can still be held back for it.
+            flushSpacesPress(proxy: nil, at: nil)
             if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
         if type == .scrollWheel {
             return handleSideWheel(event)
+        }
+        // The press this service gave back to the system. Looking at it again
+        // would take it right back and never let go.
+        if event.getIntegerValueField(.eventSourceUserData) == Self.replayedPressMarker {
+            return Unmanaged.passUnretained(event)
         }
         let button = event.getIntegerValueField(.mouseEventButtonNumber)
 
@@ -249,6 +292,9 @@ final class MouseButtonShortcutService: ObservableObject {
             guard !MouseAppExceptions.shared.excludesActionTarget(.buttonShortcuts, at: event.location) else {
                 return Unmanaged.passUnretained(event)
             }
+            if button == spacesButton {
+                return armSpacesGesture(event, button: button)
+            }
             guard let shortcut = MouseButtonShortcutSupport.firesShortcut(
                 for: button,
                 isAvailable: AppFeature.mouseButtonShortcuts.isAvailable,
@@ -259,6 +305,28 @@ final class MouseButtonShortcutService: ObservableObject {
             consumedButtons.insert(button)
             post(shortcut)
             return nil
+        }
+
+        if let gesture = spacesGesture, gesture.button == button {
+            switch type {
+            case .otherMouseDragged:
+                advanceSpacesGesture(to: event.location)
+                return nil
+            case .otherMouseUp:
+                spacesGesture = nil
+                guard gesture.tracker.didFire else {
+                    // The pointer never went far enough to mean anything, so
+                    // the press was only a click: hand it back first and let
+                    // this release close the pair. Below the thresholds this
+                    // feature costs the app nothing at all.
+                    replaySpacesPress(gesture.down, proxy: proxy, at: event.location)
+                    return Unmanaged.passUnretained(event)
+                }
+                // A press that did fire is already held in consumedButtons,
+                // and the release below belongs to it.
+            default:
+                return nil
+            }
         }
 
         // Up and Drag follow their Down's decision, so a mapping edited
@@ -278,6 +346,80 @@ final class MouseButtonShortcutService: ObservableObject {
             }
         }
         return nil
+    }
+
+    // MARK: - Spaces and Mission Control drag
+
+    /// Holds the bound button's press back while it may still become a drag.
+    /// Without a copy there is nothing to give back, and keeping a press that
+    /// can never be returned is worse than not holding it at all. A press
+    /// arriving while one is still held means that release never came, so the
+    /// stale copy is dropped rather than replayed at a spot the pointer left.
+    private func armSpacesGesture(_ event: CGEvent, button: Int64) -> Unmanaged<CGEvent>? {
+        guard let down = event.copy() else { return Unmanaged.passUnretained(event) }
+        spacesGesture = SpacesGesturePress(button: button,
+                                           down: down,
+                                           tracker: .init(origin: event.location))
+        return nil
+    }
+
+    private func advanceSpacesGesture(to point: CGPoint) {
+        guard var gesture = spacesGesture else { return }
+        let action = gesture.tracker.advance(to: point,
+                                             now: ProcessInfo.processInfo.systemUptime)
+        spacesGesture = gesture
+        guard let action else { return }
+        // The press has done something, so its release belongs here too and
+        // the app never receives half a click.
+        consumedButtons.insert(gesture.button)
+        perform(action)
+    }
+
+    /// Spaces and the overviews are asked for the way the keyboard asks for
+    /// them. The window server refuses software-simulated touch gestures, and
+    /// the combination it registered for that command is the one thing it
+    /// still accepts (issue #1012). A command whose shortcut the user switched
+    /// off in System Settings reads as nil, and the gesture stays silent
+    /// rather than pressing something else.
+    private func perform(_ action: MouseSpacesGestureSupport.Action) {
+        let shortcut: SpaceWindowBridge.SpaceShortcut?
+        switch action {
+        case .spaceLeft: shortcut = SpaceWindowBridge.spaceShortcut(.left)
+        case .spaceRight: shortcut = SpaceWindowBridge.spaceShortcut(.right)
+        case .missionControl: shortcut = SpaceWindowBridge.overviewShortcut(.missionControl)
+        case .appExpose: shortcut = SpaceWindowBridge.overviewShortcut(.appExpose)
+        }
+        guard let shortcut else { return }
+        SpaceWindowBridge.pressSpaceShortcut(shortcut)
+    }
+
+    /// Gives up a held press outside the release that would normally close it.
+    private func flushSpacesPress(proxy: CGEventTapProxy?, at point: CGPoint?) {
+        guard let gesture = spacesGesture else { return }
+        spacesGesture = nil
+        // Handing the press back only closes into a whole click while a
+        // release is still coming. With the button already up, that release
+        // reached the app on its own, and the press would be left down with
+        // nothing to lift it. A press that already fired owes nothing back.
+        guard !gesture.tracker.didFire,
+              NSEvent.pressedMouseButtons & (1 << Int(gesture.button)) != 0 else { return }
+        replaySpacesPress(gesture.down, proxy: proxy, at: point)
+    }
+
+    /// Puts a held press back into the stream. It carries the release point
+    /// and the current time, so the app reads the pair as one short click on
+    /// one element however long the button was held.
+    private func replaySpacesPress(_ down: CGEvent, proxy: CGEventTapProxy?, at point: CGPoint?) {
+        if let point { down.location = point }
+        down.timestamp = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
+        down.setIntegerValueField(.eventSourceUserData, value: Self.replayedPressMarker)
+        if let proxy {
+            // Posted through the tap it is leaving, which places it ahead of
+            // the event this callback is about to return.
+            down.tapPostEvent(proxy)
+        } else {
+            down.post(tap: .cgSessionEventTap)
+        }
     }
 
     private func handleSideWheel(_ event: CGEvent) -> Unmanaged<CGEvent>? {

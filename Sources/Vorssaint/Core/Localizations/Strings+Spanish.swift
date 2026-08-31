@@ -803,6 +803,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Pulsa Esc 5 veces para desbloquear",
         cleaningOverlayUnlock: "Desbloquear",
         cleaningOverlayMouseHint: "El ratón y el trackpad siguen funcionando",
+        cleaningKeepScreenVisibleToggle: "Mantener la pantalla visible",
+        cleaningKeepScreenVisibleCaption: "Muestra un indicador discreto en la esquina de la pantalla en lugar de oscurecer el contenido.",
+        cleaningStartNow: "Bloquear el teclado ahora",
         cleaningNeedsAxTitle: "Se necesita Accesibilidad",
         cleaningNeedsAxBody: "Para bloquear el teclado de forma segura, Vorssaint necesita el permiso de Accesibilidad. Concédelo en Ajustes del Sistema e inténtalo de nuevo.",
 

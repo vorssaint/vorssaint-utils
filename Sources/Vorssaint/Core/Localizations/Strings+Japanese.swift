@@ -803,6 +803,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Escキーを5回押すとロックを解除します",
         cleaningOverlayUnlock: "ロックを解除",
         cleaningOverlayMouseHint: "マウスとトラックパッドはそのまま使えます",
+        cleaningKeepScreenVisibleToggle: "画面を表示したままにする",
+        cleaningKeepScreenVisibleCaption: "画面を暗くせず、画面の隅に控えめなインジケータを表示します。",
+        cleaningStartNow: "今すぐキーボードをロック",
         cleaningNeedsAxTitle: "アクセシビリティが必要です",
         cleaningNeedsAxBody: "キーボードを安全にロックするには、Vorssaint にアクセシビリティのアクセス権が必要です。システム設定で許可して、もう一度お試しください。",
 

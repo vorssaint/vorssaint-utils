@@ -803,6 +803,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Appuyez 5 fois sur Échap pour déverrouiller",
         cleaningOverlayUnlock: "Déverrouiller",
         cleaningOverlayMouseHint: "Votre souris et votre trackpad fonctionnent toujours",
+        cleaningKeepScreenVisibleToggle: "Garder l'écran visible",
+        cleaningKeepScreenVisibleCaption: "Affiche un indicateur discret dans un coin de l'écran sans masquer le contenu.",
+        cleaningStartNow: "Verrouiller le clavier maintenant",
         cleaningNeedsAxTitle: "Accessibilité requise",
         cleaningNeedsAxBody: "Pour verrouiller le clavier en toute sécurité, Vorssaint a besoin de l’autorisation Accessibilité. Accordez-la dans les Réglages Système et réessayez.",
 
