@@ -59,6 +59,10 @@ internal enum DiskBenchmarkSupport {
         errorCode == ENOTSUP || errorCode == EINVAL || errorCode == ENOTTY
     }
 
+    internal static func shouldFallbackFromNoCache(errorCode: Int32) -> Bool {
+        errorCode == ENOTSUP || errorCode == EINVAL || errorCode == ENOTTY
+    }
+
     internal static func applyPatternMarkers(to buffer: UnsafeMutableRawPointer,
                                              byteCount: Int,
                                              passIndex: Int,
@@ -130,6 +134,18 @@ internal enum DiskBenchmarkSupport {
             let value = String(cString: baseAddress).replacingOccurrences(of: "/dev/", with: "")
             return value.hasPrefix("disk") ? value : nil
         }
+    }
+}
+
+internal struct DiskEjectionSafety {
+    private let isDiskBenchmarkRunning: () -> Bool
+
+    internal init(isDiskBenchmarkRunning: @escaping () -> Bool) {
+        self.isDiskBenchmarkRunning = isDiskBenchmarkRunning
+    }
+
+    internal var allowsEjection: Bool {
+        !isDiskBenchmarkRunning()
     }
 }
 
@@ -252,13 +268,42 @@ internal struct DiskBenchmarkRunConfiguration: Equatable {
                   requiresNoCache: true,
                   passCount: mode.passCount)
     }
+
+    internal var totalProgressBytes: UInt64? {
+        guard passCount > 0 else { return nil }
+        let (bytesPerPass, phaseOverflow) = byteCount.multipliedReportingOverflow(by: 2)
+        guard !phaseOverflow else { return nil }
+        let (totalBytes, passOverflow) = bytesPerPass
+            .multipliedReportingOverflow(by: UInt64(passCount))
+        return passOverflow ? nil : totalBytes
+    }
+
+    internal func progressBaseBytes(passIndex: Int,
+                                    phase: DiskBenchmarkPhase) -> UInt64? {
+        guard passIndex >= 0,
+              passIndex < passCount,
+              let unsignedPassIndex = UInt64(exactly: passIndex),
+              totalProgressBytes != nil else { return nil }
+        let (passSegment, passOverflow) = unsignedPassIndex.multipliedReportingOverflow(by: 2)
+        guard !passOverflow else { return nil }
+        let phaseSegment: UInt64 = phase == .reading || phase == .flushing ? 1 : 0
+        let (segment, segmentOverflow) = passSegment.addingReportingOverflow(phaseSegment)
+        guard !segmentOverflow else { return nil }
+        let (offset, offsetOverflow) = byteCount.multipliedReportingOverflow(by: segment)
+        return offsetOverflow ? nil : offset
+    }
 }
 
 internal struct DiskBenchmarkRunner {
     private let configuration: DiskBenchmarkRunConfiguration
+    private let setNoCache: (Int32) -> Int32
 
-    internal init(configuration: DiskBenchmarkRunConfiguration) {
+    internal init(configuration: DiskBenchmarkRunConfiguration,
+                  setNoCache: @escaping (Int32) -> Int32 = { descriptor in
+                      Darwin.fcntl(descriptor, F_NOCACHE, 1)
+                  }) {
         self.configuration = configuration
+        self.setNoCache = setNoCache
     }
 
     internal func run(in directory: URL,
@@ -272,9 +317,7 @@ internal struct DiskBenchmarkRunner {
         }
         try checkAvailableSpace(in: directory)
 
-        let passCount = UInt64(configuration.passCount)
-        let (totalBytes, totalOverflow) = configuration.byteCount.multipliedReportingOverflow(by: passCount)
-        guard !totalOverflow else {
+        guard let totalBytes = configuration.totalProgressBytes else {
             throw DiskBenchmarkFailure.io(operation: "configuration", code: EOVERFLOW)
         }
 
@@ -316,8 +359,11 @@ internal struct DiskBenchmarkRunner {
         }
 
         guard Darwin.unlink(scratchURL.path) == 0 else { throw ioFailure("unlink") }
-        if configuration.requiresNoCache, Darwin.fcntl(descriptor, F_NOCACHE, 1) == -1 {
-            throw DiskBenchmarkFailure.cacheControl(code: errno)
+        if configuration.requiresNoCache, setNoCache(descriptor) == -1 {
+            let cacheControlError = errno
+            guard DiskBenchmarkSupport.shouldFallbackFromNoCache(errorCode: cacheControlError) else {
+                throw DiskBenchmarkFailure.cacheControl(code: cacheControlError)
+            }
         }
 
         var expectedAllocation: UnsafeMutableRawPointer?
@@ -335,20 +381,25 @@ internal struct DiskBenchmarkRunner {
         defer { free(readBuffer) }
         arc4random_buf(expectedBuffer, configuration.chunkSize)
 
-        let passOffset = UInt64(passIndex) * configuration.byteCount
+        guard let writeOffset = configuration.progressBaseBytes(passIndex: passIndex,
+                                                                phase: .writing),
+              let readOffset = configuration.progressBaseBytes(passIndex: passIndex,
+                                                               phase: .reading) else {
+            throw DiskBenchmarkFailure.io(operation: "configuration", code: EOVERFLOW)
+        }
 
         progress(DiskBenchmarkProgress(phase: .writing,
-                                       completedBytes: passOffset,
+                                       completedBytes: writeOffset,
                                        totalBytes: totalBytes))
         var writeNanoseconds = try transferWrite(descriptor: descriptor,
                                                  buffer: expectedBuffer,
                                                  passIndex: passIndex,
-                                                 passOffset: passOffset,
+                                                 passOffset: writeOffset,
                                                  totalBytes: totalBytes,
                                                  cancellation: cancellation,
                                                  progress: progress)
         progress(DiskBenchmarkProgress(phase: .flushing,
-                                       completedBytes: passOffset + configuration.byteCount,
+                                       completedBytes: readOffset,
                                        totalBytes: totalBytes))
         let syncStarted = DispatchTime.now().uptimeNanoseconds
         try synchronize(descriptor: descriptor)
@@ -357,13 +408,13 @@ internal struct DiskBenchmarkRunner {
         try checkCancellation(cancellation)
         guard Darwin.lseek(descriptor, 0, SEEK_SET) != -1 else { throw ioFailure("seek") }
         progress(DiskBenchmarkProgress(phase: .reading,
-                                       completedBytes: passOffset,
+                                       completedBytes: readOffset,
                                        totalBytes: totalBytes))
         let readNanoseconds = try transferRead(descriptor: descriptor,
                                                expectedBuffer: expectedBuffer,
                                                readBuffer: readBuffer,
                                                passIndex: passIndex,
-                                               passOffset: passOffset,
+                                               passOffset: readOffset,
                                                totalBytes: totalBytes,
                                                cancellation: cancellation,
                                                progress: progress)

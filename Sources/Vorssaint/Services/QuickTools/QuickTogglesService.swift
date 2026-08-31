@@ -34,8 +34,13 @@ final class QuickTogglesService: ObservableObject {
     @Published private(set) var states: [QuickToggleAction: RunState] = [:]
 
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.quick-toggles", qos: .userInitiated)
+    private let diskEjectionSafety: DiskEjectionSafety
 
-    private init() {}
+    internal init(isDiskBenchmarkRunning: @escaping () -> Bool = {
+        DiskBenchmarkService.shared.isRunning
+    }) {
+        diskEjectionSafety = DiskEjectionSafety(isDiskBenchmarkRunning: isDiskBenchmarkRunning)
+    }
 
     func state(for action: QuickToggleAction) -> RunState? {
         states[action]
@@ -126,7 +131,9 @@ final class QuickTogglesService: ObservableObject {
     /// monitor's "Eject all". Enumerated fresh on each click, so the action
     /// never keeps a disk list alive.
     func ejectAllDisks() {
-        guard available, beginRun(.ejectDisks) else { return }
+        guard diskEjectionSafety.allowsEjection,
+              available,
+              beginRun(.ejectDisks) else { return }
         workQueue.async {
             let volumes = Self.ejectableVolumeURLs()
             guard !volumes.isEmpty else {

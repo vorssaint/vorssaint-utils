@@ -89,6 +89,13 @@ internal final class DiskBenchmarkService: ObservableObject {
             return
         }
 
+        let configuration = configurationForMode(mode)
+        guard let totalBytes = configuration.totalProgressBytes else {
+            setState(.failed(diskID: disk.id,
+                             failure: .io(operation: "configuration", code: EOVERFLOW)))
+            return
+        }
+
         let id = UUID()
         let token = DiskBenchmarkCancellationToken()
         lock.lock()
@@ -101,11 +108,6 @@ internal final class DiskBenchmarkService: ObservableObject {
         cancellation = token
         lock.unlock()
 
-        let configuration = configurationForMode(mode)
-        let passCount = UInt64(max(1, configuration.passCount))
-        let (configuredTotalBytes, totalOverflow) = configuration.byteCount
-            .multipliedReportingOverflow(by: passCount)
-        let totalBytes = totalOverflow ? configuration.byteCount : configuredTotalBytes
         setState(.running(diskID: disk.id,
                           mode: mode,
                           progress: DiskBenchmarkProgress(phase: .preparing,
