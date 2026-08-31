@@ -33,6 +33,7 @@ final class DictationService: ObservableObject {
     private var lastProviderStatus: Int?
     private var lastProviderDetail: String?
     private var didRequestAccessibility = false
+    private var accessibilityRetryTask: Task<Void, Never>?
     private var sessionConfiguration: SessionConfiguration?
     private var dismissWork: DispatchWorkItem?
     private var primaryGesture = DictationShortcutGesture()
@@ -123,6 +124,8 @@ final class DictationService: ObservableObject {
             configuredModifierKeys.removeAll()
             configuredEnabled.removeAll()
             didRequestAccessibility = false
+            accessibilityRetryTask?.cancel()
+            accessibilityRetryTask = nil
             return
         }
         // Dictation needs Accessibility both for a standalone modifier monitor
@@ -130,9 +133,12 @@ final class DictationService: ObservableObject {
         // opt-in instead of leaving a modifier shortcut silently inactive.
         if AXIsProcessTrusted() {
             didRequestAccessibility = false
+            accessibilityRetryTask?.cancel()
+            accessibilityRetryTask = nil
         } else if !didRequestAccessibility {
             didRequestAccessibility = true
             Permissions.shared.requestAccessibility()
+            scheduleAccessibilityRetry()
         }
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.dictationShortcut,
                                             fallback: .dictationDefault)
@@ -169,6 +175,12 @@ final class DictationService: ObservableObject {
         if primaryKind == .modifier { modifierKeys.insert(primaryModifier) }
         if registerSecondary, secondaryKind == .modifier { modifierKeys.insert(secondaryModifier) }
         let modifierRegistered = modifierShortcutTap.sync(keys: modifierKeys)
+        if !modifierKeys.isEmpty && !modifierRegistered {
+            // TCC can become trusted a moment after the system prompt or after
+            // a locally-installed build replaces the app. Retry registration
+            // without making the user toggle Dictation off and on again.
+            scheduleAccessibilityRetry()
+        }
         shortcutRegistrationFailed = primaryKind == .modifier
             ? !modifierRegistered : !primaryCarbonRegistered
         secondaryShortcutRegistrationFailed = conflicts || (secondaryKind == .modifier
@@ -176,10 +188,33 @@ final class DictationService: ObservableObject {
     }
 
     func suspend() {
+        accessibilityRetryTask?.cancel()
+        accessibilityRetryTask = nil
         hotkey.unregister()
         secondaryHotkey.unregister()
         modifierShortcutTap.stop()
         cancel(event: .disable)
+    }
+
+    private func scheduleAccessibilityRetry() {
+        guard accessibilityRetryTask == nil else { return }
+        accessibilityRetryTask = Task { [weak self] in
+            // Poll briefly because TCC updates asynchronously and does not
+            // emit a notification that the event-tap owner can rely on.
+            for _ in 0 ..< 12 {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled, let self else { return }
+                guard AppFeature.dictation.isAvailable,
+                      UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled) else { return }
+                if AXIsProcessTrusted() {
+                    self.didRequestAccessibility = false
+                    self.accessibilityRetryTask = nil
+                    self.syncWithPreferences()
+                    return
+                }
+            }
+            self?.accessibilityRetryTask = nil
+        }
     }
 
     func toggle() {

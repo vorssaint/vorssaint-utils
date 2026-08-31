@@ -8,7 +8,7 @@ import QuartzCore
 final class DictationHUD {
     // Listening is intentionally compact: the live state needs only the
     // recording indicator, waveform and title, leaving the target app visible.
-    private let size = CGSize(width: 300, height: 44)
+    private let size = CGSize(width: 210, height: 44)
     private var panel: NSPanel?
     private var content: ContentView?
 
@@ -111,7 +111,7 @@ final class DictationHUD {
             let buttonWidth = settingsButton.isHidden ? 0 : min(150, settingsButton.intrinsicContentSize.width + 12)
             settingsButton.frame = CGRect(x: bounds.width - buttonWidth - 12,
                                           y: 8, width: buttonWidth, height: 28)
-            let textX: CGFloat = 102
+            let textX: CGFloat = 98
             let textWidth = bounds.width - textX - 14 - (buttonWidth > 0 ? buttonWidth + 8 : 0)
             title.frame = CGRect(x: textX, y: 13, width: textWidth, height: 18)
             detail.frame = CGRect(x: textX, y: 5, width: textWidth, height: 15)

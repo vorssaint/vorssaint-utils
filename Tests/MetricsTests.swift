@@ -12966,7 +12966,7 @@ struct MetricsTests {
         let dictationHUDSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Dictation/DictationHUD.swift",
             encoding: .utf8)) ?? ""
-        expect(dictationHUDSource.contains("CGSize(width: 300, height: 44)")
+        expect(dictationHUDSource.contains("CGSize(width: 210, height: 44)")
                 && dictationHUDSource.contains("detail.isHidden = state == .listening")
                 && dictationHUDSource.contains("record.circle.fill")
                 && dictationHUDSource.contains("pow(max(0, level), 0.55)"),
