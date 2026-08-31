@@ -638,10 +638,10 @@ struct UtilitiesSection: View {
                     showHomebrewPanel = false
                 }
             } else if showMediaPanel {
-                PanelMediaView {
+                PanelMediaView(onClose: {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showMediaPanel = false
-                }
+                }, keyboardSection: .utilities)
             } else if showClipboardPanel {
                 PanelClipboardView {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false

@@ -15,9 +15,10 @@ struct MediaSettings: View {
 
 struct PanelMediaView: View {
     var onClose: () -> Void
+    var keyboardSection: PanelSectionID? = nil
 
     var body: some View {
-        MediaWorkspaceView(compact: true, onClose: onClose)
+        MediaWorkspaceView(compact: true, onClose: onClose, keyboardSection: keyboardSection)
             .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
             .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
     }
@@ -110,6 +111,11 @@ struct MediaWorkspaceView: View {
 
     var compact: Bool
     var onClose: (() -> Void)? = nil
+    var keyboardSection: PanelSectionID? = nil
+
+    private func keyboardRow(_ localID: String) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, localID) }
+    }
 
     private var inputURL: URL? { inputURLs.first }
     private var imageText: MediaImageConverterStrings {
@@ -205,7 +211,7 @@ struct MediaWorkspaceView: View {
                 }
                 .buttonStyle(.plain)
                 .help(l10n.s.uninstallerCancel)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-close") : nil,
+                .panelKeyboardRow(keyboardRow("media-close"),
                                   actions: PanelRowActions(activate: onClose))
             }
         }
@@ -219,7 +225,7 @@ struct MediaWorkspaceView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-tool") : nil,
+        .panelKeyboardRow(keyboardRow("media-tool"),
                           actions: selectionActions(selectedToolBinding, values: MediaTool.allCases))
     }
 
@@ -233,9 +239,9 @@ struct MediaWorkspaceView: View {
     }
 
     private func focusedContentAnchor(_ focus: PanelFocusTarget?) -> String? {
-        guard compact,
+        guard let keyboardSection,
               case .row(let row)? = focus,
-              row.section == .utilities,
+              row.section == keyboardSection,
               let localID = row.local as? String,
               localID.hasPrefix("media-") else { return nil }
         switch localID {
@@ -278,7 +284,7 @@ struct MediaWorkspaceView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-chooseInput") : nil,
+                .panelKeyboardRow(keyboardRow("media-chooseInput"),
                                   actions: PanelRowActions(activate: chooseInput))
 
                 if !inputURLs.isEmpty {
@@ -294,7 +300,7 @@ struct MediaWorkspaceView: View {
                     .buttonStyle(.plain)
                     .help(l10n.s.mediaCancel)
                     .padding(.trailing, compact ? 8 : 10)
-                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-clearInput") : nil,
+                    .panelKeyboardRow(keyboardRow("media-clearInput"),
                                       actions: PanelRowActions(activate: clearInput))
                 }
             }
@@ -329,7 +335,7 @@ struct MediaWorkspaceView: View {
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
                 .panelKeyboardRow(
-                    (compact && !(inputURLs.isEmpty || isRunning)) ? PanelRowID(.utilities, "media-chooseOutput") : nil,
+                    !(inputURLs.isEmpty || isRunning) ? keyboardRow("media-chooseOutput") : nil,
                     actions: PanelRowActions(activate: chooseOutput), cornerRadius: 6)
             }
         }
@@ -367,7 +373,7 @@ struct MediaWorkspaceView: View {
                 }
                 Toggle(l10n.s.mediaLoopGIF, isOn: $gifLoops)
                     .toggleStyle(.checkbox)
-                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-gifLoops") : nil,
+                    .panelKeyboardRow(keyboardRow("media-gifLoops"),
                                       actions: toggleActions($gifLoops))
             }
             .panelCard()
@@ -382,13 +388,13 @@ struct MediaWorkspaceView: View {
                     Text("PDF").tag(MediaImageFormat.pdf.rawValue)
                 }
                 .pickerStyle(.segmented)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-imageFormat") : nil,
+                .panelKeyboardRow(keyboardRow("media-imageFormat"),
                                   actions: selectionActions($imageFormatRaw,
                                                            values: MediaImageFormat.allCases.map(\.rawValue)))
                 compressionRow(value: $imageQuality)
                 imageResizeSection
                 DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded,
-                                    keyboardRow: compact ? PanelRowID(.utilities, "media-moreOptions") : nil) {
+                                    keyboardRow: keyboardRow("media-moreOptions")) {
                     Text(imageText.moreOptions)
                     Spacer()
                 }
@@ -400,7 +406,7 @@ struct MediaWorkspaceView: View {
                         if MediaImageFormat.sanitized(imageFormatRaw) != .pdf {
                             Toggle(l10n.s.mediaStripMetadata, isOn: $imageStripMetadata)
                                 .toggleStyle(.checkbox)
-                                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-stripMetadata") : nil,
+                                .panelKeyboardRow(keyboardRow("media-stripMetadata"),
                                                   actions: toggleActions($imageStripMetadata))
                         }
                         imageBackgroundSection
@@ -408,7 +414,7 @@ struct MediaWorkspaceView: View {
                         imageRenameSection
                         Toggle(imageText.preserveDate, isOn: $imagePreserveModificationDate)
                             .toggleStyle(.checkbox)
-                            .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-preserveDate") : nil,
+                            .panelKeyboardRow(keyboardRow("media-preserveDate"),
                                               actions: toggleActions($imagePreserveModificationDate))
                     }
                     .padding(.top, 6)
@@ -423,7 +429,7 @@ struct MediaWorkspaceView: View {
                     Text(l10n.s.mediaOCRFast).tag(false)
                 }
                 .pickerStyle(.segmented)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-ocrMode") : nil,
+                .panelKeyboardRow(keyboardRow("media-ocrMode"),
                                   actions: selectionActions($textAccurate, values: [true, false]))
             }
             .panelCard()
@@ -440,7 +446,7 @@ struct MediaWorkspaceView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(!canRun)
-            .panelKeyboardRow((compact && canRun) ? PanelRowID(.utilities, "media-run") : nil,
+            .panelKeyboardRow(canRun ? keyboardRow("media-run") : nil,
                               actions: PanelRowActions(activate: run))
 
             if selectedTool == .videoCompressor {
@@ -451,7 +457,7 @@ struct MediaWorkspaceView: View {
                     Label(screenshotText.editButton, systemImage: "crop")
                 }
                 .disabled(!canEdit)
-                .panelKeyboardRow((compact && canEdit) ? PanelRowID(.utilities, "media-editVideo") : nil,
+                .panelKeyboardRow(canEdit ? keyboardRow("media-editVideo") : nil,
                                   actions: PanelRowActions(activate: openVideoEditor))
                 if isImportingVideo {
                     ProgressView()
@@ -465,7 +471,7 @@ struct MediaWorkspaceView: View {
                 } label: {
                     Label(l10n.s.mediaCancel, systemImage: "xmark")
                 }
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-cancel") : nil,
+                .panelKeyboardRow(keyboardRow("media-cancel"),
                                   actions: PanelRowActions(activate: { media.cancel() }))
             }
 
@@ -554,7 +560,7 @@ struct MediaWorkspaceView: View {
                     Button(action: reveal) {
                         Label(l10n.s.mediaOpenInFinder, systemImage: "folder")
                     }
-                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-revealOutput") : nil,
+                    .panelKeyboardRow(keyboardRow("media-revealOutput"),
                                       actions: PanelRowActions(activate: reveal), cornerRadius: 6)
                 }
                 if let text = result.text {
@@ -563,7 +569,7 @@ struct MediaWorkspaceView: View {
                     } label: {
                         Label(l10n.s.mediaCopyText, systemImage: "doc.on.doc")
                     }
-                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-copyText") : nil,
+                    .panelKeyboardRow(keyboardRow("media-copyText"),
                                       actions: PanelRowActions(activate: { copy(text) }), cornerRadius: 6)
                 }
                 if result.imageBatchItems.count > 1 {
@@ -572,7 +578,7 @@ struct MediaWorkspaceView: View {
                     } label: {
                         Label(imageText.copySummary, systemImage: "doc.on.doc")
                     }
-                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-copySummary") : nil,
+                    .panelKeyboardRow(keyboardRow("media-copySummary"),
                                       actions: PanelRowActions(activate: { copy(batchSummaryText(result)) }), cornerRadius: 6)
                 }
                 Button {
@@ -580,7 +586,7 @@ struct MediaWorkspaceView: View {
                 } label: {
                     Label(l10n.s.mediaRunAgain, systemImage: "arrow.clockwise")
                 }
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-runAgain") : nil,
+                .panelKeyboardRow(keyboardRow("media-runAgain"),
                                   actions: PanelRowActions(activate: run), cornerRadius: 6)
             }
             .controlSize(.small)
@@ -640,7 +646,7 @@ struct MediaWorkspaceView: View {
                     }
                 }
                 .labelsHidden()
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-profile") : nil,
+                .panelKeyboardRow(keyboardRow("media-profile"),
                                   actions: selectionActions($imageSelectedProfileID,
                                                            values: [""] + imageProfiles.map(\.id)))
                 .onChange(of: imageSelectedProfileID) { _, value in
@@ -656,7 +662,7 @@ struct MediaWorkspaceView: View {
                 .disabled(imageSelectedProfileID.isEmpty)
                 .help(imageText.deleteProfile)
                 .panelKeyboardRow(
-                    (compact && !imageSelectedProfileID.isEmpty) ? PanelRowID(.utilities, "media-deleteProfile") : nil,
+                    !imageSelectedProfileID.isEmpty ? keyboardRow("media-deleteProfile") : nil,
                     actions: PanelRowActions(activate: deleteSelectedProfile))
             }
             if selectedImageProfile != nil, imageProfileIsModified {
@@ -675,7 +681,7 @@ struct MediaWorkspaceView: View {
                 .controlSize(.small)
                 .disabled(imageSelectedProfileID.isEmpty)
                 .panelKeyboardRow(
-                    (compact && !imageSelectedProfileID.isEmpty) ? PanelRowID(.utilities, "media-updateProfile") : nil,
+                    !imageSelectedProfileID.isEmpty ? keyboardRow("media-updateProfile") : nil,
                     actions: PanelRowActions(activate: updateSelectedProfile), cornerRadius: 6)
                 Button {
                     saveNewProfile()
@@ -683,7 +689,7 @@ struct MediaWorkspaceView: View {
                     Label(imageText.saveAsNew, systemImage: "plus")
                 }
                 .controlSize(.small)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-saveNewProfile") : nil,
+                .panelKeyboardRow(keyboardRow("media-saveNewProfile"),
                                   actions: PanelRowActions(activate: saveNewProfile), cornerRadius: 6)
             }
         }
@@ -717,13 +723,13 @@ struct MediaWorkspaceView: View {
         }
         return HStack(spacing: 6) {
             Button(imageText.presetWeb, action: webPreset)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-presetWeb") : nil,
+                .panelKeyboardRow(keyboardRow("media-presetWeb"),
                                   actions: PanelRowActions(activate: webPreset), cornerRadius: 6)
             Button(imageText.presetSocial, action: socialPreset)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-presetSocial") : nil,
+                .panelKeyboardRow(keyboardRow("media-presetSocial"),
                                   actions: PanelRowActions(activate: socialPreset), cornerRadius: 6)
             Button(imageText.presetDocs, action: docsPreset)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-presetDocs") : nil,
+                .panelKeyboardRow(keyboardRow("media-presetDocs"),
                                   actions: PanelRowActions(activate: docsPreset), cornerRadius: 6)
         }
         .controlSize(.small)
@@ -815,7 +821,7 @@ struct MediaWorkspaceView: View {
                 Text(imageText.resizeExact).tag(MediaImageResizeKind.exact.rawValue)
             }
             .pickerStyle(.menu)
-            .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-resizeKind") : nil,
+            .panelKeyboardRow(keyboardRow("media-resizeKind"),
                               actions: selectionActions($imageResizeKindRaw,
                                                        values: MediaImageResizeKind.allCases.map(\.rawValue)))
             switch MediaImageResizeKind.sanitized(imageResizeKindRaw) {
@@ -844,7 +850,7 @@ struct MediaWorkspaceView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.segmented)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-exactResizeMode") : nil,
+                .panelKeyboardRow(keyboardRow("media-exactResizeMode"),
                                   actions: selectionActions($imageExactResizeModeRaw,
                                                            values: MediaImageExactResizeMode.allCases.map(\.rawValue)))
             }
@@ -860,7 +866,7 @@ struct MediaWorkspaceView: View {
                 Text(imageText.watermarkBoth).tag(MediaImageWatermarkKind.textAndLogo.rawValue)
             }
             .pickerStyle(.menu)
-            .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-watermarkKind") : nil,
+            .panelKeyboardRow(keyboardRow("media-watermarkKind"),
                               actions: selectionActions($imageWatermarkKindRaw,
                                                        values: MediaImageWatermarkKind.allCases.map(\.rawValue)))
             if currentWatermarkKind == .text || currentWatermarkKind == .textAndLogo {
@@ -880,7 +886,7 @@ struct MediaWorkspaceView: View {
                         Label(imageText.chooseLogo, systemImage: "photo")
                     }
                     .controlSize(.small)
-                    .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-chooseLogo") : nil,
+                    .panelKeyboardRow(keyboardRow("media-chooseLogo"),
                                       actions: PanelRowActions(activate: chooseWatermarkLogo), cornerRadius: 6)
                     if !imageWatermarkLogoPath.isEmpty {
                         Button {
@@ -889,7 +895,7 @@ struct MediaWorkspaceView: View {
                             Image(systemName: "xmark.circle.fill")
                         }
                         .buttonStyle(.plain)
-                        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-clearLogo") : nil,
+                        .panelKeyboardRow(keyboardRow("media-clearLogo"),
                                           actions: PanelRowActions(activate: { imageWatermarkLogoPath = "" }))
                     }
                 }
@@ -903,7 +909,7 @@ struct MediaWorkspaceView: View {
                     Text(imageText.bottomRight).tag(MediaImageWatermarkPosition.bottomRight.rawValue)
                 }
                 .pickerStyle(.menu)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-watermarkPosition") : nil,
+                .panelKeyboardRow(keyboardRow("media-watermarkPosition"),
                                   actions: selectionActions($imageWatermarkPositionRaw,
                                                            values: MediaImageWatermarkPosition.allCases.map(\.rawValue)))
                 stepperDouble(imageText.opacity, value: $imageWatermarkOpacity, range: 0.1...1, step: 0.05,
@@ -927,7 +933,7 @@ struct MediaWorkspaceView: View {
             Text(imageText.backgroundBlack).tag(MediaImageBackground.black.rawValue)
         }
         .pickerStyle(.segmented)
-        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-background") : nil,
+        .panelKeyboardRow(keyboardRow("media-background"),
                           actions: selectionActions($imageBackgroundRaw,
                                                    values: MediaImageBackground.allCases.map(\.rawValue)))
     }
@@ -967,7 +973,7 @@ struct MediaWorkspaceView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-sizing") : nil,
+        .panelKeyboardRow(keyboardRow("media-sizing"),
                           actions: selectionActions(selection, values: MediaSizingMode.allCases.map(\.rawValue)))
     }
 
@@ -1021,7 +1027,7 @@ struct MediaWorkspaceView: View {
             )
         }
         .buttonStyle(.plain)
-        .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-compression-\(level.rawValue)") : nil,
+        .panelKeyboardRow(keyboardRow("media-compression-\(level.rawValue)"),
                           actions: PanelRowActions(activate: { value.wrappedValue = level.quality }), cornerRadius: 7)
     }
 
@@ -1036,7 +1042,7 @@ struct MediaWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
             Slider(value: value, in: range, step: 1)
-                .panelKeyboardRow(compact ? PanelRowID(.utilities, "media-gifFPS") : nil,
+                .panelKeyboardRow(keyboardRow("media-gifFPS"),
                                   actions: numericActions(value, range: range, step: 1))
         }
     }
@@ -1096,7 +1102,7 @@ struct MediaWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .panelKeyboardRow(compact ? PanelRowID(.utilities, keyboardID) : nil,
+        .panelKeyboardRow(keyboardRow(keyboardID),
                           actions: numericActions(value, range: range, step: step))
     }
 
@@ -1117,7 +1123,7 @@ struct MediaWorkspaceView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .panelKeyboardRow(compact ? PanelRowID(.utilities, keyboardID) : nil,
+        .panelKeyboardRow(keyboardRow(keyboardID),
                           actions: numericActions(value, range: range, step: step))
     }
 
