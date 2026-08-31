@@ -3,7 +3,7 @@
 
 import Foundation
 
-enum DictationProvider: String, CaseIterable, Identifiable {
+enum DictationProvider: String, CaseIterable, Identifiable, Codable {
     case openAI
     case groq
 
@@ -87,7 +87,7 @@ enum DictationMediaPolicy {
 
 /// Language hint sent to the provider. Automatic detection remains available,
 /// while an explicit ISO-639-1 hint improves recognition for multilingual users.
-enum DictationLanguage: String, CaseIterable, Identifiable {
+enum DictationLanguage: String, CaseIterable, Identifiable, Codable {
     case automatic
     case portugueseBrazil = "pt"
     case english = "en"
@@ -121,7 +121,7 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
     }
 }
 
-struct DictationModel: Equatable, Hashable, Identifiable {
+struct DictationModel: Equatable, Hashable, Identifiable, Codable {
     let id: String
     let provider: DictationProvider
 }

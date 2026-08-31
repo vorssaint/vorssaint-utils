@@ -44,6 +44,9 @@ final class DictationAudioRecorder {
     private var captureFailed = false
     private(set) var fileURL: URL?
     private(set) var activeMicrophoneUID: String?
+    private(set) var lastRecordingStartedAt: Date?
+    private(set) var lastRecordingDuration: TimeInterval?
+    private var recordingStartedAt: Date?
 
     var isRecording: Bool { engine?.isRunning == true }
 
@@ -135,6 +138,7 @@ final class DictationAudioRecorder {
         inputNode = input
         writer = fileWriter
         activeMicrophoneUID = device.uid
+        recordingStartedAt = Date()
         fileURL = file
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.isRecording else { return }
@@ -156,6 +160,9 @@ final class DictationAudioRecorder {
         self.engine = nil
         inputNode = nil
         activeMicrophoneUID = nil
+        lastRecordingStartedAt = recordingStartedAt
+        lastRecordingDuration = recordingStartedAt.map { Date().timeIntervalSince($0) }
+        recordingStartedAt = nil
         try? FileManager.default.setAttributes([.posixPermissions: 0o600],
                                                ofItemAtPath: fileURL.path)
         guard let values = try? fileURL.resourceValues(
@@ -180,6 +187,7 @@ final class DictationAudioRecorder {
         engine = nil
         inputNode = nil
         activeMicrophoneUID = nil
+        recordingStartedAt = nil
         discardFile()
         onLevel?(0)
     }

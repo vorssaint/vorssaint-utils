@@ -321,6 +321,9 @@ final class DictationService: ObservableObject {
             return
         }
         DictationMediaController.shared.end()
+        let recordingStartedAt = recorder.lastRecordingStartedAt ?? Date()
+        let recordingDuration = recorder.lastRecordingDuration ?? 0
+        let processingStartedAt = Date()
         let transition = DictationLifecycle.transition(from: state, event: .stop)
         state = transition.state
         level = 0
@@ -345,6 +348,12 @@ final class DictationService: ObservableObject {
                     self.fail(.noSpeech)
                     return
                 }
+                self.saveHistoryIfEnabled(text: text,
+                                          configuration: configuration,
+                                          recordingStartedAt: recordingStartedAt,
+                                          recordingDuration: recordingDuration,
+                                          processingDuration: Date().timeIntervalSince(processingStartedAt),
+                                          audioURL: file)
                 self.insert(text, sessionID: id)
             } catch let failure as DictationFailure {
                 guard failure != .cancelled, !Task.isCancelled, self.sessionID == id else { return }
@@ -412,6 +421,29 @@ final class DictationService: ObservableObject {
         if pasteboard.setString(text, forType: .string) {
             ClipboardHistoryService.shared.ignoreNextChange(upTo: pasteboard.changeCount)
         }
+    }
+
+    private func saveHistoryIfEnabled(text: String,
+                                      configuration: SessionConfiguration,
+                                      recordingStartedAt: Date,
+                                      recordingDuration: TimeInterval,
+                                      processingDuration: TimeInterval,
+                                      audioURL: URL) {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistoryEnabled) else { return }
+        let keepAudio = UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio)
+        let entry = DictationHistoryEntry(
+            createdAt: recordingStartedAt,
+            duration: recordingDuration,
+            provider: configuration.provider,
+            model: configuration.model,
+            language: configuration.profile.language,
+            rawText: text,
+            audioFileName: nil,
+            processingDuration: processingDuration,
+            failure: nil)
+        try? DictationHistoryStore.shared.save(entry, audioURL: keepAudio ? audioURL : nil)
+        _ = DictationHistoryStore.shared.removeExpired(
+            days: UserDefaults.standard.integer(forKey: DefaultsKey.dictationHistoryRetentionDays))
     }
 
     private func finishSuccessfully() {

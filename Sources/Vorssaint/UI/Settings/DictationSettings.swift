@@ -27,6 +27,9 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationSecondaryGroqModel) private var secondaryGroqModel = DictationProvider.groq.defaultModel.id
     @AppStorage(DefaultsKey.dictationPauseMedia) private var pauseMedia = false
     @AppStorage(DefaultsKey.dictationMediaResumeDelay) private var mediaResumeDelay = 0
+    @AppStorage(DefaultsKey.dictationHistoryEnabled) private var historyEnabled = false
+    @AppStorage(DefaultsKey.dictationHistorySaveAudio) private var historySaveAudio = true
+    @AppStorage(DefaultsKey.dictationHistoryRetentionDays) private var historyRetentionDays = 7
     @State private var keyDraft = ""
     @State private var status: Status?
     @State private var testing = false
@@ -167,6 +170,18 @@ struct DictationSettings: View {
                     }
                 }
                 .disabled(!pauseMedia)
+            }
+
+            Section {
+                Toggle("Salvar histórico local", isOn: $historyEnabled)
+                Toggle("Salvar áudio das sessões", isOn: $historySaveAudio)
+                    .disabled(!historyEnabled)
+                Picker("Apagar após", selection: $historyRetentionDays) {
+                    ForEach([1, 2, 3, 7, 30, 90, 365], id: \.self) { days in
+                        Text("\(days) dias").tag(days)
+                    }
+                }
+                .disabled(!historyEnabled)
             }
 
             Section {

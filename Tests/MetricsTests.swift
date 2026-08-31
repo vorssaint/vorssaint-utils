@@ -12536,6 +12536,9 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryMicrophone] as? String == ""
                 && Defaults.registeredDefaults[DefaultsKey.dictationPauseMedia] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.dictationMediaResumeDelay] as? Int == 0
+                && Defaults.registeredDefaults[DefaultsKey.dictationHistoryEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.dictationHistorySaveAudio] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.dictationHistoryRetentionDays] as? Int == 7
                 && Defaults.registeredDefaults[DefaultsKey.dictationShortcutKind] as? String
                     == DictationShortcutKind.standard.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationModifierShortcut] as? String
@@ -12695,6 +12698,9 @@ struct MetricsTests {
             DefaultsKey.dictationSecondaryMicrophone,
             DefaultsKey.dictationPauseMedia,
             DefaultsKey.dictationMediaResumeDelay,
+            DefaultsKey.dictationHistoryEnabled,
+            DefaultsKey.dictationHistorySaveAudio,
+            DefaultsKey.dictationHistoryRetentionDays,
             DefaultsKey.dictationSecondaryProvider,
             DefaultsKey.dictationSecondaryOpenAIModel,
             DefaultsKey.dictationSecondaryGroqModel,
@@ -12747,6 +12753,33 @@ struct MetricsTests {
                 && DictationMediaPolicy.sanitizedDelay(3) == 3
                 && DictationMediaPolicy.sanitizedDelay(99) == 5,
                "dictation media resumption delay is clamped to zero through five seconds")
+        let historyDate = Date(timeIntervalSince1970: 1_000_000)
+        let historyEntry = DictationHistoryEntry(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            createdAt: historyDate,
+            duration: 4.5,
+            provider: .openAI,
+            model: openAIModel,
+            language: .portugueseBrazil,
+            rawText: "fala original",
+            audioFileName: "audio.m4a",
+            processingDuration: 1.25,
+            failure: nil)
+        let encodedHistory = try? JSONEncoder().encode(historyEntry)
+        let decodedHistory = encodedHistory.flatMap { try? JSONDecoder().decode(
+            DictationHistoryEntry.self, from: $0) }
+        expect(decodedHistory == historyEntry
+                && DictationHistoryRetention.sanitizedDays(-1) == 0
+                && DictationHistoryRetention.sanitizedDays(7) == 7
+                && DictationHistoryRetention.sanitizedDays(999) == 365,
+               "dictation history entries are versioned Codable values with bounded retention")
+        expect(DictationHistoryRetention.isExpired(createdAt: historyDate,
+                                                   now: historyDate.addingTimeInterval(7 * 86_400),
+                                                   days: 7)
+                && !DictationHistoryRetention.isExpired(createdAt: historyDate,
+                                                        now: historyDate.addingTimeInterval(6 * 86_400),
+                                                        days: 7),
+               "dictation history expires exactly at the configured age")
 
         var toggleGesture = DictationShortcutGesture()
         expect(toggleGesture.keyDown(at: 0, mode: .toggle, sessionIsActive: false) == .begin
@@ -12810,6 +12843,9 @@ struct MetricsTests {
         let dictationMediaSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationMediaController.swift",
             encoding: .utf8)) ?? ""
+        let dictationHistoryStoreSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationHistoryStore.swift",
+            encoding: .utf8)) ?? ""
         let dictationRecorderSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
             encoding: .utf8)) ?? ""
@@ -12843,6 +12879,11 @@ struct MetricsTests {
                 && dictationMediaSource.contains("postPlayPause")
                 && dictationMediaSource.contains("dictationMediaResumeDelay"),
                "dictation media control uses native now-playing state and a bounded resume delay")
+        expect(dictationHistoryStoreSource.contains("PrivateFileStore.createDirectory")
+                && dictationHistoryStoreSource.contains("PrivateFileStore.write")
+                && dictationHistoryStoreSource.contains("isBoundedPath")
+                && dictationHistoryStoreSource.contains("manifest.json"),
+               "dictation history owns a private manifest and bounds audio deletion to its directory")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),
