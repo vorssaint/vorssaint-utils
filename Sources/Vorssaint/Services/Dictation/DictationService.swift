@@ -102,6 +102,8 @@ final class DictationService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        _ = DictationHistoryStore.shared.removeExpired(
+            days: UserDefaults.standard.integer(forKey: DefaultsKey.dictationHistoryRetentionDays))
         let enabled = AppFeature.dictation.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled)
         if !enabled {

@@ -12888,6 +12888,9 @@ struct MetricsTests {
                 && dictationHistoryStoreSource.contains("removeAudio")
                 && dictationHistoryStoreSource.contains("manifest.json"),
                "dictation history owns a private manifest and bounds audio deletion to its directory")
+        expect(dictationServiceSource.contains("DictationHistoryStore.shared.removeExpired")
+                && dictationServiceSource.contains("dictationHistoryRetentionDays"),
+               "dictation retention is swept whenever preferences synchronize")
         expect(dictationHistoryViewSource.contains("AVAudioPlayer")
                 && dictationHistoryViewSource.contains("1×")
                 && dictationHistoryViewSource.contains("2×")
