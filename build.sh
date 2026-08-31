@@ -201,7 +201,9 @@ discard_test_preferences() {
 
 # --test: compile and run the standalone unit tests (pure helpers only: metrics,
 # Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
-# then exit. Fast and deterministic; no XCTest needed.
+# then exit. Fast and deterministic; no XCTest needed. The XCTest targets under
+# Tests/ run after them, for the handful of types that cannot be pulled out of
+# AppKit and SwiftUI to join the harness above.
 if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
@@ -371,6 +373,13 @@ if (( TEST )); then
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
     ./build/metrics-tests || test_status=$?
+
+    # The panel keyboard navigator drives real NSEvents through AppKit types,
+    # so its cases live in a SwiftPM XCTest target instead. SwiftPM picks its
+    # own SDK, which is why no compat flags are handed through here.
+    echo "▸ Building & running package tests…"
+    swift test || test_status=$?
+
     discard_test_preferences || test_status=1
     exit $test_status
 fi
