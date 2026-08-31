@@ -12971,6 +12971,13 @@ struct MetricsTests {
                 && dictationHUDSource.contains("record.circle.fill")
                 && dictationHUDSource.contains("pow(max(0, level), 0.55)"),
                "dictation listening HUD stays compact and amplifies quiet waveform levels visually")
+        let dictationHistoryViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/DictationHistoryView.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationHistoryViewSource.contains("TimelineView(.periodic")
+                && dictationHistoryViewSource.contains("Copiar transcrição")
+                && dictationHistoryViewSource.contains("progress: progress"),
+               "dictation history keeps per-entry playback progress and copy action")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),

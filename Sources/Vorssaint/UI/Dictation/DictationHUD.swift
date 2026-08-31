@@ -132,7 +132,9 @@ final class DictationHUD {
             meter.level = level
             progress.isHidden = state != .processing
             if state == .processing { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
-            icon.isHidden = state == .listening || state == .processing
+            // Listening shows both the recording indicator and the live meter;
+            // only processing replaces the icon with its spinner.
+            icon.isHidden = state == .processing
             switch state {
             case .idle:
                 title.stringValue = ""

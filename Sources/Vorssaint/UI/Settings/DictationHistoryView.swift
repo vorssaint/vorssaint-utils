@@ -68,8 +68,6 @@ struct DictationHistoryView: View {
                     Button("Exportar selecionados", systemImage: "square.and.arrow.up", action: exportSelection)
                     Button("Apagar selecionados", systemImage: "trash", role: .destructive) { deleteSelected = true }
                 }
-                Button(playbackRate.label, action: cyclePlaybackRate).monospacedDigit()
-                    .help("Velocidade: \(playbackRate.label)")
                 Button("Atualizar", systemImage: "arrow.clockwise", action: reload)
             }
         }
@@ -137,9 +135,12 @@ struct DictationHistoryView: View {
         if entry.enhancedText != nil {
             Text("Texto cru: \(entry.rawText)").font(.caption).foregroundStyle(.secondary)
         }
-        DictationWaveform(peaks: waveforms[entry.id] ?? []).frame(height: 42)
-            .accessibilityLabel("Forma de onda do áudio")
-            .task(id: entry.audioFileName) { loadWaveform(for: entry) }
+        TimelineView(.periodic(from: .now, by: 0.1)) { _ in
+            let progress = playingID == entry.id ? ((player?.duration ?? 0) > 0 ? (player?.currentTime ?? 0) / (player?.duration ?? 1) : 0) : 0
+            DictationWaveform(peaks: waveforms[entry.id] ?? [], progress: progress).frame(height: 42)
+                .accessibilityLabel("Forma de onda do áudio")
+        }
+        .task(id: entry.audioFileName) { loadWaveform(for: entry) }
         HStack(spacing: 12) {
             if entry.audioFileName != nil {
                 Button(playbackLabel(for: entry), systemImage: playbackIcon(for: entry)) { togglePlayback(entry) }
@@ -149,6 +150,7 @@ struct DictationHistoryView: View {
             } else {
                 Label("Áudio não salvo", systemImage: "waveform.slash").foregroundStyle(.secondary)
             }
+            Button("Copiar transcrição", systemImage: "doc.on.doc") { copyText(for: entry) }
             Spacer()
             Button("Detalhes", systemImage: "info.circle") { detailsEntry = entry }
             if entry.audioFileName != nil {
@@ -207,6 +209,12 @@ struct DictationHistoryView: View {
         guard let fileName = entry.audioFileName, let url = DictationHistoryStore.shared.audioURL(for: fileName),
               let next = try? AVAudioPlayer(contentsOf: url) else { return }
         stopPlayback(); next.enableRate = true; next.rate = Float(playbackRate); next.play(); player = next; playingID = entry.id
+    }
+
+    private func copyText(for entry: DictationHistoryEntry) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(entry.enhancedText ?? entry.rawText, forType: .string)
+        retryStatus = "Transcrição copiada."
     }
 
     private func stopPlayback() { player?.stop(); player = nil; playingID = nil }
@@ -282,6 +290,7 @@ struct DictationHistoryView: View {
 
 private struct DictationWaveform: View {
     let peaks: [Float]
+    var progress: Double = 0
     var body: some View {
         Canvas { context, size in
             guard !peaks.isEmpty else {
@@ -294,7 +303,9 @@ private struct DictationWaveform: View {
                 let height = max(2, CGFloat(peak) * (size.height - 5))
                 let rect = CGRect(x: CGFloat(index) * step, y: (size.height - height) / 2,
                                   width: max(1, step * 0.58), height: height)
-                context.fill(Path(roundedRect: rect, cornerRadius: 1), with: .color(.accentColor.opacity(0.75)))
+                let played = Double(index) / Double(max(1, peaks.count - 1)) <= progress
+                context.fill(Path(roundedRect: rect, cornerRadius: 1),
+                             with: .color(played ? .accentColor : .secondary.opacity(0.38)))
             }
         }
     }
