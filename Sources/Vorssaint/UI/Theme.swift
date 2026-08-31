@@ -84,13 +84,20 @@ extension View {
     }
 
     /// Accent-colored outline marking the keyboard-focused tab or row in the
-    /// menu panel. Invisible until keyboard navigation actually starts, so
-    /// mouse-only use never shows it.
+    /// menu panel. Absent, not merely invisible, until keyboard navigation
+    /// actually starts: mouse-only use never shows it, and the ring never
+    /// takes a click meant for the row underneath it.
+    @ViewBuilder
     func panelFocusRing(_ isFocused: Bool, cornerRadius: CGFloat = 8) -> some View {
-        overlay(
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(Color.accentColor, lineWidth: isFocused ? 2 : 0)
-        )
+        if isFocused {
+            overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.accentColor, lineWidth: 2)
+                    .allowsHitTesting(false)
+            )
+        } else {
+            self
+        }
     }
 }
 

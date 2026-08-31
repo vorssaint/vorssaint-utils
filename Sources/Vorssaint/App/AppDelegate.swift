@@ -1122,6 +1122,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PanelInteractionState.shared.viewKeepsPopoverOpen = false
         PanelInteractionState.shared.isPresentingPopoverModal = false
         PanelInteractionState.shared.hostedSettingsPage = nil
+        // The popover keeps its content view controller between showings, so
+        // the ring would otherwise still be sitting where the keyboard left
+        // it the next time the panel is opened with the mouse.
+        PanelKeyboardNavigator.shared.clearFocus()
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()
