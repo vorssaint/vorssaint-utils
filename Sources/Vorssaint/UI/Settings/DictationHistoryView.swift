@@ -17,6 +17,7 @@ struct DictationHistoryView: View {
     @State private var player: AVAudioPlayer?
     @State private var playingID: UUID?
     @State private var playbackRate = 1.0
+    @State private var playbackRevision = 0
     @State private var waveforms: [UUID: [Float]] = [:]
     @State private var entryToDelete: DictationHistoryEntry?
     @State private var deleteAudioOnly = false
@@ -211,11 +212,13 @@ struct DictationHistoryView: View {
     private func togglePlayback(_ entry: DictationHistoryEntry) {
         if playingID == entry.id, let player {
             if player.isPlaying { player.pause() } else { player.play() }
+            playbackRevision &+= 1
             return
         }
         guard let fileName = entry.audioFileName, let url = DictationHistoryStore.shared.audioURL(for: fileName),
               let next = try? AVAudioPlayer(contentsOf: url) else { return }
-        stopPlayback(); next.enableRate = true; next.rate = Float(playbackRate); next.play(); player = next; playingID = entry.id
+        stopPlayback(); next.enableRate = true; next.rate = Float(playbackRate); next.volume = 1.0
+        next.play(); player = next; playingID = entry.id; playbackRevision &+= 1
     }
 
     private func copyText(for entry: DictationHistoryEntry) {
@@ -226,10 +229,11 @@ struct DictationHistoryView: View {
         QuickToolHUD.show(icon: "doc.on.doc", message: "Transcrição copiada")
     }
 
-    private func stopPlayback() { player?.stop(); player = nil; playingID = nil }
+    private func stopPlayback() { player?.stop(); player = nil; playingID = nil; playbackRevision &+= 1 }
 
     private func playbackLabel(for entry: DictationHistoryEntry) -> String {
-        playingID == entry.id && player?.isPlaying == true ? "Pausar" : "Reproduzir"
+        _ = playbackRevision
+        return playingID == entry.id && player?.isPlaying == true ? "Pausar" : "Reproduzir"
     }
 
     private func playbackIcon(for entry: DictationHistoryEntry) -> String {

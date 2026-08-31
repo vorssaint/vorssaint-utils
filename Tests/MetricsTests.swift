@@ -12976,8 +12976,15 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(dictationHistoryViewSource.contains("TimelineView(.periodic")
                 && dictationHistoryViewSource.contains("Copiar transcrição")
-                && dictationHistoryViewSource.contains("progress: progress"),
+                && dictationHistoryViewSource.contains("progress: progress")
+                && dictationHistoryViewSource.contains("playbackRevision"),
                "dictation history keeps per-entry playback progress and copy action")
+        let dictationAudioRecorderSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationAudioRecorderSource.contains("applyRecordingGain(to: buffer)")
+                && dictationAudioRecorderSource.contains("tanh(samples[index] * gain)"),
+               "dictation recordings apply bounded gain for intelligible local playback")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),

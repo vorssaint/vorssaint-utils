@@ -112,6 +112,7 @@ final class DictationAudioRecorder {
         captureFailed = false
         input.installTap(onBus: 0, bufferSize: 1_024, format: captureFormat) { [weak self, weak fileWriter] buffer, _ in
             guard let fileWriter else { return }
+            Self.applyRecordingGain(to: buffer)
             do {
                 try fileWriter.write(buffer)
             } catch {
@@ -216,6 +217,23 @@ final class DictationAudioRecorder {
         // RMS captures sustained speech while peak catches consonants; the
         // combined visual gain does not change audio uploaded to the provider.
         return max(0, min(1, max(rms * 16, peak * 4)))
+    }
+
+    /// Microphone input levels vary substantially across Mac devices. Keep a
+    /// conservative headroom-preserving gain in the stored recording so local
+    /// playback is intelligible, while the soft limiter prevents clipping.
+    private static func applyRecordingGain(to buffer: AVAudioPCMBuffer) {
+        guard let channels = buffer.floatChannelData,
+              buffer.frameLength > 0 else { return }
+        let gain: Float = 2.0
+        let channelCount = Int(buffer.format.channelCount)
+        let frameCount = Int(buffer.frameLength)
+        for channel in 0 ..< channelCount {
+            let samples = channels[channel]
+            for index in 0 ..< frameCount {
+                samples[index] = tanh(samples[index] * gain)
+            }
+        }
     }
 
     private static func duration(of fileURL: URL) -> TimeInterval {
