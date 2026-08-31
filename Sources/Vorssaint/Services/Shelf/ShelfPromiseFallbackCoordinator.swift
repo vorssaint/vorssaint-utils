@@ -4,22 +4,30 @@
 import Foundation
 
 /// Coordinates direct pasteboard fallback content while AppKit fulfills a
-/// batch of file promises. A receiver's reader callback is per promised file,
-/// not per receiver, so completion must be counted against the file names
-/// reported after each receiver is activated.
+/// batch of file promises. A receiver can represent several files, and its
+/// reader callback is normally per file. A receiver error is also allowed to
+/// terminate the receiver wholesale, so the remaining advertised files are
+/// credited as failed instead of leaving the batch waiting forever.
 final class ShelfPromiseFallbackCoordinator<Value> {
     struct CallbackOutcome {
+        let acceptFile: Bool
         let discardFallback: [Value]?
         let fallback: [Value]?
         let reportFailure: Bool
     }
 
+    private struct ReceiverState {
+        var expectedFileCount: Int
+        var completedFileCount = 0
+        var isTerminal = false
+        var isWholesaleFailure = false
+        var isExpectedFileCountFinal: Bool
+    }
+
     let items: [Value]
     private let lock = NSLock()
     private let receiverCount: Int
-    private var registeredReceiverCount = 0
-    private var expectedFileCount = 0
-    private var completedFileCount = 0
+    private var receivers: [Int: ReceiverState] = [:]
     private var hasSuccess = false
     private var hasFailure = false
     private var fallbackConsumed = false
@@ -31,14 +39,24 @@ final class ShelfPromiseFallbackCoordinator<Value> {
         self.receiverCount = receiverCount
     }
 
-    func registerReceiver(expectedFileCount: Int) {
+    func registerReceiver(_ receiverID: Int,
+                          expectedFileCount: Int,
+                          isExpectedFileCountFinal: Bool = true) {
         lock.lock()
-        registeredReceiverCount += 1
-        // Keep one defensive slot for an unusual receiver that does not
-        // publish names, so a failed receiver cannot leave the batch waiting
-        // forever. Normal receivers use their exact fileNames.count.
-        self.expectedFileCount += max(expectedFileCount, 1)
+        receivers[receiverID] = ReceiverState(
+            expectedFileCount: max(expectedFileCount, 1),
+            isExpectedFileCountFinal: isExpectedFileCountFinal)
         lock.unlock()
+    }
+
+    func updateExpectedFileCount(for receiverID: Int, to expectedFileCount: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var receiver = receivers[receiverID], !receiver.isWholesaleFailure else { return }
+        receiver.expectedFileCount = max(expectedFileCount, 1)
+        receiver.isExpectedFileCountFinal = true
+        receiver.isTerminal = receiver.completedFileCount >= receiver.expectedFileCount
+        receivers[receiverID] = receiver
     }
 
     func finishRegistration() -> CallbackOutcome? {
@@ -48,28 +66,58 @@ final class ShelfPromiseFallbackCoordinator<Value> {
         return completedOutcomeIfReady()
     }
 
-    func recordSuccess() -> CallbackOutcome {
+    func recordSuccess(for receiverID: Int) -> CallbackOutcome {
         lock.lock()
         defer { lock.unlock() }
-        completedFileCount += 1
+        guard var receiver = receivers[receiverID], !receiver.isTerminal else {
+            // A prior error closes a receiver wholesale. Do not let a late
+            // success create a promised tile after the direct fallback was
+            // selected, but still let the caller clean a regular file safely.
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
+                                   fallback: nil,
+                                   reportFailure: false)
+        }
+        receiver.completedFileCount += 1
+        if receiver.isExpectedFileCountFinal,
+           receiver.completedFileCount >= receiver.expectedFileCount {
+            receiver.isTerminal = true
+        }
+        receivers[receiverID] = receiver
         hasSuccess = true
-        let discardFallback = consumeFallbackIfNeeded()
-        return CallbackOutcome(discardFallback: discardFallback,
+        return CallbackOutcome(acceptFile: true,
+                               discardFallback: consumeFallbackIfNeeded(),
                                fallback: nil,
                                reportFailure: reportFailureIfReady())
     }
 
-    func recordFailure() -> CallbackOutcome {
+    func recordFailure(for receiverID: Int) -> CallbackOutcome {
         lock.lock()
         defer { lock.unlock() }
-        completedFileCount += 1
-        hasFailure = true
-        guard let outcome = completedOutcomeIfReady() else {
-            return CallbackOutcome(discardFallback: nil,
+        guard var receiver = receivers[receiverID], !receiver.isTerminal else {
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: false)
         }
-        return outcome
+        // An error callback may be the receiver's wholesale failure rather
+        // than one failed file. Close the receiver and credit every remaining
+        // advertised file so the fallback cannot wait forever.
+        receiver.completedFileCount = receiver.expectedFileCount
+        receiver.isTerminal = true
+        receiver.isWholesaleFailure = true
+        receivers[receiverID] = receiver
+        hasFailure = true
+        guard let outcome = completedOutcomeIfReady() else {
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
+                                   fallback: nil,
+                                   reportFailure: false)
+        }
+        return CallbackOutcome(acceptFile: false,
+                               discardFallback: outcome.discardFallback,
+                               fallback: outcome.fallback,
+                               reportFailure: outcome.reportFailure)
     }
 
     private func consumeFallbackIfNeeded() -> [Value]? {
@@ -80,33 +128,37 @@ final class ShelfPromiseFallbackCoordinator<Value> {
 
     private func completedOutcomeIfReady() -> CallbackOutcome? {
         guard registrationFinished,
-              registeredReceiverCount == receiverCount,
-              completedFileCount >= expectedFileCount else { return nil }
+              receivers.count == receiverCount,
+              receivers.values.allSatisfy(\.isTerminal) else { return nil }
         if hasSuccess {
-            return CallbackOutcome(discardFallback: nil,
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: reportFailureIfReady())
         }
         guard !fallbackConsumed else {
-            return CallbackOutcome(discardFallback: nil,
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: reportFailureIfReady())
         }
         fallbackConsumed = true
         if items.isEmpty {
-            return CallbackOutcome(discardFallback: nil,
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: reportFailureIfReady())
         }
-        return CallbackOutcome(discardFallback: nil,
+        return CallbackOutcome(acceptFile: false,
+                               discardFallback: nil,
                                fallback: items,
                                reportFailure: false)
     }
 
     private func reportFailureIfReady() -> Bool {
         guard registrationFinished,
-              registeredReceiverCount == receiverCount,
-              completedFileCount >= expectedFileCount,
+              receivers.count == receiverCount,
+              receivers.values.allSatisfy(\.isTerminal),
               hasFailure,
               !failureReported else { return false }
         failureReported = true

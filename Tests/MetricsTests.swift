@@ -21337,57 +21337,82 @@ struct MetricsTests {
 
         // MARK: File-promise fallback coordination
 
-        // A non-item-based receiver can report several files through one
-        // reader callback sequence. A first failure must wait for the later
-        // success, and the successful promise must discard the direct
-        // fallback while still reporting the partial failure once the batch
-        // is complete.
-        let multiFileFallback = ShelfPromiseFallbackCoordinator(
+        // A receiver error can close a multi-file receiver wholesale. The
+        // coordinator must credit its remaining advertised files so a batch
+        // with no successful promises reaches fallback instead of waiting.
+        let wholesaleFailure = ShelfPromiseFallbackCoordinator(
             items: ["subject"], receiverCount: 1)
-        multiFileFallback.registerReceiver(expectedFileCount: 2)
-        let firstFailure = multiFileFallback.recordFailure()
-        expect(firstFailure.fallback == nil && !firstFailure.reportFailure,
-               "a failed file waits for the remaining callbacks")
-        let laterSuccess = multiFileFallback.recordSuccess()
-        expect(laterSuccess.discardFallback == ["subject"]
-                && laterSuccess.fallback == nil
-                && !laterSuccess.reportFailure,
-               "a later success consumes the direct fallback without early feedback")
-        let multiFileCompletion = multiFileFallback.finishRegistration()
-        expect(multiFileCompletion?.reportFailure == true,
-               "a completed partial promise reports the failed file once")
+        wholesaleFailure.registerReceiver(0, expectedFileCount: 2)
+        let receiverFailure = wholesaleFailure.recordFailure(for: 0)
+        expect(receiverFailure.fallback == nil && !receiverFailure.reportFailure,
+               "a wholesale receiver failure waits for registration to finish")
+        let wholesaleCompletion = wholesaleFailure.finishRegistration()
+        expect(wholesaleCompletion?.fallback == ["subject"]
+                && wholesaleCompletion?.reportFailure == false,
+               "a wholesale failure credits every remaining file for fallback")
 
-        // The reverse order must have the same result: success suppresses the
-        // fallback, but a later failed file still produces feedback instead of
-        // disappearing behind the already-consumed success.
-        let reverseOrderFallback = ShelfPromiseFallbackCoordinator(
+        // Registration begins before activation, so an immediately dispatched
+        // callback is not mistaken for an unknown receiver. The provisional
+        // slot expands to the advertised count when activation returns.
+        let earlyCallback = ShelfPromiseFallbackCoordinator(
             items: ["subject"], receiverCount: 1)
-        reverseOrderFallback.registerReceiver(expectedFileCount: 2)
-        let firstSuccess = reverseOrderFallback.recordSuccess()
-        expect(firstSuccess.discardFallback == ["subject"]
-                && !firstSuccess.reportFailure,
-               "an early success suppresses fallback without early feedback")
-        let laterFailure = reverseOrderFallback.recordFailure()
-        expect(!laterFailure.reportFailure,
-               "a later failure waits until registration is complete")
-        let reverseCompletion = reverseOrderFallback.finishRegistration()
-        expect(reverseCompletion?.fallback == nil
-                && reverseCompletion?.reportFailure == true,
-               "a later failure after success is reported at batch completion")
+        earlyCallback.registerReceiver(0,
+                                       expectedFileCount: 1,
+                                       isExpectedFileCountFinal: false)
+        let earlySuccess = earlyCallback.recordSuccess(for: 0)
+        earlyCallback.updateExpectedFileCount(for: 0, to: 2)
+        let finalEarlySuccess = earlyCallback.recordSuccess(for: 0)
+        let earlyCompletion = earlyCallback.finishRegistration()
+        expect(earlySuccess.acceptFile && finalEarlySuccess.acceptFile
+                && earlyCompletion?.fallback == nil
+                && earlyCompletion?.reportFailure == false,
+               "an early callback remains part of the expanded multi-file receiver")
+
+        // With two receivers, a failure in one must wait for the other
+        // receiver's success. The successful promise suppresses the direct
+        // subject fallback, while the partial failure is reported once.
+        let partialFailure = ShelfPromiseFallbackCoordinator(
+            items: ["subject"], receiverCount: 2)
+        partialFailure.registerReceiver(0, expectedFileCount: 1)
+        partialFailure.registerReceiver(1, expectedFileCount: 1)
+        let firstReceiverFailure = partialFailure.recordFailure(for: 0)
+        expect(firstReceiverFailure.fallback == nil && !firstReceiverFailure.reportFailure,
+               "one receiver failure waits for the other receiver")
+        let secondReceiverSuccess = partialFailure.recordSuccess(for: 1)
+        expect(secondReceiverSuccess.acceptFile
+                && secondReceiverSuccess.discardFallback == ["subject"]
+                && !secondReceiverSuccess.reportFailure,
+               "a successful receiver suppresses fallback during partial failure")
+        let partialCompletion = partialFailure.finishRegistration()
+        expect(partialCompletion?.fallback == nil
+                && partialCompletion?.reportFailure == true,
+               "a partial receiver failure is reported after the batch completes")
+
+        // If an error closes a receiver, a late success from that receiver
+        // must not create a promised tile after fallback has been selected.
+        let lateSuccess = ShelfPromiseFallbackCoordinator(
+            items: ["subject"], receiverCount: 1)
+        lateSuccess.registerReceiver(0, expectedFileCount: 2)
+        _ = lateSuccess.recordFailure(for: 0)
+        let lateFailureCompletion = lateSuccess.finishRegistration()
+        let ignoredLateSuccess = lateSuccess.recordSuccess(for: 0)
+        expect(lateFailureCompletion?.fallback == ["subject"]
+                && !ignoredLateSuccess.acceptFile
+                && ignoredLateSuccess.fallback == nil,
+               "a late callback after wholesale failure cannot duplicate fallback")
 
         // A completely failed multi-receiver batch still uses the direct
-        // representation, but only after every expected file callback fails.
+        // representation, but only after every receiver has failed.
         let allFailureFallback = ShelfPromiseFallbackCoordinator(
             items: ["image"], receiverCount: 2)
-        allFailureFallback.registerReceiver(expectedFileCount: 2)
-        allFailureFallback.registerReceiver(expectedFileCount: 1)
-        _ = allFailureFallback.recordFailure()
-        _ = allFailureFallback.recordFailure()
-        let finalFailure = allFailureFallback.recordFailure()
-        let allFailureCompletion = allFailureFallback.finishRegistration()
-        expect(finalFailure.fallback == nil && allFailureCompletion?.fallback == ["image"]
-                && allFailureCompletion?.reportFailure == false,
-               "the direct fallback is deferred until every promised file fails")
+        allFailureFallback.registerReceiver(0, expectedFileCount: 2)
+        allFailureFallback.registerReceiver(1, expectedFileCount: 1)
+        _ = allFailureFallback.recordFailure(for: 0)
+        let finalReceiverFailure = allFailureFallback.recordFailure(for: 1)
+        expect(finalReceiverFailure.fallback == nil
+                && allFailureFallback.finishRegistration()?.fallback == ["image"]
+                && !finalReceiverFailure.reportFailure,
+               "fallback waits for every receiver in an all-failure batch")
 
         // MARK: Result
 

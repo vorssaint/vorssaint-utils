@@ -1692,9 +1692,9 @@ final class ShelfService: ObservableObject {
         let fallbackState = PromiseFallbackState(items: fallbackItems,
                                                  receiverCount: promises.count)
         // Apple requires all receivers from one drag to use the same
-        // destination. The reader still runs once per promised file, so the
-        // fallback barrier counts the fileNames reported after each receiver
-        // is activated rather than counting receivers themselves.
+        // destination. A successful reader callback represents one file, but
+        // an error can terminate a receiver wholesale, so the coordinator
+        // tracks both per-file success and per-receiver failure terminality.
         let destination = tempDir.appendingPathComponent("Promise-\(UUID().uuidString)",
                                                          isDirectory: true)
         guard (try? FileManager.default.createDirectory(
@@ -1708,28 +1708,42 @@ final class ShelfService: ObservableObject {
             return fallbackPromisedItems(fallbackItems, mergingInto: targetID)
         }
 
-        for promise in promises {
+        for (receiverID, promise) in promises.enumerated() {
+            // Register a provisional slot before activation in case AppKit
+            // dispatches a reader operation immediately. Replace it with the
+            // receiver's advertised fileNames count as soon as activation
+            // returns.
+            fallbackState.registerReceiver(receiverID,
+                                            expectedFileCount: 1,
+                                            isExpectedFileCountFinal: false)
             promise.receivePromisedFiles(atDestination: destination,
                                          options: [:],
                                          operationQueue: promiseOperationQueue) { [weak self] url, error in
                 guard let self else { return }
                 guard error == nil else {
-                    try? FileManager.default.removeItem(at: url)
-                    let outcome = fallbackState.recordFailure()
+                    // AppKit may pass the destination directory, no URL, or
+                    // a partial path on failure. It was not written by this
+                    // reader, so leave it for the temporary-file sweep.
+                    let outcome = fallbackState.recordFailure(for: receiverID)
                     self.applyPromiseFallback(outcome, mergingInto: targetID)
                     return
                 }
                 guard let storedURL = self.storePromisedFile(url) else {
-                    try? FileManager.default.removeItem(at: url)
-                    let outcome = fallbackState.recordFailure()
+                    self.removePromisedFileIfRegular(url, inside: destination)
+                    let outcome = fallbackState.recordFailure(for: receiverID)
                     self.applyPromiseFallback(outcome, mergingInto: targetID)
                     return
                 }
                 let title = url.lastPathComponent
-                try? FileManager.default.removeItem(at: url)
-                let outcome = fallbackState.recordSuccess()
+                self.removePromisedFileIfRegular(url, inside: destination)
+                let outcome = fallbackState.recordSuccess(for: receiverID)
                 DispatchQueue.main.async { [weak self] in
                     guard let self else { return }
+                    guard outcome.acceptFile else {
+                        self.removePromisedFileIfRegular(storedURL)
+                        self.applyPromiseFallback(outcome, mergingInto: targetID)
+                        return
+                    }
                     if let fallback = outcome.discardFallback {
                         self.discardOwnedPayloads(in: fallback)
                     }
@@ -1765,7 +1779,8 @@ final class ShelfService: ObservableObject {
             // activated. Keep one defensive slot for an unusual receiver that
             // does not publish names, so a receiver failure still resolves the
             // batch instead of waiting forever.
-            fallbackState.registerReceiver(expectedFileCount: promise.fileNames.count)
+            fallbackState.updateExpectedFileCount(for: receiverID,
+                                                  to: promise.fileNames.count)
         }
 
         if let outcome = fallbackState.finishRegistration() {
@@ -1782,6 +1797,18 @@ final class ShelfService: ObservableObject {
         if outcome.reportFailure {
             reportPromiseFailure()
         }
+    }
+
+    private func removePromisedFileIfRegular(_ url: URL, inside destination: URL? = nil) {
+        guard url.isFileURL,
+              let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
+              values.isRegularFile == true else { return }
+        if let destination,
+           url.standardizedFileURL.deletingLastPathComponent()
+                != destination.standardizedFileURL {
+            return
+        }
+        try? FileManager.default.removeItem(at: url)
     }
 
     /// Uses direct representations only after promise fulfillment fails. A
