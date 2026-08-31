@@ -174,9 +174,9 @@ enum DictationInsertionDecision: Equatable {
     case copy(DictationFailure)
 
     static func decide(accessibilityGranted: Bool,
-                       originalTargetIsFocused: Bool) -> DictationInsertionDecision {
+                       currentTargetIsAvailable: Bool) -> DictationInsertionDecision {
         guard accessibilityGranted else { return .copy(.accessibilityRequiredCopied) }
-        guard originalTargetIsFocused else { return .copy(.focusChangedCopied) }
+        guard currentTargetIsAvailable else { return .copy(.focusChangedCopied) }
         return .paste
     }
 }

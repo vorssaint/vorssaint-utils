@@ -28,7 +28,6 @@ final class DictationService: ObservableObject {
     private var localEscapeMonitor: Any?
     private var globalEscapeMonitor: Any?
     private var sessionID: UUID?
-    private var target: Target?
     private var sessionConfiguration: SessionConfiguration?
     private var dismissWork: DispatchWorkItem?
     private var primaryGesture = DictationShortcutGesture()
@@ -252,7 +251,6 @@ final class DictationService: ObservableObject {
         let id = UUID()
         sessionID = id
         activeSlot = profile.slot
-        target = Target.capture()
         sessionConfiguration = SessionConfiguration(provider: provider,
                                                     model: model,
                                                     apiKey: apiKey,
@@ -347,14 +345,21 @@ final class DictationService: ObservableObject {
 
     private func insert(_ text: String, sessionID id: UUID) {
         guard sessionID == id else { return }
-        guard let target else {
+        guard AXIsProcessTrusted() else {
+            copyToClipboard(text)
+            fail(.accessibilityRequiredCopied)
+            return
+        }
+        // Resolve the cursor at delivery time so switching apps while the
+        // provider is transcribing does not force a clipboard-only result.
+        guard let target = Target.capture(), target.element != nil else {
             copyToClipboard(text)
             fail(.focusChangedCopied)
             return
         }
         switch DictationInsertionDecision.decide(
-            accessibilityGranted: AXIsProcessTrusted(),
-            originalTargetIsFocused: target.isFocused) {
+            accessibilityGranted: true,
+            currentTargetIsAvailable: true) {
         case .copy(let failure):
             copyToClipboard(text)
             fail(failure)
@@ -399,7 +404,6 @@ final class DictationService: ObservableObject {
     private func finishSuccessfully() {
         transcriptionTask = nil
         sessionID = nil
-        target = nil
         sessionConfiguration = nil
         clearGestures()
         recorder.discardFile()
@@ -414,7 +418,6 @@ final class DictationService: ObservableObject {
         recorder.cancel()
         removeEscapeHandlers()
         sessionID = nil
-        target = nil
         sessionConfiguration = nil
         clearGestures()
         state = .failure(failure)
@@ -439,7 +442,6 @@ final class DictationService: ObservableObject {
         recorder.cancel()
         removeEscapeHandlers()
         sessionID = nil
-        target = nil
         sessionConfiguration = nil
         clearGestures()
         level = 0

@@ -12622,7 +12622,7 @@ struct MetricsTests {
                 && groqStop == openAIStop
                 && DictationInsertionDecision.decide(
                     accessibilityGranted: true,
-                    originalTargetIsFocused: true) == .paste,
+                    currentTargetIsAvailable: true) == .paste,
                "OpenAI and Groq follow the same stop-upload-raw-insert lifecycle")
         for state in [DictationState.listening, .processing] {
             let cancelled = DictationLifecycle.transition(from: state, event: .cancel)
@@ -12649,11 +12649,11 @@ struct MetricsTests {
                "silence inserts nothing and reports that no speech was detected")
         expect(DictationInsertionDecision.decide(
             accessibilityGranted: false,
-            originalTargetIsFocused: true) == .copy(.accessibilityRequiredCopied)
+            currentTargetIsAvailable: true) == .copy(.accessibilityRequiredCopied)
                 && DictationInsertionDecision.decide(
                     accessibilityGranted: true,
-                    originalTargetIsFocused: false) == .copy(.focusChangedCopied),
-               "missing Accessibility and changed focus copy instead of pasting elsewhere")
+                    currentTargetIsAvailable: false) == .copy(.focusChangedCopied),
+               "missing Accessibility or current field copy instead of attempting an unsafe paste")
         let originalWebField = DictationFocusIdentity(
             role: "AXTextArea", subrole: nil, identifier: nil,
             domIdentifier: "issue-comment", placeholder: "Leave a comment",
@@ -12713,6 +12713,9 @@ struct MetricsTests {
         expect(hybridTap.keyDown(at: 2, mode: .hybrid, sessionIsActive: false) == .begin
                 && hybridTap.keyUp(at: 2.499, sessionIsActive: true) == nil,
                "a hybrid tap below 500 ms stays hands-free")
+        expect(hybridTap.keyDown(at: 2.6, mode: .hybrid, sessionIsActive: true) == .stop
+                && hybridTap.keyUp(at: 2.7, sessionIsActive: true) == nil,
+               "a second hybrid tap stops an active hands-free session immediately")
         var hybridHold = DictationShortcutGesture()
         expect(hybridHold.keyDown(at: 3, mode: .hybrid, sessionIsActive: false) == .begin
                 && hybridHold.keyUp(at: 3.5, sessionIsActive: true) == .stop,

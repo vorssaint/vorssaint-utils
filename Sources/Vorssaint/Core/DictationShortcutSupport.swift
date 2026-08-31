@@ -211,8 +211,12 @@ struct DictationShortcutGesture: Equatable {
         switch mode {
         case .toggle:
             return sessionIsActive ? .stop : .begin
-        case .pushToTalk, .hybrid:
+        case .pushToTalk:
             return sessionIsActive ? nil : .begin
+        case .hybrid:
+            // A second press ends a hands-free session, matching VoiceInk.
+            // When idle, release timing still differentiates tap from hold.
+            return sessionIsActive ? .stop : .begin
         }
     }
 
