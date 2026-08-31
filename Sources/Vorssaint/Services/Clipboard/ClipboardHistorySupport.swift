@@ -140,6 +140,9 @@ enum ClipboardHistoryEditing {
     /// this bounded prevents a very large saved document from being copied
     /// again merely to draw its list preview.
     static let previewCharacters = 2_000
+    /// A hover tooltip is a transient popup, not a list row: previewCharacters
+    /// would let a whole page of prose through and read as a wall of text.
+    static let tooltipCharacters = 200
 
     struct EncodedHistory {
         let entries: [ClipboardHistoryEntry]

@@ -97,8 +97,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.captureStatusClick()
             self?.showMetricPanel(for: metric, anchoredTo: button)
         }
-        statusController.onClipboardPreviewClick = { [weak self] in
-            self?.captureStatusClick()
+        statusController.onClipboardPreviewClick = {
+            // No captureStatusClick() here, unlike the other click handlers:
+            // it only ever helps anchor the main popover to a status item,
+            // and this action opens the clipboard quick panel instead, which
+            // centers itself on the pointer's screen rather than anchoring to
+            // any status item.
             ClipboardHistoryService.shared.toggleHistoryWindow()
         }
         // The shelf drop zone chip anchors itself under the menu bar icon.

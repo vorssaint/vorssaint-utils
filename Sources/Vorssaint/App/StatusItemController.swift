@@ -710,9 +710,10 @@ final class StatusItemController {
         // menuBarText again rather than entry.preview directly: preview's
         // .files case joins every file name with no bound of its own, so a
         // large batch of files would otherwise make an unbounded tooltip.
-        // previewCharacters is a much larger cap than the menu bar title's
-        // own character limit, so this still reads as a fuller preview.
-        let tooltip = entry?.menuBarText(maxCharacters: ClipboardHistoryEditing.previewCharacters) ?? ""
+        // tooltipCharacters, not previewCharacters: previewCharacters is
+        // sized for a list row's three lines, which would still let a whole
+        // page of copied prose through as a hover tooltip.
+        let tooltip = entry?.menuBarText(maxCharacters: ClipboardHistoryEditing.tooltipCharacters) ?? ""
         if button.toolTip != tooltip {
             button.toolTip = tooltip
         }
