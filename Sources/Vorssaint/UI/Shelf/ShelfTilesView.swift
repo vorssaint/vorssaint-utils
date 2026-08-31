@@ -343,7 +343,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
             addSubview(badge)
 
             let expand = NSButton(frame: NSRect(x: 4, y: 4, width: 17, height: 17))
-            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.right.circle.fill",
+            expand.image = NSImage(systemSymbolName: isExpanded ? "chevron.down.circle.fill" : "chevron.forward.circle.fill",
                                    accessibilityDescription: nil)
             expand.isBordered = false
             expand.bezelStyle = .regularSquare

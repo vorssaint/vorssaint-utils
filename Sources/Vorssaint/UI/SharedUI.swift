@@ -254,7 +254,7 @@ struct DisclosureHeaderRow<Label: View>: View {
         } label: {
             HStack(spacing: 8) {
                 label()
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))

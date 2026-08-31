@@ -309,7 +309,7 @@ struct CleanerView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: whatsAppExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: whatsAppExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .frame(width: 9)
@@ -460,7 +460,7 @@ struct CleanerView: View {
                     }
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: scheduleExpanded ? "chevron.down" : "chevron.right")
+                        Image(systemName: scheduleExpanded ? "chevron.down" : "chevron.forward")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(width: 9)

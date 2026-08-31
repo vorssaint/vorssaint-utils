@@ -173,7 +173,7 @@ struct ScreenRecordingCaptureSettings: View {
                             Spacer()
                             Text("\(sharing.records.count)")
                                 .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "chevron.forward")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(.tertiary)
                         }

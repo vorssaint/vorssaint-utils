@@ -87,7 +87,7 @@ struct MixerSection: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
@@ -542,7 +542,7 @@ struct MixerSection: View {
                          : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.secondary)
                         .rotationEffect(.degrees(showListChooser ? 90 : 0))
