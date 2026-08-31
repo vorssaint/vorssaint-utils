@@ -91,10 +91,17 @@ final class DictationModifierShortcutTap {
             stop()
             return false
         }
+        if tap != nil, tap.map({ CGEvent.tapIsEnabled(tap: $0) }) == true {
+            registeredKeys = keys
+            downKeys.removeAll()
+            return true
+        }
+        stop()
+        // `stop()` clears the monitored keys. Set them only after that cleanup;
+        // otherwise a newly-created monitor receives flagsChanged events but
+        // rejects every key as unregistered.
         registeredKeys = keys
         downKeys.removeAll()
-        if tap != nil, tap.map({ CGEvent.tapIsEnabled(tap: $0) }) == true { return true }
-        stop()
         let mask = CGEventMask(1) << CGEventType.flagsChanged.rawValue
         guard let created = CGEvent.tapCreate(
             tap: .cgSessionEventTap,

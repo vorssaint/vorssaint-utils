@@ -78,7 +78,9 @@ final class DictationTranscriptionClient {
             throw DictationFailure.invalidResponse
         }
         if let failure = DictationHTTPErrorClassifier.failure(statusCode: http.statusCode) {
-            throw failure
+            throw DictationProviderError(failure: failure,
+                                         statusCode: http.statusCode,
+                                         detail: DictationProviderDiagnostic.message(from: data))
         }
         return try DictationResponseParser.transcript(from: data)
     }
@@ -107,7 +109,9 @@ final class DictationTranscriptionClient {
             throw DictationFailure.invalidResponse
         }
         if let failure = DictationHTTPErrorClassifier.failure(statusCode: http.statusCode) {
-            throw failure
+            throw DictationProviderError(failure: failure,
+                                         statusCode: http.statusCode,
+                                         detail: DictationProviderDiagnostic.message(from: data))
         }
         guard data.count <= DictationResponseParser.maximumResponseBytes,
               (try? JSONSerialization.jsonObject(with: data)) != nil
@@ -162,7 +166,9 @@ final class DictationTranscriptionClient {
             throw DictationFailure.invalidResponse
         }
         if let failure = DictationHTTPErrorClassifier.failure(statusCode: http.statusCode) {
-            throw failure
+            throw DictationProviderError(failure: failure,
+                                         statusCode: http.statusCode,
+                                         detail: DictationProviderDiagnostic.message(from: data))
         }
         return try DictationResponseParser.enhancedText(from: data)
     }

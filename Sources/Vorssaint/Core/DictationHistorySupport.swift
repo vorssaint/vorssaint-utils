@@ -84,3 +84,21 @@ enum DictationHistoryRetention {
         now.timeIntervalSince(createdAt) >= TimeInterval(sanitizedDays(days)) * 86_400
     }
 }
+
+/// Pure selection rules shared by the history library UI and tests. Selection
+/// is never persisted: deleting or reloading an entry must remove it safely.
+enum DictationHistorySelection {
+    static func toggled(_ id: UUID, in selection: Set<UUID>) -> Set<UUID> {
+        var result = selection
+        if result.contains(id) { result.remove(id) } else { result.insert(id) }
+        return result
+    }
+
+    static func all(in entries: [DictationHistoryEntry]) -> Set<UUID> {
+        Set(entries.map(\.id))
+    }
+
+    static func retaining(_ selection: Set<UUID>, in entries: [DictationHistoryEntry]) -> Set<UUID> {
+        selection.intersection(all(in: entries))
+    }
+}

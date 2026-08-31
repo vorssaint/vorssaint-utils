@@ -70,13 +70,6 @@ final class DictationAudioRecorder {
         }
         let file = directory.appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("m4a")
-        let settings: [String: Any] = [
-            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: 44_100,
-            AVNumberOfChannelsKey: 1,
-            AVEncoderBitRateKey: 96_000,
-            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
-        ]
 
         let engine = AVAudioEngine()
         let input = engine.inputNode
@@ -94,10 +87,20 @@ final class DictationAudioRecorder {
             throw DictationFailure.microphoneUnavailable
         }
 
-        guard input.inputFormat(forBus: 0).sampleRate > 0,
-              let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1) else {
+        // An input node's output format can be temporarily zero just after a
+        // CoreAudio device switch. The input format is the format delivered by
+        // the microphone and is the reliable source for an input tap.
+        let captureFormat = input.inputFormat(forBus: 0)
+        guard captureFormat.sampleRate > 0, captureFormat.channelCount > 0 else {
             throw DictationFailure.microphoneUnavailable
         }
+        let settings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
+            AVSampleRateKey: captureFormat.sampleRate,
+            AVNumberOfChannelsKey: Int(captureFormat.channelCount),
+            AVEncoderBitRateKey: 96_000,
+            AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
+        ]
         let fileWriter: DictationAudioFileWriter
         do {
             fileWriter = try DictationAudioFileWriter(url: file, settings: settings)
@@ -107,7 +110,7 @@ final class DictationAudioRecorder {
         }
 
         captureFailed = false
-        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self, weak fileWriter] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1_024, format: captureFormat) { [weak self, weak fileWriter] buffer, _ in
             guard let fileWriter else { return }
             do {
                 try fileWriter.write(buffer)
@@ -169,7 +172,8 @@ final class DictationAudioRecorder {
             forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
               values.isRegularFile == true,
               values.isSymbolicLink != true,
-              (values.fileSize ?? 0) > 0 else {
+              DictationRecordedAudio.isUsable(fileSize: values.fileSize,
+                                               duration: Self.duration(of: fileURL)) else {
             discardFile()
             throw DictationFailure.noSpeech
         }
@@ -202,12 +206,23 @@ final class DictationAudioRecorder {
         guard let samples = buffer.floatChannelData?.pointee,
               buffer.frameLength > 0 else { return 0 }
         var sum: Float = 0
+        var peak: Float = 0
         for index in 0 ..< Int(buffer.frameLength) {
             let sample = samples[index]
             sum += sample * sample
+            peak = max(peak, abs(sample))
         }
         let rms = sqrt(sum / Float(buffer.frameLength))
-        return max(0, min(1, rms * 4))
+        // RMS captures sustained speech while peak catches consonants; the
+        // combined visual gain does not change audio uploaded to the provider.
+        return max(0, min(1, max(rms * 16, peak * 4)))
+    }
+
+    private static func duration(of fileURL: URL) -> TimeInterval {
+        guard let file = try? AVAudioFile(forReading: fileURL),
+              file.fileFormat.sampleRate > 0,
+              file.length > 0 else { return 0 }
+        return Double(file.length) / file.fileFormat.sampleRate
     }
 
     private func removeAbandonedRecordings(in directory: URL) {

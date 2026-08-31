@@ -15,6 +15,7 @@ struct SettingsView: View {
         SuperKeySource.capsLock.rawValue
     @State private var searchQuery = ""
     @State private var activeSearchIndex: Int?
+    @State private var detailPath = NavigationPath()
     @FocusState private var sidebarSearchFocused: Bool
 
     private struct SearchResultsSnapshot: Equatable {
@@ -70,9 +71,11 @@ struct SettingsView: View {
             // real space it was actually given for normal layout, and ~zero
             // when asked for an unconstrained ideal size, breaking the chain.
             GeometryReader { geometry in
-                detail
-                    .settingsSectionFocus(for: router.page)
-                    .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                NavigationStack(path: $detailPath) {
+                    detail
+                        .settingsSectionFocus(for: router.page)
+                        .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+                }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -85,7 +88,11 @@ struct SettingsView: View {
         .onChange(of: router.requestID) { _, _ in
             searchQuery = ""
             activeSearchIndex = nil
+            detailPath = NavigationPath()
             ensureVisiblePage()
+        }
+        .onChange(of: router.page) { _, _ in
+            detailPath = NavigationPath()
         }
     }
 

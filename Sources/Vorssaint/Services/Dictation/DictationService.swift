@@ -30,6 +30,9 @@ final class DictationService: ObservableObject {
     private var localEscapeMonitor: Any?
     private var globalEscapeMonitor: Any?
     private var sessionID: UUID?
+    private var lastProviderStatus: Int?
+    private var lastProviderDetail: String?
+    private var didRequestAccessibility = false
     private var sessionConfiguration: SessionConfiguration?
     private var dismissWork: DispatchWorkItem?
     private var primaryGesture = DictationShortcutGesture()
@@ -119,7 +122,17 @@ final class DictationService: ObservableObject {
             configuredShortcutKinds.removeAll()
             configuredModifierKeys.removeAll()
             configuredEnabled.removeAll()
+            didRequestAccessibility = false
             return
+        }
+        // Dictation needs Accessibility both for a standalone modifier monitor
+        // and to paste the completed text into the current app. Request it on
+        // opt-in instead of leaving a modifier shortcut silently inactive.
+        if AXIsProcessTrusted() {
+            didRequestAccessibility = false
+        } else if !didRequestAccessibility {
+            didRequestAccessibility = true
+            Permissions.shared.requestAccessibility()
         }
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.dictationShortcut,
                                             fallback: .dictationDefault)
@@ -242,6 +255,7 @@ final class DictationService: ObservableObject {
               UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled) else { return }
         dismissWork?.cancel()
         dismissWork = nil
+        lastProviderStatus = nil
         let profile = profile ?? self.profile(for: .primary)
         let provider = profile.provider
         let model = profile.model
@@ -289,6 +303,7 @@ final class DictationService: ObservableObject {
             cancel(event: .disable)
             return
         }
+        DictationOutputMuteController.shared.begin()
         DictationMediaController.shared.begin()
         do {
             try recorder.start(microphoneUID: sessionConfiguration?.profile.microphoneUID)
@@ -324,6 +339,7 @@ final class DictationService: ObservableObject {
             return
         }
         DictationMediaController.shared.end()
+        DictationOutputMuteController.shared.end()
         let recordingStartedAt = recorder.lastRecordingStartedAt ?? Date()
         let recordingDuration = recorder.lastRecordingDuration ?? 0
         let processingStartedAt = Date()
@@ -362,6 +378,11 @@ final class DictationService: ObservableObject {
                                           processingDuration: Date().timeIntervalSince(processingStartedAt),
                                           audioURL: file)
                 self.insert(output.text, sessionID: id)
+            } catch let providerError as DictationProviderError {
+                guard !Task.isCancelled, self.sessionID == id else { return }
+                self.fail(providerError.failure,
+                          providerStatus: providerError.statusCode,
+                          providerDetail: providerError.detail)
             } catch let failure as DictationFailure {
                 guard failure != .cancelled, !Task.isCancelled, self.sessionID == id else { return }
                 self.fail(failure)
@@ -624,6 +645,8 @@ final class DictationService: ObservableObject {
         sessionID = nil
         sessionConfiguration = nil
         microphoneFallbackName = nil
+        lastProviderStatus = nil
+        lastProviderDetail = nil
         clearGestures()
         recorder.discardFile()
         removeEscapeHandlers()
@@ -631,12 +654,17 @@ final class DictationService: ObservableObject {
         hud.hide()
     }
 
-    private func fail(_ failure: DictationFailure) {
+    private func fail(_ failure: DictationFailure,
+                      providerStatus: Int? = nil,
+                      providerDetail: String? = nil) {
         transcriptionTask?.cancel()
         transcriptionTask = nil
         preserveFailedRecordingIfEnabled(failure)
         recorder.cancel()
         DictationMediaController.shared.end()
+        DictationOutputMuteController.shared.end()
+        lastProviderStatus = providerStatus
+        lastProviderDetail = providerDetail
         removeEscapeHandlers()
         sessionID = nil
         sessionConfiguration = nil
@@ -656,7 +684,7 @@ final class DictationService: ObservableObject {
     }
 
     private func preserveFailedRecordingIfEnabled(_ failure: DictationFailure) {
-        guard [.network, .rateLimited, .server].contains(failure),
+        guard [.network, .rateLimited, .server, .requestRejected].contains(failure),
               UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistoryEnabled),
               UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio),
               let audioURL = recorder.fileURL,
@@ -680,9 +708,12 @@ final class DictationService: ObservableObject {
         transcriptionTask?.cancel()
         transcriptionTask = nil
         recorder.cancel()
+        DictationOutputMuteController.shared.end()
         removeEscapeHandlers()
         sessionID = nil
         sessionConfiguration = nil
+        lastProviderStatus = nil
+        lastProviderDetail = nil
         clearGestures()
         level = 0
         state = DictationLifecycle.transition(from: state, event: event).state
@@ -729,6 +760,12 @@ final class DictationService: ObservableObject {
         }
         if let microphoneFallbackName {
             sessionDetail = (sessionDetail ?? "") + " · \(activation.microphone): \(microphoneFallbackName)"
+        }
+        if let lastProviderStatus {
+            sessionDetail = (sessionDetail ?? "") + " · HTTP \(lastProviderStatus)"
+        }
+        if let lastProviderDetail {
+            sessionDetail = (sessionDetail ?? "") + " · \(lastProviderDetail)"
         }
         hud.show(state: state,
                  level: level,

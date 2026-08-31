@@ -586,6 +586,7 @@ enum DefaultsKey {
     static let dictationSecondaryLanguage = "dictationSecondaryLanguage"
     static let dictationSecondaryMicrophone = "dictationSecondaryMicrophone"
     static let dictationPauseMedia = "dictationPauseMedia"
+    static let dictationMuteOutput = "dictationMuteOutput"
     static let dictationMediaResumeDelay = "dictationMediaResumeDelay"
     static let dictationHistoryEnabled = "dictationHistoryEnabled"
     static let dictationHistorySaveAudio = "dictationHistorySaveAudio"
@@ -1285,6 +1286,7 @@ enum Defaults {
         DefaultsKey.dictationSecondaryLanguage: DictationLanguage.automatic.rawValue,
         DefaultsKey.dictationSecondaryMicrophone: "",
         DefaultsKey.dictationPauseMedia: false,
+        DefaultsKey.dictationMuteOutput: false,
         DefaultsKey.dictationMediaResumeDelay: 0,
         DefaultsKey.dictationHistoryEnabled: false,
         DefaultsKey.dictationHistorySaveAudio: true,

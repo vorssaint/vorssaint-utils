@@ -20,6 +20,7 @@ E2E/
 
 # macOS noise
 .DS_Store
+Audio de teste/
 
 # Xcode / SwiftPM user state
 *.xcodeproj

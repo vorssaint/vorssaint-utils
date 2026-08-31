@@ -183,6 +183,47 @@ enum DictationFailure: Error, Equatable {
     case cancelled
 }
 
+/// HTTP context kept separate from the user-facing failure taxonomy. The
+/// status is safe to show (it never contains an API key or response body) and
+/// makes provider configuration/quota errors diagnosable without logging data.
+struct DictationProviderError: Error {
+    let failure: DictationFailure
+    let statusCode: Int
+    /// Short diagnostic returned by the provider. It is parsed defensively and
+    /// bounded before reaching UI; neither the request nor audio is retained.
+    let detail: String?
+}
+
+/// A recording must contain both media bytes and a measurable duration before
+/// it can be sent to a remote transcription provider.
+enum DictationRecordedAudio {
+    static let minimumDuration: TimeInterval = 0.05
+
+    static func isUsable(fileSize: Int?, duration: TimeInterval) -> Bool {
+        guard let fileSize, fileSize > 0 else { return false }
+        return duration >= minimumDuration
+    }
+}
+
+enum DictationProviderDiagnostic {
+    static let maximumLength = 180
+
+    static func message(from data: Data) -> String? {
+        guard data.count <= DictationResponseParser.maximumResponseBytes,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        let value = (object["error"] as? [String: Any])?["message"] as? String
+            ?? object["message"] as? String
+        guard let value else { return nil }
+        let compact = value
+            .components(separatedBy: .newlines)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !compact.isEmpty else { return nil }
+        return String(compact.prefix(maximumLength))
+    }
+}
+
 enum DictationLifecycleEvent: Equatable {
     case begin
     case stop

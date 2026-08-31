@@ -27,6 +27,7 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationSecondaryOpenAIModel) private var secondaryOpenAIModel = DictationProvider.openAI.defaultModel.id
     @AppStorage(DefaultsKey.dictationSecondaryGroqModel) private var secondaryGroqModel = DictationProvider.groq.defaultModel.id
     @AppStorage(DefaultsKey.dictationPauseMedia) private var pauseMedia = false
+    @AppStorage(DefaultsKey.dictationMuteOutput) private var muteOutput = false
     @AppStorage(DefaultsKey.dictationMediaResumeDelay) private var mediaResumeDelay = 0
     @AppStorage(DefaultsKey.dictationHistoryEnabled) private var historyEnabled = false
     @AppStorage(DefaultsKey.dictationHistorySaveAudio) private var historySaveAudio = true
@@ -182,6 +183,7 @@ struct DictationSettings: View {
 
             Section {
                 Toggle("Pausar mídia durante o ditado", isOn: $pauseMedia)
+                Toggle("Silenciar áudio durante o ditado", isOn: $muteOutput)
                 Picker("Retomar mídia após", selection: $mediaResumeDelay) {
                     ForEach(0 ... 5, id: \.self) { seconds in
                         Text(seconds == 0 ? "Imediatamente" : "\(seconds) s")
@@ -189,6 +191,9 @@ struct DictationSettings: View {
                     }
                 }
                 .disabled(!pauseMedia)
+                Text("Silencia a saída de áudio do Mac enquanto você fala e restaura o nível anterior ao finalizar.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section {
