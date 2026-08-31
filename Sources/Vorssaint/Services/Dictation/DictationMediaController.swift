@@ -58,11 +58,19 @@ final class DictationMediaController {
     }
 
     private var playbackState: DictationMediaPlayback {
-        switch MPNowPlayingInfoCenter.default().playbackState {
+        let center = MPNowPlayingInfoCenter.default()
+        switch center.playbackState {
         case .playing: return .playing
         case .paused: return .paused
         case .stopped: return .stopped
-        default: return .unknown
+        default:
+            // Safari/Chrome and some media players publish an item without
+            // updating MPNowPlayingInfoCenter.playbackState. Their playback
+            // rate is still reliable, so use it before giving up as unknown.
+            guard let info = center.nowPlayingInfo,
+                  let rate = info[MPNowPlayingInfoPropertyPlaybackRate] as? NSNumber
+            else { return .unknown }
+            return rate.doubleValue > 0 ? .playing : .paused
         }
     }
 

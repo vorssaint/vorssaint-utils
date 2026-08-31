@@ -12923,8 +12923,9 @@ struct MetricsTests {
                "dictation enumerates input devices and resolves a saved microphone with fallback")
         expect(dictationMediaSource.contains("MPNowPlayingInfoCenter")
                 && dictationMediaSource.contains("postPlayPause")
+                && dictationMediaSource.contains("MPNowPlayingInfoPropertyPlaybackRate")
                 && dictationMediaSource.contains("dictationMediaResumeDelay"),
-               "dictation media control uses native now-playing state and a bounded resume delay")
+               "dictation media control detects browser playback and uses a bounded resume delay")
         expect(dictationOutputMuteSource.contains("kAudioHardwarePropertyDefaultOutputDevice")
                 && dictationOutputMuteSource.contains("kAudioDevicePropertyMute")
                 && dictationOutputMuteSource.contains("kAudioDevicePropertyVolumeScalar")
