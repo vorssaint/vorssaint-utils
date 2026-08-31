@@ -56,6 +56,33 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
         apiKey: "key")) != nil,
           "provider configuration allows loopback HTTP")
 
+    let originalLanguage = L10n.shared.language
+    L10n.shared.language = .enUS
+    let englishURLMessage = SelectionTranslationProviderConfiguration.ValidationError.unsupportedURL.errorDescription ?? ""
+    let englishModelMessage = SelectionTranslationProviderConfiguration.ValidationError.emptyModel.errorDescription ?? ""
+    let englishAPIKeyMessage = SelectionTranslationProviderConfiguration.ValidationError.emptyAPIKey.errorDescription ?? ""
+    let englishKeychainMessage = SelectionTranslationKeychain.Error.writeFailed(-1).errorDescription ?? ""
+    check(englishURLMessage == "Base URL must use HTTPS, or HTTP on the local loopback address.",
+          "provider validation errors use the active English localization")
+    check(englishModelMessage == "Enter a model name.",
+          "empty model errors use the active English localization")
+    check(englishAPIKeyMessage == "Enter an API key in Selection Translation settings.",
+          "empty API key errors use the active English localization")
+    check(englishKeychainMessage == "The API key could not be saved. Check Keychain access and try again.",
+          "keychain errors use the active English localization")
+    L10n.shared.language = .zhHans
+    let chineseURLMessage = SelectionTranslationProviderConfiguration.ValidationError.unsupportedURL.errorDescription ?? ""
+    let chineseKeychainMessage = SelectionTranslationKeychain.Error.writeFailed(-1).errorDescription ?? ""
+    check(chineseURLMessage == "服务地址必须是 HTTPS，或本机回环地址。",
+          "provider validation errors use the active Simplified Chinese localization")
+    check(chineseKeychainMessage == "无法保存 API 密钥，请检查钥匙串权限后重试。",
+          "keychain errors use the active Simplified Chinese localization")
+    L10n.shared.language = .ptBR
+    let fallbackURLMessage = SelectionTranslationProviderConfiguration.ValidationError.unsupportedURL.errorDescription ?? ""
+    check(!fallbackURLMessage.contains("服务地址"),
+          "unsupported languages do not receive hard-coded Chinese errors")
+    L10n.shared.language = originalLanguage
+
     check((try? SelectionTranslationPromptTemplates(
         systemPrompt: "translate",
         userPrompt: "{{text}}")) != nil,

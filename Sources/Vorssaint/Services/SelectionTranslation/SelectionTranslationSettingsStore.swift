@@ -23,7 +23,7 @@ enum SelectionTranslationKeychain {
         var errorDescription: String? {
             switch self {
             case .writeFailed:
-                return "无法保存 API 密钥，请检查钥匙串权限后重试。"
+                return FeatureStrings.selectionTranslation(L10n.shared.language).keychainWriteFailed
             }
         }
     }

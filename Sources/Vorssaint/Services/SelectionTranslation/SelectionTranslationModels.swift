@@ -161,10 +161,11 @@ struct SelectionTranslationProviderConfiguration: Equatable, Sendable {
         case emptyAPIKey
 
         var errorDescription: String? {
+            let text = FeatureStrings.selectionTranslation(L10n.shared.language)
             switch self {
-            case .unsupportedURL: return "服务地址必须是 HTTPS，或本机回环地址。"
-            case .emptyModel: return "请填写模型名称。"
-            case .emptyAPIKey: return "请在划词翻译设置中填写 API 密钥。"
+            case .unsupportedURL: return text.unsupportedURL
+            case .emptyModel: return text.emptyModel
+            case .emptyAPIKey: return text.emptyAPIKey
             }
         }
     }

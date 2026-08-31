@@ -43,6 +43,10 @@ struct SelectionTranslationFeatureStrings {
     let estimatedSuffix: String
     let invalidResponse: String
     let requestFailed: String
+    let unsupportedURL: String
+    let emptyModel: String
+    let emptyAPIKey: String
+    let keychainWriteFailed: String
     let emptyTranslation: String
     let cancelled: String
     let httpStatusFormat: String
@@ -71,6 +75,10 @@ struct SelectionTranslationFeatureStrings {
         savedStatus: "Saved", connectedStatus: "Connected", tokensFormat: "Tokens: %d in · %d out · %d total",
         elapsedFormat: "Elapsed: %.1fs", estimatedSuffix: "estimated",
         invalidResponse: "The translation service returned an invalid response.", requestFailed: "Request failed",
+        unsupportedURL: "Base URL must use HTTPS, or HTTP on the local loopback address.",
+        emptyModel: "Enter a model name.",
+        emptyAPIKey: "Enter an API key in Selection Translation settings.",
+        keychainWriteFailed: "The API key could not be saved. Check Keychain access and try again.",
         emptyTranslation: "The translation service returned no text.", cancelled: "Translation cancelled.",
         httpStatusFormat: "Translation service returned HTTP %d: %@",
         sourcePlaceholder: "Type or paste text to translate", swapLanguages: "Swap languages",
@@ -93,6 +101,10 @@ struct SelectionTranslationFeatureStrings {
         savedStatus: "已保存", connectedStatus: "已连接", tokensFormat: "Token：输入 %d · 输出 %d · 总计 %d",
         elapsedFormat: "耗时：%.1f 秒", estimatedSuffix: "估算",
         invalidResponse: "翻译服务返回了无效响应。", requestFailed: "请求失败",
+        unsupportedURL: "服务地址必须是 HTTPS，或本机回环地址。",
+        emptyModel: "请填写模型名称。",
+        emptyAPIKey: "请在划词翻译设置中填写 API 密钥。",
+        keychainWriteFailed: "无法保存 API 密钥，请检查钥匙串权限后重试。",
         emptyTranslation: "翻译服务没有返回文本。",
         cancelled: "翻译已取消。", httpStatusFormat: "翻译服务返回 HTTP %d：%@",
         sourcePlaceholder: "输入或粘贴需要翻译的内容", swapLanguages: "交换语言",
