@@ -11,6 +11,8 @@ final class ClipboardHistoryService {
     static let shared = ClipboardHistoryService()
 
     func ignoreNextChange(upTo _: Int) {}
+    func beginCaptureDeferral() -> ClipboardHistoryCaptureDeferral { ClipboardHistoryCaptureDeferral() }
+    func endCaptureDeferral(_: ClipboardHistoryCaptureDeferral, ignoringUpTo _: Int? = nil) {}
 }
 
 /// Pure contract checks for the selected-text translation feature.  The
@@ -238,4 +240,64 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
           "the utilities section stays available when selection translation is installed")
     check(Defaults.registeredDefaults["panelUtilitySelectionTranslation"] as? Bool == true,
           "the selection translation menu item is visible by default")
+
+    let transientPasteSource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/Services/TransientPaste.swift",
+        encoding: .utf8)) ?? ""
+    check(transientPasteSource.contains("postOnTimeout"),
+          "paste timeout policy preserves the legacy fallthrough")
+    check(transientPasteSource.contains("failOnTimeout"),
+          "selection copy timeout policy fails without posting a chord")
+    check(TransientPaste.releaseDecision(
+        held: .maskCommand,
+        attempt: 0,
+        timeoutBehavior: .postOnTimeout
+    ) == .wait,
+    "held modifiers keep waiting before the timeout")
+    check(TransientPaste.releaseDecision(
+        held: .maskCommand,
+        attempt: 100,
+        timeoutBehavior: .postOnTimeout
+    ) == .post
+    && TransientPaste.releaseDecision(
+        held: .maskCommand,
+        attempt: 100,
+        timeoutBehavior: .failOnTimeout
+    ) == .fail,
+    "paste and selection timeout behaviors remain distinct")
+
+    let settingsStoreSource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/Services/SelectionTranslation/SelectionTranslationSettingsStore.swift",
+        encoding: .utf8)) ?? ""
+    check(!settingsStoreSource.contains("preconditionFailure"),
+          "missing selection translation defaults do not crash")
+    let emptySettingsSuite = "com.vorssaint.tests.selectionTranslationEmptyDefaults"
+    let emptyDefaults = UserDefaults(suiteName: emptySettingsSuite)!
+    emptyDefaults.removePersistentDomain(forName: emptySettingsSuite)
+    let emptySettings = SelectionTranslationSettingsStore.snapshot(
+        defaults: emptyDefaults,
+        apiKey: "test-key"
+    )
+    check(emptySettings.baseURL == SelectionTranslationSettingsStore.defaultBaseURL
+          && emptySettings.model == SelectionTranslationSettingsStore.defaultModel
+          && emptySettings.providerName == SelectionTranslationSettingsStore.defaultProviderName
+          && emptySettings.languages.target == SelectionTranslationSettingsStore.defaultTargetLanguage
+          && emptySettings.prompts == .default,
+          "missing defaults fall back to the single default source")
+    emptyDefaults.removePersistentDomain(forName: emptySettingsSuite)
+
+    let clipboardHistorySource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
+        encoding: .utf8)) ?? ""
+    check(clipboardHistorySource.contains("beginCaptureDeferral"),
+          "selection fallback can defer clipboard history capture")
+    var deferralState = ClipboardHistoryCaptureDeferralState()
+    let firstDeferral = deferralState.begin()
+    let secondDeferral = deferralState.begin()
+    check(deferralState.isDeferred
+          && !deferralState.end(firstDeferral)
+          && deferralState.isDeferred
+          && deferralState.end(secondDeferral)
+          && !deferralState.isDeferred,
+          "clipboard capture deferrals support nested transactions")
 }

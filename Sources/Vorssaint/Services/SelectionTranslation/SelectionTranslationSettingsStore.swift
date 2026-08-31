@@ -76,22 +76,25 @@ enum SelectionTranslationSettingsStore {
 
     static func snapshot(defaults: UserDefaults = .standard,
                          apiKey: String? = nil) -> SelectionTranslationSettingsSnapshot {
-        func string(_ key: String) -> String {
-            guard let value = defaults.string(forKey: key) else {
-                preconditionFailure("Missing registered default for \(key)")
-            }
-            return value
+        func string(_ key: String, fallback: String) -> String {
+            defaults.string(forKey: key) ?? fallback
         }
-        let system = string(DefaultsKey.selectionTranslationSystemPrompt)
-        let user = string(DefaultsKey.selectionTranslationUserPrompt)
+        let system = string(DefaultsKey.selectionTranslationSystemPrompt,
+                            fallback: defaultSystemPrompt)
+        let user = string(DefaultsKey.selectionTranslationUserPrompt,
+                          fallback: defaultUserPrompt)
         let prompts = (try? SelectionTranslationPromptTemplates(systemPrompt: system, userPrompt: user)) ?? .default
         return SelectionTranslationSettingsSnapshot(
-            providerName: string(DefaultsKey.selectionTranslationProviderName),
-            baseURL: string(DefaultsKey.selectionTranslationBaseURL),
-            model: string(DefaultsKey.selectionTranslationModel),
+            providerName: string(DefaultsKey.selectionTranslationProviderName,
+                                 fallback: defaultProviderName),
+            baseURL: string(DefaultsKey.selectionTranslationBaseURL,
+                            fallback: defaultBaseURL),
+            model: string(DefaultsKey.selectionTranslationModel,
+                          fallback: defaultModel),
             apiKey: apiKey ?? SelectionTranslationKeychain.read(),
             languages: SelectionTranslationLanguageSelection(target: .matching(
-                string(DefaultsKey.selectionTranslationTargetLanguage))),
+                string(DefaultsKey.selectionTranslationTargetLanguage,
+                       fallback: defaultTargetLanguage.rawValue))),
             prompts: prompts)
     }
 

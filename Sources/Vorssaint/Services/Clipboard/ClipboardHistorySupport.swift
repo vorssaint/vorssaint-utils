@@ -3,6 +3,26 @@
 
 import Foundation
 
+struct ClipboardHistoryCaptureDeferral: Hashable, Sendable {
+    let id = UUID()
+}
+
+struct ClipboardHistoryCaptureDeferralState: Sendable {
+    private var activeTokenIDs: Set<UUID> = []
+
+    var isDeferred: Bool { !activeTokenIDs.isEmpty }
+
+    mutating func begin() -> ClipboardHistoryCaptureDeferral {
+        let token = ClipboardHistoryCaptureDeferral()
+        activeTokenIDs.insert(token.id)
+        return token
+    }
+
+    mutating func end(_ token: ClipboardHistoryCaptureDeferral) -> Bool {
+        activeTokenIDs.remove(token.id) != nil && activeTokenIDs.isEmpty
+    }
+}
+
 enum ClipboardHistoryEntryKind: String, Codable {
     case text
     case image

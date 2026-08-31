@@ -17,6 +17,10 @@ private final class SelectionTranslationPasteboardContext: @unchecked Sendable {
     }
 }
 
+private final class SelectionTranslationCaptureDeferralBox: @unchecked Sendable {
+    var token: ClipboardHistoryCaptureDeferral?
+}
+
 enum SelectionTranslationSelectionReader {
     static func read() async -> String {
         let direct = await Task.detached(priority: .userInitiated) {
@@ -42,16 +46,26 @@ enum SelectionTranslationSelectionReader {
 
                 // Posting from the main queue is intentional: the helper
                 // polls the physical modifier state before it synthesizes C.
+                let captureDeferralBox = SelectionTranslationCaptureDeferralBox()
                 DispatchQueue.main.async {
                     TransientPaste.postKeyWhenModifiersReleased(
                         keyCode: SelectionTranslationPasteboardSupport.copyKeyCode,
-                        flags: .maskCommand
+                        flags: .maskCommand,
+                        timeoutBehavior: .failOnTimeout,
+                        willPost: {
+                            captureDeferralBox.token = ClipboardHistoryService.shared.beginCaptureDeferral()
+                        }
                     ) { succeeded in
+                        guard let captureDeferral = captureDeferralBox.token else {
+                            continuation.resume(returning: "")
+                            return
+                        }
+                        guard succeeded else {
+                            ClipboardHistoryService.shared.endCaptureDeferral(captureDeferral)
+                            continuation.resume(returning: "")
+                            return
+                        }
                         GeneralPasteboardAccess.shared.async {
-                            guard succeeded else {
-                                continuation.resume(returning: "")
-                                return
-                            }
                             let board = NSPasteboard.general
                             let originalChangeCount = context.originalChangeCount
                             var selected = ""
@@ -67,10 +81,9 @@ enum SelectionTranslationSelectionReader {
                                 usleep(20_000)
                             } while Date() < deadline
 
+                            var ignoredThrough: Int?
                             if let copyChangeCount {
-                                DispatchQueue.main.async {
-                                    ClipboardHistoryService.shared.ignoreNextChange(upTo: copyChangeCount)
-                                }
+                                ignoredThrough = copyChangeCount
                                 let currentChangeCount = board.changeCount
                                 if SelectionTranslationPasteboardSupport.shouldRestore(
                                     originalChangeCount: originalChangeCount,
@@ -80,13 +93,18 @@ enum SelectionTranslationSelectionReader {
                                     board.clearContents()
                                     if !context.snapshot.isEmpty { board.writeObjects(context.snapshot) }
                                     let restoredChangeCount = board.changeCount
-                                    DispatchQueue.main.async {
-                                        ClipboardHistoryService.shared.ignoreNextChange(upTo: restoredChangeCount)
-                                    }
+                                    ignoredThrough = restoredChangeCount
                                 }
                             }
                             let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
-                            continuation.resume(returning: trimmed.count <= CommandBarSelectionReader.maximumLength ? trimmed : "")
+                            let result = trimmed.count <= CommandBarSelectionReader.maximumLength ? trimmed : ""
+                            DispatchQueue.main.async {
+                                ClipboardHistoryService.shared.endCaptureDeferral(
+                                    captureDeferral,
+                                    ignoringUpTo: ignoredThrough
+                                )
+                                continuation.resume(returning: result)
+                            }
                         }
                     }
                 }

@@ -12,6 +12,17 @@ import CoreGraphics
 final class TransientPaste {
     static let shared = TransientPaste()
 
+    enum ModifierReleaseTimeoutBehavior: Equatable {
+        case postOnTimeout
+        case failOnTimeout
+    }
+
+    enum ModifierReleaseDecision: Equatable {
+        case wait
+        case post
+        case fail
+    }
+
     private static let restoreDelay: TimeInterval = 0.5
 
     private var pendingRestore: (snapshot: [NSPasteboardItem], changeCount: Int)?
@@ -127,24 +138,28 @@ final class TransientPaste {
     /// plain Command-C/V into the trigger chord plus C/V in the front app.
     static func postKeyWhenModifiersReleased(keyCode: CGKeyCode,
                                              flags: CGEventFlags,
+                                             timeoutBehavior: ModifierReleaseTimeoutBehavior = .failOnTimeout,
                                              attempt: Int = 0,
                                              willPost: (() -> Void)? = nil,
                                              completion: @escaping (Bool) -> Void) {
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
-        if attempt >= 100 {
+        switch releaseDecision(held: held, attempt: attempt, timeoutBehavior: timeoutBehavior) {
+        case .fail:
             completion(false)
             return
-        }
-        guard held.isEmpty else {
+        case .wait:
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
                 Self.postKeyWhenModifiersReleased(keyCode: keyCode,
                                                    flags: flags,
+                                                   timeoutBehavior: timeoutBehavior,
                                                    attempt: attempt + 1,
                                                    willPost: willPost,
                                                    completion: completion)
             }
             return
+        case .post:
+            break
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
             guard !IsSecureEventInputEnabled(),
@@ -169,6 +184,16 @@ final class TransientPaste {
         }
     }
 
+    static func releaseDecision(held: CGEventFlags,
+                                attempt: Int,
+                                timeoutBehavior: ModifierReleaseTimeoutBehavior)
+        -> ModifierReleaseDecision {
+        if attempt >= 100 {
+            return timeoutBehavior == .postOnTimeout ? .post : .fail
+        }
+        return held.isEmpty ? .post : .wait
+    }
+
     private static func postPasteWhenModifiersReleased(attempt: Int,
                                                        willPost: (() -> Void)?,
                                                        didPost: (() -> Void)?,
@@ -176,6 +201,7 @@ final class TransientPaste {
                                                        completion: @escaping () -> Void) {
         postKeyWhenModifiersReleased(keyCode: CGKeyCode(kVK_ANSI_V),
                                      flags: .maskCommand,
+                                     timeoutBehavior: .postOnTimeout,
                                      attempt: attempt,
                                      willPost: willPost) { succeeded in
             if succeeded {

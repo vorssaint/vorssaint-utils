@@ -51,6 +51,7 @@ final class ClipboardHistoryService: ObservableObject {
     /// system wide (issue #189). The shared access lane also keeps the URL
     /// cleaner from touching AppKit's mutable pasteboard cache concurrently.
     private var captureInFlight = false
+    private var captureDeferralState = ClipboardHistoryCaptureDeferralState()
     /// Each capture attempt carries a token so a read that wedged behind a
     /// password prompt can be abandoned without a stale completion (or a stuck
     /// in-flight flag) ever disabling history for good.
@@ -96,6 +97,28 @@ final class ClipboardHistoryService: ObservableObject {
     /// use this so their intermediate writes never churn the history.
     func ignoreNextChange(upTo changeCount: Int) {
         lastChangeCount = max(lastChangeCount, changeCount)
+    }
+
+    /// Temporarily pauses history capture while another feature performs a
+    /// transient pasteboard transaction. The token keeps nested transactions
+    /// independent, and invalidating the current generation abandons any read
+    /// that may already be in flight before the transaction starts.
+    func beginCaptureDeferral() -> ClipboardHistoryCaptureDeferral {
+        let token = captureDeferralState.begin()
+        captureGeneration &+= 1
+        captureInFlight = false
+        return token
+    }
+
+    /// Ends one transient capture deferral. Only the synthetic change count is
+    /// ignored; a newer user change remains ahead of `lastChangeCount` and is
+    /// captured immediately when the final deferral is released.
+    func endCaptureDeferral(_ token: ClipboardHistoryCaptureDeferral,
+                            ignoringUpTo changeCount: Int? = nil) {
+        guard captureDeferralState.end(token) else { return }
+        if let changeCount { ignoreNextChange(upTo: changeCount) }
+        guard !captureDeferralState.isDeferred, isRunning else { return }
+        captureIfChanged()
     }
 
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
@@ -571,7 +594,7 @@ final class ClipboardHistoryService: ObservableObject {
         // Only ever one read in flight: while a password prompt holds the
         // pasteboard server, a read can take seconds, and letting ticks pile
         // up would spawn a thread each time.
-        guard !captureInFlight else { return }
+        guard !captureDeferralState.isDeferred, !captureInFlight else { return }
         let sinceChangeCount = lastChangeCount
         let includeImagesFiles = UserDefaults.standard.bool(
             forKey: DefaultsKey.clipboardHistoryIncludeImagesFiles)
