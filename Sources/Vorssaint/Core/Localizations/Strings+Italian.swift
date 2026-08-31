@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Tasti laterali attivi ora",
         smoothScrollName: "Scorrimento fluido",
         smoothScrollCaption: "Trasforma ogni scatto della rotellina del mouse in una breve scivolata fluida. Il trackpad non cambia.",
-        smoothScrollStepLabel: "Distanza per scatto",
+        smoothScrollStepLabel: "Velocità di scorrimento",
         mouseNavigationSection: "Navigazione",
         mouseNavigationEnable: "Usa i pulsanti laterali per Indietro e Avanti",
         mouseNavigationCaption: "Trasforma i pulsanti Indietro e Avanti del mouse in comandi di navigazione per Finder, browser e app compatibili.",
@@ -803,6 +803,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Premi Esc 5 volte per sbloccare",
         cleaningOverlayUnlock: "Sblocca",
         cleaningOverlayMouseHint: "Mouse e trackpad continuano a funzionare",
+        cleaningKeepScreenVisibleToggle: "Mantieni lo schermo visibile",
+        cleaningKeepScreenVisibleCaption: "Mostra un indicatore discreto nell'angolo dello schermo anziché oscurare i contenuti.",
+        cleaningStartNow: "Blocca la tastiera ora",
         cleaningNeedsAxTitle: "Serve l'Accessibilità",
         cleaningNeedsAxBody: "Per bloccare la tastiera in sicurezza, Vorssaint ha bisogno dell'autorizzazione di Accessibilità. Concedila in Impostazioni di Sistema e riprova.",
 
@@ -977,6 +980,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Schermo con il puntatore",
         switcherScreenPlacementMenuBar: "Schermo con la barra dei menu",
         switcherScreenPlacementActiveWindow: "Schermo con la finestra attiva",
-        switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno."
+        switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno.",
+        smoothScrollResponseLabel: "Reattività",
+        mouseAccelerationName: "Disattiva l’accelerazione del mouse",
+        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint."
     )
 }

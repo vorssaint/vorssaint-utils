@@ -940,6 +940,9 @@ struct Strings {
     let cleaningOverlaySubtitle: String
     let cleaningOverlayUnlock: String
     let cleaningOverlayMouseHint: String
+    let cleaningKeepScreenVisibleToggle: String
+    let cleaningKeepScreenVisibleCaption: String
+    let cleaningStartNow: String
     let cleaningNeedsAxTitle: String
     let cleaningNeedsAxBody: String
 
@@ -1122,6 +1125,9 @@ struct Strings {
     let switcherScreenPlacementMenuBar: String
     let switcherScreenPlacementActiveWindow: String
     let switcherScreenPlacementCaption: String
+    let smoothScrollResponseLabel: String
+    let mouseAccelerationName: String
+    let mouseAccelerationCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1277,7 +1283,7 @@ extension Strings {
         mouseNavigationActiveNow: "Botões laterais ativos agora",
         smoothScrollName: "Rolagem suave",
         smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
-        smoothScrollStepLabel: "Distância por passo",
+        smoothScrollStepLabel: "Velocidade da rolagem",
         mouseNavigationSection: "Navegação",
         mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
         mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
@@ -1926,6 +1932,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Pressione Esc 5 vezes para desbloquear",
         cleaningOverlayUnlock: "Desbloquear",
         cleaningOverlayMouseHint: "O mouse e o trackpad continuam funcionando",
+        cleaningKeepScreenVisibleToggle: "Manter a tela visível",
+        cleaningKeepScreenVisibleCaption: "Exibe um indicador discreto no canto da tela em vez de escurecer o conteúdo.",
+        cleaningStartNow: "Bloquear teclado agora",
         cleaningNeedsAxTitle: "Precisa de Acessibilidade",
         cleaningNeedsAxBody: "Para bloquear o teclado com segurança, o Vorssaint precisa da permissão de Acessibilidade. Conceda em Ajustes do Sistema e tente de novo.",
 
@@ -2100,7 +2109,10 @@ extension Strings {
         switcherScreenPlacementPointer: "Tela com o ponteiro",
         switcherScreenPlacementMenuBar: "Tela com a barra de menus",
         switcherScreenPlacementActiveWindow: "Tela com a janela ativa",
-        switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada."
+        switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada.",
+        smoothScrollResponseLabel: "Resposta",
+        mouseAccelerationName: "Desativar aceleração do mouse",
+        mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint."
     )
 }
 
@@ -2257,7 +2269,7 @@ extension Strings {
         mouseNavigationActiveNow: "Side buttons active right now",
         smoothScrollName: "Smooth scrolling",
         smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
-        smoothScrollStepLabel: "Distance per step",
+        smoothScrollStepLabel: "Scrolling speed",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Use side buttons for Back and Forward",
         mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",
@@ -2906,6 +2918,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Press Escape 5 times to unlock",
         cleaningOverlayUnlock: "Unlock",
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
+        cleaningKeepScreenVisibleToggle: "Keep screen visible",
+        cleaningKeepScreenVisibleCaption: "Shows a discreet indicator in the corner of the screen instead of blacking out content.",
+        cleaningStartNow: "Lock keyboard now",
         cleaningNeedsAxTitle: "Accessibility needed",
         cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Grant it in System Settings and try again.",
 
@@ -3080,6 +3095,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Screen with the pointer",
         switcherScreenPlacementMenuBar: "Screen with the menu bar",
         switcherScreenPlacementActiveWindow: "Screen with the active window",
-        switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected."
+        switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected.",
+        smoothScrollResponseLabel: "Response",
+        mouseAccelerationName: "Disable mouse acceleration",
+        mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits."
     )
 }

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import CoreGraphics
 import Foundation
 import IOKit
@@ -71,7 +72,13 @@ final class MiddleClickService: ObservableObject {
     private var tapSawButton = false
     private var tapPositionUnavailable = false
 
-    private init() {}
+    private init() {
+        // Multitouch callbacks and the filter tap belong only to the login
+        // session on screen. A switched-away process must own neither.
+        SessionActivity.shared.onChange { [weak self] _ in
+            self?.syncWithPreferences()
+        }
+    }
 
     func syncWithPreferences() {
         let enabled = AppFeature.middleClick.isAvailable
@@ -83,7 +90,11 @@ final class MiddleClickService: ObservableObject {
         resetTapCandidateLocked()
         stateLock.unlock()
         refreshDragGestureConflict()
-        if enabled, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(
+            featureWanted: enabled,
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive
+        ) {
             start()
         } else {
             stop()
@@ -171,6 +182,9 @@ final class MiddleClickService: ObservableObject {
         }
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+        if let tap {
+            CFMachPortInvalidate(tap)
         }
         tap = nil
         runLoopSource = nil
@@ -400,7 +414,23 @@ final class MiddleClickService: ObservableObject {
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             releaseHeldMiddleButton()
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            let enabled = AppFeature.middleClick.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
+            let shouldRearm = SessionActivitySupport.tapShouldRun(
+                featureWanted: enabled,
+                accessibilityGranted: AXIsProcessTrusted(),
+                sessionIsActive: SessionActivity.shared.isActive
+            )
+            if shouldRearm, let tap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                // The matching middle-up was sent above. Tear the disabled tap
+                // down after its callback returns instead of resurrecting it.
+                DispatchQueue.main.async { [weak self] in
+                    self?.stop()
+                    self?.syncWithPreferences()
+                }
+            }
             return Unmanaged.passUnretained(event)
         }
 
@@ -582,25 +612,26 @@ private enum Multitouch {
     static func touchGeometry(touches: UnsafeMutableRawPointer?,
                               count: Int) -> (center: (x: Float, y: Float), spread: Float)? {
         guard let touches, count > 0 else { return nil }
-        var xs = [Float]()
-        var ys = [Float]()
-        xs.reserveCapacity(count)
-        ys.reserveCapacity(count)
+        var sumX: Float = 0
+        var sumY: Float = 0
         for index in 0..<count {
             let base = touches.advanced(by: index * touchStride)
             let x = base.loadUnaligned(fromByteOffset: touchPositionXOffset, as: Float.self)
             let y = base.loadUnaligned(fromByteOffset: touchPositionYOffset, as: Float.self)
             guard x.isFinite, y.isFinite,
                   x >= -0.2, x <= 1.2, y >= -0.2, y <= 1.2 else { return nil }
-            xs.append(x)
-            ys.append(y)
+            sumX += x
+            sumY += y
         }
-        let centerX = xs.reduce(0, +) / Float(count)
-        let centerY = ys.reduce(0, +) / Float(count)
+        let centerX = sumX / Float(count)
+        let centerY = sumY / Float(count)
         var spread: Float = 0
         for index in 0..<count {
-            let dx = xs[index] - centerX
-            let dy = ys[index] - centerY
+            let base = touches.advanced(by: index * touchStride)
+            let x = base.loadUnaligned(fromByteOffset: touchPositionXOffset, as: Float.self)
+            let y = base.loadUnaligned(fromByteOffset: touchPositionYOffset, as: Float.self)
+            let dx = x - centerX
+            let dy = y - centerY
             spread += (dx * dx + dy * dy).squareRoot()
         }
         spread /= Float(count)

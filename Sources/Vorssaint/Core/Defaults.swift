@@ -40,11 +40,18 @@ enum DefaultsKey {
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
+    static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
+    static let mouseAccelerationDisabled = "mouseAccelerationDisabled" // sets HIDMouseAcceleration to -1 for mice
+    static let smoothScrollResponse = "smoothScrollResponse" // 0...100, higher follows the wheel sooner
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
     static let mouseButtonShortcutsEnabled = "mouseButtonShortcutsEnabled" // extra buttons press a key combination (issue #282)
     static let mouseButtonShortcuts = "mouseButtonShortcuts" // [button number: GlobalShortcut storage value]
+    static let mouseSpacesGestureEnabled = "mouseSpacesGestureEnabled" // hold a button and drag to switch Spaces (issue #1012)
+    static let mouseSpacesGestureButton = "mouseSpacesGestureButton"   // button number, 0 while none is chosen
+    static let mouseClickDebounceEnabled = "mouseClickDebounceEnabled"
+    static let mouseClickDebounceWindowMs = "mouseClickDebounceWindowMs"
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
@@ -107,6 +114,23 @@ enum DefaultsKey {
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
+    // Quit/close protection: each shortcut owns its full configuration and app list.
+    static let quitProtectionQuitEnabled = "quitProtectionQuitEnabled"
+    static let quitProtectionQuitMode = "quitProtectionQuitMode"
+    static let quitProtectionQuitHoldDurationMs = "quitProtectionQuitHoldDurationMs"
+    static let quitProtectionQuitDoubleIntervalMs = "quitProtectionQuitDoubleIntervalMs"
+    static let quitProtectionQuitExtraModifier = "quitProtectionQuitExtraModifier"
+    static let quitProtectionQuitScope = "quitProtectionQuitScope"
+    static let quitProtectionQuitExceptions = "quitProtectionQuitExceptions"
+    static let quitProtectionQuitShowFeedback = "quitProtectionQuitShowFeedback"
+    static let quitProtectionCloseEnabled = "quitProtectionCloseEnabled"
+    static let quitProtectionCloseMode = "quitProtectionCloseMode"
+    static let quitProtectionCloseHoldDurationMs = "quitProtectionCloseHoldDurationMs"
+    static let quitProtectionCloseDoubleIntervalMs = "quitProtectionCloseDoubleIntervalMs"
+    static let quitProtectionCloseExtraModifier = "quitProtectionCloseExtraModifier"
+    static let quitProtectionCloseScope = "quitProtectionCloseScope"
+    static let quitProtectionCloseExceptions = "quitProtectionCloseExceptions"
+    static let quitProtectionCloseShowFeedback = "quitProtectionCloseShowFeedback"
     static let shelfEnabled = "shelfEnabled"
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
@@ -187,6 +211,7 @@ enum DefaultsKey {
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
     static let panelUtilityCleaning = "panelUtilityCleaning"
+    static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
@@ -227,6 +252,8 @@ enum DefaultsKey {
     static let panelControlSuperKey = "panelControlSuperKey"
     static let panelControlRadialMenu = "panelControlRadialMenu"
     static let panelControlMouseButtonShortcuts = "panelControlMouseButtonShortcuts"
+    static let panelControlMouseAcceleration = "panelControlMouseAcceleration"
+    static let panelControlMouseClickDebounce = "panelControlMouseClickDebounce"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
     static let panelControlInputExpanded = "panelControlInputExpanded"
@@ -357,6 +384,8 @@ enum DefaultsKey {
     static let panelNavigationEnabled = "panelNavigationEnabled" // legacy: the panel always navigates by sections since 3.1.8
     static let updateLastInstallFailure = "updateLastInstallFailure" // last installer step that failed (fail-copy etc.)
     static let windowLayoutHiddenActions = "windowLayoutHiddenActions" // comma-separated action ids hidden from the grid
+    static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
+    static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
 
@@ -423,6 +452,7 @@ enum DefaultsKey {
     static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
 
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause thumbnail capture while these apps are in front
+    static let diskEjectExcludedVolumes = "diskEjectExcludedVolumes" // volume names/UUIDs excluded from Eject all disks
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
     static let pastePlainShortcut = "pastePlainShortcut"
@@ -500,6 +530,7 @@ enum DefaultsKey {
     static let screenshotDefaultAction = "screenshotDefaultAction"
     static let screenshotIncludePointer = "screenshotIncludePointer"
     static let screenshotShowLastRegion = "screenshotShowLastRegion"
+    static let screenshotLoupeStartsOn = "screenshotLoupeStartsOn"
     static let screenshotDownscale = "screenshotDownscale"
     static let screenshotDelay = "screenshotDelay"
     static let screenshotLastTool = "screenshotLastTool"
@@ -751,6 +782,8 @@ enum Defaults {
     static let allowedMonitorIntervals = [1, 2, 5]
     static let defaultKeyboardDebounceWindowMs = 5
     static let allowedKeyboardDebounceWindowRange = 0...500
+    static let defaultMouseClickDebounceWindowMs = 25
+    static let allowedMouseClickDebounceWindowRange = 5...100
     static let allowedMenuBarPresets = ["dense"]
     static let allowedMenuBarMetricSpacings = ["standard", "compact"]
     static let allowedMenuBarMetricAppearances = ["values", "bars"]
@@ -797,15 +830,22 @@ enum Defaults {
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
+        DefaultsKey.mouseAccelerationDisabled: false,
+        DefaultsKey.smoothScrollResponse: SmoothScrollSupport.defaultResponse,
         DefaultsKey.mouseNavigationEnabled: false,
         DefaultsKey.mouseButtonShortcutsEnabled: false,
         DefaultsKey.mouseButtonShortcuts: [String: String](),
+        DefaultsKey.mouseSpacesGestureEnabled: false,
+        DefaultsKey.mouseSpacesGestureButton: 0,
+        DefaultsKey.mouseClickDebounceEnabled: false,
+        DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
+        DefaultsKey.focusFollowsMouseExceptions: [String](),
         DefaultsKey.mouseNavigationExceptions: [String](),
         DefaultsKey.mouseButtonExceptions: [String](),
         DefaultsKey.middleClickExceptions: [String](),
@@ -850,6 +890,22 @@ enum Defaults {
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,
+        DefaultsKey.quitProtectionQuitEnabled: false,
+        DefaultsKey.quitProtectionQuitMode: QuitProtectionMode.hold.rawValue,
+        DefaultsKey.quitProtectionQuitHoldDurationMs: QuitProtectionSupport.defaultHoldDurationMilliseconds,
+        DefaultsKey.quitProtectionQuitDoubleIntervalMs: QuitProtectionSupport.defaultDoublePressIntervalMilliseconds,
+        DefaultsKey.quitProtectionQuitExtraModifier: QuitProtectionExtraModifier.shift.rawValue,
+        DefaultsKey.quitProtectionQuitScope: QuitProtectionScope.all.rawValue,
+        DefaultsKey.quitProtectionQuitExceptions: [String](),
+        DefaultsKey.quitProtectionQuitShowFeedback: true,
+        DefaultsKey.quitProtectionCloseEnabled: false,
+        DefaultsKey.quitProtectionCloseMode: QuitProtectionMode.hold.rawValue,
+        DefaultsKey.quitProtectionCloseHoldDurationMs: QuitProtectionSupport.defaultHoldDurationMilliseconds,
+        DefaultsKey.quitProtectionCloseDoubleIntervalMs: QuitProtectionSupport.defaultDoublePressIntervalMilliseconds,
+        DefaultsKey.quitProtectionCloseExtraModifier: QuitProtectionExtraModifier.shift.rawValue,
+        DefaultsKey.quitProtectionCloseScope: QuitProtectionScope.all.rawValue,
+        DefaultsKey.quitProtectionCloseExceptions: [String](),
+        DefaultsKey.quitProtectionCloseShowFeedback: true,
         // When the shelf is on, the shake gesture is on too (still toggleable).
         DefaultsKey.shelfShortcutEnabled: true,
         DefaultsKey.shelfShortcut: "control+option+command:2",
@@ -926,6 +982,7 @@ enum Defaults {
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
         DefaultsKey.keyboardDebounceKeyWindows: "",
         DefaultsKey.panelUtilityCleaning: true,
+        DefaultsKey.cleaningModeKeepScreenVisible: false,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.killProcessCommandBarEnabled: true,
@@ -966,6 +1023,8 @@ enum Defaults {
         DefaultsKey.panelControlSuperKey: true,
         DefaultsKey.panelControlRadialMenu: true,
         DefaultsKey.panelControlMouseButtonShortcuts: true,
+        DefaultsKey.panelControlMouseAcceleration: true,
+        DefaultsKey.panelControlMouseClickDebounce: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
         DefaultsKey.panelControlFilesExpanded: false,
@@ -1007,6 +1066,8 @@ enum Defaults {
         DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,
         DefaultsKey.windowLayoutHiddenActions: "",
+        DefaultsKey.windowLayoutWindowGap: 0,
+        DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
@@ -1123,6 +1184,7 @@ enum Defaults {
         DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
+        DefaultsKey.diskEjectExcludedVolumes: [String](),
         DefaultsKey.pastePlainEnabled: false,
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
         DefaultsKey.finderRenameEnabled: false,
@@ -1203,6 +1265,7 @@ enum Defaults {
         DefaultsKey.screenshotDefaultAction: "",
         DefaultsKey.screenshotIncludePointer: false,
         DefaultsKey.screenshotShowLastRegion: true,
+        DefaultsKey.screenshotLoupeStartsOn: false,
         DefaultsKey.screenshotDownscale: false,
         DefaultsKey.screenshotDelay: 0,
         DefaultsKey.screenshotLastTool: "arrow",
@@ -1548,6 +1611,12 @@ enum Defaults {
             : defaultKeyboardDebounceWindowMs
     }
 
+    static func sanitizedMouseClickDebounceWindow(_ milliseconds: Int) -> Int {
+        allowedMouseClickDebounceWindowRange.contains(milliseconds)
+            ? milliseconds
+            : defaultMouseClickDebounceWindowMs
+    }
+
     /// Clamps rather than falling back to the default: a typed 4 becoming 5 is
     /// the correction the person meant, a typed 4 becoming 20 is not.
     static func sanitizedClipboardAutoClearDelay(_ seconds: Int) -> Int {
@@ -1662,6 +1731,18 @@ enum Defaults {
 
     static func sanitizedAutoQuitExceptions(_ bundleIDs: [String]) -> [String] {
         sanitizedBundleIdentifierList(mandatoryAutoQuitExceptionBundleIDs + bundleIDs)
+    }
+
+    static func sanitizedDiskExclusionList(_ list: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for raw in list {
+            let item = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = item.lowercased()
+            guard !item.isEmpty, seen.insert(lower).inserted else { continue }
+            result.append(item)
+        }
+        return result
     }
 
     static func sanitizedPanelItemOrder(_ raw: String, defaultOrder: [String]) -> [String] {
