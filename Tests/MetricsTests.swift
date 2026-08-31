@@ -5000,6 +5000,20 @@ struct MetricsTests {
                "a window already registered on this observer stays watched across refreshes")
         expect(!AutoQuitSupport.isWindowNotificationRegistered(.cannotComplete),
                "a window whose registration was refused is not watched")
+        // A refresh no longer registers the windows it already registered, so
+        // those windows report themselves watched without asking the app again.
+        // They have to keep counting here: a skipped window dropped from the
+        // total is the second case below, which retries forever.
+        expect(!AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 2,
+                                                       listedWindows: 2,
+                                                       foundUserWindow: true,
+                                                       hadPriorWindows: true),
+               "windows this observer already watches leave nothing to retry")
+        expect(AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 0,
+                                                     listedWindows: 2,
+                                                     foundUserWindow: true,
+                                                     hadPriorWindows: true),
+               "a refresh that counted none of its already-watched windows would retry for the life of the app")
         let autoQuitServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/AutoQuit/AutoQuitService.swift",
             encoding: .utf8)) ?? ""
@@ -5029,7 +5043,7 @@ struct MetricsTests {
             // windows Accessibility listed: AXObserverAddNotification can
             // refuse, and a refused registration is exactly the state the
             // retry exists for. Only the destroyed notification decides it.
-            "if watch(window: window, observer: observer, refcon: refcon) { watchedWindows += 1 }",
+            "if watch(window: window, pid: pid, observer: observer, refcon: refcon) { watchedWindows += 1 }",
             "needsWindowWatchRetry(registeredWindows: watchedWindows,",
             "listedWindows: windows.count,",
             "if notification == kAXUIElementDestroyedNotification {",
@@ -5040,6 +5054,30 @@ struct MetricsTests {
         }
         expect(missingWindowWatchRetryCode.isEmpty,
                "the AutoQuit window-watch retry stays bounded, origin-based, re-armed by Space changes, and counts only windows whose destroy notification registered: missing \(missingWindowWatchRetryCode)")
+        // The memo of already-watched windows is only worth having while it
+        // stays free to consult: it is keyed on the window element, whose
+        // `CFEqual` and `CFHash` answer locally, and a key that had to be
+        // fetched from the app would cost more messaging than it saves. Both
+        // savings below are also only safe while the state they read is torn
+        // down with the app: a memo that outlived a pid would leave a window
+        // unwatched, and a refresh left pending for a detached app would run
+        // against an observer that is gone.
+        let windowWatchMemoCode = [
+            "CFEqual(lhs.element, rhs.element)",
+            "hasher.combine(CFHash(element))",
+            "if watchedWindowElements[pid]?.contains(watchedWindow) == true { return true }",
+            "if watched { watchedWindowElements[pid, default: []].insert(watchedWindow) }",
+            "watchedWindowElements[pid] = nil",
+            "watchedWindowElements.removeAll()",
+            "guard pendingRefreshes.insert(pid).inserted else { return }",
+            "self.pendingRefreshes.remove(pid) != nil",
+            "pendingRefreshes.removeAll()",
+        ]
+        let missingWindowWatchMemoCode = windowWatchMemoCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        expect(missingWindowWatchMemoCode.isEmpty,
+               "AutoQuit registers each window once and coalesces refreshes, both dropped when the app goes: missing \(missingWindowWatchMemoCode)")
         let closeCheckOffsetCode = [
             "private static let closeCheckOffsets: [TimeInterval] = [0.35, 1.0, 2.2]",
             "for offset in Self.closeCheckOffsets",
