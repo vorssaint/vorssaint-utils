@@ -221,7 +221,9 @@ struct DictationHistoryView: View {
     private func copyText(for entry: DictationHistoryEntry) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(entry.enhancedText ?? entry.rawText, forType: .string)
-        retryStatus = "Transcrição copiada."
+        // Use the same non-activating confirmation as the other quick tools;
+        // the inline status remains reserved for retry/export results.
+        QuickToolHUD.show(icon: "doc.on.doc", message: "Transcrição copiada")
     }
 
     private func stopPlayback() { player?.stop(); player = nil; playingID = nil }
