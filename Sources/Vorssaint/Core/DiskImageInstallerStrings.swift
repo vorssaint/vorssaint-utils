@@ -35,6 +35,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -246,5 +247,21 @@ extension DiskImageInstallerStrings {
         failedBody: "沒有變更任何內容。你仍可將 App 拖到「應用程式」。",
         verificationFailedBody: "這部 Mac 無法驗證此 App，因此沒有安裝。",
         alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。"
+    )
+
+    static let ar = DiskImageInstallerStrings(
+        title: "مثبّت صور الأقراص",
+        hubDescription: "ثبّت التطبيق الوحيد داخل صورة القرص ونظّف ملف التنزيل",
+        promptTitle: "تثبيت هذا التطبيق؟",
+        promptBodyFormat: "سيُنسخ %@ إلى «التطبيقات». ثم تُخرَج صورة القرص ويُنقل ملف تنزيلها إلى المهملات.",
+        installButton: "تثبيت",
+        installedTitle: "تم تثبيت التطبيق",
+        installedBodyFormat: "%@ جاهز في «التطبيقات». أُخرجت صورة القرص ونُقل ملف تنزيلها إلى المهملات.",
+        installedKeepingMountBodyFormat: "تم تثبيت %@، لكن تعذّر إخراج صورة القرص. وقد أُبقي على ملف تنزيلها.",
+        installedKeepingDownloadBodyFormat: "تم تثبيت %@ وأُخرجت صورة القرص، لكن تعذّر نقل ملف تنزيلها إلى المهملات.",
+        failedTitle: "تعذّر التثبيت",
+        failedBody: "لم يتغيّر أي شيء. لا يزال بإمكانك سحب التطبيق إلى «التطبيقات».",
+        verificationFailedBody: "تعذّر على هذا الـ Mac التحقق من التطبيق، لذا لم يُثبَّت شيء.",
+        alreadyInstalledBodyFormat: "%@ موجود أصلًا في «التطبيقات»."
     )
 }

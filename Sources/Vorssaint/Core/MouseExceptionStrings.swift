@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -201,5 +202,16 @@ extension MouseExceptionStrings {
         captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。"
+    )
+
+    static let ar = MouseExceptionStrings(
+        listTitle: "التطبيقات المستثناة",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        captionSmoothScroll: "تبقى عجلة التمرير بخطواتها العادية في هذه التطبيقات، وذلك للتطبيقات التي تفسّرها بطريقتها الخاصة مثل أدوات التصميم والرسم ثلاثي الأبعاد.",
+        captionScrollDirection: "تحتفظ عجلة التمرير في هذه التطبيقات بالاتجاه الذي يمنحه macOS.",
+        captionNavigation: "تواصل الأزرار الجانبية أداء ما تفعله هذه التطبيقات بها أصلًا.",
+        captionButtonShortcuts: "تبقى اختصارات الأزرار معطّلة في هذه التطبيقات، وتصلها الضغطة مباشرة بدلًا من ذلك.",
+        captionMiddleClick: "تبقى النقرة بثلاثة أصابع نقرة عادية في هذه التطبيقات."
     )
 }

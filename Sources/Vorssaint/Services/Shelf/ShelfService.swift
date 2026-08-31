@@ -898,7 +898,7 @@ final class ShelfService: ObservableObject {
         guard wanted else { hideDocked(); return }
         let panel = ensureDockedPanel()
         if panel.contentViewController == nil {
-            let host = NSHostingController(rootView: DockedShelfView().environmentObject(self))
+            let host = NSHostingController(rootView: DockedShelfView().environmentObject(self).appLayoutDirection())
             host.sizingOptions = .preferredContentSize
             panel.contentViewController = host
         }
@@ -2329,7 +2329,7 @@ final class ShelfService: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: ShelfView().environmentObject(self))
+        let host = NSHostingController(rootView: ShelfView().environmentObject(self).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

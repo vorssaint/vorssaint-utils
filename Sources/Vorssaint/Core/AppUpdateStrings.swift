@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -611,5 +612,47 @@ extension AppUpdateStrings {
         includeOnlineCaption: "下載公開 App 目錄，唔會傳送呢部 Mac 上 App 嘅名稱或識別碼。",
         incompleteCheck: "部分 App 無法檢查",
         onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。"
+    )
+
+    static let ar = AppUpdateStrings(
+        pageTitle: "تحديثات التطبيقات",
+        hubDescription: "ابحث عن تحديثات تطبيقاتك وثبّتها",
+        caption: "يبحث عن إصدارات أحدث للتطبيقات الموجودة على هذا الـ Mac ويساعدك على إكمال كل تحديث من مصدره الأصلي.",
+        panelCaption: "اطّلع على التطبيقات التي لها إصدار أحدث",
+        checkNow: "التحقق الآن",
+        checking: "جارٍ التحقق",
+        lastCheckFormat: "آخر تحقق %@",
+        neverChecked: "لم يتم التحقق بعد",
+        upToDate: "لا توجد تحديثات",
+        coverageNote: "يتحقق من التطبيقات المُدارة وتطبيقات المتجر، ثم يقارن أسماء التطبيقات المطابقة تمامًا بفهرس عام عبر الإنترنت. ويبقى تثبيت التحديثات عبر مصدرها الأصلي.",
+        selectAll: "تحديد الكل",
+        clearSelection: "مسح",
+        updateSelectedFormat: "تحديث %d",
+        updateOne: "تحديث",
+        openAppStore: "فتح App Store",
+        appStoreBadge: "App Store",
+        storeHint: "يفتح App Store حيث يُثبَّت هذا التحديث",
+        frequencyLabel: "التحقق في الخلفية",
+        frequencyOff: "متوقف",
+        frequencyDaily: "كل يوم",
+        frequencyWeekly: "كل أسبوع",
+        nextCheckFormat: "التحقق التالي %@",
+        notifyToggle: "أبلغني عند توفر تحديث لتطبيق",
+        includeStoreToggle: "تضمين تطبيقات App Store",
+        includeStoreCaption: "يسأل Apple عن الإصدار الحالي للتطبيقات التي حصلت عليها من المتجر. أوقفه لإبقاء كل عمليات التحقق داخل هذا الـ Mac.",
+        packageMissing: "Homebrew غير مثبَّت، لذا لا يمكن تحديث التطبيقات من هنا بعد.",
+        notificationBodyFormat: "%@ تطبيقات لها إصدار أحدث.",
+        notificationBodyOne: "تطبيق واحد له إصدار أحدث.",
+        showInPanel: "الإظهار في اللوحة",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "المصادر",
+        includeHomebrewToggle: "تضمين تطبيقات Homebrew",
+        onlineBadge: "عبر الإنترنت",
+        openApp: "فتح",
+        openAppHint: "يفتح التطبيق ليُكمل مُحدِّثه الخاص العملية",
+        includeOnlineToggle: "تضمين التطبيقات المثبتة الأخرى",
+        includeOnlineCaption: "ينزّل فهرس تطبيقات عامًا دون إرسال أسماء التطبيقات الموجودة على هذا الـ Mac أو معرّفاتها.",
+        incompleteCheck: "تعذّر التحقق من بعض التطبيقات",
+        onlineUnavailable: "تعذّر إكمال التحقق عبر الإنترنت. ولا تزال النتائج الأخرى معروضة."
     )
 }

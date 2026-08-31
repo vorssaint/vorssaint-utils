@@ -19,6 +19,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 
@@ -37,6 +38,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 
@@ -55,6 +57,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 
@@ -73,6 +76,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 
@@ -91,6 +95,7 @@ enum FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 
@@ -115,6 +120,8 @@ struct MixerFeatureStrings {
     static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App")
     static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
     static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App")
+
+    static let ar = MixerFeatureStrings(hideInactiveApps: "إخفاء التطبيقات غير النشطة")
 }
 
 extension SettingsCategoryStrings {
@@ -409,6 +416,15 @@ struct SettingsCategoryStrings {
         utilities: "工具",
         app: "App",
         appManagement: "App 管理"
+    )
+
+    static let ar = SettingsCategoryStrings(
+        essentials: "الأساسيات",
+        windowsControls: "التحكم بالنوافذ",
+        files: "الملفات",
+        utilities: "الأدوات",
+        app: "التطبيق",
+        appManagement: "إدارة التطبيقات"
     )
 }
 
@@ -1137,6 +1153,62 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
+    )
+
+    static let ar = ClipboardFeatureStrings(
+        title: "الحافظة",
+        enable: "حفظ سجل الحافظة",
+        caption: "يخزّن النصوص المنسوخة لتتمكن من إعادة استخدامها لاحقًا. يبقى كل شيء محليًا ويمكن مسحه في أي وقت.",
+        localNote: "يبقى كل شيء على هذا الـ Mac. وتُتجاهل العناصر الكبيرة جدًا.",
+        skipSensitive: "تخطّي النصوص التي تبدو حساسة",
+        skipSensitiveCaption: "يتجنّب حفظ السلاسل القصيرة بلا مسافات التي تشبه كلمات السر أو الرموز أو المفاتيح.",
+        limit: "الحد",
+        limitUnlimited: "بلا حد",
+        showInPanel: "الإظهار في اللوحة",
+        shortcut: "اختصار السجل",
+        shortcutCaption: "يفتح نافذة سريعة فيها بحث وعناصر مثبّتة واختصارات من ⌘1 إلى ⌘9 للصق في التطبيق السابق.",
+        shortcutHint: "انقر صفًا للصقه في التطبيق السابق. والنقر مع ⌘ يحدد عدة عناصر؛ و⌘C ينسخ دون لصق.",
+        clickRowShortcut: "نقر الصف",
+        commandClickShortcut: "⌘ نقر",
+        pinned: "مثبّت",
+        recent: "الأخيرة",
+        pin: "تثبيت",
+        unpin: "إلغاء التثبيت",
+        clearRecent: "مسح الأخيرة",
+        clearAll: "مسح غير المثبّت",
+        empty: "لا توجد نصوص محفوظة",
+        disabled: "فعّل السجل لبدء حفظ النصوص المنسوخة.",
+        search: "البحث في النصوص المنسوخة",
+        copy: "نسخ",
+        copied: "تم النسخ",
+        delete: "حذف العنصر",
+        selectMultiple: "إضافة إلى المجموعة",
+        unselectMultiple: "إزالة من المجموعة",
+        selectShortcutAction: "تحديد",
+        pasteSelectedFormat: "لصق %d",
+        copySelectedFormat: "نسخ %d",
+        clearSelection: "مسح التحديد",
+        moveUp: "تحريك لأعلى",
+        moveDown: "تحريك لأسفل",
+        noResults: "لا توجد نتائج",
+        newestFirst: "الأحدث أولًا",
+        active: "يحفظ النصوص الجديدة",
+        includeImagesFiles: "حفظ الصور والملفات المنسوخة أيضًا",
+        includeImagesFilesCaption: "تنضم الصور إلى السجل وتُحفظ الملفات كروابط إلى مواقعها. ثبّتها والصقها كأي عنصر نصي.",
+        imageEntryLabel: "صورة",
+        fileCountFormat: "%d ملف",
+        pasteImageAsFile: "لصق الصور المنسوخة كملفات",
+        pasteImageAsFileCaption: "عندما يكون Finder نشطًا، يحفظ ⌘V الصورة المنسوخة كملف PNG في المجلد الحالي.",
+        previewLabel: "معاينة",
+        edit: "تحرير",
+        cancel: "إلغاء",
+        save: "حفظ",
+        autoClearEnable: "مسح الحافظة تلقائيًا بعد",
+        autoClearSecondsSuffix: "ثانية",
+        autoClearOnSleep: "مسح الحافظة عند سكون الكمبيوتر",
+        autoClearOnDisplaySleep: "مسح الحافظة عند سكون الشاشة",
+        autoClearOnScreenLock: "مسح الحافظة عند قفل الشاشة",
+        autoClearCaption: "يمسح حافظة النظام فقط. أما العناصر المحفوظة فتبقى في السجل."
     )
 }
 
@@ -2048,6 +2120,76 @@ struct WindowLayoutFeatureStrings {
         gapLarge: "大",
         gapExtraLarge: "特大"
     )
+
+    static let ar = WindowLayoutFeatureStrings(
+        title: "تخطيط النوافذ",
+        caption: "رتّب النوافذ في أقسام الشاشة أو حرّكها وغيّر حجمها بلوحة التتبع أو الماوس.",
+        showInPanel: "الإظهار في اللوحة",
+        gestureSection: "سحب النوافذ",
+        gestureEnable: "التحريك وتغيير الحجم بالسحب",
+        gestureCaption: "على لوحة التتبع أو الماوس، استمر بالضغط على مفاتيح التعديل المعروضة واسحب من أي مكان داخل النافذة.",
+        gestureModifiers: "مفاتيح التحريك",
+        gestureMove: "اسحب للتحريك",
+        gestureResize: "أضِف Shift واسحب لتغيير الحجم",
+        gestureResizeHint: "تحدد نقطة البداية أقرب حافة أو زاوية. وعلى الماوس، يغيّر السحب بالزر الأيمن الحجم أيضًا.",
+        gestureRaiseWindow: "إحضار النافذة المسحوبة إلى المقدمة",
+        shortcuts: "الاختصارات",
+        shortcutsCaption: "استخدم الاختصارات العامة لترتيب النافذة النشطة دون فتح اللوحة.",
+        permissionCaption: "يستخدم إمكانية الوصول لتحريك النوافذ وتغيير حجمها فقط.",
+        noWindow: "لم يتم العثور على نافذة نشطة.",
+        missingPermission: "امنح إذن إمكانية الوصول لتحريك النوافذ.",
+        failed: "تعذّر تحريك هذه النافذة.",
+        done: "تم ترتيب النافذة.",
+        restored: "تمت استعادة النافذة.",
+        noRestore: "لا يوجد تخطيط سابق لاستعادته.",
+        target: "النافذة النشطة",
+        halves: "أنصاف",
+        thirds: "أثلاث",
+        sixths: "أسداس",
+        corners: "الزوايا",
+        other: "الإجراءات",
+        leftHalf: "يسار",
+        rightHalf: "يمين",
+        topHalf: "أعلى",
+        bottomHalf: "أسفل",
+        leftThird: "الثلث الأيسر",
+        centerThird: "الثلث الأوسط",
+        rightThird: "الثلث الأيمن",
+        leftTwoThirds: "الثلثان الأيسران",
+        rightTwoThirds: "الثلثان الأيمنان",
+        topLeftSixth: "سدس أعلى اليسار",
+        topCenterSixth: "سدس أعلى الوسط",
+        topRightSixth: "سدس أعلى اليمين",
+        bottomLeftSixth: "سدس أسفل اليسار",
+        bottomCenterSixth: "سدس أسفل الوسط",
+        bottomRightSixth: "سدس أسفل اليمين",
+        topLeft: "أعلى اليسار",
+        topRight: "أعلى اليمين",
+        bottomLeft: "أسفل اليسار",
+        bottomRight: "أسفل اليمين",
+        maximize: "تكبير",
+        center: "توسيط",
+        nextDisplay: "الشاشة التالية",
+        restore: "استعادة",
+        fullScreen: "ملء الشاشة",
+        previousDisplay: "الشاشة السابقة",
+        edgeSnapEnable: "محاذاة النوافذ عند حواف الشاشة",
+        edgeSnapCaption: "فعّل هذا، ثم اسحب شريط عنوان النافذة إلى أي حافة أو زاوية من الشاشة وأفلته.",
+        edgeSnapSystemConflict: "يستخدم macOS الحواف نفسها. أوقف تجانب النوافذ في «سطح المكتب والـ Dock» ليتولى Vorssaint المهمة.",
+        edgeSnapOpenSystemSettings: "فتح «سطح المكتب والـ Dock»",
+        edgeSnapWaitingForSystem: "مفعّل في Vorssaint. وسيبدأ العمل حالما يتوقف تجانب macOS.",
+        marginMaximize: "تكبير مع هامش",
+        gapsSection: "الفواصل",
+        gapsCaption: "المسافة بين النوافذ المحاذاة، وبين النوافذ وحافة الشاشة.",
+        windowGap: "الفاصل بين النوافذ",
+        screenGap: "الفاصل عن الشاشة",
+        gapNone: "بلا",
+        gapTiny: "ضئيل",
+        gapSmall: "صغير",
+        gapMedium: "متوسط",
+        gapLarge: "كبير",
+        gapExtraLarge: "كبير جدًا"
+    )
 }
 
 struct MonitorAlertFeatureStrings {
@@ -2502,5 +2644,40 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "溫度高於",
         batteryTemperatureTitle: "電池過熱",
         batteryTemperatureBodyFormat: "電池已達到 %d °C。"
+    )
+
+    static let ar = MonitorAlertFeatureStrings(
+        section: "التنبيهات",
+        caption: "تُطلق التنبيهات عند بلوغ الحدود المحددة لها. وتتجاهل تنبيهات استخدام المعالج وحرارته الارتفاعات المفاجئة الأقصر من نحو 12 ثانية. أما إعداد التكرار فيحدّ من تكرار التنبيه نفسه فقط.",
+        notificationsDenied: "إشعارات Vorssaint متوقفة في إعدادات النظام، لذا لا يمكن ظهور التنبيهات.",
+        cpu: "استخدام مرتفع للمعالج",
+        cpuTemperature: "حرارة مرتفعة للمعالج",
+        memory: "ضغط حرج على الذاكرة",
+        disk: "مساحة القرص منخفضة",
+        battery: "بطارية منخفضة",
+        cpuThreshold: "المعالج فوق",
+        cpuTemperatureThreshold: "الحرارة فوق",
+        diskThreshold: "المساحة الحرة تحت",
+        batteryThreshold: "البطارية تحت",
+        cooldown: "تكرار التنبيه نفسه بعد",
+        cooldown2: "دقيقتان",
+        cooldown5: "5 دقائق",
+        cooldown15: "15 دقيقة",
+        cooldown30: "30 دقيقة",
+        cooldown60: "ساعة واحدة",
+        cpuTitle: "استخدام مرتفع للمعالج",
+        cpuBodyFormat: "بقي المعالج فوق %d%% لبضع ثوانٍ.",
+        cpuTemperatureTitle: "معالج ساخن",
+        cpuTemperatureBodyFormat: "بلغ المعالج %d °م.",
+        memoryTitle: "ذاكرة حرجة",
+        memoryBody: "بلغ ضغط الذاكرة المستوى الحرج.",
+        diskTitle: "مساحة القرص منخفضة",
+        diskBodyFormat: "لدى %@ أقل من %d%% مساحة حرة.",
+        batteryTitle: "بطارية منخفضة",
+        batteryBodyFormat: "البطارية عند %d%%.",
+        batteryTemperature: "حرارة مرتفعة للبطارية",
+        batteryTemperatureThreshold: "الحرارة فوق",
+        batteryTemperatureTitle: "بطارية ساخنة",
+        batteryTemperatureBodyFormat: "بلغت البطارية %d °م."
     )
 }

@@ -86,6 +86,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -923,5 +924,69 @@ extension SnippetFeatureStrings {
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
         dateTimeConfirmUpdate: "更新"
+    )
+
+    static let ar = SnippetFeatureStrings(
+        pageTitle: "المقاطع النصية",
+        hubDescription: "محفّزات قصيرة تتحول إلى نص كامل",
+        enable: "توسيع المقاطع أثناء الكتابة",
+        enableCaption: "اكتب محفّزًا في أي مكان فيتحول إلى نصه. ويبقى كل شيء على هذا الـ Mac.",
+        addButton: "إضافة مقطع",
+        newTitle: "مقطع جديد",
+        editTitle: "تحرير المقطع",
+        nameLabel: "الاسم",
+        namePlaceholder: "البريد الشخصي",
+        triggerLabel: "المحفّز",
+        triggerPlaceholder: ";email",
+        replacementLabel: "النص",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "التوسيع",
+        expansionImmediate: "فورًا",
+        expansionDelimiter: "بعد مسافة أو Tab أو Return",
+        variablesHint: "المتغيرات: {{date}}، {{time}}، {{datetime}}، {{clipboard}}",
+        variablesCaption: "تتحول إلى التاريخ والوقت والنص المنسوخ لحظة التوسيع.",
+        emptyList: "لا توجد مقاطع بعد. أضِف أول مقطع.",
+        duplicateTrigger: "هناك مقطع آخر يستخدم هذا المحفّز.",
+        triggerTooShort: "يحتاج المحفّز إلى حرفين على الأقل.",
+        deleteButton: "حذف",
+        saveButton: "حفظ",
+        manageButton: "إدارة المقاطع",
+        ignoreCaseLabel: "تجاهل حالة الأحرف",
+        libraryTitle: "قائمة المقاطع السريعة",
+        libraryToggle: "فتح المقاطع من قائمة",
+        libraryCaption: "يفتح الاختصار قائمة قابلة للبحث. واختيار مقطع يكتبه مباشرةً عند موضع المؤشر.",
+        librarySearchPlaceholder: "البحث في المقاطع",
+        libraryNoResults: "لا يوجد مقطع مطابق للبحث.",
+        libraryEmpty: "لا شيء لعرضه بعد. أضِف مقاطع، أو فعّل «الإظهار في القائمة السريعة» لأكثرها استخدامًا.",
+        libraryFooterHint: "↩ للإدراج · esc للإغلاق",
+        folderLabel: "المجلد",
+        folderPlaceholder: "العمل",
+        showInLibraryLabel: "الإظهار في القائمة السريعة",
+        variablesFormatCaption: "تنسيق بعد النقطتين يحدد شكلها، مثل {{date:yyyy-MM-dd}}. والجزء ‎-tz(...)‎ يحدد المنطقة الزمنية، مثل {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "تنسيق بعد النقطتين يحدد شكلها، مثل {{date:yyyy-MM-dd}}، أو استخدم زر التاريخ/الوقت أعلاه. والجزء ‎-tz(...)‎ يحدد المنطقة الزمنية، مثل {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "إدراج تاريخ/وقت",
+        dateTimeEditButton: "تحرير التاريخ/الوقت",
+        dateTimeTypeLabel: "النوع",
+        dateTimeKindDate: "تاريخ",
+        dateTimeKindTime: "وقت",
+        dateTimeKindDateTime: "تاريخ ووقت",
+        dateTimeStyleLabel: "النمط",
+        dateTimeStyleShort: "قصير",
+        dateTimeStyleMedium: "متوسط",
+        dateTimeStyleLong: "طويل",
+        dateTimeStyleFull: "كامل",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "مخصص",
+        dateTimeStyleLocaleNote: "يحفظ النمط المسمّى التنسيق الذي تستخدمه منطقة الـ Mac حاليًا.",
+        dateTimeTimezoneLabel: "المنطقة الزمنية",
+        dateTimeTimezoneDeviceDefault: "افتراضي الجهاز",
+        dateTimeTimezoneValid: "منطقة زمنية صالحة",
+        dateTimeTimezoneInvalid: "منطقة زمنية غير معروفة",
+        dateTimeTimezoneClear: "مسح المنطقة الزمنية",
+        dateTimeTimezoneSearchPlaceholder: "البحث في المناطق الزمنية",
+        dateTimePatternLabel: "النمط",
+        dateTimePreviewLabel: "معاينة",
+        dateTimeConfirmInsert: "إدراج",
+        dateTimeConfirmUpdate: "تحديث"
     )
 }

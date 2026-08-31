@@ -1126,7 +1126,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
 
     func show() {
         let content = RecorderEditorView(model: model, controller: self)
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.appLayoutDirection())
         let window = NSWindow(contentViewController: host)
         window.title = strings.editorTitle
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]

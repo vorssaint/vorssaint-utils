@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -485,5 +486,38 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
         editText: "編輯文字"
+    )
+
+    static let ar = ScratchpadFeatureStrings(
+        pageTitle: "المفكرة",
+        hubDescription: "لوحات عائمة للملاحظات السريعة",
+        panelCaption: "ملاحظات سريعة في علامات تبويب منفصلة",
+        openButton: "فتح المفكرة",
+        placeholder: "اكتب ما تشاء. يُحفظ تلقائيًا.",
+        copyAll: "نسخ الكل",
+        copied: "تم النسخ",
+        exportAction: "الحفظ كملف",
+        clearAction: "مسح",
+        retentionTitle: "المسح التلقائي",
+        retentionNever: "أبدًا",
+        retentionDay: "بعد يوم دون استخدام",
+        retentionWeek: "بعد أسبوع دون استخدام",
+        retentionMonth: "بعد شهر دون استخدام",
+        retentionCaption: "تُفرِغ اللوحة نفسها متى مضت هذه المدة على النص دون تعديل.",
+        closeOnClickOutside: "الإغلاق عند النقر في الخارج",
+        keepOpen: "الإبقاء مفتوحًا",
+        backgroundOpacity: "خلفية اللوحة",
+        backgroundTranslucent: "شبه شفافة",
+        backgroundOpaque: "معتمة",
+        newPad: "مفكرة جديدة",
+        padActions: "إجراءات المفكرة",
+        renamePad: "إعادة تسمية المفكرة",
+        closePad: "إغلاق المفكرة",
+        saveName: "حفظ",
+        cancel: "إلغاء",
+        deletePadMessageFormat: "حذف «%@» وكل ما فيها؟",
+        padLimitFormat: "يمكنك الاحتفاظ بما يصل إلى %d مفكرة",
+        previewFormatting: "إظهار التنسيق",
+        editText: "تحرير النص"
     )
 }

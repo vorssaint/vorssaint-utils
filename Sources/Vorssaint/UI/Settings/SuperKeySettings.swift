@@ -100,7 +100,7 @@ struct SuperKeySettings: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }
-            Image(systemName: "arrow.right")
+            Image(systemName: "arrow.forward")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tertiary)
                 .padding(.bottom, 14)

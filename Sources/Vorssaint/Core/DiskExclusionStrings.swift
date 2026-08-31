@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -148,5 +149,14 @@ extension DiskExclusionStrings {
         removeButton: "移除",
         customPlaceholder: "磁碟機或宗卷名稱",
         caption: "使用「推出所有磁碟」時，此清單中的磁碟機絕不會被推出。"
+    )
+
+    static let ar = DiskExclusionStrings(
+        listTitle: "الأقراص المستثناة",
+        addButton: "إضافة قرص…",
+        otherDrive: "اسم قرص آخر…",
+        removeButton: "إزالة",
+        customPlaceholder: "اسم القرص أو الوحدة",
+        caption: "لا تُفصل الأقراص الموجودة في هذه القائمة أبدًا عند استخدام «إخراج كل الأقراص»."
     )
 }

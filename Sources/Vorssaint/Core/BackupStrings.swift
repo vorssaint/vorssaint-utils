@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -195,5 +196,17 @@ extension BackupFeatureStrings {
         importConfirmBody: "目前設定將被檔案中的設定取代,App 會重新啟動。這台 Mac 上的其他內容不受影響。",
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
+    )
+
+    static let ar = BackupFeatureStrings(
+        title: "النسخ الاحتياطي",
+        description: "انقل إعداداتك إلى Mac آخر: صدّر كل التفضيلات إلى ملف واستوردها هناك. يتضمن الملف نصوص ملاحظات المفكرة. أما سجل الحافظة وعناصر الرف وأذونات النظام فلا تغادر هذا الـ Mac أبدًا.",
+        exportButton: "تصدير الإعدادات…",
+        importButton: "استيراد الإعدادات…",
+        exported: "تم حفظ النسخة الاحتياطية",
+        importConfirmTitle: "استيراد هذه الإعدادات؟",
+        importConfirmBody: "ستُستبدل إعداداتك الحالية بإعدادات الملف وسيُعاد تشغيل التطبيق. ولن يُمس أي شيء آخر على هذا الـ Mac.",
+        importAction: "استيراد وإعادة تشغيل",
+        invalidFile: "هذا الملف ليس نسخة احتياطية صالحة من Vorssaint."
     )
 }

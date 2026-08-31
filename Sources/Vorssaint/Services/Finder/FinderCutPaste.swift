@@ -731,7 +731,7 @@ final class FinderCutPaste: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CutFeedbackView().environmentObject(self))
+        let host = NSHostingController(rootView: CutFeedbackView().environmentObject(self).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

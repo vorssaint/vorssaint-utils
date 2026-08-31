@@ -89,7 +89,7 @@ final class ScreenshotQuickPreviewController {
                     self?.scheduleAutoDismiss()
                 }
             })
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.appLayoutDirection())
         let size = Self.size(showingLink: false)
         let panel = ScreenshotQuickPreviewPanel(
             contentRect: CGRect(origin: .zero, size: size),

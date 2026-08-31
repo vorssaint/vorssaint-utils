@@ -76,6 +76,7 @@ struct MediaImageConverterStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
         }
     }
 }
@@ -845,6 +846,65 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "已儲存 %d 張圖像",
         batchPartialFormat: "已儲存 %d 張，%d 張失敗",
         batchSummaryHeaderFormat: "已儲存 %d 張，%d 張失敗",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let ar = MediaImageConverterStrings(
+        filesSelectedFormat: "%d ملف محدد",
+        profile: "الملف الشخصي",
+        noProfile: "بدون ملف شخصي",
+        profileName: "اسم الملف الشخصي",
+        saveAsNew: "حفظ جديد",
+        updateProfile: "تحديث",
+        deleteProfile: "حذف الملف الشخصي",
+        profileModified: "معدَّل",
+        profileDefaultNameFormat: "ملف شخصي %d",
+        presetWeb: "الويب",
+        presetSocial: "التواصل",
+        presetDocs: "المستندات",
+        resize: "تغيير الحجم",
+        resizeNone: "بدون تغيير",
+        resizeMax: "أطول ضلع",
+        resizeWidth: "العرض",
+        resizeHeight: "الارتفاع",
+        resizeExact: "مخصص",
+        exactStretch: "تمديد",
+        exactFit: "احتواء",
+        exactFill: "ملء",
+        height: "الارتفاع",
+        watermark: "العلامة المائية",
+        watermarkOff: "متوقفة",
+        watermarkText: "نص",
+        watermarkLogo: "شعار",
+        watermarkBoth: "نص + شعار",
+        watermarkTextPlaceholder: "نص العلامة المائية",
+        noLogo: "بدون شعار",
+        chooseLogo: "اختيار شعار",
+        position: "الموضع",
+        topLeft: "أعلى اليسار",
+        topRight: "أعلى اليمين",
+        center: "الوسط",
+        bottomLeft: "أسفل اليسار",
+        bottomRight: "أسفل اليمين",
+        opacity: "العتامة",
+        margin: "الهامش",
+        scale: "المقياس",
+        rename: "إعادة التسمية",
+        preview: "معاينة",
+        outputName: "الناتج",
+        background: "الخلفية",
+        backgroundTransparent: "شفافة",
+        backgroundWhite: "بيضاء",
+        backgroundBlack: "سوداء",
+        preserveDate: "الاحتفاظ بتاريخ التعديل الأصلي",
+        moreOptions: "خيارات أخرى",
+        tooLarge: "هذه الأبعاد أكبر من أن تُعالَج بأمان. اختر حجمًا أصغر.",
+        copySummary: "نسخ الملخص",
+        savedBytesFormat: "تم توفير %@",
+        grewBytesFormat: "أكبر بمقدار %@",
+        batchSavedFormat: "تم حفظ %d صورة",
+        batchPartialFormat: "%d محفوظة، %d فشلت",
+        batchSummaryHeaderFormat: "%d محفوظة، %d فشلت",
         batchSummaryItemFormat: "%@ -> %@"
     )
 }
