@@ -1754,7 +1754,7 @@ final class CommandBarService: ObservableObject {
     private func beginCapturingShortcut(_ entry: CommandBarEntry) {
         ShortcutCapture.begin()
         // The tap sits ahead of the app's own menu. Without it, Command Q
-        // never reaches the local monitor — it quits Vorssaint instead of
+        // never reaches the local monitor. It quits Vorssaint instead of
         // landing on the card (issue #1193). When Accessibility cannot
         // create the tap, the monitor below still records as before.
         ShortcutRecordingTap.begin { [weak self] keyCode, modifiers in
