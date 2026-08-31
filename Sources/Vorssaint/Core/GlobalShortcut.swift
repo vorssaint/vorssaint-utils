@@ -730,7 +730,25 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             ? availableRoles(isAvailable: isAvailable)
             : activeRoles(isOn: isOn, isAvailable: isAvailable)
         return candidates.first { candidate in
-            candidate != role && candidate.savedShortcut == shortcut
+            candidate != role && candidate.usesCarbonShortcut && candidate.savedShortcut == shortcut
+        }
+    }
+
+    /// Standalone dictation modifiers are handled by the dedicated flagsChanged
+    /// monitor and must not appear as stale Carbon shortcuts in the global
+    /// shortcut overview or conflict checks.
+    var usesCarbonShortcut: Bool {
+        switch self {
+        case .dictation:
+            let kind = DictationShortcutKind(rawValue: UserDefaults.standard.string(
+                forKey: DefaultsKey.dictationShortcutKind) ?? "") ?? .standard
+            return kind == .standard
+        case .dictationSecondary:
+            let kind = DictationShortcutKind(rawValue: UserDefaults.standard.string(
+                forKey: DefaultsKey.dictationSecondaryShortcutKind) ?? "") ?? .standard
+            return kind == .standard
+        default:
+            return true
         }
     }
 
@@ -827,7 +845,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static func activeRoles(isOn: (String) -> Bool,
                             isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
         allCases.filter { role in
-            role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
+            role.usesCarbonShortcut
+                && role.isAvailable(using: isAvailable)
+                && role.requiredEnableKeys.allSatisfy(isOn)
         }
     }
 
@@ -836,7 +856,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// later on the central shortcuts page.
     static func availableRoles(isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> [GlobalShortcutRole] {
-        allCases.filter { $0.isAvailable(using: isAvailable) }
+        allCases.filter { $0.usesCarbonShortcut && $0.isAvailable(using: isAvailable) }
     }
 
     /// The features whose shortcuts share one Screen capture group on the

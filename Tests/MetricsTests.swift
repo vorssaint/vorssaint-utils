@@ -12556,6 +12556,10 @@ struct MetricsTests {
                 && DictationLanguage.automatic.apiCode == nil
                 && DictationLanguage.portugueseBrazil.displayName == "Português (Brasil)",
                "dictation language choices map to provider-safe ISO codes")
+        expect(DictationModifierKey.from(keyCode: Int64(kVK_RightCommand)) == .rightCommand
+                && DictationModifierKey.from(keyCode: Int64(kVK_RightOption)) == .rightOption
+                && DictationModifierKey.function.keyCode == Int64(kVK_Function),
+               "standalone modifier choices preserve left/right and Fn key identities")
 
         let multipart = try? DictationMultipartBody(
             model: openAIModel.id,
