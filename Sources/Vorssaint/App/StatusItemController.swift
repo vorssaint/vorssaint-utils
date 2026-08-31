@@ -700,6 +700,16 @@ final class StatusItemController {
             item.length = NSStatusItem.variableLength
         }
         guard let button = item.button else { return }
+        // A non-nil empty image, not the metric items' actual glyph: same
+        // reasoning as their own emptyStatusImage use, so this text also
+        // dims correctly on an inactive display instead of staying full
+        // strength beside metrics that do.
+        if button.image !== Self.emptyStatusImage {
+            button.image = Self.emptyStatusImage
+        }
+        if button.imagePosition != .noImage {
+            button.imagePosition = .noImage
+        }
         let font = MenuBarRenderer.statusFont(stacked: false)
         if button.font?.isEqual(font) != true {
             button.font = font
