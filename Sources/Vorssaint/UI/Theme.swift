@@ -217,6 +217,13 @@ struct BrandBadge: View {
 /// Mirrors the interface for right-to-left languages. macOS only flips an app on
 /// its own when the *system* language is right to left, and Vorssaint picks its
 /// language from its own setting, so every window and panel root applies this.
+///
+/// This reaches SwiftUI content only. A window's own chrome — the traffic lights
+/// above all — follows `NSApp.userInterfaceLayoutDirection`, which comes from the
+/// system language and has no per-window override, so on an English Mac showing
+/// the Arabic interface they stay on the left while everything below them
+/// mirrors. On an Arabic-language Mac AppKit picks `ar.lproj` and moves them
+/// itself, so the two agree and there is nothing to reconcile.
 struct AppLayoutDirection: ViewModifier {
     @ObservedObject private var l10n = L10n.shared
 
