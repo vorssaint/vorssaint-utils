@@ -302,6 +302,7 @@ struct MetricsTests {
             (.ja, "クリップボード", "ウインドウ配置", "ユーティリティ", "アラート"),
             (.ko, "클립보드", "윈도우 정렬", "유틸리티", "알림"),
             (.ru, "Буфер обмена", "Раскладка окон", "Утилиты", "Оповещения"),
+            (.uk, "Буфер обміну", "Розкладка вікон", "Утиліти", "Сповіщення"),
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
             (.zhHK, "剪貼簿", "視窗排列", "工具", "提示"),
@@ -6415,6 +6416,8 @@ struct MetricsTests {
                "Media OCR language defaults include Turkish and English")
         expect(MediaSupport.recognitionLanguages(for: "ko") == ["ko-KR", "en-US"],
                "Media OCR language defaults include Korean and English")
+        expect(MediaSupport.recognitionLanguages(for: "uk") == ["uk-UA", "en-US"],
+               "Media OCR language defaults include Ukrainian and English")
         expect(MediaSupport.recognitionLanguages(for: "zh-Hans") == ["zh-Hans", "en-US"],
                "Media OCR language defaults include simplified Chinese and English")
         expect(MediaSupport.recognitionLanguages(for: "zh-TW") == ["zh-Hant", "en-US"],
@@ -11689,6 +11692,7 @@ struct MetricsTests {
             (.it, .it),
             (.ja, .ja),
             (.ko, .ko),
+            (.uk, .uk),
             (.zhHans, .zhHans),
             (.zhTW, .zhTW),
             (.zhHK, .zhHK)
@@ -11967,6 +11971,7 @@ struct MetricsTests {
         let bundleLocalizations = infoPlist?["CFBundleLocalizations"] as? [String] ?? []
         expect(bundleLocalizations.contains("tr"), "Info.plist declares Turkish as a bundle localization")
         expect(bundleLocalizations.contains("ko"), "Info.plist declares Korean as a bundle localization")
+        expect(bundleLocalizations.contains("uk"), "Info.plist declares Ukrainian as a bundle localization")
         let baseAudioPrompt = infoPlist?["NSAudioCaptureUsageDescription"] as? String ?? ""
         expect(baseAudioPrompt.contains("Vorssaint taps individual app audio"),
                "base audio permission prompt is an English fallback")
@@ -11995,6 +12000,11 @@ struct MetricsTests {
         expect(koreanInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
                && koreanInfoPlistStrings.contains("어떤 오디오도 녹음되거나"),
                "Korean InfoPlist.strings localizes the audio permission prompt")
+        let ukrainianInfoPlistStrings = (try? String(contentsOfFile: "Resources/uk.lproj/InfoPlist.strings",
+                                                     encoding: .utf8)) ?? ""
+        expect(ukrainianInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
+               && ukrainianInfoPlistStrings.contains("Нічого не записується"),
+               "Ukrainian InfoPlist.strings localizes the audio permission prompt")
 
         // MARK: Network speed math
 
@@ -13346,6 +13356,9 @@ struct MetricsTests {
         expect(FeatureStrings.hub(.ptBR).pageTitle == "Recursos"
                 && FeatureStrings.hub(.enUS).pageTitle == "Features",
                "hub page title reads naturally in the owner languages")
+        expect(FeatureStrings.commandBar(.uk).pageTitle == "Панель команд"
+                && FeatureStrings.mixer(.uk).hideInactiveApps == "Приховувати неактивні програми",
+               "Ukrainian uses its own Command Bar and mixer catalogs")
         for language in AppLanguage.allCases {
             let snippetValues = Mirror(reflecting: FeatureStrings.snippets(language)).children
                 .compactMap { $0.value as? String }
@@ -13617,6 +13630,7 @@ struct MetricsTests {
                 case .it: return .it
                 case .ja: return .ja
                 case .ko: return .ko
+                case .uk: return .uk
                 case .zhHans: return .zhHans
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK

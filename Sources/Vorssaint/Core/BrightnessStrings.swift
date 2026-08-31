@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -319,5 +320,25 @@ extension BrightnessFeatureStrings {
         osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
         keyboardLight: "鍵盤背光",
         keyboardLightCaption: "開啟或關閉鍵盤背光。"
+    )
+    static let uk = BrightnessFeatureStrings(
+        pageTitle: "Дисплеї",
+        hubDescription: "Керування яскравістю та живленням для кожного дисплея",
+        enable: "Керування дисплеями",
+        enableCaption: "Керування яскравістю та вмиканням/вимиканням вбудованого екрана та зовнішніх моніторів тут та в панелі рядка меню.",
+        externalCaption: "Зовнішні монітори регулюються тим самим протоколом, що й їхні власні кнопки. Коли з'єднання не може його передати, як з HDMI-адаптерами, повзунок замість цього затемнює зображення, тож керування яскравістю працює в обох випадках.",
+        noDisplays: "Дисплей не знайдено.",
+        displayOff: "Вимкнено",
+        turnOffDisplay: "Вимкнути дисплей",
+        turnOnDisplay: "Увімкнути дисплей",
+        lastDisplayCaption: "Принаймні один дисплей має залишатися ввімкненим.",
+        switchUnavailable: "Перемикання дисплеїв недоступне на цьому Mac.",
+        switchFailed: "Не вдалося змінити цей дисплей.",
+        keysToggle: "Клавіші яскравості слідують за вказівником",
+        keysCaption: "Клавіші яскравості клавіатури змінюють дисплей під вказівником.",
+        osdToggle: "Показувати яскравість під час регулювання",
+        osdCaption: "Показує відсоток яскравості при використанні клавіш або повзунків яскравості.",
+        keyboardLight: "Підсвічування клавіатури",
+        keyboardLightCaption: "Вмикає або вимикає підсвічування клавіатури."
     )
 }

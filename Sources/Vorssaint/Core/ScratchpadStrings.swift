@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -485,5 +486,37 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "最多可保留 %d 個草稿板",
         previewFormatting: "顯示格式",
         editText: "編輯文字"
+    )
+    static let uk = ScratchpadFeatureStrings(
+        pageTitle: "Нотатник",
+        hubDescription: "Плаваючі блокноти для короткочасних нотаток",
+        panelCaption: "Швидкі нотатки в окремих вкладках",
+        openButton: "Відкрити нотатник",
+        placeholder: "Пишіть будь-що. Зберігається сам.",
+        copyAll: "Скопіювати все",
+        copied: "Скопійовано",
+        exportAction: "Зберегти як файл",
+        clearAction: "Очистити",
+        retentionTitle: "Очищати сам",
+        retentionNever: "Ніколи",
+        retentionDay: "Через день без використання",
+        retentionWeek: "Через тиждень без використання",
+        retentionMonth: "Через місяць без використання",
+        retentionCaption: "Блокнот очищається сам, коли текст залишається без редагувань стільки часу.",
+        closeOnClickOutside: "Закривати при клаці зовні",
+        keepOpen: "Тримати відкритою",
+        backgroundOpacity: "Фон панелі",
+        backgroundTranslucent: "Напівпрозорий",
+        backgroundOpaque: "Непрозорий",
+        newPad: "Новий нотатник",
+        padActions: "Дії нотатника",
+        renamePad: "Перейменувати нотатник",
+        closePad: "Закрити нотатник",
+        saveName: "Зберегти",
+        cancel: "Скасувати",
+        deletePadMessageFormat: "Видалити «%@» та все в ньому?",
+        padLimitFormat: "Ви можете зберігати до %d нотатників",
+        previewFormatting: "Показувати форматування",
+        editText: "Редагувати текст"
     )
 }

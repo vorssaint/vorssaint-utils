@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -176,5 +177,15 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "僅有視窗時顯示",
         hidden: "一律不顯示",
         caption: "選擇每個 App 的顯示方式。沒有規則的 App 使用上方選項。"
+    )
+    static let uk = SwitcherAppRulesStrings(
+        listTitle: "Правила за програмами",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        behaviorLabel: "Поведінка перемикача",
+        showWithoutWindows: "Показувати без вікон",
+        windowsOnly: "Лише вікна",
+        hidden: "Ніколи не показувати",
+        caption: "Виберіть, як кожна програма з'являється. Програми без правила використовують вибір вище."
     )
 }

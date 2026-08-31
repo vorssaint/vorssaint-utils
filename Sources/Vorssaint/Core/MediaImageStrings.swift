@@ -76,6 +76,7 @@ struct MediaImageConverterStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -845,6 +846,64 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "已儲存 %d 張圖像",
         batchPartialFormat: "已儲存 %d 張，%d 張失敗",
         batchSummaryHeaderFormat: "已儲存 %d 張，%d 張失敗",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+    static let uk = MediaImageConverterStrings(
+        filesSelectedFormat: "Вибрано файлів: %d",
+        profile: "Профіль",
+        noProfile: "Без профілю",
+        profileName: "Назва профілю",
+        saveAsNew: "Зберегти новий",
+        updateProfile: "Оновити",
+        deleteProfile: "Видалити профіль",
+        profileModified: "Змінено",
+        profileDefaultNameFormat: "Профіль %d",
+        presetWeb: "Веб",
+        presetSocial: "Соціальне",
+        presetDocs: "Документи",
+        resize: "Змінити розмір",
+        resizeNone: "Без змін",
+        resizeMax: "Макс. сторона",
+        resizeWidth: "Ширина",
+        resizeHeight: "Висота",
+        resizeExact: "Власний",
+        exactStretch: "Розтягнути",
+        exactFit: "Вмістити",
+        exactFill: "Заповнення",
+        height: "Висота",
+        watermark: "Водяний знак",
+        watermarkOff: "Вимкнено",
+        watermarkText: "Текст",
+        watermarkLogo: "Логотип",
+        watermarkBoth: "Текст + логотип",
+        watermarkTextPlaceholder: "Текст водяного знака",
+        noLogo: "Без логотипа",
+        chooseLogo: "Вибрати логотип",
+        position: "Позиція",
+        topLeft: "Вгорі ліворуч",
+        topRight: "Вгорі праворуч",
+        center: "Центр",
+        bottomLeft: "Внизу ліворуч",
+        bottomRight: "Внизу праворуч",
+        opacity: "Непрозорість",
+        margin: "Поле",
+        scale: "Змінити масштаб",
+        rename: "Перейменувати",
+        preview: "Мініатюра",
+        outputName: "Результат",
+        background: "Фон",
+        backgroundTransparent: "Прозорий",
+        backgroundWhite: "Білий",
+        backgroundBlack: "Чорний",
+        preserveDate: "Зберегти оригінальну дату зміни",
+        moreOptions: "Більше опцій",
+        tooLarge: "Ці розміри завеликі для безпечної обробки. Виберіть менший розмір.",
+        copySummary: "Скопіювати підсумок",
+        savedBytesFormat: "Збережено %@",
+        grewBytesFormat: "%@ більше",
+        batchSavedFormat: "Збережено зображень: %d",
+        batchPartialFormat: "Збережено: %d, не вдалося: %d",
+        batchSummaryHeaderFormat: "Збережено: %d, не вдалося: %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
 }

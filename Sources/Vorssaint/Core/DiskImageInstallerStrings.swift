@@ -35,6 +35,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -246,5 +247,20 @@ extension DiskImageInstallerStrings {
         failedBody: "沒有變更任何內容。你仍可將 App 拖到「應用程式」。",
         verificationFailedBody: "這部 Mac 無法驗證此 App，因此沒有安裝。",
         alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。"
+    )
+    static let uk = DiskImageInstallerStrings(
+        title: "Інсталятор образів диска",
+        hubDescription: "Встановлює окрему програму з образу диска та очищає завантаження",
+        promptTitle: "Встановити цю програму?",
+        promptBodyFormat: "%@ буде скопійовано у «Програми». Після цього образ диска виймається, а завантаження переміщується в Кошик.",
+        installButton: "Встановити",
+        installedTitle: "Програму встановлено",
+        installedBodyFormat: "%@ готова у папці «Програми». Образ диска вийнято, а його завантаження переміщено в Кошик.",
+        installedKeepingMountBodyFormat: "%@ встановлено, але образ диска не вдалося вийняти. Його завантаження збережено.",
+        installedKeepingDownloadBodyFormat: "%@ встановлено, а образ диска вийнято, але його завантаження не вдалося перемістити в Кошик.",
+        failedTitle: "Не вдалося встановити",
+        failedBody: "Нічого не змінено. Ви все ще можете перетягнути програму у «Програми».",
+        verificationFailedBody: "Цей Mac не зміг перевірити програму, тому нічого не встановлено.",
+        alreadyInstalledBodyFormat: "%@ вже у папці «Програми»."
     )
 }

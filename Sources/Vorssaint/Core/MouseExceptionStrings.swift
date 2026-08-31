@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -201,5 +202,16 @@ extension MouseExceptionStrings {
         captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。"
+    )
+    static let uk = MouseExceptionStrings(
+        listTitle: "Програми, яких не чіпати",
+        addButton: "Додати програму…",
+        removeButton: "Видалити",
+        captionSmoothScroll: "Колесо зберігає свої звичайні кроки в цих програмах, для програм, які читають його по-своєму, як 3D-інструменти та дизайнерські програми.",
+        captionScrollDirection: "Колесо зберігає напрямок, який дає macOS, у цих програмах.",
+        captionNavigation: "Бокові кнопки продовжують робити те, що ці програми вже з ними роблять.",
+        captionButtonShortcuts: "Ваші додаткові кнопки миші мовчать у цих програмах, а натискання доходить до них.",
+        captionMiddleClick: "Клац трьома пальцями залишається звичайним клацом у цих програмах.",
+        captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах."
     )
 }

@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -204,5 +205,17 @@ extension MenuBarAppearanceStrings {
         highColor: "高負載顏色",
         mediumFrom: "中等起點",
         highFrom: "高負載起點"
+    )
+    static let uk = MenuBarAppearanceStrings(
+        label: "Відображення використання",
+        values: "Значення",
+        bars: "Смуги",
+        caption: "Смуги застосовуються до використання CPU, GPU, пам'яті та диска. Інші показники залишаються числовими.",
+        customize: "Кольори та ліміти смуг",
+        normalColor: "Звичайний колір",
+        mediumColor: "Середній колір",
+        highColor: "Високий колір",
+        mediumFrom: "Середній від",
+        highFrom: "Високий від"
     )
 }

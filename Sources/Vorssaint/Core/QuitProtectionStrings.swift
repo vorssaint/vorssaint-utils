@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -471,6 +472,38 @@ extension QuitProtectionStrings {
         extraHUDFormat: "使用 %@ 以結束/關閉",
         cancelHint: "Esc 取消",
         releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let uk = QuitProtectionStrings(
+        name: "Захист від виходу та закриття",
+        description: "Захищає ⌘Q та ⌘W від випадкових натискань",
+        intro: "Налаштуйте кожне клавіатурне скорочення окремо. Початкова дія виконується лише після вибраного підтвердження.",
+        enabled: "Захищати це клавіатурне скорочення",
+        enabledCaption: "Інші клавіатурні скорочення з Command продовжують працювати як зазвичай.",
+        mode: "Режим підтвердження",
+        hold: "Утримувати для підтвердження",
+        doublePress: "Натиснути двічі",
+        extraModifier: "Вимагати додаткову клавішу-модифікатор",
+        holdDuration: "Тривалість утримання",
+        doublePressInterval: "Інтервал подвійного натискання",
+        modifier: "Додаткова клавіша-модифікатор",
+        appScope: "Програми",
+        allApps: "Усі програми",
+        selectedOnly: "Лише вибрані програми",
+        allExceptSelected: "Усі, крім вибраних програм",
+        exceptions: "Винятки",
+        noExceptions: "Не вибрано жодної програми",
+        addApp: "Додати програму…",
+        feedback: "Показувати візуальний відгук",
+        accessibilityCaption: "Для захисту використовується Універсальний доступ, щоб глобально відстежувати лише ⌘Q та ⌘W.",
+        holdHUDFormat: "Утримуйте %@ для виходу/закриття",
+        doubleHUDFormat: "Натисніть %@ ще раз для виходу/закриття",
+        extraHUDFormat: "Використайте %@ для виходу/закриття",
+        cancelHint: "Esc скасовує",
+        releaseHint: "Відпустіть для підтвердження",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"
