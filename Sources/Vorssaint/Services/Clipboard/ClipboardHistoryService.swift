@@ -1149,13 +1149,15 @@ final class ClipboardHistoryService: ObservableObject {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, let panel, event.window === panel else { return event }
-            // A multiline editor owns its normal editing keys. The search box
-            // uses a field editor, so its existing list shortcuts stay intact.
-            // The read-only preview is a text view too, but the list keeps
-            // the keys over it: only ⌘C and ⌘A, which the list declines below
-            // when nothing is batch-selected, reach it.
+            // A multiline editor owns its normal editing keys, and any field
+            // still composing owns them too. Outside composition the search
+            // box keeps the list's shortcuts, as does the read-only preview:
+            // only ⌘C and ⌘A, which the list declines below when nothing is
+            // batch-selected, reach it.
             if let textView = panel.firstResponder as? NSTextView,
-               !textView.isFieldEditor, textView.isEditable {
+               ClipboardHistoryFocus.textViewOwnsKeys(isComposing: textView.hasMarkedText(),
+                                                      isFieldEditor: textView.isFieldEditor,
+                                                      isEditable: textView.isEditable) {
                 return event
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])

@@ -421,6 +421,22 @@ struct MetricsTests {
                "Esc closes the panel when nothing is selected")
         expect(ClipboardHistoryEscape.action(batchCount: 2) == .clearBatchSelection,
                "Esc clears a batch selection before it closes the panel")
+        expect(ClipboardHistoryFocus.textViewOwnsKeys(isComposing: true,
+                                                      isFieldEditor: true,
+                                                      isEditable: true),
+               "a composing search field keeps Return, the arrows and Esc")
+        expect(!ClipboardHistoryFocus.textViewOwnsKeys(isComposing: false,
+                                                       isFieldEditor: true,
+                                                       isEditable: true),
+               "the list keeps its shortcuts over a search field that is not composing")
+        expect(ClipboardHistoryFocus.textViewOwnsKeys(isComposing: false,
+                                                      isFieldEditor: false,
+                                                      isEditable: true),
+               "the multiline editor owns its editing keys")
+        expect(!ClipboardHistoryFocus.textViewOwnsKeys(isComposing: false,
+                                                       isFieldEditor: false,
+                                                       isEditable: false),
+               "the read-only preview leaves the list's shortcuts intact")
         expect(ClipboardHistoryEditing.canSave(original: "First draft", draft: "Second draft"),
                "clipboard text can save a real edit")
         expect(!ClipboardHistoryEditing.canSave(original: "Same", draft: "Same"),
