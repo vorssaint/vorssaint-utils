@@ -293,7 +293,8 @@ final class ShelfService: ObservableObject {
     /// promises. The dynamic type is supplied by AppKit, so use the system's
     /// readable list instead of hardcoding an Outlook-specific identifier.
     private static let filePromiseTypeIdentifiers = Set(NSFilePromiseReceiver.readableDraggedTypes)
-    private static let filePromiseMetadataTypeIdentifier = "com.apple.NSFilePromiseItemMetaData"
+    private static let filePromiseContentTypeIdentifier =
+        "com.apple.pasteboard.promised-file-content-type"
     private static let filePromiseDropTypes = NSFilePromiseReceiver.readableDraggedTypes
         .map { NSPasteboard.PasteboardType($0) }
 
@@ -1080,10 +1081,9 @@ final class ShelfService: ObservableObject {
     }
 
     private func promisedFileTypeIdentifier(for provider: NSItemProvider) -> String? {
-        provider.registeredTypeIdentifiers.first {
-            Self.filePromiseTypeIdentifiers.contains($0)
-                && $0 != Self.filePromiseMetadataTypeIdentifier
-        }
+        guard provider.registeredTypeIdentifiers.contains(Self.filePromiseContentTypeIdentifier)
+        else { return nil }
+        return Self.filePromiseContentTypeIdentifier
     }
 
     /// Resolves every provider in a drop and adds them together: one pile

@@ -69,7 +69,7 @@ final class ShelfPromiseFallbackCoordinator<Value> {
     func recordSuccess(for receiverID: Int) -> CallbackOutcome {
         lock.lock()
         defer { lock.unlock() }
-        guard var receiver = receivers[receiverID], !receiver.isTerminal else {
+        guard var receiver = receivers[receiverID], !receiver.isWholesaleFailure else {
             // A prior error closes a receiver wholesale. Do not let a late
             // success create a promised tile after the direct fallback was
             // selected, but still let the caller clean a regular file safely.
@@ -77,6 +77,14 @@ final class ShelfPromiseFallbackCoordinator<Value> {
                                    discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: false)
+        }
+        if receiver.isTerminal {
+            // `fileNames` is normally authoritative, but the defensive
+            // minimum of one cannot cap a provider that omits its names and
+            // then delivers more than one file. Treat the extra callback as
+            // evidence that the expected count needs to grow.
+            receiver.expectedFileCount = receiver.completedFileCount + 1
+            receiver.isTerminal = false
         }
         receiver.completedFileCount += 1
         if receiver.isExpectedFileCountFinal,
@@ -94,11 +102,18 @@ final class ShelfPromiseFallbackCoordinator<Value> {
     func recordFailure(for receiverID: Int) -> CallbackOutcome {
         lock.lock()
         defer { lock.unlock() }
-        guard var receiver = receivers[receiverID], !receiver.isTerminal else {
+        guard var receiver = receivers[receiverID], !receiver.isWholesaleFailure else {
             return CallbackOutcome(acceptFile: false,
                                    discardFallback: nil,
                                    fallback: nil,
                                    reportFailure: false)
+        }
+        if receiver.isTerminal {
+            // Apply the same overflow rule to a late failure. An omitted or
+            // stale file count must not turn a real failed file into silent
+            // loss merely because an earlier callback reached the floor.
+            receiver.expectedFileCount = receiver.completedFileCount + 1
+            receiver.isTerminal = false
         }
         // An error callback may be the receiver's wholesale failure rather
         // than one failed file. Close the receiver and credit every remaining

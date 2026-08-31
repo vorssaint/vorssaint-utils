@@ -21368,6 +21368,19 @@ struct MetricsTests {
                 && earlyCompletion?.reportFailure == false,
                "an early callback remains part of the expanded multi-file receiver")
 
+        // The defensive minimum must not cap a receiver that reports its
+        // filenames late and then delivers an additional failed file.
+        let overflowFailure = ShelfPromiseFallbackCoordinator(
+            items: ["subject"], receiverCount: 1)
+        overflowFailure.registerReceiver(0, expectedFileCount: 1)
+        let firstOverflowSuccess = overflowFailure.recordSuccess(for: 0)
+        let secondOverflowFailure = overflowFailure.recordFailure(for: 0)
+        let overflowCompletion = overflowFailure.finishRegistration()
+        expect(firstOverflowSuccess.acceptFile && !secondOverflowFailure.acceptFile
+                && overflowCompletion?.fallback == nil
+                && overflowCompletion?.reportFailure == true,
+               "an extra callback after the defensive floor is still reported")
+
         // With two receivers, a failure in one must wait for the other
         // receiver's success. The successful promise suppresses the direct
         // subject fallback, while the partial failure is reported once.
@@ -21413,6 +21426,20 @@ struct MetricsTests {
                 && allFailureFallback.finishRegistration()?.fallback == ["image"]
                 && !finalReceiverFailure.reportFailure,
                "fallback waits for every receiver in an all-failure batch")
+
+        // SwiftUI must request the content promise explicitly. Selecting the
+        // first registered promise flavor could load a URL string as a file.
+        let shelfServiceSource = (try? String(contentsOfFile:
+            "Sources/Vorssaint/Services/Shelf/ShelfService.swift", encoding: .utf8)) ?? ""
+        expect(shelfServiceSource.contains(
+            "com.apple.pasteboard.promised-file-content-type"),
+               "the SwiftUI promise loader names the content representation explicitly")
+        expect(shelfServiceSource.contains(
+            "return Self.filePromiseContentTypeIdentifier"),
+               "provider ordering cannot select the promised URL representation")
+        expect(!shelfServiceSource.contains(
+            "provider.registeredTypeIdentifiers.first"),
+               "the promise loader no longer trusts provider type ordering")
 
         // MARK: Result
 
