@@ -21117,6 +21117,39 @@ struct MetricsTests {
                + "(ran \(detachedRuns) time(s))")
         try? FileManager.default.removeItem(at: detachRoot)
 
+        // MARK: Widget snapshot
+        // The two ends are separate processes that never share memory, so the
+        // file is the whole contract between them.
+        let widgetDirectory = WidgetSnapshotStore.directory
+        let hadWidgetDirectory = FileManager.default.fileExists(atPath: widgetDirectory.path)
+        // A test run must not touch a live install's channel: no bundle means a
+        // suffixed identifier, so this is the harness's own directory.
+        expect(widgetDirectory.path.contains("no-bundle"),
+               "the tests write to their own directory, never a real install's")
+
+        // The snapshot has to survive the trip through the file: the two ends
+        // are separate processes that never share memory.
+        var widgetSample = WidgetSnapshot(capturedAt: Date())
+        widgetSample.cpuUsage = 0.42
+        widgetSample.memoryUsed = 11_500_000_000
+        widgetSample.memoryPressure = "warning"
+        expect(WidgetSnapshotStore.write(widgetSample), "a snapshot is written")
+        let readBack = WidgetSnapshotStore.read()
+        expect(readBack?.cpuUsage == 0.42, "usage survives the round trip")
+        expect(readBack?.memoryUsed == 11_500_000_000, "byte counts survive the round trip")
+        expect(readBack?.memoryPressure == "warning", "pressure survives the round trip")
+        // The reader must not mistake a half-written or foreign file for data.
+        try? "not json".write(to: WidgetSnapshotStore.snapshotURL, atomically: true, encoding: .utf8)
+        expect(WidgetSnapshotStore.read() == nil, "unreadable content is no snapshot at all")
+
+        try? FileManager.default.removeItem(at: WidgetSnapshotStore.snapshotURL)
+        if !hadWidgetDirectory {
+            try? FileManager.default.removeItem(at: widgetDirectory)
+            // Leave nothing behind on the machine running the tests; rmdir
+            // spares the parent if a real install is using it.
+            _ = rmdir(widgetDirectory.deletingLastPathComponent().path)
+        }
+
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
             exit(0)

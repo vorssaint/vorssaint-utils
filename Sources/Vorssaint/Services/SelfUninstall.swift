@@ -169,6 +169,16 @@ enum SelfUninstall {
         try? FileManager.default.removeItem(atPath: "\(home)/Library/HTTPStorages/\(id)")
         try? FileManager.default.removeItem(
             atPath: "\(home)/Library/HTTPStorages/\(id).binarycookies")
+        // The desktop widgets read their metrics from here; it lives outside
+        // the home directory because a sandboxed extension cannot be granted a
+        // path containing "~". Taken from the store rather than rebuilt, so a
+        // change to the layout cannot leave this behind pointing at the old one.
+        try? FileManager.default.removeItem(at: WidgetSnapshotStore.directory)
+        // Take the parent too, but only once it is empty: another install, or
+        // another account, keeps its own directory in there and removeItem
+        // would take that with it. rmdir refuses a non-empty directory, which
+        // is exactly the guard needed here.
+        _ = rmdir(WidgetSnapshotStore.directory.deletingLastPathComponent().path)
     }
 
     /// Moves the app's own bundle to the Trash after it quits, then quits. The

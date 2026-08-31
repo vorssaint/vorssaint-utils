@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Widget extensions must be sandboxed; that is what makes the snapshot
+	     file necessary in the first place, since this process can read neither
+	     the SMC nor any volume. The two exceptions below are its only contact
+	     with the rest of the machine: reading the metrics Vorssaint sampled
+	     and wrote out. Read-only — the extension has nothing to say back.
+	     A sandbox exception cannot express "~", so the path is the fixed,
+	     absolute shared directory. Nothing private travels through it. -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.absolute-path.read-only</key>
+	<array>
+		<string>/Users/Shared/Vorssaint/</string>
+	</array>
+</dict>
+</plist>

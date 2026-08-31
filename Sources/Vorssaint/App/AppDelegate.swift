@@ -80,6 +80,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         installMainMenu()
         PanelLayout.resetCollapsedSectionsOnce(for: "2.15.1")
 
+        // Placing or removing a desktop widget is what starts and stops the
+        // sampling that feeds it, and the system posts no notification for it.
+        // Re-asked here and whenever the menu panel opens, which is the moment
+        // an accessory app reliably gets.
+        WidgetSnapshotPublisher.shared.startObservingWidgetPresence()
+        WidgetSnapshotPublisher.shared.refreshInstalledWidgets()
+
         statusController = StatusItemController()
         statusController.onLeftClick = { [weak self] in
             self?.captureStatusClick()
