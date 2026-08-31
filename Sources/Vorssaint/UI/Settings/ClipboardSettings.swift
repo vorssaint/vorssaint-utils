@@ -16,6 +16,11 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
+    @AppStorage(DefaultsKey.clipboardHistoryQuickPreviewByDefault) private var previewByDefault = false
+    @AppStorage(DefaultsKey.clipboardUniformRows) private var uniformRows = true
+    @AppStorage(DefaultsKey.clipboardArrowOpensActions) private var arrowOpensActions = true
+    @AppStorage(DefaultsKey.clipboardShelfTextDrag) private var shelfTextDrag = false
+    @AppStorage(DefaultsKey.clipboardShelfTextAction) private var shelfTextAction = false
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
     @AppStorage(DefaultsKey.clipboardAutoClearDelay)
@@ -72,6 +77,20 @@ struct ClipboardSettings: View {
                     }
                     .disabled(!enabled)
                 }
+
+                // The drag goes to anything that takes a drop, so it does not
+                // wait for the Shelf; only the ⌘K action is the Shelf's own.
+                Section {
+                    Toggle(text.textDragToggle, isOn: $shelfTextDrag)
+                    if AppFeature.shelf.isAvailable {
+                        Toggle(String(format: text.shelfTextActionFormat, l10n.s.shelfName),
+                               isOn: $shelfTextAction)
+                    }
+                    Text(String(format: text.shelfTextCaptionFormat, l10n.s.shelfName))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .disabled(!enabled)
 
                 // Its own section because it is the one setting here that keeps
                 // working with capture off: the panel entry stays, saying so,
@@ -171,6 +190,18 @@ struct ClipboardSettings: View {
             Text(text.shortcutCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Toggle(text.previewByDefault, isOn: $previewByDefault)
+                .disabled(!enabled)
+            Text(text.previewByDefaultCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(text.uniformRows, isOn: $uniformRows)
+                .disabled(!enabled)
+            Text(text.uniformRowsCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(text.arrowOpensActions, isOn: $arrowOpensActions)
+                .disabled(!enabled)
             Button {
                 ClipboardHistoryService.shared.showHistoryWindow()
             } label: {

@@ -182,7 +182,34 @@ extension ClipboardFeatureStrings {
         autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
-        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        previewByDefault: "미리보기 패널과 함께 열기",
+        previewByDefaultCaption: "클립보드 창을 열면 선택한 항목의 전체 내용이 목록 옆에 표시됩니다.",
+        openInWindowHint: "두 번 클릭하면 항목 전체를 봅니다",
+        textEntryLabel: "텍스트",
+        characterCountFormat: "%@자",
+        lineCountFormat: "%@줄",
+        actionsTitle: "동작",
+        linkEntryLabel: "링크",
+        addToShelfFormat: "%@에 추가",
+        dragHintFormat: "밖으로 드래그하거나 드래그 중에 흔들면 %@이(가) 열립니다",
+        wordCountFormat: "%@ 단어",
+        typeLabel: "유형",
+        sizeLabel: "크기",
+        copiedLabel: "복사됨",
+        sourceLabel: "출처",
+        locationLabel: "위치",
+        textDragToggle: "텍스트 항목을 텍스트로 드래그",
+        shelfTextActionFormat: "⌘K 동작에서 텍스트에도 “%@에 추가” 제공",
+        shelfTextCaptionFormat: "파일과 이미지는 항상 드래그할 수 있습니다. 이 옵션은 텍스트도 드롭을 받는 곳 어디로든 드래그할 수 있게 하며, 드래그 중 흔들면 %@이(가) 켜져 있을 때 열립니다.",
+        openLink: "링크 열기",
+        copyPath: "경로 복사",
+        fileEntryLabel: "파일",
+        lookUpInDictionary: "사전에서 찾기",
+        arrowOpensActions: "→ 키로 동작 열기(← 키로 닫기)",
+        uniformRows: "모든 행을 같은 높이로 유지",
+        uniformRowsCaption: "행마다 텍스트 한 줄과 작은 축소판만 표시하고, 전체 항목은 미리보기 패널에 표시합니다.",
+        quickLook: "훑어보기"
     )
 }
 
@@ -466,6 +493,33 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let previewByDefault: String
+    let previewByDefaultCaption: String
+    let openInWindowHint: String
+    let textEntryLabel: String
+    let characterCountFormat: String
+    let lineCountFormat: String
+    let actionsTitle: String
+    let linkEntryLabel: String
+    let addToShelfFormat: String
+    let dragHintFormat: String
+    let wordCountFormat: String
+    let typeLabel: String
+    let sizeLabel: String
+    let copiedLabel: String
+    let sourceLabel: String
+    let locationLabel: String
+    let textDragToggle: String
+    let shelfTextActionFormat: String
+    let shelfTextCaptionFormat: String
+    let openLink: String
+    let copyPath: String
+    let fileEntryLabel: String
+    let lookUpInDictionary: String
+    let arrowOpensActions: String
+    let uniformRows: String
+    let uniformRowsCaption: String
+    let quickLook: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -520,7 +574,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Clear clipboard on computer sleep",
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
-        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        previewByDefault: "Open with the preview pane",
+        previewByDefaultCaption: "The clipboard window opens with the selected item shown in full beside the list.",
+        openInWindowHint: "Double-click to see the whole item",
+        textEntryLabel: "Text",
+        characterCountFormat: "%@ characters",
+        lineCountFormat: "%@ lines",
+        actionsTitle: "Actions",
+        linkEntryLabel: "Link",
+        addToShelfFormat: "Add to %@",
+        dragHintFormat: "Drag out, or shake while dragging to open %@",
+        wordCountFormat: "%@ words",
+        typeLabel: "Type",
+        sizeLabel: "Size",
+        copiedLabel: "Copied",
+        sourceLabel: "Source",
+        locationLabel: "Location",
+        textDragToggle: "Drag text entries out as text",
+        shelfTextActionFormat: "Offer “Add to %@” for text in the ⌘K actions",
+        shelfTextCaptionFormat: "Files and images always drag out. This lets text drag out too, to anything that takes a drop; shaking while dragging opens %@ when it is on.",
+        openLink: "Open link",
+        copyPath: "Copy path",
+        fileEntryLabel: "File",
+        lookUpInDictionary: "Look Up in Dictionary",
+        arrowOpensActions: "Open the actions with → (← closes them)",
+        uniformRows: "Keep every row the same height",
+        uniformRowsCaption: "One line of text and a small thumbnail per row; the preview pane shows the whole item.",
+        quickLook: "Quick Look"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -576,7 +657,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
-        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        previewByDefault: "Abrir com o painel de prévia",
+        previewByDefaultCaption: "A janela da área de transferência abre com o item selecionado exibido por completo ao lado da lista.",
+        openInWindowHint: "Clique duas vezes para ver o item inteiro",
+        textEntryLabel: "Texto",
+        characterCountFormat: "%@ caracteres",
+        lineCountFormat: "%@ linhas",
+        actionsTitle: "Ações",
+        linkEntryLabel: "Link",
+        addToShelfFormat: "Adicionar a %@",
+        dragHintFormat: "Arraste para fora, ou sacuda durante o arraste para abrir %@",
+        wordCountFormat: "%@ palavras",
+        typeLabel: "Tipo",
+        sizeLabel: "Tamanho",
+        copiedLabel: "Copiado",
+        sourceLabel: "Origem",
+        locationLabel: "Local",
+        textDragToggle: "Arrastar itens de texto para fora como texto",
+        shelfTextActionFormat: "Oferecer “Adicionar a %@” para texto nas ações ⌘K",
+        shelfTextCaptionFormat: "Arquivos e imagens sempre podem ser arrastados. Isto permite arrastar texto também, para qualquer coisa que aceite soltar; sacudir durante o arraste abre %@ quando está ativa.",
+        openLink: "Abrir link",
+        copyPath: "Copiar caminho",
+        fileEntryLabel: "Arquivo",
+        lookUpInDictionary: "Consultar no Dicionário",
+        arrowOpensActions: "Abrir as ações com → (← as fecha)",
+        uniformRows: "Manter todas as linhas com a mesma altura",
+        uniformRowsCaption: "Uma linha de texto e uma miniatura pequena por item; o painel de prévia mostra o item inteiro.",
+        quickLook: "Visualização Rápida"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -632,7 +740,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
-        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        previewByDefault: "Önizleme paneliyle aç",
+        previewByDefaultCaption: "Pano penceresi, seçili öğeyi listenin yanında tam olarak göstererek açılır.",
+        openInWindowHint: "Öğenin tamamını görmek için çift tıklayın",
+        textEntryLabel: "Metin",
+        characterCountFormat: "%@ karakter",
+        lineCountFormat: "%@ satır",
+        actionsTitle: "Eylemler",
+        linkEntryLabel: "Bağlantı",
+        addToShelfFormat: "%@ içine ekle",
+        dragHintFormat: "Dışarı sürükleyin veya sürüklerken sallayarak %@ açın",
+        wordCountFormat: "%@ sözcük",
+        typeLabel: "Tür",
+        sizeLabel: "Boyut",
+        copiedLabel: "Kopyalandı",
+        sourceLabel: "Kaynak",
+        locationLabel: "Konum",
+        textDragToggle: "Metin öğelerini metin olarak dışarı sürükle",
+        shelfTextActionFormat: "⌘K eylemlerinde metin için “%@ içine ekle” sunulsun",
+        shelfTextCaptionFormat: "Dosyalar ve görseller her zaman dışarı sürüklenebilir. Bu, metnin de bırakmayı kabul eden her yere sürüklenmesini sağlar; sürüklerken sallamak %@ açıksa onu açar.",
+        openLink: "Bağlantıyı aç",
+        copyPath: "Yolu kopyala",
+        fileEntryLabel: "Dosya",
+        lookUpInDictionary: "Sözlükte ara",
+        arrowOpensActions: "Eylemleri → ile aç (← kapatır)",
+        uniformRows: "Her satırı aynı yükseklikte tut",
+        uniformRowsCaption: "Satır başına tek satır metin ve küçük bir küçük resim; önizleme bölmesi öğenin tamamını gösterir.",
+        quickLook: "Hızlı Bakış"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -688,7 +823,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
-        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        previewByDefault: "Открывать с панелью просмотра",
+        previewByDefaultCaption: "Окно буфера обмена открывается с полным содержимым выбранного элемента рядом со списком.",
+        openInWindowHint: "Дважды щёлкните, чтобы увидеть элемент целиком",
+        textEntryLabel: "Текст",
+        characterCountFormat: "Символов: %@",
+        lineCountFormat: "Строк: %@",
+        actionsTitle: "Действия",
+        linkEntryLabel: "Ссылка",
+        addToShelfFormat: "Добавить: %@",
+        dragHintFormat: "Перетащите наружу или потрясите при перетаскивании, чтобы открыть: %@",
+        wordCountFormat: "Слов: %@",
+        typeLabel: "Тип",
+        sizeLabel: "Размер",
+        copiedLabel: "Скопировано",
+        sourceLabel: "Источник",
+        locationLabel: "Расположение",
+        textDragToggle: "Перетаскивать текстовые записи наружу как текст",
+        shelfTextActionFormat: "Предлагать «Добавить: %@» для текста в действиях ⌘K",
+        shelfTextCaptionFormat: "Файлы и изображения всегда можно перетащить. Этот параметр позволяет перетаскивать и текст куда угодно, где принимают перетаскивание; встряхивание при перетаскивании открывает %@, если она включена.",
+        openLink: "Открыть ссылку",
+        copyPath: "Скопировать путь",
+        fileEntryLabel: "Файл",
+        lookUpInDictionary: "Искать в Словаре",
+        arrowOpensActions: "Открывать действия клавишей → (← закрывает)",
+        uniformRows: "Одинаковая высота всех строк",
+        uniformRowsCaption: "Одна строка текста и маленькая миниатюра в каждой строке; панель просмотра показывает элемент целиком.",
+        quickLook: "Быстрый просмотр"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -744,7 +906,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
-        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        previewByDefault: "Abrir con el panel de vista previa",
+        previewByDefaultCaption: "La ventana del portapapeles se abre mostrando el elemento seleccionado completo junto a la lista.",
+        openInWindowHint: "Haz doble clic para ver el elemento completo",
+        textEntryLabel: "Texto",
+        characterCountFormat: "%@ caracteres",
+        lineCountFormat: "%@ líneas",
+        actionsTitle: "Acciones",
+        linkEntryLabel: "Enlace",
+        addToShelfFormat: "Añadir a %@",
+        dragHintFormat: "Arrastra hacia fuera, o agita mientras arrastras para abrir %@",
+        wordCountFormat: "%@ palabras",
+        typeLabel: "Tipo",
+        sizeLabel: "Tamaño",
+        copiedLabel: "Copiado",
+        sourceLabel: "Origen",
+        locationLabel: "Ubicación",
+        textDragToggle: "Arrastrar entradas de texto hacia fuera como texto",
+        shelfTextActionFormat: "Ofrecer “Añadir a %@” para texto en las acciones ⌘K",
+        shelfTextCaptionFormat: "Los archivos e imágenes siempre se pueden arrastrar. Esto permite arrastrar también texto, a cualquier cosa que acepte soltar; agitar mientras arrastras abre %@ cuando está activada.",
+        openLink: "Abrir enlace",
+        copyPath: "Copiar ruta",
+        fileEntryLabel: "Archivo",
+        lookUpInDictionary: "Buscar en Diccionario",
+        arrowOpensActions: "Abrir las acciones con → (← las cierra)",
+        uniformRows: "Mantener todas las filas a la misma altura",
+        uniformRowsCaption: "Una línea de texto y una miniatura pequeña por fila; el panel de vista previa muestra el elemento completo.",
+        quickLook: "Vista Rápida"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -800,7 +989,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
-        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        previewByDefault: "Mit Vorschaubereich öffnen",
+        previewByDefaultCaption: "Das Zwischenablage-Fenster öffnet sich mit dem ausgewählten Eintrag vollständig neben der Liste.",
+        openInWindowHint: "Doppelklicken, um den ganzen Eintrag zu sehen",
+        textEntryLabel: "Text",
+        characterCountFormat: "%@ Zeichen",
+        lineCountFormat: "%@ Zeilen",
+        actionsTitle: "Aktionen",
+        linkEntryLabel: "Link",
+        addToShelfFormat: "Zu %@ hinzufügen",
+        dragHintFormat: "Herausziehen oder beim Ziehen schütteln, um %@ zu öffnen",
+        wordCountFormat: "%@ Wörter",
+        typeLabel: "Typ",
+        sizeLabel: "Größe",
+        copiedLabel: "Kopiert",
+        sourceLabel: "Quelle",
+        locationLabel: "Ort",
+        textDragToggle: "Texteinträge als Text herausziehen",
+        shelfTextActionFormat: "„Zu %@ hinzufügen“ für Text in den ⌘K-Aktionen anbieten",
+        shelfTextCaptionFormat: "Dateien und Bilder lassen sich immer herausziehen. Damit lässt sich auch Text überallhin ziehen, wo etwas abgelegt werden kann; Schütteln beim Ziehen öffnet %@, wenn es aktiv ist.",
+        openLink: "Link öffnen",
+        copyPath: "Pfad kopieren",
+        fileEntryLabel: "Datei",
+        lookUpInDictionary: "Im Lexikon nachschlagen",
+        arrowOpensActions: "Aktionen mit → öffnen (← schließt sie)",
+        uniformRows: "Alle Zeilen gleich hoch halten",
+        uniformRowsCaption: "Eine Textzeile und ein kleines Vorschaubild pro Zeile; der Vorschaubereich zeigt den ganzen Eintrag.",
+        quickLook: "Übersicht"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -856,7 +1072,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
         autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
-        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique.",
+        previewByDefault: "Ouvrir avec le volet d'aperçu",
+        previewByDefaultCaption: "La fenêtre du presse-papiers s'ouvre avec l'élément sélectionné affiché en entier à côté de la liste.",
+        openInWindowHint: "Double-cliquez pour voir l'élément en entier",
+        textEntryLabel: "Texte",
+        characterCountFormat: "%@ caractères",
+        lineCountFormat: "%@ lignes",
+        actionsTitle: "Actions",
+        linkEntryLabel: "Lien",
+        addToShelfFormat: "Ajouter à %@",
+        dragHintFormat: "Glissez vers l'extérieur, ou secouez pendant le glissement pour ouvrir %@",
+        wordCountFormat: "%@ mots",
+        typeLabel: "Type",
+        sizeLabel: "Taille",
+        copiedLabel: "Copié",
+        sourceLabel: "Source",
+        locationLabel: "Emplacement",
+        textDragToggle: "Glisser les entrées texte vers l'extérieur en tant que texte",
+        shelfTextActionFormat: "Proposer « Ajouter à %@ » pour le texte dans les actions ⌘K",
+        shelfTextCaptionFormat: "Les fichiers et images se glissent toujours. Ceci permet aussi de glisser du texte, vers tout ce qui accepte un dépôt ; secouer pendant le glissement ouvre %@ si elle est activée.",
+        openLink: "Ouvrir le lien",
+        copyPath: "Copier le chemin",
+        fileEntryLabel: "Fichier",
+        lookUpInDictionary: "Rechercher dans le Dictionnaire",
+        arrowOpensActions: "Ouvrir les actions avec → (← les ferme)",
+        uniformRows: "Garder toutes les lignes à la même hauteur",
+        uniformRowsCaption: "Une ligne de texte et une petite vignette par ligne ; le volet d'aperçu affiche l'élément entier.",
+        quickLook: "Coup d'œil"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -912,7 +1155,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
-        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        previewByDefault: "Apri con il pannello di anteprima",
+        previewByDefaultCaption: "La finestra degli appunti si apre con l'elemento selezionato mostrato per intero accanto all'elenco.",
+        openInWindowHint: "Fai doppio clic per vedere l'elemento per intero",
+        textEntryLabel: "Testo",
+        characterCountFormat: "%@ caratteri",
+        lineCountFormat: "%@ righe",
+        actionsTitle: "Azioni",
+        linkEntryLabel: "Link",
+        addToShelfFormat: "Aggiungi a %@",
+        dragHintFormat: "Trascina fuori, o scuoti durante il trascinamento per aprire %@",
+        wordCountFormat: "%@ parole",
+        typeLabel: "Tipo",
+        sizeLabel: "Dimensione",
+        copiedLabel: "Copiato",
+        sourceLabel: "Origine",
+        locationLabel: "Posizione",
+        textDragToggle: "Trascina le voci di testo fuori come testo",
+        shelfTextActionFormat: "Offri “Aggiungi a %@” per il testo nelle azioni ⌘K",
+        shelfTextCaptionFormat: "File e immagini si trascinano sempre. Questo consente di trascinare anche il testo, verso qualsiasi cosa accetti un rilascio; scuotere durante il trascinamento apre %@ se attiva.",
+        openLink: "Apri link",
+        copyPath: "Copia percorso",
+        fileEntryLabel: "File",
+        lookUpInDictionary: "Cerca nel Dizionario",
+        arrowOpensActions: "Apri le azioni con → (← le chiude)",
+        uniformRows: "Mantieni tutte le righe della stessa altezza",
+        uniformRowsCaption: "Una riga di testo e una miniatura piccola per riga; il pannello di anteprima mostra l'elemento intero.",
+        quickLook: "Visualizzazione rapida"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -968,7 +1238,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "システムスリープ時にクリップボードを消去",
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
-        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        previewByDefault: "プレビューを表示して開く",
+        previewByDefaultCaption: "クリップボードウインドウを開くと、選択中の項目の全文がリストの横に表示されます。",
+        openInWindowHint: "ダブルクリックで項目全体を表示",
+        textEntryLabel: "テキスト",
+        characterCountFormat: "%@文字",
+        lineCountFormat: "%@行",
+        actionsTitle: "アクション",
+        linkEntryLabel: "リンク",
+        addToShelfFormat: "%@に追加",
+        dragHintFormat: "外へドラッグするか、ドラッグ中に振ると%@が開きます",
+        wordCountFormat: "%@ 語",
+        typeLabel: "種類",
+        sizeLabel: "サイズ",
+        copiedLabel: "コピー日時",
+        sourceLabel: "コピー元",
+        locationLabel: "場所",
+        textDragToggle: "テキスト項目をテキストとしてドラッグ",
+        shelfTextActionFormat: "⌘Kアクションでテキストにも「%@に追加」を表示",
+        shelfTextCaptionFormat: "ファイルと画像は常にドラッグできます。これによりテキストもドロップを受け付ける場所へドラッグでき、ドラッグ中に振ると%@（有効時）が開きます。",
+        openLink: "リンクを開く",
+        copyPath: "パスをコピー",
+        fileEntryLabel: "ファイル",
+        lookUpInDictionary: "辞書で調べる",
+        arrowOpensActions: "→ でアクションを開く（← で閉じる）",
+        uniformRows: "すべての行を同じ高さにする",
+        uniformRowsCaption: "各行はテキスト1行と小さなサムネイル。項目全体はプレビューに表示されます。",
+        quickLook: "クイックルック"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1024,7 +1321,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠时清空剪贴板",
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
-        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        previewByDefault: "打开时显示预览面板",
+        previewByDefaultCaption: "打开剪贴板窗口时，在列表旁完整显示选中的条目。",
+        openInWindowHint: "双击查看完整条目",
+        textEntryLabel: "文本",
+        characterCountFormat: "%@ 个字符",
+        lineCountFormat: "%@ 行",
+        actionsTitle: "操作",
+        linkEntryLabel: "链接",
+        addToShelfFormat: "添加到%@",
+        dragHintFormat: "向外拖动，或拖动时晃动以打开%@",
+        wordCountFormat: "%@ 个词",
+        typeLabel: "类型",
+        sizeLabel: "大小",
+        copiedLabel: "复制时间",
+        sourceLabel: "来源",
+        locationLabel: "位置",
+        textDragToggle: "将文本条目作为文本拖出",
+        shelfTextActionFormat: "在 ⌘K 操作中为文本提供“添加到%@”",
+        shelfTextCaptionFormat: "文件和图片始终可以拖出。此项让文本也能拖到任何接受拖放的地方；拖动时晃动会在%@开启时将其打开。",
+        openLink: "打开链接",
+        copyPath: "拷贝路径",
+        fileEntryLabel: "文件",
+        lookUpInDictionary: "在词典中查询",
+        arrowOpensActions: "用 → 打开操作（← 关闭）",
+        uniformRows: "所有行保持相同高度",
+        uniformRowsCaption: "每行只显示一行文本和一个小缩略图；完整内容在预览面板中显示。",
+        quickLook: "快速查看"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1080,7 +1404,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        previewByDefault: "開啟時顯示預覽窗格",
+        previewByDefaultCaption: "開啟剪貼簿視窗時，在清單旁完整顯示選取的項目。",
+        openInWindowHint: "按兩下查看完整項目",
+        textEntryLabel: "文字",
+        characterCountFormat: "%@ 個字元",
+        lineCountFormat: "%@ 行",
+        actionsTitle: "操作",
+        linkEntryLabel: "連結",
+        addToShelfFormat: "加入%@",
+        dragHintFormat: "向外拖曳，或拖曳時晃動以開啟%@",
+        wordCountFormat: "%@ 個詞",
+        typeLabel: "類型",
+        sizeLabel: "大小",
+        copiedLabel: "複製時間",
+        sourceLabel: "來源",
+        locationLabel: "位置",
+        textDragToggle: "將文字項目作為文字拖出",
+        shelfTextActionFormat: "在 ⌘K 操作中為文字提供「加入%@」",
+        shelfTextCaptionFormat: "檔案和圖片始終可以拖出。此項讓文字也能拖到任何接受拖放的地方；拖曳時晃動會在%@開啟時將其打開。",
+        openLink: "開啟連結",
+        copyPath: "拷貝路徑",
+        fileEntryLabel: "檔案",
+        lookUpInDictionary: "在字典中查詢",
+        arrowOpensActions: "用 → 開啟操作（← 關閉）",
+        uniformRows: "所有列保持相同高度",
+        uniformRowsCaption: "每列只顯示一行文字和一個小縮圖；完整內容在預覽窗格中顯示。",
+        quickLook: "快速查看"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1136,7 +1487,34 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        previewByDefault: "開啟時顯示預覽窗格",
+        previewByDefaultCaption: "開啟剪貼簿視窗時，在清單旁完整顯示選取的項目。",
+        openInWindowHint: "按兩下查看完整項目",
+        textEntryLabel: "文字",
+        characterCountFormat: "%@ 個字元",
+        lineCountFormat: "%@ 行",
+        actionsTitle: "操作",
+        linkEntryLabel: "連結",
+        addToShelfFormat: "加入%@",
+        dragHintFormat: "向外拖曳，或拖曳時晃動以開啟%@",
+        wordCountFormat: "%@ 個詞",
+        typeLabel: "類型",
+        sizeLabel: "大小",
+        copiedLabel: "複製時間",
+        sourceLabel: "來源",
+        locationLabel: "位置",
+        textDragToggle: "將文字項目作為文字拖出",
+        shelfTextActionFormat: "在 ⌘K 操作中為文字提供「加入%@」",
+        shelfTextCaptionFormat: "檔案和圖片始終可以拖出。此項讓文字也能拖到任何接受拖放的地方；拖曳時晃動會在%@開啟時將其打開。",
+        openLink: "開啟連結",
+        copyPath: "拷貝路徑",
+        fileEntryLabel: "檔案",
+        lookUpInDictionary: "在字典中查詢",
+        arrowOpensActions: "用 → 開啟操作（← 關閉）",
+        uniformRows: "所有列保持相同高度",
+        uniformRowsCaption: "每列只顯示一行文字和一個小縮圖；完整內容在預覽窗格中顯示。",
+        quickLook: "快速查看"
     )
 }
 

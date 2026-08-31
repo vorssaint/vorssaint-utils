@@ -510,3 +510,47 @@ enum ShelfBatchSupport {
         resolved.sorted { $0.index < $1.index }.map(\.item)
     }
 }
+
+/// Detects a back-and-forth shake of the pointer during a drag: enough
+/// horizontal direction reversals and travel inside a short window. One
+/// instance per gesture; the same rule serves the global drag monitor and the
+/// app's own drag sources, which the global monitor never hears about.
+struct ShelfShakeDetector {
+    private var samples: [(t: TimeInterval, x: CGFloat)] = []
+    private var lastSummon: TimeInterval = -.infinity
+
+    static let window: TimeInterval = 0.5
+    static let minimumSamples = 5
+    static let minimumReversals = 3
+    static let minimumTravel: CGFloat = 220
+    static let cooldown: TimeInterval = 1.0
+
+    mutating func reset() {
+        samples.removeAll()
+    }
+
+    /// Records one pointer position and says whether it completed a shake.
+    mutating func record(x: CGFloat, at t: TimeInterval) -> Bool {
+        samples.append((t, x))
+        samples.removeAll { t - $0.t > Self.window }
+        guard samples.count >= Self.minimumSamples else { return false }
+
+        var reversals = 0
+        var travel: CGFloat = 0
+        var lastDirection = 0
+        for i in 1..<samples.count {
+            let dx = samples[i].x - samples[i - 1].x
+            travel += abs(dx)
+            let direction = dx > 6 ? 1 : (dx < -6 ? -1 : 0)
+            if direction != 0 {
+                if lastDirection != 0, direction != lastDirection { reversals += 1 }
+                lastDirection = direction
+            }
+        }
+        guard reversals >= Self.minimumReversals, travel > Self.minimumTravel,
+              t - lastSummon > Self.cooldown else { return false }
+        lastSummon = t
+        samples.removeAll()
+        return true
+    }
+}

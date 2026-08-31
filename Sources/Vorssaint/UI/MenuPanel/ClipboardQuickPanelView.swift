@@ -55,6 +55,20 @@ struct ClipboardQuickPanelView: View {
                         .transition(.opacity)
                 }
             }
+            // Over the list and the pane both: the card takes every key, so
+            // nothing beside it should look, or be, clickable meanwhile.
+            .overlay {
+                if history.quickActionsPresented {
+                    ZStack {
+                        Color.black.opacity(0.18)
+                            .ignoresSafeArea()
+                            .onTapGesture { history.setQuickActionsPresented(false) }
+                        actionsCard
+                            .transition(.scale(scale: 0.96).combined(with: .opacity))
+                    }
+                }
+            }
+            .animation(.easeOut(duration: 0.14), value: history.quickActionsPresented)
         }
         .frame(width: panelSize.width, height: panelSize.height, alignment: .topLeading)
         .background(.regularMaterial)
@@ -240,6 +254,33 @@ struct ClipboardQuickPanelView: View {
                 .disabled(history.recentEntries.isEmpty)
             }
             Spacer()
+            if let selected = history.selectedQuickEntry {
+                HStack(spacing: 4) {
+                    if !ClipboardHistoryService.dragItems(for: selected).isEmpty {
+                        Image(systemName: "hand.draw")
+                            .font(.system(size: 9))
+                        Text(String(format: text.dragHintFormat, l10n.s.shelfName))
+                            .font(.system(size: 9.5))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: 260, alignment: .trailing)
+                Button {
+                    history.toggleQuickActions()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "command")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("K")
+                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        Text(text.actionsTitle)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .help(text.actionsTitle)
+            }
             HStack(spacing: 5) {
                 Image(systemName: "doc.on.clipboard")
                 Text("\(history.entries.count)")
@@ -250,6 +291,101 @@ struct ClipboardQuickPanelView: View {
         .controlSize(.small)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    /// Everything that can be done to the selected entry, as a card over the
+    /// list: the entry it is about at the top, one row per action with the key
+    /// that does the same thing on the right. ⌘K opens it, Esc closes it, and
+    /// the service owns the selection so the key monitor and the mouse agree.
+    private var actionsCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let entry = history.selectedQuickEntry {
+                HStack(spacing: 10) {
+                    ClipboardKindGlyph(kind: entry.displayKind, size: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.kind == .text ? entry.preview : ClipboardKindPresentation.label(entry, text: text))
+                            .font(.system(size: 12.5, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                        HStack(spacing: 5) {
+                            Text(ClipboardKindPresentation.label(entry, text: text))
+                            Text("·")
+                            Text(entry.copiedAt, style: .time)
+                        }
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Text(UserDefaults.standard.bool(forKey: DefaultsKey.clipboardArrowOpensActions) ? "← ⌘K" : "⌘K")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                }
+                .padding(.horizontal, 14)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
+                Divider()
+            }
+            VStack(spacing: 2) {
+                ForEach(Array(history.quickActionRows.enumerated()), id: \.element.id) { index, action in
+                    actionRow(action, isSelected: index == history.quickActionIndex)
+                }
+            }
+            .padding(8)
+        }
+        .frame(width: 330)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.8)
+        )
+        .shadow(color: .black.opacity(0.22), radius: 22, y: 10)
+    }
+
+    private func actionRow(_ action: ClipboardHistoryService.QuickAction, isSelected: Bool) -> some View {
+        let tint: Color = action.isDestructive ? .red : .accentColor
+        return Button {
+            history.runQuickAction(action)
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: action.symbolName)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(action.isDestructive ? Color.red : Color.primary.opacity(0.8))
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(isSelected ? tint.opacity(0.18) : Color.primary.opacity(0.06))
+                    )
+                Text(action.title)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(action.isDestructive ? Color.red : Color.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                if let hint = action.keyHint {
+                    Text(hint)
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 5))
+                }
+                Image(systemName: "return")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .opacity(isSelected ? 1 : 0)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isSelected ? tint.opacity(0.13) : .clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func shortcutIndex(for entry: ClipboardHistoryEntry) -> Int? {
@@ -317,9 +453,17 @@ private struct QuickEntryRow: View, Equatable {
             .buttonStyle(.plain)
             .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
 
-            entryContent(entry)
+            HStack(alignment: .center, spacing: 9) {
+                ClipboardKindGlyph(kind: entry.displayKind)
+                entryContent(entry)
+            }
+            .modifier(FileDraggable(entry: entry, activate: activate))
             Spacer(minLength: 8)
+            // One width for both states, so the buttons that replace the
+            // labels on hover never change the room the text has, and the
+            // text never reflows under the pointer.
             entryTrailing(entry, shortcutIndex: shortcutIndex, isHovered: isHovered)
+                .frame(width: Self.trailingWidth, alignment: .trailing)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -357,13 +501,19 @@ private struct QuickEntryRow: View, Equatable {
         .onTapGesture { activate(entry) }
     }
 
+    /// Read at draw time rather than observed: the switch lives in Settings,
+    /// and the window is rebuilt on its next opening anyway.
+    private static var uniformRows: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.clipboardUniformRows)
+    }
+
     @ViewBuilder
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
             Text(entry.preview)
                 .font(.system(size: 12))
-                .lineLimit(2)
+                .lineLimit(Self.uniformRows ? 1 : 2)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
@@ -372,8 +522,8 @@ private struct QuickEntryRow: View, Equatable {
                    let thumbnail = ClipboardImageStore.thumbnail(named: name) {
                     Image(nsImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 240, maxHeight: 120)
+                        .aspectRatio(contentMode: Self.uniformRows ? .fill : .fit)
+                        .frame(maxWidth: Self.uniformRows ? 30 : 240, maxHeight: Self.uniformRows ? 30 : 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
@@ -390,8 +540,8 @@ private struct QuickEntryRow: View, Equatable {
                 HStack(alignment: .center, spacing: 8) {
                     Image(nsImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 240, maxHeight: 120)
+                        .aspectRatio(contentMode: Self.uniformRows ? .fill : .fit)
+                        .frame(maxWidth: Self.uniformRows ? 30 : 240, maxHeight: Self.uniformRows ? 30 : 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.fileNames.first ?? entry.preview)
@@ -427,6 +577,8 @@ private struct QuickEntryRow: View, Equatable {
         }
     }
 
+    private static let trailingWidth: CGFloat = 92
+
     @ViewBuilder
     private func entryTrailing(_ entry: ClipboardHistoryEntry,
                                shortcutIndex: Int?,
@@ -457,6 +609,11 @@ private struct QuickEntryRow: View, Equatable {
             }
         } else {
             VStack(alignment: .trailing, spacing: 3) {
+                Text(ClipboardKindPresentation.label(entry, text: text))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(ClipboardKindPresentation.tint(entry.displayKind))
+                    .lineLimit(1)
+                    .frame(maxWidth: 90, alignment: .trailing)
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
@@ -572,6 +729,24 @@ private struct QuickEntryRow: View, Equatable {
         if isSelected { return Color.accentColor.opacity(isHovered ? 0.13 : 0.09) }
         if isHovered { return Color.primary.opacity(0.055) }
         return .clear
+    }
+}
+
+/// Files and images drag out of their row as real files; text only when
+/// Settings allows it, otherwise the row is left alone.
+private struct FileDraggable: ViewModifier {
+    let entry: ClipboardHistoryEntry
+    let activate: (ClipboardHistoryEntry) -> Void
+
+    func body(content: Content) -> some View {
+        let items = ClipboardHistoryService.dragItems(for: entry)
+        if items.isEmpty {
+            content
+        } else {
+            content.overlay(
+                ClipboardFileDragSource(items: items) { _ in activate(entry) }
+            )
+        }
     }
 }
 

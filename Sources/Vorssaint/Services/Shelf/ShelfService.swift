@@ -147,8 +147,7 @@ final class ShelfService: ObservableObject {
     private var hotKeyHandler: EventHandlerRef?
     private var registeredShortcut: GlobalShortcut?
     private var mouseMonitor: Any?
-    private var shakeSamples: [(t: TimeInterval, x: CGFloat)] = []
-    private var lastSummon: TimeInterval = 0
+    private var shake = ShelfShakeDetector()
     /// Screen frame of the app's menu bar icon, set by the AppDelegate. The
     /// docked shelf hangs right under it, so this service can anchor there
     /// without reaching into the app layer.
@@ -413,7 +412,7 @@ final class ShelfService: ObservableObject {
             switch event.type {
             case .leftMouseDown:
                 self.beginDragGesture(with: event)
-                self.shakeSamples.removeAll()
+                self.shake.reset()
             case .leftMouseUp:
                 self.closeDragGesture()
                 self.endDockedDrag()
@@ -431,7 +430,7 @@ final class ShelfService: ObservableObject {
                     self.handleDragForDock()
                 }
                 if defaults.bool(forKey: DefaultsKey.shelfEdgeDragEnabled) {
-                    self.handleDragForEdge(event)
+                    self.handleDragForEdge(timestamp: event.timestamp)
                 }
                 // Every open gesture gets the button watchdog, not just one
                 // that engaged the drop zone: a mouse-up swallowed by the
@@ -446,7 +445,7 @@ final class ShelfService: ObservableObject {
     private func stopDragMonitor() {
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
-        shakeSamples.removeAll()
+        shake.reset()
         dragSourceBundleIdentifier = nil
         dockedWatchdog?.invalidate()
         dockedWatchdog = nil
@@ -459,35 +458,61 @@ final class ShelfService: ObservableObject {
         retractEdgePeek()
     }
 
-    /// Detects a back-and-forth shake of the pointer during a drag: enough
-    /// horizontal direction reversals and travel in a short window.
     private func handleDrag(_ event: NSEvent) {
-        let t = event.timestamp
-        shakeSamples.append((t, NSEvent.mouseLocation.x))
-        shakeSamples.removeAll { t - $0.t > 0.5 }
-        guard shakeSamples.count >= 5 else { return }
+        guard shake.record(x: NSEvent.mouseLocation.x, at: event.timestamp) else { return }
+        // Only when content is actually being dragged — not when a window is
+        // being moved (nothing droppable, so the shelf shouldn't appear).
+        guard isContentDragActive() else { return }
+        guard automaticOpenAllowed else { return }
+        DispatchQueue.main.async { [weak self] in self?.summon() }
+    }
 
-        var reversals = 0
-        var travel: CGFloat = 0
-        var lastDirection = 0
-        for i in 1..<shakeSamples.count {
-            let dx = shakeSamples[i].x - shakeSamples[i - 1].x
-            travel += abs(dx)
-            let direction = dx > 6 ? 1 : (dx < -6 ? -1 : 0)
-            if direction != 0 {
-                if lastDirection != 0, direction != lastDirection { reversals += 1 }
-                lastDirection = direction
-            }
-        }
-        if reversals >= 3, travel > 220, t - lastSummon > 1.0 {
-            // Only when content is actually being dragged — not when a window is
-            // being moved (nothing droppable, so the shelf shouldn't appear).
-            guard isContentDragActive() else { return }
-            guard automaticOpenAllowed else { return }
-            lastSummon = t
-            shakeSamples.removeAll()
+    /// The clipboard window's own drags never reach the global monitor, so
+    /// they report each move here instead and get the same three ways in:
+    /// shake, the Dock drop zone and the screen-edge peek. The gesture is
+    /// known to carry content, so the drag-pasteboard check is skipped.
+    private var internalShake = ShelfShakeDetector()
+
+    func noteInternalContentDrag(at timestamp: TimeInterval) {
+        // The global monitor never saw this gesture start, so the source it
+        // remembers is whichever app the mouse was last pressed in; the
+        // exclusion list must not judge this drag by that.
+        dragSourceBundleIdentifier = nil
+        if UserDefaults.standard.bool(forKey: DefaultsKey.shelfShakeToOpen),
+           internalShake.record(x: NSEvent.mouseLocation.x, at: timestamp) {
             DispatchQueue.main.async { [weak self] in self?.summon() }
         }
+        handleDragForDock(contentKnown: true)
+        handleDragForEdge(timestamp: timestamp, contentKnown: true)
+    }
+
+    func endInternalContentDrag() {
+        internalShake.reset()
+        endDockedDrag()
+        endEdgePeekDrag()
+    }
+
+    /// Puts files on the shelf without a drag, from the clipboard's action
+    /// list, and shows the shelf so the result is seen.
+    @discardableResult
+    func add(fileURLs: [URL]) -> Bool {
+        add(writers: fileURLs as [NSURL])
+    }
+
+    @discardableResult
+    func add(text: String) -> Bool {
+        add(writers: [text as NSString])
+    }
+
+    private func add(writers: [NSPasteboardWriting]) -> Bool {
+        guard !writers.isEmpty else { return false }
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        pasteboard.clearContents()
+        pasteboard.writeObjects(writers)
+        guard accept(pasteboard: pasteboard) else { return false }
+        summon()
+        return true
     }
 
     private func isContentDragActive() -> Bool {
@@ -619,9 +644,11 @@ final class ShelfService: ObservableObject {
     /// panel comes up instead (shake, shortcut, or now an edge peek), that
     /// panel is the target and `syncDockedShelf` steps the docked one aside
     /// for as long as the classic panel is visible, one shelf at a time.
-    private func handleDragForDock() {
+    /// `contentKnown` skips the drag-pasteboard check for a drag the app
+    /// started itself, whose content is known before the first event.
+    private func handleDragForDock(contentKnown: Bool = false) {
         guard dockedFeatureOn, automaticOpenAllowed, !isVisible,
-              !isInternalDragActive, isContentDragActive() else { return }
+              !isInternalDragActive, contentKnown || isContentDragActive() else { return }
         // Drag events still flowing means the drag is alive: a pending end
         // (queued by a mouse-up that turned out to start a new drag) is stale.
         dockedEndWork?.cancel()
@@ -683,11 +710,11 @@ final class ShelfService: ObservableObject {
     /// screen. Once peeking, this same function checks retreat on every
     /// later drag event instead of considering a new trigger, since by then
     /// `isVisible` is already true and would otherwise block the check.
-    private func handleDragForEdge(_ event: NSEvent) {
-        guard edgeFeatureOn, automaticOpenAllowed, !isInternalDragActive, isContentDragActive()
+    private func handleDragForEdge(timestamp now: TimeInterval, contentKnown: Bool = false) {
+        guard edgeFeatureOn, automaticOpenAllowed, !isInternalDragActive,
+              contentKnown || isContentDragActive()
         else { return }
         let mouse = NSEvent.mouseLocation
-        let now = event.timestamp
         if let edgePeekMatch {
             // The panel's own on-screen strip sits well within retreatDistance
             // of the edge by construction (its width is a fraction of the
@@ -1410,6 +1437,19 @@ final class ShelfService: ObservableObject {
         return append(batchItem(children: children))
     }
 
+    /// A file inside the clipboard history's image store is on loan: the
+    /// history deletes it the moment its entry ages out or is removed, and a
+    /// tile pointing there would go dead with it. Such a file is copied into
+    /// the shelf's own store, which the tile then owns like any pasted image.
+    private func adoptedIfOnLoan(_ url: URL) -> URL {
+        guard let store = ClipboardImageStore.directory?.standardizedFileURL,
+              url.standardizedFileURL.path.hasPrefix(store.path + "/"),
+              let data = try? Data(contentsOf: url),
+              let copy = storePayloadData(data, fileExtension: url.pathExtension)
+        else { return url }
+        return copy
+    }
+
     private enum ContentThumbnailKind {
         case image
         case video
@@ -1424,6 +1464,12 @@ final class ShelfService: ObservableObject {
     /// `decodesCheaplyInline` rules out.
     private func fileItem(for url: URL, id: UUID = UUID(), title: String? = nil,
                           bookmark: Data? = nil, deferImageThumbnail: Bool = false) -> Item {
+        // A fresh item only: a restored one already points at its own copy.
+        // An adopted copy is named by its UUID, so it takes the name a pasted
+        // image gets instead of showing that.
+        let adopted = bookmark == nil ? adoptedIfOnLoan(url) : url
+        let title = title ?? (adopted != url ? L10n.shared.s.shelfItemImage : nil)
+        let url = adopted
         let isImage = Self.contentThumbnailKind(for: url) == .image
         let fallbackIcon = NSWorkspace.shared.icon(forFile: url.path)
         let inlineThumbnail = isImage && !deferImageThumbnail && Self.decodesCheaplyInline(url)

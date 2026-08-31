@@ -39,9 +39,19 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionIndex = 0
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
-    @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
-        forKey: DefaultsKey.clipboardHistoryQuickPreview
-    )
+    /// Decided each time the window opens, from the Settings choice; the
+    /// toolbar button and the pane's own close button change it for that one
+    /// showing. Space no longer reaches this: it marks the selected row for
+    /// batch instead, so the pane has no keyboard toggle (see
+    /// `ClipboardHistorySpaceKey`).
+    @Published private(set) var quickPreviewPresented = false
+    /// The ⌘K list for the selected entry, in the same shape the Command bar
+    /// uses, so there is nothing new to learn.
+    @Published private(set) var quickActionsPresented = false
+    @Published private(set) var quickActionIndex = 0
+    /// Bumped when an action asks the preview pane to start editing, which is
+    /// the one action the sidebar owns rather than the service.
+    @Published private(set) var quickEditRequest: UUID?
 
     private var timer: Timer?
     private var lastChangeCount = 0
@@ -521,6 +531,7 @@ final class ClipboardHistoryService: ObservableObject {
         self.timer = timer
         isRunning = true
         ClipboardIgnoredApps.shared.setHistoryRunning(true)
+        ClipboardSourceApp.shared.setHistoryRunning(true)
         baselinePasteboard()
     }
 
@@ -529,6 +540,7 @@ final class ClipboardHistoryService: ObservableObject {
         timer = nil
         isRunning = false
         ClipboardIgnoredApps.shared.setHistoryRunning(false)
+        ClipboardSourceApp.shared.setHistoryRunning(false)
         captureGeneration &+= 1
         captureInFlight = false
     }
@@ -594,15 +606,18 @@ final class ClipboardHistoryService: ObservableObject {
                 // so the window it answers for always ends here: whether a
                 // listed app could be the one that copied since the last look.
                 let excludedSource = ClipboardIgnoredApps.shared.excludedSourceSinceLastCheck()
+                // Same window, same discipline: asked once per check so the
+                // stretch it answers for ends here too.
+                let sourceApp = ClipboardSourceApp.shared.sourceSinceLastCheck()
                 // Strictly forward: never re-capture a change that
                 // ignoreNextChange() consumed while the read was running.
                 guard changeCount > self.lastChangeCount else { return }
                 self.lastChangeCount = changeCount
                 guard self.isRunning, !excludedSource, let content else { return }
                 switch content {
-                case .files(let paths): self.promoteFiles(paths)
-                case .image(let image): self.promoteImage(image)
-                case .text(let text): self.promote(text)
+                case .files(let paths): self.promoteFiles(paths, from: sourceApp)
+                case .image(let image): self.promoteImage(image, from: sourceApp)
+                case .text(let text): self.promote(text, from: sourceApp)
                 }
             }
         }
@@ -673,7 +688,8 @@ final class ClipboardHistoryService: ObservableObject {
         return (data, rep.pixelsWide, rep.pixelsHigh)
     }
 
-    private func promoteImage(_ image: (data: Data, width: Int, height: Int)) {
+    private func promoteImage(_ image: (data: Data, width: Int, height: Int),
+                              from source: ClipboardEntrySource?) {
         let hash = Self.sha256Hex(image.data)
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
             entries.removeAll { $0.id == existing.id }
@@ -685,7 +701,8 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageFile: existing.imageFile,
                                                  imageHash: hash,
                                                  imageWidth: existing.imageWidth,
-                                                 imageHeight: existing.imageHeight))
+                                                 imageHeight: existing.imageHeight,
+                                                 source: source ?? existing.source))
         } else {
             guard let name = ClipboardImageStore.store(image.data) else { return }
             insertPromoted(ClipboardHistoryEntry(text: "",
@@ -693,14 +710,15 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageFile: name,
                                                  imageHash: hash,
                                                  imageWidth: image.width,
-                                                 imageHeight: image.height))
+                                                 imageHeight: image.height,
+                                                 source: source))
         }
         normalizeEntryOrder()
         trimToLimit()
         save()
     }
 
-    private func promoteFiles(_ paths: [String]) {
+    private func promoteFiles(_ paths: [String], from source: ClipboardEntrySource?) {
         let existing = entries.first(where: { $0.kind == .files && $0.filePaths == paths })
         entries.removeAll { $0.kind == .files && $0.filePaths == paths }
         if let existing {
@@ -709,9 +727,11 @@ final class ClipboardHistoryService: ObservableObject {
                                                  copiedAt: Date(),
                                                  pinnedAt: existing.pinnedAt,
                                                  kind: .files,
-                                                 filePaths: paths))
+                                                 filePaths: paths,
+                                                 source: source ?? existing.source))
         } else {
-            insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths))
+            insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths,
+                                                 source: source))
         }
         normalizeEntryOrder()
         trimToLimit()
@@ -743,7 +763,7 @@ final class ClipboardHistoryService: ObservableObject {
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
-    private func promote(_ raw: String) {
+    private func promote(_ raw: String, from source: ClipboardEntrySource?) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
         if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistorySkipSensitive),
@@ -757,9 +777,10 @@ final class ClipboardHistoryService: ObservableObject {
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: text,
                                                  copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt))
+                                                 pinnedAt: existing.pinnedAt,
+                                                 source: source ?? existing.source))
         } else {
-            insertPromoted(ClipboardHistoryEntry(text: text))
+            insertPromoted(ClipboardHistoryEntry(text: text, source: source))
         }
         normalizeEntryOrder()
         trimToLimit()
@@ -993,6 +1014,231 @@ final class ClipboardHistoryService: ObservableObject {
 
     // MARK: - Quick window
 
+    struct QuickAction: Identifiable {
+        let id: String
+        let title: String
+        let symbolName: String
+        let isDestructive: Bool
+        /// The key that does the same thing without the list, when there is one.
+        let keyHint: String?
+        let run: () -> Void
+    }
+
+    var quickActionRows: [QuickAction] {
+        guard let entry = selectedQuickEntry else { return [] }
+        let canReorder = quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return ClipboardQuickActions.kinds(
+            for: entry,
+            shelfAvailable: Self.shelfAvailable,
+            textToShelf: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfTextAction),
+            canMoveUp: canReorder && canMove(entry, .up),
+            canMoveDown: canReorder && canMove(entry, .down)
+        ).map { action($0, for: entry) }
+    }
+
+    /// The shelf only takes what it can keep, and only while it is on.
+    static var shelfAvailable: Bool {
+        AppFeature.shelf.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+    }
+
+    /// The files an entry stands for on disk: the copied files themselves, or
+    /// the stored PNG of a copied image. Empty for text.
+    static func draggableFileURLs(for entry: ClipboardHistoryEntry) -> [URL] {
+        switch entry.kind {
+        case .files:
+            return entry.filePaths.map { URL(fileURLWithPath: $0) }
+                .filter { FileManager.default.fileExists(atPath: $0.path) }
+        case .image:
+            guard let name = entry.imageFile, let url = ClipboardImageStore.imageURL(named: name)
+            else { return [] }
+            return [url]
+        case .text:
+            return []
+        }
+    }
+
+    /// What a row puts on the drag pasteboard and shows under the pointer.
+    struct DragItem {
+        let writer: NSPasteboardWriting
+        let icon: NSImage
+    }
+
+    /// Files and images always drag as files; text drags as text only when
+    /// Settings says so, since a text row that grabs the pointer is a row
+    /// that no longer selects on click-and-drag. Neither depends on the
+    /// Shelf: a drag goes to whatever takes a drop.
+    static func dragItems(for entry: ClipboardHistoryEntry) -> [DragItem] {
+        switch entry.kind {
+        case .files, .image:
+            return draggableFileURLs(for: entry).map {
+                DragItem(writer: $0 as NSURL, icon: NSWorkspace.shared.icon(forFile: $0.path))
+            }
+        case .text:
+            guard UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfTextDrag),
+                  let icon = NSImage(systemSymbolName: entry.isLink ? "link" : "text.alignleft",
+                                     accessibilityDescription: nil)
+            else { return [] }
+            return [DragItem(writer: entry.text as NSString, icon: icon)]
+        }
+    }
+
+    /// Icon of the app an entry came from, when that app is still installed.
+    /// Cached per app: the lookup asks Launch Services every time otherwise,
+    /// and the preview asks on every step through the list.
+    static func sourceIcon(for source: ClipboardEntrySource) -> NSImage? {
+        if let cached = sourceIcons.object(forKey: source.bundleID as NSString) { return cached }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: source.bundleID)
+        else { return nil }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        sourceIcons.setObject(icon, forKey: source.bundleID as NSString)
+        return icon
+    }
+
+    private static let sourceIcons = NSCache<NSString, NSImage>()
+
+    /// A string the user asked for as text (a file's path, say), through the
+    /// shared lane like any copy. The poll skips the app's own writes, so the
+    /// entry is recorded here on purpose: a path copied from the pane is a
+    /// copy like any other and belongs in the list.
+    /// `keepingSelectionOn` names the entry the selection should stay on:
+    /// the new row goes in at the top, and the selection is an index.
+    func copyPlainText(_ string: String, keepingSelectionOn keep: ClipboardHistoryEntry? = nil) {
+        writeToPasteboard([ClipboardHistoryEntry(text: string)]) { [weak self] copied in
+            guard copied, let self else { return }
+            self.promote(string, from: nil)
+            if let keep, let index = self.filteredQuickEntries.firstIndex(where: { $0.id == keep.id }) {
+                self.quickSelectionIndex = index
+            }
+        }
+    }
+
+    func toggleQuickActions() {
+        setQuickActionsPresented(!quickActionsPresented)
+    }
+
+    func setQuickActionsPresented(_ presented: Bool) {
+        guard presented != quickActionsPresented else { return }
+        guard !presented || selectedQuickEntry != nil else { return }
+        quickActionsPresented = presented
+        quickActionIndex = 0
+    }
+
+    func moveQuickActionSelection(_ delta: Int) {
+        quickActionIndex = ClipboardQuickActions.movedIndex(quickActionIndex,
+                                                            by: delta,
+                                                            count: quickActionRows.count)
+    }
+
+    func runSelectedQuickAction() {
+        let actions = quickActionRows
+        guard actions.indices.contains(quickActionIndex) else { return }
+        runQuickAction(actions[quickActionIndex])
+    }
+
+    func runQuickAction(_ action: QuickAction) {
+        // The list is about one entry, so it closes as soon as one of its
+        // actions runs, whatever that action then opens.
+        setQuickActionsPresented(false)
+        action.run()
+    }
+
+    func clearQuickEditRequest() {
+        quickEditRequest = nil
+    }
+
+    private func action(_ kind: ClipboardQuickActionKind,
+                        for entry: ClipboardHistoryEntry) -> QuickAction {
+        let text = FeatureStrings.clipboard(L10n.shared.language)
+        switch kind {
+        case .paste:
+            return QuickAction(id: kind.rawValue, title: L10n.shared.s.menuPaste,
+                               symbolName: "doc.on.clipboard", isDestructive: false, keyHint: "↩") { [weak self] in
+                self?.copyQuickEntry(entry)
+            }
+        case .copy:
+            return QuickAction(id: kind.rawValue, title: text.copy,
+                               symbolName: "doc.on.doc", isDestructive: false, keyHint: "⇧↩") { [weak self] in
+                self?.copyOnlyQuickEntry(entry)
+            }
+        case .edit:
+            return QuickAction(id: kind.rawValue, title: text.edit,
+                               symbolName: "pencil", isDestructive: false, keyHint: nil) { [weak self] in
+                self?.setQuickPreviewPresented(true)
+                self?.quickEditRequest = entry.id
+            }
+        case .openLink:
+            return QuickAction(id: kind.rawValue, title: text.openLink,
+                               symbolName: "arrow.up.right.square", isDestructive: false, keyHint: nil) { [weak self] in
+                guard let url = URL(string: entry.text) else { return }
+                self?.hideHistoryWindow()
+                NSWorkspace.shared.open(url)
+            }
+        case .addToShelf:
+            return QuickAction(id: kind.rawValue,
+                               title: String(format: text.addToShelfFormat, L10n.shared.s.shelfName),
+                               symbolName: "tray.and.arrow.down", isDestructive: false, keyHint: nil) {
+                if entry.kind == .text {
+                    ShelfService.shared.add(text: entry.text)
+                } else {
+                    ShelfService.shared.add(fileURLs: Self.draggableFileURLs(for: entry))
+                }
+            }
+        case .copyPath:
+            return QuickAction(id: kind.rawValue, title: text.copyPath,
+                               symbolName: "text.quote", isDestructive: false, keyHint: nil) { [weak self] in
+                // One path per line; copyPlainText records it as a text entry.
+                self?.copyPlainText(entry.filePaths.joined(separator: "\n"))
+                self?.hideHistoryWindow()
+            }
+        case .lookUp:
+            return QuickAction(id: kind.rawValue, title: text.lookUpInDictionary,
+                               symbolName: "character.book.closed", isDestructive: false, keyHint: nil) { [weak self] in
+                let term = entry.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let encoded = term.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+                      let url = URL(string: "dict://\(encoded)") else { return }
+                self?.hideHistoryWindow()
+                NSWorkspace.shared.open(url)
+            }
+        case .moveUp:
+            return QuickAction(id: kind.rawValue, title: text.moveUp,
+                               symbolName: "arrow.up", isDestructive: false, keyHint: nil) { [weak self] in
+                self?.move(entry, .up)
+            }
+        case .moveDown:
+            return QuickAction(id: kind.rawValue, title: text.moveDown,
+                               symbolName: "arrow.down", isDestructive: false, keyHint: nil) { [weak self] in
+                self?.move(entry, .down)
+            }
+        case .showInFinder:
+            return QuickAction(id: kind.rawValue, title: L10n.shared.s.cleanerRevealInFinder,
+                               symbolName: "folder", isDestructive: false, keyHint: nil) { [weak self] in
+                // Like paste and open link: the window steps aside for Finder.
+                self?.hideHistoryWindow()
+                NSWorkspace.shared.activateFileViewerSelecting(
+                    entry.filePaths.map { URL(fileURLWithPath: $0) })
+            }
+        case .pin:
+            return QuickAction(id: kind.rawValue,
+                               title: entry.isPinned ? text.unpin : text.pin,
+                               symbolName: entry.isPinned ? "pin.slash" : "pin",
+                               isDestructive: false, keyHint: "⌥P") { [weak self] in
+                self?.togglePin(entry)
+            }
+        case .preview:
+            // A window of its own, the system's Quick Look, rather than the
+            // pane beside the list, which Space already toggles.
+            return QuickAction(id: kind.rawValue, title: text.quickLook,
+                               symbolName: "eye", isDestructive: false, keyHint: nil) {
+                ClipboardQuickLook.shared.show(entry)
+            }
+        case .delete:
+            return QuickAction(id: kind.rawValue, title: text.delete,
+                               symbolName: "trash", isDestructive: true, keyHint: "⌥⌫") { [weak self] in
+                self?.remove(entry)
+            }
+        }
+    }
+
     func toggleQuickPreview() {
         setQuickPreviewPresented(!quickPreviewPresented)
     }
@@ -1000,7 +1246,6 @@ final class ClipboardHistoryService: ObservableObject {
     func setQuickPreviewPresented(_ presented: Bool) {
         guard presented != quickPreviewPresented else { return }
         quickPreviewPresented = presented
-        UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         guard let panel, panel.isVisible else { return }
         resize(panel,
                to: presented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize,
@@ -1015,13 +1260,27 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    func showHistoryWindow() {
+    /// `entry` opens the window on that item with the preview pane up, which is
+    /// what a double-click on a panel row asks for: the whole content, in a
+    /// place where it can be read, selected and edited.
+    func showHistoryWindow(focusing entry: ClipboardHistoryEntry? = nil) {
         let panel = ensurePanel()
         rememberPasteTarget()
         quickWindowPresentationID = UUID()
         quickQuery = ""
         clearQuickBatchSelection()
         resetQuickSelection()
+        setQuickActionsPresented(false)
+        if let entry, let index = filteredQuickEntries.firstIndex(where: { $0.id == entry.id }) {
+            quickSelectionIndex = index
+        }
+        // The first row starts selected, so Return pastes it and ↓ goes to
+        // the second; before, the first ↓ only made the selection appear.
+        quickSelectionIsVisible = !filteredQuickEntries.isEmpty
+        // Assigned, not set through the setter: position() below reads the
+        // flag for the size, and the panel is resized there in one go.
+        quickPreviewPresented = entry != nil || UserDefaults.standard
+            .bool(forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault)
         position(panel)
         installKeyMonitor(for: panel)
         installDismissMonitors(for: panel)
@@ -1031,23 +1290,33 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func hideHistoryWindow() {
+        ClipboardQuickLook.shared.hide()
         removeKeyMonitor()
         removeDismissMonitors()
         panel?.orderOut(nil)
         clearQuickBatchSelection()
+        setQuickActionsPresented(false)
     }
 
+    /// When the window is opened from the menu panel this app is already
+    /// frontmost, so "whoever is in front" would be nobody to paste into; the
+    /// app the user was in before the panel is the one they mean.
+    /// `ClipboardSourceApp` already follows activations for the source label
+    /// and keeps that answer too, so there is one observer, not two.
     private func rememberPasteTarget() {
         let ownBundleID = Bundle.main.bundleIdentifier
-        guard let app = NSWorkspace.shared.frontmostApplication,
-              app.bundleIdentifier != ownBundleID,
-              app.activationPolicy == .regular,
-              !app.isTerminated
-        else {
-            pasteTargetApp = nil
+        if let app = NSWorkspace.shared.frontmostApplication,
+           app.bundleIdentifier != ownBundleID,
+           app.activationPolicy == .regular,
+           !app.isTerminated {
+            pasteTargetApp = app
             return
         }
-        pasteTargetApp = app
+        if let app = ClipboardSourceApp.shared.lastRegularFrontApp, !app.isTerminated {
+            pasteTargetApp = app
+            return
+        }
+        pasteTargetApp = nil
     }
 
     private func pasteIntoPreviousApp(_ app: NSRunningApplication?) {
@@ -1149,6 +1418,33 @@ final class ClipboardHistoryService: ObservableObject {
                 return event
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+            // While the ⌘K list is up it owns the keys the list below it would
+            // otherwise take: it is about one entry, so moving the selection
+            // underneath it would leave it describing something else.
+            if self.quickActionsPresented {
+                if event.keyCode == UInt16(kVK_Escape)
+                    || event.keyCode == UInt16(kVK_LeftArrow)
+                    || (modifiers == [.command] && event.charactersIgnoringModifiers?.lowercased() == "k") {
+                    self.setQuickActionsPresented(false)
+                    return nil
+                }
+                if event.keyCode == UInt16(kVK_DownArrow) {
+                    self.moveQuickActionSelection(1)
+                    return nil
+                }
+                if event.keyCode == UInt16(kVK_UpArrow) {
+                    self.moveQuickActionSelection(-1)
+                    return nil
+                }
+                if event.keyCode == UInt16(kVK_Return)
+                    || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
+                    self.runSelectedQuickAction()
+                    return nil
+                }
+                // Anything else typed here is aimed at the list, not at the
+                // search field under it. System combinations still pass.
+                return modifiers.contains(.command) ? event : nil
+            }
             if event.keyCode == UInt16(kVK_Escape) {
                 switch ClipboardHistoryEscape.action(batchCount: self.quickBatchCount) {
                 case .clearBatchSelection: self.clearQuickBatchSelection()
@@ -1156,12 +1452,14 @@ final class ClipboardHistoryService: ObservableObject {
                 }
                 return nil
             }
-            // Finder-style Quick Look without stealing ordinary spaces typed
-            // into search: the list claims Space only after arrow navigation.
+            // Space marks the row the arrow keys are on, the way ⌘Return and
+            // ⌘-click do, so a keyboard-only selection can be built and pasted
+            // together. It claims Space only after arrow navigation, so a
+            // space typed into the search field stays a space.
             if event.keyCode == UInt16(kVK_Space),
-               ClipboardHistoryPreview.handlesSpace(selectionIsVisible: self.quickSelectionIsVisible,
-                                                     hasModifiers: !modifiers.isEmpty) {
-                self.toggleQuickPreview()
+               ClipboardHistorySpaceKey.handledByList(selectionIsVisible: self.quickSelectionIsVisible,
+                                                      hasModifiers: !modifiers.isEmpty) {
+                self.toggleSelectedQuickEntryBatchSelection()
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
@@ -1194,6 +1492,19 @@ final class ClipboardHistoryService: ObservableObject {
                    batchCount: self.quickBatchCount,
                    queryIsEmpty: self.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
                 self.selectAllQuickEntries()
+                return nil
+            }
+            if modifiers == [.command], key == "k" {
+                self.toggleQuickActions()
+                return nil
+            }
+            // → is the one-hand way in, like the launchers people know; a
+            // Settings switch keeps it out of the way of the search field's
+            // caret for anyone who wants that.
+            if modifiers.isEmpty, event.keyCode == UInt16(kVK_RightArrow),
+               UserDefaults.standard.bool(forKey: DefaultsKey.clipboardArrowOpensActions),
+               self.quickSelectionIsVisible {
+                self.setQuickActionsPresented(true)
                 return nil
             }
             if modifiers == [.option], event.keyCode == UInt16(kVK_ANSI_P) {
@@ -1350,6 +1661,13 @@ enum ClipboardImageStore {
         return name
     }
 
+    /// The stored PNG itself, for the preview's size line.
+    static func imageURL(named name: String) -> URL? {
+        guard let directory else { return nil }
+        let url = directory.appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     static func imageData(named name: String) -> Data? {
         guard let directory else { return nil }
         return try? Data(contentsOf: directory.appendingPathComponent(name))
@@ -1437,10 +1755,23 @@ enum ClipboardImageStore {
         return "\(dim.width)×\(dim.height)"
     }
 
-    static func fileSizeString(atPath path: String) -> String? {
+    static func fileSizeBytes(atPath path: String) -> Int? {
         guard let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]),
               let bytes = values.fileSize, bytes >= 0 else { return nil }
-        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+        return bytes
+    }
+
+    /// The size of every file that still exists, added up; nil when none do.
+    static func totalFileSizeString(paths: [String]) -> String? {
+        let sizes = paths.compactMap { fileSizeBytes(atPath: $0) }
+        guard !sizes.isEmpty else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizes.reduce(0, +)), countStyle: .file)
+    }
+
+    static func fileSizeString(atPath path: String) -> String? {
+        fileSizeBytes(atPath: path).map {
+            ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)
+        }
     }
 
     static func cleanup(keeping names: Set<String>) {
