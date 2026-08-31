@@ -1667,12 +1667,26 @@ struct MetricsTests {
                     "process percentage clamps above full hardware utilization")
         expectClose(MetricFormat.boundedPercentage(-5), 0,
                     "process percentage clamps negative utilization")
-        expectClose(MetricFormat.normalizedCPUPercentage(872, processorCount: 18), 48.4444,
-                    "multicore process CPU becomes whole-machine utilization")
-        expectClose(MetricFormat.normalizedCPUPercentage(1300, processorCount: 18), 72.2222,
-                    "high multicore process CPU stays below the normalized maximum")
-        expectClose(MetricFormat.normalizedCPUPercentage(2400, processorCount: 18), 100,
-                    "impossible process CPU readings clamp to full utilization")
+        expect(MetricFormat.machTimeNanoseconds(48_000_000,
+                                                numerator: 125,
+                                                denominator: 3) == 2_000_000_000,
+               "libproc CPU ticks convert through the platform Mach timebase")
+        expectClose(MetricFormat.processCPUPercentage(previousNanoseconds: 1_000_000_000,
+                                                       currentNanoseconds: 2_800_000_000,
+                                                       elapsed: 2,
+                                                       processorCount: 18), 5,
+                    "process CPU delta uses the monitor wall-clock interval and machine capacity")
+        expectClose(MetricFormat.processCPUPercentage(previousNanoseconds: 2_000_000_000,
+                                                       currentNanoseconds: 1_000_000_000,
+                                                       elapsed: 2,
+                                                       processorCount: 18), 0,
+                    "process CPU counter resets do not create utilization spikes")
+        expectClose(MetricFormat.processReconciliationScale(sampledTotal: 12,
+                                                             aggregatePercentage: 7), 7.0 / 12.0,
+                    "process usage scales down when attribution exceeds the aggregate")
+        expectClose(MetricFormat.processReconciliationScale(sampledTotal: 5,
+                                                             aggregatePercentage: 7), 1,
+                    "unattributed aggregate usage does not inflate process rows")
         expectEqual(MetricFormat.menuBarMemoryPercent(used: 79, total: 100), "79%",
                     "menu bar memory shows the current RAM percentage")
         expectEqual(MetricFormat.menuBarMemoryPercent(used: nil, total: 100), "--%",

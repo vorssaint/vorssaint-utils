@@ -272,10 +272,39 @@ enum MetricFormat {
         return max(0, min(100, percentage))
     }
 
-    /// `ps` reports 100% per fully occupied core. Convert that multicore value
-    /// into a percentage of the machine's currently schedulable CPU capacity.
-    static func normalizedCPUPercentage(_ percentage: Double, processorCount: Int) -> Double {
-        boundedPercentage(percentage / Double(max(1, processorCount)))
+    static func machTimeNanoseconds(_ ticks: UInt64,
+                                    numerator: UInt32,
+                                    denominator: UInt32) -> UInt64? {
+        guard denominator > 0 else { return nil }
+        let divisor = UInt64(denominator)
+        let multiplier = UInt64(numerator)
+        let whole = (ticks / divisor).multipliedReportingOverflow(by: multiplier)
+        guard !whole.overflow else { return nil }
+        let remainder = (ticks % divisor).multipliedReportingOverflow(by: multiplier)
+        guard !remainder.overflow else { return nil }
+        let nanoseconds = whole.partialValue.addingReportingOverflow(remainder.partialValue / divisor)
+        return nanoseconds.overflow ? nil : nanoseconds.partialValue
+    }
+
+    /// Converts a process's cumulative CPU-time delta into its share of the
+    /// machine over the same wall-clock interval used by the system monitor.
+    static func processCPUPercentage(previousNanoseconds: UInt64,
+                                     currentNanoseconds: UInt64,
+                                     elapsed: TimeInterval,
+                                     processorCount: Int) -> Double {
+        guard currentNanoseconds >= previousNanoseconds,
+              elapsed > 0, elapsed.isFinite else { return 0 }
+        let capacityNanoseconds = elapsed * 1_000_000_000 * Double(max(1, processorCount))
+        return boundedPercentage(Double(currentNanoseconds - previousNanoseconds) / capacityNanoseconds * 100)
+    }
+
+    /// Sampling APIs do not share a clock and can briefly over-attribute work.
+    /// Never let the process rows claim more than the matching aggregate meter.
+    static func processReconciliationScale(sampledTotal: Double,
+                                           aggregatePercentage: Double?) -> Double {
+        guard sampledTotal.isFinite, sampledTotal > 0,
+              let aggregatePercentage, aggregatePercentage.isFinite else { return 1 }
+        return min(1, boundedPercentage(aggregatePercentage) / sampledTotal)
     }
 
     /// Smooths the GPU usage readout enough to hide one-sample compositor spikes
