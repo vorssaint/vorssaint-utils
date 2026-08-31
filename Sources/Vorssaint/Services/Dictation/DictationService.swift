@@ -15,6 +15,7 @@ final class DictationService: ObservableObject {
     @Published private(set) var level: Float = 0
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var secondaryShortcutRegistrationFailed = false
+    @Published private(set) var microphoneFallbackName: String?
 
     private let keychain: KeychainStoring
     private let client: DictationTranscriptionClient
@@ -63,6 +64,12 @@ final class DictationService: ObservableObject {
         recorder.onFinished = { [weak self] in
             guard self?.state == .listening else { return }
             self?.stopAndTranscribe()
+        }
+        recorder.onDeviceFallback = { [weak self] name in
+            // The settings picker keeps the unavailable saved device visible;
+            // capture itself transparently uses the current system default.
+            self?.microphoneFallbackName = name
+            self?.showHUD()
         }
     }
 
@@ -280,7 +287,7 @@ final class DictationService: ObservableObject {
             return
         }
         do {
-            try recorder.start()
+            try recorder.start(microphoneUID: sessionConfiguration?.profile.microphoneUID)
         } catch let failure as DictationFailure {
             fail(failure)
             return
@@ -405,6 +412,7 @@ final class DictationService: ObservableObject {
         transcriptionTask = nil
         sessionID = nil
         sessionConfiguration = nil
+        microphoneFallbackName = nil
         clearGestures()
         recorder.discardFile()
         removeEscapeHandlers()
@@ -482,14 +490,18 @@ final class DictationService: ObservableObject {
         let activation = FeatureStrings.dictationActivation(L10n.shared.language)
         let opensSettings = failure == .microphoneDenied
             || failure == .accessibilityRequiredCopied
+        var sessionDetail = sessionConfiguration.map {
+            "\(activation.modeName($0.profile.mode)) · "
+                + "\(strings.providerName($0.provider)) · \($0.model.id)"
+                + ($0.profile.language == .automatic ? "" : " · \($0.profile.language.displayName)")
+        }
+        if let microphoneFallbackName {
+            sessionDetail = (sessionDetail ?? "") + " · \(activation.microphone): \(microphoneFallbackName)"
+        }
         hud.show(state: state,
                  level: level,
                  strings: strings,
-                 sessionDetail: sessionConfiguration.map {
-                     "\(activation.modeName($0.profile.mode)) · "
-                         + "\(strings.providerName($0.provider)) · \($0.model.id)"
-                         + ($0.profile.language == .automatic ? "" : " · \($0.profile.language.displayName)")
-                 },
+                 sessionDetail: sessionDetail,
                  listeningHint: sessionConfiguration.map {
                      $0.profile.mode == .toggle
                          ? strings.stopHint : activation.modeName($0.profile.mode)
@@ -542,9 +554,13 @@ final class DictationService: ObservableObject {
         let mode = DictationShortcutMode(rawValue: defaults.string(forKey: modeKey) ?? "") ?? .toggle
         let languageKey = secondary ? DefaultsKey.dictationSecondaryLanguage : DefaultsKey.dictationLanguage
         let language = DictationLanguage(rawValue: defaults.string(forKey: languageKey) ?? "") ?? .automatic
+        let microphoneKey = secondary ? DefaultsKey.dictationSecondaryMicrophone : DefaultsKey.dictationMicrophone
+        let microphone = defaults.string(forKey: microphoneKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let microphoneUID = microphone?.isEmpty == false ? microphone : nil
         return DictationShortcutProfile(slot: slot, mode: mode, provider: provider,
                                         model: provider.sanitizedModel(defaults.string(forKey: modelKey)),
-                                        language: language)
+                                        language: language,
+                                        microphoneUID: microphoneUID)
     }
 
     private func prepareForRegistration(_ slot: DictationShortcutSlot,

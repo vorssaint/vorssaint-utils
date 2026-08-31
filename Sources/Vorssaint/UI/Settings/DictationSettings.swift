@@ -13,11 +13,13 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationGroqModel) private var groqModel = DictationProvider.groq.defaultModel.id
     @AppStorage(DefaultsKey.dictationMode) private var modeRaw = DictationShortcutMode.toggle.rawValue
     @AppStorage(DefaultsKey.dictationLanguage) private var languageRaw = DictationLanguage.automatic.rawValue
+    @AppStorage(DefaultsKey.dictationMicrophone) private var microphoneRaw = ""
     @AppStorage(DefaultsKey.dictationShortcutKind) private var shortcutKindRaw = DictationShortcutKind.standard.rawValue
     @AppStorage(DefaultsKey.dictationModifierShortcut) private var modifierShortcutRaw = DictationModifierKey.rightCommand.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryEnabled) private var secondaryEnabled = false
     @AppStorage(DefaultsKey.dictationSecondaryMode) private var secondaryModeRaw = DictationShortcutMode.toggle.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryLanguage) private var secondaryLanguageRaw = DictationLanguage.automatic.rawValue
+    @AppStorage(DefaultsKey.dictationSecondaryMicrophone) private var secondaryMicrophoneRaw = ""
     @AppStorage(DefaultsKey.dictationSecondaryShortcutKind) private var secondaryShortcutKindRaw = DictationShortcutKind.standard.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryModifierShortcut) private var secondaryModifierShortcutRaw = DictationModifierKey.rightOption.rawValue
     @AppStorage(DefaultsKey.dictationSecondaryProvider) private var secondaryProviderRaw = DictationProvider.groq.rawValue
@@ -27,6 +29,7 @@ struct DictationSettings: View {
     @State private var status: Status?
     @State private var testing = false
     @State private var testTask: Task<Void, Never>?
+    @State private var microphones: [DictationInputDevice] = []
 
     private enum Status {
         case saved, removed, testSucceeded, failure(DictationFailure)
@@ -78,6 +81,8 @@ struct DictationSettings: View {
                     }
                 }
                 .onChange(of: languageRaw) { _, _ in service.syncWithPreferences() }
+                microphonePicker(selection: $microphoneRaw)
+                    .onChange(of: microphoneRaw) { _, _ in service.syncWithPreferences() }
                 if DictationShortcutKind(rawValue: shortcutKindRaw) == .modifier {
                     Picker(activation.modifierKey, selection: $modifierShortcutRaw) {
                         ForEach(DictationModifierKey.allCases) { key in
@@ -117,6 +122,8 @@ struct DictationSettings: View {
                         }
                     }
                     .onChange(of: secondaryLanguageRaw) { _, _ in service.syncWithPreferences() }
+                    microphonePicker(selection: $secondaryMicrophoneRaw)
+                        .onChange(of: secondaryMicrophoneRaw) { _, _ in service.syncWithPreferences() }
                     Picker(strings.provider, selection: $secondaryProviderRaw) {
                         ForEach(DictationProvider.allCases) { provider in
                             Text(strings.providerName(provider)).tag(provider.rawValue)
@@ -195,6 +202,7 @@ struct DictationSettings: View {
         }
         .formStyle(.grouped)
         .onAppear {
+            microphones = DictationInputDeviceCatalog.availableDevices()
             loadKey()
             service.syncWithPreferences()
         }
@@ -207,6 +215,22 @@ struct DictationSettings: View {
         }, set: { value in
             if provider == .openAI { openAIModel = value } else { groqModel = value }
         })
+    }
+
+    @ViewBuilder
+    private func microphonePicker(selection: Binding<String>) -> some View {
+        Picker(activation.microphone, selection: selection) {
+            Text("Padrão do sistema").tag("")
+            ForEach(microphones) { microphone in
+                Text(microphone.name + (microphone.isDefault ? " (padrão)" : ""))
+                    .tag(microphone.uid)
+            }
+            if !selection.wrappedValue.isEmpty,
+               !microphones.contains(where: { $0.uid == selection.wrappedValue }) {
+                Text("Microfone salvo indisponível (padrão será usado)")
+                    .tag(selection.wrappedValue)
+            }
+        }
     }
 
     private var secondaryProvider: DictationProvider {

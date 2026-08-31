@@ -187,6 +187,7 @@ struct DictationShortcutProfile: Equatable {
     let provider: DictationProvider
     let model: DictationModel
     let language: DictationLanguage
+    let microphoneUID: String?
 }
 
 enum DictationShortcutAction: Equatable {

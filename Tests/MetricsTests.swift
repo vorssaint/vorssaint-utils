@@ -12532,6 +12532,8 @@ struct MetricsTests {
                     == DictationLanguage.automatic.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryLanguage] as? String
                     == DictationLanguage.automatic.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationMicrophone] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryMicrophone] as? String == ""
                 && Defaults.registeredDefaults[DefaultsKey.dictationShortcutKind] as? String
                     == DictationShortcutKind.standard.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationModifierShortcut] as? String
@@ -12684,9 +12686,11 @@ struct MetricsTests {
             DefaultsKey.dictationOpenAIModel,
             DefaultsKey.dictationGroqModel,
             DefaultsKey.dictationMode,
+            DefaultsKey.dictationMicrophone,
             DefaultsKey.dictationSecondaryEnabled,
             DefaultsKey.dictationSecondaryShortcut,
             DefaultsKey.dictationSecondaryMode,
+            DefaultsKey.dictationSecondaryMicrophone,
             DefaultsKey.dictationSecondaryProvider,
             DefaultsKey.dictationSecondaryOpenAIModel,
             DefaultsKey.dictationSecondaryGroqModel,
@@ -12697,6 +12701,30 @@ struct MetricsTests {
                     == DictationShortcutMode.toggle.rawValue
                 && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryEnabled] as? Bool == false,
                "existing dictation upgrades to a primary toggle profile with secondary disabled")
+
+        let microphones = [
+            DictationInputDeviceDescriptor(uid: "builtin", name: "MacBook Microphone", isDefault: true),
+            DictationInputDeviceDescriptor(uid: "usb", name: "USB Microphone", isDefault: false),
+        ]
+        let selectedMicrophone = DictationInputDeviceRouting.resolve(
+            preferredUID: "usb", devices: microphones)
+        let missingMicrophone = DictationInputDeviceRouting.resolve(
+            preferredUID: "removed", devices: microphones)
+        let defaultMicrophone = DictationInputDeviceRouting.resolve(
+            preferredUID: nil, devices: microphones)
+        expect(selectedMicrophone.effectiveUID == "usb"
+                && selectedMicrophone.usedFallback == false
+                && missingMicrophone.effectiveUID == "builtin"
+                && missingMicrophone.usedFallback
+                && missingMicrophone.preferredUID == "removed"
+                && defaultMicrophone.effectiveUID == "builtin"
+                && !defaultMicrophone.usedFallback,
+               "dictation microphone routing prefers the saved device and falls back to the default")
+        expect(DictationInputDeviceRouting.resolve(
+            preferredUID: "removed",
+            devices: [DictationInputDeviceDescriptor(uid: "other", name: "Other", isDefault: false)])
+            .effectiveUID == nil,
+               "dictation microphone routing reports no device when the fallback list has no default")
 
         var toggleGesture = DictationShortcutGesture()
         expect(toggleGesture.keyDown(at: 0, mode: .toggle, sessionIsActive: false) == .begin
@@ -12754,6 +12782,9 @@ struct MetricsTests {
         let dictationServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationService.swift",
             encoding: .utf8)) ?? ""
+        let dictationDeviceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/DictationInputDeviceSupport.swift",
+            encoding: .utf8)) ?? ""
         let dictationRecorderSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
             encoding: .utf8)) ?? ""
@@ -12775,8 +12806,14 @@ struct MetricsTests {
                "dictation teardown structurally cancels upload, capture, hotkeys, monitors and HUD")
         expect(dictationRecorderSource.contains("PrivateFileStore.createDirectory")
                 && dictationRecorderSource.contains(".posixPermissions: 0o600")
+                && dictationRecorderSource.contains("AudioUnitSetProperty")
+                && dictationRecorderSource.contains("kAudioOutputUnitProperty_CurrentDevice")
                 && dictationRecorderSource.contains("removeItem(at:"),
                "dictation audio is private and deterministically removed")
+        expect(dictationDeviceSource.contains("kAudioHardwarePropertyDevices")
+                && dictationDeviceSource.contains("kAudioHardwarePropertyDefaultInputDevice")
+                && dictationDeviceSource.contains("DictationInputDeviceRouting.resolve"),
+               "dictation enumerates input devices and resolves a saved microphone with fallback")
         expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
                 && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
                 && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),
@@ -12797,7 +12834,7 @@ struct MetricsTests {
             }, "dictation has no placeholder or em-dash text for \(language.rawValue)")
             let activationValues = Mirror(reflecting: FeatureStrings.dictationActivation(language)).children
                 .compactMap { $0.value as? String }
-            expect(activationValues.count == 12 && activationValues.allSatisfy { !$0.isEmpty },
+            expect(activationValues.count == 13 && activationValues.allSatisfy { !$0.isEmpty },
                    "dictation activation has every localized field for \(language.rawValue)")
         }
         let hotkeySource = (try? String(

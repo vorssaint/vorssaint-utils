@@ -2,24 +2,52 @@
 // Copyright (C) 2026 Vorssaint
 
 import AVFoundation
+import CoreAudio
 import Foundation
 
+/// Serializes writes made by AVAudioEngine's realtime tap without crossing the
+/// recorder's main-actor boundary from the audio thread.
+private final class DictationAudioFileWriter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var audioFile: AVAudioFile?
+
+    init(url: URL, settings: [String: Any]) throws {
+        audioFile = try AVAudioFile(forWriting: url, settings: settings)
+    }
+
+    func write(_ buffer: AVAudioPCMBuffer) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        try audioFile?.write(from: buffer)
+    }
+
+    func close() {
+        lock.lock()
+        audioFile = nil
+        lock.unlock()
+    }
+}
+
 @MainActor
-final class DictationAudioRecorder: NSObject, @preconcurrency AVAudioRecorderDelegate {
+final class DictationAudioRecorder {
     static let maximumDuration: TimeInterval = 10 * 60
 
     var onLevel: ((Float) -> Void)?
     var onFailure: (() -> Void)?
     var onFinished: (() -> Void)?
+    var onDeviceFallback: ((String?) -> Void)?
 
-    private var recorder: AVAudioRecorder?
-    private var meterTimer: Timer?
-    private var expectsAutomaticFinish = false
+    private var engine: AVAudioEngine?
+    private var inputNode: AVAudioInputNode?
+    private var writer: DictationAudioFileWriter?
+    private var automaticFinishWork: DispatchWorkItem?
+    private var captureFailed = false
     private(set) var fileURL: URL?
+    private(set) var activeMicrophoneUID: String?
 
-    var isRecording: Bool { recorder?.isRecording == true }
+    var isRecording: Bool { engine?.isRunning == true }
 
-    func start() throws {
+    func start(microphoneUID: String? = nil) throws {
         cancel()
         guard let container = PrivateFileStore.containerURL else {
             throw DictationFailure.microphoneUnavailable
@@ -29,6 +57,14 @@ final class DictationAudioRecorder: NSObject, @preconcurrency AVAudioRecorderDel
             throw DictationFailure.microphoneUnavailable
         }
         removeAbandonedRecordings(in: directory)
+
+        let resolved = DictationInputDeviceCatalog.selection(preferredUID: microphoneUID)
+        guard let device = resolved.device else {
+            throw DictationFailure.microphoneUnavailable
+        }
+        if resolved.selection.usedFallback {
+            onDeviceFallback?(device.name)
+        }
         let file = directory.appendingPathComponent(UUID().uuidString)
             .appendingPathExtension("m4a")
         let settings: [String: Any] = [
@@ -38,47 +74,95 @@ final class DictationAudioRecorder: NSObject, @preconcurrency AVAudioRecorderDel
             AVEncoderBitRateKey: 96_000,
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue,
         ]
-        let recorder: AVAudioRecorder
+
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        guard let audioUnit = input.audioUnit else {
+            throw DictationFailure.microphoneUnavailable
+        }
+        var audioDeviceID = device.audioDeviceID
+        let status = AudioUnitSetProperty(audioUnit,
+                                          kAudioOutputUnitProperty_CurrentDevice,
+                                          kAudioUnitScope_Global,
+                                          0,
+                                          &audioDeviceID,
+                                          UInt32(MemoryLayout<AudioDeviceID>.size))
+        guard status == noErr else {
+            throw DictationFailure.microphoneUnavailable
+        }
+
+        guard input.inputFormat(forBus: 0).sampleRate > 0,
+              let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1) else {
+            throw DictationFailure.microphoneUnavailable
+        }
+        let fileWriter: DictationAudioFileWriter
         do {
-            recorder = try AVAudioRecorder(url: file, settings: settings)
+            fileWriter = try DictationAudioFileWriter(url: file, settings: settings)
         } catch {
             try? FileManager.default.removeItem(at: file)
             throw DictationFailure.microphoneUnavailable
         }
-        recorder.delegate = self
-        recorder.isMeteringEnabled = true
-        guard recorder.prepareToRecord(), recorder.record(forDuration: Self.maximumDuration) else {
-            recorder.deleteRecording()
+
+        captureFailed = false
+        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self, weak fileWriter] buffer, _ in
+            guard let fileWriter else { return }
+            do {
+                try fileWriter.write(buffer)
+            } catch {
+                Task { @MainActor [weak self] in
+                    guard let self, !self.captureFailed else { return }
+                    self.captureFailed = true
+                    self.onFailure?()
+                }
+                return
+            }
+            let level = Self.normalizedLevel(buffer)
+            Task { @MainActor [weak self] in self?.onLevel?(level) }
+        }
+
+        engine.prepare()
+        do {
+            try engine.start()
+        } catch {
+            input.removeTap(onBus: 0)
+            fileWriter.close()
+            try? FileManager.default.removeItem(at: file)
             throw DictationFailure.microphoneUnavailable
         }
         try? FileManager.default.setAttributes([.posixPermissions: 0o600],
                                                ofItemAtPath: file.path)
-        self.recorder = recorder
-        expectsAutomaticFinish = true
+        self.engine = engine
+        inputNode = input
+        writer = fileWriter
+        activeMicrophoneUID = device.uid
         fileURL = file
-        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.publishLevel() }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.isRecording else { return }
+            self.onFinished?()
         }
-        timer.tolerance = 0.02
-        RunLoop.main.add(timer, forMode: .common)
-        meterTimer = timer
+        automaticFinishWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.maximumDuration, execute: work)
     }
 
     func stop() throws -> URL {
-        guard let recorder, let fileURL else { throw DictationFailure.noSpeech }
-        expectsAutomaticFinish = false
-        meterTimer?.invalidate()
-        meterTimer = nil
-        recorder.stop()
-        self.recorder = nil
+        guard let engine, let fileURL else { throw DictationFailure.noSpeech }
+        automaticFinishWork?.cancel()
+        automaticFinishWork = nil
+        inputNode?.removeTap(onBus: 0)
+        engine.stop()
+        engine.reset()
+        writer?.close()
+        writer = nil
+        self.engine = nil
+        inputNode = nil
+        activeMicrophoneUID = nil
         try? FileManager.default.setAttributes([.posixPermissions: 0o600],
                                                ofItemAtPath: fileURL.path)
         guard let values = try? fileURL.resourceValues(
             forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
               values.isRegularFile == true,
               values.isSymbolicLink != true,
-              (values.fileSize ?? 0) > 0
-        else {
+              (values.fileSize ?? 0) > 0 else {
             discardFile()
             throw DictationFailure.noSpeech
         }
@@ -86,14 +170,16 @@ final class DictationAudioRecorder: NSObject, @preconcurrency AVAudioRecorderDel
     }
 
     func cancel() {
-        meterTimer?.invalidate()
-        meterTimer = nil
-        if let recorder {
-            expectsAutomaticFinish = false
-            recorder.stop()
-            recorder.deleteRecording()
-        }
-        recorder = nil
+        automaticFinishWork?.cancel()
+        automaticFinishWork = nil
+        inputNode?.removeTap(onBus: 0)
+        engine?.stop()
+        engine?.reset()
+        writer?.close()
+        writer = nil
+        engine = nil
+        inputNode = nil
+        activeMicrophoneUID = nil
         discardFile()
         onLevel?(0)
     }
@@ -104,41 +190,16 @@ final class DictationAudioRecorder: NSObject, @preconcurrency AVAudioRecorderDel
         self.fileURL = nil
     }
 
-    private func publishLevel() {
-        guard let recorder, recorder.isRecording else { return }
-        recorder.updateMeters()
-        let decibels = recorder.averagePower(forChannel: 0)
-        let normalized = max(0, min(1, pow(10, decibels / 30)))
-        onLevel?(normalized)
-    }
-
-    func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
-        meterTimer?.invalidate()
-        meterTimer = nil
-        let wasAutomatic = expectsAutomaticFinish
-        expectsAutomaticFinish = false
-        self.recorder = nil
-        if flag {
-            if wasAutomatic { onFinished?() }
-            return
+    private static func normalizedLevel(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let samples = buffer.floatChannelData?.pointee,
+              buffer.frameLength > 0 else { return 0 }
+        var sum: Float = 0
+        for index in 0 ..< Int(buffer.frameLength) {
+            let sample = samples[index]
+            sum += sample * sample
         }
-        self.recorder = nil
-        discardFile()
-        onFailure?()
-    }
-
-    func audioRecorderEncodeErrorDidOccur(_ recorder: AVAudioRecorder, error: Error?) {
-        meterTimer?.invalidate()
-        meterTimer = nil
-        self.recorder = nil
-        discardFile()
-        onFailure?()
-    }
-
-    deinit {
-        meterTimer?.invalidate()
-        recorder?.stop()
-        if let fileURL { try? FileManager.default.removeItem(at: fileURL) }
+        let rms = sqrt(sum / Float(buffer.frameLength))
+        return max(0, min(1, rms * 4))
     }
 
     private func removeAbandonedRecordings(in directory: URL) {

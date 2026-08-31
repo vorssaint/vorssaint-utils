@@ -577,12 +577,14 @@ enum DefaultsKey {
     static let dictationGroqModel = "dictationGroqModel"
     static let dictationMode = "dictationMode"
     static let dictationLanguage = "dictationLanguage"
+    static let dictationMicrophone = "dictationMicrophone"
     static let dictationSecondaryEnabled = "dictationSecondaryEnabled"
     static let dictationSecondaryShortcut = "dictationSecondaryShortcut"
     static let dictationSecondaryShortcutKind = "dictationSecondaryShortcutKind"
     static let dictationSecondaryModifierShortcut = "dictationSecondaryModifierShortcut"
     static let dictationSecondaryMode = "dictationSecondaryMode"
     static let dictationSecondaryLanguage = "dictationSecondaryLanguage"
+    static let dictationSecondaryMicrophone = "dictationSecondaryMicrophone"
     static let dictationSecondaryProvider = "dictationSecondaryProvider"
     static let dictationSecondaryOpenAIModel = "dictationSecondaryOpenAIModel"
     static let dictationSecondaryGroqModel = "dictationSecondaryGroqModel"
@@ -1268,12 +1270,14 @@ enum Defaults {
         DefaultsKey.dictationGroqModel: DictationProvider.groq.defaultModel.id,
         DefaultsKey.dictationMode: DictationShortcutMode.toggle.rawValue,
         DefaultsKey.dictationLanguage: DictationLanguage.automatic.rawValue,
+        DefaultsKey.dictationMicrophone: "",
         DefaultsKey.dictationSecondaryEnabled: false,
         DefaultsKey.dictationSecondaryShortcut: GlobalShortcut.dictationSecondaryDefault.storageValue,
         DefaultsKey.dictationSecondaryShortcutKind: DictationShortcutKind.standard.rawValue,
         DefaultsKey.dictationSecondaryModifierShortcut: DictationModifierKey.rightOption.rawValue,
         DefaultsKey.dictationSecondaryMode: DictationShortcutMode.toggle.rawValue,
         DefaultsKey.dictationSecondaryLanguage: DictationLanguage.automatic.rawValue,
+        DefaultsKey.dictationSecondaryMicrophone: "",
         DefaultsKey.dictationSecondaryProvider: DictationProvider.groq.rawValue,
         DefaultsKey.dictationSecondaryOpenAIModel: DictationProvider.openAI.defaultModel.id,
         DefaultsKey.dictationSecondaryGroqModel: DictationProvider.groq.defaultModel.id,
