@@ -12885,6 +12885,7 @@ struct MetricsTests {
         expect(dictationHistoryStoreSource.contains("PrivateFileStore.createDirectory")
                 && dictationHistoryStoreSource.contains("PrivateFileStore.write")
                 && dictationHistoryStoreSource.contains("isBoundedPath")
+                && dictationHistoryStoreSource.contains("removeAudio")
                 && dictationHistoryStoreSource.contains("manifest.json"),
                "dictation history owns a private manifest and bounds audio deletion to its directory")
         expect(dictationHistoryViewSource.contains("AVAudioPlayer")

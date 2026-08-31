@@ -96,6 +96,29 @@ final class DictationHistoryStore {
         write(remaining)
     }
 
+    func removeAudio(from entry: DictationHistoryEntry) {
+        guard let directory = historyDirectory else { return }
+        if let audioFileName = entry.audioFileName {
+            let audioURL = directory.appendingPathComponent(audioFileName)
+            if isBoundedPath(audioURL, within: directory) {
+                try? fileManager.removeItem(at: audioURL)
+            }
+        }
+        let updated = DictationHistoryEntry(
+            id: entry.id,
+            createdAt: entry.createdAt,
+            duration: entry.duration,
+            provider: entry.provider,
+            model: entry.model,
+            language: entry.language,
+            rawText: entry.rawText,
+            audioFileName: nil,
+            processingDuration: entry.processingDuration,
+            failure: entry.failure)
+        let remaining = entries().map { $0.id == entry.id ? updated : $0 }
+        write(remaining)
+    }
+
     @discardableResult
     func removeExpired(now: Date = Date(), days: Int) -> Int {
         let all = entries()

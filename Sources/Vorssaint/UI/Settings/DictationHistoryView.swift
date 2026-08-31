@@ -10,6 +10,7 @@ struct DictationHistoryView: View {
     @State private var playingID: UUID?
     @State private var playbackRate = 1.0
     @State private var entryToDelete: DictationHistoryEntry?
+    @State private var deleteAudioOnly = false
 
     var body: some View {
         Group {
@@ -39,6 +40,14 @@ struct DictationHistoryView: View {
                                     togglePlayback(entry)
                                 }
                                 .buttonStyle(.borderless)
+                                Button {
+                                    deleteAudioOnly = true
+                                    entryToDelete = entry
+                                } label: {
+                                    Image(systemName: "waveform.slash")
+                                }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Apagar áudio")
                             }
                             Spacer()
                             Button(role: .destructive) {
@@ -76,13 +85,19 @@ struct DictationHistoryView: View {
             player = nil
             playingID = nil
         }
-        .confirmationDialog("Apagar este ditado?", isPresented: Binding(
+        .confirmationDialog(deleteAudioOnly ? "Apagar o áudio deste ditado?" : "Apagar este ditado?", isPresented: Binding(
             get: { entryToDelete != nil },
             set: { if !$0 { entryToDelete = nil } }), titleVisibility: .visible) {
             Button("Apagar", role: .destructive) {
-                if let entryToDelete { delete(entryToDelete) }
+                if let entryToDelete {
+                    if deleteAudioOnly { deleteAudio(entryToDelete) }
+                    else { delete(entryToDelete) }
+                }
             }
-            Button("Cancelar", role: .cancel) { entryToDelete = nil }
+            Button("Cancelar", role: .cancel) {
+                entryToDelete = nil
+                deleteAudioOnly = false
+            }
         }
     }
 
@@ -117,6 +132,19 @@ struct DictationHistoryView: View {
         DictationHistoryStore.shared.remove(entry)
         reload()
         entryToDelete = nil
+        deleteAudioOnly = false
+    }
+
+    private func deleteAudio(_ entry: DictationHistoryEntry) {
+        if playingID == entry.id {
+            player?.stop()
+            player = nil
+            playingID = nil
+        }
+        DictationHistoryStore.shared.removeAudio(from: entry)
+        reload()
+        entryToDelete = nil
+        deleteAudioOnly = false
     }
 
     private static func duration(_ value: TimeInterval) -> String {
