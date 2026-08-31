@@ -24,6 +24,26 @@ struct PanelMediaView: View {
     }
 }
 
+private enum MediaKeyboardID {
+    static let chooseInput = "media-chooseInput"
+    static let clearInput = "media-clearInput"
+    static let chooseOutput = "media-chooseOutput"
+    static let run = "media-run"
+    static let editVideo = "media-editVideo"
+    static let cancel = "media-cancel"
+    static let revealOutput = "media-revealOutput"
+    static let copyText = "media-copyText"
+    static let copySummary = "media-copySummary"
+    static let runAgain = "media-runAgain"
+    static let close = "media-close"
+    static let tool = "media-tool"
+
+    static let fileAnchor = "media-file"
+    static let optionsAnchor = "media-options"
+    static let actionsAnchor = "media-actions"
+    static let statusAnchor = "media-status"
+}
+
 private enum MediaCompressionLevel: String, CaseIterable, Identifiable {
     case low, medium, high
 
@@ -211,7 +231,7 @@ struct MediaWorkspaceView: View {
                 }
                 .buttonStyle(.plain)
                 .help(l10n.s.uninstallerCancel)
-                .panelKeyboardRow(keyboardRow("media-close"),
+                .panelKeyboardRow(keyboardRow(MediaKeyboardID.close),
                                   actions: PanelRowActions(activate: onClose))
             }
         }
@@ -225,16 +245,16 @@ struct MediaWorkspaceView: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .panelKeyboardRow(keyboardRow("media-tool"),
+        .panelKeyboardRow(keyboardRow(MediaKeyboardID.tool),
                           actions: selectionActions(selectedToolBinding, values: MediaTool.allCases))
     }
 
     private var content: some View {
         VStack(alignment: .leading, spacing: compact ? 9 : 12) {
-            fileCard.id("media-file")
-            optionsCard.id("media-options")
-            actionRow.id("media-actions")
-            statusCard.id("media-status")
+            fileCard.id(MediaKeyboardID.fileAnchor)
+            optionsCard.id(MediaKeyboardID.optionsAnchor)
+            actionRow.id(MediaKeyboardID.actionsAnchor)
+            statusCard.id(MediaKeyboardID.statusAnchor)
         }
     }
 
@@ -245,14 +265,17 @@ struct MediaWorkspaceView: View {
               let localID = row.local as? String,
               localID.hasPrefix("media-") else { return nil }
         switch localID {
-        case "media-chooseInput", "media-clearInput", "media-chooseOutput":
-            return "media-file"
-        case "media-run", "media-editVideo", "media-cancel":
-            return "media-actions"
-        case "media-revealOutput", "media-copyText", "media-copySummary", "media-runAgain":
-            return "media-status"
+        case MediaKeyboardID.chooseInput, MediaKeyboardID.clearInput, MediaKeyboardID.chooseOutput:
+            return MediaKeyboardID.fileAnchor
+        case MediaKeyboardID.run, MediaKeyboardID.editVideo, MediaKeyboardID.cancel:
+            return MediaKeyboardID.actionsAnchor
+        case MediaKeyboardID.revealOutput, MediaKeyboardID.copyText,
+             MediaKeyboardID.copySummary, MediaKeyboardID.runAgain:
+            return MediaKeyboardID.statusAnchor
         default:
-            return "media-options"
+            return localID == MediaKeyboardID.close || localID == MediaKeyboardID.tool
+                ? nil
+                : MediaKeyboardID.optionsAnchor
         }
     }
 
@@ -284,7 +307,7 @@ struct MediaWorkspaceView: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, minHeight: compact ? 52 : 62, alignment: .leading)
-                .panelKeyboardRow(keyboardRow("media-chooseInput"),
+                .panelKeyboardRow(keyboardRow(MediaKeyboardID.chooseInput),
                                   actions: PanelRowActions(activate: chooseInput))
 
                 if !inputURLs.isEmpty {
@@ -300,7 +323,7 @@ struct MediaWorkspaceView: View {
                     .buttonStyle(.plain)
                     .help(l10n.s.mediaCancel)
                     .padding(.trailing, compact ? 8 : 10)
-                    .panelKeyboardRow(keyboardRow("media-clearInput"),
+                    .panelKeyboardRow(keyboardRow(MediaKeyboardID.clearInput),
                                       actions: PanelRowActions(activate: clearInput))
                 }
             }
@@ -335,7 +358,7 @@ struct MediaWorkspaceView: View {
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
                 .panelKeyboardRow(
-                    !(inputURLs.isEmpty || isRunning) ? keyboardRow("media-chooseOutput") : nil,
+                    !(inputURLs.isEmpty || isRunning) ? keyboardRow(MediaKeyboardID.chooseOutput) : nil,
                     actions: PanelRowActions(activate: chooseOutput), cornerRadius: 6)
             }
         }
@@ -446,7 +469,7 @@ struct MediaWorkspaceView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(!canRun)
-            .panelKeyboardRow(canRun ? keyboardRow("media-run") : nil,
+            .panelKeyboardRow(canRun ? keyboardRow(MediaKeyboardID.run) : nil,
                               actions: PanelRowActions(activate: run))
 
             if selectedTool == .videoCompressor {
@@ -457,7 +480,7 @@ struct MediaWorkspaceView: View {
                     Label(screenshotText.editButton, systemImage: "crop")
                 }
                 .disabled(!canEdit)
-                .panelKeyboardRow(canEdit ? keyboardRow("media-editVideo") : nil,
+                .panelKeyboardRow(canEdit ? keyboardRow(MediaKeyboardID.editVideo) : nil,
                                   actions: PanelRowActions(activate: openVideoEditor))
                 if isImportingVideo {
                     ProgressView()
@@ -471,7 +494,7 @@ struct MediaWorkspaceView: View {
                 } label: {
                     Label(l10n.s.mediaCancel, systemImage: "xmark")
                 }
-                .panelKeyboardRow(keyboardRow("media-cancel"),
+                .panelKeyboardRow(keyboardRow(MediaKeyboardID.cancel),
                                   actions: PanelRowActions(activate: { media.cancel() }))
             }
 
@@ -560,7 +583,7 @@ struct MediaWorkspaceView: View {
                     Button(action: reveal) {
                         Label(l10n.s.mediaOpenInFinder, systemImage: "folder")
                     }
-                    .panelKeyboardRow(keyboardRow("media-revealOutput"),
+                    .panelKeyboardRow(keyboardRow(MediaKeyboardID.revealOutput),
                                       actions: PanelRowActions(activate: reveal), cornerRadius: 6)
                 }
                 if let text = result.text {
@@ -569,7 +592,7 @@ struct MediaWorkspaceView: View {
                     } label: {
                         Label(l10n.s.mediaCopyText, systemImage: "doc.on.doc")
                     }
-                    .panelKeyboardRow(keyboardRow("media-copyText"),
+                    .panelKeyboardRow(keyboardRow(MediaKeyboardID.copyText),
                                       actions: PanelRowActions(activate: { copy(text) }), cornerRadius: 6)
                 }
                 if result.imageBatchItems.count > 1 {
@@ -578,7 +601,7 @@ struct MediaWorkspaceView: View {
                     } label: {
                         Label(imageText.copySummary, systemImage: "doc.on.doc")
                     }
-                    .panelKeyboardRow(keyboardRow("media-copySummary"),
+                    .panelKeyboardRow(keyboardRow(MediaKeyboardID.copySummary),
                                       actions: PanelRowActions(activate: { copy(batchSummaryText(result)) }), cornerRadius: 6)
                 }
                 Button {
@@ -586,7 +609,7 @@ struct MediaWorkspaceView: View {
                 } label: {
                     Label(l10n.s.mediaRunAgain, systemImage: "arrow.clockwise")
                 }
-                .panelKeyboardRow(keyboardRow("media-runAgain"),
+                .panelKeyboardRow(keyboardRow(MediaKeyboardID.runAgain),
                                   actions: PanelRowActions(activate: run), cornerRadius: 6)
             }
             .controlSize(.small)
