@@ -245,8 +245,11 @@ final class PanelKeyboardNavigator: ObservableObject {
         let fine = event.modifierFlags.contains(.shift)
         switch Int(event.keyCode) {
         case kVK_Tab:
-            moveTab(backward: fine)
-            return true
+            // Cycles the section tabs wherever there is a tab bar. Metric
+            // detail has none, so there Tab walks the panel the way Down and
+            // Up do rather than being a key that does nothing.
+            if moveTab(backward: fine) { return true }
+            return fine ? handleUp() : handleDown()
         case kVK_LeftArrow:
             guard focus != nil else { return false }
             return handleLeft(fine: fine)
@@ -284,36 +287,38 @@ final class PanelKeyboardNavigator: ObservableObject {
 
     private func handleLeft(fine: Bool) -> Bool {
         switch focus {
-        case nil, .tab:
-            moveTab(backward: true)
+        case .tab:
+            return moveTab(backward: true)
+        case .chrome(.footerQuit):
+            focus = .chrome(.footerSettings)
             return true
         case .chrome:
-            if focus == .chrome(.footerQuit) {
-                focus = .chrome(.footerSettings)
-            }
-            return true
+            return false
         case .row(let id):
             guard let actions = rowActions[id] else { return false }
             if let adjust = actions.adjust { return adjust(.decrease, fine) }
             if let exit = actions.exit { return exit() }
+            return false
+        case nil:
             return false
         }
     }
 
     private func handleRight(fine: Bool) -> Bool {
         switch focus {
-        case nil, .tab:
-            moveTab(backward: false)
+        case .tab:
+            return moveTab(backward: false)
+        case .chrome(.footerSettings):
+            focus = .chrome(.footerQuit)
             return true
         case .chrome:
-            if focus == .chrome(.footerSettings) {
-                focus = .chrome(.footerQuit)
-            }
-            return true
+            return false
         case .row(let id):
             guard let actions = rowActions[id] else { return false }
             if let adjust = actions.adjust { return adjust(.increase, fine) }
             if let enter = actions.enter { return enter() }
+            return false
+        case nil:
             return false
         }
     }
@@ -344,8 +349,11 @@ final class PanelKeyboardNavigator: ObservableObject {
         return true
     }
 
-    private func moveTab(backward: Bool) {
-        guard !tabs.isEmpty else { return }
+    /// Returns false only when there is no tab bar to cycle, so the caller can
+    /// hand the key on instead of swallowing it.
+    @discardableResult
+    private func moveTab(backward: Bool) -> Bool {
+        guard !tabs.isEmpty else { return false }
         let baseID: PanelSectionID
         switch focus {
         case .tab(let id): baseID = id
@@ -354,11 +362,19 @@ final class PanelKeyboardNavigator: ObservableObject {
         }
         guard let index = tabs.firstIndex(of: baseID) else {
             if let activeTab, tabs.contains(activeTab) { selectTab(activeTab) }
-            return
+            return true
+        }
+        // Engaging keyboard navigation only brings the ring on screen: the
+        // first press lands on the section already showing instead of moving
+        // the person off the one they opened the panel to look at.
+        guard focus != nil else {
+            selectTab(tabs[index])
+            return true
         }
         let count = tabs.count
         let nextIndex = ((backward ? index - 1 : index + 1) % count + count) % count
         selectTab(tabs[nextIndex])
+        return true
     }
 
     private func selectTab(_ id: PanelSectionID) {

@@ -44,6 +44,51 @@ final class PanelKeyboardNavigatorTests: XCTestCase {
         XCTAssertEqual(navigator.focus, .chrome(.footerSettings))
     }
 
+    /// The first press only brings the ring on screen. A single-tab panel
+    /// cannot tell that apart from a wrap-around, so this one uses two.
+    func testFirstTabPressLandsOnTheActiveSection() {
+        var selected: [PanelSectionID] = []
+        navigator.clearFocus()
+        navigator.configureTabs([.system, .disk], active: .disk, select: { selected.append($0) })
+
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab)))
+        XCTAssertEqual(navigator.focus, .tab(.disk))
+        XCTAssertEqual(selected, [.disk])
+
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab)))
+        XCTAssertEqual(navigator.focus, .tab(.system))
+        XCTAssertEqual(selected, [.disk, .system])
+
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab, modifiers: .shift)))
+        XCTAssertEqual(navigator.focus, .tab(.disk))
+    }
+
+    /// Metric detail reports no tabs, so Tab has no tab bar to cycle and walks
+    /// the panel instead of being swallowed.
+    func testTabWalksThePanelWhereThereIsNoTabBar() {
+        navigator.clearFocus()
+        navigator.configureTabs([], active: section, select: { _ in })
+
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab)))
+        XCTAssertEqual(navigator.focus, .chrome(.headerFeedback))
+
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab)))
+        XCTAssertEqual(navigator.focus, .row(PanelRowID(section, "first")))
+
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab, modifiers: .shift)))
+        XCTAssertEqual(navigator.focus, .chrome(.headerFeedback))
+    }
+
+    func testHorizontalKeyOnChromeWithNowhereToGoIsNotConsumed() {
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab)))
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_UpArrow)))
+        XCTAssertEqual(navigator.focus, .chrome(.headerFeedback))
+
+        XCTAssertFalse(navigator.handleKeyDown(key(kVK_LeftArrow)))
+        XCTAssertFalse(navigator.handleKeyDown(key(kVK_RightArrow)))
+        XCTAssertEqual(navigator.focus, .chrome(.headerFeedback))
+    }
+
     func testFooterLeftAndRightMoveBetweenFooterControls() {
         navigator.focusRow(PanelRowID(section, "second"))
         XCTAssertTrue(navigator.handleKeyDown(key(kVK_DownArrow)))
