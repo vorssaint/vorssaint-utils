@@ -6530,6 +6530,13 @@ struct MetricsTests {
                "failed universal output keeps per-app routes")
         expect(failedUniversalOutput.volumes == savedMixerVolumes,
                "failed universal output keeps saved app volumes")
+        let priorityOutput = MixerRoutingSupport.preferencesAfterPriorityOutputSwitch(
+            outputDeviceUIDs: savedRoutes,
+            volumes: savedMixerVolumes)
+        expect(priorityOutput.outputDeviceUIDs == savedRoutes,
+               "priority output preserves explicit per-app routes")
+        expect(priorityOutput.volumes == savedMixerVolumes,
+               "priority output preserves saved app volumes")
         expect(MixerRoutingSupport.nextSelectedOutputDeviceUID(
             currentUID: "BuiltInSpeakerDevice",
             selectedUIDs: ["BuiltInSpeakerDevice", "ExternalDisplay"],
@@ -12510,7 +12517,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -12519,7 +12526,7 @@ struct MetricsTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
@@ -12594,6 +12601,7 @@ struct MetricsTests {
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
                         && $0 != .killProcess
+                        && $0 != .audioPriority
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -21724,6 +21732,107 @@ struct MetricsTests {
             expectFormat(quitProtection.extraHUDFormat, ["@"],
                          "\(language.rawValue) quit protection modifier HUD format")
         }
+
+        // MARK: Audio device priority policy
+        // Pure policy tests: no CoreAudio mocking needed.
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["a", "b", "c"],
+                availableUIDs: Set(["a", "b", "c"])) ?? "",
+            "a", "priority: first available")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["a", "b", "c"],
+                availableUIDs: Set(["b", "c"])) ?? "",
+            "b", "priority: first unavailable, second available")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["a", "b"],
+                availableUIDs: Set([])) ?? "",
+            "", "priority: no candidates available")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: [],
+                availableUIDs: Set(["a"])) ?? "",
+            "", "priority: empty list")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["a", "a", "b"],
+                availableUIDs: Set(["a", "b"])) ?? "",
+            "a", "priority: duplicates skipped, first wins")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["", "  ", "\n", "b"],
+                availableUIDs: Set(["b"])) ?? "",
+            "b", "priority: invalid UIDs skipped")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["c", "a", "b"],
+                availableUIDs: Set(["a", "b"])) ?? "",
+            "a", "priority: higher-priority unavailable, lower available")
+        expectEqual(
+            MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                orderedUIDs: ["a", "b", "c"],
+                availableUIDs: Set(["a"])) ?? "",
+            "a", "priority: only first available")
+
+        expect(MixerRoutingSupport.priorityListIncludingAvailableDevices(
+            storedUIDs: [],
+            availableUIDs: ["speakers", "headphones", "display"],
+            currentUID: "headphones") == ["headphones", "speakers", "display"],
+               "priority list: current device seeds an empty list first")
+        expect(MixerRoutingSupport.priorityListIncludingAvailableDevices(
+            storedUIDs: ["display", "speakers", "offline"],
+            availableUIDs: ["speakers", "headphones", "display"],
+            currentUID: "speakers") == ["display", "speakers", "offline", "headphones"],
+               "priority list: stored order and disconnected entries stay while new devices append")
+        expect(MixerRoutingSupport.priorityListIncludingAvailableDevices(
+            storedUIDs: [" a ", "a", "bad\nuid"],
+            availableUIDs: ["a", "b", "b"],
+            currentUID: nil) == ["a", "b"],
+               "priority list: invalid and duplicate UIDs are removed")
+
+        // shouldSwitchToDevice: no write when target equals current
+        expect(!MixerRoutingSupport.shouldSwitchToDevice(targetUID: nil, currentUID: nil),
+               "no-write: nil target")
+        expect(!MixerRoutingSupport.shouldSwitchToDevice(targetUID: "a", currentUID: "a"),
+               "no-write: target equals current")
+        expect(MixerRoutingSupport.shouldSwitchToDevice(targetUID: "a", currentUID: "b"),
+               "write: target differs from current")
+        expect(!MixerRoutingSupport.shouldSwitchToDevice(targetUID: nil, currentUID: "a"),
+               "no-write: nil target with current")
+
+        // Feature catalog coverage
+        expect(AppFeature.audioPriority.group == .sound,
+               "catalog: audioPriority is in the Sound group")
+        expect(AppFeature.audioPriority.permissions == [],
+               "catalog: audioPriority declares no permissions")
+        expect(AppFeature.audioPriority.enabledKeys == [DefaultsKey.audioPriorityOutputEnabled,
+                                                          DefaultsKey.audioPriorityInputEnabled],
+               "catalog: audioPriority has output and input enable keys")
+        expect(AppFeature.audioPriority.symbolName == "list.number",
+               "catalog: audioPriority uses list.number symbol")
+        expect((AppFeature.availabilityDefaults[AppFeature.audioPriority.availabilityKey] as? Bool) == false,
+               "catalog: audioPriority ships uninstalled")
+        expect(AppFeature.features(in: .sound).contains(.audioPriority),
+               "catalog: audioPriority appears in the Sound group")
+        // Must be ordered after soundOutputSwitcher in the Sound group
+        let soundFeatures = AppFeature.features(in: .sound)
+        if let switcherIndex = soundFeatures.firstIndex(of: .soundOutputSwitcher),
+           let priorityIndex = soundFeatures.firstIndex(of: .audioPriority) {
+            expect(priorityIndex == switcherIndex + 1,
+                   "catalog: audioPriority is ordered immediately after Output switcher")
+        } else {
+            expect(false, "catalog: could not find both features in Sound group")
+        }
+
+        // Defaults sanitization
+        expect(Defaults.sanitizedAudioPriorityUIDs(["a", "b", "a", "c"]) == ["a", "b", "c"],
+              "defaults: dedupe preserving first occurrence")
+        expect(Defaults.sanitizedAudioPriorityUIDs(["", "  ", "a"]) == ["a"],
+              "defaults: empty/whitespace rejected")
+        expect(Defaults.sanitizedAudioPriorityUIDs((0..<100).map { "uid-\($0)" }).count == 64,
+              "defaults: list capped at 64")
 
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")

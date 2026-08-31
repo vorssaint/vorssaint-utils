@@ -111,6 +111,9 @@ struct MixerSection: View {
                     if AppFeature.soundOutputSwitcher.isAvailable {
                         soundOutputSwitcherControls
                     }
+                    if AppFeature.audioPriority.isAvailable {
+                        AudioPriorityDisclosure()
+                    }
                     if AppVolumeMixer.isSupported, !listChoices.isEmpty {
                         listVisibilityFooter
                     }

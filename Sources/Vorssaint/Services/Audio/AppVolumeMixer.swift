@@ -16,7 +16,7 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let isHeadphones: Bool
     let canBeDefaultOutput: Bool
     let canBeDefaultSystemOutput: Bool
-    fileprivate let audioObjectID: AudioObjectID
+    let audioObjectID: AudioObjectID
 }
 
 /// One app in the mixer: every audio-producing process it is responsible for,
@@ -114,6 +114,10 @@ final class AppVolumeMixer: ObservableObject {
     private var sessionRoutes: [String: String] = [:]
     private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
+    /// Device priority needs the output/default substrate without per-app
+    /// process discovery. A feature transition restarts the listener set when
+    /// this mode changes, so priority-only operation never scans processes.
+    private var processMonitoringEnabled = false
     /// The global HAL listeners (devices, default output, process list), kept
     /// so stop() can remove each one again when the mixer leaves the hub.
     private var globalListeners: [AudioObjectPropertySelector] = []
@@ -159,21 +163,30 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// The whole mixer follows its hub availability: switched off means no
-    /// HAL listeners, no taps and no published state at all.
+    /// System device observation is shared with Audio device priority. The
+    /// per-app portion still follows only the Volume mixer availability.
     func syncWithPreferences() {
-        if AppFeature.mixer.isAvailable {
-            start()
-        } else {
+        let shouldObserveDevices = AppFeature.mixer.isAvailable || AppFeature.audioPriority.isAvailable
+        guard shouldObserveDevices else {
+            stop()
+            return
+        }
+
+        let shouldMonitorProcesses = AppFeature.mixer.isAvailable
+        if listenerInstalled, processMonitoringEnabled != shouldMonitorProcesses {
             stop()
         }
+        start()
     }
 
     /// Starts watching audio processes. Saved volumes re-apply as soon as the
     /// matching app produces sound — no panel interaction needed.
     func start() {
         stopped = false
-        publishHiddenApps()
+        processMonitoringEnabled = AppFeature.mixer.isAvailable
+        if processMonitoringEnabled {
+            publishHiddenApps()
+        }
         guard !listenerInstalled else {
             refreshApps()
             return
@@ -182,7 +195,7 @@ final class AppVolumeMixer: ObservableObject {
         installListener(selector: kAudioHardwarePropertyDevices)
         installListener(selector: kAudioHardwarePropertyDefaultOutputDevice)
         installListener(selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
-        if Self.isSupported {
+        if processMonitoringEnabled, Self.isSupported {
             installListener(selector: kAudioHardwarePropertyProcessObjectList)
         }
         if wakeObserver == nil {
@@ -244,6 +257,7 @@ final class AppVolumeMixer: ObservableObject {
         if systemOutputMuted != nil { systemOutputMuted = nil }
         if outputSwitchError != nil { outputSwitchError = nil }
         if needsPermission { needsPermission = false }
+        processMonitoringEnabled = false
     }
 
     /// What the audio system calls when something changes.
@@ -478,6 +492,25 @@ final class AppVolumeMixer: ObservableObject {
 
     @discardableResult
     func setUniversalOutputDeviceUID(_ uid: String) -> Bool {
+        setDefaultOutputDeviceUID(uid, source: .manualUniversalSelection)
+    }
+
+    /// Priority changes only the normal system default. Unlike the manual
+    /// universal picker, this must not erase explicit per-app routes or
+    /// promote a fallback device and thereby mutate the configured order.
+    @discardableResult
+    func setPriorityOutputDeviceUID(_ uid: String) -> Bool {
+        setDefaultOutputDeviceUID(uid, source: .automaticPriority)
+    }
+
+    private enum DefaultOutputChangeSource {
+        case manualUniversalSelection
+        case automaticPriority
+    }
+
+    @discardableResult
+    private func setDefaultOutputDeviceUID(_ uid: String,
+                                           source: DefaultOutputChangeSource) -> Bool {
         guard let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid),
               let device = outputDevices.first(where: { $0.uid == sanitized && $0.canBeDefaultOutput }) else {
             outputSwitchError = L10n.shared.s.mixerOutputUnavailable
@@ -498,11 +531,20 @@ final class AppVolumeMixer: ObservableObject {
         // still reading the previous devices is thrown away; the one at the end
         // of this method replaces it.
         refresh.discardInFlight()
-        let preferences = MixerRoutingSupport.preferencesAfterUniversalOutputSwitch(
-            outputDeviceUIDs: savedOutputDeviceUIDs(),
-            volumes: savedVolumes(),
-            switchSucceeded: true)
-        persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
+        let savedOutputUIDs = savedOutputDeviceUIDs()
+        let preferences: MixerOutputPreferences
+        switch source {
+        case .manualUniversalSelection:
+            preferences = MixerRoutingSupport.preferencesAfterUniversalOutputSwitch(
+                outputDeviceUIDs: savedOutputUIDs,
+                volumes: savedVolumes(),
+                switchSucceeded: true)
+            persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
+        case .automaticPriority:
+            preferences = MixerRoutingSupport.preferencesAfterPriorityOutputSwitch(
+                outputDeviceUIDs: savedOutputUIDs,
+                volumes: savedVolumes())
+        }
 
         currentOutputDeviceUID = device.uid
         outputDevices = outputDevices.map { outputDevice in
@@ -533,6 +575,12 @@ final class AppVolumeMixer: ObservableObject {
         }
         reconcileEngines(with: apps)
         clearPermissionIfNoActiveAdjustments()
+        // When Audio device priority is active, a manual output choice
+        // promotes the selected UID to the front of the priority list so
+        // enforcement does not immediately undo it.
+        if source == .manualUniversalSelection {
+            AudioPriorityService.shared.promoteOutputDevice(device.uid)
+        }
         refreshApps()
         return true
     }
@@ -735,6 +783,7 @@ final class AppVolumeMixer: ObservableObject {
     /// The main-thread state one refresh pass needs, copied in so the HAL pass
     /// never reads a property that another thread can be writing.
     private struct RefreshRequest {
+        let includeApps: Bool
         let previousDefaultUID: String?
         let previousOutputDevices: [MixerOutputDevice]
         let lowered: LoweredOutputState
@@ -778,12 +827,13 @@ final class AppVolumeMixer: ObservableObject {
         // request is remembered and runs as soon as that one lands.
         guard let generation = refresh.begin() else { return }
         let request = RefreshRequest(
+            includeApps: processMonitoringEnabled,
             previousDefaultUID: currentOutputDeviceUID,
             previousOutputDevices: outputDevices,
             lowered: LoweredOutputState(lastAutomaticLoweredOutputUID: lastAutomaticLoweredOutputUID,
                                         loweredOutput: loweredOutput),
-            lowerOnHeadphonesDisconnect: UserDefaults.standard.bool(
-                forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
+            lowerOnHeadphonesDisconnect: AppFeature.mixer.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
             lowerToPercent: Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(
                 UserDefaults.standard.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)),
             savedVolumes: savedVolumes(),
@@ -904,7 +954,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         let systemOutputMuted = defaultDevice.flatMap { outputMuted(for: $0.audioObjectID) }
 
-        guard isSupported else {
+        guard request.includeApps, isSupported else {
             return RefreshSnapshot(defaultUID: defaultUID,
                                    systemSoundUID: systemSoundUID,
                                    outputDevices: nextOutputDevices,
