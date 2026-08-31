@@ -12701,6 +12701,7 @@ struct MetricsTests {
             DefaultsKey.dictationHistoryEnabled,
             DefaultsKey.dictationHistorySaveAudio,
             DefaultsKey.dictationHistoryRetentionDays,
+            DefaultsKey.dictationOutputMode,
             DefaultsKey.dictationSecondaryProvider,
             DefaultsKey.dictationSecondaryOpenAIModel,
             DefaultsKey.dictationSecondaryGroqModel,
@@ -12780,6 +12781,25 @@ struct MetricsTests {
                                                         now: historyDate.addingTimeInterval(6 * 86_400),
                                                         days: 7),
                "dictation history expires exactly at the configured age")
+        let enhancedPayload = try? JSONSerialization.data(withJSONObject: [
+            "choices": [["message": ["content": "Texto revisado."]]],
+        ])
+        let enhancedText = enhancedPayload.flatMap {
+            try? DictationResponseParser.enhancedText(from: $0)
+        }
+        let legacyHistoryJSON = """
+        {"schemaVersion":1,"id":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE","createdAt":"1970-01-12T13:46:40Z","duration":4.5,"provider":"openAI","model":{"id":"whisper-1","provider":"openAI"},"language":"pt","rawText":"fala original","audioFileName":null,"processingDuration":1.25,"failure":null}
+        """.data(using: .utf8)
+        let legacyDecoder = JSONDecoder()
+        legacyDecoder.dateDecodingStrategy = .iso8601
+        let legacyHistory = legacyHistoryJSON.flatMap {
+            try? legacyDecoder.decode(DictationHistoryEntry.self, from: $0)
+        }
+        expect(DictationOutputMode.allCases == [.raw, .enhanced]
+                && enhancedText == "Texto revisado."
+                && legacyHistory?.outputMode == .raw
+                && legacyHistory?.enhancedText == nil,
+               "dictation supports enhanced output and decodes legacy history safely")
 
         var toggleGesture = DictationShortcutGesture()
         expect(toggleGesture.keyDown(at: 0, mode: .toggle, sessionIsActive: false) == .begin
@@ -12894,6 +12914,12 @@ struct MetricsTests {
         expect(dictationServiceSource.contains("preserveFailedRecordingIfEnabled")
                 && dictationServiceSource.contains(".network, .rateLimited, .server"),
                "recoverable provider failures preserve private audio for a later retry")
+        expect(dictationServiceSource.contains("func retranscribe(entry:")
+                && dictationServiceSource.contains("func importAudio(from url:")
+                && dictationServiceSource.contains("output(for rawText:")
+                && dictationClientSource.contains("func enhance(text:")
+                && dictationClientSource.contains("provider.enhancementURL"),
+               "dictation supports provider retry, Finder import and optional text enhancement")
         expect(dictationHistoryViewSource.contains("AVAudioPlayer")
                 && dictationHistoryViewSource.contains("1×")
                 && dictationHistoryViewSource.contains("2×")

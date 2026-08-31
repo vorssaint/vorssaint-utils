@@ -70,6 +70,9 @@ final class DictationHistoryStore {
             model: entry.model,
             language: entry.language,
             rawText: entry.rawText,
+            enhancedText: entry.enhancedText,
+            outputMode: entry.outputMode,
+            sourceEntryID: entry.sourceEntryID,
             audioFileName: storedAudioName,
             processingDuration: entry.processingDuration,
             failure: entry.failure)
@@ -112,11 +115,26 @@ final class DictationHistoryStore {
             model: entry.model,
             language: entry.language,
             rawText: entry.rawText,
+            enhancedText: entry.enhancedText,
+            outputMode: entry.outputMode,
+            sourceEntryID: entry.sourceEntryID,
             audioFileName: nil,
             processingDuration: entry.processingDuration,
             failure: entry.failure)
         let remaining = entries().map { $0.id == entry.id ? updated : $0 }
         write(remaining)
+    }
+
+    /// Creates a new immutable attempt while copying the source audio into the
+    /// private history directory. The source entry and its text remain intact.
+    @discardableResult
+    func saveAttempt(_ entry: DictationHistoryEntry,
+                     copiedFrom source: DictationHistoryEntry) throws -> DictationHistoryEntry {
+        guard let sourceName = source.audioFileName,
+              let sourceURL = audioURL(for: sourceName) else {
+            throw DictationHistoryStoreError.invalidAudio
+        }
+        return try save(entry, audioURL: sourceURL)
     }
 
     @discardableResult

@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import AVFoundation
 import Carbon.HIToolbox
 import Foundation
 
@@ -350,13 +351,17 @@ final class DictationService: ObservableObject {
                     self.fail(.noSpeech)
                     return
                 }
-                self.saveHistoryIfEnabled(text: text,
+                let output = await self.output(for: text, configuration: configuration)
+                guard !Task.isCancelled, self.sessionID == id else { return }
+                self.saveHistoryIfEnabled(rawText: text,
+                                          output: output.text,
+                                          outputMode: output.mode,
                                           configuration: configuration,
                                           recordingStartedAt: recordingStartedAt,
                                           recordingDuration: recordingDuration,
                                           processingDuration: Date().timeIntervalSince(processingStartedAt),
                                           audioURL: file)
-                self.insert(text, sessionID: id)
+                self.insert(output.text, sessionID: id)
             } catch let failure as DictationFailure {
                 guard failure != .cancelled, !Task.isCancelled, self.sessionID == id else { return }
                 self.fail(failure)
@@ -425,7 +430,9 @@ final class DictationService: ObservableObject {
         }
     }
 
-    private func saveHistoryIfEnabled(text: String,
+    private func saveHistoryIfEnabled(rawText: String,
+                                      output: String,
+                                      outputMode: DictationOutputMode,
                                       configuration: SessionConfiguration,
                                       recordingStartedAt: Date,
                                       recordingDuration: TimeInterval,
@@ -439,13 +446,177 @@ final class DictationService: ObservableObject {
             provider: configuration.provider,
             model: configuration.model,
             language: configuration.profile.language,
-            rawText: text,
+            rawText: rawText,
+            enhancedText: outputMode == .enhanced ? output : nil,
+            outputMode: outputMode,
             audioFileName: nil,
             processingDuration: processingDuration,
             failure: nil)
         _ = try? DictationHistoryStore.shared.save(entry, audioURL: keepAudio ? audioURL : nil)
         _ = DictationHistoryStore.shared.removeExpired(
             days: UserDefaults.standard.integer(forKey: DefaultsKey.dictationHistoryRetentionDays))
+    }
+
+    private func output(for rawText: String,
+                        configuration: SessionConfiguration) async -> (text: String, mode: DictationOutputMode) {
+        guard configuration.profile.outputMode == .enhanced else {
+            return (rawText, .raw)
+        }
+        do {
+            let enhanced = try await client.enhance(text: rawText,
+                                                    provider: configuration.provider,
+                                                    apiKey: configuration.apiKey,
+                                                    language: configuration.profile.language)
+            return (enhanced, .enhanced)
+        } catch {
+            // Literal text is always a safe, useful fallback when the optional
+            // second request is unavailable or cancelled.
+            return (rawText, .raw)
+        }
+    }
+
+    func retranscribe(entry: DictationHistoryEntry,
+                      provider: DictationProvider,
+                      model: DictationModel,
+                      language: DictationLanguage,
+                      outputMode: DictationOutputMode? = nil) async throws -> DictationHistoryEntry {
+        guard let fileName = entry.audioFileName,
+              let file = DictationHistoryStore.shared.audioURL(for: fileName) else {
+            throw DictationFailure.noSpeech
+        }
+        let key = try apiKey(for: provider)
+        let started = Date()
+        let raw = try await client.transcribe(file: file,
+                                              provider: provider,
+                                              model: model,
+                                              apiKey: key,
+                                              language: language)
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw DictationFailure.noSpeech
+        }
+        let requestedMode = outputMode ?? currentOutputMode
+        let configuration = SessionConfiguration(provider: provider,
+                                                 model: model,
+                                                 apiKey: key,
+                                                 profile: DictationShortcutProfile(
+                                                    slot: .primary,
+                                                    mode: .toggle,
+                                                    provider: provider,
+                                                    model: model,
+                                                    language: language,
+                                                    microphoneUID: nil,
+                                                    outputMode: requestedMode))
+        let output = await output(for: raw, configuration: configuration)
+        let attempt = DictationHistoryEntry(
+            createdAt: Date(),
+            duration: entry.duration,
+            provider: provider,
+            model: model,
+            language: language,
+            rawText: raw,
+            enhancedText: output.mode == .enhanced ? output.text : nil,
+            outputMode: output.mode,
+            sourceEntryID: entry.id,
+            audioFileName: nil,
+            processingDuration: Date().timeIntervalSince(started),
+            failure: nil)
+        return try DictationHistoryStore.shared.saveAttempt(attempt, copiedFrom: entry)
+    }
+
+    func importAudio(from url: URL,
+                     provider: DictationProvider,
+                     model: DictationModel,
+                     language: DictationLanguage,
+                     outputMode: DictationOutputMode? = nil) async throws -> DictationHistoryEntry {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let values = try? url.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true,
+              let size = values.fileSize,
+              size > 0,
+              size <= DictationMultipartBody.maximumAudioBytes else {
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            throw size > DictationMultipartBody.maximumAudioBytes
+                ? DictationFailure.audioTooLarge : DictationFailure.noSpeech
+        }
+        let key = try apiKey(for: provider)
+        let started = Date()
+        let raw = try await client.transcribe(file: url,
+                                              provider: provider,
+                                              model: model,
+                                              apiKey: key,
+                                              language: language,
+                                              fileName: url.lastPathComponent,
+                                              mimeType: Self.mimeType(for: url.pathExtension))
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw DictationFailure.noSpeech
+        }
+        let mode = outputMode ?? currentOutputMode
+        let configuration = SessionConfiguration(provider: provider,
+                                                 model: model,
+                                                 apiKey: key,
+                                                 profile: DictationShortcutProfile(
+                                                    slot: .primary,
+                                                    mode: .toggle,
+                                                    provider: provider,
+                                                    model: model,
+                                                    language: language,
+                                                    microphoneUID: nil,
+                                                    outputMode: mode))
+        let output = await output(for: raw, configuration: configuration)
+        let entry = DictationHistoryEntry(
+            createdAt: Date(),
+            duration: Self.audioDuration(url),
+            provider: provider,
+            model: model,
+            language: language,
+            rawText: raw,
+            enhancedText: output.mode == .enhanced ? output.text : nil,
+            outputMode: output.mode,
+            audioFileName: nil,
+            processingDuration: Date().timeIntervalSince(started),
+            failure: nil)
+        return try DictationHistoryStore.shared.save(
+            entry,
+            audioURL: UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio) ? url : nil)
+    }
+
+    private var currentOutputMode: DictationOutputMode {
+        DictationOutputMode(rawValue: UserDefaults.standard.string(
+            forKey: DefaultsKey.dictationOutputMode) ?? "") ?? .raw
+    }
+
+    private func apiKey(for provider: DictationProvider) throws -> String {
+        do {
+            guard let key = try storedKey(for: provider),
+                  !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw DictationFailure.missingKey
+            }
+            return key
+        } catch let failure as DictationFailure {
+            throw failure
+        } catch {
+            throw DictationFailure.keychain
+        }
+    }
+
+    private static func mimeType(for extensionName: String) -> String {
+        switch extensionName.lowercased() {
+        case "wav": return "audio/wav"
+        case "mp3": return "audio/mpeg"
+        case "m4a", "mp4": return "audio/mp4"
+        case "webm": return "audio/webm"
+        case "ogg", "oga": return "audio/ogg"
+        case "flac": return "audio/flac"
+        default: return "application/octet-stream"
+        }
+    }
+
+    private static func audioDuration(_ url: URL) -> TimeInterval {
+        guard let file = try? AVAudioFile(forReading: url), file.fileFormat.sampleRate > 0 else { return 0 }
+        return Double(file.length) / file.fileFormat.sampleRate
     }
 
     private func finishSuccessfully() {
@@ -618,10 +789,13 @@ final class DictationService: ObservableObject {
         let microphoneKey = secondary ? DefaultsKey.dictationSecondaryMicrophone : DefaultsKey.dictationMicrophone
         let microphone = defaults.string(forKey: microphoneKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
         let microphoneUID = microphone?.isEmpty == false ? microphone : nil
+        let outputMode = DictationOutputMode(rawValue: defaults.string(
+            forKey: DefaultsKey.dictationOutputMode) ?? "") ?? .raw
         return DictationShortcutProfile(slot: slot, mode: mode, provider: provider,
                                         model: provider.sanitizedModel(defaults.string(forKey: modelKey)),
                                         language: language,
-                                        microphoneUID: microphoneUID)
+                                        microphoneUID: microphoneUID,
+                                        outputMode: outputMode)
     }
 
     private func prepareForRegistration(_ slot: DictationShortcutSlot,

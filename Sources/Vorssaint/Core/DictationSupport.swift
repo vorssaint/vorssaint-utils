@@ -23,6 +23,23 @@ enum DictationProvider: String, CaseIterable, Identifiable, Codable {
         }
     }
 
+    var enhancementURL: URL {
+        switch self {
+        case .openAI: return URL(string: "https://api.openai.com/v1/chat/completions")!
+        case .groq: return URL(string: "https://api.groq.com/openai/v1/chat/completions")!
+        }
+    }
+
+    /// Chat-capable model used only for optional text cleanup. Transcription
+    /// models are deliberately not reused because providers expose different
+    /// model families for audio and text requests.
+    var enhancementModelID: String {
+        switch self {
+        case .openAI: return "gpt-4o-mini"
+        case .groq: return "llama-3.3-70b-versatile"
+        }
+    }
+
     var models: [DictationModel] {
         switch self {
         case .openAI:
@@ -43,6 +60,20 @@ enum DictationProvider: String, CaseIterable, Identifiable, Codable {
 
     func sanitizedModel(_ raw: String?) -> DictationModel {
         models.first { $0.id == raw } ?? defaultModel
+    }
+}
+
+enum DictationOutputMode: String, CaseIterable, Identifiable, Codable {
+    case raw
+    case enhanced
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .raw: return "Transcrição crua"
+        case .enhanced: return "Aprimorada"
+        }
     }
 }
 
@@ -271,12 +302,26 @@ enum DictationHTTPErrorClassifier {
 
 enum DictationResponseParser {
     static let maximumResponseBytes = 256 * 1_024
+    static let maximumTextBytes = 128 * 1_024
 
     static func transcript(from data: Data) throws -> String {
         guard data.count <= maximumResponseBytes,
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let text = object["text"] as? String
         else { throw DictationFailure.invalidResponse }
+        return text
+    }
+
+    static func enhancedText(from data: Data) throws -> String {
+        guard data.count <= maximumResponseBytes,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let choices = object["choices"] as? [[String: Any]],
+              let message = choices.first?["message"] as? [String: Any],
+              let text = message["content"] as? String,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              text.utf8.count <= maximumTextBytes else {
+            throw DictationFailure.invalidResponse
+        }
         return text
     }
 }

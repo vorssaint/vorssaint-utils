@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct DictationSettings: View {
     @ObservedObject private var l10n = L10n.shared
@@ -30,11 +31,15 @@ struct DictationSettings: View {
     @AppStorage(DefaultsKey.dictationHistoryEnabled) private var historyEnabled = false
     @AppStorage(DefaultsKey.dictationHistorySaveAudio) private var historySaveAudio = true
     @AppStorage(DefaultsKey.dictationHistoryRetentionDays) private var historyRetentionDays = 7
+    @AppStorage(DefaultsKey.dictationOutputMode) private var outputModeRaw = DictationOutputMode.raw.rawValue
     @State private var keyDraft = ""
     @State private var status: Status?
     @State private var testing = false
     @State private var testTask: Task<Void, Never>?
     @State private var microphones: [DictationInputDevice] = []
+    @State private var importingAudio = false
+    @State private var importTask: Task<Void, Never>?
+    @State private var importStatus: String?
 
     private enum Status {
         case saved, removed, testSucceeded, failure(DictationFailure)
@@ -162,6 +167,20 @@ struct DictationSettings: View {
             } header: { Text(activation.activation) }
 
             Section {
+                Picker("Saída do texto", selection: $outputModeRaw) {
+                    ForEach(DictationOutputMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode.rawValue)
+                    }
+                }
+                .onChange(of: outputModeRaw) { _, _ in service.syncWithPreferences() }
+                Text(outputModeRaw == DictationOutputMode.enhanced.rawValue
+                     ? "Corrige pontuação e organiza parágrafos; o texto cru continua preservado no histórico."
+                     : "Insere exatamente o texto retornado pelo provedor.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } header: { Text("Saída") }
+
+            Section {
                 Toggle("Pausar mídia durante o ditado", isOn: $pauseMedia)
                 Picker("Retomar mídia após", selection: $mediaResumeDelay) {
                     ForEach(0 ... 5, id: \.self) { seconds in
@@ -184,6 +203,15 @@ struct DictationSettings: View {
                 .disabled(!historyEnabled)
                 NavigationLink("Abrir histórico") {
                     DictationHistoryView()
+                }
+                Button(importingAudio ? "Importando…" : "Importar áudio…") {
+                    importingAudio = true
+                }
+                .disabled(importingAudio)
+                if let importStatus {
+                    Text(importStatus)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -237,7 +265,20 @@ struct DictationSettings: View {
             loadKey()
             service.syncWithPreferences()
         }
-        .onDisappear { cancelConfigurationTest() }
+        .onDisappear {
+            cancelConfigurationTest()
+            importTask?.cancel()
+        }
+        .fileImporter(isPresented: $importingAudio,
+                      allowedContentTypes: [.audio],
+                      allowsMultipleSelection: false) { result in
+            guard case .success(let urls) = result,
+                  let url = urls.first else {
+                importingAudio = false
+                return
+            }
+            importAudio(url)
+        }
     }
 
     private var modelBinding: Binding<String> {
@@ -354,6 +395,34 @@ struct DictationSettings: View {
         switch status {
         case .saved, .removed, .testSucceeded: return true
         case .failure: return false
+        }
+    }
+
+    private func importAudio(_ url: URL) {
+        importingAudio = false
+        importStatus = nil
+        importTask?.cancel()
+        let provider = provider
+        let model = provider.sanitizedModel(provider == .openAI ? openAIModel : groqModel)
+        let language = DictationLanguage(rawValue: languageRaw) ?? .automatic
+        let mode = DictationOutputMode(rawValue: outputModeRaw) ?? .raw
+        importTask = Task {
+            do {
+                _ = try await service.importAudio(from: url,
+                                                  provider: provider,
+                                                  model: model,
+                                                  language: language,
+                                                  outputMode: mode)
+                guard !Task.isCancelled else { return }
+                importStatus = "Áudio importado para o histórico."
+            } catch let failure as DictationFailure {
+                guard !Task.isCancelled else { return }
+                importStatus = strings.failureMessage(failure)
+            } catch {
+                guard !Task.isCancelled else { return }
+                importStatus = strings.failureMessage(.network)
+            }
+            importTask = nil
         }
     }
 }

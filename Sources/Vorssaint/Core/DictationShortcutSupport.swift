@@ -188,6 +188,23 @@ struct DictationShortcutProfile: Equatable {
     let model: DictationModel
     let language: DictationLanguage
     let microphoneUID: String?
+    let outputMode: DictationOutputMode
+
+    init(slot: DictationShortcutSlot,
+         mode: DictationShortcutMode,
+         provider: DictationProvider,
+         model: DictationModel,
+         language: DictationLanguage,
+         microphoneUID: String?,
+         outputMode: DictationOutputMode = .raw) {
+        self.slot = slot
+        self.mode = mode
+        self.provider = provider
+        self.model = model
+        self.language = language
+        self.microphoneUID = microphoneUID
+        self.outputMode = outputMode
+    }
 }
 
 enum DictationShortcutAction: Equatable {

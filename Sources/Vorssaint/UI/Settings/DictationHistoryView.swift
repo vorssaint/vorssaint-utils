@@ -11,6 +11,8 @@ struct DictationHistoryView: View {
     @State private var playbackRate = 1.0
     @State private var entryToDelete: DictationHistoryEntry?
     @State private var deleteAudioOnly = false
+    @State private var retryingID: UUID?
+    @State private var retryStatus: String?
 
     var body: some View {
         Group {
@@ -29,8 +31,22 @@ struct DictationHistoryView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .font(.headline)
-                        Text(entry.rawText)
+                        Text(entry.enhancedText ?? entry.rawText)
                             .lineLimit(3)
+                        if entry.enhancedText != nil {
+                            Text("Crua: \(entry.rawText)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            Text("Saída aprimorada")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let failure = entry.failure {
+                            Label("Falha anterior: \(failure)", systemImage: "exclamationmark.triangle")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
                         HStack(spacing: 10) {
                             Label(entry.language.displayName, systemImage: "globe")
                             Text(entry.model.id)
@@ -48,6 +64,7 @@ struct DictationHistoryView: View {
                                 }
                                 .buttonStyle(.borderless)
                                 .accessibilityLabel("Apagar áudio")
+                                retryMenu(for: entry)
                             }
                             Spacer()
                             Button(role: .destructive) {
@@ -78,6 +95,14 @@ struct DictationHistoryView: View {
                 Button("Atualizar", systemImage: "arrow.clockwise", action: reload)
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            if let retryStatus {
+                Text(retryStatus)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
+            }
+        }
         .onChange(of: playbackRate) { _, rate in player?.rate = Float(rate) }
         .onAppear(perform: reload)
         .onDisappear {
@@ -103,6 +128,49 @@ struct DictationHistoryView: View {
 
     private func reload() {
         entries = DictationHistoryStore.shared.entries()
+    }
+
+    @ViewBuilder
+    private func retryMenu(for entry: DictationHistoryEntry) -> some View {
+        Menu(retryingID == entry.id ? "Retranscrevendo…" : "Retranscrever") {
+            ForEach(DictationProvider.allCases) { provider in
+                Menu(provider == .openAI ? "OpenAI" : "Groq") {
+                    ForEach(provider.models) { model in
+                        Button(model.id) {
+                            retry(entry, provider: provider, model: model)
+                        }
+                    }
+                }
+            }
+        }
+        .disabled(retryingID != nil)
+    }
+
+    private func retry(_ entry: DictationHistoryEntry,
+                       provider: DictationProvider,
+                       model: DictationModel) {
+        guard entry.audioFileName != nil else { return }
+        retryingID = entry.id
+        retryStatus = nil
+        Task {
+            do {
+                _ = try await DictationService.shared.retranscribe(
+                    entry: entry,
+                    provider: provider,
+                    model: model,
+                    language: entry.language)
+                guard !Task.isCancelled else { return }
+                reload()
+                retryStatus = "Nova tentativa salva no histórico."
+            } catch let failure as DictationFailure {
+                guard !Task.isCancelled else { return }
+                retryStatus = FeatureStrings.dictation(L10n.shared.language).failureMessage(failure)
+            } catch {
+                guard !Task.isCancelled else { return }
+                retryStatus = FeatureStrings.dictation(L10n.shared.language).failureMessage(.network)
+            }
+            retryingID = nil
+        }
     }
 
     private func togglePlayback(_ entry: DictationHistoryEntry) {

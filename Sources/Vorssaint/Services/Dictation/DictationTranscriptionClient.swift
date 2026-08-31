@@ -25,7 +25,9 @@ final class DictationTranscriptionClient {
                     provider: DictationProvider,
                     model: DictationModel,
                     apiKey: String,
-                    language: DictationLanguage = .automatic) async throws -> String {
+                    language: DictationLanguage = .automatic,
+                    fileName: String = "dictation.m4a",
+                    mimeType: String = "audio/mp4") async throws -> String {
         guard model.provider == provider else { throw DictationFailure.invalidResponse }
         let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { throw DictationFailure.missingKey }
@@ -50,8 +52,8 @@ final class DictationTranscriptionClient {
         }
         let multipart = try DictationMultipartBody(model: model.id,
                                                     language: language,
-                                                    fileName: "dictation.m4a",
-                                                    mimeType: "audio/mp4",
+                                                    fileName: fileName,
+                                                    mimeType: mimeType,
                                                     audio: audio)
         var request = URLRequest(url: provider.transcriptionURL)
         request.httpMethod = "POST"
@@ -110,6 +112,59 @@ final class DictationTranscriptionClient {
         guard data.count <= DictationResponseParser.maximumResponseBytes,
               (try? JSONSerialization.jsonObject(with: data)) != nil
         else { throw DictationFailure.invalidResponse }
+    }
+
+    func enhance(text: String,
+                 provider: DictationProvider,
+                 apiKey: String,
+                 language: DictationLanguage) async throws -> String {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { throw DictationFailure.missingKey }
+        let source = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !source.isEmpty else { throw DictationFailure.noSpeech }
+        guard source.utf8.count <= DictationResponseParser.maximumTextBytes else {
+            throw DictationFailure.invalidResponse
+        }
+        let languageInstruction = language == .automatic
+            ? "preserve the language used in the input"
+            : "write the result in \(language.displayName)"
+        let body: [String: Any] = [
+            "model": provider.enhancementModelID,
+            "temperature": 0.1,
+            "messages": [
+                ["role": "system", "content": "You clean dictation text. \(languageInstruction). Correct only obvious transcription errors, add natural punctuation and paragraph breaks, and never invent, remove, or translate factual content. Return only the final text."],
+                ["role": "user", "content": source],
+            ],
+        ]
+        guard JSONSerialization.isValidJSONObject(body),
+              let requestData = try? JSONSerialization.data(withJSONObject: body) else {
+            throw DictationFailure.invalidResponse
+        }
+        var request = URLRequest(url: provider.enhancementURL)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
+        request.httpBody = requestData
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch is CancellationError {
+            throw DictationFailure.cancelled
+        } catch let error as URLError where error.code == .cancelled {
+            throw DictationFailure.cancelled
+        } catch {
+            throw DictationFailure.network
+        }
+        guard let http = response as? HTTPURLResponse else {
+            throw DictationFailure.invalidResponse
+        }
+        if let failure = DictationHTTPErrorClassifier.failure(statusCode: http.statusCode) {
+            throw failure
+        }
+        return try DictationResponseParser.enhancedText(from: data)
     }
 
     deinit {
