@@ -101,15 +101,38 @@ enum SelfUninstall {
 
     private static func detachFromSystem() {
         FanControlService.restoreAndUnregisterForRemoval()
-        // Restore normal sleep if a closed-lid session left it disabled.
         if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
-            _ = Sudoers.pmsetDisableSleep(false)
+            restoreSleepBeforeRemoval()
         }
         // Unregister the login item (scoped to our bundle id). The stored
         // intent goes with it, or the startup repair would quietly register
         // the item again after the user asked for a clean detach.
         UserDefaults.standard.set(false, forKey: DefaultsKey.launchAtLoginWanted)
         try? SMAppService.mainApp.unregister()
+    }
+
+    /// Puts normal sleep back before the app goes.
+    ///
+    /// `KeepAwakeManager` is allowed to give up on a failed revert when the app
+    /// is merely quitting, because "the next start repairs a revert that was
+    /// missed". Removal is the one exit with no next start, and the flag that
+    /// would trigger that repair is deleted with the rest of the preferences a
+    /// moment later — so a reinstall does not fix it either, since recovery
+    /// reads the flag before it reads the setting. This is the last chance
+    /// anything has, which is why it may ask for the password the launch-time
+    /// recovery would have asked for.
+    private static func restoreSleepBeforeRemoval() {
+        // The flag can outlive the setting, so a stale one must not put a
+        // password dialog in front of someone uninstalling. Only a reading that
+        // answered, and answered "off", is allowed to skip the rest: a probe
+        // that failed says nothing. Going on then costs a no-op call, and a
+        // dialog only if that call fails too — the case where sleep really may
+        // still be off with nothing else left to put it back.
+        let probe = Shell.run("/usr/bin/pmset", ["-g"])
+        if probe.status == 0, !SudoersSupport.sleepDisabled(inPmsetOutput: probe.output) { return }
+        if Sudoers.pmsetDisableSleep(false) { return }
+        _ = AdminShell.runSync("pmset disablesleep 0",
+                               prompt: L10n.shared.s.adminPromptRecover)
     }
 
     private static func removeSudoersRuleIfPresent(then: @escaping () -> Void) {

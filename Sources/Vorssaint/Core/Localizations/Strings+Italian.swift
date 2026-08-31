@@ -803,6 +803,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Premi Esc 5 volte per sbloccare",
         cleaningOverlayUnlock: "Sblocca",
         cleaningOverlayMouseHint: "Mouse e trackpad continuano a funzionare",
+        cleaningKeepScreenVisibleToggle: "Mantieni lo schermo visibile",
+        cleaningKeepScreenVisibleCaption: "Mostra un indicatore discreto nell'angolo dello schermo anziché oscurare i contenuti.",
+        cleaningStartNow: "Blocca la tastiera ora",
         cleaningNeedsAxTitle: "Serve l'Accessibilità",
         cleaningNeedsAxBody: "Per bloccare la tastiera in sicurezza, Vorssaint ha bisogno dell'autorizzazione di Accessibilità. Concedila in Impostazioni di Sistema e riprova.",
 

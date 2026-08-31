@@ -804,6 +804,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Нажмите Esc 5 раз, чтобы разблокировать",
         cleaningOverlayUnlock: "Разблокировать",
         cleaningOverlayMouseHint: "Мышь и трекпад продолжают работать",
+        cleaningKeepScreenVisibleToggle: "Оставлять экран видимым",
+        cleaningKeepScreenVisibleCaption: "Показывает компактный индикатор в углу экрана вместо затемнения содержимого.",
+        cleaningStartNow: "Заблокировать клавиатуру сейчас",
         cleaningNeedsAxTitle: "Нужен Универсальный доступ",
         cleaningNeedsAxBody: "Чтобы безопасно блокировать клавиатуру, Vorssaint нужен доступ к Универсальному доступу. Выдайте его в Системных настройках и попробуйте снова.",
 

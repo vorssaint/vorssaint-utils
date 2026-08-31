@@ -2973,6 +2973,8 @@ struct MetricsTests {
                "keyboard debounce per-key windows start empty")
         expect(registeredDefaults[DefaultsKey.panelUtilityCleaning] as? Bool == true,
                "panel cleaning utility is visible by default")
+        expect(registeredDefaults[DefaultsKey.cleaningModeKeepScreenVisible] as? Bool == false,
+               "cleaning mode keep screen visible is disabled by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityURLCleaner] as? Bool == true,
                "panel URL cleaner utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityUninstaller] as? Bool == true,
@@ -11200,6 +11202,12 @@ struct MetricsTests {
                               strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
             expect(ocrStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen OCR strings are present without em dash")
+            let cleaningStrings = [strings.cleaningKeepScreenVisibleToggle, strings.cleaningKeepScreenVisibleCaption,
+                                   strings.cleaningStartNow, strings.cleaningOverlayTitle,
+                                   strings.cleaningOverlaySubtitle, strings.cleaningOverlayUnlock,
+                                   strings.cleaningOverlayMouseHint, strings.cleaningPanelCaption]
+            expect(cleaningStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                   "\(prefix) cleaning mode strings are present without em dash")
             let highlightsStrings = [strings.highlightsTitle, strings.highlightsTitleClipboardRedesign,
                                      strings.highlightsCaptionDockPreview,
                                      strings.highlightsCaptionScreenshot,
@@ -13052,10 +13060,11 @@ struct MetricsTests {
         expect(AppFeature.windowMaximizer.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
                 && AppFeature.mixer.settingsDestination
-                == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
-                && AppFeature.cleaningMode.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration),
                "panel-oriented features land on General panel configuration")
+        expect(AppFeature.cleaningMode.settingsDestination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
+               "cleaning mode lands on Quick Tools cleaning mode section")
         expect(AppFeature.musicBlock.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
                 && AppFeature.soundOutputSwitcher.settingsDestination
@@ -17456,6 +17465,8 @@ struct MetricsTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
         expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        expect(backupKeys.contains(DefaultsKey.cleaningModeKeepScreenVisible),
+               "the cleaning mode keep screen visible choice travels with the settings backup")
         expect(backupKeys.contains(DefaultsKey.appearance),
                "the light or dark choice travels with the settings backup")
         expect(Set([
@@ -20618,6 +20629,22 @@ struct MetricsTests {
         }
         expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+        // Restoring sleep used to be fired and forgotten at both exits. A
+        // failure there leaves `pmset disablesleep 1` set system-wide, and
+        // removal deletes the flag that launch-time recovery reads before it
+        // reads the setting, so nothing repairs it afterwards — a reinstall
+        // included.
+        let uninstallerSource = (try? String(contentsOfFile: "Sources/Vorssaint/Support/Uninstaller.swift",
+                                             encoding: .utf8)) ?? ""
+        expect(!uninstallerSource.isEmpty,
+               "uninstaller entry point reads back for the sleep restore check")
+        expect(!selfUninstallSource.contains("_ = Sudoers.pmsetDisableSleep")
+                && !uninstallerSource.contains("_ = Sudoers.pmsetDisableSleep"),
+               "neither uninstall path discards the result of restoring sleep")
+        expect(selfUninstallSource.contains("adminPromptRecover"),
+               "in-app uninstall escalates a failed sleep restore to the password prompt")
+        expect(uninstallScriptSource.contains("SleepDisabled"),
+               "script uninstall reads the sleep setting back for itself")
 
         // MARK: Detached command reruns (counted last, so a late rerun still fails)
         // The `||` form reran the whole installer — as root — on every non-zero

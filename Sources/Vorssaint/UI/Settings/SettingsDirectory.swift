@@ -216,6 +216,7 @@ enum SettingsDirectory {
                                         (.cameraPreview,
                                          [FeatureStrings.cameraPreview(language).pageTitle]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
+                                        (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .screenshot,
                                        title: FeatureStrings.screenshot(language).screenCaptureTitle,

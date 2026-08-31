@@ -940,6 +940,9 @@ struct Strings {
     let cleaningOverlaySubtitle: String
     let cleaningOverlayUnlock: String
     let cleaningOverlayMouseHint: String
+    let cleaningKeepScreenVisibleToggle: String
+    let cleaningKeepScreenVisibleCaption: String
+    let cleaningStartNow: String
     let cleaningNeedsAxTitle: String
     let cleaningNeedsAxBody: String
 
@@ -1926,6 +1929,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Pressione Esc 5 vezes para desbloquear",
         cleaningOverlayUnlock: "Desbloquear",
         cleaningOverlayMouseHint: "O mouse e o trackpad continuam funcionando",
+        cleaningKeepScreenVisibleToggle: "Manter a tela visível",
+        cleaningKeepScreenVisibleCaption: "Exibe um indicador discreto no canto da tela em vez de escurecer o conteúdo.",
+        cleaningStartNow: "Bloquear teclado agora",
         cleaningNeedsAxTitle: "Precisa de Acessibilidade",
         cleaningNeedsAxBody: "Para bloquear o teclado com segurança, o Vorssaint precisa da permissão de Acessibilidade. Conceda em Ajustes do Sistema e tente de novo.",
 
@@ -2906,6 +2912,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Press Escape 5 times to unlock",
         cleaningOverlayUnlock: "Unlock",
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
+        cleaningKeepScreenVisibleToggle: "Keep screen visible",
+        cleaningKeepScreenVisibleCaption: "Shows a discreet indicator in the corner of the screen instead of blacking out content.",
+        cleaningStartNow: "Lock keyboard now",
         cleaningNeedsAxTitle: "Accessibility needed",
         cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Grant it in System Settings and try again.",
 

@@ -803,6 +803,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Kilidi açmak için Esc tuşuna 5 kez bas",
         cleaningOverlayUnlock: "Kilidi aç",
         cleaningOverlayMouseHint: "Fare ve izleme dörtgeni çalışmaya devam eder",
+        cleaningKeepScreenVisibleToggle: "Ekranı görünür tut",
+        cleaningKeepScreenVisibleCaption: "İçeriği karartmak yerine ekranın köşesinde göze çarpmayan bir gösterge gösterir.",
+        cleaningStartNow: "Klavyeyi şimdi kilitle",
         cleaningNeedsAxTitle: "Erişilebilirlik gerekli",
         cleaningNeedsAxBody: "Klavyeyi güvenle kilitlemek için Vorssaint'in Erişilebilirlik iznine ihtiyacı var. Sistem Ayarları'ndan izin ver ve tekrar dene.",
 
