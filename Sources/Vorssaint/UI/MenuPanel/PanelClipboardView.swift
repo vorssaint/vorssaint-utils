@@ -86,6 +86,9 @@ struct PanelClipboardView: View {
                 .help(text.clearRecent)
                 .disabled(history.recentEntries.isEmpty)
                 Button {
+                    // The window takes over from the panel, as a double-click
+                    // on a row does; two clipboards on screen is one too many.
+                    appDelegate()?.closePopover()
                     history.showHistoryWindow()
                 } label: {
                     Image(systemName: "arrow.up.forward.app")
@@ -134,6 +137,10 @@ struct PanelClipboardView: View {
                              fallback: .clipboardDefault)
     }
 
+    private static var uniformRows: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.clipboardUniformRows)
+    }
+
     @ViewBuilder
     private func entryPreview(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
@@ -141,7 +148,8 @@ struct PanelClipboardView: View {
             // Deliberately not selectable: clicking a selectable Text swaps in
             // the selection renderer, which lays the whole preview out and
             // ignores the line limit, so a long entry paints over the rows
-            // below it. The history window shows the full, selectable text.
+            // below it. Double-clicking the row opens the full, selectable text
+            // in the history window instead.
             Text(entry.preview)
                 .font(.system(size: 10.5))
                 .lineLimit(3)
@@ -154,7 +162,7 @@ struct PanelClipboardView: View {
                     Image(nsImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 110, maxHeight: 40)
+                        .frame(maxWidth: Self.uniformRows ? 22 : 110, maxHeight: Self.uniformRows ? 22 : 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
                 Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
@@ -170,7 +178,7 @@ struct PanelClipboardView: View {
                     Image(nsImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 110, maxHeight: 40)
+                        .frame(maxWidth: Self.uniformRows ? 22 : 110, maxHeight: Self.uniformRows ? 22 : 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                     Text(entry.fileNames.first ?? entry.preview)
                         .font(.system(size: 10.5))
@@ -257,11 +265,24 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.delete)
                 Spacer()
+                ClipboardKindCapsule(entry: entry, text: text)
+                    .frame(maxWidth: 96)
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
             }
         }
         .panelCard()
+        // The row shows three lines at most, so the whole item lives one
+        // double-click away, in the history window's preview pane. The buttons
+        // above keep their own clicks; this only picks up the rest of the card.
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            // The window takes over from here, so the panel gets out of the
+            // way: two clipboards on screen at once is one too many.
+            appDelegate()?.closePopover()
+            history.showHistoryWindow(focusing: entry)
+        }
+        .help(text.openInWindowHint)
     }
 }

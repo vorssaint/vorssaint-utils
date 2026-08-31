@@ -16,6 +16,9 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
+    @AppStorage(DefaultsKey.clipboardHistoryQuickPreviewByDefault) private var previewByDefault = false
+    @AppStorage(DefaultsKey.clipboardUniformRows) private var uniformRows = true
+    @AppStorage(DefaultsKey.clipboardArrowOpensActions) private var arrowOpensActions = true
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
     @AppStorage(DefaultsKey.clipboardAutoClearDelay)
@@ -171,6 +174,18 @@ struct ClipboardSettings: View {
             Text(text.shortcutCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            Toggle(text.previewByDefault, isOn: $previewByDefault)
+                .disabled(!enabled)
+            Text(text.previewByDefaultCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(text.uniformRows, isOn: $uniformRows)
+                .disabled(!enabled)
+            Text(text.uniformRowsCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(text.arrowOpensActions, isOn: $arrowOpensActions)
+                .disabled(!enabled)
             Button {
                 ClipboardHistoryService.shared.showHistoryWindow()
             } label: {
