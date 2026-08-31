@@ -4255,8 +4255,10 @@ struct MetricsTests {
         expect(!CleanerSupport.isProtectedBundleID("com.vendor.editor"),
                "third party identifiers are eligible for the leftover check")
         expect(UninstallerSupport.verifiedBundleID("com.vendor.editor") == "com.vendor.editor"
-               && UninstallerSupport.verifiedBundleID("com.vendor.editor.helper") == "com.vendor.editor.helper",
-               "the uninstaller accepts exact third party bundle identifiers and embedded helpers")
+               && UninstallerSupport.verifiedBundleID("com.vendor.editor.helper") == "com.vendor.editor.helper"
+               && UninstallerSupport.verifiedBundleID("md.obsidian") == "md.obsidian"
+               && UninstallerSupport.verifiedBundleID("notion.id") == "notion.id",
+               "the uninstaller accepts exact third party bundle identifiers, two-component IDs, and embedded helpers")
         expect(UninstallerSupport.verifiedBundleID(nil) == nil
                && UninstallerSupport.verifiedBundleID("") == nil
                && UninstallerSupport.verifiedBundleID("plain-name") == nil
@@ -4374,6 +4376,20 @@ struct MetricsTests {
                    identity: UninstallerSupport.identity(bundleIDs: ["com.vendor.exampleapp"],
                                                          displayNames: ["Example App 2"])),
                "spaces and trailing version numbers do not hide a leftover named after the app")
+        let twoPartIdentity = UninstallerSupport.identity(
+            primaryBundleID: "md.obsidian",
+            bundleIDs: ["md.obsidian"],
+            displayNames: ["Obsidian", "Obsidian.app"])
+        expect(twoPartIdentity.nameTokens.contains("obsidian")
+               && twoPartIdentity.bundleIDs.contains("md.obsidian"),
+               "two-part bundle identifiers yield both display name tokens and exact bundle IDs")
+        expect(UninstallerSupport.leftoverMatch("Obsidian", identity: twoPartIdentity) == .related
+               && UninstallerSupport.leftoverMatch("obsidian", identity: twoPartIdentity) == .related
+               && UninstallerSupport.leftoverMatch("md.obsidian.plist", identity: twoPartIdentity) == .exact
+               && UninstallerSupport.leftoverMatch("md.obsidian", identity: twoPartIdentity) == .exact
+               && UninstallerSupport.leftoverMatch("md.obsidian.ShipIt", identity: twoPartIdentity) == .related
+               && UninstallerSupport.leftoverMatch("Unrelated", identity: twoPartIdentity) == .none,
+               "two-part bundle identifiers match exact and related leftovers correctly")
         expect(UninstallerSupport.identity(primaryBundleID: "com.vendor.browser",
                                            bundleIDs: ["com.vendor.browser"],
                                            displayNames: ["Vendor Browser"]).nameTokens.contains("browser"),
@@ -4602,15 +4618,23 @@ struct MetricsTests {
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
                "stale DeviceSupport symbol caches count as developer junk")
         expect(CleanerSupport.looksLikeBundleID("com.vendor.editor")
-               && CleanerSupport.looksLikeBundleID("com.foo.Bar-Helper_2"),
-               "reverse DNS names are recognized")
+               && CleanerSupport.looksLikeBundleID("com.foo.Bar-Helper_2")
+               && CleanerSupport.looksLikeBundleID("md.obsidian")
+               && CleanerSupport.looksLikeBundleID("notion.id")
+               && CleanerSupport.looksLikeBundleID("com.foo"),
+               "reverse DNS names and two-component bundle identifiers are recognized")
         expect(!CleanerSupport.looksLikeBundleID("VendorFolder")
-               && !CleanerSupport.looksLikeBundleID("com.foo")
+               && !CleanerSupport.looksLikeBundleID("Obsidian")
                && !CleanerSupport.looksLikeBundleID("com..foo")
+               && !CleanerSupport.looksLikeBundleID(".com.foo")
+               && !CleanerSupport.looksLikeBundleID("com.foo.")
                && !CleanerSupport.looksLikeBundleID("com.foo.bár"),
-               "plain names, short names and odd characters never match by name")
+               "plain names, empty parts and odd characters never match by name")
         expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.plist") == "com.vendor.editor"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "md.obsidian.plist") == "md.obsidian"
                && CleanerSupport.bundleIDCandidate(fromEntryName: "group.com.foo.bar") == "com.foo.bar"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "group.md.obsidian") == "md.obsidian"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "ABCD123456.md.obsidian") == "md.obsidian"
                && CleanerSupport.bundleIDCandidate(fromEntryName: "com.foo.bar.savedState") == "com.foo.bar"
                && CleanerSupport.bundleIDCandidate(fromEntryName: "com.foo.bar.binarycookies") == "com.foo.bar",
                "entry names map to their owning bundle identifier")
