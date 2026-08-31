@@ -10,8 +10,14 @@ final class StatusItemController {
     var onLeftClick: (() -> Void)?
     var onRightClick: (() -> Void)?
     var onMetricClick: ((MenuBarMetric, NSStatusBarButton) -> Void)?
+    var onClipboardPreviewClick: (() -> Void)?
 
     private(set) var statusItem: NSStatusItem!
+    /// The optional "show latest copy" item: same shape as a metric item —
+    /// independent, opt-in and separately clickable — but not itself a
+    /// MenuBarMetric, since its content comes from ClipboardHistoryService
+    /// rather than a SystemSnapshot reading.
+    private var clipboardPreviewStatusItem: NSStatusItem?
     private var metricStatusItems: [String: NSStatusItem] = [:]
     private var metricStatusItemFocus: [String: MenuBarMetric] = [:]
     private var cancellables = Set<AnyCancellable>()
@@ -37,6 +43,7 @@ final class StatusItemController {
     private var refreshRequestedWhileRunning = false
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
+    private static let clipboardPreviewAutosaveName = "VorssaintClipboardPreview"
     private static let maxPlacementGeneration = 10_000
     private static let emptyStatusImage = NSImage()
 
@@ -58,7 +65,8 @@ final class StatusItemController {
     var button: NSStatusBarButton? { statusItem.button }
 
     func containsStatusItem(at screenPoint: NSPoint) -> Bool {
-        let buttons = ([statusItem?.button] + metricStatusItems.values.map(\.button)).compactMap { $0 }
+        let buttons = ([statusItem?.button, clipboardPreviewStatusItem?.button]
+            + metricStatusItems.values.map(\.button)).compactMap { $0 }
         // Bound once for the whole scan: a default argument is evaluated per
         // call, so leaving it to the default would rebuild this per button.
         let screenFrames = NSScreen.screens.map(\.frame)
@@ -155,6 +163,16 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        ClipboardHistoryService.shared.$latestPasteboardEntry
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.syncClipboardPreviewItem() }
+            .store(in: &cancellables)
+
+        ClipboardHistoryService.shared.$isRunning
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.syncClipboardPreviewItem() }
+            .store(in: &cancellables)
+
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
                                                                   queue: .main) { [weak self] _ in
@@ -176,6 +194,7 @@ final class StatusItemController {
             self.syncMonitorMode()
             self.updateIconAppearance()
             self.refresh()
+            self.syncClipboardPreviewItem()
         }
     }
 
@@ -187,6 +206,9 @@ final class StatusItemController {
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
         for item in metricStatusItems.values {
             NSStatusBar.system.removeStatusItem(item)
+        }
+        if let clipboardPreviewStatusItem {
+            NSStatusBar.system.removeStatusItem(clipboardPreviewStatusItem)
         }
     }
 
@@ -635,6 +657,110 @@ final class StatusItemController {
         metricStatusItemFocus.removeValue(forKey: id)
         metricEmptyRenders.removeValue(forKey: id)
         guard let item = metricStatusItems.removeValue(forKey: id) else { return }
+        NSStatusBar.system.removeStatusItem(item)
+    }
+
+    // MARK: - Clipboard preview item
+
+    /// Creates or removes the clipboard preview item for the feature itself
+    /// being on or off, and keeps its text current while it exists — going
+    /// blank rather than being removed when there is simply nothing to show.
+    /// Runs on every entries/isRunning change and on every settings sync, so
+    /// toggling the option or the character limit takes effect immediately.
+    private func syncClipboardPreviewItem() {
+        let defaults = UserDefaults.standard
+        let history = ClipboardHistoryService.shared
+        guard AppFeature.clipboardHistory.isAvailable,
+              defaults.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
+              defaults.bool(forKey: DefaultsKey.clipboardHistoryMenuBarPreview),
+              history.isRunning
+        else {
+            removeClipboardPreviewStatusItem()
+            return
+        }
+
+        // The feature itself is on; keep the item alive even with nothing to
+        // show right now (e.g. right after Clear All) rather than removing
+        // it. macOS does not reliably restore a dragged position for an item
+        // recreated later — it would otherwise land back at the default spot
+        // the next time something is copied.
+        //
+        // No fallback to recentEntries here: latestPasteboardEntry is seeded
+        // at load and kept correct from then on (nil means the pasteboard was
+        // actually cleared, or the last change was deliberately not recorded),
+        // so falling back to history would undo exactly that — e.g. auto
+        // clear wiping the pasteboard while the entry stays in history.
+        let entry = history.latestPasteboardEntry
+        let maxCharacters = Defaults.sanitizedClipboardMenuBarPreviewLength(
+            defaults.integer(forKey: DefaultsKey.clipboardHistoryMenuBarPreviewLength))
+        let text = entry?.menuBarText(maxCharacters: maxCharacters) ?? ""
+
+        let item = clipboardPreviewStatusItem ?? installClipboardPreviewStatusItem()
+        if item.length != NSStatusItem.variableLength {
+            item.length = NSStatusItem.variableLength
+        }
+        guard let button = item.button else { return }
+        // A non-nil empty image, not the metric items' actual glyph: same
+        // reasoning as their own emptyStatusImage use, so this text also
+        // dims correctly on an inactive display instead of staying full
+        // strength beside metrics that do.
+        if button.image !== Self.emptyStatusImage {
+            button.image = Self.emptyStatusImage
+        }
+        if button.imagePosition != .noImage {
+            button.imagePosition = .noImage
+        }
+        let font = MenuBarRenderer.statusFont(stacked: false)
+        if button.font?.isEqual(font) != true {
+            button.font = font
+        }
+        if button.title != text {
+            button.title = text
+        }
+        // menuBarText again rather than entry.preview directly: preview's
+        // .files case joins every file name with no bound of its own, so a
+        // large batch of files would otherwise make an unbounded tooltip.
+        // tooltipCharacters, not previewCharacters: previewCharacters is
+        // sized for a list row's three lines, which would still let a whole
+        // page of copied prose through as a hover tooltip.
+        let tooltip = entry?.menuBarText(maxCharacters: ClipboardHistoryEditing.tooltipCharacters) ?? ""
+        if button.toolTip != tooltip {
+            button.toolTip = tooltip
+        }
+    }
+
+    private func installClipboardPreviewStatusItem() -> NSStatusItem {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = Self.clipboardPreviewAutosaveName
+        item.behavior = []
+        // Registered before it is shown, for the same reason as
+        // installMetricStatusItem: showing it writes and announces its
+        // remembered position while this call is still on the stack.
+        clipboardPreviewStatusItem = item
+        item.isVisible = true
+        if let button = item.button {
+            button.font = MenuBarRenderer.statusFont(stacked: false)
+            button.alignment = .left
+            button.cell?.lineBreakMode = .byClipping
+            button.cell?.usesSingleLineMode = true
+            button.target = self
+            button.action = #selector(clipboardPreviewClicked)
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        }
+        return item
+    }
+
+    @objc private func clipboardPreviewClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            onRightClick?()
+            return
+        }
+        onClipboardPreviewClick?()
+    }
+
+    private func removeClipboardPreviewStatusItem() {
+        guard let item = clipboardPreviewStatusItem else { return }
+        clipboardPreviewStatusItem = nil
         NSStatusBar.system.removeStatusItem(item)
     }
 }
