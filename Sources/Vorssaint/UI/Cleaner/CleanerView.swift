@@ -741,6 +741,7 @@ struct CleanerView: View {
                     // Inside the floating panel the list must not paint its own
                     // opaque backdrop over the panel's translucent material.
                     .scrollContentBackground(compact ? .hidden : .automatic)
+                    .panelKeyboardRowList(resultRows)
                     .onChange(of: navigator.focus) { _, focus in
                         guard let id = focusedResultID(focus) else { return }
                         proxy.scrollTo(id, anchor: .center)
@@ -798,7 +799,7 @@ struct CleanerView: View {
         } label: {
             HStack(spacing: 10) {
                 Toggle("", isOn: groupBinding(group)).labelsHidden().toggleStyle(.checkbox)
-                    .panelKeyboardRow(keyboardRow("cleaner-group-\(group.rawValue)-include"), actions: PanelRowActions(
+                    .panelKeyboardRow(keyboardRow(KeyboardID.groupInclude(group)), actions: PanelRowActions(
                         activate: { groupBinding(group).wrappedValue.toggle() }))
                 Image(systemName: group.icon)
                     .font(.system(size: 14))
@@ -816,7 +817,7 @@ struct CleanerView: View {
             }
             .padding(.vertical, 3)
         }
-        .panelKeyboardRow(keyboardRow("cleaner-group-\(group.rawValue)-disclosure"), actions: PanelRowActions(
+        .panelKeyboardRow(keyboardRow(KeyboardID.groupDisclosure(group)), actions: PanelRowActions(
             activate: { groupExpandedBinding(group).wrappedValue.toggle() },
             adjust: { direction, _ in
                 let binding = groupExpandedBinding(group)
@@ -825,13 +826,13 @@ struct CleanerView: View {
                 binding.wrappedValue = expanded
                 return true
             }))
-        .id("cleaner-group-\(group.rawValue)")
+        .id(KeyboardID.groupAnchor(group))
     }
 
     private func itemRow(_ item: JunkCleaner.Item) -> some View {
         HStack(spacing: 10) {
             Toggle("", isOn: includeBinding(item)).labelsHidden().toggleStyle(.checkbox)
-                .panelKeyboardRow(keyboardRow("cleaner-item-\(item.id)-include"), actions: PanelRowActions(
+                .panelKeyboardRow(keyboardRow(KeyboardID.itemInclude(item)), actions: PanelRowActions(
                     activate: { includeBinding(item).wrappedValue.toggle() }))
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
@@ -851,22 +852,64 @@ struct CleanerView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([item.url])
             }
         }
-        .id("cleaner-item-\(item.id)")
+        .id(KeyboardID.itemAnchor(item))
+    }
+
+    /// Local ids for the results list's rows, and the scroll anchors they
+    /// bring into view, in the one place they are spelled — see
+    /// `MediaWorkspaceView` for the same arrangement.
+    private enum KeyboardID {
+        static func groupAnchor(_ group: DisplayGroup) -> String { "cleaner-group-\(group.rawValue)" }
+        static func groupInclude(_ group: DisplayGroup) -> String { groupAnchor(group) + "-include" }
+        static func groupDisclosure(_ group: DisplayGroup) -> String { groupAnchor(group) + "-disclosure" }
+        static func itemAnchor(_ item: JunkCleaner.Item) -> String { "cleaner-item-\(item.id)" }
+        static func itemInclude(_ item: JunkCleaner.Item) -> String { itemAnchor(item) + "-include" }
+    }
+
+    /// The groups the results list renders, in the order it renders them:
+    /// the safe section first, then the optional one, each without the groups
+    /// that found nothing.
+    private var visibleResultGroups: [DisplayGroup] {
+        let safe = DisplayGroup.allCases.filter(\.isSafe)
+        let optional = DisplayGroup.allCases.filter { !$0.isSafe }
+        return (safe + optional).filter { !items(for: $0).isEmpty }
+    }
+
+    /// The results list states its own keyboard order. A `List` is always
+    /// lazy, so the order cannot be collected from measured frames the way a
+    /// hand-laid section's is — the rows it has not built yet have none. It
+    /// also scrolls inside its own scroll view, where a row scrolled above the
+    /// inner viewport would otherwise sort ahead of the header sitting above
+    /// the list on screen.
+    private var resultRows: [PanelRowID] {
+        visibleResultGroups.flatMap(keyboardRows)
+    }
+
+    /// What one group contributes, under the same conditions `groupRow(_:)`
+    /// builds it: a collapsed group's items are not rows the arrows stop on.
+    ///
+    /// The disclosure comes before the group's own checkbox, which is the
+    /// order the measured frames used to sort into: the disclosure row is the
+    /// whole `DisclosureGroup`, so it starts at the label's top edge, while
+    /// the checkbox is a child of that label and starts below its padding.
+    private func keyboardRows(for group: DisplayGroup) -> [PanelRowID] {
+        var locals = [KeyboardID.groupDisclosure(group), KeyboardID.groupInclude(group)]
+        if expandedGroups.contains(group) {
+            locals.append(contentsOf: items(for: group).map(KeyboardID.itemInclude))
+        }
+        return locals.compactMap(keyboardRow)
     }
 
     private func focusedResultID(_ focus: PanelFocusTarget?) -> String? {
-        guard compact,
-              case .row(let row)? = focus,
-              row.section == keyboardSection,
-              let localID = row.local as? String else { return nil }
+        guard compact, case .row(let row)? = focus, row.section == keyboardSection else { return nil }
         if let group = DisplayGroup.allCases.first(where: {
-            localID == "cleaner-group-\($0.rawValue)-include"
-                || localID == "cleaner-group-\($0.rawValue)-disclosure"
+            row == keyboardRow(KeyboardID.groupInclude($0))
+                || row == keyboardRow(KeyboardID.groupDisclosure($0))
         }) {
-            return "cleaner-group-\(group.rawValue)"
+            return KeyboardID.groupAnchor(group)
         }
-        return cleaner.items.first { localID == "cleaner-item-\($0.id)-include" }
-            .map { "cleaner-item-\($0.id)" }
+        return cleaner.items.first { row == keyboardRow(KeyboardID.itemInclude($0)) }
+            .map(KeyboardID.itemAnchor)
     }
 
     private var resultsFooter: some View {
