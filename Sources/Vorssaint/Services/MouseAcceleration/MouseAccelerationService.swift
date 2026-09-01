@@ -225,12 +225,7 @@ final class MouseAccelerationService {
     }
 
     private static func currentSessionIsActive() -> Bool {
-        guard let state = CGSessionCopyCurrentDictionary() as? [String: Any],
-              let onConsole = state[kCGSessionOnConsoleKey as String] else {
-            return false
-        }
-        if let flag = onConsole as? Bool { return flag }
-        if let number = onConsole as? NSNumber { return number.boolValue }
-        return false
+        SessionActivitySupport.isOnConsole(
+            CGSessionCopyCurrentDictionary() as? [String: Any])
     }
 }

@@ -170,7 +170,7 @@ final class DockClickService {
         guard let dockPID = dockProcessID(),
               DockClickSupport.dockOwnsPoint(
                 point,
-                windows: Self.onScreenWindows(),
+                windows: WindowServerSupport.onScreenWindows(),
                 dockProcessID: dockPID,
                 dockLayer: Int(CGWindowLevelForKey(.dockWindow)),
                 ownProcessID: getpid()) else {
@@ -730,14 +730,6 @@ final class DockClickService {
     }
 
     // MARK: - Geometry
-
-    private static func onScreenWindows() -> [MouseAppExceptionSupport.Window] {
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else {
-            return []
-        }
-        return MouseAppExceptionSupport.windows(from: list)
-    }
 
     /// Cheap pre-filter before any AX call, in the event's top-left-origin
     /// global coordinates. With magnification the hovered icon can grow above

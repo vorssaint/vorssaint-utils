@@ -64,6 +64,8 @@ final class ScreenshotSelectionController {
     private let baseMode: Mode
     private let supportsScrollingCapture: Bool
     private let screenCaptureOptions: ScreenCaptureSelectionOptions?
+    private let capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
+    private let onCapturePolicyChange: (() -> Void)?
     fileprivate let requiresDraggedRegion: Bool
     private var finished = false
     /// Read by the overlays so a late event finds a session that is over.
@@ -122,7 +124,8 @@ final class ScreenshotSelectionController {
          mode: Mode = .image,
          supportsScrollingCapture: Bool = false,
          requiresDraggedRegion: Bool = false,
-         screenCaptureOptions: ScreenCaptureSelectionOptions? = nil) {
+         screenCaptureOptions: ScreenCaptureSelectionOptions? = nil,
+         onCapturePolicyChange: (() -> Void)? = nil) {
         self.freeze = freeze
         self.includePointer = includePointer
         self.showLastRegion = showLastRegion
@@ -133,6 +136,12 @@ final class ScreenshotSelectionController {
         self.supportsScrollingCapture = supportsScrollingCapture
         self.requiresDraggedRegion = requiresDraggedRegion
         self.screenCaptureOptions = screenCaptureOptions
+        self.capturePolicy = ScreenshotSupport.UnifiedCapturePolicy(
+            freeze: freeze,
+            includePointer: includePointer,
+            hideVorssaintWindows: hideVorssaintWindows,
+            usesGeometry: mode == .geometry)
+        self.onCapturePolicyChange = onCapturePolicyChange
     }
 
     private var activeTool: ScreenCaptureTool? { screenCaptureOptions?.selectedTool }
@@ -217,6 +226,19 @@ final class ScreenshotSelectionController {
     }
 
     private func screenCaptureToolDidChange() {
+        if let activeTool {
+            let defaults = UserDefaults.standard
+            let nextPolicy = ScreenshotSupport.unifiedCapturePolicy(
+                for: activeTool,
+                screenshotFreeze: defaults.bool(forKey: DefaultsKey.screenshotFreeze),
+                screenshotIncludePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
+                screenshotHideVorssaintWindows: defaults.bool(
+                    forKey: DefaultsKey.screenshotHideVorssaintWindows))
+            if nextPolicy != capturePolicy {
+                onCapturePolicyChange?()
+                return
+            }
+        }
         scrollingCaptureEnabled = false
         loupeEnabled = isPickingColor
         if isPickingColor, !freeze { loadLiveLoupeImages() }
@@ -739,6 +761,7 @@ private final class ScreenshotOverlayView: NSView {
     private var lastDragPoint: CGPoint = .zero
     private var selection: CGRect = .zero
     private var hoverPoint: CGPoint = .zero
+    private var pointerIsInside = false
     private var hoveredWindow: ScreenshotSupport.PickableWindow?
     /// The value just copied with C, shown briefly in the loupe's info bar
     /// because the regular HUD sits under these shielding-level panels.
@@ -830,11 +853,14 @@ private final class ScreenshotOverlayView: NSView {
         let global = mouseLocation ?? controller?.currentPointerLocation ?? NSEvent.mouseLocation
         let point = CGPoint(x: global.x - panel.screenFrame.minX,
                             y: panel.screenFrame.maxY - global.y)
-        if bounds.contains(point) {
+        pointerIsInside = bounds.contains(point)
+        if pointerIsInside {
             hoverPoint = point
             hoveredWindow = controller?.acceptsWindowClick == true
                 ? ScreenshotSupport.window(at: hoverPoint, in: windows)
                 : nil
+        } else {
+            hoveredWindow = nil
         }
         needsDisplay = true
     }
@@ -892,6 +918,7 @@ private final class ScreenshotOverlayView: NSView {
 
     override func mouseMoved(with event: NSEvent) {
         controller?.currentPointerLocation = nil
+        pointerIsInside = true
         hoverPoint = convert(event.locationInWindow, from: nil)
         hoveredWindow = controller?.acceptsWindowClick == true
             ? ScreenshotSupport.window(at: hoverPoint, in: windows)
@@ -900,6 +927,7 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
+        refreshPointerState()
         refreshGuideVisibility()
     }
 
@@ -907,6 +935,7 @@ private final class ScreenshotOverlayView: NSView {
     // this display. Re-evaluate the real location so the chooser does not
     // disappear over the Dock, menu bar or its own interactive controls.
     override func mouseExited(with event: NSEvent) {
+        refreshPointerState()
         refreshGuideVisibility()
     }
 
@@ -922,6 +951,7 @@ private final class ScreenshotOverlayView: NSView {
         guard acceptsPointerInput else { return }
         controller?.currentPointerLocation = nil
         let point = convert(event.locationInWindow, from: nil)
+        pointerIsInside = true
         hoverPoint = point
         dragOrigin = point
         controller?.selectionInProgress = true
@@ -934,6 +964,7 @@ private final class ScreenshotOverlayView: NSView {
         guard acceptsPointerInput, let controller, let origin = dragOrigin else { return }
         controller.currentPointerLocation = nil
         let point = convert(event.locationInWindow, from: nil)
+        pointerIsInside = true
         hoverPoint = point
         if controller.isPickingColor {
             lastDragPoint = point
@@ -1010,9 +1041,6 @@ private final class ScreenshotOverlayView: NSView {
               let controller,
               let panel
         else { return }
-        let global = controller.currentPointerLocation ?? NSEvent.mouseLocation
-        let mouseIsOnThisScreen = panel.screenFrame.contains(global) || bounds.contains(hoverPoint)
-
         let dimAlpha: CGFloat = frozenImage == nil ? 0.18 : 0.22
         context.setFillColor(CGColor(gray: 0, alpha: dimAlpha))
         if selection.width > 0, selection.height > 0 {
@@ -1039,7 +1067,7 @@ private final class ScreenshotOverlayView: NSView {
         }
 
         if controller.loupeEnabled, !controller.spaceIsDown,
-           mouseIsOnThisScreen, let loupeImage {
+           pointerIsInside, let loupeImage {
             let point = isDragging ? lastDragPoint : hoverPoint
             drawCaptureLoupe(context,
                              image: loupeImage,

@@ -32,12 +32,20 @@ final class QuitProtectionService: ObservableObject {
     private var frontmostProcessIdentifier: pid_t?
     private let hud = QuitProtectionHUD()
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in
+            self?.syncWithPreferences()
+        }
+    }
 
     func syncWithPreferences() {
         let enabled = AppFeature.quitWindowProtection.isAvailable
-            && (configuration(for: .quit).enabled || configuration(for: .close).enabled)
-        guard enabled, Permissions.shared.accessibility else {
+            && isEnabledForAnyShortcut
+        guard SessionActivitySupport.tapShouldRun(
+            featureWanted: enabled,
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive
+        ) else {
             stop()
             return
         }
@@ -104,7 +112,10 @@ final class QuitProtectionService: ObservableObject {
         }
         activationObserver = nil
 
-        if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
+        if let tap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+        }
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
@@ -145,8 +156,22 @@ final class QuitProtectionService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
             cancelPending()
+            let enabled = AppFeature.quitWindowProtection.isAvailable
+                && isEnabledForAnyShortcut
+            let shouldRearm = SessionActivitySupport.tapShouldRun(
+                featureWanted: enabled,
+                accessibilityGranted: AXIsProcessTrusted(),
+                sessionIsActive: SessionActivity.shared.isActive
+            )
+            if shouldRearm, let tap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.stop()
+                    self?.syncWithPreferences()
+                }
+            }
             return Unmanaged.passUnretained(event)
         }
         guard isRunning, !isSynthetic(event) else {
