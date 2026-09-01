@@ -1184,8 +1184,9 @@ enum MenuBarRenderer {
     private static func batteryBlockImage(percent: Int,
                                           isCharging: Bool,
                                           style: MenuBarBlockStyle) -> NSImage {
+        let isColored = UserDefaults.standard.bool(forKey: DefaultsKey.bkColoredBatteryIcon)
         let clampedPercent = max(0, min(100, percent))
-        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(style)" as NSString
+        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(style)|\(isColored)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let symbolName = batterySymbol(for: percent, isCharging: isCharging)
@@ -1203,8 +1204,22 @@ enum MenuBarRenderer {
         let image = NSImage(size: imageSize, flipped: false) { rect in
             NSColor.clear.setFill()
             rect.fill()
+            
+            var tint: NSColor = .labelColor
+            if isColored {
+                if isCharging {
+                    tint = .systemYellow
+                } else if clampedPercent < 20 {
+                    tint = .systemRed
+                } else if clampedPercent < 50 {
+                    tint = .systemOrange
+                } else {
+                    tint = .systemGreen
+                }
+            }
+            
             let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
+                .applying(NSImage.SymbolConfiguration(paletteColors: [tint]))
             if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
                 .withSymbolConfiguration(symbolConfig) {
                 let symbolSize = symbol.size

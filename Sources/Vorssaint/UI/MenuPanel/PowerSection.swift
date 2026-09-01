@@ -18,30 +18,35 @@ struct PowerSection: View {
     @AppStorage(DefaultsKey.monitorPwrTimeRemaining) private var pwrTimeRemaining = true
     @AppStorage(DefaultsKey.monitorPwrHealth) private var pwrHealth = true
     @AppStorage(DefaultsKey.panelPowerOrder) private var powerOrderRaw = ""
+    @AppStorage(DefaultsKey.bkEnhancedBatteryHero) private var bkEnhancedBatteryHero = false
     @State private var draggingBlock: Block?
 
     var body: some View {
         PanelSection(.power, title: l10n.s.powerSection, collapsible: collapsible,
                      supportsEditing: true,
                      resetAction: resetPanelDefaults) { editing in
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(Array(blocks(editing: editing).enumerated()), id: \.element) { index, block in
-                    if index > 0 { Divider() }
-                    PanelReorderableItem(item: block,
-                                         isEnabled: editing,
-                                         order: blockOrderBinding,
-                                         dragging: $draggingBlock) {
-                        HStack(alignment: .top, spacing: 8) {
-                            if editing {
-                                PanelDragHandle()
+            if bkEnhancedBatteryHero && !editing {
+                BKBatteryHeroView(power: monitor.snapshot.power)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(Array(blocks(editing: editing).enumerated()), id: \.element) { index, block in
+                        if index > 0 { Divider() }
+                        PanelReorderableItem(item: block,
+                                             isEnabled: editing,
+                                             order: blockOrderBinding,
+                                             dragging: $draggingBlock) {
+                            HStack(alignment: .top, spacing: 8) {
+                                if editing {
+                                    PanelDragHandle()
+                                }
+                                blockContent(block, editing: editing)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            blockContent(block, editing: editing)
-                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
+                .panelCard()
             }
-            .panelCard()
         }
     }
 

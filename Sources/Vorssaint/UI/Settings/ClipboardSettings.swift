@@ -18,6 +18,9 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
+    // BatteryBoi Clipboard Customizations
+    @AppStorage(DefaultsKey.bkClipboardCopySound) private var bkClipboardCopySound = false
+    @AppStorage(DefaultsKey.bkClipboardCopyToast) private var bkClipboardCopyToast = false
     @AppStorage(DefaultsKey.clipboardAutoClearDelay)
     private var autoClearDelay = Defaults.defaultClipboardAutoClearDelay
     @AppStorage(DefaultsKey.clipboardAutoClearOnSleep) private var autoClearOnSleep = false
@@ -128,6 +131,18 @@ struct ClipboardSettings: View {
 
             if AppFeature.clipboardHistory.isAvailable {
                 clipboardStatsSection
+                
+                Section("BatteryBoi Additions") {
+                    Toggle("Play Sound on Copy", isOn: $bkClipboardCopySound)
+                    Text("Plays a subtle sound effect when an item is added to the clipboard.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        
+                    Toggle("Show HUD Toast on Copy", isOn: $bkClipboardCopyToast)
+                    Text("Shows a brief overlay confirming what was copied.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)

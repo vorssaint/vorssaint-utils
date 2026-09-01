@@ -341,6 +341,11 @@ enum DefaultsKey {
     static let monitorGraphDisk = "monitorGraphDisk"
     static let monitorGraphPower = "monitorGraphPower"
     static let monitorGraphBattery = "monitorGraphBattery"
+    // BatteryBoi Customizations
+    static let bkColoredBatteryIcon = "bk_colored_battery_icon"
+    static let bkEnhancedBatteryHero = "bk_enhanced_battery_hero"
+    static let bkClipboardCopySound = "bk_clipboard_copy_sound"
+    static let bkClipboardCopyToast = "bk_clipboard_copy_toast"
     // System monitor — per-item visibility inside each panel section.
     static let monitorSysTemps = "monitorSysTemps"
     static let monitorSysCPU = "monitorSysCPU"
@@ -1097,6 +1102,10 @@ enum Defaults {
         DefaultsKey.monitorGraphDisk: true,
         DefaultsKey.monitorGraphPower: true,
         DefaultsKey.monitorGraphBattery: true,
+        DefaultsKey.bkColoredBatteryIcon: false,
+        DefaultsKey.bkEnhancedBatteryHero: false,
+        DefaultsKey.bkClipboardCopySound: false,
+        DefaultsKey.bkClipboardCopyToast: false,
         // Every per-item block shows by default; users hide what they don't want.
         DefaultsKey.monitorSysTemps: true,
         DefaultsKey.monitorSysCPU: true,

@@ -793,6 +793,22 @@ final class ClipboardHistoryService: ObservableObject {
         } else {
             entries.insert(entry, at: firstRecentIndex)
         }
+        
+        if UserDefaults.standard.bool(forKey: DefaultsKey.bkClipboardCopySound) {
+            NSSound(named: NSSound.Name("Pop"))?.play()
+        }
+        if UserDefaults.standard.bool(forKey: DefaultsKey.bkClipboardCopyToast) {
+            DispatchQueue.main.async {
+                let preview: String
+                switch entry.kind {
+                case .text: preview = entry.text
+                case .image: preview = "Image Copied"
+                case .files: preview = "\(entry.filePaths.count) Files Copied"
+                default: preview = "Item Copied"
+                }
+                Notifier.post(title: "Copied", body: preview)
+            }
+        }
     }
 
     private func normalizeEntryOrder() {

@@ -31,6 +31,10 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.monitorGraphPower) private var graphPower = true
     @AppStorage(DefaultsKey.monitorGraphBattery) private var graphBattery = true
 
+    // BatteryBoi Customizations
+    @AppStorage(DefaultsKey.bkColoredBatteryIcon) private var bkColoredBatteryIcon = false
+    @AppStorage(DefaultsKey.bkEnhancedBatteryHero) private var bkEnhancedBatteryHero = false
+
     var body: some View {
         Form {
             Section(l10n.s.monitorMenuBarSection) {
@@ -150,6 +154,20 @@ struct MonitorSettings: View {
                 Text(l10n.s.monitorGraphsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+            
+            if PowerSampler.hasInternalBattery {
+                Section("BatteryBoi") {
+                    Toggle("Colored Menu Bar Battery", isOn: $bkColoredBatteryIcon)
+                    Text("Draws the menu bar battery icon in green, yellow, or red based on charge level.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Toggle("Enhanced Battery Hero", isOn: $bkEnhancedBatteryHero)
+                    Text("Replaces the power panel blocks with a colorful circular gradient ring.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
