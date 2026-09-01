@@ -278,6 +278,16 @@ final class SnippetLibraryService: ObservableObject {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, let panel, event.window === panel else { return event }
+
+            // While an input method is composing, Return confirms the
+            // candidate, the arrows walk it and Esc drops it. The panel edits
+            // through a field editor, so the marked range lives there; taking
+            // those keys would leave the search field unusable in Chinese,
+            // Japanese and Korean, so composition always wins.
+            if let editor = panel.firstResponder as? NSTextView, editor.hasMarkedText() {
+                return event
+            }
+
             switch Int(event.keyCode) {
             case kVK_Escape:
                 self.hide()
