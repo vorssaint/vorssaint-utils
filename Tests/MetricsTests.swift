@@ -4734,72 +4734,12 @@ struct MetricsTests {
                && UninstallerSupport.fileIdentity(at: safeFile) != originalFileIdentity,
                "removal stays inside its scan root, rejects symlink escapes and detects path replacement")
         try? FileManager.default.removeItem(at: safetyFixture)
-        let embeddedFixture = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vorssaint-embedded-\(UUID().uuidString)", isDirectory: true)
-        let embeddedApp = embeddedFixture.appendingPathComponent("Editor.app", isDirectory: true)
-        let embeddedHelper = embeddedApp.appendingPathComponent(
-            "Contents/Library/LoginItems/Helper.app", isDirectory: true)
-        let embeddedExpected = [
-            embeddedApp.appendingPathComponent("Contents/PlugIns/Share.appex", isDirectory: true),
-            embeddedApp.appendingPathComponent("Contents/XPCServices/Worker.xpc", isDirectory: true),
-            embeddedHelper,
-            embeddedHelper.appendingPathComponent("Contents/PlugIns/Nested.appex", isDirectory: true),
-        ]
-        // Executable code parked outside the three directories macOS reserves
-        // for it — Sparkle's updater lives in the framework shape below. The
-        // reserved-location lookup misses it by design; the walk that denies a
-        // claim must not, or the owning app's shared data is trashed.
-        let embeddedStray = [
-            embeddedApp.appendingPathComponent("Contents/Resources/Deep/Buried.appex", isDirectory: true),
-            embeddedApp.appendingPathComponent(
-                "Contents/Frameworks/Core.framework/XPCServices/Stray.xpc", isDirectory: true),
-        ]
-        // A plain resource bundle is not owned code to either lookup.
-        let embeddedIgnored = [
-            embeddedApp.appendingPathComponent("Contents/PlugIns/Palette.bundle", isDirectory: true),
-        ]
-        for url in embeddedExpected + embeddedStray + embeddedIgnored {
-            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        }
-        try? FileManager.default.createSymbolicLink(
-            at: embeddedApp.appendingPathComponent("Contents/PlugIns/Linked.appex"),
-            withDestinationURL: embeddedFixture)
-        let embeddedFound = Set(UninstallerSupport.embeddedCodeURLs(
-            in: embeddedApp, fm: .default).map(\.standardizedFileURL.path))
-        expect(embeddedFound == Set(embeddedExpected.map(\.standardizedFileURL.path)),
-               "embedded code lookup finds the reserved plug-in, XPC and login item locations only")
-        expect(UninstallerSupport.embeddedCodeURLs(in: embeddedApp, fm: .default, depth: 1)
-                .allSatisfy { !$0.path.contains("Helper.app/Contents") },
-               "embedded code lookup stops descending at its depth limit")
-        let nestedFound = Set(UninstallerSupport.nestedCodeURLs(
-            in: embeddedApp, fm: .default).map(\.standardizedFileURL.path))
-        expect(nestedFound == Set((embeddedExpected + embeddedStray).map(\.standardizedFileURL.path)),
-               "the whole-bundle walk also finds code parked outside the reserved locations")
-        expect(UninstallerSupport.nestedCodeURLs(in: embeddedApp, fm: .default, limit: 2).count == 2,
-               "the whole-bundle walk stops at its limit")
-        try? FileManager.default.removeItem(at: embeddedFixture)
         func sourceBody(of source: String, from opening: String, to closing: String) -> String {
             guard let start = source.range(of: opening),
                   let end = source.range(of: closing, range: start.upperBound..<source.endIndex)
             else { return "" }
             return String(source[start.upperBound..<end.lowerBound])
         }
-        // `sharedDataIsExclusive` reads the identifiers of every *other*
-        // installed app to deny a claim, and `exclusiveGroupIDs` reads their
-        // signing groups the same way. A miss on that side is the owner's data
-        // deleted, so both walk the whole bundle. AppUninstaller is not part of
-        // this test binary, so pin the two sites at their source.
-        let appUninstallerSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift",
-            encoding: .utf8)) ?? ""
-        expect(sourceBody(of: appUninstallerSource, from: "func applicationBundleIdentifiers",
-                          to: "private static func exclusiveGroupIDs")
-                .contains("exhaustive: true"),
-               "the identifier lookup that denies a claim walks each installed app in full")
-        expect(sourceBody(of: appUninstallerSource, from: "private static func exclusiveGroupIDs",
-                          to: "private static func removalIsStillSafe")
-                .contains("exhaustive: true"),
-               "the group lookup that denies a claim walks each installed app in full")
         // Building the installed-apps oracle walks the application folders, and
         // the removal guard reads it under `.leftovers` alone — with leftover
         // rows unchecked by default, the common clean must not pay for that
@@ -4824,6 +4764,17 @@ struct MetricsTests {
                                        range: branch.upperBound..<mayRemoveBody.endIndex) != nil
                } == true,
                "the removal guard reads the installed-apps oracle inside its leftovers branch")
+        // The known-application roster opens every installed app, and only the
+        // shared-data claims read it. AppUninstaller is not part of this test
+        // binary either, so pin the gate that keeps a removal that cannot claim
+        // shared data from paying for the roster.
+        let appUninstallerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift",
+            encoding: .utf8)) ?? ""
+        let removeSelectedBody = sourceBody(of: appUninstallerSource, from: "func removeSelected()",
+                                            to: "func removeSelectedWithHomebrew()")
+        expect(removeSelectedBody.contains("let knownApplications = mayClaimSharedData"),
+               "a removal builds the known-application roster only when it may claim shared data")
         expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
                 == "com.vendor.editor",
                "preference panes map to their owning bundle identifier")

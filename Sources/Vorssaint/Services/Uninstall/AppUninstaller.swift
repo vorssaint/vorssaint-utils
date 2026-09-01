@@ -242,8 +242,8 @@ final class AppUninstaller: ObservableObject {
                 && targetURL.map { !fm.fileExists(atPath: $0.path) } == true
             let mayClaimSharedData = targetIsOriginal || targetWasRemovedByPackageManager
             let lookupBundleIDs = candidateBundleIDs.union(evidenceBundleIDs)
-            // Only the shared-data claims below read these, and each one costs
-            // a directory scan of every installed app.
+            // Only the shared-data claims below read this roster, and building
+            // it opens every installed app. Same gate `select()` already uses.
             let knownApplications = mayClaimSharedData
                 ? Self.knownApplicationURLs(candidateBundleIDs: lookupBundleIDs)
                 : []
@@ -672,15 +672,30 @@ final class AppUninstaller: ObservableObject {
     /// arbitrary nested apps are excluded because their identifiers may be
     /// shared by unrelated products.
     private static func signingIdentity(in appURL: URL,
-                                        requireValidSignature: Bool,
-                                        exhaustive: Bool = false)
+                                        requireValidSignature: Bool)
         -> (teamIDs: Set<String>, groupIDs: Set<String>) {
         if requireValidSignature, !codeSignatureIsValid(at: appURL) {
             return ([], [])
         }
         var result = codeSigningIdentity(at: appURL,
                                          requireValidSignature: requireValidSignature)
-        for url in embeddedCode(in: appURL, fm: .default, exhaustive: exhaustive).prefix(256) {
+        let fm = FileManager.default
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        guard let enumerator = fm.enumerator(at: appURL,
+                                             includingPropertiesForKeys: Array(keys),
+                                             options: [.skipsHiddenFiles],
+                                             errorHandler: nil) else { return result }
+        var inspected = 0
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: keys)
+            if values?.isSymbolicLink == true {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard values?.isDirectory == true,
+                  ownedEmbeddedCode(url, in: appURL) else { continue }
+            inspected += 1
+            guard inspected <= 256 else { break }
             let nested = codeSigningIdentity(at: url,
                                              requireValidSignature: requireValidSignature)
             result.teamIDs.formUnion(nested.teamIDs)
@@ -742,13 +757,11 @@ final class AppUninstaller: ObservableObject {
                                                      knownApplications: knownApplicationIDs)
     }
 
-    /// Who else owns each identifier. Every claim is denied against this, so it
-    /// walks each installed app in full rather than the reserved directories.
     private static func applicationBundleIdentifiers(in applications: [URL])
         -> [(url: URL, bundleID: String)] {
         let fm = FileManager.default
         return applications.flatMap { url in
-            allBundleIDs(in: url, fm: fm, exhaustive: true).map { (url, $0) }
+            allBundleIDs(in: url, fm: fm).map { (url, $0) }
         }
     }
 
@@ -761,10 +774,7 @@ final class AppUninstaller: ObservableObject {
         for url in knownApplications {
             let path = url.resolvingSymlinksInPath().standardizedFileURL.path
             guard path != selectedPath, !path.hasPrefix(selectedPath + "/") else { continue }
-            // Denial again: a group this app declares from code parked outside
-            // the reserved directories still keeps the container.
-            let groups = signingIdentity(in: url, requireValidSignature: false,
-                                         exhaustive: true).groupIDs
+            let groups = signingIdentity(in: url, requireValidSignature: false).groupIDs
             claimedElsewhere.formUnion(groups.intersection(candidates))
             if claimedElsewhere == candidates { break }
         }
@@ -799,30 +809,45 @@ final class AppUninstaller: ObservableObject {
             && UninstallerSupport.removalPathIsSafe(infoURL, within: url)
     }
 
-    /// The reserved directories are enough to say what the app being
-    /// uninstalled owns — a miss there only leaves a leftover behind. They are
-    /// not enough to say that *nobody else* owns an identifier, which is what
-    /// lets a file be trashed, so every caller answering that question walks
-    /// the whole bundle instead.
-    private static func embeddedCode(in appURL: URL, fm: FileManager,
-                                     exhaustive: Bool) -> [URL] {
-        exhaustive
-            ? UninstallerSupport.nestedCodeURLs(in: appURL, fm: fm)
-            : UninstallerSupport.embeddedCodeURLs(in: appURL, fm: fm)
-    }
-
-    private static func allBundleIDs(in appURL: URL, fm: FileManager,
-                                     exhaustive: Bool = false) -> Set<String> {
+    private static func allBundleIDs(in appURL: URL, fm: FileManager) -> Set<String> {
         var result = Set<String>()
         if let primary = UninstallerSupport.verifiedBundleID(Bundle(url: appURL)?.bundleIdentifier) {
             result.insert(primary)
         }
-        for url in embeddedCode(in: appURL, fm: fm, exhaustive: exhaustive).prefix(256) {
-            guard let id = UninstallerSupport.verifiedBundleID(Bundle(url: url)?.bundleIdentifier)
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        guard let enumerator = fm.enumerator(at: appURL,
+                                             includingPropertiesForKeys: Array(keys),
+                                             options: [.skipsHiddenFiles],
+                                             errorHandler: nil) else { return result }
+        var inspected = 0
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: keys)
+            if values?.isSymbolicLink == true {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard values?.isDirectory == true,
+                  ownedEmbeddedCode(url, in: appURL),
+                  let id = UninstallerSupport.verifiedBundleID(Bundle(url: url)?.bundleIdentifier)
             else { continue }
+            inspected += 1
+            guard inspected <= 256 else { break }
             result.insert(id)
         }
         return result
+    }
+
+    private static func ownedEmbeddedCode(_ url: URL, in appURL: URL) -> Bool {
+        switch url.pathExtension.lowercased() {
+        case "appex", "xpc":
+            return true
+        case "app":
+            let loginItems = appURL.appendingPathComponent(
+                "Contents/Library/LoginItems", isDirectory: true).standardizedFileURL.path
+            return url.standardizedFileURL.path.hasPrefix(loginItems + "/")
+        default:
+            return false
+        }
     }
 
     private static let packageExtensions: Set<String> = [
