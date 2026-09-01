@@ -202,6 +202,18 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
           "release uses accessibility text captured before the deadline")
     check(releaseFlow.shortcutReleased() == .none,
           "duplicate release cannot start a second action")
+    check(SelectionTranslationShortcutReleaseSupport.decision(
+        modifiersHeld: false, keyHeld: false, attempt: 0
+    ) == .released,
+    "release polling stops as soon as all physical keys are up")
+    check(SelectionTranslationShortcutReleaseSupport.decision(
+        modifiersHeld: true, keyHeld: true, attempt: 99
+    ) == .wait,
+    "release polling waits before reaching its bounded timeout")
+    check(SelectionTranslationShortcutReleaseSupport.decision(
+        modifiersHeld: true, keyHeld: true, attempt: 100
+    ) == .timedOut,
+    "release polling times out instead of waiting forever")
     let draft = SelectionTranslationDraft(source: "hello",
                                           languages: .init(source: .english, target: .simplifiedChinese))
     check(SelectionTranslationWorkflow.shouldSubmit(draft: draft),
@@ -301,6 +313,14 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
           && translationServiceSource.contains("1_500_000_000")
           && translationServiceSource.contains("setInteractionLocked(true)"),
           "selection translation shows a locked panel with a 1.5-second hold limit")
+    check(translationServiceSource.contains("setInteractionLocked(false)")
+          && translationServiceSource.contains("finishShortcutRelease")
+          && !translationServiceSource.contains("The target application changed. Press the shortcut again."),
+          "release handling unlocks the panel and does not hard-code target errors")
+    let localizedShortcutStrings = FeatureStrings.selectionTranslation(.zhHans)
+    check(localizedShortcutStrings.targetApplicationChanged.contains("目标应用")
+          && localizedShortcutStrings.shortcutReleaseTimedOut.contains("快捷键"),
+          "shortcut release errors use localized feature strings")
 
     let settingsStoreSource = (try? String(
         contentsOfFile: "Sources/Vorssaint/Services/SelectionTranslation/SelectionTranslationSettingsStore.swift",

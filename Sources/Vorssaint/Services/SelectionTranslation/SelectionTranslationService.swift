@@ -129,28 +129,53 @@ final class SelectionTranslationService: ObservableObject {
         releaseTask?.cancel()
         let current = generation
         releaseTask = Task { [weak self] in
-            while !Task.isCancelled {
+            for attempt in 0...SelectionTranslationShortcutReleaseSupport.maximumAttempts {
+                guard !Task.isCancelled else { return }
                 let flags = CGEventSource.flagsState(.combinedSessionState)
                 let heldModifiers = flags.intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
                 let keyHeld = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(shortcut.carbonKeyCode))
-                if heldModifiers.isEmpty && !keyHeld { break }
-                try? await Task.sleep(nanoseconds: 20_000_000)
-            }
-            guard !Task.isCancelled else { return }
-            await MainActor.run { [weak self] in
-                guard let self, self.generation == current else { return }
-                self.holdTask?.cancel()
-                self.holdTask = nil
-                self.releaseTask = nil
-                self.shortcutIsHeld = false
-                self.holdLimitReached = false
-                if self.phase == .translating || self.phase == .streaming {
-                    SelectionTranslationPanelController.shared.setInteractionLocked(false)
-                } else {
-                    self.handleShortcutAction(self.shortcutFlow.shortcutReleased(), generation: current)
+                switch SelectionTranslationShortcutReleaseSupport.decision(
+                    modifiersHeld: !heldModifiers.isEmpty,
+                    keyHeld: keyHeld,
+                    attempt: attempt
+                ) {
+                case .released:
+                    await MainActor.run { [weak self] in
+                        self?.finishShortcutRelease(generation: current, timedOut: false)
+                    }
+                    return
+                case .timedOut:
+                    await MainActor.run { [weak self] in
+                        self?.finishShortcutRelease(generation: current, timedOut: true)
+                    }
+                    return
+                case .wait:
+                    try? await Task.sleep(nanoseconds: SelectionTranslationShortcutReleaseSupport.pollIntervalNanoseconds)
+                    guard !Task.isCancelled else { return }
                 }
             }
         }
+    }
+
+    private func finishShortcutRelease(generation current: Int, timedOut: Bool) {
+        guard generation == current else { return }
+        holdTask?.cancel()
+        holdTask = nil
+        releaseTask = nil
+        shortcutIsHeld = false
+        holdLimitReached = false
+        SelectionTranslationPanelController.shared.setInteractionLocked(false)
+        guard !timedOut else {
+            if phase == .waitingForShortcutRelease {
+                accessibilityTask?.cancel()
+                accessibilityTask = nil
+                generation &+= 1
+                phase = .failed(FeatureStrings.selectionTranslation(L10n.shared.language).shortcutReleaseTimedOut)
+                failureAction = .retry
+            }
+            return
+        }
+        handleShortcutAction(shortcutFlow.shortcutReleased(), generation: current)
     }
 
     private func handleShortcutAction(_ action: SelectionTranslationShortcutFlowAction, generation current: Int) {
@@ -167,11 +192,12 @@ final class SelectionTranslationService: ObservableObject {
         case .readPasteboard:
             guard let target = targetProcessIdentifier,
                   NSWorkspace.shared.frontmostApplication?.processIdentifier == target else {
-                phase = .failed("The target application changed. Press the shortcut again.")
+                phase = .failed(FeatureStrings.selectionTranslation(L10n.shared.language).targetApplicationChanged)
                 failureAction = .retry
                 SelectionTranslationPanelController.shared.setInteractionLocked(false)
                 return
             }
+            SelectionTranslationPanelController.shared.setInteractionLocked(true)
             phase = .reading
             task = Task { [weak self] in
                 let result = await SelectionTranslationSelectionReader.readPasteboardOnlyResult()

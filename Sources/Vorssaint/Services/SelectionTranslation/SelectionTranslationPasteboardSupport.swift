@@ -50,6 +50,24 @@ enum SelectionTranslationShortcutFlowAction: Equatable, Sendable {
     case readPasteboard
 }
 
+enum SelectionTranslationShortcutReleaseDecision: Equatable, Sendable {
+    case released
+    case wait
+    case timedOut
+}
+
+enum SelectionTranslationShortcutReleaseSupport {
+    static let pollIntervalNanoseconds: UInt64 = 15_000_000
+    static let maximumAttempts = 100
+
+    static func decision(modifiersHeld: Bool,
+                         keyHeld: Bool,
+                         attempt: Int) -> SelectionTranslationShortcutReleaseDecision {
+        if !modifiersHeld && !keyHeld { return .released }
+        return attempt >= maximumAttempts ? .timedOut : .wait
+    }
+}
+
 /// Coordinates the independent accessibility, release and hold-deadline
 /// callbacks. Each action can be claimed at most once.
 struct SelectionTranslationShortcutFlowState: Sendable {

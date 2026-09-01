@@ -59,6 +59,8 @@ struct SelectionTranslationFeatureStrings {
     let pin: String
     let unpin: String
     let shortcutConflict: String
+    let targetApplicationChanged: String
+    let shortcutReleaseTimedOut: String
     let openTranslationSettings: String
 
     static let enUS = SelectionTranslationFeatureStrings(
@@ -86,6 +88,8 @@ struct SelectionTranslationFeatureStrings {
         sourcePlaceholder: "Type or paste text to translate", swapLanguages: "Swap languages",
         translate: "Translate", interrupt: "Interrupt", pin: "Pin panel", unpin: "Unpin panel",
         shortcutConflict: "The shortcut is unavailable. Choose another shortcut in settings.",
+        targetApplicationChanged: "The target application changed. Press the shortcut again.",
+        shortcutReleaseTimedOut: "The shortcut release could not be detected. Release the keys and try again.",
         openTranslationSettings: "Open Selection Translation settings")
     static let zhHans = SelectionTranslationFeatureStrings(
         title: "划词翻译", hubDescription: "使用兼容 OpenAI 的服务翻译选中的文本",
@@ -111,7 +115,11 @@ struct SelectionTranslationFeatureStrings {
         cancelled: "翻译已取消。", httpStatusFormat: "翻译服务返回 HTTP %d：%@",
         sourcePlaceholder: "输入或粘贴需要翻译的内容", swapLanguages: "交换语言",
         translate: "翻译", interrupt: "中断", pin: "固定面板", unpin: "取消固定",
-        shortcutConflict: "快捷键不可用，请在设置中更换一个快捷键。", openTranslationSettings: "打开划词翻译设置")
+        shortcutConflict: "快捷键不可用，请在设置中更换一个快捷键。",
+        targetApplicationChanged: "目标应用已变化，请重新按下快捷键。",
+        shortcutReleaseTimedOut: "未检测到快捷键松开，请松开按键后重试。",
+        openTranslationSettings: "打开划词翻译设置")
+
     static let zhTW = zhHans
     static let zhHK = zhHans
 }
