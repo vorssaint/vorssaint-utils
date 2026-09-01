@@ -1194,6 +1194,7 @@ struct SwitcherSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherTakeOverSystemShortcuts) private var switcherTakeOverSystemShortcuts = false
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
@@ -1220,6 +1221,18 @@ struct SwitcherSettings: View {
     private var switcherShortcutDisplayString: String {
         (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString
     }
+    private var switcherWindowlessAppsSelection: Binding<String> {
+        Binding(
+            get: {
+                SwitcherWindowlessApps.mode(
+                    storedValue: switcherWindowlessApps,
+                    takeOverSystemShortcuts: switcherTakeOverSystemShortcuts).rawValue
+            },
+            set: { value in
+                if !switcherTakeOverSystemShortcuts { switcherWindowlessApps = value }
+            }
+        )
+    }
 
     var body: some View {
         Form {
@@ -1243,6 +1256,15 @@ struct SwitcherSettings: View {
                         AppSwitcher.shared.syncWithPreferences()
                     }
                     Text(l10n.s.switcherWindowShortcutCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.switcherTakeOverSystemShortcuts,
+                           isOn: $switcherTakeOverSystemShortcuts)
+                        .disabled(!switcherEnabled)
+                        .onChange(of: switcherTakeOverSystemShortcuts) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.switcherTakeOverSystemShortcutsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(String(format: l10n.s.switcherUsageHintFormat,
@@ -1336,12 +1358,13 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Picker(l10n.s.switcherWindowlessApps, selection: $switcherWindowlessApps) {
+                    Picker(l10n.s.switcherWindowlessApps,
+                           selection: switcherWindowlessAppsSelection) {
                         Text(l10n.s.switcherWindowlessAppsOff).tag(SwitcherWindowlessApps.off.rawValue)
                         Text(l10n.s.switcherWindowlessAppsFinder).tag(SwitcherWindowlessApps.finder.rawValue)
                         Text(l10n.s.switcherWindowlessAppsAll).tag(SwitcherWindowlessApps.all.rawValue)
                     }
-                    .disabled(!switcherEnabled)
+                    .disabled(!switcherEnabled || switcherTakeOverSystemShortcuts)
                     Text(l10n.s.switcherWindowlessAppsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)

@@ -283,24 +283,26 @@ final class KillProcessService: ObservableObject {
         }
     }
 
-    /// BFS over `pgrep -P` to collect every descendant of `pid`. Capped well
-    /// above any real process tree, so a pathological environment can't spin
-    /// this forever.
+    /// Every descendant of `pid`, walked in memory from a single `ps` parent
+    /// table. The BFS used to run `pgrep -P` once per pid it had found, so
+    /// tearing down a tree of a few hundred processes forked that many short
+    /// lived helpers one after another - seconds of stalling while the list
+    /// had already dropped the rows.
+    ///
+    /// A grandchild forked between this snapshot and the signal is missed;
+    /// the per-pid `pgrep` walk raced the same way, and `killBatch` still
+    /// re-checks every target's identity before it signals anything.
     private static func descendants(of pid: pid_t) -> [pid_t] {
-        var result: [pid_t] = []
-        var frontier = [pid]
-        while !frontier.isEmpty, result.count < 4096 {
-            var next: [pid_t] = []
-            for parent in frontier {
-                let output = Shell.run("/usr/bin/pgrep", ["-P", String(parent)]).output
-                next.append(contentsOf: output.split(separator: "\n").compactMap {
-                    pid_t($0.trimmingCharacters(in: .whitespaces))
-                })
+        let listing = Shell.run("/bin/ps", ["-eo", "pid,ppid"])
+        guard listing.status == 0 else { return [] }
+        let parents: [(pid: pid_t, ppid: pid_t)] = listing.output
+            .split(separator: "\n").dropFirst().compactMap { line in
+                let columns = line.split(separator: " ", omittingEmptySubsequences: true)
+                guard columns.count >= 2, let child = pid_t(columns[0]),
+                      let parent = pid_t(columns[1]) else { return nil }
+                return (child, parent)
             }
-            result.append(contentsOf: next)
-            frontier = next
-        }
-        return result
+        return KillProcessSupport.descendants(of: pid, parents: parents)
     }
 
     // MARK: - Restart

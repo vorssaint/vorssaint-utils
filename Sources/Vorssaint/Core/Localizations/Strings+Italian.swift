@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "Finestre",
         switcherWindowShortcutCaption: "Apre un selettore per le finestre dell’app in primo piano. Con il selettore app aperto, salta tra le finestre dell’app selezionata.",
+        switcherTakeOverSystemShortcuts: "Sostituisci ⌘Tab e ⌘` di macOS",
+        switcherTakeOverSystemShortcutsCaption: "Disattiva le scorciatoie macOS corrispondenti solo mentre il selettore Vorssaint è attivo. Tutte le app aperte restano raggiungibili.",
         switcherAppearanceDelay: "Ritardo di comparsa",
         switcherAppearanceDelayCaption: "Per quanto tempo va tenuta premuta la scorciatoia prima che appaia il selettore.",
         switcherMergeTabs: "Mostra una voce per app",

@@ -107,6 +107,19 @@ enum WhatsAppDownloadSupport {
         return age >= 0 && age < organizerUndoLifetime
     }
 
+    /// Whether an organizer move stays on one volume, which is the only case
+    /// where the move is a rename and the destination needs no re-hash.
+    /// `volumeIdentifier` is opaque and only `isEqual` is defined on it, so
+    /// that is what decides here. An unknown identity answers "not the same
+    /// volume": guessing wrong that way only costs a verified copy, while the
+    /// opposite guess would let a real cross-volume copy through unchecked.
+    /// The inverse fallback in `CutPasteProgressSupport.isCrossVolume` is
+    /// deliberate - there an unknown identity only hides a progress bar.
+    static func isSameVolume(source: NSObject?, destination: NSObject?) -> Bool {
+        guard let source, let destination else { return false }
+        return source.isEqual(destination)
+    }
+
     static func organizerCategoryFolder(_ category: WhatsAppDownloadCategory) -> String {
         switch category {
         case .image: return "Images"

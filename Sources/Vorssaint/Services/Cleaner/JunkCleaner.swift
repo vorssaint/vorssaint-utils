@@ -157,6 +157,15 @@ final class JunkCleaner: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
+            // One installed-apps oracle for the whole pass, and only when the
+            // selection can ask for it: building it walks the application
+            // folders, and `mayRemove` reads it under `.leftovers` alone, so a
+            // clean without leftover rows must not pay for the walk. Nothing
+            // can install an app mid-clean that this pass would have to
+            // respect. `stubborn` is a subset of `chosen`, so the second and
+            // third passes are covered by the same test.
+            let installed = chosen.contains { $0.category == .leftovers }
+                ? Self.installedBundleIDs() : []
             var freed: Int64 = 0
             var failed = 0
             var stubborn: [Item] = []
@@ -170,7 +179,7 @@ final class JunkCleaner: ObservableObject {
             }
 
             for item in chosen where item.category != .trash {
-                guard Self.mayRemove(item) else {
+                guard Self.mayRemove(item, installed: installed) else {
                     failed += 1
                     continue
                 }
@@ -178,7 +187,7 @@ final class JunkCleaner: ObservableObject {
                     // Retire the job first so nothing keeps running from a
                     // plist that is about to leave; then the regular move.
                     Self.bootoutUserAgent(item.url)
-                    guard Self.mayRemove(item) else {
+                    guard Self.mayRemove(item, installed: installed) else {
                         failed += 1
                         continue
                     }
@@ -196,7 +205,7 @@ final class JunkCleaner: ObservableObject {
             // them to the Trash exactly like a drag would. One batch, one
             // prompt; a cancel leaves them in place and they count as failed.
             if !stubborn.isEmpty {
-                let stillSafe = stubborn.filter(Self.mayRemove)
+                let stillSafe = stubborn.filter { Self.mayRemove($0, installed: installed) }
                 failed += stubborn.count - stillSafe.count
                 Self.trashViaFinder(stillSafe.map(\.url))
                 for item in stillSafe {
@@ -219,7 +228,7 @@ final class JunkCleaner: ObservableObject {
     /// Exact match guard against ever removing a critical root, even if a
     /// scanner bug produced one. Items are already scoped by construction;
     /// this is the last line of defense.
-    private static func mayRemove(_ item: Item) -> Bool {
+    private static func mayRemove(_ item: Item, installed: Set<String>) -> Bool {
         let url = item.url
         let path = url.standardizedFileURL.path
         let home = NSHomeDirectory()
@@ -238,7 +247,7 @@ final class JunkCleaner: ObservableObject {
             guard isDirectLeftoverRootChild(url),
                   CleanerSupport.bundleIDCandidate(fromEntryName: item.detail) != nil,
                   !CleanerSupport.isProtectedBundleID(item.detail),
-                  !hasLivingOwner(item.detail, installed: installedBundleIDs()) else { return false }
+                  !hasLivingOwner(item.detail, installed: installed) else { return false }
         }
         // Depth guard: anything this shallow is a root of some kind, never junk.
         return url.pathComponents.count >= 4
