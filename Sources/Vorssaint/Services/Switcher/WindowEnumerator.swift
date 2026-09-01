@@ -121,7 +121,9 @@ enum WindowEnumerator {
                                     snapshot: Snapshot,
                                     isCancelled: @escaping () -> Bool = { false }) -> [SwitcherItem] {
         let windowlessApps = SwitcherWindowlessApps.mode(
-            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps))
+            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
+            takeOverSystemShortcuts: UserDefaults.standard.bool(
+                forKey: DefaultsKey.switcherTakeOverSystemShortcuts))
         let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
         let minimizedPlacement = WindowSwitchMinimizedPlacement(
             rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""

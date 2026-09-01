@@ -111,7 +111,6 @@ final class ScreenshotQuickPreviewController {
         self.panel = panel
         installKeyMonitor(for: panel)
         panel.orderFrontRegardless()
-        panel.makeKey()
         // A performed action turns the preview into a short confirmation; a
         // failed one keeps the full stay so the person can still act by hand.
         autoDismissDuration = runDefaultAction(defaultAction) ? 3 : 12
@@ -371,6 +370,19 @@ final class ScreenshotQuickPreviewController {
 
 private final class ScreenshotQuickPreviewPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+
+    /// The preview shows up unasked for, so presenting it leaves the keyboard
+    /// where it was and a click is what hands it over. Its shortcuts read a
+    /// local monitor, and that monitor is delivered nothing until this panel is
+    /// key. The hand-off sits in `sendEvent` rather than `mouseDown` because
+    /// the hosted SwiftUI content answers a press on a button itself, and a
+    /// window's `mouseDown` never runs for the clicks a view has taken.
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, !isKeyWindow {
+            makeKey()
+        }
+        super.sendEvent(event)
+    }
 }
 
 private struct ScreenshotQuickPreviewView: View {

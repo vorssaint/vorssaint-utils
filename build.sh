@@ -171,6 +171,7 @@ else
 fi
 SDK_COMPAT_FLAGS=()
 VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat)
+HID_EVENT_SYSTEM_FLAGS=(-I Sources/HIDEventSystem)
 if [[ "$SDK" == "$PINNED_SDK" ]]; then
     # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
@@ -186,7 +187,7 @@ fi
 discard_test_preferences() {
     local preferences="$HOME/Library/Preferences" name
     for name in "vorss.tests." "com.vorssaint.tests."; do
-        rm -f "$preferences"/$name*.plist
+        rm -f "$preferences"/$name*.plist(N)
     done
     rm -f "$preferences/metrics-tests.plist"
     local survivors
@@ -212,6 +213,8 @@ if (( TEST )); then
     swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
+        Sources/Vorssaint/Core/QuitProtectionSupport.swift \
+        Sources/Vorssaint/Core/QuitProtectionStrings.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
         Sources/Vorssaint/Core/FeaturePresets.swift \
@@ -300,8 +303,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \
         Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutSupport.swift \
         Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift \
+        Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceSupport.swift \
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptionSupport.swift \
+        Sources/Vorssaint/Services/WindowServerSupport.swift \
         Sources/Vorssaint/Core/MouseButtonStrings.swift \
+        Sources/Vorssaint/Core/MouseClickDebounceStrings.swift \
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift \
         Sources/Vorssaint/Core/WindowPreviewExclusionStrings.swift \
@@ -330,8 +336,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift \
         Sources/Vorssaint/Services/SuperKey/SuperKeyMappingGuard.swift \
         Sources/Vorssaint/Core/SuperKeyStrings.swift \
+        Sources/Vorssaint/Services/SessionActivity.swift \
+        Sources/Vorssaint/Services/SessionActivitySupport.swift \
         Sources/Vorssaint/Services/ScrollWheelSupport.swift \
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
+        Sources/Vorssaint/Services/MouseAcceleration/MouseAccelerationSupport.swift \
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
@@ -382,14 +391,14 @@ if (( DEV )); then
     write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -j "$(sysctl -n hw.logicalcpu)" \
         -output-file-map "$APP_OUTPUT_FILE_MAP" \
-        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
+        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
         "${BUILD_VARIANT_FLAGS[@]}" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 else
     rm -rf build
     mkdir -p build
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
-        "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 fi
 

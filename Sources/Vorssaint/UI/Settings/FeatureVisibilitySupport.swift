@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -25,9 +25,11 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case scrollDirection
     case focusFollowsMouse
     case smoothScroll
+    case mouseAcceleration
     case mouseNavigation
     case mouseButtonShortcuts
     case middleClick
+    case mouseClickDebounce
     case switcher
     case dock
     case dockClick
@@ -44,6 +46,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case micMute
     case cameraPreview
     case scratchpad
+    case cleaningMode
     case soundOutputSwitcher
     case fanControl
 
@@ -51,13 +54,13 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         switch self {
         case .panelConfiguration, .musicBlocking: return .general
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
-        case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
-             .middleClick:
+        case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+             .middleClick, .mouseClickDebounce:
             return .mouse
         case .switcher, .dock, .dockClick: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
-        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad:
+        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode:
             return .quickTools
         case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
@@ -163,6 +166,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
+        case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
 
         case .scrollInverter:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)
@@ -170,12 +174,16 @@ extension AppFeature {
             return FeatureSettingsDestination(.mouse, sectionAnchor: .focusFollowsMouse)
         case .smoothScroll:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .smoothScroll)
+        case .mouseAcceleration:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseAcceleration)
         case .mouseNavigation:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseNavigation)
         case .mouseButtonShortcuts:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseButtonShortcuts)
         case .middleClick:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .middleClick)
+        case .mouseClickDebounce:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseClickDebounce)
         case .keyboardDebounce: return FeatureSettingsDestination(.keyDebounce)
         case .textSnippets: return FeatureSettingsDestination(.textSnippets)
         case .superKey: return FeatureSettingsDestination(.superKey)
@@ -219,7 +227,7 @@ extension AppFeature {
         case .screenOCR:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenOCR)
         case .cleaningMode:
-            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+            return FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode)
         case .mediaTools: return FeatureSettingsDestination(.media)
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
@@ -259,17 +267,18 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts,
-                             .middleClick]
+        case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+                             .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]
         case .autoQuit: return [.autoQuit]
+        case .quitProtection: return [.quitWindowProtection]
         case .clipboard: return [.clipboardHistory, .pastePlain, .finderCutPaste]
         case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .micMute,
-                                  .cameraPreview, .scratchpad]
+                                  .cameraPreview, .scratchpad, .cleaningMode]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]
         case .homebrew: return [.homebrew]

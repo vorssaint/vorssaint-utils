@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Yan düğmeler şu anda etkin",
         smoothScrollName: "Akıcı kaydırma",
         smoothScrollCaption: "Fare tekerleğinin her adımını kısa ve yumuşak bir kaymaya dönüştürür. İzleme dörtgeni değişmez.",
-        smoothScrollStepLabel: "Adım başına mesafe",
+        smoothScrollStepLabel: "Kaydırma hızı",
         mouseNavigationSection: "Gezinme",
         mouseNavigationEnable: "Geri ve İleri için yan düğmeleri kullan",
         mouseNavigationCaption: "Farenin Geri ve İleri düğmelerini Finder, tarayıcılar ve uyumlu uygulamalarda gezinme komutlarına dönüştürür.",
@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "Uygulamalar",
         switcherShortcutHintWindows: "Pencereler",
         switcherWindowShortcutCaption: "Ön plandaki uygulamanın pencereleri için bir değiştirici açar. Uygulama değiştirici açıkken seçili uygulamanın pencereleri arasında geçiş yapar.",
+        switcherTakeOverSystemShortcuts: "macOS ⌘Tab ve ⌘` kısayollarını değiştir",
+        switcherTakeOverSystemShortcutsCaption: "Eşleşen macOS uygulama ve pencere kısayollarını yalnızca Vorssaint değiştiricisi etkinken kapatır. Çalışan tüm uygulamalara erişim korunur.",
         switcherAppearanceDelay: "Görünme gecikmesi",
         switcherAppearanceDelayCaption: "Değiştirici görünmeden önce kısayolun ne kadar basılı tutulacağı.",
         switcherMergeTabs: "Uygulama başına bir giriş göster",
@@ -803,6 +805,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Kilidi açmak için Esc tuşuna 5 kez bas",
         cleaningOverlayUnlock: "Kilidi aç",
         cleaningOverlayMouseHint: "Fare ve izleme dörtgeni çalışmaya devam eder",
+        cleaningKeepScreenVisibleToggle: "Ekranı görünür tut",
+        cleaningKeepScreenVisibleCaption: "İçeriği karartmak yerine ekranın köşesinde göze çarpmayan bir gösterge gösterir.",
+        cleaningStartNow: "Klavyeyi şimdi kilitle",
         cleaningNeedsAxTitle: "Erişilebilirlik gerekli",
         cleaningNeedsAxBody: "Klavyeyi güvenle kilitlemek için Vorssaint'in Erişilebilirlik iznine ihtiyacı var. Sistem Ayarları'ndan izin ver ve tekrar dene.",
 
@@ -977,6 +982,9 @@ extension Strings {
         switcherScreenPlacementPointer: "İmlecin olduğu ekran",
         switcherScreenPlacementMenuBar: "Menü çubuğunun olduğu ekran",
         switcherScreenPlacementActiveWindow: "Etkin pencerenin olduğu ekran",
-        switcherScreenPlacementCaption: "Birden fazla ekran bağlıyken değiştiricinin hangi ekranda açılacağını belirler."
+        switcherScreenPlacementCaption: "Birden fazla ekran bağlıyken değiştiricinin hangi ekranda açılacağını belirler.",
+        smoothScrollResponseLabel: "Tepki",
+        mouseAccelerationName: "Fare hızlandırmasını kapat",
+        mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir."
     )
 }

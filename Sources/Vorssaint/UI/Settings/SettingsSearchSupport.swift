@@ -26,9 +26,10 @@ struct SettingsSearchItem: Identifiable {
     var feature: AppFeature?
 }
 
-/// One selectable row inside a grouped Settings search result. A keyword row
-/// routes to its containing page, while a feature row keeps its exact section
-/// destination and unavailable-feature fallback.
+/// One selectable row inside a grouped Settings search result. A page-level
+/// keyword routes to its containing page, while a feature-owned keyword keeps
+/// the same exact section destination and unavailable-feature fallback as the
+/// feature row itself.
 struct SettingsSearchSuggestion: Identifiable {
     enum ID: Hashable {
         case page(SettingsPage)
@@ -238,11 +239,18 @@ enum SettingsSearchSupport {
                     let keywordFeature = item.keywordFeatures.indices.contains(index)
                         ? item.keywordFeatures[index] : nil
                     if let keywordFeature, !isAvailable(keywordFeature) { continue }
+                    let suggestionItem = keywordFeature.map { feature in
+                        SettingsSearchItem(id: .feature(feature),
+                                           destination: feature.settingsDestination,
+                                           title: keyword,
+                                           icon: feature.symbolName,
+                                           feature: feature)
+                    } ?? pageItem
                     appendSuggestion(
                         SettingsSearchSuggestion(id: .keyword(page, index),
                                                  title: keyword,
                                                  icon: pageItem.icon,
-                                                 item: pageItem,
+                                                 item: suggestionItem,
                                                  featureHubTarget: page == .features
                                                     ? keywordFeature : nil),
                         to: &builder)
@@ -295,6 +303,7 @@ enum SettingsSearchSupport {
         let recorder = FeatureStrings.recorder(language)
         return [
             (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
+                           screenshot.loupeStartsOnToggle,
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolArrow]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
