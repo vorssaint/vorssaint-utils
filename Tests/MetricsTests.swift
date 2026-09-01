@@ -15448,6 +15448,30 @@ struct MetricsTests {
             protectedWindowIDs: protectedScreenshotWindows
         ), "screenshot cannot pick its own protected capture UI")
 
+        // The workflow's own surfaces — the selection overlays and the
+        // countdown and scrolling HUDs — stay excluded whatever the preference
+        // says, while editors, pins and the quick preview are content and
+        // follow it: with "Hide Vorssaint windows" off they stay capturable
+        // instead of silently joining the protected list (issue #780).
+        expect(ScreenshotCapturePolicy.protectedWindowIDs(
+            hideVorssaintWindows: false,
+            workflowWindowIDs: [12],
+            contentWindowIDs: [11, 13]
+        ) == [12],
+        "screenshot keeps only the capture workflow excluded when Vorssaint windows are visible")
+        expect(ScreenshotCapturePolicy.protectedWindowIDs(
+            hideVorssaintWindows: true,
+            workflowWindowIDs: [12],
+            contentWindowIDs: [11, 13]
+        ) == [11, 12, 13],
+        "screenshot excludes the whole app when hiding Vorssaint windows")
+        expect(ScreenshotCapturePolicy.protectedWindowIDs(
+            hideVorssaintWindows: true,
+            workflowWindowIDs: [],
+            contentWindowIDs: []
+        ).isEmpty,
+        "screenshot protected list is empty when nothing is on screen")
+
         // A sheet or dialog the app stacked on the clicked window is a window
         // of its own, so a single-window capture leaves it out of a shot it is
         // plainly part of (issue #1098). Same app, in front, and lying wholly

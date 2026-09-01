@@ -13,6 +13,19 @@ enum ScreenshotCapturePolicy {
         hideVorssaintWindows ? ownWindowIDs : ownWindowIDs.intersection(protectedWindowIDs)
     }
 
+    /// The own windows the capture paths keep out of the shot before the
+    /// visibility preference says anything (issue #780). The workflow
+    /// surfaces — the selection overlays and the countdown and scrolling
+    /// HUDs — are always excluded: they are the tool taking the capture,
+    /// never its subject. Content windows (editors, pins, the quick preview)
+    /// follow the preference, so with "Hide Vorssaint windows" off they stay
+    /// capturable instead of silently joining the protected list.
+    static func protectedWindowIDs(hideVorssaintWindows: Bool,
+                                   workflowWindowIDs: Set<CGWindowID>,
+                                   contentWindowIDs: Set<CGWindowID>) -> Set<CGWindowID> {
+        hideVorssaintWindows ? workflowWindowIDs.union(contentWindowIDs) : workflowWindowIDs
+    }
+
     static func canPickWindow(_ windowID: CGWindowID,
                               isOwnWindow: Bool,
                               hideVorssaintWindows: Bool,

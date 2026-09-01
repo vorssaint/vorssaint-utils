@@ -44,20 +44,30 @@ final class ScreenshotService: ObservableObject {
     }
 
     private var protectedWindowIDs: Set<CGWindowID> {
-        var ids = session?.protectedWindowIDs ?? []
-        ids.formUnion(preview?.protectedWindowIDs ?? [])
-        for editor in editors {
-            ids.formUnion(editor.protectedWindowIDs)
-        }
-        ids.formUnion(ScreenshotPinController.shared.protectedWindowIDs)
-        ids.formUnion(ScreenCaptureService.shared.protectedWindowIDs)
+        // The selection overlays and the countdown and scrolling HUDs are the
+        // tool taking the capture, so they stay excluded whatever the
+        // preference says.
+        var workflowIDs = session?.protectedWindowIDs ?? []
+        workflowIDs.formUnion(ScreenCaptureService.shared.protectedWindowIDs)
         if let number = QuickToolHUD.currentWindowNumber, number > 0 {
-            ids.insert(CGWindowID(number))
+            workflowIDs.insert(CGWindowID(number))
         }
         if let number = QuickToolHUD.currentScrollingWindowNumber, number > 0 {
-            ids.insert(CGWindowID(number))
+            workflowIDs.insert(CGWindowID(number))
         }
-        return ids
+        // Editors, pins and the quick preview are content, and the visibility
+        // preference governs them: with "Hide Vorssaint windows" off they
+        // stay capturable (issue #780) instead of silently joining the
+        // protected list.
+        var contentIDs = preview?.protectedWindowIDs ?? []
+        for editor in editors {
+            contentIDs.formUnion(editor.protectedWindowIDs)
+        }
+        contentIDs.formUnion(ScreenshotPinController.shared.protectedWindowIDs)
+        return ScreenshotCapturePolicy.protectedWindowIDs(
+            hideVorssaintWindows: hideVorssaintWindows,
+            workflowWindowIDs: workflowIDs,
+            contentWindowIDs: contentIDs)
     }
 
     var protectedWindowIDsForCapture: Set<CGWindowID> { protectedWindowIDs }
