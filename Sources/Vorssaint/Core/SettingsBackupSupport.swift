@@ -121,6 +121,7 @@ enum SettingsBackupSupport {
         DefaultsKey.screenshotSharingDeveloperEndpoint,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
+        DefaultsKey.switcherNativeHotkeysSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]
@@ -293,7 +294,9 @@ enum SettingsBackupSupport {
     }
 
     private static func isNumber(_ value: Any) -> Bool {
-        guard let value = number(value) else { return false }
-        return CFGetTypeID(value) != CFBooleanGetTypeID()
+        guard let value = number(value), CFGetTypeID(value) != CFBooleanGetTypeID() else {
+            return false
+        }
+        return value.doubleValue.isFinite
     }
 }

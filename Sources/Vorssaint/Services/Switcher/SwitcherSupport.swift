@@ -45,6 +45,19 @@ enum SwitcherPendingKeyDecision: Equatable {
     case cancelAndSwallow
 }
 
+/// WindowServer identifiers for the app and window switcher actions.
+enum SwitcherNativeSymbolicHotKey: Int32, CaseIterable, Hashable {
+    case commandTab = 1
+    case commandShiftTab = 2
+    case nextWindow = 27
+    case previousWindow = 28
+}
+
+struct SwitcherNativeHotkeyTransition: Equatable {
+    let suppress: Set<SwitcherNativeSymbolicHotKey>
+    let restore: Set<SwitcherNativeSymbolicHotKey>
+}
+
 /// Which running apps earn an entry of their own when they have no window the
 /// switcher can show. The switcher lists windows, so an app that closed all of
 /// them disappears from it while the system switcher still offers it.
@@ -60,7 +73,9 @@ enum SwitcherWindowlessApps: String, CaseIterable, Equatable {
 
     /// Preferences are stored as plain strings, so an unknown or missing value
     /// resolves to the behavior the app shipped with instead of nothing.
-    static func mode(storedValue: String?) -> SwitcherWindowlessApps {
+    static func mode(storedValue: String?,
+                     takeOverSystemShortcuts: Bool) -> SwitcherWindowlessApps {
+        if takeOverSystemShortcuts { return .all }
         guard let storedValue, let mode = SwitcherWindowlessApps(rawValue: storedValue) else {
             return fallback
         }
@@ -1126,6 +1141,39 @@ enum SwitcherSupport {
         if sessionIsActive { return .handleActiveSession }
         guard hasPendingStart, !matchesShortcut else { return .routeShortcut }
         return commitWhenReady ? .cancelAndSwallow : .swallow
+    }
+
+    /// The explicit takeover setting is the authority to change WindowServer's
+    /// shared symbolic-hotkey state. Shortcut matching alone is never enough.
+    static func nativeHotkeysToSuppress(takeOverSystemShortcuts: Bool,
+                                        appsShortcut: GlobalShortcut,
+                                        windowShortcut: GlobalShortcut,
+                                        nativeShortcuts: [SwitcherNativeSymbolicHotKey: GlobalShortcut])
+        -> Set<SwitcherNativeSymbolicHotKey> {
+        guard takeOverSystemShortcuts else { return [] }
+        let ownedShortcuts = [appsShortcut, windowShortcut]
+        return Set(nativeShortcuts.compactMap { id, nativeShortcut in
+            ownedShortcuts.contains { switcherShortcut($0, owns: nativeShortcut) } ? id : nil
+        })
+    }
+
+    static func nativeHotkeyTransition(from current: Set<SwitcherNativeSymbolicHotKey>,
+                                       to desired: Set<SwitcherNativeSymbolicHotKey>,
+                                       currentlyEnabled: Set<SwitcherNativeSymbolicHotKey>) -> SwitcherNativeHotkeyTransition {
+        SwitcherNativeHotkeyTransition(suppress: desired.intersection(currentlyEnabled),
+                                       restore: current.subtracting(desired))
+    }
+
+    /// Mirrors the event tap's `allowingExtraShift` match: Shift reverses a
+    /// shortcut that does not already require it, and WindowServer registers
+    /// the forward and reverse directions as separate symbolic hotkeys.
+    private static func switcherShortcut(_ shortcut: GlobalShortcut,
+                                         owns nativeShortcut: GlobalShortcut) -> Bool {
+        guard shortcut.keyCode == nativeShortcut.keyCode else { return false }
+        if shortcut.modifiers.contains(.shift) {
+            return shortcut.modifiers == nativeShortcut.modifiers
+        }
+        return nativeShortcut.modifiers.subtracting(.shift) == shortcut.modifiers
     }
 
     static func isCurrentActivationGeneration(_ scheduled: UInt64,

@@ -187,7 +187,7 @@ fi
 discard_test_preferences() {
     local preferences="$HOME/Library/Preferences" name
     for name in "vorss.tests." "com.vorssaint.tests."; do
-        rm -f "$preferences"/$name*.plist
+        rm -f "$preferences"/$name*.plist(N)
     done
     rm -f "$preferences/metrics-tests.plist"
     local survivors
@@ -213,6 +213,8 @@ if (( TEST )); then
     swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
+        Sources/Vorssaint/Core/QuitProtectionSupport.swift \
+        Sources/Vorssaint/Core/QuitProtectionStrings.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
         Sources/Vorssaint/Core/FeaturePresets.swift \
@@ -307,6 +309,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift \
         Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceSupport.swift \
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptionSupport.swift \
+        Sources/Vorssaint/Services/WindowServerSupport.swift \
         Sources/Vorssaint/Core/MouseButtonStrings.swift \
         Sources/Vorssaint/Core/MouseClickDebounceStrings.swift \
         Sources/Vorssaint/Core/MouseExceptionStrings.swift \

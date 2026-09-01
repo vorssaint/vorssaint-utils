@@ -8,6 +8,7 @@ enum AutoQuitWindowEvent: Equatable {
     case windowDestroyed
     case appHidden
     case appDeactivated
+    case appActivated
     case mainWindowChanged
     case focusedWindowChanged
     case windowCreated
@@ -37,6 +38,7 @@ enum AutoQuitSupport {
         case .appHidden:
             return hasRecentCloseRequest
         case .appDeactivated,
+             .appActivated,
              .mainWindowChanged,
              .focusedWindowChanged,
              .windowCreated,
@@ -50,10 +52,16 @@ enum AutoQuitSupport {
     /// Every found user window requires a registered destroy notification.
     /// Accessibility-listed windows set that count directly; window-server
     /// evidence when Accessibility lists none still requires one watch.
+    /// An app that has never yet shown any window also retries during its initial
+    /// watch window so apps creating windows asynchronously on launch are caught.
     static func needsWindowWatchRetry(registeredWindows: Int,
                                       listedWindows: Int,
-                                      foundUserWindow: Bool) -> Bool {
-        foundUserWindow && registeredWindows < max(listedWindows, 1)
+                                      foundUserWindow: Bool,
+                                      hadPriorWindows: Bool = false) -> Bool {
+        if foundUserWindow {
+            return registeredWindows < max(listedWindows, 1)
+        }
+        return !hadPriorWindows && registeredWindows == 0
     }
 
     /// Whether adding a window notification left the observer watching for it.
