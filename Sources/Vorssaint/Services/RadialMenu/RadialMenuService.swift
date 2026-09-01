@@ -255,12 +255,16 @@ final class RadialMenuService: ObservableObject {
                     defaults.data(forKey: DefaultsKey.radialMenuProfiles),
                     defaults: defaults
                 )
-                guard let matchingProfile = profiles.first(where: {
+                // The guard above already claimed the click, and the release
+                // will be swallowed to match it. A profile the full decode
+                // drops but the cheap read keeps (a corrupt blob) therefore
+                // opens no wheel and still costs the app under the pointer
+                // nothing: never one half of a click.
+                if let matchingProfile = profiles.first(where: {
                     RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == button
-                }) else {
-                    return Unmanaged.passUnretained(event)
+                }) {
+                    beginSession(for: matchingProfile, hold: false, heldButton: button)
                 }
-                beginSession(for: matchingProfile, hold: false, heldButton: button)
             } else if !holdPhase {
                 endSession()
             }

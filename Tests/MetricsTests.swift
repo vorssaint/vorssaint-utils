@@ -15265,6 +15265,23 @@ struct MetricsTests {
                 == [MouseButtonShortcutSupport.forwardButtonNumber],
                "claimed mouse buttons fall back to the legacy button key like the full decode")
         legacyButtonDefaults.removePersistentDomain(forName: "com.vorssaint.tests.radialLegacyButton")
+
+        // The cheap read and the full decode can disagree on a corrupt blob,
+        // so only one of them may decide whether the click is passed on: once
+        // the button is claimed, nothing past that point hands an event back,
+        // or the down and the up split.
+        let radialServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/RadialMenu/RadialMenuService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let radialClaimedClick = radialServiceCode
+            .components(separatedBy: "if type == .otherMouseDown {")
+            .dropFirst().first?
+            .components(separatedBy: "private func hotkeyPressed").first ?? ""
+        expect(!radialClaimedClick.isEmpty && !radialClaimedClick.contains("passUnretained"),
+               "a claimed side button keeps both halves of its click whatever the full decode says")
         expect(RadialMenuFaviconFetcher.faviconURL(
             for: "https://example.com:8443/path?q=1#part")?.absoluteString
                 == "https://example.com:8443/favicon.ico"
