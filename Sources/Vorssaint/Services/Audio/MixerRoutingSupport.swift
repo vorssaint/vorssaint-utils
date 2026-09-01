@@ -259,9 +259,72 @@ enum MixerRoutingSupport {
         return candidates[(index + 1) % candidates.count]
     }
 
-    static func outputLooksLikeHeadphones(name: String,
+    /// Data source (port) codes the built-in audio driver reports through
+    /// `kAudioDevicePropertyDataSource`. They are the OSType constants from
+    /// IOKit's `IOAudioTypes.h` (`kIOAudioOutputPortSubType*`), so they read
+    /// the same on every Mac in every language — unlike the data source
+    /// *name*, which HAL localizes ("外置耳机", "Écouteurs externes").
+    static let headphonesDataSourceID: UInt32 = 0x6864_706e      // 'hdpn'
+    static let internalSpeakerDataSourceID: UInt32 = 0x6973_706b // 'ispk'
+    static let externalSpeakerDataSourceID: UInt32 = 0x6573_706b // 'espk'
+
+    /// Whether a disconnect of this device should count as "headphones came
+    /// off", which is what drives lowering the speaker volume.
+    ///
+    /// The two mistakes are not equally bad for the device being disconnected:
+    /// missing real headphones lets the speakers take over at headphone
+    /// volume, the exact accident the feature exists to prevent, while
+    /// mistaking a speaker for headphones only lowers a volume the user can
+    /// raise again and that is restored when the device returns. So a
+    /// transport that carries both kinds resolves to "headphones".
+    ///
+    /// The device that takes over inverts that, though: calling it headphones
+    /// suppresses the lowering. That is why the two built-in speaker ports are
+    /// matched positively rather than inferred, and why an unreadable port on
+    /// a built-in device falls through to the name list instead of being
+    /// assumed to be the jack.
+    ///
+    /// - Parameters:
+    ///   - transportType: `kAudioDevicePropertyTransportType`, nil when unreadable.
+    ///   - dataSourceID: `kAudioDevicePropertyDataSource` on the output scope,
+    ///     nil when the device has no selectable port.
+    static func outputLooksLikeHeadphones(transportType: UInt32?,
+                                          dataSourceID: UInt32?,
+                                          name: String,
                                           uid: String,
                                           dataSourceName: String?) -> Bool {
+        // The built-in driver names its own port. This is the only answer that
+        // is authoritative, so it is asked first.
+        switch dataSourceID {
+        case headphonesDataSourceID: return true
+        case internalSpeakerDataSourceID, externalSpeakerDataSourceID: return false
+        default: break
+        }
+
+        switch transportType {
+        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
+            // Nothing in CoreAudio separates Bluetooth headphones from a
+            // Bluetooth speaker. Treated as headphones per the asymmetry above.
+            return true
+        case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort,
+             kAudioDeviceTransportTypeAirPlay:
+            // A display, a TV or an AirPlay receiver is never headphones.
+            return false
+        default: break
+        }
+
+        // Last resort, for transports that carry both kinds and report no port:
+        // USB and Thunderbolt interfaces, virtual and aggregate devices. The
+        // list only ever adds headphones the checks above did not claim, so a
+        // device it does not know still falls to "not headphones" — this is the
+        // one path that keeps the old locale-dependent behaviour, and it is
+        // reached only when the system itself gave no answer.
+        return nameLooksLikeHeadphones(name: name, uid: uid, dataSourceName: dataSourceName)
+    }
+
+    private static func nameLooksLikeHeadphones(name: String,
+                                                uid: String,
+                                                dataSourceName: String?) -> Bool {
         let haystack = [name, uid, dataSourceName ?? ""]
             .joined(separator: " ")
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)

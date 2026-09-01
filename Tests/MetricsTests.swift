@@ -6495,26 +6495,55 @@ struct MetricsTests {
             selectedUIDs: ["BuiltInSpeakerDevice"],
             availableUIDs: ["BuiltInSpeakerDevice"]) == nil,
                "sound output switcher does nothing when the only selected output is already current")
-        expect(MixerRoutingSupport.outputLooksLikeHeadphones(name: "AirPods Pro",
-                                                             uid: "",
-                                                             dataSourceName: nil),
+        func looksLikeHeadphones(_ name: String,
+                                 uid: String = "",
+                                 transport: UInt32? = nil,
+                                 dataSource: UInt32? = nil,
+                                 dataSourceName: String? = nil) -> Bool {
+            MixerRoutingSupport.outputLooksLikeHeadphones(transportType: transport,
+                                                          dataSourceID: dataSource,
+                                                          name: name,
+                                                          uid: uid,
+                                                          dataSourceName: dataSourceName)
+        }
+        expect(looksLikeHeadphones("AirPods Pro"),
                "AirPods are treated as headphones")
-        expect(MixerRoutingSupport.outputLooksLikeHeadphones(name: "Built-in Output",
-                                                             uid: "",
-                                                             dataSourceName: "Headphones"),
+        expect(looksLikeHeadphones("Built-in Output", dataSourceName: "Headphones"),
                "wired headphone data source is treated as headphones")
-        expect(MixerRoutingSupport.outputLooksLikeHeadphones(name: "Sony WH-1000XM5",
-                                                             uid: "",
-                                                             dataSourceName: nil),
+        expect(looksLikeHeadphones("Sony WH-1000XM5"),
                "common Bluetooth headphone names are treated as headphones")
-        expect(!MixerRoutingSupport.outputLooksLikeHeadphones(name: "MacBook Pro Speakers",
-                                                              uid: "BuiltInSpeakerDevice",
-                                                              dataSourceName: nil),
+        expect(!looksLikeHeadphones("MacBook Pro Speakers", uid: "BuiltInSpeakerDevice"),
                "built-in speakers are not treated as headphones")
-        expect(!MixerRoutingSupport.outputLooksLikeHeadphones(name: "JBL Flip",
-                                                              uid: "",
-                                                              dataSourceName: nil),
+        expect(!looksLikeHeadphones("JBL Flip"),
                "Bluetooth speakers are not treated as headphones")
+        // The device name and the data source name HAL reports are localized,
+        // so the word list alone answers "no headphones here" on a Mac that is
+        // not running in English, and the disconnect never lowers the speakers.
+        // The port id is the same four-character code in every language.
+        expect(looksLikeHeadphones("MacBook Air",
+                                   uid: "BuiltInHeadphoneOutputDevice",
+                                   transport: kAudioDeviceTransportTypeBuiltIn,
+                                   dataSource: MixerRoutingSupport.headphonesDataSourceID,
+                                   dataSourceName: "外置耳机"),
+               "the headphone port id is recognized when its localized name matches no known word")
+        expect(!looksLikeHeadphones("MacBook Air扬声器",
+                                    uid: "BuiltInSpeakerDevice",
+                                    transport: kAudioDeviceTransportTypeBuiltIn,
+                                    dataSource: MixerRoutingSupport.internalSpeakerDataSourceID,
+                                    dataSourceName: "MacBook Air扬声器"),
+               "the built-in speaker port id is not treated as headphones")
+        expect(looksLikeHeadphones("Sennheiser HD 450BT",
+                                   transport: kAudioDeviceTransportTypeBluetooth),
+               "Bluetooth outputs the word list does not know are treated as headphones")
+        expect(!looksLikeHeadphones("Living Room Beats",
+                                    transport: kAudioDeviceTransportTypeAirPlay),
+               "an AirPlay receiver is not headphones even when its name matches the word list")
+        expect(!looksLikeHeadphones("Mi Monitor",
+                                    transport: kAudioDeviceTransportTypeDisplayPort),
+               "a DisplayPort monitor is not treated as headphones")
+        expect(looksLikeHeadphones("Jabra Evolve2",
+                                   transport: kAudioDeviceTransportTypeUSB),
+               "USB falls back to the name list, which still knows common headsets")
         // Issue #256: some browsers' audio helpers answer for themselves, so
         // the mixer walks the parent chain to the nearest regular app.
         let helperParents: [pid_t: pid_t] = [500: 100, 100: 1, 700: 1,

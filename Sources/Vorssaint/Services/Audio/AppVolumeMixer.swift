@@ -1550,16 +1550,20 @@ final class AppVolumeMixer: ObservableObject {
                 ? nameRef as String
                 : uid
             guard name != "Vorssaint Mixer" else { continue }
-            let dataSourceName = outputDataSourceName(for: deviceID)
+            let dataSource = outputDataSource(for: deviceID)
+            var transportType: UInt32 = 0
+            let hasTransportType = read(deviceID, kAudioDevicePropertyTransportType, &transportType)
 
             devices.append(MixerOutputDevice(id: uid,
                                              uid: uid,
                                              name: name,
                                              isDefault: uid == defaultUID,
                                              isHeadphones: MixerRoutingSupport.outputLooksLikeHeadphones(
+                                                transportType: hasTransportType ? transportType : nil,
+                                                dataSourceID: dataSource?.id,
                                                 name: name,
                                                 uid: uid,
-                                                dataSourceName: dataSourceName),
+                                                dataSourceName: dataSource?.name),
                                              canBeDefaultOutput: canBeDefaultOutput,
                                              canBeDefaultSystemOutput: canBeDefaultSystemOutput,
                                              audioObjectID: deviceID))
@@ -1572,7 +1576,9 @@ final class AppVolumeMixer: ObservableObject {
         }
     }
 
-    private static func outputDataSourceName(for deviceID: AudioObjectID) -> String? {
+    /// The output port the device is currently using: its OSType id, which is
+    /// stable across languages, and the name HAL localizes for display.
+    private static func outputDataSource(for deviceID: AudioObjectID) -> (id: UInt32, name: String?)? {
         var dataSourceID: UInt32 = 0
         guard read(deviceID,
                    kAudioDevicePropertyDataSource,
@@ -1601,8 +1607,8 @@ final class AppVolumeMixer: ObservableObject {
                     &translation)
             }
         }
-        guard status == noErr else { return nil }
-        return nameRef as String
+        guard status == noErr else { return (dataSourceID, nil) }
+        return (dataSourceID, nameRef as String)
     }
 
     private static func hasOutputStreams(_ deviceID: AudioObjectID) -> Bool {
