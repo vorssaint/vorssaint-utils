@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "窗口",
         switcherWindowShortcutCaption: "打开最前 App 的窗口切换器。App 切换器打开时，在所选 App 的窗口之间跳转。",
+        switcherTakeOverSystemShortcuts: "接管 macOS 的 ⌘Tab 和 ⌘`",
+        switcherTakeOverSystemShortcutsCaption: "仅在 Vorssaint 切换器运行时停用对应的 macOS App 与窗口快捷键，并保留所有正在运行的 App 入口。",
         switcherAppearanceDelay: "显示延迟",
         switcherAppearanceDelayCaption: "按住快捷键多久后显示切换器。",
         switcherMergeTabs: "每个 App 仅显示一项",
