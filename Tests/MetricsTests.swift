@@ -21816,6 +21816,9 @@ struct MetricsTests {
                "catalog: audioPriority ships uninstalled")
         expect(AppFeature.features(in: .sound).contains(.audioPriority),
                "catalog: audioPriority appears in the Sound group")
+        expect(Defaults.registeredDefaults[DefaultsKey.audioPriorityOutputEnabled] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.audioPriorityInputEnabled] as? Bool == true,
+               "defaults: audio priority enables output and microphone automation on first install")
         // Must be ordered after soundOutputSwitcher in the Sound group
         let soundFeatures = AppFeature.features(in: .sound)
         if let switcherIndex = soundFeatures.firstIndex(of: .soundOutputSwitcher),

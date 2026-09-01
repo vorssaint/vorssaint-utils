@@ -890,10 +890,11 @@ enum Defaults {
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
-        // Audio device priority ships off; its enable flags and empty lists
-        // are registered so restore/sanitize has a known shape.
-        DefaultsKey.audioPriorityOutputEnabled: false,
-        DefaultsKey.audioPriorityInputEnabled: false,
+        // The feature itself ships uninstalled. On first install both halves
+        // work immediately; an explicit off choice is persisted and wins over
+        // these registered defaults on later launches or reinstalls.
+        DefaultsKey.audioPriorityOutputEnabled: true,
+        DefaultsKey.audioPriorityInputEnabled: true,
         DefaultsKey.audioPriorityOutputUIDs: [String](),
         DefaultsKey.audioPriorityInputUIDs: [String](),
         DefaultsKey.audioPriorityDeviceNames: [String: String](),
