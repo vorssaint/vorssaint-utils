@@ -452,10 +452,6 @@ final class ClipboardHistoryService: ObservableObject {
         save()
     }
 
-    func removeSelectedQuickEntry() {
-        removeSelectedQuickEntries()
-    }
-
     /// Where the pointer sat when the keyboard last moved the selection. Rows
     /// scrolling under a still pointer report hover, and hover would otherwise
     /// take the preview back from the row the arrow keys chose.
