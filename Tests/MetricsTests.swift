@@ -9701,7 +9701,7 @@ struct MetricsTests {
                                        hasModifiers: false,
                                        minimizeEnabled: true,
                                        cycleWindowsEnabled: true,
-                                       unminimizedWindowCount: 3) == .cycleWindows,
+                                       cycleCandidateCount: 3) == .cycleWindows,
                "dock click cycles instead of minimizing when both are on and there are windows to cycle")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: true,
@@ -9710,7 +9710,7 @@ struct MetricsTests {
                                        hasModifiers: false,
                                        minimizeEnabled: true,
                                        cycleWindowsEnabled: true,
-                                       unminimizedWindowCount: 1) == .minimize,
+                                       cycleCandidateCount: 1) == .minimize,
                "dock click still minimizes a single-window app with cycling on")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: true,
@@ -9719,7 +9719,7 @@ struct MetricsTests {
                                        hasModifiers: false,
                                        minimizeEnabled: false,
                                        cycleWindowsEnabled: true,
-                                       unminimizedWindowCount: 1) == .passThrough,
+                                       cycleCandidateCount: 1) == .passThrough,
                "cycling alone never minimizes a single-window app")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: true,
@@ -9785,7 +9785,7 @@ struct MetricsTests {
                                        minimizeEnabled: false,
                                        hideEnabled: true,
                                        cycleWindowsEnabled: false,
-                                       unminimizedWindowCount: 3) == .hide,
+                                       cycleCandidateCount: 3) == .hide,
                "hiding treats a multi-window app as one app when cycling is off")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: true,
@@ -9795,7 +9795,7 @@ struct MetricsTests {
                                        minimizeEnabled: false,
                                        hideEnabled: true,
                                        cycleWindowsEnabled: true,
-                                       unminimizedWindowCount: 3) == .cycleWindows,
+                                       cycleCandidateCount: 3) == .cycleWindows,
                "window cycling stays ahead of hiding when several windows are available")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
@@ -9804,7 +9804,7 @@ struct MetricsTests {
                                        hasModifiers: false,
                                        minimizeEnabled: false,
                                        cycleWindowsEnabled: true,
-                                       unminimizedWindowCount: 0) == .passThrough,
+                                       cycleCandidateCount: 0) == .passThrough,
                "cycling alone never restores minimized windows")
         expect(DockClickSupport.action(appIsFrontmost: false,
                                        hasUnminimizedWindows: true,
@@ -9813,8 +9813,31 @@ struct MetricsTests {
                                        hasModifiers: false,
                                        minimizeEnabled: false,
                                        cycleWindowsEnabled: true,
-                                       unminimizedWindowCount: 3) == .passThrough,
+                                       cycleCandidateCount: 3) == .passThrough,
                "cycling lets the Dock activate apps that are not frontmost")
+        // Issue #1204's report: one app, four unminimized windows spread over
+        // three desktops, two of them on the desktop being looked at. The AX
+        // window list holds all four; the window server's on-screen list holds
+        // only the two.
+        let windowsAcrossDesktops: [CGWindowID?] = [1, 2, 3, 4]
+        expect(DockClickSupport.cycleCandidateIndices(windowIDs: windowsAcrossDesktops,
+                                                      onScreenFrontToBack: [1, 2]) == [0, 1],
+               "cycling only considers the windows on the desktop being looked at")
+        expect(DockClickSupport.cycleCandidateIndices(windowIDs: windowsAcrossDesktops,
+                                                      onScreenFrontToBack: [1, 2]).last == 1,
+               "the click raises the rearmost window of the current desktop")
+        expect(DockClickSupport.cycleCandidateIndices(windowIDs: windowsAcrossDesktops,
+                                                      onScreenFrontToBack: [2, 1]).last == 0,
+               "the next click raises the other one back, rotating in place")
+        expect(DockClickSupport.cycleCandidateIndices(windowIDs: windowsAcrossDesktops,
+                                                      onScreenFrontToBack: [3]).count == 1,
+               "a desktop holding one window offers nothing to cycle, so the click cannot jump to another desktop")
+        expect(DockClickSupport.cycleCandidateIndices(windowIDs: [1, 2, 3],
+                                                      onScreenFrontToBack: [3, 1, 2]).last == 1,
+               "three windows on one desktop rotate through all of them, not just the front two")
+        expect(DockClickSupport.cycleCandidateIndices(windowIDs: [nil, nil],
+                                                      onScreenFrontToBack: [1, 2]).isEmpty,
+               "windows whose ids cannot be resolved are never guessed at")
         expect(DockClickSupport.repeatDecision(lastAction: .cycleWindows, elapsed: 0.5) == .deriveFromState,
                "a repeated click after a cycle keeps cycling from live state")
         expect(DockClickSupport.repeatDecision(lastAction: .hide, elapsed: 0.5) == .deriveFromState,
