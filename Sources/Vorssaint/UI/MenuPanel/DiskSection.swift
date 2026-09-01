@@ -212,27 +212,38 @@ struct DiskSection: View {
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 blockHeader(l10n.s.monitorItemDiskUsage, editing: editing, visible: $diskUsage)
-                VStack(alignment: .leading, spacing: 5) {
+                VStack(alignment: .leading, spacing: 8) {
                     diskTitleRow(disk)
-                    DiskUsageBar(fraction: disk.usedFraction)
-                    HStack(spacing: 6) {
-                        Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
-                        Spacer()
-                        Text("\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)")
+                    
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(MetricFormat.diskBytes(disk.freeBytes))
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        Text(l10n.s.diskAvailable)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.secondary)
                     }
-                    .font(.system(size: 10.5, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    
+                    DiskUsageBar(fraction: disk.usedFraction)
+                    
                     HStack(spacing: 6) {
-                        Text("\(MetricFormat.diskBytes(disk.usedBytes)) / \(MetricFormat.diskBytes(disk.totalBytes))")
-                        if let purgeable = disk.purgeableBytes, purgeable >= 500_000_000 {
-                            Spacer()
+                        Text("\(MetricFormat.diskBytes(disk.usedBytes)) \(l10n.s.diskUsed) / \(MetricFormat.diskBytes(disk.totalBytes))")
+                        Spacer()
+                        let cleaner = JunkCleaner.shared
+                        if cleaner.totalSize > 0 {
+                            Text("\(MetricFormat.diskBytes(UInt64(cleaner.totalSize))) Reclaimable")
+                                .foregroundStyle(PanelMetricColor.yellow(for: colorScheme))
+                        } else if let purgeable = disk.purgeableBytes, purgeable >= 500_000_000 {
                             Text("\(MetricFormat.diskBytes(purgeable)) \(l10n.s.diskPurgeable)")
                         }
                     }
-                    .font(.system(size: 10))
+                    .font(.system(size: 11))
                     .monospacedDigit()
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .onAppear {
+                if AppFeature.cleaner.isAvailable && JunkCleaner.shared.phase == .idle {
+                    JunkCleaner.shared.scan()
                 }
             }
         }

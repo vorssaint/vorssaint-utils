@@ -139,6 +139,17 @@ enum MenuBarPreset: String, CaseIterable {
 
 /// How the Memory metric appears in the menu bar: a colored pressure dot, the
 /// percentage of RAM in use, or both.
+
+enum DiskMenuBarStyle: String, CaseIterable {
+    case free, percent, both
+
+    static var current: DiskMenuBarStyle {
+        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarDiskStyle) ?? ""
+        let style = Defaults.sanitizedMenuBarDiskStyle(raw)
+        return DiskMenuBarStyle(rawValue: style) ?? .free
+    }
+}
+
 enum MemoryMenuBarStyle: String, CaseIterable {
     case dot, percent, both
 
@@ -401,7 +412,15 @@ enum MenuBarRenderer {
                 }
             case .diskUsage:
                 if let disk = primaryDisk(from: snapshot.disk) {
-                    let text = "DSK " + percent(disk.usedFraction)
+                    let text: String
+                    switch DiskMenuBarStyle.current {
+                    case .free:
+                        text = "DSK " + MetricFormat.diskBytes(disk.freeBytes)
+                    case .percent:
+                        text = "DSK " + percent(disk.usedFraction)
+                    case .both:
+                        text = "DSK " + MetricFormat.diskBytes(disk.freeBytes) + " · " + percent(disk.usedFraction)
+                    }
                     items.append(MetricItem(metric: metric,
                                             segments: [.symbol(metric.symbolName), .text(" " + text)],
                                             width: reservedWidth(for: metric, preset: preset)))
@@ -606,9 +625,22 @@ enum MenuBarRenderer {
                                                       style: style,
                                                       pressure: nil)])
                     } else {
+                        let valueText: String
+                        let minVal: String
+                        switch DiskMenuBarStyle.current {
+                        case .free:
+                            valueText = MetricFormat.diskBytes(disk.freeBytes)
+                            minVal = "999 GB"
+                        case .percent:
+                            valueText = percent(disk.usedFraction)
+                            minVal = "100%"
+                        case .both:
+                            valueText = MetricFormat.diskBytes(disk.freeBytes) + " · " + percent(disk.usedFraction)
+                            minVal = "999 GB · 100%"
+                        }
                         groups.append([.metricBlock(label: "DSK",
-                                                    value: percent(disk.usedFraction),
-                                                    minimumValue: "100%",
+                                                    value: valueText,
+                                                    minimumValue: minVal,
                                                     style: style,
                                                     pressure: nil)])
                     }
@@ -777,7 +809,11 @@ enum MenuBarRenderer {
         case (_, .network):
             return 15      // down symbol + 1.0G + up symbol + 1.0G
         case (_, .diskUsage):
-            return 11      // symbol + " DSK 100%"
+            switch DiskMenuBarStyle.current {
+            case .free: return 14
+            case .percent: return 11
+            case .both: return 20
+            }
         case (_, .diskActivity):
             return 15      // R1.0G + W1.0G
         case (_, .battery), (_, .power):
