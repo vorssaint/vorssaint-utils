@@ -259,104 +259,50 @@ enum MixerRoutingSupport {
         return candidates[(index + 1) % candidates.count]
     }
 
-    /// Data source (port) codes the built-in audio driver reports through
-    /// `kAudioDevicePropertyDataSource`. They are the OSType constants from
-    /// IOKit's `IOAudioTypes.h` (`kIOAudioOutputPortSubType*`), so they read
-    /// the same on every Mac in every language — unlike the data source
-    /// *name*, which HAL localizes ("外置耳机", "Écouteurs externes").
-    static let headphonesDataSourceID: UInt32 = 0x6864_706e      // 'hdpn'
-    static let internalSpeakerDataSourceID: UInt32 = 0x6973_706b // 'ispk'
-    static let externalSpeakerDataSourceID: UInt32 = 0x6573_706b // 'espk'
+    /// The headphone port code the built-in audio driver reports through
+    /// `kAudioDevicePropertyDataSource`. It is the OSType constant from IOKit's
+    /// `IOAudioTypes.h` (`kIOAudioOutputPortSubTypeHeadphones`), so it reads the
+    /// same on every Mac in every language — unlike the data source *name*,
+    /// which HAL localizes ("外置耳机", "Écouteurs externes").
+    static let headphonesDataSourceID: UInt32 = 0x6864_706e // 'hdpn'
 
-    /// What an output device is, as far as the system will say.
+    /// Whether a disconnect of this device should count as "headphones came
+    /// off", which is what drives lowering the speaker volume.
     ///
-    /// Two states are not enough, because the answer is used on both sides of
-    /// a default-output handoff and the sides want opposite defaults for a
-    /// device nothing identified:
-    ///
-    /// - For the device that just went away, guessing "headphones" is the safe
-    ///   guess. Missing real headphones lets whatever takes over play at
-    ///   headphone volume, the accident the feature exists to prevent
-    ///   (issue #92); mistaking a speaker for headphones only lowers a volume
-    ///   the user can raise again and that is put back when the device returns.
-    /// - For the device that takes over, the same guess is the unsafe one: it
-    ///   is what suppresses the lowering. A Bluetooth speaker becoming the
-    ///   default is exactly the case the feature has to cover.
-    ///
-    /// So a transport that carries both kinds and reports no port is `unknown`
-    /// rather than either answer, and each side reads it its own way.
-    enum OutputDeviceKind: Equatable {
-        case headphones
-        case speakers
-        /// The system placed the device on a transport that carries both kinds
-        /// (Bluetooth) and gave no port id or recognizable name. CoreAudio has
-        /// no property that separates a Bluetooth headset from a Bluetooth
-        /// speaker — the Bluetooth class of device does, but that is IOBluetooth,
-        /// not the audio HAL.
-        case unknown
-
-        /// Read for the device that stopped being the default: did headphones
-        /// just come off? Unknown counts, because a missed pair of headphones
-        /// is the failure the feature exists to prevent.
-        var countsAsHeadphonesWhenDisconnected: Bool { self != .speakers }
-
-        /// Read for the device that just became the default: may it keep the
-        /// volume it inherited? Only a certain answer, because an unknown
-        /// device may be a speaker in the room.
-        var countsAsHeadphonesWhenTakingOver: Bool { self == .headphones }
-    }
-
-    /// What this output device is, for both sides of a handoff.
-    ///
-    /// The built-in speaker ports are matched positively rather than inferred,
-    /// and an unreadable port on a built-in device falls through to the name
-    /// list instead of being assumed to be the jack: a wrong guess on the
-    /// device taking over recreates the bug this protects against.
+    /// The port id is asked only where it can add an answer the word list does
+    /// not have, which is the headphone port: a jack the driver names in a
+    /// language the list cannot spell reads as headphones now. The speaker port
+    /// ids (`'ispk'`, `'espk'`) are deliberately not asked. They would only ever
+    /// repeat the "no" the list already gives, and asking them first would take
+    /// an answer away: a machine that reports its jack as `'espk'` — line-out
+    /// and headphones sharing one port — is recognized today by the data source
+    /// name, and a port-first test would call it speakers.
     ///
     /// - Parameters:
     ///   - transportType: `kAudioDevicePropertyTransportType`, nil when unreadable.
     ///   - dataSourceID: `kAudioDevicePropertyDataSource` on the output scope,
     ///     nil when the device has no selectable port.
-    static func outputDeviceKind(transportType: UInt32?,
-                                 dataSourceID: UInt32?,
-                                 name: String,
-                                 uid: String,
-                                 dataSourceName: String?) -> OutputDeviceKind {
-        // The built-in driver names its own port. This is the only answer that
-        // is authoritative, so it is asked first.
-        switch dataSourceID {
-        case headphonesDataSourceID: return .headphones
-        case internalSpeakerDataSourceID, externalSpeakerDataSourceID: return .speakers
-        default: break
-        }
+    static func outputLooksLikeHeadphones(transportType: UInt32?,
+                                          dataSourceID: UInt32?,
+                                          name: String,
+                                          uid: String,
+                                          dataSourceName: String?) -> Bool {
+        // The built-in driver names its own headphone port, in a code that is
+        // the same in every language. Nothing else can answer this.
+        if dataSourceID == headphonesDataSourceID { return true }
 
         // A display, a TV or an AirPlay receiver is never headphones, whatever
         // it happens to be called.
         switch transportType {
         case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort,
              kAudioDeviceTransportTypeAirPlay:
-            return .speakers
+            return false
         default: break
         }
 
-        // For transports that carry both kinds and report no port — Bluetooth,
-        // USB and Thunderbolt interfaces, virtual and aggregate devices — the
-        // name list is all that is left. It only ever adds headphones the
-        // checks above did not claim.
-        if nameLooksLikeHeadphones(name: name, uid: uid, dataSourceName: dataSourceName) {
-            return .headphones
-        }
-
-        switch transportType {
-        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
-            // Could be either, and the name list is locale-dependent, so no
-            // answer is given rather than a wrong one.
-            return .unknown
-        default:
-            // Everything else keeps the old behaviour: a device the list does
-            // not know is not headphones.
-            return .speakers
-        }
+        // The word list, unchanged, so every device recognized today is still
+        // recognized. A device it does not know is not headphones, as before.
+        return nameLooksLikeHeadphones(name: name, uid: uid, dataSourceName: dataSourceName)
     }
 
     private static func nameLooksLikeHeadphones(name: String,

@@ -13,7 +13,7 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let uid: String
     let name: String
     let isDefault: Bool
-    let outputKind: MixerRoutingSupport.OutputDeviceKind
+    let isHeadphones: Bool
     let canBeDefaultOutput: Bool
     let canBeDefaultSystemOutput: Bool
     fileprivate let audioObjectID: AudioObjectID
@@ -510,7 +510,7 @@ final class AppVolumeMixer: ObservableObject {
                               uid: outputDevice.uid,
                               name: outputDevice.name,
                               isDefault: outputDevice.uid == device.uid,
-                              outputKind: outputDevice.outputKind,
+                              isHeadphones: outputDevice.isHeadphones,
                               canBeDefaultOutput: outputDevice.canBeDefaultOutput,
                               canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
                               audioObjectID: outputDevice.audioObjectID)
@@ -1089,36 +1089,24 @@ final class AppVolumeMixer: ObservableObject {
         lowerOnDisconnect: Bool,
         lowerToPercent: Int) -> LoweredOutputState {
         var state = state
-        let newDefault = nextDefaultUID.flatMap { uid in
-            nextOutputDevices.first(where: { $0.uid == uid })
-        }
-        if let newDefault,
-           newDefault.outputKind.countsAsHeadphonesWhenDisconnected,
-           // Not the device this feature just lowered: putting its own volume
-           // back one refresh later would undo the lowering on the spot.
-           state.lastAutomaticLoweredOutputUID != newDefault.uid {
+        if let nextDefaultUID,
+           nextOutputDevices.first(where: { $0.uid == nextDefaultUID })?.isHeadphones == true {
             state.lastAutomaticLoweredOutputUID = nil
-            // Headphones are (or may be) back: the speakers get the volume they
-            // had before the disconnect lowered them.
+            // Headphones are back: the speakers get the volume they had before
+            // the disconnect lowered them.
             state.loweredOutput = restoringLoweredOutputVolume(state.loweredOutput,
                                                                in: nextOutputDevices)
-            if newDefault.outputKind.countsAsHeadphonesWhenTakingOver {
-                return state
-            }
-            // An unknown device may equally be a Bluetooth speaker inheriting a
-            // headphone volume, so the lowering below still gets to run on it.
+            return state
         }
 
         guard lowerOnDisconnect,
               let previousDefaultUID,
               let previousDefault = previousOutputDevices.first(where: { $0.uid == previousDefaultUID }),
-              previousDefault.outputKind.countsAsHeadphonesWhenDisconnected,
-              !nextOutputDevices.contains(where: {
-                  $0.uid == previousDefaultUID && $0.outputKind.countsAsHeadphonesWhenDisconnected
-              }),
+              previousDefault.isHeadphones,
+              !nextOutputDevices.contains(where: { $0.uid == previousDefaultUID && $0.isHeadphones }),
               let nextDefaultUID,
-              let nextDefault = newDefault,
-              !nextDefault.outputKind.countsAsHeadphonesWhenTakingOver,
+              let nextDefault = nextOutputDevices.first(where: { $0.uid == nextDefaultUID }),
+              !nextDefault.isHeadphones,
               state.lastAutomaticLoweredOutputUID != nextDefaultUID else {
             return state
         }
@@ -1578,7 +1566,7 @@ final class AppVolumeMixer: ObservableObject {
                                              uid: uid,
                                              name: name,
                                              isDefault: uid == defaultUID,
-                                             outputKind: MixerRoutingSupport.outputDeviceKind(
+                                             isHeadphones: MixerRoutingSupport.outputLooksLikeHeadphones(
                                                 transportType: hasTransportType ? transportType : nil,
                                                 dataSourceID: dataSource?.id,
                                                 name: name,

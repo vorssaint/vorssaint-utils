@@ -6495,26 +6495,16 @@ struct MetricsTests {
             selectedUIDs: ["BuiltInSpeakerDevice"],
             availableUIDs: ["BuiltInSpeakerDevice"]) == nil,
                "sound output switcher does nothing when the only selected output is already current")
-        func outputKind(_ name: String,
-                        uid: String = "",
-                        transport: UInt32? = nil,
-                        dataSource: UInt32? = nil,
-                        dataSourceName: String? = nil) -> MixerRoutingSupport.OutputDeviceKind {
-            MixerRoutingSupport.outputDeviceKind(transportType: transport,
-                                                 dataSourceID: dataSource,
-                                                 name: name,
-                                                 uid: uid,
-                                                 dataSourceName: dataSourceName)
-        }
-        /// How the side of the handoff that lost its device reads the answer.
         func looksLikeHeadphones(_ name: String,
                                  uid: String = "",
                                  transport: UInt32? = nil,
                                  dataSource: UInt32? = nil,
                                  dataSourceName: String? = nil) -> Bool {
-            outputKind(name, uid: uid, transport: transport,
-                       dataSource: dataSource, dataSourceName: dataSourceName)
-                .countsAsHeadphonesWhenDisconnected
+            MixerRoutingSupport.outputLooksLikeHeadphones(transportType: transport,
+                                                          dataSourceID: dataSource,
+                                                          name: name,
+                                                          uid: uid,
+                                                          dataSourceName: dataSourceName)
         }
         expect(looksLikeHeadphones("AirPods Pro"),
                "AirPods are treated as headphones")
@@ -6539,12 +6529,18 @@ struct MetricsTests {
         expect(!looksLikeHeadphones("MacBook Air扬声器",
                                     uid: "BuiltInSpeakerDevice",
                                     transport: kAudioDeviceTransportTypeBuiltIn,
-                                    dataSource: MixerRoutingSupport.internalSpeakerDataSourceID,
+                                    dataSource: 0x6973_706b, // 'ispk'
                                     dataSourceName: "MacBook Air扬声器"),
-               "the built-in speaker port id is not treated as headphones")
-        expect(looksLikeHeadphones("Sennheiser HD 450BT",
-                                   transport: kAudioDeviceTransportTypeBluetooth),
-               "Bluetooth outputs the word list does not know are treated as headphones")
+               "a built-in speaker port is not treated as headphones")
+        // A shared line-out/headphone jack reports 'espk'. The word list is
+        // asked before the speaker port ids precisely so this machine keeps the
+        // answer it gets today.
+        expect(looksLikeHeadphones("Built-in Output",
+                                   uid: "BuiltInHeadphoneOutputDevice",
+                                   transport: kAudioDeviceTransportTypeBuiltIn,
+                                   dataSource: 0x6573_706b, // 'espk'
+                                   dataSourceName: "Headphones"),
+               "a jack reported as a speaker port is still headphones when the name says so")
         expect(!looksLikeHeadphones("Living Room Beats",
                                     transport: kAudioDeviceTransportTypeAirPlay),
                "an AirPlay receiver is not headphones even when its name matches the word list")
@@ -6554,30 +6550,9 @@ struct MetricsTests {
         expect(looksLikeHeadphones("Jabra Evolve2",
                                    transport: kAudioDeviceTransportTypeUSB),
                "USB falls back to the name list, which still knows common headsets")
-        // CoreAudio cannot separate a Bluetooth headset from a Bluetooth
-        // speaker, and the two sides of a handoff want opposite guesses for
-        // that: the device coming off should be assumed to be headphones, the
-        // device taking over must not be, or a Bluetooth speaker inherits the
-        // headphone volume it was meant to be protected from (issue #92).
-        expect(outputKind("Sennheiser HD 450BT",
-                          transport: kAudioDeviceTransportTypeBluetooth) == .unknown,
-               "a Bluetooth output the word list does not know is left unidentified")
-        expect(outputKind("AirPods Pro",
-                          transport: kAudioDeviceTransportTypeBluetooth) == .headphones,
-               "a Bluetooth output the word list knows is still headphones")
-        expect(outputKind("MacBook Air扬声器",
-                          uid: "BuiltInSpeakerDevice",
-                          transport: kAudioDeviceTransportTypeBuiltIn,
-                          dataSource: MixerRoutingSupport.internalSpeakerDataSourceID) == .speakers,
-               "a port the driver named is identified, not left unknown")
-        expect(MixerRoutingSupport.OutputDeviceKind.unknown.countsAsHeadphonesWhenDisconnected,
-               "an unidentified device that stops being the default counts as headphones coming off")
-        expect(!MixerRoutingSupport.OutputDeviceKind.unknown.countsAsHeadphonesWhenTakingOver,
-               "an unidentified device that becomes the default is still lowered")
-        expect(MixerRoutingSupport.OutputDeviceKind.headphones.countsAsHeadphonesWhenTakingOver,
-               "headphones becoming the default keep the volume they are given")
-        expect(!MixerRoutingSupport.OutputDeviceKind.speakers.countsAsHeadphonesWhenDisconnected,
-               "speakers going away are not a headphone disconnect")
+        expect(!looksLikeHeadphones("Sennheiser HD 450BT",
+                                    transport: kAudioDeviceTransportTypeBluetooth),
+               "a Bluetooth output the word list does not know keeps today's answer")
         // Issue #256: some browsers' audio helpers answer for themselves, so
         // the mixer walks the parent chain to the nearest regular app.
         let helperParents: [pid_t: pid_t] = [500: 100, 100: 1, 700: 1,
