@@ -21351,7 +21351,11 @@ struct MetricsTests {
         // more per start/stop cycle, for the life of the process. Only
         // CFMachPortInvalidate deregisters it, so the rule is the absence of a
         // tap owner that never invalidates, not a list of the ones somebody
-        // noticed.
+        // noticed. Counted per tap, not per file: BrightnessService and
+        // SuperKeyService own two taps each and WindowLayoutService three, so
+        // one invalidate somewhere in the file must not answer for all of
+        // them. Comments are stripped first, as in the per-service check
+        // above, so prose naming the API cannot answer for it either.
         var tapOwnersWithoutInvalidate: [String] = []
         let tapOwnerSources = FileManager.default
             .enumerator(atPath: "Sources/Vorssaint")?
@@ -21359,10 +21363,15 @@ struct MetricsTests {
             .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
         for file in tapOwnerSources.sorted() {
             guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
-                                           encoding: .utf8),
-                  source.contains("CGEvent.tapCreate") else { continue }
-            if !source.contains("CFMachPortInvalidate") {
-                tapOwnersWithoutInvalidate.append(file)
+                                           encoding: .utf8) else { continue }
+            let code = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            let taps = code.components(separatedBy: "CGEvent.tapCreate").count - 1
+            guard taps > 0 else { continue }
+            let invalidations = code.components(separatedBy: "CFMachPortInvalidate").count - 1
+            if invalidations < taps {
+                tapOwnersWithoutInvalidate.append("\(file) (\(taps) taps, \(invalidations) invalidated)")
             }
         }
         expect(!tapOwnerSources.isEmpty && tapOwnersWithoutInvalidate.isEmpty,
