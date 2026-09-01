@@ -53,7 +53,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Mouse navigation, button shortcuts and middle click now step aside outside the active login session or after Accessibility access is removed, preventing input stalls.
 - Focus follows mouse now leaves chosen apps alone and tracks the final pointer position during drags before changing focus.
 - Cleaning Mode now ends when its login session leaves the screen, preventing its input lock from affecting another active user.
-- Window capture now includes attached sheets, alerts and modal dialogs stacked on a window contained by one display, while preserving full-window capture when a window crosses displays. Thanks to @iltonandrew.
+- Window capture now includes attached sheets, alerts and modal dialogs stacked on a window, including when part of it is off-screen, while preserving full-window capture when it crosses displays. Thanks to @iltonandrew.
 - Accessibility messaging now uses a single, consistent process-wide timeout floor instead of allowing separate features to overwrite the shared limit. Thanks to @PathGao.
 - App Switcher now enumerates windows on a background queue, keeping shortcuts and typing responsive even when apps delay Accessibility responses. Thanks to @MaximilianMauroner.
 - App Switcher now lists windows from apps that draw their own title bar or use borderless windows. Thanks to @PathGao.

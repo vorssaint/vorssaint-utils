@@ -15194,8 +15194,6 @@ struct MetricsTests {
         let captureEngineSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
             encoding: .utf8)) ?? ""
-        expect(captureEngineSource.contains("$0.frame.contains(plan.bounds)"),
-               "attached-window composition falls back instead of clipping across displays")
         // A sheet is often exactly as wide as the window it drops out of, so
         // the rule has to take one that matches an edge rather than shrink from
         // it.
@@ -15214,6 +15212,10 @@ struct MetricsTests {
         expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [sheet]) == nil,
                "a window missing from the list does not treat everything as stacked on it")
+        expect(captureEngineSource.contains("$0.frame.intersects(plan.bounds)")
+                && captureEngineSource.contains("hits.count == 1")
+                && !captureEngineSource.contains(".contains(plan.bounds)"),
+               "a window straddling two displays falls back to the single-window capture instead of a one-display slice")
 
         expect(ScreenshotSupport.sanitizedDelay(5) == 5
                 && ScreenshotSupport.sanitizedDelay(7) == 0

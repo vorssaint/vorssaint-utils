@@ -197,8 +197,13 @@ enum ScreenshotCaptureEngine {
         let windows = plan.windowIDs.compactMap { id in
             content.windows.first { $0.windowID == id }
         }
+        let hits = content.displays.filter { $0.frame.intersects(plan.bounds) }
+        // A window straddling two displays has no single display to crop from,
+        // while one hanging off a lone display's edge still does: the crop
+        // clamps the part that is on screen.
         guard windows.count == plan.windowIDs.count,
-              let display = content.displays.first(where: { $0.frame.contains(plan.bounds) }),
+              hits.count == 1,
+              let display = hits.first,
               let screen = NSScreen.screens.first(where: { $0.displayID == display.displayID }),
               let mainScreen = NSScreen.screens.first
         else { return nil }
