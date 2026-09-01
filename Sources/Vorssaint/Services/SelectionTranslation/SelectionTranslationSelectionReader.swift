@@ -19,6 +19,26 @@ private final class SelectionTranslationPasteboardContext: @unchecked Sendable {
 
 private final class SelectionTranslationCaptureDeferralBox: @unchecked Sendable {
     var token: ClipboardHistoryCaptureDeferral?
+
+    private var lifecycle = ClipboardHistoryCaptureDeferralLifecycle()
+    private var timeoutWorkItem: DispatchWorkItem?
+
+    var isFinished: Bool { lifecycle.isFinished }
+
+    func armTimeout(_ timeout: DispatchWorkItem) {
+        timeoutWorkItem = timeout
+    }
+
+    func finish(ignoringUpTo changeCount: Int? = nil) -> Bool {
+        guard lifecycle.finish() else { return false }
+        timeoutWorkItem?.cancel()
+        timeoutWorkItem = nil
+        if let token {
+            ClipboardHistoryService.shared.endCaptureDeferral(token, ignoringUpTo: changeCount)
+            self.token = nil
+        }
+        return true
+    }
 }
 
 enum SelectionTranslationSelectionReader {
@@ -48,20 +68,25 @@ enum SelectionTranslationSelectionReader {
                 // polls the physical modifier state before it synthesizes C.
                 let captureDeferralBox = SelectionTranslationCaptureDeferralBox()
                 DispatchQueue.main.async {
+                    let timeout = DispatchWorkItem {
+                        guard captureDeferralBox.finish() else { return }
+                        continuation.resume(returning: "")
+                    }
+                    captureDeferralBox.armTimeout(timeout)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
+
                     TransientPaste.postKeyWhenModifiersReleased(
                         keyCode: SelectionTranslationPasteboardSupport.copyKeyCode,
                         flags: .maskCommand,
                         timeoutBehavior: .failOnTimeout,
                         willPost: {
+                            guard !captureDeferralBox.isFinished else { return }
                             captureDeferralBox.token = ClipboardHistoryService.shared.beginCaptureDeferral()
                         }
                     ) { succeeded in
-                        guard let captureDeferral = captureDeferralBox.token else {
-                            continuation.resume(returning: "")
-                            return
-                        }
+                        guard captureDeferralBox.token != nil else { return }
                         guard succeeded else {
-                            ClipboardHistoryService.shared.endCaptureDeferral(captureDeferral)
+                            guard captureDeferralBox.finish() else { return }
                             continuation.resume(returning: "")
                             return
                         }
@@ -99,10 +124,7 @@ enum SelectionTranslationSelectionReader {
                             let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
                             let result = trimmed.count <= CommandBarSelectionReader.maximumLength ? trimmed : ""
                             DispatchQueue.main.async {
-                                ClipboardHistoryService.shared.endCaptureDeferral(
-                                    captureDeferral,
-                                    ignoringUpTo: ignoredThrough
-                                )
+                                guard captureDeferralBox.finish(ignoringUpTo: ignoredThrough) else { return }
                                 continuation.resume(returning: result)
                             }
                         }

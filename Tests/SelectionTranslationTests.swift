@@ -294,10 +294,16 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
     var deferralState = ClipboardHistoryCaptureDeferralState()
     let firstDeferral = deferralState.begin()
     let secondDeferral = deferralState.begin()
-    check(deferralState.isDeferred
-          && !deferralState.end(firstDeferral)
-          && deferralState.isDeferred
-          && deferralState.end(secondDeferral)
-          && !deferralState.isDeferred,
+    let innerEnd = deferralState.end(firstDeferral)
+    let outerEnd = deferralState.end(secondDeferral)
+    let invalidEnd = deferralState.end(firstDeferral)
+    check(deferralState.isDeferred == false
+          && innerEnd == .stillDeferred
+          && outerEnd == .releasedLast
+          && invalidEnd == .invalid,
           "clipboard capture deferrals support nested transactions")
+
+    var lifecycle = ClipboardHistoryCaptureDeferralLifecycle()
+    check(lifecycle.finish() && !lifecycle.finish() && lifecycle.isFinished,
+          "selection capture deferral lifecycle releases at most once")
 }

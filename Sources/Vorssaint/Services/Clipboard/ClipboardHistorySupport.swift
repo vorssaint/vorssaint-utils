@@ -7,8 +7,24 @@ struct ClipboardHistoryCaptureDeferral: Hashable, Sendable {
     let id = UUID()
 }
 
+struct ClipboardHistoryCaptureDeferralLifecycle: Sendable {
+    private(set) var isFinished = false
+
+    mutating func finish() -> Bool {
+        guard !isFinished else { return false }
+        isFinished = true
+        return true
+    }
+}
+
 struct ClipboardHistoryCaptureDeferralState: Sendable {
     private var activeTokenIDs: Set<UUID> = []
+
+    enum EndResult: Equatable, Sendable {
+        case invalid
+        case stillDeferred
+        case releasedLast
+    }
 
     var isDeferred: Bool { !activeTokenIDs.isEmpty }
 
@@ -18,8 +34,9 @@ struct ClipboardHistoryCaptureDeferralState: Sendable {
         return token
     }
 
-    mutating func end(_ token: ClipboardHistoryCaptureDeferral) -> Bool {
-        activeTokenIDs.remove(token.id) != nil && activeTokenIDs.isEmpty
+    mutating func end(_ token: ClipboardHistoryCaptureDeferral) -> EndResult {
+        guard activeTokenIDs.remove(token.id) != nil else { return .invalid }
+        return activeTokenIDs.isEmpty ? .releasedLast : .stillDeferred
     }
 }
 

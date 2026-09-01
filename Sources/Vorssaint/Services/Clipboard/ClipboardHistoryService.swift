@@ -115,10 +115,16 @@ final class ClipboardHistoryService: ObservableObject {
     /// captured immediately when the final deferral is released.
     func endCaptureDeferral(_ token: ClipboardHistoryCaptureDeferral,
                             ignoringUpTo changeCount: Int? = nil) {
-        guard captureDeferralState.end(token) else { return }
-        if let changeCount { ignoreNextChange(upTo: changeCount) }
-        guard !captureDeferralState.isDeferred, isRunning else { return }
-        captureIfChanged()
+        switch captureDeferralState.end(token) {
+        case .invalid:
+            return
+        case .stillDeferred:
+            if let changeCount { ignoreNextChange(upTo: changeCount) }
+        case .releasedLast:
+            if let changeCount { ignoreNextChange(upTo: changeCount) }
+            guard isRunning else { return }
+            captureIfChanged()
+        }
     }
 
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
