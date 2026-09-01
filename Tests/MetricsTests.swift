@@ -21342,6 +21342,32 @@ struct MetricsTests {
             expect(code.contains("CFMachPortInvalidate"),
                    "\(tapOwner) hands its tap back rather than only disabling it")
         }
+
+        // Disabling a tap and dropping the last Swift reference does not hand
+        // the port back. Measured on main: after tapEnable(false),
+        // CFRunLoopRemoveSource and setting the properties to nil, the mach
+        // port name still carries receive and send rights, and
+        // CGGetEventTapList still reports the tap against this process — one
+        // more per start/stop cycle, for the life of the process. Only
+        // CFMachPortInvalidate deregisters it, so the rule is the absence of a
+        // tap owner that never invalidates, not a list of the ones somebody
+        // noticed.
+        var tapOwnersWithoutInvalidate: [String] = []
+        let tapOwnerSources = FileManager.default
+            .enumerator(atPath: "Sources/Vorssaint")?
+            .compactMap { $0 as? String }
+            .filter { $0.hasSuffix(".swift") && !$0.contains(" 2") } ?? []
+        for file in tapOwnerSources.sorted() {
+            guard let source = try? String(contentsOfFile: "Sources/Vorssaint/\(file)",
+                                           encoding: .utf8),
+                  source.contains("CGEvent.tapCreate") else { continue }
+            if !source.contains("CFMachPortInvalidate") {
+                tapOwnersWithoutInvalidate.append(file)
+            }
+        }
+        expect(!tapOwnerSources.isEmpty && tapOwnersWithoutInvalidate.isEmpty,
+               "every event tap owner invalidates its port on teardown: \(tapOwnersWithoutInvalidate)")
+
         let mouseTapAppDelegateSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
             encoding: .utf8)) ?? ""

@@ -111,6 +111,7 @@ final class DockClickService {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
         for (_, sweep) in pendingSweeps { sweep.cancel() }

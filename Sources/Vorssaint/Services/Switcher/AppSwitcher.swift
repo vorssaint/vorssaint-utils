@@ -380,6 +380,7 @@ final class AppSwitcher: ObservableObject {
 
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
             if clearEventTapThread() { installTap() }
         }
     }
