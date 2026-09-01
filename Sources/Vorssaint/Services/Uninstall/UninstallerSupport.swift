@@ -111,6 +111,44 @@ enum UninstallerSupport {
         return (info.st_mode & S_IFMT) == S_IFLNK
     }
 
+    /// The executable code a bundle owns: app extensions, XPC services and
+    /// login item helpers, plus one nesting level for a login item's own
+    /// extensions. macOS requires each of these in a fixed directory, so this
+    /// looks them up directly instead of walking the bundle. A full walk costs
+    /// a `stat` for every resource file of every installed app — hundreds of
+    /// thousands of them — for the handful of directories that can ever match.
+    ///
+    /// Deliberately conservative: an `.appex` or `.xpc` parked somewhere else
+    /// (inside a framework, say) is missed, which can only leave a leftover
+    /// unclaimed. It never invents ownership of another product's files.
+    static func embeddedCodeURLs(in appURL: URL, fm: FileManager, depth: Int = 2) -> [URL] {
+        guard depth > 0 else { return [] }
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        var result: [URL] = []
+        for (subpath, ext) in embeddedCodeLocations {
+            let directory = appURL.appendingPathComponent(subpath, isDirectory: true)
+            guard let entries = try? fm.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: Array(keys),
+                options: [.skipsHiddenFiles]) else { continue }
+            for entry in entries {
+                let values = try? entry.resourceValues(forKeys: keys)
+                guard values?.isSymbolicLink != true, values?.isDirectory == true,
+                      entry.pathExtension.caseInsensitiveCompare(ext) == .orderedSame else { continue }
+                result.append(entry)
+                if ext == "app" {
+                    result += embeddedCodeURLs(in: entry, fm: fm, depth: depth - 1)
+                }
+            }
+        }
+        return result
+    }
+
+    private static let embeddedCodeLocations = [
+        ("Contents/PlugIns", "appex"),
+        ("Contents/XPCServices", "xpc"),
+        ("Contents/Library/LoginItems", "app"),
+    ]
+
     static func isNestedBundle(_ candidateURL: URL?, in appURL: URL) -> Bool {
         guard let candidateURL else { return false }
         let appPath = appURL.standardizedFileURL.path

@@ -4685,6 +4685,39 @@ struct MetricsTests {
                && UninstallerSupport.fileIdentity(at: safeFile) != originalFileIdentity,
                "removal stays inside its scan root, rejects symlink escapes and detects path replacement")
         try? FileManager.default.removeItem(at: safetyFixture)
+        let embeddedFixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-embedded-\(UUID().uuidString)", isDirectory: true)
+        let embeddedApp = embeddedFixture.appendingPathComponent("Editor.app", isDirectory: true)
+        let embeddedHelper = embeddedApp.appendingPathComponent(
+            "Contents/Library/LoginItems/Helper.app", isDirectory: true)
+        let embeddedExpected = [
+            embeddedApp.appendingPathComponent("Contents/PlugIns/Share.appex", isDirectory: true),
+            embeddedApp.appendingPathComponent("Contents/XPCServices/Worker.xpc", isDirectory: true),
+            embeddedHelper,
+            embeddedHelper.appendingPathComponent("Contents/PlugIns/Nested.appex", isDirectory: true),
+        ]
+        // Executable code parked outside the three directories macOS reserves
+        // for it, plus a plain resource bundle: none of it is owned code.
+        let embeddedIgnored = [
+            embeddedApp.appendingPathComponent("Contents/PlugIns/Palette.bundle", isDirectory: true),
+            embeddedApp.appendingPathComponent("Contents/Resources/Deep/Buried.appex", isDirectory: true),
+            embeddedApp.appendingPathComponent(
+                "Contents/Frameworks/Core.framework/XPCServices/Stray.xpc", isDirectory: true),
+        ]
+        for url in embeddedExpected + embeddedIgnored {
+            try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+        try? FileManager.default.createSymbolicLink(
+            at: embeddedApp.appendingPathComponent("Contents/PlugIns/Linked.appex"),
+            withDestinationURL: embeddedFixture)
+        let embeddedFound = Set(UninstallerSupport.embeddedCodeURLs(
+            in: embeddedApp, fm: .default).map(\.standardizedFileURL.path))
+        expect(embeddedFound == Set(embeddedExpected.map(\.standardizedFileURL.path)),
+               "embedded code lookup finds the reserved plug-in, XPC and login item locations only")
+        expect(UninstallerSupport.embeddedCodeURLs(in: embeddedApp, fm: .default, depth: 1)
+                .allSatisfy { !$0.path.contains("Helper.app/Contents") },
+               "embedded code lookup stops descending at its depth limit")
+        try? FileManager.default.removeItem(at: embeddedFixture)
         expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
                 == "com.vendor.editor",
                "preference panes map to their owning bundle identifier")

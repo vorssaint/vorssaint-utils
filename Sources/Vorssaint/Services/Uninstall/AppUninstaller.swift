@@ -242,7 +242,11 @@ final class AppUninstaller: ObservableObject {
                 && targetURL.map { !fm.fileExists(atPath: $0.path) } == true
             let mayClaimSharedData = targetIsOriginal || targetWasRemovedByPackageManager
             let lookupBundleIDs = candidateBundleIDs.union(evidenceBundleIDs)
-            let knownApplications = Self.knownApplicationURLs(candidateBundleIDs: lookupBundleIDs)
+            // Only the shared-data claims below read these, and each one costs
+            // a directory scan of every installed app.
+            let knownApplications = mayClaimSharedData
+                ? Self.knownApplicationURLs(candidateBundleIDs: lookupBundleIDs)
+                : []
             let knownApplicationIDs = Self.applicationBundleIdentifiers(in: knownApplications)
             let exclusiveBundleIDs = mayClaimSharedData ? targetURL.map {
                 Self.exclusiveOwnedBundleIDs(
@@ -675,23 +679,7 @@ final class AppUninstaller: ObservableObject {
         }
         var result = codeSigningIdentity(at: appURL,
                                          requireValidSignature: requireValidSignature)
-        let fm = FileManager.default
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
-        guard let enumerator = fm.enumerator(at: appURL,
-                                             includingPropertiesForKeys: Array(keys),
-                                             options: [.skipsHiddenFiles],
-                                             errorHandler: nil) else { return result }
-        var inspected = 0
-        for case let url as URL in enumerator {
-            let values = try? url.resourceValues(forKeys: keys)
-            if values?.isSymbolicLink == true {
-                enumerator.skipDescendants()
-                continue
-            }
-            guard values?.isDirectory == true,
-                  ownedEmbeddedCode(url, in: appURL) else { continue }
-            inspected += 1
-            guard inspected <= 256 else { break }
+        for url in UninstallerSupport.embeddedCodeURLs(in: appURL, fm: .default).prefix(256) {
             let nested = codeSigningIdentity(at: url,
                                              requireValidSignature: requireValidSignature)
             result.teamIDs.formUnion(nested.teamIDs)
@@ -810,40 +798,12 @@ final class AppUninstaller: ObservableObject {
         if let primary = UninstallerSupport.verifiedBundleID(Bundle(url: appURL)?.bundleIdentifier) {
             result.insert(primary)
         }
-        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
-        guard let enumerator = fm.enumerator(at: appURL,
-                                             includingPropertiesForKeys: Array(keys),
-                                             options: [.skipsHiddenFiles],
-                                             errorHandler: nil) else { return result }
-        var inspected = 0
-        for case let url as URL in enumerator {
-            let values = try? url.resourceValues(forKeys: keys)
-            if values?.isSymbolicLink == true {
-                enumerator.skipDescendants()
-                continue
-            }
-            guard values?.isDirectory == true,
-                  ownedEmbeddedCode(url, in: appURL),
-                  let id = UninstallerSupport.verifiedBundleID(Bundle(url: url)?.bundleIdentifier)
+        for url in UninstallerSupport.embeddedCodeURLs(in: appURL, fm: fm).prefix(256) {
+            guard let id = UninstallerSupport.verifiedBundleID(Bundle(url: url)?.bundleIdentifier)
             else { continue }
-            inspected += 1
-            guard inspected <= 256 else { break }
             result.insert(id)
         }
         return result
-    }
-
-    private static func ownedEmbeddedCode(_ url: URL, in appURL: URL) -> Bool {
-        switch url.pathExtension.lowercased() {
-        case "appex", "xpc":
-            return true
-        case "app":
-            let loginItems = appURL.appendingPathComponent(
-                "Contents/Library/LoginItems", isDirectory: true).standardizedFileURL.path
-            return url.standardizedFileURL.path.hasPrefix(loginItems + "/")
-        default:
-            return false
-        }
     }
 
     private static let packageExtensions: Set<String> = [
