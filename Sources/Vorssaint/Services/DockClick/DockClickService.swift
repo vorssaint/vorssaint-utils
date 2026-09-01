@@ -231,7 +231,12 @@ final class DockClickService {
             }
             // Counted on the Space the user is looking at, the only windows
             // the raise can reach; the AX list above spans every Space.
-            let cycleCandidateCount = cycleEnabled
+            //
+            // Gated on the full precondition of the ladder's cycling branch,
+            // not just the setting: clicking a background app's icon is the
+            // common Dock click, and the count costs a window-server list plus
+            // an id resolve per window inside the event tap.
+            let cycleCandidateCount = cycleEnabled && frontmost && !windows.hasFullscreen
                 ? Self.cycleCandidates(pid: pid, windows: windows.unminimized).count
                 : 0
             let hasUnminimized = DockClickSupport.effectiveHasUnminimized(
