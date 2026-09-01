@@ -21725,6 +21725,26 @@ struct MetricsTests {
                          "\(language.rawValue) quit protection modifier HUD format")
         }
 
+        // The ranking folds what was typed once and hands the folded letters to
+        // every row in the pool. Both readings have to agree, or a name the
+        // person gave would rank differently depending on which one asked.
+        var foldedMemory = CommandBarQueryMemory()
+        expect(foldedMemory.boost(normalizedQuery: "pri", id: "app.primary") == 0,
+               "a memory holding nothing is worth nothing for folded letters either")
+        foldedMemory.record(query: "Primary", id: "app.primary", step: 1)
+        expect(foldedMemory.boost(normalizedQuery: CommandBarSearch.normalized("PRÍ"),
+                                  id: "app.primary") > 0
+                && foldedMemory.boost(normalizedQuery: CommandBarSearch.normalized("PRÍ"),
+                                      id: "app.primary")
+                    == foldedMemory.boost(query: "PRÍ", id: "app.primary"),
+               "folded letters ask the query memory the same question the raw ones do")
+        expect(CommandBarPreferences.aliasHit(
+                    "Códex", normalizedQuery: CommandBarSearch.normalized("CÓD")) == .prefix
+                && CommandBarPreferences.aliasHit(
+                    "Códex", normalizedQuery: CommandBarSearch.normalized("CÓD"))
+                    == CommandBarPreferences.aliasHit("Códex", query: "CÓD"),
+               "folded letters ask an alias the same question the raw ones do")
+
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
             exit(0)

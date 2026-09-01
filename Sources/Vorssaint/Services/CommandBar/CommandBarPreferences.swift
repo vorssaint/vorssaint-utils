@@ -194,7 +194,12 @@ enum CommandBarPreferences {
     }
 
     static func aliasHit(_ alias: String, query: String) -> AliasHit? {
-        let normalizedQuery = CommandBarSearch.normalized(query)
+        aliasHit(alias, normalizedQuery: CommandBarSearch.normalized(query))
+    }
+
+    /// The same answer for letters the caller has already folded, so a pass
+    /// over the pool folds the query once instead of once per named row.
+    static func aliasHit(_ alias: String, normalizedQuery: String) -> AliasHit? {
         guard !normalizedQuery.isEmpty else { return nil }
         var best: AliasHit?
         for word in CommandBarSearch.normalized(alias).split(separator: " ").map(String.init)

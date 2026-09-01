@@ -406,6 +406,7 @@ struct CommandBarSettings: View {
             var current = CommandBarPreferences.disabledSources(from: disabledSources)
             if isOn { current.remove(source) } else { current.insert(source) }
             disabledSources = CommandBarPreferences.storageValue(for: current)
+            CommandBarService.shared.syncWithPreferences()
         }
     }
 
@@ -480,21 +481,28 @@ struct CommandBarSettings: View {
         CommandBarService.shared.syncWithPreferences()
     }
 
+    /// These four write the same defaults the bar keeps in memory while it is
+    /// open, so each one tells the service, the way the file scopes and the row
+    /// shortcuts above already do. Writing the key alone would leave a switch
+    /// that only takes effect the next time the bar is opened.
     private func removeAlias(_ key: String) {
         var aliases = CommandBarPreferences.decodeAliases(aliasesRaw)
         aliases.removeValue(forKey: key)
         aliasesRaw = CommandBarPreferences.encodeAliases(aliases) ?? ""
+        CommandBarService.shared.syncWithPreferences()
     }
 
     private func removePin(_ key: String) {
         pinsRaw = CommandBarPreferences.encodePins(
             CommandBarPreferences.decodePins(pinsRaw).filter { $0 != key })
+        CommandBarService.shared.syncWithPreferences()
     }
 
     private func unhide(_ key: String) {
         var keys = CommandBarPreferences.decodeHidden(hiddenRaw)
         keys.remove(key)
         hiddenRaw = CommandBarPreferences.encodeHidden(keys)
+        CommandBarService.shared.syncWithPreferences()
     }
 }
 
