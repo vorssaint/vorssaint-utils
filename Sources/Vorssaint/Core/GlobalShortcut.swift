@@ -431,7 +431,8 @@ struct GlobalShortcut: Equatable, Hashable {
         case kVK_F19: return "F19"
         case kVK_F20: return "F20"
         default:
-            if let label = Self.layoutKeyLabel(for: keyCode) {
+            if let label = Self.layoutKeyLabel(for: keyCode,
+                                               usesCommand: modifiers.contains(.command)) {
                 return label
             }
             return Self.fallbackAnsiKeyLabel(for: keyCode)
@@ -496,23 +497,41 @@ struct GlobalShortcut: Equatable, Hashable {
     /// so keys the static table does not know (ISO and JIS extras) still get a
     /// real cap. Returns nil for anything unprintable, keeping those invalid.
     ///
+    /// `usesCommand` picks which of the layout's two tables to read, because a
+    /// keycap is a promise about a whole combination, not about the key alone.
+    /// macOS resolves a Command combination through the layout's Command
+    /// table, and the two tables disagree on every layout that types a
+    /// non-Latin script: on Russian and on Greek the key at keycode 12 types
+    /// something else bare and still answers Command-Q, Simplified Pinyin's
+    /// semicolon key types a full-width semicolon bare and a plain one under
+    /// Command, and DVORAK-QWERTYCMD exists for nothing but this difference.
+    /// Reading the bare table for a Command shortcut prints a cap the user
+    /// cannot press. Combinations without Command keep the bare table, which
+    /// is what they actually fire on.
+    ///
     /// Answered from the cache: deriving a label asks Text Input Services,
     /// which traps the process off the main thread, and the Switcher's tap
     /// asks for one on every key from its own (issue #578).
-    private static func layoutKeyLabel(for keyCode: Int64) -> String? {
-        if let cached = (layoutLabelLock.withLock { layoutLabels[keyCode] }) {
+    private static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
+        let cacheKey = LayoutLabelKey(keyCode: keyCode, usesCommand: usesCommand)
+        if let cached = (layoutLabelLock.withLock { layoutLabels[cacheKey] }) {
             return cached
         }
         if Thread.isMainThread {
-            let label = derivedLayoutKeyLabel(for: keyCode)
-            layoutLabelLock.withLock { layoutLabels[keyCode] = label }
+            let label = derivedLayoutKeyLabel(for: keyCode, usesCommand: usesCommand)
+            layoutLabelLock.withLock { layoutLabels[cacheKey] = label }
             return label
         }
         return nil
     }
 
+    private struct LayoutLabelKey: Hashable {
+        let keyCode: Int64
+        let usesCommand: Bool
+    }
+
     private static let layoutLabelLock = NSLock()
-    private static var layoutLabels: [Int64: String] = [:]
+    private static var layoutLabels: [LayoutLabelKey: String] = [:]
     private static var keyboardLayoutObserver: AnyObject?
 
     /// Starts observing system keyboard layout changes so the keycap cache stays
@@ -534,20 +553,26 @@ struct GlobalShortcut: Equatable, Hashable {
             layoutLabelLock.withLock { layoutLabels.removeAll() }
             return
         }
-        var labels: [Int64: String] = [:]
+        var labels: [LayoutLabelKey: String] = [:]
         for keyCode in UInt16(0)...127 {
-            if let label = derivedLayoutKeyLabel(for: keyCode, layoutData: layoutData) {
-                labels[Int64(keyCode)] = label
+            for usesCommand in [false, true] {
+                if let label = derivedLayoutKeyLabel(for: keyCode,
+                                                     layoutData: layoutData,
+                                                     usesCommand: usesCommand) {
+                    labels[LayoutLabelKey(keyCode: Int64(keyCode),
+                                          usesCommand: usesCommand)] = label
+                }
             }
         }
         layoutLabelLock.withLock { layoutLabels = labels }
     }
 
-    private static func derivedLayoutKeyLabel(for keyCode: Int64) -> String? {
+    private static func derivedLayoutKeyLabel(for keyCode: Int64,
+                                              usesCommand: Bool) -> String? {
         guard let code = UInt16(exactly: keyCode),
               let layoutData = currentLayoutData()
         else { return nil }
-        return derivedLayoutKeyLabel(for: code, layoutData: layoutData)
+        return derivedLayoutKeyLabel(for: code, layoutData: layoutData, usesCommand: usesCommand)
     }
 
     private static func currentLayoutData() -> Data? {
@@ -559,14 +584,18 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     private static func derivedLayoutKeyLabel(for code: UInt16,
-                                              layoutData: Data) -> String? {
+                                              layoutData: Data,
+                                              usesCommand: Bool) -> String? {
         var deadKeyState: UInt32 = 0
         var chars = [UniChar](repeating: 0, count: 4)
         var length = 0
+        // UCKeyTranslate wants the modifier state already shifted down out of
+        // the Carbon event's high byte.
+        let modifierState = usesCommand ? UInt32((cmdKey >> 8) & 0xFF) : 0
         let status = layoutData.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSStatus in
             guard let layout = bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress
             else { return OSStatus(paramErr) }
-            return UCKeyTranslate(layout, code, UInt16(kUCKeyActionDisplay), 0,
+            return UCKeyTranslate(layout, code, UInt16(kUCKeyActionDisplay), modifierState,
                                   UInt32(LMGetKbdType()), OptionBits(kUCKeyTranslateNoDeadKeysBit),
                                   &deadKeyState, chars.count, &length, &chars)
         }

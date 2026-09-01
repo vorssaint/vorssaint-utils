@@ -3850,11 +3850,55 @@ struct MetricsTests {
             expectEqual(usSemi.displayString, "⌃⌥⌘ ;", "US layout resolves physical semicolon key as semicolon")
         }
 
+        // A keycap names a combination, not a key, and macOS resolves a Command
+        // combination through the layout's Command table. Layouts that type a
+        // non-Latin script answer differently there than they do bare, and
+        // DVORAK-QWERTYCMD exists for nothing but that difference, so both
+        // tables have to come out of the same layout.
+        if let russianData = testLayoutData(for: "com.apple.keylayout.Russian") {
+            GlobalShortcut.refreshLayoutLabels(layoutData: russianData)
+            let russianCommandQ = GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: layoutTestModifiers)
+            let russianBareQ = GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.control, .option])
+            expectEqual(russianCommandQ.displayString, "⌃⌥⌘Q",
+                        "Russian reads a Command shortcut off the layout's Command table")
+            expectEqual(russianBareQ.displayString, "⌃⌥Й",
+                        "Russian reads a shortcut without Command off the character the key types")
+        }
+
+        if let dvorakCommandData = testLayoutData(for: "com.apple.keylayout.DVORAK-QWERTYCMD") {
+            GlobalShortcut.refreshLayoutLabels(layoutData: dvorakCommandData)
+            let dvorakCommandSemi = GlobalShortcut(keyCode: Int64(kVK_ANSI_Semicolon),
+                                                   modifiers: layoutTestModifiers)
+            let dvorakBareSemi = GlobalShortcut(keyCode: Int64(kVK_ANSI_Semicolon),
+                                                modifiers: [.control, .option])
+            expectEqual(dvorakCommandSemi.displayString, "⌃⌥⌘ ;",
+                        "Dvorak with QWERTY Command keeps Command shortcuts on the QWERTY cap")
+            expectEqual(dvorakBareSemi.displayString, "⌃⌥S",
+                        "Dvorak with QWERTY Command keeps the rest on the Dvorak cap")
+        }
+
+        // The ANSI table answers when no layout can be read at all. On a live
+        // system that is a caller off the main thread meeting a cold cache:
+        // Text Input Services cannot be asked from there, so nothing derives a
+        // cap and nothing warms the entry either.
         GlobalShortcut.refreshLayoutLabels(layoutData: nil)
-        let fallbackM = GlobalShortcut(keyCode: Int64(kVK_ANSI_M), modifiers: layoutTestModifiers)
-        let fallbackSemi = GlobalShortcut(keyCode: Int64(kVK_ANSI_Semicolon), modifiers: layoutTestModifiers)
-        expectEqual(fallbackM.displayString, "⌃⌥⌘M", "nil layout falls back to ANSI M")
-        expectEqual(fallbackSemi.displayString, "⌃⌥⌘ ;", "nil layout falls back to ANSI semicolon")
+        var coldCacheCaps: [String] = []
+        let coldCacheDone = DispatchSemaphore(value: 0)
+        // A thread of its own, not `sync`: dispatch runs a synchronous block on
+        // whichever thread called it, so `sync` would still be the main thread
+        // and would reach Text Input Services after all.
+        Thread {
+            coldCacheCaps = [
+                GlobalShortcut(keyCode: Int64(kVK_ANSI_M), modifiers: layoutTestModifiers).displayString,
+                GlobalShortcut(keyCode: Int64(kVK_ANSI_Semicolon), modifiers: layoutTestModifiers).displayString,
+            ]
+            coldCacheDone.signal()
+        }.start()
+        coldCacheDone.wait()
+        expectEqual(coldCacheCaps.first ?? "", "⌃⌥⌘M",
+                    "a cold cache off the main thread falls back to ANSI M")
+        expectEqual(coldCacheCaps.last ?? "", "⌃⌥⌘ ;",
+                    "a cold cache off the main thread falls back to ANSI semicolon")
 
         GlobalShortcut.refreshLayoutLabels()
 
