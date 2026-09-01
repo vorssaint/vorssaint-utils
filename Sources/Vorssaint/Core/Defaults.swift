@@ -67,6 +67,10 @@ enum DefaultsKey {
     static let mouseButtonExceptions = "mouseButtonExceptions"
     static let middleClickExceptions = "middleClickExceptions"
     static let switcherEnabled = "switcherEnabled"
+    static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
+    // Machine state, never exported: the system shortcuts this process owns,
+    // so a launch after a crash can restore them.
+    static let switcherNativeHotkeysSuppressed = "switcherNativeHotkeysSuppressed"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"
@@ -846,6 +850,7 @@ enum Defaults {
         DefaultsKey.mouseButtonExceptions: [String](),
         DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
+        DefaultsKey.switcherTakeOverSystemShortcuts: false,
         DefaultsKey.switcherShortcut: "command:48",
         DefaultsKey.switcherWindowShortcut: GlobalShortcut.switcherWindowDefault.storageValue,
         DefaultsKey.switcherIconRowMode: false,

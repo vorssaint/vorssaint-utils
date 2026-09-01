@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls and snippet controls, broadens app update and safe cleanup discovery, and hardens Command Bar shortcut capture, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves mouse scrolling feel, disk space and system monitor metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls and snippet controls, broadens app update and safe cleanup discovery, and hardens shortcut capture and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling and shared on-screen parsing, pasteboard restoration, sensor selection, Cleaning Mode unlock and favicon downloads. It also improves mouse scrolling feel, disk space and system monitor metrics, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
 
 ### Added
 - Settings now includes optional protections for Command-Q and Command-W with customizable hold duration, double press, extra modifier requirements and per-app scopes. Thanks to @RuanMD.
@@ -28,6 +28,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
 
 ### Changed
+- Window controls, Dock clicks and mouse exceptions now share consistent on-screen window parsing while preserving their existing behavior. Thanks to @PathGao.
 - System monitor process breakdowns now normalize per-app CPU usage against total active processor cores and cap grouped GPU and energy percentages at 100%. Thanks to @pergioa.
 - The docked shelf now uses a calibrated trigger area and requires a brief hover over the collapsed pill before expanding, preventing fast drags across the menu bar from opening the full card.
 - Smooth scrolling now feels consistent on standard and high-refresh displays, with adjustable speed and response and no lost wheel distance.
@@ -41,10 +42,13 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 
 ### Fixed
+- Dock icon window cycling now rotates only across windows on the active Space instead of switching desktops unexpectedly. Thanks to @PathGao.
+- App Switcher can explicitly replace the matching macOS app and window switcher shortcuts, with crash recovery and a windowless-app fallback. Thanks to @BenjaminD2023.
+- The clipboard history and snippet search fields now yield to input method composition, allowing candidate navigation and confirmation in Chinese, Japanese and Korean. Thanks to @PathGao.
 - The Command Bar capture card now records Command Q instead of ignoring it. Thanks to @arsarsars1 and @jtprogru.
 - Volume Mixer now attributes helper audio processes whose system responsibility report is detached to their parent app, ensuring browsers and sandboxed communication apps are controllable.
 - Quit on close now captures windows created asynchronously after launch or on activation, ensuring apps that load their windows after process startup are quit when their last window is closed.
-- Shortcut fields and key display now read key caps from the active keyboard layout, so non-QWERTY layouts such as AZERTY display the keys actually pressed.
+- Shortcut fields and key displays now follow the active keyboard layout, resolve physical keycaps under input methods and support Command-specific mappings, so they show the keys actually pressed. Thanks to @PathGao.
 - The Uninstaller and Cleaner leftover scans now accept two-component bundle identifiers, allowing apps with two-part domain names to be selected and cleaned.
 - The permission guide card now offers a start-over option when an entry left by an earlier app build is stuck on in System Settings, and adds a relaunch button once Screen Recording is granted. Thanks to @andreisuslov.
 - Uninstallation now verifies that sleep was restored and asks for admin authorization if the passwordless restore fails, preventing closed-lid sleep prevention from remaining permanently disabled on the Mac. Thanks to @mugurc.
@@ -53,7 +57,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Mouse navigation, button shortcuts and middle click now step aside outside the active login session or after Accessibility access is removed, preventing input stalls.
 - Focus follows mouse now leaves chosen apps alone and tracks the final pointer position during drags before changing focus.
 - Cleaning Mode now ends when its login session leaves the screen, preventing its input lock from affecting another active user.
-- Window capture now includes attached sheets, alerts and modal dialogs stacked on a window contained by one display, while preserving full-window capture when a window crosses displays. Thanks to @iltonandrew.
+- Window capture now includes attached sheets, alerts and modal dialogs stacked on a window, including when part of it is off-screen, while preserving full-window capture when it crosses displays. Thanks to @iltonandrew.
 - Accessibility messaging now uses a single, consistent process-wide timeout floor instead of allowing separate features to overwrite the shared limit. Thanks to @PathGao.
 - App Switcher now enumerates windows on a background queue, keeping shortcuts and typing responsive even when apps delay Accessibility responses. Thanks to @MaximilianMauroner.
 - App Switcher now lists windows from apps that draw their own title bar or use borderless windows. Thanks to @PathGao.
