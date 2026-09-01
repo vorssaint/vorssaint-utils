@@ -4239,6 +4239,21 @@ struct MetricsTests {
                     layout: .month, category: .image, date: whatsNow,
                     calendar: utcCalendar) == ["2026", "07"],
                "the organizer produces stable flat, type and month folder layouts")
+        let volumeA = NSData(bytes: [0x67, 0x45, 0x64, 0x00] as [UInt8], length: 4)
+        let volumeB = NSData(bytes: [0x69, 0x98, 0x66, 0x00] as [UInt8], length: 4)
+        expect(WhatsAppDownloadSupport.isSameVolume(
+                    source: volumeA,
+                    destination: NSData(bytes: [0x67, 0x45, 0x64, 0x00] as [UInt8], length: 4)),
+               "two equal volume identifiers are one volume even as separate objects")
+        expect(!WhatsAppDownloadSupport.isSameVolume(source: volumeA, destination: volumeB),
+               "two different volume identifiers never skip the destination check")
+        expect(!WhatsAppDownloadSupport.isSameVolume(source: NSNumber(value: 1),
+                                                     destination: NSString(string: "1")),
+               "unequal identities that print the same string still take the verified path")
+        expect(!WhatsAppDownloadSupport.isSameVolume(source: volumeA, destination: nil)
+                && !WhatsAppDownloadSupport.isSameVolume(source: nil, destination: volumeB)
+                && !WhatsAppDownloadSupport.isSameVolume(source: nil, destination: nil),
+               "an unknown volume identity keeps the verified copy rather than an unchecked rename")
         expect(WhatsAppDownloadSupport.nextAutomaticCheck(
                     after: scheduleDate(20, 8, 0), calendar: utcCalendar) == scheduleDate(20, 9, 0)
                 && WhatsAppDownloadSupport.nextAutomaticCheck(
