@@ -187,7 +187,7 @@ fi
 discard_test_preferences() {
     local preferences="$HOME/Library/Preferences" name
     for name in "vorss.tests." "com.vorssaint.tests."; do
-        rm -f "$preferences"/$name*.plist
+        rm -f "$preferences"/$name*.plist(N)
     done
     rm -f "$preferences/metrics-tests.plist"
     local survivors

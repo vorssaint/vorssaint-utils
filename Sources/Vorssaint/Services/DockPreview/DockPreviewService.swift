@@ -182,7 +182,11 @@ final class DockPreviewService: ObservableObject {
 
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
-            requestQuit: { requestDockPreviewApplicationQuit(item) },
+            requestQuit: { [weak self] in
+                let accepted = requestDockPreviewApplicationQuit(item)
+                if accepted { self?.endSession() }
+                return accepted
+            },
             closeWindow: {
                 WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
                     guard didClose, let self else { return }
@@ -1464,7 +1468,11 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
 
         DockPreviewSupport.performCloseAction(
             quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
-            requestQuit: { requestDockPreviewApplicationQuit(item) },
+            requestQuit: { [weak self] in
+                let accepted = requestDockPreviewApplicationQuit(item)
+                if accepted { self?.closePreviewPanel() }
+                return accepted
+            },
             closeWindow: {
                 WindowActivator.closeWindowIncludingHiddenState(item) { [weak self] didClose in
                     guard didClose else { return }

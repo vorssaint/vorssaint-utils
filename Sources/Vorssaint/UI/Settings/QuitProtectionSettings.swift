@@ -139,9 +139,9 @@ struct QuitProtectionSettings: View {
 
             if currentMode == .extraModifier {
                 Picker(strings.modifier, selection: extraModifier) {
-                    Text("Shift (⇧)").tag(QuitProtectionExtraModifier.shift.rawValue)
-                    Text("Option (⌥)").tag(QuitProtectionExtraModifier.option.rawValue)
-                    Text("Control (⌃)").tag(QuitProtectionExtraModifier.control.rawValue)
+                    Text("\(strings.shiftKey) (⇧)").tag(QuitProtectionExtraModifier.shift.rawValue)
+                    Text("\(strings.optionKey) (⌥)").tag(QuitProtectionExtraModifier.option.rawValue)
+                    Text("\(strings.controlKey) (⌃)").tag(QuitProtectionExtraModifier.control.rawValue)
                 }
                 .onChange(of: extraModifier.wrappedValue) { _, _ in service.syncWithPreferences() }
                 Text("\(modifierSymbol(currentModifier))\(shortcut.symbol)")

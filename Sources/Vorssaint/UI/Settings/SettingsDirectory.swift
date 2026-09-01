@@ -61,6 +61,7 @@ enum SettingsDirectory {
                          superKeySource: SuperKeySource = SuperKeyService.shared.source)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
+        let quitProtection = FeatureStrings.quitProtection(language)
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
@@ -148,10 +149,11 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .autoQuit, title: s.autoQuitName, icon: "xmark.rectangle",
                                       keywords: [s.autoQuitEnable]),
                 SettingsDirectoryItem(page: .quitProtection,
-                                      title: FeatureStrings.quitProtection(language).name,
+                                      title: quitProtection.name,
                                       icon: "shield.lefthalf.filled",
-                                      keywords: [FeatureStrings.quitProtection(language).description,
-                                                 "⌘Q", "⌘W", "hold", "double press", "modifier"]),
+                                      keywords: [quitProtection.description, "⌘Q", "⌘W",
+                                                 quitProtection.hold, quitProtection.doublePress,
+                                                 quitProtection.extraModifier]),
             ]),
             (categories.files, [
                 SettingsDirectoryItem(page: .clipboard, title: FeatureStrings.clipboard(language).title,
