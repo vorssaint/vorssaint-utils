@@ -323,6 +323,9 @@ private struct MenuBarMetricOrderEditor: View {
                     if metric == .network {
                         NetworkMenuBarOrderOption()
                     }
+                    if metric == .diskUsage {
+                        DiskMenuBarOrderOption()
+                    }
 
                     if metric != visibleOrder.last {
                         Divider()
@@ -410,6 +413,37 @@ private struct NetworkMenuBarOrderOption: View {
     var body: some View {
         if menuBarNetwork {
             MetricRowOptionToggle(label: l10n.s.monitorNetworkUploadFirst, isOn: $uploadFirst)
+        }
+    }
+}
+
+
+private struct DiskMenuBarOrderOption: View {
+    @AppStorage(DefaultsKey.menuBarDiskUsage) private var menuBarDiskUsage = false
+    @AppStorage(DefaultsKey.menuBarDiskStyle) private var diskStyle = "free"
+
+    var body: some View {
+        if menuBarDiskUsage {
+            HStack(spacing: 8) {
+                Text("Style")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Picker("", selection: $diskStyle) {
+                    Text("Free").tag("free")
+                    Text("Percentage").tag("percent")
+                    Text("Both").tag("both")
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                Spacer()
+            }
+            .padding(.leading, 32)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
+            .onAppear {
+                diskStyle = Defaults.sanitizedMenuBarDiskStyle(diskStyle)
+            }
         }
     }
 }
