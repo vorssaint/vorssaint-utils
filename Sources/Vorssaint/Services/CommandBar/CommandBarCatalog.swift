@@ -544,7 +544,7 @@ enum CommandBarCatalog {
                     title: device.name,
                     subtitle: device.isDefault ? bar.soundOutputCurrent : bar.soundOutputSubtitle,
                     keywords: bar.soundOutputSubtitle,
-                    icon: .symbol(device.isHeadphones ? "headphones" : "hifispeaker"),
+                    icon: .symbol(device.outputKind == .speakers ? "hifispeaker" : "headphones"),
                     isActive: device.isDefault,
                     run: { _ in AppVolumeMixer.shared.setUniversalOutputDeviceUID(device.uid) }))
             }
