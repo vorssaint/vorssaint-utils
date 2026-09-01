@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The shelf docked under the menu bar icon. It is a single thing in one place:
 /// a small pill when idle, the full shelf card when opened or when a drag needs
@@ -20,7 +19,7 @@ struct DockedShelfView: View {
                 ShelfView(dismissSystemImage: "chevron.up",
                           dismissHelp: l10n.s.shelfCollapse,
                           onDismiss: { shelf.collapseDocked() },
-                          onAccept: { _ in shelf.dockDidAccept() },
+                          onAccept: { shelf.dockDidAccept() },
                           brandWatermark: true)
             } else {
                 ShelfPill()
@@ -36,10 +35,7 @@ private struct ShelfPill: View {
     @EnvironmentObject private var shelf: ShelfService
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
-    @State private var targeted = false
     @State private var hovered = false
-
-    private static let dropTypes = ShelfService.swiftUIDropTypes
 
     var body: some View {
         HStack(spacing: 7) {
@@ -53,32 +49,32 @@ private struct ShelfPill: View {
             Image(systemName: "chevron.down")
                 .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.secondary)
-                .opacity(hovered || targeted ? 1 : 0.55)
+                .opacity(hovered || shelf.dropTargeted ? 1 : 0.55)
         }
         .padding(.horizontal, shelf.itemCount > 0 ? 12 : 11)
         .padding(.vertical, 8)
-        .background(HUDBackdrop(cornerRadius: 13))
+        .background(
+            ZStack {
+                HUDBackdrop(cornerRadius: 13)
+                WindowMoveHandle(acceptsDrops: true) { shelf.dockDidAccept() }
+            }
+        )
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .strokeBorder(targeted ? Color.accentColor : Color.white.opacity(0.12),
-                              lineWidth: targeted ? 2 : 1)
+                .strokeBorder(shelf.dropTargeted ? Color.accentColor : Color.white.opacity(0.12),
+                              lineWidth: shelf.dropTargeted ? 2 : 1)
         )
-        .scaleEffect(targeted ? 1.06 : 1)
-        .shadow(color: targeted ? Color.accentColor.opacity(0.32) : Color.black.opacity(0.16),
-                radius: targeted ? 12 : 7, x: 0, y: 3)
+        .scaleEffect(shelf.dropTargeted ? 1.06 : 1)
+        .shadow(color: shelf.dropTargeted ? Color.accentColor.opacity(0.32) : Color.black.opacity(0.16),
+                radius: shelf.dropTargeted ? 12 : 7, x: 0, y: 3)
         .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .onHover { hovered = $0 }
         .onTapGesture { shelf.expandDocked() }
         .help(l10n.s.shelfOpenNow)
-        .animation(.easeOut(duration: 0.13), value: targeted)
+        .animation(.easeOut(duration: 0.13), value: shelf.dropTargeted)
         .animation(.easeOut(duration: 0.15), value: shelf.dockedJustCaught)
         .padding(8)
-        .onDrop(of: Self.dropTypes, isTargeted: $targeted) { providers in
-            let accepted = shelf.accept(providers: providers)
-            if accepted { shelf.dockDidAccept() }
-            return accepted
-        }
     }
 
     /// The Vorssaint mark, quiet, so the pill is unmistakably the app's; it

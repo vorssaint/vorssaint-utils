@@ -565,12 +565,3 @@ enum ShelfPersistenceSupport {
         return result
     }
 }
-
-enum ShelfBatchSupport {
-    /// Restores original drop order after resolving every provider in a
-    /// multi-item drop in parallel, which completes out of order, and
-    /// drops any provider that failed to resolve to anything.
-    static func orderedItems<Item>(from resolved: [(index: Int, item: Item)]) -> [Item] {
-        resolved.sorted { $0.index < $1.index }.map(\.item)
-    }
-}

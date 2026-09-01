@@ -100,7 +100,9 @@ final class ShelfPromiseFallbackCoordinator<Value> {
                                reportFailure: reportFailureIfReady())
     }
 
-    func recordFailure(for receiverID: Int) -> CallbackOutcome {
+    /// Records an AppKit error that terminated a receiver before it could
+    /// deliver its remaining promised files.
+    func recordReceiverFailure(for receiverID: Int) -> CallbackOutcome {
         lock.lock()
         defer { lock.unlock() }
         guard var receiver = receivers[receiverID], !receiver.isWholesaleFailure else {
@@ -122,6 +124,41 @@ final class ShelfPromiseFallbackCoordinator<Value> {
         receiver.completedFileCount = receiver.expectedFileCount
         receiver.isTerminal = true
         receiver.isWholesaleFailure = true
+        receivers[receiverID] = receiver
+        hasFailure = true
+        guard let outcome = completedOutcomeIfReady() else {
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
+                                   fallback: nil,
+                                   reportFailure: false)
+        }
+        return CallbackOutcome(acceptFile: false,
+                               discardFallback: outcome.discardFallback,
+                               fallback: outcome.fallback,
+                               reportFailure: outcome.reportFailure)
+    }
+
+    /// Records one file that arrived from an otherwise healthy receiver but
+    /// could not be copied into the Shelf store. This must not terminate the
+    /// receiver: AppKit can still deliver its later attachments.
+    func recordFileFailure(for receiverID: Int) -> CallbackOutcome {
+        lock.lock()
+        defer { lock.unlock() }
+        guard var receiver = receivers[receiverID], !receiver.isWholesaleFailure else {
+            return CallbackOutcome(acceptFile: false,
+                                   discardFallback: nil,
+                                   fallback: nil,
+                                   reportFailure: false)
+        }
+        if receiver.isTerminal {
+            receiver.expectedFileCount = receiver.completedFileCount + 1
+            receiver.isTerminal = false
+        }
+        receiver.completedFileCount += 1
+        if receiver.isExpectedFileCountFinal,
+           receiver.completedFileCount >= receiver.expectedFileCount {
+            receiver.isTerminal = true
+        }
         receivers[receiverID] = receiver
         hasFailure = true
         guard let outcome = completedOutcomeIfReady() else {

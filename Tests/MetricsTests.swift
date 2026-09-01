@@ -8019,15 +8019,6 @@ struct MetricsTests {
                     restoredIsEmpty: false, liveItemCount: 0),
                "shelf additions made during restore schedule the merged state for persistence")
 
-        expect(ShelfBatchSupport.orderedItems(from: [(Int, String)]()).isEmpty,
-               "shelf batch resolve with nothing resolved produces nothing")
-        expect(ShelfBatchSupport.orderedItems(from: [(0, "a"), (1, "b"), (2, "c")]) == ["a", "b", "c"],
-               "shelf batch resolve keeps drop order when providers finish in order")
-        expect(ShelfBatchSupport.orderedItems(from: [(2, "c"), (0, "a"), (1, "b")]) == ["a", "b", "c"],
-               "shelf batch resolve restores drop order when providers finish out of order")
-        expect(ShelfBatchSupport.orderedItems(from: [(3, "z")]) == ["z"],
-               "shelf batch resolve with a single provider produces that one item")
-
         expect(ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 2)
                    && !ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 0),
                "the list only claims command-C over an explicit selection")
@@ -21343,7 +21334,7 @@ struct MetricsTests {
         let wholesaleFailure = ShelfPromiseFallbackCoordinator(
             items: ["subject"], receiverCount: 1)
         wholesaleFailure.registerReceiver(0, expectedFileCount: 2)
-        let receiverFailure = wholesaleFailure.recordFailure(for: 0)
+        let receiverFailure = wholesaleFailure.recordReceiverFailure(for: 0)
         expect(receiverFailure.fallback == nil && !receiverFailure.reportFailure,
                "a wholesale receiver failure waits for registration to finish")
         let wholesaleCompletion = wholesaleFailure.finishRegistration()
@@ -21374,7 +21365,7 @@ struct MetricsTests {
             items: ["subject"], receiverCount: 1)
         overflowFailure.registerReceiver(0, expectedFileCount: 1)
         let firstOverflowSuccess = overflowFailure.recordSuccess(for: 0)
-        let secondOverflowFailure = overflowFailure.recordFailure(for: 0)
+        let secondOverflowFailure = overflowFailure.recordFileFailure(for: 0)
         let overflowCompletion = overflowFailure.finishRegistration()
         expect(firstOverflowSuccess.acceptFile && !secondOverflowFailure.acceptFile
                 && overflowCompletion?.fallback == nil
@@ -21388,7 +21379,7 @@ struct MetricsTests {
             items: ["subject"], receiverCount: 2)
         partialFailure.registerReceiver(0, expectedFileCount: 1)
         partialFailure.registerReceiver(1, expectedFileCount: 1)
-        let firstReceiverFailure = partialFailure.recordFailure(for: 0)
+        let firstReceiverFailure = partialFailure.recordReceiverFailure(for: 0)
         expect(firstReceiverFailure.fallback == nil && !firstReceiverFailure.reportFailure,
                "one receiver failure waits for the other receiver")
         let secondReceiverSuccess = partialFailure.recordSuccess(for: 1)
@@ -21406,7 +21397,7 @@ struct MetricsTests {
         let lateSuccess = ShelfPromiseFallbackCoordinator(
             items: ["subject"], receiverCount: 1)
         lateSuccess.registerReceiver(0, expectedFileCount: 2)
-        _ = lateSuccess.recordFailure(for: 0)
+        _ = lateSuccess.recordReceiverFailure(for: 0)
         let lateFailureCompletion = lateSuccess.finishRegistration()
         let ignoredLateSuccess = lateSuccess.recordSuccess(for: 0)
         expect(lateFailureCompletion?.fallback == ["subject"]
@@ -21421,32 +21412,57 @@ struct MetricsTests {
             items: ["image"], receiverCount: 2)
         allFailureFallback.registerReceiver(0, expectedFileCount: 2)
         allFailureFallback.registerReceiver(1, expectedFileCount: 1)
-        _ = allFailureFallback.recordFailure(for: 0)
-        let finalReceiverFailure = allFailureFallback.recordFailure(for: 1)
+        _ = allFailureFallback.recordReceiverFailure(for: 0)
+        let finalReceiverFailure = allFailureFallback.recordReceiverFailure(for: 1)
         expect(finalReceiverFailure.fallback == nil
                 && allFailureFallback.finishRegistration()?.fallback == ["image"]
                 && !finalReceiverFailure.reportFailure,
                "fallback waits for every receiver in an all-failure batch")
 
-        // SwiftUI must request the content promise explicitly. Selecting the
-        // first registered promise flavor could load a URL string as a file.
-        let shelfServiceSource = (try? String(contentsOfFile:
+        // A failed local copy counts only the callback that failed. Outlook
+        // can keep delivering later attachments from the same receiver, and
+        // those files must not be accompanied by the message-subject fallback.
+        let partialCopyFailure = ShelfPromiseFallbackCoordinator(
+            items: ["subject"], receiverCount: 1)
+        partialCopyFailure.registerReceiver(0, expectedFileCount: 3)
+        let failedFirstCopy = partialCopyFailure.recordFileFailure(for: 0)
+        let secondAttachment = partialCopyFailure.recordSuccess(for: 0)
+        let thirdAttachment = partialCopyFailure.recordSuccess(for: 0)
+        let partialCopyCompletion = partialCopyFailure.finishRegistration()
+        expect(failedFirstCopy.fallback == nil
+                && secondAttachment.acceptFile
+                && secondAttachment.discardFallback == ["subject"]
+                && thirdAttachment.acceptFile
+                && partialCopyCompletion?.fallback == nil
+                && partialCopyCompletion?.reportFailure == true,
+               "a failed promised-file copy does not close its receiver or append subject fallback")
+
+        // Panel and pill drops must preserve the AppKit dragging pasteboard.
+        // Loading an NSItemProvider representation cannot construct the
+        // NSFilePromiseReceiver that Outlook and Mail require.
+        let shelfPromiseServiceSource = (try? String(contentsOfFile:
             "Sources/Vorssaint/Services/Shelf/ShelfService.swift", encoding: .utf8)) ?? ""
-        expect(shelfServiceSource.contains(
-            "com.apple.pasteboard.promised-file-content-type"),
-               "the SwiftUI promise loader names the content representation explicitly")
-        expect(shelfServiceSource.contains(
-            "return Self.filePromiseContentTypeIdentifier"),
-               "provider ordering cannot select the promised URL representation")
-        expect(!shelfServiceSource.contains(
-            "provider.registeredTypeIdentifiers.first"),
-               "the promise loader no longer trusts provider type ordering")
-        expect(shelfServiceSource.contains(
-            "] + [UTType(importedAs: filePromiseContentTypeIdentifier)]"),
-               "SwiftUI registers only the promise flavor its loader resolves")
-        expect(!shelfServiceSource.contains(
-            "] + NSFilePromiseReceiver.readableDraggedTypes.map { UTType(importedAs: $0) }"),
-               "SwiftUI does not advertise unresolved promise URL flavors")
+        let shelfViewSource = (try? String(contentsOfFile:
+            "Sources/Vorssaint/UI/Shelf/ShelfView.swift", encoding: .utf8)) ?? ""
+        let shelfDropZoneSource = (try? String(contentsOfFile:
+            "Sources/Vorssaint/UI/Shelf/ShelfDropZoneView.swift", encoding: .utf8)) ?? ""
+        let shelfTilesSource = (try? String(contentsOfFile:
+            "Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", encoding: .utf8)) ?? ""
+        expect(shelfPromiseServiceSource.contains("recordReceiverFailure(for: receiverID)")
+                && shelfPromiseServiceSource.contains("recordFileFailure(for: receiverID)"),
+               "AppKit receiver errors and local copy failures use distinct promise accounting")
+        expect(!shelfPromiseServiceSource.contains("loadFileRepresentation(forTypeIdentifier:"),
+               "Shelf no longer resolves promised files through NSItemProvider placeholders")
+        expect(shelfViewSource.contains("WindowMoveHandle(acceptsDrops: true)")
+                && shelfDropZoneSource.contains("WindowMoveHandle(acceptsDrops: true)"),
+               "both Shelf panel surfaces receive drops through the AppKit promise route")
+        expect(shelfTilesSource.contains("registerForDraggedTypes(ShelfService.tileDropTypes)")
+                && shelfTilesSource.contains(
+                    "ShelfService.shared.accept(pasteboard: sender.draggingPasteboard)"),
+               "the shared AppKit destination registers promise types and forwards its original pasteboard")
+        expect(!shelfViewSource.contains(".onDrop(")
+                && !shelfDropZoneSource.contains(".onDrop("),
+               "SwiftUI provider drops cannot bypass the file-promise receiver")
 
         // MARK: Result
 

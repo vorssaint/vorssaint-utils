@@ -293,17 +293,8 @@ final class ShelfService: ObservableObject {
     /// promises. The dynamic type is supplied by AppKit, so use the system's
     /// readable list instead of hardcoding an Outlook-specific identifier.
     private static let filePromiseTypeIdentifiers = Set(NSFilePromiseReceiver.readableDraggedTypes)
-    private static let filePromiseContentTypeIdentifier =
-        "com.apple.pasteboard.promised-file-content-type"
     private static let filePromiseDropTypes = NSFilePromiseReceiver.readableDraggedTypes
         .map { NSPasteboard.PasteboardType($0) }
-
-    /// The SwiftUI drop surfaces need the same identifiers as their AppKit
-    /// counterparts. `UTType(importedAs:)` preserves custom pasteboard types
-    /// that do not have a public declaration in UniformTypeIdentifiers.
-    static let swiftUIDropTypes: [UTType] = [
-        .fileURL, .image, .url, .text, .plainText
-    ] + [UTType(importedAs: filePromiseContentTypeIdentifier)]
 
     static let tileDropTypes: [NSPasteboard.PasteboardType] = [
         .fileURL,
@@ -1050,170 +1041,6 @@ final class ShelfService: ObservableObject {
 
     // MARK: - Items
 
-    /// Order matters for fidelity: a file is always a file, but a web image
-    /// drag carries both an image and its page URL — prefer the image, and
-    /// only fall back to treating a URL as a link when nothing richer exists.
-    func accept(providers: [NSItemProvider]) -> Bool {
-        let candidateLeaves = providers.reduce(0) { count, provider in
-            count + (canResolveItem(from: provider) ? 1 : 0)
-        }
-        guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
-                                             newLeaves: candidateLeaves) else {
-            if providers.contains(where: { promisedFileTypeIdentifier(for: $0) != nil }) {
-                reportPromiseFailure()
-            }
-            return false
-        }
-        acceptMixedBatch(providers: providers)
-        return true
-    }
-
-    /// Whether `resolveItem` has any representation it can turn into an item.
-    /// Kept in sync with `resolveItem`'s own branches by hand, since a
-    /// provider load is async and cannot itself be probed synchronously.
-    private func canResolveItem(from provider: NSItemProvider) -> Bool {
-        promisedFileTypeIdentifier(for: provider) != nil
-            || provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-            || provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier)
-            || provider.canLoadObject(ofClass: NSImage.self)
-            || provider.canLoadObject(ofClass: URL.self)
-            || provider.canLoadObject(ofClass: NSString.self)
-    }
-
-    private func promisedFileTypeIdentifier(for provider: NSItemProvider) -> String? {
-        guard provider.registeredTypeIdentifiers.contains(Self.filePromiseContentTypeIdentifier)
-        else { return nil }
-        return Self.filePromiseContentTypeIdentifier
-    }
-
-    /// Resolves every provider in a drop and adds them together: one pile
-    /// when more than one item survives, a single plain item otherwise. A
-    /// drop is one gesture, so whatever arrives with it belongs together,
-    /// whether it's files, images, GIFs, links or text: the same rule
-    /// `accept(pasteboard:)` already applies to files.
-    private func acceptMixedBatch(providers: [NSItemProvider]) {
-        let group = DispatchGroup()
-        var resolved: [(Int, Item)] = []
-        let containsPromise = providers.contains {
-            promisedFileTypeIdentifier(for: $0) != nil
-        }
-
-        for (index, provider) in providers.enumerated() {
-            group.enter()
-            resolveItem(from: provider) { item in
-                if let item { resolved.append((index, item)) }
-                group.leave()
-            }
-        }
-
-        group.notify(queue: .main) { [weak self] in
-            guard let self else { return }
-            let items = ShelfBatchSupport.orderedItems(from: resolved)
-            guard !items.isEmpty else { return }
-            let accepted = self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
-            if !accepted, containsPromise { self.reportPromiseFailure() }
-        }
-    }
-
-    /// Turns one dropped provider into an item, preferring richer
-    /// representations first: a promised file when it produces a readable
-    /// file, then a file on disk, GIF data, a plain image, a URL (file or
-    /// link), and finally text. Always calls back exactly once, on the main
-    /// queue, so callers can mutate state from it.
-    private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
-        if let promiseType = promisedFileTypeIdentifier(for: provider) {
-            // SwiftUI exposes item-based file promises as NSItemProvider file
-            // representations. Foundation writes that representation to a
-            // temporary URL before this callback returns, so copy it just as
-            // promptly as the AppKit NSFilePromiseReceiver path below.
-            _ = provider.loadFileRepresentation(forTypeIdentifier: promiseType) { [weak self] url, error in
-                guard let self else {
-                    return DispatchQueue.main.async { completion(nil) }
-                }
-                guard error == nil, let url, self.isUsablePromiseFile(url),
-                      let storedURL = self.storePromisedFile(url) else {
-                    // Some providers register the promise UTI alongside a
-                    // usable image, URL, or text representation. A failed or
-                    // non-file promise must not hide that working fallback.
-                    return self.resolveStandardItem(from: provider) { item in
-                        if item == nil { self.reportPromiseFailure() }
-                        completion(item)
-                    }
-                }
-                let title = provider.suggestedName ?? url.lastPathComponent
-                DispatchQueue.main.async {
-                    completion(self.fileItem(for: storedURL, title: title))
-                }
-            }
-            return
-        }
-        resolveStandardItem(from: provider, completion: completion)
-    }
-
-    private func resolveStandardItem(from provider: NSItemProvider,
-                                     completion: @escaping (Item?) -> Void) {
-        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                DispatchQueue.main.async {
-                    guard let url, url.isFileURL else { return completion(nil) }
-                    completion(self?.fileItem(for: url))
-                }
-            }
-        } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
-            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
-                DispatchQueue.main.async {
-                    guard let data, !data.isEmpty else { return completion(nil) }
-                    completion(self?.gifItem(for: data))
-                }
-            }
-        } else if provider.canLoadObject(ofClass: NSImage.self) {
-            _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
-                DispatchQueue.main.async {
-                    let item = (image as? NSImage).flatMap { self?.imageItem(for: $0) }
-                    completion(item)
-                }
-            }
-        } else if provider.canLoadObject(ofClass: URL.self) {
-            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                DispatchQueue.main.async {
-                    let item = url.flatMap { url in url.isFileURL ? self?.fileItem(for: url) : self?.linkItem(for: url) }
-                    completion(item)
-                }
-            }
-        } else if provider.canLoadObject(ofClass: NSString.self) {
-            _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
-                DispatchQueue.main.async {
-                    let item = (string as? String).flatMap { self?.textItem(for: $0) }
-                    completion(item)
-                }
-            }
-        } else {
-            DispatchQueue.main.async { completion(nil) }
-        }
-    }
-
-    private func isUsablePromiseFile(_ url: URL) -> Bool {
-        guard url.isFileURL,
-              FileManager.default.fileExists(atPath: url.path),
-              FileManager.default.isReadableFile(atPath: url.path),
-              let values = try? url.resourceValues(forKeys: [.isRegularFileKey]),
-              values.isRegularFile == true else { return false }
-
-        // A provider can expose the promise UTI through this item-provider
-        // path. Foundation then writes that short identifier into a regular
-        // temporary file, which passes filesystem checks but is not the
-        // promised content. Reject that placeholder so direct loaders below
-        // get a chance to handle the same provider.
-        guard url.pathExtension.isEmpty,
-              let data = try? Data(contentsOf: url, options: .mappedIfSafe),
-              data.count <= 256,
-              let identifier = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !identifier.isEmpty,
-              UTType(identifier) != nil else { return true }
-        return false
-    }
-
     func removeItem(_ id: UUID) {
         var removed: [Item] = []
         removeItems(Set([id]), from: &items, removed: &removed)
@@ -1724,13 +1551,13 @@ final class ShelfService: ObservableObject {
                     // AppKit may pass the destination directory, no URL, or
                     // a partial path on failure. It was not written by this
                     // reader, so leave it for the temporary-file sweep.
-                    let outcome = fallbackState.recordFailure(for: receiverID)
+                    let outcome = fallbackState.recordReceiverFailure(for: receiverID)
                     self.applyPromiseFallback(outcome, mergingInto: targetID)
                     return
                 }
                 guard let storedURL = self.storePromisedFile(url) else {
                     self.removePromisedFileIfRegular(url, inside: destination)
-                    let outcome = fallbackState.recordFailure(for: receiverID)
+                    let outcome = fallbackState.recordFileFailure(for: receiverID)
                     self.applyPromiseFallback(outcome, mergingInto: targetID)
                     return
                 }

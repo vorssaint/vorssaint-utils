@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Contents of the floating shelf panel: a header (a move handle plus actions)
 /// and the item tiles. Dropping onto the card adds items; the tiles themselves
@@ -13,9 +12,9 @@ struct ShelfView: View {
     var dismissSystemImage: String = "xmark"
     var dismissHelp: String? = nil
     var onDismiss: (() -> Void)? = nil
-    /// Called with the provider count after a drop is accepted, so the docked
-    /// shelf can flash and settle back to its pill.
-    var onAccept: ((Int) -> Void)? = nil
+    /// Called after a drop is accepted, so the docked shelf can flash and
+    /// settle back to its pill.
+    var onAccept: (() -> Void)? = nil
     /// The docked shelf shows the brand mark as a quiet watermark, so it reads
     /// as the app's own tray rather than a plain floating card.
     var brandWatermark: Bool = false
@@ -23,12 +22,10 @@ struct ShelfView: View {
     @EnvironmentObject private var shelf: ShelfService
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
-    @State private var targeted = false
     @State private var clearButtonHovered = false
     @State private var pinButtonHovered = false
     @State private var closeButtonHovered = false
 
-    private static let dropTypes = ShelfService.swiftUIDropTypes
     private static let panelWidth: CGFloat = 304
     private static let tileAreaHeight: CGFloat = 188
 
@@ -46,6 +43,13 @@ struct ShelfView: View {
             ZStack {
                 HUDBackdrop(cornerRadius: 18)
                 if brandWatermark { brandWatermarkLayer }
+                // This stays above the material view, but below the panel's
+                // controls, so the entire card receives the original AppKit
+                // dragging pasteboard without changing normal button clicks.
+                WindowMoveHandle(acceptsDrops: true) {
+                    shelf.noteInteraction()
+                    onAccept?()
+                }
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -62,21 +66,10 @@ struct ShelfView: View {
         .onHover { inside in
             shelf.setPointerInsidePanel(inside)
         }
-        .onChange(of: targeted) { _, isTargeted in
-            shelf.setDropTargeted(isTargeted)
-        }
-        .onDrop(of: Self.dropTypes, isTargeted: $targeted) { providers in
-            let accepted = shelf.accept(providers: providers)
-            if accepted {
-                shelf.noteInteraction()
-                onAccept?(providers.count)
-            }
-            return accepted
-        }
     }
 
     private var isDropTargeted: Bool {
-        targeted || shelf.dropTargeted
+        shelf.dropTargeted
     }
 
     /// The official mark, large and faint in the corner: unmistakably ours,

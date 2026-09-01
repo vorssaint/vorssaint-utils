@@ -8,15 +8,18 @@ import SwiftUI
 /// header and empty shelf space; tiles stay free to start item drags.
 struct WindowMoveHandle: NSViewRepresentable {
     var acceptsDrops = false
+    var onDropAccepted: (() -> Void)?
 
     func makeNSView(context: Context) -> ShelfPanelMoveView {
         let view = ShelfPanelMoveView()
         view.acceptsDrops = acceptsDrops
+        view.onDropAccepted = onDropAccepted
         return view
     }
 
     func updateNSView(_ nsView: ShelfPanelMoveView, context: Context) {
         nsView.acceptsDrops = acceptsDrops
+        nsView.onDropAccepted = onDropAccepted
     }
 }
 
@@ -24,6 +27,7 @@ class ShelfPanelMoveView: NSView {
     var acceptsDrops = false {
         didSet { syncDraggedTypes() }
     }
+    var onDropAccepted: (() -> Void)?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -58,6 +62,7 @@ class ShelfPanelMoveView: NSView {
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         let accepted = acceptsDrops && ShelfService.shared.accept(pasteboard: sender.draggingPasteboard)
+        if accepted { onDropAccepted?() }
         ShelfService.shared.setDropTargeted(false)
         return accepted
     }
