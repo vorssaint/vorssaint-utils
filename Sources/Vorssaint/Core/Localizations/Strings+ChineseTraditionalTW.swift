@@ -76,6 +76,8 @@ extension Strings {
         cpuLabel: "CPU",
         gpuLabel: "GPU",
         batteryLabel: "電池",
+        ssdLabel: "SSD",
+        allSensorsLabel: "所有感測器",
         usageSection: "硬體使用率",
         memorySection: "記憶體",
         memoryPressure: "壓力",
