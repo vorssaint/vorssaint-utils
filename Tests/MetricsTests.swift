@@ -12772,6 +12772,48 @@ struct MetricsTests {
                 && fallbackPublishedIsVisible,
                "unsupported exclusive rename falls back without replacing an existing archive")
 
+        let unsupportedFlagsStage = archiveFailureRoot.appendingPathComponent(
+            "unsupported-flags-stage.zip")
+        let unsupportedFlagsOutput = archiveFailureRoot.appendingPathComponent(
+            "Unsupported flags.zip")
+        try? Data("archive without flags".utf8).write(to: unsupportedFlagsStage)
+        var unsupportedFlagsAttempts = 0
+        let unsupportedFlagsResult = ArchivePublisher.systemCopyExclusive(
+            unsupportedFlagsStage,
+            unsupportedFlagsOutput,
+            CancellationToken(),
+            writeFlags: { _, _ in
+                unsupportedFlagsAttempts += 1
+                return -1
+            })
+        expect(unsupportedFlagsResult == .success
+                && unsupportedFlagsAttempts == 1
+                && !FileManager.default.fileExists(atPath: unsupportedFlagsStage.path)
+                && (try? Data(contentsOf: unsupportedFlagsOutput))
+                    == Data("archive without flags".utf8),
+               "unsupported file flags do not discard a completed fallback copy")
+
+        let unsupportedRestoreStage = archiveFailureRoot.appendingPathComponent(
+            "unsupported-restore-stage.zip")
+        let unsupportedRestoreOutput = archiveFailureRoot.appendingPathComponent(
+            "Unsupported restore.zip")
+        try? Data("archive with failed restore".utf8).write(to: unsupportedRestoreStage)
+        var restoreFlagsAttempts = 0
+        let unsupportedRestoreResult = ArchivePublisher.systemCopyExclusive(
+            unsupportedRestoreStage,
+            unsupportedRestoreOutput,
+            CancellationToken(),
+            writeFlags: { _, _ in
+                restoreFlagsAttempts += 1
+                return restoreFlagsAttempts == 1 ? 0 : -1
+            })
+        expect(unsupportedRestoreResult == .success
+                && restoreFlagsAttempts == 2
+                && !FileManager.default.fileExists(atPath: unsupportedRestoreStage.path)
+                && (try? Data(contentsOf: unsupportedRestoreOutput))
+                    == Data("archive with failed restore".utf8),
+               "a failed flag restore does not discard a completed fallback copy")
+
         let publishCancellationToken = CancellationToken()
         var cancelledPublishedURL: URL?
         let cancellingPublisher = ArchivePublisher(

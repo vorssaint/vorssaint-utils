@@ -20,12 +20,16 @@ struct ArchivePublisher {
 
     init() {
         renameExclusive = Self.systemRenameExclusive
-        copyExclusive = Self.systemCopyExclusive
+        copyExclusive = { source, destination, token in
+            Self.systemCopyExclusive(source, destination, token)
+        }
     }
 
     init(renameExclusive: @escaping Operation, copyExclusive: Operation? = nil) {
         self.renameExclusive = renameExclusive
-        self.copyExclusive = copyExclusive ?? Self.systemCopyExclusive
+        self.copyExclusive = copyExclusive ?? { source, destination, token in
+            Self.systemCopyExclusive(source, destination, token)
+        }
     }
 
     func publish(_ stagedURL: URL, in directory: URL, baseName: String,
@@ -89,9 +93,13 @@ struct ArchivePublisher {
         hidden ? flags | UInt32(UF_HIDDEN) : flags & ~UInt32(UF_HIDDEN)
     }
 
-    private static func systemCopyExclusive(_ sourceURL: URL,
-                                            _ destinationURL: URL,
-                                            _ token: CancellationToken) -> Attempt {
+    static func systemCopyExclusive(
+        _ sourceURL: URL,
+        _ destinationURL: URL,
+        _ token: CancellationToken,
+        readStatus: (Int32, UnsafeMutablePointer<stat>) -> Int32 = fstat,
+        writeFlags: (Int32, UInt32) -> Int32 = fchflags
+    ) -> Attempt {
         guard !token.isCancelled else { return .failed }
         let sourceDescriptor = sourceURL.withUnsafeFileSystemRepresentation { source in
             guard let source else { return Int32(-1) }
@@ -117,11 +125,9 @@ struct ArchivePublisher {
         }
 
         var destinationStatus = stat()
-        guard fstat(destinationDescriptor, &destinationStatus) == 0,
-              fchflags(destinationDescriptor,
-                       fallbackCopyFlags(destinationStatus.st_flags, hidden: true)) == 0 else {
-            return .failed
-        }
+        let destinationIsHidden = readStatus(destinationDescriptor, &destinationStatus) == 0
+            && writeFlags(destinationDescriptor,
+                          fallbackCopyFlags(destinationStatus.st_flags, hidden: true)) == 0
 
         var buffer = [UInt8](repeating: 0, count: 1024 * 1024)
         while !token.isCancelled {
@@ -151,9 +157,9 @@ struct ArchivePublisher {
             }
         }
         guard !token.isCancelled else { return .failed }
-        guard fsync(destinationDescriptor) == 0,
-              fchflags(destinationDescriptor, destinationStatus.st_flags) == 0 else {
-            return .failed
+        guard fsync(destinationDescriptor) == 0 else { return .failed }
+        if destinationIsHidden {
+            _ = writeFlags(destinationDescriptor, destinationStatus.st_flags)
         }
         guard close(destinationDescriptor) == 0 else {
             destinationIsOpen = false
