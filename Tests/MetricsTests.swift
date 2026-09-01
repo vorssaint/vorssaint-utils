@@ -4718,6 +4718,37 @@ struct MetricsTests {
                 .allSatisfy { !$0.path.contains("Helper.app/Contents") },
                "embedded code lookup stops descending at its depth limit")
         try? FileManager.default.removeItem(at: embeddedFixture)
+        // Building the installed-apps oracle walks the application folders, and
+        // the removal guard reads it under `.leftovers` alone — with leftover
+        // rows unchecked by default, the common clean must not pay for that
+        // walk. JunkCleaner is not part of this test binary, so pin the gate
+        // and the premise that makes an empty oracle safe at their source.
+        let junkCleanerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift",
+            encoding: .utf8)) ?? ""
+        func junkCleanerBody(from opening: String, to closing: String) -> String {
+            guard let start = junkCleanerSource.range(of: opening),
+                  let end = junkCleanerSource.range(of: closing,
+                                                    range: start.upperBound..<junkCleanerSource.endIndex)
+            else { return "" }
+            return String(junkCleanerSource[start.upperBound..<end.lowerBound])
+        }
+        let cleanSelectedBody = junkCleanerBody(from: "func cleanSelected()",
+                                                to: "private static func mayRemove")
+        expect(cleanSelectedBody.contains("chosen.contains { $0.category == .leftovers }")
+               && cleanSelectedBody.contains("? Self.installedBundleIDs() : []")
+               && !cleanSelectedBody.contains("let installed = Self.installedBundleIDs()"),
+               "a clean builds the installed-apps oracle only when a leftover row is selected")
+        let mayRemoveBody = junkCleanerBody(from: "private static func mayRemove",
+                                            to: "private static func trashViaFinder")
+        let leftoverBranch = mayRemoveBody.range(of: "if item.category == .leftovers")
+        expect(mayRemoveBody.components(separatedBy: "installed: installed").count == 2,
+               "the removal guard consults the installed-apps oracle exactly once")
+        expect(leftoverBranch.map { branch in
+                   mayRemoveBody.range(of: "installed: installed",
+                                       range: branch.upperBound..<mayRemoveBody.endIndex) != nil
+               } == true,
+               "the removal guard reads the installed-apps oracle inside its leftovers branch")
         expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
                 == "com.vendor.editor",
                "preference panes map to their owning bundle identifier")

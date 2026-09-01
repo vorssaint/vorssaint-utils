@@ -157,11 +157,15 @@ final class JunkCleaner: ObservableObject {
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
-            // One installed-apps oracle for the whole pass: the safety check
-            // below consults it per item, and building it walks the
-            // application folders. Nothing can install an app mid-clean that
-            // this pass would have to respect.
-            let installed = Self.installedBundleIDs()
+            // One installed-apps oracle for the whole pass, and only when the
+            // selection can ask for it: building it walks the application
+            // folders, and `mayRemove` reads it under `.leftovers` alone, so a
+            // clean without leftover rows must not pay for the walk. Nothing
+            // can install an app mid-clean that this pass would have to
+            // respect. `stubborn` is a subset of `chosen`, so the second and
+            // third passes are covered by the same test.
+            let installed = chosen.contains { $0.category == .leftovers }
+                ? Self.installedBundleIDs() : []
             var freed: Int64 = 0
             var failed = 0
             var stubborn: [Item] = []
