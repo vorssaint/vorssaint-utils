@@ -1214,6 +1214,8 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
+    @AppStorage(DefaultsKey.dockNumberSwitchEnabled) private var dockNumberSwitchEnabled = false
+    @ObservedObject private var dockNumberSwitch = DockNumberSwitchService.shared
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
@@ -1454,6 +1456,34 @@ struct SwitcherSettings: View {
                     Text(FeatureStrings.hub(l10n.language).titleDockClick)
                 }
                 .settingsSectionAnchor(.dockClick)
+            }
+            if AppFeature.dockNumberSwitch.isAvailable {
+                let dockNumberText = FeatureStrings.dockNumberSwitch(l10n.language)
+                Section {
+                    Toggle(dockNumberText.enableToggle, isOn: $dockNumberSwitchEnabled)
+                        .onChange(of: dockNumberSwitchEnabled) { _, enabled in
+                            DockNumberSwitchService.shared.syncWithPreferences()
+                            guard enabled, !permissions.accessibility else { return }
+                            permissions.requestAccessibility()
+                            permissions.openAccessibilitySettings()
+                        }
+                    Text(dockNumberText.enableCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if dockNumberSwitchEnabled, !permissions.accessibility {
+                        Label(dockNumberText.needsAccessibility, systemImage: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if dockNumberSwitchEnabled, dockNumberSwitch.registrationFailed {
+                        Label(dockNumberText.unavailableShortcuts,
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                } header: {
+                    Text(dockNumberText.pageTitle)
+                }
+                .settingsSectionAnchor(.dockNumberSwitch)
             }
             if AppFeature.switcher.isAvailable || AppFeature.dockPreview.isAvailable {
                 Section {

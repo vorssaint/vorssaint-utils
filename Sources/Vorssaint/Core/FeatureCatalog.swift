@@ -14,7 +14,7 @@ import Foundation
 /// keys are never touched.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
-    case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
+    case switcher, dockPreview, dockClick, dockNumberSwitch, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
     case scrollInverter, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
@@ -86,7 +86,7 @@ extension AppFeature {
 
     var group: FeatureGroup {
         switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
+        case .switcher, .dockPreview, .dockClick, .dockNumberSwitch, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
         case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
@@ -113,6 +113,7 @@ extension AppFeature {
         case .switcher: return "rectangle.on.rectangle"
         case .dockPreview: return "dock.rectangle"
         case .dockClick: return "dock.arrow.down.rectangle"
+        case .dockNumberSwitch: return "1.square"
         case .windowMaximizer: return "arrow.up.left.and.arrow.down.right"
         case .windowLayout: return "rectangle.3.group"
         case .autoQuit: return "xmark.rectangle"
@@ -194,6 +195,7 @@ extension AppFeature {
         case .dockClick: return [DefaultsKey.dockClickMinimize,
                                  DefaultsKey.dockClickHide,
                                  DefaultsKey.dockClickCycleWindows]
+        case .dockNumberSwitch: return [DefaultsKey.dockNumberSwitchEnabled]
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
@@ -245,7 +247,7 @@ extension AppFeature {
         case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
-             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
+             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu, .dockNumberSwitch,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
              .commandBar:

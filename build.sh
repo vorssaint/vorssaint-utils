@@ -278,6 +278,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Audio/MixerRender.swift \
         Sources/Vorssaint/Services/Audio/PreciseVolumeRollerSupport.swift \
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
+        Sources/Vorssaint/Services/DockNumberSwitch/DockNumberSwitchSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
         Sources/Vorssaint/Core/AppUpdateStrings.swift \

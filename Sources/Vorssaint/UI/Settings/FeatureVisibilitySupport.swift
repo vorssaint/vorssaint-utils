@@ -33,6 +33,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case switcher
     case dock
     case dockClick
+    case dockNumberSwitch
     case finderCutPaste
     case finderRename
     case clipboardHistory
@@ -57,7 +58,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick, .mouseClickDebounce:
             return .mouse
-        case .switcher, .dock, .dockClick: return .switcher
+        case .switcher, .dock, .dockClick, .dockNumberSwitch: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode:
@@ -162,6 +163,7 @@ extension AppFeature {
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
         case .dockPreview: return FeatureSettingsDestination(.switcher, sectionAnchor: .dock)
         case .dockClick: return FeatureSettingsDestination(.switcher, sectionAnchor: .dockClick)
+        case .dockNumberSwitch: return FeatureSettingsDestination(.switcher, sectionAnchor: .dockNumberSwitch)
         case .windowMaximizer:
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
@@ -269,7 +271,7 @@ enum FeatureVisibilitySupport {
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
-        case .switcher: return [.switcher, .dockPreview, .dockClick]
+        case .switcher: return [.switcher, .dockPreview, .dockClick, .dockNumberSwitch]
         case .windowLayout: return [.windowLayout]
         case .autoQuit: return [.autoQuit]
         case .quitProtection: return [.quitWindowProtection]

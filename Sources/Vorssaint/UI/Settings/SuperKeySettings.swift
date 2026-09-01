@@ -191,6 +191,9 @@ struct SuperKeySettings: View {
         guard next.hasPrimaryModifier else { return }
         modifierStorage = SuperKeySupport.storageValue(for: next)
         SuperKeyService.shared.syncWithPreferences()
+        // The Dock number keys sit on this same layer, so they have to move
+        // with it; nothing else re-registers them when only the modifiers change.
+        DockNumberSwitchService.shared.syncWithPreferences()
     }
 
     private func canRemove(_ modifier: GlobalShortcutModifiers) -> Bool {

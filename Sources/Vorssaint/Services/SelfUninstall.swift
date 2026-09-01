@@ -103,6 +103,7 @@ enum SelfUninstall {
         ScratchpadService.shared.suspend()
         CommandBarService.shared.suspend()
         PreciseVolumeRollerService.shared.suspend()
+        DockNumberSwitchService.shared.suspend()
         // Leaving the mic cut after the app is gone would strand the user
         // with a silent input and no indicator anywhere.
         MicMuteService.shared.unmuteForTeardown()

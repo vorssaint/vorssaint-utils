@@ -138,6 +138,8 @@ enum SettingsDirectory {
                                                       s.dockClickCycleWindows]),
                                         (.dockPreview,
                                          [FeatureStrings.windowPreviewExclusions(language).listTitle]),
+                                        (.dockNumberSwitch,
+                                         [FeatureStrings.dockNumberSwitch(language).enableToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,

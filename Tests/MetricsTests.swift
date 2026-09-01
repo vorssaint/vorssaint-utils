@@ -4055,6 +4055,8 @@ struct MetricsTests {
                "every configurable shortcut's feature is silenced while recording")
         expect(silenced.contains(.windowLayout),
                "the window layout keys are silenced too, though they have no role")
+        expect(silenced.contains(.dockNumberSwitch),
+               "the Dock number keys have no role, so recording would strand them without this")
         expect(silenced.contains(.finderRename),
                "the scoped Finder key steps aside while its recorder is listening")
         expect(silenced.contains(.switcher) && silenced.contains(.radialMenu)
@@ -12703,11 +12705,11 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
-            "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
+            "switcher", "dockPreview", "dockClick", "dockNumberSwitch", "windowMaximizer", "windowLayout", "autoQuit",
             "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
@@ -21981,6 +21983,53 @@ struct MetricsTests {
                          "\(language.rawValue) quit protection double HUD format")
             expectFormat(quitProtection.extraHUDFormat, ["@"],
                          "\(language.rawValue) quit protection modifier HUD format")
+        }
+
+        // MARK: Dock number keys
+        do {
+            let finder = URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app")
+            let safari = URL(fileURLWithPath: "/Applications/Safari.app")
+            let downloads = URL(fileURLWithPath: "/Users/me/Downloads")
+            let app = DockNumberSwitchSupport.applicationSubrole
+            let tiles = [
+                DockNumberSwitchSupport.Tile(subrole: app, url: finder),
+                DockNumberSwitchSupport.Tile(subrole: "AXFolderDockItem", url: downloads), // a stack
+                DockNumberSwitchSupport.Tile(subrole: "AXSeparatorDockItem", url: nil),
+                DockNumberSwitchSupport.Tile(subrole: app, url: safari),
+                DockNumberSwitchSupport.Tile(subrole: app, url: nil), // an app tile with no URL
+                DockNumberSwitchSupport.Tile(subrole: "AXApplicationDockItem", url: nil),
+            ]
+            let apps = DockNumberSwitchSupport.applicationURLs(from: tiles)
+            expect(apps == [finder, safari],
+                   "Dock number keys count only application tiles with a URL, in Dock order")
+            expect(DockNumberSwitchSupport.target(in: apps, slot: 1) == finder,
+                   "slot 1 is the first Dock app (Finder)")
+            expect(DockNumberSwitchSupport.target(in: apps, slot: 2) == safari,
+                   "slot 2 is the second Dock app")
+            expect(DockNumberSwitchSupport.target(in: apps, slot: 3) == nil,
+                   "a slot past the last app does nothing")
+            expect(DockNumberSwitchSupport.target(in: apps, slot: 0) == nil,
+                   "a non-positive slot does nothing")
+            expect(DockNumberSwitchSupport.slotCount == 9,
+                   "Dock number keys bind the nine digit keys")
+            expect(DockNumberSwitchSupport.action(appIsFrontmost: true) == .cycleWindows,
+                   "pressing the digit for the app you are in cycles its windows")
+            expect(DockNumberSwitchSupport.action(appIsFrontmost: false) == .activateOrLaunch,
+                   "pressing the digit for another app switches to (or launches) it")
+
+            // Contract the rest of the app relies on (a rename should break these).
+            expect(AppFeature(rawValue: "dockNumberSwitch") == .dockNumberSwitch,
+                   "the dockNumberSwitch feature identity is stable")
+            expect(DefaultsKey.dockNumberSwitchEnabled == "dockNumberSwitchEnabled",
+                   "the dockNumberSwitch enable key is the persisted string")
+            expect(AppFeature.dockNumberSwitch.enabledKeys == [DefaultsKey.dockNumberSwitchEnabled],
+                   "the feature is engaged by its own enable key")
+            expect(AppFeature.dockNumberSwitch.group == .windowsDock,
+                   "Dock number keys live in the Windows and Dock group")
+            expect(AppFeature.dockNumberSwitch.permissions.contains(.accessibility),
+                   "reading the Dock order needs Accessibility")
+            expect(Defaults.registeredDefaults[DefaultsKey.dockNumberSwitchEnabled] as? Bool == false,
+                   "Dock number keys ship off by default")
         }
 
         if failures.isEmpty {

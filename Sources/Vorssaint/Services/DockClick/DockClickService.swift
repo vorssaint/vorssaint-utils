@@ -722,6 +722,16 @@ final class DockClickService {
         AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
     }
 
+    /// Cycles the app's standard windows front-to-back (⌘`-style) for a caller
+    /// that already knows the pid — the Dock number keys reuse this when their
+    /// shortcut targets an app that is already frontmost. Safe whether or not
+    /// the Dock-click feature is switched on: it starts no event tap, doing only
+    /// a z-order read and an AX raise. A no-op unless the app has more than one
+    /// unminimized window.
+    func cycleWindows(pid: pid_t) {
+        Self.cycleWindows(pid: pid, windows: Self.standardWindows(pid: pid).unminimized)
+    }
+
     /// Cycles through an app's windows on the current Space by raising the
     /// rearmost one to the front, mimicking ⌘` (Command-Tilde) behavior.
     ///
