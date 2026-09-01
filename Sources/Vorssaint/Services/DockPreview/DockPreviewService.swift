@@ -345,6 +345,7 @@ final class DockPreviewService: ObservableObject {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
         cancelPendingHover()

@@ -40,18 +40,26 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - App Updates now finds newer versions for other installed apps through a privacy-preserving public online catalog and opens those apps so their own updater remains in control.
 - The Uninstaller now finds more support files, containers, preference panes and plugins through verified app identifiers and signed ownership, searches nested vendor folders and opens every result in Finder. Name-related finds start unchecked.
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
+- Quit on close now reads an app's windows once per switch instead of repeating the same scan for every focus change, so switching between apps with many windows costs less. Thanks to @PathGao.
+- The App Switcher and window previews now check whether an app's main and focused windows are already collected before evaluating their properties, skipping redundant Accessibility calls. Thanks to @PathGao.
+- Ending a process tree now reads the running process list once instead of looking up children process by process, so trees with many helpers close without the list stalling. Thanks to @PathGao.
+- The downloads organizer now confirms whether a file is staying on the same disk before filing it, and skips the second integrity read when the move is only a rename, so large videos are filed without being read twice. Thanks to @PathGao.
 
 ### Fixed
+- Super key now keeps modifiers active while holding non-autorepeating source keys such as Caps Lock remapped to F18. Thanks to @victoraraujo01.
+- Dock icon window cycling now rotates only across windows on the active Space instead of switching desktops unexpectedly. Thanks to @PathGao.
+- App Switcher can explicitly replace the matching macOS app and window switcher shortcuts, with crash recovery and a windowless-app fallback. Thanks to @BenjaminD2023.
 - The clipboard history and snippet search fields now yield to input method composition, allowing candidate navigation and confirmation in Chinese, Japanese and Korean. Thanks to @PathGao.
 - The Command Bar capture card now records Command Q instead of ignoring it. Thanks to @arsarsars1 and @jtprogru.
 - Volume Mixer now attributes helper audio processes whose system responsibility report is detached to their parent app, ensuring browsers and sandboxed communication apps are controllable.
 - Quit on close now captures windows created asynchronously after launch or on activation, ensuring apps that load their windows after process startup are quit when their last window is closed.
-- Shortcut fields and key displays now follow the active keyboard layout, including Command-specific mappings, so they show the keys actually pressed. Thanks to @PathGao.
+- Shortcut fields and key displays now follow the active keyboard layout, resolve physical keycaps under input methods and support Command-specific mappings, so they show the keys actually pressed. Thanks to @PathGao.
 - The Uninstaller and Cleaner leftover scans now accept two-component bundle identifiers, allowing apps with two-part domain names to be selected and cleaned.
 - The permission guide card now offers a start-over option when an entry left by an earlier app build is stuck on in System Settings, and adds a relaunch button once Screen Recording is granted. Thanks to @andreisuslov.
 - Uninstallation now verifies that sleep was restored and asks for admin authorization if the passwordless restore fails, preventing closed-lid sleep prevention from remaining permanently disabled on the Mac. Thanks to @mugurc.
 - Screenshot quick preview no longer takes keyboard focus when presented, keeping keystrokes in the active app until the preview is clicked. Thanks to @iltonandrew.
 - Smooth Scroll and Scroll Inverter now step aside during fast user switching and resume on return, preventing background scroll stalls. Thanks to @iltonandrew.
+- Turning features on and off repeatedly no longer leaves unused keyboard and mouse listeners registered with the system for the rest of the session. Thanks to @PathGao.
 - Mouse navigation, button shortcuts and middle click now step aside outside the active login session or after Accessibility access is removed, preventing input stalls.
 - Focus follows mouse now leaves chosen apps alone and tracks the final pointer position during drags before changing focus.
 - Cleaning Mode now ends when its login session leaves the screen, preventing its input lock from affecting another active user.

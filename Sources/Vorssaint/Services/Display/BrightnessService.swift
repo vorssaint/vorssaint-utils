@@ -694,6 +694,7 @@ final class BrightnessService: ObservableObject {
         if let keyTapSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), keyTapSource, .commonModes)
         }
+        CFMachPortInvalidate(tap)
         keyTapSource = nil
         keyTap = nil
     }
@@ -777,6 +778,7 @@ final class BrightnessService: ObservableObject {
             }
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
             if clearFunctionKeyThread() { installFunctionKeyTap() }
         }
     }

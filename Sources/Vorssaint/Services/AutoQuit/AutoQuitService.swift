@@ -59,6 +59,8 @@ final class AutoQuitService: ObservableObject {
     /// Apps whose attach is waiting on a retry, so a second round never starts.
     private var retryingApps = Set<pid_t>()
     private var minimizedWindows: [pid_t: Set<CGWindowID>] = [:]
+    /// Apps with a refresh already waiting for the next run loop turn.
+    private var pendingRefreshes = Set<pid_t>()
     private struct WindowWatchRetryState {
         let origin: DispatchTime
         var attemptsScheduled: Int
@@ -153,6 +155,7 @@ final class AutoQuitService: ObservableObject {
         lastScheduledChecks.removeAll()
         retryingApps.removeAll()
         minimizedWindows.removeAll()
+        pendingRefreshes.removeAll()
         appsWithUnresolvedMinimizedWindows.removeAll()
         windowWatchRetries.removeAll()
     }
@@ -163,8 +166,8 @@ final class AutoQuitService: ObservableObject {
         guard running, app.activationPolicy == .regular else { return }
         let pid = app.processIdentifier
         guard pid != getpid() else { return }
-        if let observer = observers[pid] {
-            refreshWindows(pid: pid, observer: observer)
+        if observers[pid] != nil {
+            scheduleRefresh(pid: pid)
         } else {
             retryingApps.remove(pid)
             attach(app)
@@ -239,6 +242,7 @@ final class AutoQuitService: ObservableObject {
         lastScheduledChecks[pid] = nil
         retryingApps.remove(pid)
         minimizedWindows[pid] = nil
+        pendingRefreshes.remove(pid)
         appsWithUnresolvedMinimizedWindows.remove(pid)
         windowWatchRetries[pid] = nil
     }
@@ -263,8 +267,8 @@ final class AutoQuitService: ObservableObject {
             clearMinimizedWindow(pid: pid, element: element)
         }
 
-        if Self.windowRefreshNotifications.contains(notification), let observer = observers[pid] {
-            refreshWindows(pid: pid, observer: observer)
+        if Self.windowRefreshNotifications.contains(notification), observers[pid] != nil {
+            scheduleRefresh(pid: pid)
         }
         let event = Self.autoQuitEvent(for: notification)
         if AutoQuitSupport.shouldScheduleWindowCheck(for: event,
@@ -412,6 +416,21 @@ final class AutoQuitService: ObservableObject {
             applicationBundleURLs: bundleURLs)
     }
 
+    /// Switching to an app fires activated, main window changed and focused
+    /// window changed one after the other, and each of them wants the same
+    /// refresh, which reads every window of the app synchronously. One per run
+    /// loop turn covers the burst. It has to stay that short: the refresh is
+    /// what marks an app as having had a window, and the close that quits it
+    /// can follow immediately.
+    private func scheduleRefresh(pid: pid_t) {
+        guard pendingRefreshes.insert(pid).inserted else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.pendingRefreshes.remove(pid) != nil, self.running,
+                  let observer = self.observers[pid] else { return }
+            self.refreshWindows(pid: pid, observer: observer)
+        }
+    }
+
     private func refreshWindows(pid: pid_t, observer: AXObserver) {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         let appElement = AXUIElementCreateApplication(pid)
@@ -505,14 +524,16 @@ final class AutoQuitService: ObservableObject {
         if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &value) == .success,
            let windows = value as? [AXUIElement] {
             for window in windows {
-                AXUIElementSetMessagingTimeout(window, 0.35)
-                if Self.isStandardWindow(window) { Self.appendUnique(window, to: &result) }
+                Self.appendIfStandard(window, to: &result)
             }
         }
+        // The main and focused window are almost always in the list above, and
+        // deciding whether an element is a standard window costs two to four
+        // synchronous round trips into the app every time it is asked. Match
+        // against what is already collected first, ask only what is new.
         for attribute in [kAXMainWindowAttribute, kAXFocusedWindowAttribute] {
             if let window = Self.windowAttribute(appElement, attribute as String) {
-                AXUIElementSetMessagingTimeout(window, 0.35)
-                if Self.isStandardWindow(window) { Self.appendUnique(window, to: &result) }
+                Self.appendIfStandard(window, to: &result)
             }
         }
         return result
@@ -540,8 +561,10 @@ final class AutoQuitService: ObservableObject {
         return false
     }
 
-    private static func appendUnique(_ window: AXUIElement, to windows: inout [AXUIElement]) {
+    private static func appendIfStandard(_ window: AXUIElement, to windows: inout [AXUIElement]) {
         guard !windows.contains(where: { CFEqual($0, window) }) else { return }
+        AXUIElementSetMessagingTimeout(window, 0.35)
+        guard isStandardWindow(window) else { return }
         windows.append(window)
     }
 
@@ -653,6 +676,7 @@ final class AutoQuitService: ObservableObject {
         if let closeRequestRunLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), closeRequestRunLoopSource, .commonModes)
         }
+        if let closeRequestTap { CFMachPortInvalidate(closeRequestTap) }
         closeRequestTap = nil
         closeRequestRunLoopSource = nil
     }

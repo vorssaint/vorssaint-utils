@@ -575,12 +575,31 @@ struct GlobalShortcut: Equatable, Hashable {
         return derivedLayoutKeyLabel(for: code, layoutData: layoutData, usesCommand: usesCommand)
     }
 
+    /// The layout the keycaps are read from. An input method answers the
+    /// current-layout call with the companion layout it types through, and
+    /// Pinyin's turns ; , . [ ] \ ` into ；，。【】、· — what the method produces,
+    /// not what the keyboard says, and it moves with the method rather than
+    /// with the hardware. The ASCII capable layout under a method is the
+    /// physical keyboard, so the caps stay put. A plain layout is still asked
+    /// directly, which keeps AZERTY, QWERTZ and the non-Latin layouts showing
+    /// their own keys (issue #1047).
     private static func currentLayoutData() -> Data? {
-        guard Thread.isMainThread,
-              let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+        guard Thread.isMainThread else { return nil }
+        let source = inputMethodIsActive
+            ? TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue()
+            : TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue()
+        guard let source,
               let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
         else { return nil }
         return Unmanaged<CFData>.fromOpaque(layoutData).takeUnretainedValue() as Data
+    }
+
+    private static var inputMethodIsActive: Bool {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let type = TISGetInputSourceProperty(source, kTISPropertyInputSourceType)
+        else { return false }
+        let value = Unmanaged<CFString>.fromOpaque(type).takeUnretainedValue() as String
+        return value != (kTISTypeKeyboardLayout as String)
     }
 
     private static func derivedLayoutKeyLabel(for code: UInt16,

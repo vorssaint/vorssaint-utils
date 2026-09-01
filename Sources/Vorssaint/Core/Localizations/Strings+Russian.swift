@@ -208,6 +208,8 @@ extension Strings {
         switcherShortcutHintApps: "Приложения",
         switcherShortcutHintWindows: "Окна",
         switcherWindowShortcutCaption: "Открывает переключатель окон приложения на переднем плане. Пока открыт переключатель приложений, переходит между окнами выбранного приложения.",
+        switcherTakeOverSystemShortcuts: "Заменить ⌘Tab и ⌘` macOS",
+        switcherTakeOverSystemShortcutsCaption: "Отключает соответствующие сочетания macOS только на время работы переключателя Vorssaint. Все запущенные приложения остаются доступны.",
         switcherAppearanceDelay: "Задержка появления",
         switcherAppearanceDelayCaption: "Как долго нужно удерживать сочетание клавиш, прежде чем появится переключатель.",
         switcherMergeTabs: "Показывать одну запись на приложение",

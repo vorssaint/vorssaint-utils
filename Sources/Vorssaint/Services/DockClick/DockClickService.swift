@@ -111,6 +111,7 @@ final class DockClickService {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
         for (_, sweep) in pendingSweeps { sweep.cancel() }
@@ -229,6 +230,16 @@ final class DockClickService {
                     windows = Self.standardWindows(pid: pid, timeout: 0.7)
                 }
             }
+            // Counted on the Space the user is looking at, the only windows
+            // the raise can reach; the AX list above spans every Space.
+            //
+            // Gated on the full precondition of the ladder's cycling branch,
+            // not just the setting: clicking a background app's icon is the
+            // common Dock click, and the count costs a window-server list plus
+            // an id resolve per window inside the event tap.
+            let cycleCandidateCount = cycleEnabled && frontmost && !windows.hasFullscreen
+                ? Self.cycleCandidates(pid: pid, windows: windows.unminimized).count
+                : 0
             let hasUnminimized = DockClickSupport.effectiveHasUnminimized(
                 unminimizedCount: windows.unminimized.count,
                 minimizedCount: windows.minimized.count,
@@ -241,7 +252,7 @@ final class DockClickService {
                                              minimizeEnabled: minimizeEnabled,
                                              hideEnabled: hideEnabled,
                                              cycleWindowsEnabled: cycleEnabled,
-                                             unminimizedWindowCount: windows.unminimized.count,
+                                             cycleCandidateCount: cycleCandidateCount,
                                              ownsMinimize: ownsMinimize(pid: pid,
                                                                         minimized: windows.minimized))
         }
@@ -472,6 +483,11 @@ final class DockClickService {
     /// Minimize item (⌘M): one window per click, but the click works. This
     /// runs off the tap, so it can afford a longer leash than the tap-side
     /// window enumeration — busy JVMs routinely need it.
+    /// Menu items one Minimize All walk may read. The other menu walks in
+    /// this app stop at 600; an unbounded one here reads every item of every
+    /// menu the app has, at two or three cross-process reads each.
+    private static let minimizeMenuItemBudget = 600
+
     private static func handleMinimizeMenu(pid: pid_t) -> MinimizeMenuOutcome {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 1.0)
@@ -482,12 +498,24 @@ final class DockClickService {
         var plainMinimize: AXUIElement?
         var minimizeAll: AXUIElement?
         var hasConflictingOptionM = false
-        // The Window menu sits near the end of the menu bar.
-        for barItem in topLevel.reversed() {
+        // Deliberately not stopped once both items are in hand. The blind
+        // ⌥⌘M this outcome may authorise would fire whatever else is bound to
+        // that combination, so `hasConflictingOptionM` is only trustworthy
+        // after the whole menu bar has been read. The cap below bounds the
+        // walk instead, and a walk that hits it reports the conflict it cannot
+        // rule out. The Window menu sits near the end, hence the reversal.
+        var visited = 0
+        var truncated = false
+        outer: for barItem in topLevel.reversed() {
             guard let menus = elementArray(barItem, kAXChildrenAttribute as String) else { continue }
             for menu in menus {
                 guard let items = elementArray(menu, kAXChildrenAttribute as String) else { continue }
                 for item in items {
+                    guard visited < Self.minimizeMenuItemBudget else {
+                        truncated = true
+                        break outer
+                    }
+                    visited += 1
                     let commandCharacter = stringAttribute(item, "AXMenuItemCmdChar")
                     let modifiers = intAttribute(item, "AXMenuItemCmdModifiers")
                     let isVerifiedMinimizeAll = DockClickSupport.isVerifiedMinimizeAll(
@@ -497,7 +525,12 @@ final class DockClickService {
                     )
                     if isVerifiedMinimizeAll, minimizeAll == nil {
                         minimizeAll = item
-                    } else if commandCharacter?.uppercased() == "M", modifiers == 2 {
+                    }
+                    // Independent of the capture above: a second verified
+                    // Minimize All used to fall through to this branch and
+                    // report the real item as the conflict.
+                    if !isVerifiedMinimizeAll,
+                       commandCharacter?.uppercased() == "M", modifiers == 2 {
                         hasConflictingOptionM = true
                     }
                     if commandCharacter?.uppercased() == "M",
@@ -521,7 +554,9 @@ final class DockClickService {
                 return .performed
             }
         }
-        return hasConflictingOptionM ? .shortcutUnsafe : .unavailable
+        // A truncated walk cannot vouch for the absence of another ⌥⌘M, and
+        // `.unavailable` is what authorises posting one blind.
+        return (hasConflictingOptionM || truncated) ? .shortcutUnsafe : .unavailable
     }
 
     private static func postMinimizeAllShortcut() {
@@ -687,8 +722,8 @@ final class DockClickService {
         AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
     }
 
-    /// Cycles through an app's unminimized windows by raising the rearmost one
-    /// to the front, mimicking ⌘` (Command-Tilde) behavior.
+    /// Cycles through an app's windows on the current Space by raising the
+    /// rearmost one to the front, mimicking ⌘` (Command-Tilde) behavior.
     ///
     /// The rearmost window comes from the WindowServer's real z-order, not the
     /// AX windows array: that array keeps the focused window first, so
@@ -696,37 +731,34 @@ final class DockClickService {
     /// two frontmost windows and the rest are never visited. Raising the true
     /// rearmost window walks every window in round-robin order.
     private static func cycleWindows(pid: pid_t, windows: [AXUIElement]) {
-        guard windows.count > 1 else { return }
-
-        let rearWindow: AXUIElement
-        if let rear = rearmostByZOrder(pid: pid, windows: windows) {
-            rearWindow = rear
-        } else {
-            // No z-order available (window ids unresolved): the AX array is
-            // focused-first, so its last element is still the best rear guess.
-            rearWindow = windows[windows.count - 1]
-        }
+        let candidates = cycleCandidates(pid: pid, windows: windows)
+        // More than one only fails here when a window closed between the press
+        // and the release; the click was decided on the same list.
+        guard candidates.count > 1, let rearWindow = candidates.last else { return }
 
         AXUIElementPerformAction(rearWindow, kAXRaiseAction as CFString)
         let app = AXUIElementCreateApplication(pid)
+        // Runs on main, and a hung app would otherwise hold the focus write
+        // for the multi-second AX default with the menu bar and every panel
+        // frozen behind it.
+        AXUIElementSetMessagingTimeout(app, 0.35)
         AXUIElementSetAttributeValue(app, kAXFocusedWindowAttribute as CFString, rearWindow)
     }
 
-    /// The candidate that sits deepest in the WindowServer's front-to-back
-    /// on-screen list. Windows on other Spaces are not in that list, which is
+    /// The passed windows that the WindowServer currently lists on screen,
+    /// front to back. Windows on other Spaces are not in that list, which is
     /// wanted: cycling from the Dock must not yank the user across Spaces.
-    private static func rearmostByZOrder(pid: pid_t, windows: [AXUIElement]) -> AXUIElement? {
-        let orderedIDs = onScreenWindowIDs(pid: pid)
-        guard orderedIDs.count > 1 else { return nil }
-        var rear: (window: AXUIElement, depth: Int)?
-        for window in windows {
-            guard let id = AXWindowResolver.windowID(for: window),
-                  let depth = orderedIDs.firstIndex(of: id) else { continue }
-            if rear == nil || depth > rear!.depth {
-                rear = (window, depth)
-            }
-        }
-        return rear?.window
+    ///
+    /// Both the decision to cycle and the raise read this list. They used to
+    /// disagree — the decision counted every AX window, Spaces included, so a
+    /// Space holding one window still promised a rotation and the raise then
+    /// had to guess (issue #1204).
+    private static func cycleCandidates(pid: pid_t, windows: [AXUIElement]) -> [AXUIElement] {
+        let ids = windows.map { AXWindowResolver.windowID(for: $0) }
+        let indices = DockClickSupport.cycleCandidateIndices(
+            windowIDs: ids,
+            onScreenFrontToBack: onScreenWindowIDs(pid: pid))
+        return indices.map { windows[$0] }
     }
 
     // MARK: - Geometry
