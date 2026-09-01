@@ -1141,9 +1141,17 @@ final class AppVolumeMixer: ObservableObject {
         return nil
     }
 
-    /// Teardown path only, and deliberately synchronous: `stopAll()` runs while
-    /// the app is quitting, so anything the mixer still owes the system has to
-    /// be handed back before the process goes away.
+    /// Synchronous because one of its two callers cannot wait: `AppDelegate`
+    /// calls `stopAll()` as the app quits, and a volume this feature lowered
+    /// has to be handed back before the process goes away.
+    ///
+    /// The other caller is `stop()`, which also runs when the mixer is simply
+    /// switched off in the hub. That one is on the main thread and reads and
+    /// writes the HAL, which `halQueue` above exists to keep off it — a device
+    /// mid-reconfiguration can hold either call for as long as the audio
+    /// daemon holds the device. Splitting the two paths means deciding what
+    /// happens if the app quits while an asynchronous restore is in flight, so
+    /// it is left as it is and described rather than quietly assumed.
     private func restoreLoweredOutputVolume() {
         loweredOutput = Self.restoringLoweredOutputVolume(loweredOutput, in: outputDevices)
     }
