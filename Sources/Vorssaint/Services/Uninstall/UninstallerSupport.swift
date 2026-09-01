@@ -119,8 +119,10 @@ enum UninstallerSupport {
     /// thousands of them — for the handful of directories that can ever match.
     ///
     /// Deliberately conservative: an `.appex` or `.xpc` parked somewhere else
-    /// (inside a framework, say) is missed, which can only leave a leftover
-    /// unclaimed. It never invents ownership of another product's files.
+    /// (inside a framework, say) is missed. Only use this to decide what the
+    /// app being uninstalled owns, where a miss leaves a leftover unclaimed.
+    /// Deciding that some *other* installed app owns an identifier is the
+    /// opposite direction and must use `nestedCodeURLs`.
     static func embeddedCodeURLs(in appURL: URL, fm: FileManager, depth: Int = 2) -> [URL] {
         guard depth > 0 else { return [] }
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
@@ -148,6 +150,42 @@ enum UninstallerSupport {
         ("Contents/XPCServices", "xpc"),
         ("Contents/Library/LoginItems", "app"),
     ]
+
+    /// Every executable bundle anywhere inside `appURL`, found by walking it.
+    /// Expensive, and the price of being right about someone else's files: an
+    /// owner missed here reads as "nobody else owns this" and the shared data
+    /// is trashed. Nothing stops a product from nesting code outside the
+    /// reserved directories — Sparkle ships its updater XPC services under
+    /// `Contents/Frameworks/Sparkle.framework/Versions/*/XPCServices` — so
+    /// every lookup that *denies* a claim uses this, not `embeddedCodeURLs`.
+    static func nestedCodeURLs(in appURL: URL, fm: FileManager, limit: Int = 256) -> [URL] {
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        guard let enumerator = fm.enumerator(at: appURL,
+                                             includingPropertiesForKeys: Array(keys),
+                                             options: [.skipsHiddenFiles],
+                                             errorHandler: nil) else { return [] }
+        let loginItems = appURL.appendingPathComponent(
+            "Contents/Library/LoginItems", isDirectory: true).standardizedFileURL.path
+        var result: [URL] = []
+        for case let url as URL in enumerator {
+            let values = try? url.resourceValues(forKeys: keys)
+            if values?.isSymbolicLink == true {
+                enumerator.skipDescendants()
+                continue
+            }
+            guard values?.isDirectory == true else { continue }
+            switch url.pathExtension.lowercased() {
+            case "appex", "xpc":
+                result.append(url)
+            case "app" where url.standardizedFileURL.path.hasPrefix(loginItems + "/"):
+                result.append(url)
+            default:
+                continue
+            }
+            if result.count >= limit { break }
+        }
+        return result
+    }
 
     static func isNestedBundle(_ candidateURL: URL?, in appURL: URL) -> Bool {
         guard let candidateURL else { return false }

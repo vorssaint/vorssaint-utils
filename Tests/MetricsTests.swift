@@ -4697,14 +4697,19 @@ struct MetricsTests {
             embeddedHelper.appendingPathComponent("Contents/PlugIns/Nested.appex", isDirectory: true),
         ]
         // Executable code parked outside the three directories macOS reserves
-        // for it, plus a plain resource bundle: none of it is owned code.
-        let embeddedIgnored = [
-            embeddedApp.appendingPathComponent("Contents/PlugIns/Palette.bundle", isDirectory: true),
+        // for it — Sparkle's updater lives in the framework shape below. The
+        // reserved-location lookup misses it by design; the walk that denies a
+        // claim must not, or the owning app's shared data is trashed.
+        let embeddedStray = [
             embeddedApp.appendingPathComponent("Contents/Resources/Deep/Buried.appex", isDirectory: true),
             embeddedApp.appendingPathComponent(
                 "Contents/Frameworks/Core.framework/XPCServices/Stray.xpc", isDirectory: true),
         ]
-        for url in embeddedExpected + embeddedIgnored {
+        // A plain resource bundle is not owned code to either lookup.
+        let embeddedIgnored = [
+            embeddedApp.appendingPathComponent("Contents/PlugIns/Palette.bundle", isDirectory: true),
+        ]
+        for url in embeddedExpected + embeddedStray + embeddedIgnored {
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
         try? FileManager.default.createSymbolicLink(
@@ -4717,7 +4722,35 @@ struct MetricsTests {
         expect(UninstallerSupport.embeddedCodeURLs(in: embeddedApp, fm: .default, depth: 1)
                 .allSatisfy { !$0.path.contains("Helper.app/Contents") },
                "embedded code lookup stops descending at its depth limit")
+        let nestedFound = Set(UninstallerSupport.nestedCodeURLs(
+            in: embeddedApp, fm: .default).map(\.standardizedFileURL.path))
+        expect(nestedFound == Set((embeddedExpected + embeddedStray).map(\.standardizedFileURL.path)),
+               "the whole-bundle walk also finds code parked outside the reserved locations")
+        expect(UninstallerSupport.nestedCodeURLs(in: embeddedApp, fm: .default, limit: 2).count == 2,
+               "the whole-bundle walk stops at its limit")
         try? FileManager.default.removeItem(at: embeddedFixture)
+        func sourceBody(of source: String, from opening: String, to closing: String) -> String {
+            guard let start = source.range(of: opening),
+                  let end = source.range(of: closing, range: start.upperBound..<source.endIndex)
+            else { return "" }
+            return String(source[start.upperBound..<end.lowerBound])
+        }
+        // `sharedDataIsExclusive` reads the identifiers of every *other*
+        // installed app to deny a claim, and `exclusiveGroupIDs` reads their
+        // signing groups the same way. A miss on that side is the owner's data
+        // deleted, so both walk the whole bundle. AppUninstaller is not part of
+        // this test binary, so pin the two sites at their source.
+        let appUninstallerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift",
+            encoding: .utf8)) ?? ""
+        expect(sourceBody(of: appUninstallerSource, from: "func applicationBundleIdentifiers",
+                          to: "private static func exclusiveGroupIDs")
+                .contains("exhaustive: true"),
+               "the identifier lookup that denies a claim walks each installed app in full")
+        expect(sourceBody(of: appUninstallerSource, from: "private static func exclusiveGroupIDs",
+                          to: "private static func removalIsStillSafe")
+                .contains("exhaustive: true"),
+               "the group lookup that denies a claim walks each installed app in full")
         // Building the installed-apps oracle walks the application folders, and
         // the removal guard reads it under `.leftovers` alone — with leftover
         // rows unchecked by default, the common clean must not pay for that
@@ -4726,21 +4759,14 @@ struct MetricsTests {
         let junkCleanerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift",
             encoding: .utf8)) ?? ""
-        func junkCleanerBody(from opening: String, to closing: String) -> String {
-            guard let start = junkCleanerSource.range(of: opening),
-                  let end = junkCleanerSource.range(of: closing,
-                                                    range: start.upperBound..<junkCleanerSource.endIndex)
-            else { return "" }
-            return String(junkCleanerSource[start.upperBound..<end.lowerBound])
-        }
-        let cleanSelectedBody = junkCleanerBody(from: "func cleanSelected()",
-                                                to: "private static func mayRemove")
+        let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected()",
+                                           to: "private static func mayRemove")
         expect(cleanSelectedBody.contains("chosen.contains { $0.category == .leftovers }")
                && cleanSelectedBody.contains("? Self.installedBundleIDs() : []")
                && !cleanSelectedBody.contains("let installed = Self.installedBundleIDs()"),
                "a clean builds the installed-apps oracle only when a leftover row is selected")
-        let mayRemoveBody = junkCleanerBody(from: "private static func mayRemove",
-                                            to: "private static func trashViaFinder")
+        let mayRemoveBody = sourceBody(of: junkCleanerSource, from: "private static func mayRemove",
+                                       to: "private static func trashViaFinder")
         let leftoverBranch = mayRemoveBody.range(of: "if item.category == .leftovers")
         expect(mayRemoveBody.components(separatedBy: "installed: installed").count == 2,
                "the removal guard consults the installed-apps oracle exactly once")
