@@ -8,6 +8,7 @@ enum SelectionTranslationPhase: Equatable {
     case idle
     case ready
     case reading
+    case waitingForShortcutRelease
     case translating
     case streaming
     case completed
@@ -33,11 +34,21 @@ final class SelectionTranslationService: ObservableObject {
 
     private let hotkey = QuickToolHotkey(id: SelectionTranslationConstants.quickToolHotkeyID)
     private var task: Task<Void, Never>?
+    private var accessibilityTask: Task<Void, Never>?
+    private var holdTask: Task<Void, Never>?
+    private var releaseTask: Task<Void, Never>?
     private var panelAnchor = NSEvent.mouseLocation
+    private var targetProcessIdentifier: pid_t?
+    private var shortcutIsHeld = false
+    private var shortcutFlow = SelectionTranslationShortcutFlowState()
+    @Published private(set) var holdLimitReached = false
 
     private init() {
         hotkey.onPress = { [weak self] in
             Task { @MainActor [weak self] in self?.trigger() }
+        }
+        hotkey.onRelease = { [weak self] shortcut in
+            Task { @MainActor [weak self] in self?.shortcutReleased(shortcut) }
         }
     }
 
@@ -58,7 +69,8 @@ final class SelectionTranslationService: ObservableObject {
     }
 
     func trigger() {
-        guard phase != .reading, phase != .translating, phase != .streaming else { return }
+        guard phase != .reading, phase != .waitingForShortcutRelease,
+              phase != .translating, phase != .streaming else { return }
         cancelRequestOnly()
         generation &+= 1
         let current = generation
@@ -71,35 +83,119 @@ final class SelectionTranslationService: ObservableObject {
         timing = .idle
         requiresSubmission = false
         failureAction = nil
-        phase = .reading
+        phase = .waitingForShortcutRelease
+        holdLimitReached = false
+        shortcutIsHeld = true
+        targetProcessIdentifier = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        shortcutFlow = SelectionTranslationShortcutFlowState()
+        SelectionTranslationPanelController.shared.setInteractionLocked(true)
+        SelectionTranslationPanelController.shared.present(anchor: panelAnchor, focusSourceEditor: false)
 
         guard Permissions.shared.accessibility else {
             phase = .failed(FeatureStrings.selectionTranslation(L10n.shared.language).permissionRequired)
             failureAction = .openAccessibilitySettings
-            SelectionTranslationPanelController.shared.present(anchor: panelAnchor, focusSourceEditor: false)
+            SelectionTranslationPanelController.shared.setInteractionLocked(false)
             return
         }
 
-        task = Task { [weak self] in
-            let text = await SelectionTranslationSelectionReader.read()
+        accessibilityTask = Task { [weak self] in
+            let text = await SelectionTranslationSelectionReader.readAccessibility(processIdentifier: self?.targetProcessIdentifier)
             guard let self, !Task.isCancelled, self.generation == current else { return }
-            self.draft.source = text
-            if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                self.phase = .ready
-                self.requiresSubmission = true
-                self.failureAction = nil
-                SelectionTranslationPanelController.shared.present(anchor: self.panelAnchor,
-                                                                    focusSourceEditor: true)
-                SelectionTranslationPanelController.shared.focusSourceEditor()
-            } else {
-                self.submittedDraft = self.draft
-                self.requiresSubmission = false
-                SelectionTranslationPanelController.shared.present(anchor: self.panelAnchor,
-                                                                    focusSourceEditor: false)
-                self.beginTranslation(self.draft, generation: current)
+            await MainActor.run { self.accessibilityCompleted(text, generation: current) }
+        }
+        holdTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.holdDeadlineReached(generation: current) }
+        }
+    }
+
+    private func accessibilityCompleted(_ text: String, generation current: Int) {
+        guard generation == current else { return }
+        let action = shortcutFlow.accessibilityCompleted(text)
+        handleShortcutAction(action, generation: current)
+    }
+
+    private func holdDeadlineReached(generation current: Int) {
+        guard generation == current, phase == .waitingForShortcutRelease else { return }
+        holdLimitReached = true
+        holdTask = nil
+        let action = shortcutFlow.deadlineReachedNow()
+        handleShortcutAction(action, generation: current)
+    }
+
+    private func shortcutReleased(_ shortcut: GlobalShortcut) {
+        guard shortcutIsHeld else { return }
+        releaseTask?.cancel()
+        let current = generation
+        releaseTask = Task { [weak self] in
+            while !Task.isCancelled {
+                let flags = CGEventSource.flagsState(.combinedSessionState)
+                let heldModifiers = flags.intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
+                let keyHeld = CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(shortcut.carbonKeyCode))
+                if heldModifiers.isEmpty && !keyHeld { break }
+                try? await Task.sleep(nanoseconds: 20_000_000)
+            }
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, self.generation == current else { return }
+                self.holdTask?.cancel()
+                self.holdTask = nil
+                self.releaseTask = nil
+                self.shortcutIsHeld = false
+                self.holdLimitReached = false
+                if self.phase == .translating || self.phase == .streaming {
+                    SelectionTranslationPanelController.shared.setInteractionLocked(false)
+                } else {
+                    self.handleShortcutAction(self.shortcutFlow.shortcutReleased(), generation: current)
+                }
             }
         }
     }
+
+    private func handleShortcutAction(_ action: SelectionTranslationShortcutFlowAction, generation current: Int) {
+        guard generation == current else { return }
+        switch action {
+        case .none:
+            break
+        case .translate(let text):
+            draft.source = text
+            submittedDraft = draft
+            requiresSubmission = false
+            SelectionTranslationPanelController.shared.setInteractionLocked(shortcutIsHeld)
+            beginTranslation(draft, generation: current)
+        case .readPasteboard:
+            guard let target = targetProcessIdentifier,
+                  NSWorkspace.shared.frontmostApplication?.processIdentifier == target else {
+                phase = .failed("The target application changed. Press the shortcut again.")
+                failureAction = .retry
+                SelectionTranslationPanelController.shared.setInteractionLocked(false)
+                return
+            }
+            phase = .reading
+            task = Task { [weak self] in
+                let result = await SelectionTranslationSelectionReader.readPasteboardOnlyResult()
+                guard let self, !Task.isCancelled, self.generation == current else { return }
+                SelectionTranslationPanelController.shared.setInteractionLocked(false)
+                guard let text = result else {
+                    self.phase = .failed(FeatureStrings.selectionTranslation(L10n.shared.language).requestFailed)
+                    self.failureAction = .retry
+                    return
+                }
+                self.draft.source = text
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.phase = .ready
+                    self.requiresSubmission = true
+                    SelectionTranslationPanelController.shared.focusSourceEditor()
+                } else {
+                    self.submittedDraft = self.draft
+                    self.requiresSubmission = false
+                    self.beginTranslation(self.draft, generation: current)
+                }
+            }
+        }
+    }
+
 
     /// Opens a manual draft from the menu bar. Unlike the global shortcut this
     /// path never reads another app's selection: opening the menu has already
@@ -108,7 +204,7 @@ final class SelectionTranslationService: ObservableObject {
         guard AppFeature.selectionTranslation.isAvailable else { return }
 
         var startsNewDraft = false
-        if phase == .idle || phase == .reading {
+        if phase == .idle || phase == .reading || phase == .waitingForShortcutRelease {
             cancelRequestOnly()
             generation &+= 1
             let settings = SelectionTranslationSettingsStore.snapshot()
@@ -121,7 +217,10 @@ final class SelectionTranslationService: ObservableObject {
             requiresSubmission = true
             failureAction = nil
             providerName = settings.providerName
+            holdLimitReached = false
             phase = .ready
+            shortcutIsHeld = false
+            SelectionTranslationPanelController.shared.setInteractionLocked(false)
             startsNewDraft = true
         }
 
@@ -136,14 +235,14 @@ final class SelectionTranslationService: ObservableObject {
         invalidateActiveTranslationIfNeeded()
         draft.source = source
         requiresSubmission = submittedDraft != draft
-        if phase != .reading { phase = .ready }
+        if phase != .reading && phase != .waitingForShortcutRelease { phase = .ready }
     }
 
     func updateLanguageSelection(_ languages: SelectionTranslationLanguageSelection) {
         invalidateActiveTranslationIfNeeded()
         draft.languages = languages
         requiresSubmission = submittedDraft != draft
-        if phase != .reading { phase = .ready }
+        if phase != .reading && phase != .waitingForShortcutRelease { phase = .ready }
     }
 
     func swapLanguages() { updateLanguageSelection(draft.languages.swapped()) }
@@ -189,6 +288,7 @@ final class SelectionTranslationService: ObservableObject {
         cancelRequestOnly()
         generation &+= 1
         phase = .idle
+        shortcutIsHeld = false
         draft = SelectionTranslationDraft()
         submittedDraft = nil
         translatedText = ""
@@ -196,6 +296,7 @@ final class SelectionTranslationService: ObservableObject {
         timing = .idle
         requiresSubmission = false
         failureAction = nil
+        holdLimitReached = false
         SelectionTranslationPanelController.shared.hide()
     }
 
@@ -214,6 +315,14 @@ final class SelectionTranslationService: ObservableObject {
         timing = timing.stopped(at: Date())
         task?.cancel()
         task = nil
+        accessibilityTask?.cancel()
+        accessibilityTask = nil
+        holdTask?.cancel()
+        holdTask = nil
+        releaseTask?.cancel()
+        releaseTask = nil
+        shortcutIsHeld = false
+        SelectionTranslationPanelController.shared.setInteractionLocked(false)
     }
 
     private func invalidateActiveTranslationIfNeeded() {

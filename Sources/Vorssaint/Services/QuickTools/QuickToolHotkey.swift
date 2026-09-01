@@ -15,6 +15,7 @@ final class QuickToolHotkey {
     private var hotKeyRef: EventHotKeyRef?
     private var registeredShortcut: GlobalShortcut?
     var onPress: (() -> Void)?
+    var onRelease: ((GlobalShortcut) -> Void)?
 
     init(id: UInt32) {
         hotKeyID = id
@@ -66,8 +67,10 @@ final class QuickToolHotkey {
 
     private static func installSharedHandlerIfNeeded() {
         guard sharedHandler == nil else { return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                 eventKind: UInt32(kEventHotKeyPressed))
+        var specs = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyReleased))
+        ]
         InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ -> OSStatus in
             var id = EventHotKeyID()
             if let event {
@@ -78,8 +81,15 @@ final class QuickToolHotkey {
             guard id.signature == 0x5655_5154,
                   let instance = QuickToolHotkey.instances[id.id]
             else { return OSStatus(eventNotHandledErr) }
-            DispatchQueue.main.async { instance.onPress?() }
+            let kind = event.map(GetEventKind) ?? 0
+            DispatchQueue.main.async {
+                if kind == UInt32(kEventHotKeyPressed) {
+                    instance.onPress?()
+                } else if kind == UInt32(kEventHotKeyReleased), let shortcut = instance.registeredShortcut {
+                    instance.onRelease?(shortcut)
+                }
+            }
             return noErr
-        }, 1, &spec, nil, &sharedHandler)
+        }, specs.count, &specs, nil, &sharedHandler)
     }
 }

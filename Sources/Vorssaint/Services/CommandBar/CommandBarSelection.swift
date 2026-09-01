@@ -20,10 +20,11 @@ enum CommandBarSelectionReader {
     /// Blocking, so callers run it off the main thread. Empty when nothing is
     /// selected, when the app does not tell Accessibility what is selected, or
     /// when the front app is us (the field's own text is not a selection).
-    static func readSelectedText() -> String {
+    static func readSelectedText(processIdentifier: pid_t? = nil) -> String {
         guard AXIsProcessTrusted() else { return "" }
-        guard let front = NSWorkspace.shared.frontmostApplication,
-              front.bundleIdentifier != Bundle.main.bundleIdentifier else { return "" }
+        let front = processIdentifier.flatMap { NSRunningApplication(processIdentifier: $0) }
+            ?? NSWorkspace.shared.frontmostApplication
+        guard let front, front.bundleIdentifier != Bundle.main.bundleIdentifier else { return "" }
         // Asked of the app in front, not of the system-wide element: a timeout
         // set on the system-wide element is the DEFAULT FOR THE WHOLE PROCESS,
         // and every other Accessibility call in the app would inherit this

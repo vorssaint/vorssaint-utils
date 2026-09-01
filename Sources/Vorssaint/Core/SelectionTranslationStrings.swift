@@ -29,7 +29,9 @@ struct SelectionTranslationFeatureStrings {
     let testConnection: String
     let permissionRequired: String
     let noSelection: String
+    let readingSelection: String
     let translating: String
+    let releaseToContinue: String
     let retry: String
     let sourceText: String
     let translationText: String
@@ -69,7 +71,7 @@ struct SelectionTranslationFeatureStrings {
         sourceVariable: "{{from}} source language", targetVariable: "{{to}} target language", textVariable: "{{text}} selected text",
         save: "Save",
         testConnection: "Test connection", permissionRequired: "Accessibility permission is required to read selected text.",
-        noSelection: "No text was selected.", translating: "Translating…", retry: "Retry",
+        noSelection: "No text was selected.", readingSelection: "Reading selection…", translating: "Translating…", releaseToContinue: "Release the shortcut to continue", retry: "Retry",
         sourceText: "Source text", translationText: "Translation", permissions: "Permissions",
         accessibilityGranted: "Accessibility granted", openAccessibilitySettings: "Open Accessibility Settings",
         savedStatus: "Saved", connectedStatus: "Connected", tokensFormat: "Tokens: %d in · %d out · %d total",
@@ -95,7 +97,7 @@ struct SelectionTranslationFeatureStrings {
         sourceVariable: "{{from}} 源语言", targetVariable: "{{to}} 目标语言", textVariable: "{{text}} 选中的原文",
         save: "保存",
         testConnection: "测试连接", permissionRequired: "读取选中文本需要辅助功能权限。",
-        noSelection: "未选中文本。", translating: "翻译中…", retry: "重试",
+        noSelection: "未选中文本。", readingSelection: "正在读取选区…", translating: "翻译中…", releaseToContinue: "松开快捷键以继续读取", retry: "重试",
         sourceText: "原文", translationText: "译文", permissions: "权限",
         accessibilityGranted: "已获得辅助功能权限", openAccessibilitySettings: "打开辅助功能设置",
         savedStatus: "已保存", connectedStatus: "已连接", tokensFormat: "Token：输入 %d · 输出 %d · 总计 %d",

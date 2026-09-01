@@ -20,44 +20,59 @@ private final class SelectionTranslationPasteboardContext: @unchecked Sendable {
 private final class SelectionTranslationCaptureDeferralBox: @unchecked Sendable {
     var token: ClipboardHistoryCaptureDeferral?
 
-    private var lifecycle = ClipboardHistoryCaptureDeferralLifecycle()
+    private var state = SelectionTranslationPasteboardTransactionState()
     private var timeoutWorkItem: DispatchWorkItem?
-
-    var isFinished: Bool { lifecycle.isFinished }
 
     func armTimeout(_ timeout: DispatchWorkItem) {
         timeoutWorkItem = timeout
     }
 
-    func finish(ignoringUpTo changeCount: Int? = nil) -> Bool {
-        guard lifecycle.finish() else { return false }
+    func begin() -> Bool {
+        guard state.claimPostStart() else { return false }
+        token = ClipboardHistoryService.shared.beginCaptureDeferral()
+        return true
+    }
+
+    func resumeOnce() -> Bool {
+        guard state.claimResume() else { return false }
         timeoutWorkItem?.cancel()
         timeoutWorkItem = nil
-        if let token {
-            ClipboardHistoryService.shared.endCaptureDeferral(token, ignoringUpTo: changeCount)
-            self.token = nil
-        }
+        return true
+    }
+
+    func endCaptureDeferral(ignoringUpTo changeCount: Int? = nil) -> Bool {
+        guard state.claimDeferralEnd(), let token else { return false }
+        ClipboardHistoryService.shared.endCaptureDeferral(token, ignoringUpTo: changeCount)
+        self.token = nil
         return true
     }
 }
 
 enum SelectionTranslationSelectionReader {
     static func read() async -> String {
-        let direct = await Task.detached(priority: .userInitiated) {
-            CommandBarSelectionReader.readSelectedText()
-        }.value
+        let direct = await readAccessibility()
         if !direct.isEmpty { return direct }
-        return await readViaPasteboard()
+        return await readPasteboardOnly()
     }
 
-    private static func readViaPasteboard() async -> String {
+    static func readAccessibility(processIdentifier: pid_t? = nil) async -> String {
+        await Task.detached(priority: .userInitiated) {
+            CommandBarSelectionReader.readSelectedText(processIdentifier: processIdentifier)
+        }.value
+    }
+
+    static func readPasteboardOnly() async -> String {
+        await readPasteboardOnlyResult() ?? ""
+    }
+
+    static func readPasteboardOnlyResult() async -> String? {
         await withCheckedContinuation { continuation in
             GeneralPasteboardAccess.shared.async {
                 let board = NSPasteboard.general
                 let originalChangeCount = board.changeCount
                 guard let snapshot = TransientPaste.snapshot(of: board),
                       board.changeCount == originalChangeCount else {
-                    continuation.resume(returning: "")
+                    continuation.resume(returning: nil)
                     return
                 }
                 let context = SelectionTranslationPasteboardContext(
@@ -69,27 +84,13 @@ enum SelectionTranslationSelectionReader {
                 let captureDeferralBox = SelectionTranslationCaptureDeferralBox()
                 DispatchQueue.main.async {
                     let timeout = DispatchWorkItem {
-                        guard captureDeferralBox.finish() else { return }
-                        continuation.resume(returning: "")
+                        guard captureDeferralBox.resumeOnce() else { return }
+                        continuation.resume(returning: nil)
                     }
                     captureDeferralBox.armTimeout(timeout)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: timeout)
 
-                    TransientPaste.postKeyWhenModifiersReleased(
-                        keyCode: SelectionTranslationPasteboardSupport.copyKeyCode,
-                        flags: .maskCommand,
-                        timeoutBehavior: .failOnTimeout,
-                        willPost: {
-                            guard !captureDeferralBox.isFinished else { return }
-                            captureDeferralBox.token = ClipboardHistoryService.shared.beginCaptureDeferral()
-                        }
-                    ) { succeeded in
-                        guard captureDeferralBox.token != nil else { return }
-                        guard succeeded else {
-                            guard captureDeferralBox.finish() else { return }
-                            continuation.resume(returning: "")
-                            return
-                        }
+                    let readPasteboardResult = {
                         GeneralPasteboardAccess.shared.async {
                             let board = NSPasteboard.general
                             let originalChangeCount = context.originalChangeCount
@@ -124,9 +125,26 @@ enum SelectionTranslationSelectionReader {
                             let trimmed = selected.trimmingCharacters(in: .whitespacesAndNewlines)
                             let result = trimmed.count <= CommandBarSelectionReader.maximumLength ? trimmed : ""
                             DispatchQueue.main.async {
-                                guard captureDeferralBox.finish(ignoringUpTo: ignoredThrough) else { return }
+                                _ = captureDeferralBox.endCaptureDeferral(ignoringUpTo: ignoredThrough)
+                                guard captureDeferralBox.resumeOnce() else { return }
                                 continuation.resume(returning: result)
                             }
+                        }
+                    }
+
+                    TransientPaste.postKeyWhenModifiersReleased(
+                        keyCode: SelectionTranslationPasteboardSupport.copyKeyCode,
+                        flags: .maskCommand,
+                        timeoutBehavior: .failOnTimeout,
+                        willPost: {
+                            guard captureDeferralBox.begin() else { return }
+                            readPasteboardResult()
+                        }
+                    ) { succeeded in
+                        guard succeeded else {
+                            guard captureDeferralBox.resumeOnce() else { return }
+                            continuation.resume(returning: nil)
+                            return
                         }
                     }
                 }

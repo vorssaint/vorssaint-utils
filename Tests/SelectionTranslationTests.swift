@@ -180,6 +180,28 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
           "selection fallback leaves a newer user copy untouched")
     check(SelectionTranslationConstants.quickToolHotkeyID == 21,
           "selection translation uses the reserved quick-tool hotkey id")
+
+    var shortcutFlow = SelectionTranslationShortcutFlowState()
+    check(shortcutFlow.deadlineReachedNow() == .none,
+          "the hold deadline waits when accessibility text is not ready")
+    check(shortcutFlow.shortcutReleased() == .none
+          && shortcutFlow.accessibilityCompleted("") == .readPasteboard,
+          "release after an empty accessibility read falls back to pasteboard")
+    var emptyDeadlineFlow = SelectionTranslationShortcutFlowState()
+    check(emptyDeadlineFlow.deadlineReachedNow() == .none
+          && emptyDeadlineFlow.accessibilityCompleted("") == .none
+          && emptyDeadlineFlow.shortcutReleased() == .readPasteboard,
+          "an empty accessibility result at the deadline waits for release")
+    var accessibilityFlow = SelectionTranslationShortcutFlowState()
+    check(accessibilityFlow.deadlineReachedNow() == .none
+          && accessibilityFlow.accessibilityCompleted("selected") == .translate("selected"),
+          "late accessibility text starts translation after the hold deadline")
+    var releaseFlow = SelectionTranslationShortcutFlowState()
+    check(releaseFlow.accessibilityCompleted("selected") == .none
+          && releaseFlow.shortcutReleased() == .translate("selected"),
+          "release uses accessibility text captured before the deadline")
+    check(releaseFlow.shortcutReleased() == .none,
+          "duplicate release cannot start a second action")
     let draft = SelectionTranslationDraft(source: "hello",
                                           languages: .init(source: .english, target: .simplifiedChinese))
     check(SelectionTranslationWorkflow.shouldSubmit(draft: draft),
@@ -266,6 +288,20 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
     ) == .fail,
     "paste and selection timeout behaviors remain distinct")
 
+    let quickHotkeySource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift",
+        encoding: .utf8)) ?? ""
+    check(quickHotkeySource.contains("kEventHotKeyReleased")
+          && quickHotkeySource.contains("onRelease"),
+          "quick-tool hotkeys deliver both press and release events")
+    let translationServiceSource = (try? String(
+        contentsOfFile: "Sources/Vorssaint/Services/SelectionTranslation/SelectionTranslationService.swift",
+        encoding: .utf8)) ?? ""
+    check(translationServiceSource.contains("waitingForShortcutRelease")
+          && translationServiceSource.contains("1_500_000_000")
+          && translationServiceSource.contains("setInteractionLocked(true)"),
+          "selection translation shows a locked panel with a 1.5-second hold limit")
+
     let settingsStoreSource = (try? String(
         contentsOfFile: "Sources/Vorssaint/Services/SelectionTranslation/SelectionTranslationSettingsStore.swift",
         encoding: .utf8)) ?? ""
@@ -306,4 +342,22 @@ func runSelectionTranslationTests(_ check: (Bool, String) -> Void) {
     var lifecycle = ClipboardHistoryCaptureDeferralLifecycle()
     check(lifecycle.finish() && !lifecycle.finish() && lifecycle.isFinished,
           "selection capture deferral lifecycle releases at most once")
+
+    var failedBeforePost = SelectionTranslationPasteboardTransactionState()
+    check(failedBeforePost.claimResume()
+          && !failedBeforePost.claimDeferralEnd(),
+          "a post failure before willPost resumes without a deferral token")
+
+    var posted = SelectionTranslationPasteboardTransactionState()
+    check(posted.claimPostStart() && !posted.claimPostStart(),
+          "selection pasteboard transaction starts posting only once")
+    check(posted.claimDeferralEnd() && !posted.claimDeferralEnd(),
+          "selection pasteboard deferral ends only once")
+
+    var watchdogThenReader = SelectionTranslationPasteboardTransactionState()
+    _ = watchdogThenReader.claimPostStart()
+    check(watchdogThenReader.claimResume()
+          && watchdogThenReader.claimDeferralEnd()
+          && !watchdogThenReader.claimResume(),
+          "watchdog resumes once while the late reader still releases deferral")
 }

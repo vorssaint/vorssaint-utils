@@ -22,12 +22,14 @@ final class SelectionTranslationPanelController: NSObject, NSWindowDelegate, Obs
     private var isPositioning = false
     @Published private(set) var isPinned = false
     private var hasUserResized = false
+    private var interactionLocked = false
 
     private override init() { super.init() }
 
     func present(anchor: NSPoint = NSEvent.mouseLocation, focusSourceEditor: Bool = false) {
         if panel == nil { createPanel() }
         guard let panel else { return }
+        panel.ignoresMouseEvents = interactionLocked
         if !hasUserResized {
             let size = NSSize(width: SelectionTranslationPanelSizing.defaultWidth, height: 610)
             let visible = NSScreen.screens.first(where: { $0.frame.contains(anchor) })?.visibleFrame
@@ -52,6 +54,11 @@ final class SelectionTranslationPanelController: NSObject, NSWindowDelegate, Obs
         NotificationCenter.default.post(name: .selectionTranslationFocusSource, object: nil)
     }
 
+    func setInteractionLocked(_ locked: Bool) {
+        interactionLocked = locked
+        panel?.ignoresMouseEvents = locked
+    }
+
     func togglePin() {
         isPinned.toggle()
         panel?.hidesOnDeactivate = false
@@ -60,6 +67,8 @@ final class SelectionTranslationPanelController: NSObject, NSWindowDelegate, Obs
 
     func hide() {
         panel?.orderOut(nil)
+        panel?.ignoresMouseEvents = false
+        interactionLocked = false
         removeOutsideClickMonitors()
         hasUserResized = false
         isPinned = false
@@ -123,7 +132,7 @@ final class SelectionTranslationPanelController: NSObject, NSWindowDelegate, Obs
             let active = SelectionTranslationService.shared.phase
             let busy: Bool
             switch active {
-            case .reading, .translating, .streaming: busy = true
+            case .reading, .waitingForShortcutRelease, .translating, .streaming: busy = true
             default: busy = false
             }
             guard !busy, !panel.frame.contains(NSEvent.mouseLocation) else { return }
@@ -218,11 +227,11 @@ struct SelectionTranslationPanelView: View {
             TextEditor(text: Binding(get: { service.draft.source }, set: { service.updateSource($0) }))
                 .font(.body)
                 .focused($sourceFocused)
-                .disabled(service.phase == .reading)
+                .disabled(service.phase == .reading || service.phase == .waitingForShortcutRelease)
                 .scrollContentBackground(.hidden)
                 .frame(minHeight: 94, maxHeight: 190)
                 .overlay(alignment: .topLeading) {
-                    if service.draft.source.isEmpty && service.phase != .reading {
+                    if service.draft.source.isEmpty && service.phase != .reading && service.phase != .waitingForShortcutRelease {
                         Text(text.sourcePlaceholder).foregroundStyle(.tertiary).padding(.top, 8).padding(.leading, 4)
                             .allowsHitTesting(false)
                     }
@@ -280,9 +289,10 @@ struct SelectionTranslationPanelView: View {
     @ViewBuilder
     private var actionButton: some View {
         switch service.phase {
-        case .reading:
+        case .reading, .waitingForShortcutRelease:
             ProgressView().controlSize(.small)
-            Text(text.translating).font(.caption).foregroundStyle(.secondary)
+            Text(service.holdLimitReached ? text.releaseToContinue : text.readingSelection)
+                .font(.caption).foregroundStyle(.secondary)
         case .translating, .streaming:
             Button(text.interrupt) { service.interrupt() }.buttonStyle(.borderedProminent)
         case .failed:
@@ -322,6 +332,7 @@ struct SelectionTranslationPanelView: View {
         if !service.translatedText.isEmpty { return service.translatedText }
         switch service.phase {
         case .reading: return text.translating
+        case .waitingForShortcutRelease: return service.holdLimitReached ? text.releaseToContinue : text.readingSelection
         case .translating, .streaming: return text.translating
         case .failed(let message): return message
         case .interrupted: return text.cancelled
