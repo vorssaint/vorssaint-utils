@@ -2333,9 +2333,13 @@ final class CommandBarService: ObservableObject {
         DispatchQueue.global(qos: .utility).async { [weak self] in
             let space = CommandBarCatalog.readBootVolumeSpace()
             DispatchQueue.main.async {
-                guard let self, CommandBarCatalog.cachedBootVolumeSpace?.free != space?.free
-                else { return }
+                guard let self else { return }
+                // The whole sample is stored before the comparison decides
+                // whether anything has to be redrawn, or the fields the guard
+                // does not compare would keep a reading from an older sample.
+                let changed = CommandBarCatalog.cachedBootVolumeSpace?.free != space?.free
                 CommandBarCatalog.cachedBootVolumeSpace = space
+                guard changed else { return }
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
@@ -2356,13 +2360,17 @@ final class CommandBarService: ObservableObject {
             let memory = AppFeature.monitorMemory.isAvailable ? SystemInfo.memoryUsage() : nil
             DispatchQueue.main.async {
                 guard let self else { return }
+                // Stored first, compared after, for the reason the storage
+                // pass above gives: the guard names the three fields the row
+                // shows, and the rest of the sample would otherwise be left
+                // behind at whatever it was when those three last moved.
                 let changed = CommandBarCatalog.cachedBattery != battery
                     || CommandBarCatalog.cachedMemory?.used != memory?.used
                     || CommandBarCatalog.cachedMemory?.appUsed != memory?.appUsed
                     || CommandBarCatalog.cachedMemory?.total != memory?.total
-                guard changed else { return }
                 CommandBarCatalog.cachedBattery = battery
                 CommandBarCatalog.cachedMemory = memory
+                guard changed else { return }
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
