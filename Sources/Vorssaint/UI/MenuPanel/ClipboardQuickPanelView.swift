@@ -228,6 +228,9 @@ struct ClipboardQuickPanelView: View {
                 Button(String(format: text.copySelectedFormat, history.quickBatchCount)) {
                     history.copySelectedQuickEntryOnly()
                 }
+                Button(String(format: text.deleteSelectedFormat, history.quickBatchCount), role: .destructive) {
+                    history.removeSelectedQuickEntries()
+                }
                 Button(text.clearSelection) {
                     history.clearQuickBatchSelection()
                 }

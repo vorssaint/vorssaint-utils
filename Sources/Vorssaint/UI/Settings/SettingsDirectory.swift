@@ -61,6 +61,7 @@ enum SettingsDirectory {
                          superKeySource: SuperKeySource = SuperKeyService.shared.source)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
+        let quitProtection = FeatureStrings.quitProtection(language)
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
@@ -112,12 +113,17 @@ enum SettingsDirectory {
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay]),
                                         (.smoothScroll, [s.smoothScrollName]),
+                                        (.mouseAcceleration, [s.mouseAccelerationName]),
                                         (.mouseNavigation, [s.mouseNavigationEnable]),
                                         (.mouseButtonShortcuts,
                                          [FeatureStrings.mouseButtons(language).pageTitle,
                                           FeatureStrings.mouseButtons(language).sideWheelLeftName,
                                           FeatureStrings.mouseButtons(language).sideWheelRightName,
                                           FeatureStrings.mouseExceptions(language).listTitle]),
+                                        (.mouseClickDebounce,
+                                         [FeatureStrings.mouseClickDebounce(language).title,
+                                          FeatureStrings.mouseClickDebounce(language).windowLabel,
+                                          "debounce"]),
                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
@@ -142,6 +148,12 @@ enum SettingsDirectory {
                                                  FeatureStrings.windowLayout(language).gestureResize]),
                 SettingsDirectoryItem(page: .autoQuit, title: s.autoQuitName, icon: "xmark.rectangle",
                                       keywords: [s.autoQuitEnable]),
+                SettingsDirectoryItem(page: .quitProtection,
+                                      title: quitProtection.name,
+                                      icon: "shield.lefthalf.filled",
+                                      keywords: [quitProtection.description, "⌘Q", "⌘W",
+                                                 quitProtection.hold, quitProtection.doublePress,
+                                                 quitProtection.extraModifier]),
             ]),
             (categories.files, [
                 SettingsDirectoryItem(page: .clipboard, title: FeatureStrings.clipboard(language).title,

@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Seitentasten gerade aktiv",
         smoothScrollName: "Sanftes Scrollen",
         smoothScrollCaption: "Verwandelt jeden Rastschritt des Mausrads in ein kurzes, sanftes Gleiten. Das Trackpad bleibt unverändert.",
-        smoothScrollStepLabel: "Distanz pro Schritt",
+        smoothScrollStepLabel: "Scrollgeschwindigkeit",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Seitentasten für Zurück und Vor verwenden",
         mouseNavigationCaption: "Wandelt die Maus-Tasten Zurück und Vor in Navigationsbefehle für Finder, Browser und kompatible Apps um.",
@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenster",
         switcherWindowShortcutCaption: "Öffnet einen Umschalter für die Fenster der vordersten App. Bei geöffnetem App-Umschalter springt er zwischen den Fenstern der ausgewählten App.",
+        switcherTakeOverSystemShortcuts: "macOS-⌘Tab und ⌘` ersetzen",
+        switcherTakeOverSystemShortcutsCaption: "Deaktiviert die passenden macOS-App- und Fensterkurzbefehle nur, solange Vorssaints Umschalter aktiv ist. Alle laufenden Apps bleiben erreichbar.",
         switcherAppearanceDelay: "Einblendverzögerung",
         switcherAppearanceDelayCaption: "Wie lange das Tastenkürzel gehalten werden muss, bevor der Umschalter erscheint.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
@@ -980,6 +982,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Bildschirm mit dem Zeiger",
         switcherScreenPlacementMenuBar: "Bildschirm mit der Menüleiste",
         switcherScreenPlacementActiveWindow: "Bildschirm mit dem aktiven Fenster",
-        switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind."
+        switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind.",
+        smoothScrollResponseLabel: "Reaktion",
+        mouseAccelerationName: "Mausbeschleunigung deaktivieren",
+        mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt."
     )
 }

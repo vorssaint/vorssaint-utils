@@ -182,7 +182,8 @@ extension ClipboardFeatureStrings {
         autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
-        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        deleteSelectedFormat: "%d개 삭제"
     )
 }
 
@@ -466,6 +467,7 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let deleteSelectedFormat: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -520,7 +522,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Clear clipboard on computer sleep",
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
-        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        deleteSelectedFormat: "Delete %d"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -576,7 +579,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
-        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        deleteSelectedFormat: "Apagar %d"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -632,7 +636,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
-        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        deleteSelectedFormat: "%d öğeyi sil"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -688,7 +693,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
-        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        deleteSelectedFormat: "Удалить: %d"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -744,7 +750,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
-        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        deleteSelectedFormat: "Eliminar %d"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -800,7 +807,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
-        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        deleteSelectedFormat: "%d löschen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -856,7 +864,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
         autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
-        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique.",
+        deleteSelectedFormat: "Supprimer %d"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -912,7 +921,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
-        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        deleteSelectedFormat: "Elimina %d"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -968,7 +978,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "システムスリープ時にクリップボードを消去",
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
-        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        deleteSelectedFormat: "%d件を削除"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1024,7 +1035,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠时清空剪贴板",
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
-        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        deleteSelectedFormat: "删除 %d 项"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1080,7 +1092,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        deleteSelectedFormat: "刪除 %d 個"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1136,7 +1149,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        deleteSelectedFormat: "刪除 %d 個"
     )
 }
 

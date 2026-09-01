@@ -36,11 +36,19 @@ enum ResponsibleProcess {
     /// itself (browser audio helpers, issue #256). Nil when no ancestor is
     /// a regular app — daemons and login items stay unlisted.
     static func regularAppOwner(of pid: pid_t) -> NSRunningApplication? {
-        MixerRoutingSupport.owningRegularAppPid(
-            responsiblePid: owner(of: pid),
-            isRegularApp: { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular },
-            parentPid: parent(of:)
-        ).flatMap(NSRunningApplication.init(processIdentifier:))
+        let responsible = owner(of: pid)
+        let isRegular: (pid_t) -> Bool = { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular }
+        let parent: (pid_t) -> pid_t = parent(of:)
+        let resolved = MixerRoutingSupport.owningRegularAppPid(
+            responsiblePid: responsible,
+            isRegularApp: isRegular,
+            parentPid: parent
+        ) ?? (responsible != pid ? MixerRoutingSupport.owningRegularAppPid(
+            responsiblePid: pid,
+            isRegularApp: isRegular,
+            parentPid: parent
+        ) : nil)
+        return resolved.flatMap(NSRunningApplication.init(processIdentifier:))
     }
 
     private static func parent(of pid: pid_t) -> pid_t {

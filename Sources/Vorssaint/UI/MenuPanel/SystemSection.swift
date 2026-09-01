@@ -6,6 +6,15 @@ import SwiftUI
 /// Which per-app breakdown is expanded in the System section.
 enum BreakdownKind {
     case cpu, gpu, memory, energy, network
+
+    func processRefreshInterval(configuredMonitorInterval: Int) -> TimeInterval {
+        switch self {
+        case .cpu, .gpu, .energy:
+            return TimeInterval(Defaults.sanitizedMonitorInterval(configuredMonitorInterval))
+        case .memory, .network:
+            return 4
+        }
+    }
 }
 
 /// The "System" section of the panel: component temperatures, hardware usage
@@ -22,6 +31,7 @@ struct SystemSection: View {
     @State private var breakdownIsLoading = false
     @State private var lastBreakdownRefresh = Date.distantPast
     private let breakdownLimit = 15
+    @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
     @AppStorage(DefaultsKey.monitorGraphCPU) private var graphCPU = true
     @AppStorage(DefaultsKey.monitorGraphGPU) private var graphGPU = true
     @AppStorage(DefaultsKey.monitorGraphMemory) private var graphMemory = true
@@ -63,9 +73,11 @@ struct SystemSection: View {
             .panelCard()
         }
         .onReceive(monitor.$snapshot) { _ in
-            // The breakdown forks `ps` (and walks IORegistry for GPU), so refresh it
-            // at most every ~4 s while expanded instead of on every ~2 s snapshot.
-            guard expanded != nil, Date().timeIntervalSince(lastBreakdownRefresh) > 4 else { return }
+            guard let kind = expanded,
+                  Date().timeIntervalSince(lastBreakdownRefresh) >= kind.processRefreshInterval(
+                      configuredMonitorInterval: monitorInterval
+                  ) * 0.8
+            else { return }
             refreshBreakdown()
         }
         .onDisappear {
@@ -176,8 +188,15 @@ struct SystemSection: View {
         guard let kind = expanded else { return }
         lastBreakdownRefresh = Date()
         breakdownIsLoading = breakdownRows.isEmpty
+        let sampleInterval = percentageSampleInterval
+        let cpuPercentage = monitor.snapshot.cpuUsage.map { $0 * 100 }
+        let gpuPercentage = monitor.snapshot.gpuUsage.map { $0 * 100 }
         DispatchQueue.global(qos: .utility).async {
-            let rows = ProcessUsageService.shared.top(kind, limit: breakdownLimit)
+            let rows = ProcessUsageService.shared.top(kind,
+                                                      limit: breakdownLimit,
+                                                      sampleInterval: sampleInterval,
+                                                      cpuPercentage: cpuPercentage,
+                                                      gpuPercentage: gpuPercentage)
             DispatchQueue.main.async {
                 guard expanded == kind else { return }
                 breakdownIsLoading = false
@@ -186,6 +205,10 @@ struct SystemSection: View {
                 }
             }
         }
+    }
+
+    private var percentageSampleInterval: TimeInterval {
+        TimeInterval(Defaults.sanitizedMonitorInterval(monitorInterval))
     }
 
     @ViewBuilder

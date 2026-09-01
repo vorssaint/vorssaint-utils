@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Tasti laterali attivi ora",
         smoothScrollName: "Scorrimento fluido",
         smoothScrollCaption: "Trasforma ogni scatto della rotellina del mouse in una breve scivolata fluida. Il trackpad non cambia.",
-        smoothScrollStepLabel: "Distanza per scatto",
+        smoothScrollStepLabel: "Velocità di scorrimento",
         mouseNavigationSection: "Navigazione",
         mouseNavigationEnable: "Usa i pulsanti laterali per Indietro e Avanti",
         mouseNavigationCaption: "Trasforma i pulsanti Indietro e Avanti del mouse in comandi di navigazione per Finder, browser e app compatibili.",
@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "Finestre",
         switcherWindowShortcutCaption: "Apre un selettore per le finestre dell’app in primo piano. Con il selettore app aperto, salta tra le finestre dell’app selezionata.",
+        switcherTakeOverSystemShortcuts: "Sostituisci ⌘Tab e ⌘` di macOS",
+        switcherTakeOverSystemShortcutsCaption: "Disattiva le scorciatoie macOS corrispondenti solo mentre il selettore Vorssaint è attivo. Tutte le app aperte restano raggiungibili.",
         switcherAppearanceDelay: "Ritardo di comparsa",
         switcherAppearanceDelayCaption: "Per quanto tempo va tenuta premuta la scorciatoia prima che appaia il selettore.",
         switcherMergeTabs: "Mostra una voce per app",
@@ -980,6 +982,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Schermo con il puntatore",
         switcherScreenPlacementMenuBar: "Schermo con la barra dei menu",
         switcherScreenPlacementActiveWindow: "Schermo con la finestra attiva",
-        switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno."
+        switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno.",
+        smoothScrollResponseLabel: "Reattività",
+        mouseAccelerationName: "Disattiva l’accelerazione del mouse",
+        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint."
     )
 }

@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "側鍵目前已啟用",
         smoothScrollName: "平滑捲動",
         smoothScrollCaption: "把滑鼠滾輪的每一格變成短暫順暢的滑動。觸控板不受影響。",
-        smoothScrollStepLabel: "每格捲動距離",
+        smoothScrollStepLabel: "捲動速度",
         mouseNavigationSection: "導覽",
         mouseNavigationEnable: "使用側鍵返回與前進",
         mouseNavigationCaption: "將滑鼠的返回與前進按鈕轉成 Finder、瀏覽器和相容 App 的導覽指令。",
@@ -208,6 +208,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "視窗",
         switcherWindowShortcutCaption: "開啟最前應用程式的視窗切換器。應用程式切換器開啟時，在所選應用程式的視窗之間跳轉。",
+        switcherTakeOverSystemShortcuts: "接管 macOS 的 ⌘Tab 和 ⌘`",
+        switcherTakeOverSystemShortcutsCaption: "只在 Vorssaint 切換器運行時停用對應的 macOS App 及視窗快速鍵，並保留所有運行中 App 的入口。",
         switcherAppearanceDelay: "顯示延遲",
         switcherAppearanceDelayCaption: "按住快速鍵多久後顯示切換器。",
         switcherMergeTabs: "每個 App 僅顯示一項",
@@ -981,6 +983,9 @@ extension Strings {
         switcherScreenPlacementPointer: "指標所在的螢幕",
         switcherScreenPlacementMenuBar: "選單列所在的螢幕",
         switcherScreenPlacementActiveWindow: "使用中視窗所在的螢幕",
-        switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。"
+        switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。",
+        smoothScrollResponseLabel: "反應速度",
+        mouseAccelerationName: "關閉滑鼠加速",
+        mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原之前的設定。"
     )
 }

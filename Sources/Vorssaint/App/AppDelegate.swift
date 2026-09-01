@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Before any window exists, so nothing is ever built with the wrong
         // appearance and then repainted.
         AppAppearanceController.shared.apply()
+        GlobalShortcut.startObservingKeyboardLayout()
         // UNUserNotificationCenter aborts in a process without a bundle;
         // guard keeps ad-hoc runs of the bare binary alive for probing.
         if Bundle.main.bundleIdentifier != nil {
@@ -137,7 +138,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
-                    .superKey, .mixer,
+                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer,
                 ])
             }
             .store(in: &cancellables)
@@ -234,12 +235,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         WindowMaximizer.shared.stop()
         WindowLayoutService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
+        MouseClickDebounceService.shared.suspend()
         TextSnippetService.shared.suspend()
         // Takes the Super key mapping back out before the process goes away.
         SuperKeyService.shared.suspend()
+        // Dock's app and window switcher hotkeys persist after quit.
+        AppSwitcher.shared.suspend()
+        MouseButtonShortcutService.shared.suspend()
         MiddleClickService.shared.suspend()
         ScrollInverter.shared.suspend()
         SmoothScrollService.shared.suspend()
+        if AppFeature.mouseAcceleration.isAvailable
+            || MouseAccelerationRecovery.hasPendingEntries() {
+            MouseAccelerationService.shared.stop()
+        }
         MouseNavigationService.shared.suspend()
         DockPreviewService.shared.stop()
         SoundOutputSwitcher.shared.stop()
