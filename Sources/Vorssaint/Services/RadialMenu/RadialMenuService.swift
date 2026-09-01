@@ -76,7 +76,11 @@ final class RadialMenuService: ObservableObject {
         // A filter tap owned by a switched-away login session stalls input in
         // the session on screen. Hand the mouse tap back on resign and build
         // it again from preferences when this session comes back.
-        SessionActivity.shared.onChange { [weak self] _ in
+        // The session goes with it: the tap is what ends a held wheel, so a
+        // wheel still open when the tap is handed back would never see its
+        // release and would come back stuck in hold phase.
+        SessionActivity.shared.onChange { [weak self] active in
+            if !active { self?.endSession() }
             self?.syncMouseTap()
         }
     }
