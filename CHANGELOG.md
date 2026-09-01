@@ -42,6 +42,8 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Cleaner leftover scans now cover more preference panes and plugin folders while refusing nested app data, version folders, links and other ambiguous paths.
 - Quit on close now reads an app's windows once per switch instead of repeating the same scan for every focus change, so switching between apps with many windows costs less. Thanks to @PathGao.
 - The App Switcher and window previews now check whether an app's main and focused windows are already collected before evaluating their properties, skipping redundant Accessibility calls. Thanks to @PathGao.
+- Ending a process tree now reads the running process list once instead of looking up children process by process, so trees with many helpers close without the list stalling. Thanks to @PathGao.
+- The downloads organizer now confirms whether a file is staying on the same disk before filing it, and skips the second integrity read when the move is only a rename, so large videos are filed without being read twice. Thanks to @PathGao.
 
 ### Fixed
 - Super key now keeps modifiers active while holding non-autorepeating source keys such as Caps Lock remapped to F18. Thanks to @victoraraujo01.
