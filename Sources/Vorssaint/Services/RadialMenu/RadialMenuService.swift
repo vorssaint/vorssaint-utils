@@ -72,18 +72,7 @@ final class RadialMenuService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
     private var promptedForAccessibility = false
 
-    private init() {
-        // A filter tap owned by a switched-away login session stalls input in
-        // the session on screen. Hand the mouse tap back on resign and build
-        // it again from preferences when this session comes back.
-        // The session goes with it: the tap is what ends a held wheel, so a
-        // wheel still open when the tap is handed back would never see its
-        // release and would come back stuck in hold phase.
-        SessionActivity.shared.onChange { [weak self] active in
-            if !active { self?.endSession() }
-            self?.syncMouseTap()
-        }
-    }
+    private init() {}
 
     var sessionActive: Bool { !stack.isEmpty }
 
@@ -139,28 +128,18 @@ final class RadialMenuService: ObservableObject {
     // app under the pointer; alive only while a button is configured, torn
     // down with the feature)
 
-    /// Whether the button tap has a job right now. The capture row needs it
-    /// even with the feature switched off, so it can tell a button this app
-    /// cannot see from one that is simply set to something else.
-    private func mouseTapWanted(profiles: [RadialMenuProfile]?) -> Bool {
+    private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
         let defaults = UserDefaults.standard
+        // Asked of the stored buttons alone when the caller has no profiles in
+        // hand: this only needs to know whether any wheel is bound to a button,
+        // and the full decode pays for every item and icon to answer it.
         let hasAnyButton = profiles.map { list in
             list.contains { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber != nil }
         } ?? !RadialMenuSupport.claimedMouseButtons(
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
         ).isEmpty
-        let enabled = AppFeature.radialMenu.isAvailable
-            && defaults.bool(forKey: DefaultsKey.radialMenuEnabled)
-        return (hasAnyButton && enabled) || isReportingMouseButtons
-    }
-
-    private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
-        guard SessionActivitySupport.tapShouldRun(
-            featureWanted: mouseTapWanted(profiles: profiles),
-            accessibilityGranted: AXIsProcessTrusted(),
-            sessionIsActive: SessionActivity.shared.isActive
-        ) else {
+        guard hasAnyButton || isReportingMouseButtons else {
             tearDownMouseTap()
             return
         }
@@ -169,7 +148,7 @@ final class RadialMenuService: ObservableObject {
         if let mouseTap, !CGEvent.tapIsEnabled(tap: mouseTap) {
             tearDownMouseTap()
         }
-        guard mouseTap == nil else { return }
+        guard mouseTap == nil, AXIsProcessTrusted() else { return }
         let mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
         guard let tap = CGEvent.tapCreate(
@@ -207,18 +186,7 @@ final class RadialMenuService: ObservableObject {
 
     private func handleMouseTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            let shouldRearm = SessionActivitySupport.tapShouldRun(
-                featureWanted: mouseTapWanted(profiles: nil),
-                accessibilityGranted: AXIsProcessTrusted(),
-                sessionIsActive: SessionActivity.shared.isActive
-            )
-            if shouldRearm, let mouseTap {
-                CGEvent.tapEnable(tap: mouseTap, enable: true)
-            } else {
-                // Invalidating the port from its own callback stack is unsafe;
-                // finish this callback fail-open, then release the tap.
-                DispatchQueue.main.async { [weak self] in self?.syncMouseTap() }
-            }
+            if let mouseTap { CGEvent.tapEnable(tap: mouseTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
         let pressed = Int(event.getIntegerValueField(.mouseEventButtonNumber))
