@@ -267,10 +267,10 @@ final class PanelKeyboardNavigator: ObservableObject {
             guard focus != nil else { return false }
             return handleRight(fine: fine)
         case kVK_DownArrow:
-            guard focus != nil else { return false }
+            guard focus != nil else { return startNavigation(at: sequence.first) }
             return handleDown()
         case kVK_UpArrow:
-            guard focus != nil else { return false }
+            guard focus != nil else { return startNavigation(at: sequence.last) }
             return handleUp()
         case kVK_Return, kVK_ANSI_KeypadEnter, kVK_Space:
             guard focus != nil else { return false }
@@ -278,6 +278,21 @@ final class PanelKeyboardNavigator: ObservableObject {
         default:
             return false
         }
+    }
+
+    /// Down and Up also start keyboard navigation: with nothing focused they
+    /// take the panel's first or last stop rather than stepping from one, so
+    /// the arrows answer without the user having to know that Tab is what
+    /// begins it.
+    ///
+    /// Left, Right, Return and Space stay inert until then. They act on a
+    /// focused stop rather than moving between them, so there is no obvious
+    /// place for them to begin, and handing them back leaves the panel's own
+    /// controls and scroll views holding the keys they expect.
+    private func startNavigation(at target: PanelFocusTarget?) -> Bool {
+        guard let target else { return false }
+        focus = target
+        return true
     }
 
     /// The whole panel, top to bottom, as one line: leading chrome, the tab

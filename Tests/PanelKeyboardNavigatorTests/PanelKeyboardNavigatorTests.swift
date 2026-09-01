@@ -22,9 +22,7 @@ final class PanelKeyboardNavigatorTests: XCTestCase {
     }
 
     func testVerticalNavigationFollowsPanelOrder() {
-        XCTAssertFalse(navigator.handleKeyDown(key(kVK_DownArrow)))
-        XCTAssertNil(navigator.focus)
-
+        navigator.clearFocus()
         XCTAssertTrue(navigator.handleKeyDown(key(kVK_Tab)))
         XCTAssertEqual(navigator.focus, .tab(section))
 
@@ -182,6 +180,26 @@ final class PanelKeyboardNavigatorTests: XCTestCase {
         XCTAssertEqual(navigator.focus, .chrome(.footerSettings))
         XCTAssertFalse(navigator.handleKeyDown(key(kVK_Return)))
         XCTAssertFalse(navigator.handleKeyDown(key(kVK_Space)))
+    }
+
+    /// Down and Up start keyboard navigation, so the arrows answer the first
+    /// time they are pressed instead of waiting for the user to find Tab.
+    func testFirstDownOrUpStartsKeyboardNavigation() {
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_DownArrow)))
+        XCTAssertEqual(navigator.focus, .chrome(.headerFeedback))
+
+        navigator.clearFocus()
+        XCTAssertTrue(navigator.handleKeyDown(key(kVK_UpArrow)))
+        XCTAssertEqual(navigator.focus, .chrome(.footerQuit))
+    }
+
+    /// The keys that act on a stop rather than move between them have nowhere
+    /// to begin, so they are still handed back until navigation has started.
+    func testKeysThatActOnAStopStayInertUntilNavigationStarts() {
+        for code in [kVK_LeftArrow, kVK_RightArrow, kVK_Return, kVK_Space] {
+            XCTAssertFalse(navigator.handleKeyDown(key(code)))
+            XCTAssertNil(navigator.focus)
+        }
     }
 
     private func key(_ keyCode: Int, modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
