@@ -152,10 +152,41 @@ struct BKBatteryHeroView: View {
                         .transition(.opacity)
                         .animation(.easeOut(duration: 0.3), value: label)
                 }
+                
+                let peripherals = SystemMonitor.shared.snapshot.peripheralBatteries
+                if !peripherals.isEmpty {
+                    Divider().padding(.vertical, 4)
+                    ForEach(PeripheralBatterySupport.sorted(peripherals)) { device in
+                        HStack(spacing: 8) {
+                            Image(systemName: peripheralIcon(for: device.kind))
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 10)
+                            Text(device.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .lineLimit(1)
+                            Spacer(minLength: 0)
+                            Text("\(device.percent)%")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(device.percent < 20 ? Color.red : .primary)
+                        }
+                    }
+                }
             }
+            
             .padding(.top, 2)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
+    }
+
+    private func peripheralIcon(for kind: PeripheralBatteryKind) -> String {
+        switch kind {
+        case .keyboard: return "keyboard"
+        case .mouse: return "magicmouse"
+        case .trackpad: return "magicmouse.fill"
+        case .audio: return "airpods"
+        case .device: return "battery.100"
+        }
     }
 }

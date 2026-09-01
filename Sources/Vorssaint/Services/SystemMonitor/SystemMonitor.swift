@@ -812,6 +812,18 @@ final class SystemMonitor: ObservableObject {
                 // same mode): the values are identical to the ones on screen.
                 let planChanged = plan != self.lastPublishedPlan
                     || foregroundSampling != self.lastPublishedForeground
+
+                let oldPeripherals = self.snapshot.peripheralBatteries
+                let newPeripherals = next.peripheralBatteries
+                
+                for newDevice in newPeripherals {
+                    if !oldPeripherals.contains(where: { $0.id == newDevice.id }) {
+                        if newDevice.kind == .mouse {
+                            Notifier.post(title: "Mouse Connected", body: "\(newDevice.name) is at \(newDevice.percent)%.")
+                        }
+                    }
+                }
+
                 if sampledAnything || planChanged {
                     self.snapshot = next
                     self.lastPublishedPlan = plan

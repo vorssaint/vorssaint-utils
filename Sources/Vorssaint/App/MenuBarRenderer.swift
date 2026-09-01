@@ -1212,7 +1212,7 @@ enum MenuBarRenderer {
                 } else if clampedPercent < 20 {
                     tint = .systemRed
                 } else if clampedPercent < 50 {
-                    tint = .systemOrange
+                    tint = .systemYellow
                 } else {
                     tint = .systemGreen
                 }

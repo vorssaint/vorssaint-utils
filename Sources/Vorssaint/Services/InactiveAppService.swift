@@ -40,7 +40,6 @@ final class InactiveAppService: ObservableObject {
             object: nil
         )
         
-        // Populate current frontmost
         if let frontmost = NSWorkspace.shared.frontmostApplication {
             lastActiveTimes[frontmost.processIdentifier] = Date()
         }
@@ -78,7 +77,6 @@ final class InactiveAppService: ObservableObject {
             guard app.activationPolicy == .regular else { continue }
             guard let bundleID = app.bundleIdentifier else { continue }
             
-            // Exclusions
             if exceptions.contains(bundleID) { continue }
             if isMandatoryException(bundleID) { continue }
             if app.isActive { continue }
@@ -87,20 +85,30 @@ final class InactiveAppService: ObservableObject {
             if lastActive < threshold {
                 let pid = app.processIdentifier
                 
-                let usage = ProcessUsageService.shared.snapshot.processes.first(where: { $0.pid == pid })
-                let memoryMB = (usage?.memoryBytes ?? 0) / (1024 * 1024)
+                let footprint = InactiveAppService.physicalFootprint(of: pid) ?? 0
+                let memoryMB = Int(footprint / (1024 * 1024))
                 
                 if memoryMB >= memoryFloor {
                     if autoQuit {
                         app.terminate()
                     } else {
-                        // To avoid spam, we reset the lastActive time!
                         lastActiveTimes[pid] = Date()
                         Notifier.postInactiveApp(appName: app.localizedName ?? "App", bundleID: bundleID, memoryMB: memoryMB)
                     }
                 }
             }
         }
+    }
+    
+    private static func physicalFootprint(of pid: pid_t) -> Double? {
+        var info = rusage_info_current()
+        let status = withUnsafeMutablePointer(to: &info) { pointer in
+            pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
+                proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, rebound)
+            }
+        }
+        guard status == 0, info.ri_phys_footprint > 0 else { return nil }
+        return Double(info.ri_phys_footprint)
     }
     
     // MARK: - Exceptions

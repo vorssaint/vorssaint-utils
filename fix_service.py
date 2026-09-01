@@ -1,9 +1,8 @@
 with open('Sources/Vorssaint/Services/InactiveAppService.swift', 'r') as f:
-    lines = f.readlines()
+    content = f.read()
 
-with open('Sources/Vorssaint/Services/InactiveAppService.swift', 'w') as f:
-    for line in lines:
-        if line.strip() == '}':
-            if 'ProcessUsageService already tracks memory' in lines[lines.index(line) + 2]:
-                continue
-        f.write(line)
+# Let's just find the first physicalFootprint method and keep it, and remove all the extra garbage at the end.
+import re
+match = re.search(r'    private static func physicalFootprint.*?^}$', content, re.MULTILINE | re.DOTALL)
+if match:
+    pass # Wait, it's easier to just rebuild the file.
