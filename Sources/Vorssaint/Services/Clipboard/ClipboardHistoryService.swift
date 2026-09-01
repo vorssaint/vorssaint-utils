@@ -23,7 +23,10 @@ final class ClipboardHistoryService: ObservableObject {
     static let quickPanelCompactSize = NSSize(width: 560, height: 420)
     static let quickPanelPreviewSize = NSSize(width: 840, height: 500)
 
+    let newlyCopiedPreview = PassthroughSubject<String, Never>()
+
     @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
+
         didSet { entriesStamp &+= 1 }
     }
     @Published private(set) var isRunning = false
@@ -806,7 +809,7 @@ final class ClipboardHistoryService: ObservableObject {
                 case .files: preview = "\(entry.filePaths.count) Files Copied"
                 default: preview = "Item Copied"
                 }
-                Notifier.post(title: "Copied", body: preview)
+                self.newlyCopiedPreview.send(preview)
             }
         }
     }

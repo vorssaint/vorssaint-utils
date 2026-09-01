@@ -1219,7 +1219,7 @@ enum MenuBarRenderer {
             }
             
             let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [tint]))
+                .applying(NSImage.SymbolConfiguration(hierarchicalColor: tint))
             if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
                 .withSymbolConfiguration(symbolConfig) {
                 let symbolSize = symbol.size

@@ -32,8 +32,8 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.monitorGraphBattery) private var graphBattery = true
 
     // BatteryBoi Customizations
-    @AppStorage(DefaultsKey.bkColoredBatteryIcon) private var bkColoredBatteryIcon = false
-    @AppStorage(DefaultsKey.bkEnhancedBatteryHero) private var bkEnhancedBatteryHero = false
+    @AppStorage(DefaultsKey.bkColoredBatteryIcon) private var bkColoredBatteryIcon = true
+    @AppStorage(DefaultsKey.bkEnhancedBatteryHero) private var bkEnhancedBatteryHero = true
 
     var body: some View {
         Form {

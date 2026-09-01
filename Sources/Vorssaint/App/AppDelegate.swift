@@ -158,6 +158,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .sink { [weak self] _ in self?.installMainMenu() }
             .store(in: &cancellables)
 
+        ClipboardHistoryService.shared.newlyCopiedPreview
+            .compactMap { $0 }
+            .receive(on: DispatchQueue.main)
+            .sink { preview in
+                ClipboardToastController.shared.show(preview: preview)
+            }
+            .store(in: &cancellables)
+
         let defaults = UserDefaults.standard
         // Whatever opens a window at startup waits for the next turn of the
         // run loop, so the menu bar icon is on screen first. A start that goes
@@ -1890,6 +1898,14 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        if response.actionIdentifier == Notifier.inactiveAppQuitActionID {
+            if let bundleID = response.notification.request.content.userInfo["bundleID"] as? String {
+                let apps = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == bundleID }
+                for app in apps {
+                    app.terminate()
+                }
+            }
+        }
         if let transactionID = Notifier.whatsAppOrganizerTransactionID(from: response) {
             DispatchQueue.main.async {
                 WhatsAppDownloadOrganizer.shared.undoLastRun(transactionID: transactionID)

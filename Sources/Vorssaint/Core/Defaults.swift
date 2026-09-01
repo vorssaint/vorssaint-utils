@@ -119,6 +119,11 @@ enum DefaultsKey {
     static let diskImageInstallerRevealsApp = "diskImageInstallerRevealsApp"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
     static let autoQuitEnabled = "autoQuitEnabled"
+    static let inactiveAppsEnabled = "inactiveAppsEnabled"
+    static let inactiveAppsIdleMinutes = "inactiveAppsIdleMinutes"
+    static let inactiveAppsMemoryFloorMB = "inactiveAppsMemoryFloorMB"
+    static let inactiveAppsAutoQuit = "inactiveAppsAutoQuit"
+    static let inactiveAppsExceptions = "inactiveAppsExceptions"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
     // Quit/close protection: each shortcut owns its full configuration and app list.
     static let quitProtectionQuitEnabled = "quitProtectionQuitEnabled"
@@ -1102,10 +1107,10 @@ enum Defaults {
         DefaultsKey.monitorGraphDisk: true,
         DefaultsKey.monitorGraphPower: true,
         DefaultsKey.monitorGraphBattery: true,
-        DefaultsKey.bkColoredBatteryIcon: false,
-        DefaultsKey.bkEnhancedBatteryHero: false,
-        DefaultsKey.bkClipboardCopySound: false,
-        DefaultsKey.bkClipboardCopyToast: false,
+        DefaultsKey.bkColoredBatteryIcon: true,
+        DefaultsKey.bkEnhancedBatteryHero: true,
+        DefaultsKey.bkClipboardCopySound: true,
+        DefaultsKey.bkClipboardCopyToast: true,
         // Every per-item block shows by default; users hide what they don't want.
         DefaultsKey.monitorSysTemps: true,
         DefaultsKey.monitorSysCPU: true,

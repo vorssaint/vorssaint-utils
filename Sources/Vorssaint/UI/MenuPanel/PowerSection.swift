@@ -18,7 +18,7 @@ struct PowerSection: View {
     @AppStorage(DefaultsKey.monitorPwrTimeRemaining) private var pwrTimeRemaining = true
     @AppStorage(DefaultsKey.monitorPwrHealth) private var pwrHealth = true
     @AppStorage(DefaultsKey.panelPowerOrder) private var powerOrderRaw = ""
-    @AppStorage(DefaultsKey.bkEnhancedBatteryHero) private var bkEnhancedBatteryHero = false
+    @AppStorage(DefaultsKey.bkEnhancedBatteryHero) private var bkEnhancedBatteryHero = true
     @State private var draggingBlock: Block?
 
     var body: some View {

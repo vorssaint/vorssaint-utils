@@ -32,6 +32,19 @@ enum Notifier {
         post(title: title, body: body, categoryIdentifier: nil, userInfo: [:])
     }
 
+    static func postInactiveApp(appName: String, bundleID: String, memoryMB: Int) {
+        let content = UNMutableNotificationContent()
+        content.title = "\(appName) is Idle"
+        content.body = "It has been idle and is using \(memoryMB) MB of memory."
+        content.categoryIdentifier = "inactiveApp"
+        content.userInfo = ["bundleID": bundleID]
+        
+        let request = UNNotificationRequest(identifier: "inactive-\(bundleID)", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    static let inactiveAppQuitActionID = "inactiveAppQuitAction"
+
     static func postWhatsAppOrganization(title: String,
                                          body: String,
                                          undoTitle: String,

@@ -19,8 +19,8 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
     // BatteryBoi Clipboard Customizations
-    @AppStorage(DefaultsKey.bkClipboardCopySound) private var bkClipboardCopySound = false
-    @AppStorage(DefaultsKey.bkClipboardCopyToast) private var bkClipboardCopyToast = false
+    @AppStorage(DefaultsKey.bkClipboardCopySound) private var bkClipboardCopySound = true
+    @AppStorage(DefaultsKey.bkClipboardCopyToast) private var bkClipboardCopyToast = true
     @AppStorage(DefaultsKey.clipboardAutoClearDelay)
     private var autoClearDelay = Defaults.defaultClipboardAutoClearDelay
     @AppStorage(DefaultsKey.clipboardAutoClearOnSleep) private var autoClearOnSleep = false
