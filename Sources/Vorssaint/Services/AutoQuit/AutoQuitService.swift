@@ -724,6 +724,7 @@ final class AutoQuitService: ObservableObject {
         if let closeRequestRunLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), closeRequestRunLoopSource, .commonModes)
         }
+        if let closeRequestTap { CFMachPortInvalidate(closeRequestTap) }
         closeRequestTap = nil
         closeRequestRunLoopSource = nil
     }

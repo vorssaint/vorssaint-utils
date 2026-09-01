@@ -186,6 +186,7 @@ final class KeyboardDebounceService: ObservableObject {
 
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
+            CFMachPortInvalidate(tap)
             eventLock.withLock {
                 state.reset()
             }

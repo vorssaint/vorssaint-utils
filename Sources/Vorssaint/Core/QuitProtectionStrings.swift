@@ -30,6 +30,9 @@ struct QuitProtectionStrings {
     let extraHUDFormat: String
     let cancelHint: String
     let releaseHint: String
+    let shiftKey: String
+    let optionKey: String
+    let controlKey: String
 
     static func make(_ language: AppLanguage) -> QuitProtectionStrings {
         FeatureStrings.quitProtection(language)
@@ -83,7 +86,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Press %@ again to quit/close",
         extraHUDFormat: "Use %@ to quit/close",
         cancelHint: "Esc cancels",
-        releaseHint: "Release to confirm"
+        releaseHint: "Release to confirm",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let ptBR = QuitProtectionStrings(
@@ -112,7 +118,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Pressione %@ novamente para encerrar/fechar",
         extraHUDFormat: "Use %@ para encerrar/fechar",
         cancelHint: "Esc cancela",
-        releaseHint: "Solte para confirmar"
+        releaseHint: "Solte para confirmar",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let es = QuitProtectionStrings(
@@ -141,7 +150,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Pulsa %@ de nuevo para salir/cerrar",
         extraHUDFormat: "Usa %@ para salir/cerrar",
         cancelHint: "Esc cancela",
-        releaseHint: "Suelta para confirmar"
+        releaseHint: "Suelta para confirmar",
+        shiftKey: "Mayúsculas",
+        optionKey: "Opción",
+        controlKey: "Control"
     )
 
     static let de = QuitProtectionStrings(
@@ -170,7 +182,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "%@ erneut drücken zum Beenden/Schließen",
         extraHUDFormat: "%@ verwenden zum Beenden/Schließen",
         cancelHint: "Esc bricht ab",
-        releaseHint: "Loslassen zum Bestätigen"
+        releaseHint: "Loslassen zum Bestätigen",
+        shiftKey: "Umschalttaste",
+        optionKey: "Wahltaste",
+        controlKey: "Control"
     )
 
     static let fr = QuitProtectionStrings(
@@ -199,7 +214,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Appuyez à nouveau sur %@ pour quitter/fermer",
         extraHUDFormat: "Utilisez %@ pour quitter/fermer",
         cancelHint: "Échap pour annuler",
-        releaseHint: "Relâchez pour confirmer"
+        releaseHint: "Relâchez pour confirmer",
+        shiftKey: "Maj",
+        optionKey: "Option",
+        controlKey: "Contrôle"
     )
 
     static let it = QuitProtectionStrings(
@@ -228,7 +246,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Premi di nuovo %@ per uscire/chiudere",
         extraHUDFormat: "Usa %@ per uscire/chiudere",
         cancelHint: "Esc annulla",
-        releaseHint: "Rilascia per confermare"
+        releaseHint: "Rilascia per confermare",
+        shiftKey: "Maiuscole",
+        optionKey: "Opzione",
+        controlKey: "Controllo"
     )
 
     static let tr = QuitProtectionStrings(
@@ -257,7 +278,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Çıkmak/kapatmak için tekrar %@ basın",
         extraHUDFormat: "Çıkmak/kapatmak için %@ kullanın",
         cancelHint: "Esc iptal eder",
-        releaseHint: "Onaylamak için bırakın"
+        releaseHint: "Onaylamak için bırakın",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let ru = QuitProtectionStrings(
@@ -286,7 +310,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "Нажмите %@ ещё раз для выхода/закрытия",
         extraHUDFormat: "Используйте %@ для выхода/закрытия",
         cancelHint: "Esc отменяет",
-        releaseHint: "Отпустите для подтверждения"
+        releaseHint: "Отпустите для подтверждения",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let ja = QuitProtectionStrings(
@@ -315,7 +342,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "終了/閉じるにはもう一度 %@ を入力",
         extraHUDFormat: "終了/閉じるには %@ を使用",
         cancelHint: "Esc でキャンセル",
-        releaseHint: "離して確認"
+        releaseHint: "離して確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let ko = QuitProtectionStrings(
@@ -344,7 +374,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "종료/닫으려면 %@ 다시 누르기",
         extraHUDFormat: "종료/닫으려면 %@ 사용",
         cancelHint: "Esc 취소",
-        releaseHint: "손을 떼어 확인"
+        releaseHint: "손을 떼어 확인",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let zhHans = QuitProtectionStrings(
@@ -373,7 +406,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "再次按 %@ 以退出/关闭",
         extraHUDFormat: "使用 %@ 以退出/关闭",
         cancelHint: "Esc 取消",
-        releaseHint: "松开以确认"
+        releaseHint: "松开以确认",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let zhTW = QuitProtectionStrings(
@@ -402,7 +438,10 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "再次按 %@ 以結束/關閉",
         extraHUDFormat: "使用 %@ 以結束/關閉",
         cancelHint: "Esc 取消",
-        releaseHint: "放開以確認"
+        releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 
     static let zhHK = QuitProtectionStrings(
@@ -431,6 +470,9 @@ extension QuitProtectionStrings {
         doubleHUDFormat: "再次按 %@ 以結束/關閉",
         extraHUDFormat: "使用 %@ 以結束/關閉",
         cancelHint: "Esc 取消",
-        releaseHint: "放開以確認"
+        releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
     )
 }

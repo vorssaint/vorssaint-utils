@@ -212,7 +212,7 @@ final class MouseAppExceptions: ObservableObject {
             return cachedIdentity
         }
 
-        let window = MouseAppExceptionSupport.pointerWindow(in: Self.onScreenWindows(),
+        let window = MouseAppExceptionSupport.pointerWindow(in: WindowServerSupport.onScreenWindows(),
                                                             at: point,
                                                             ownProcessID: Self.ownProcessID)
         let app = window.map { NSRunningApplication(processIdentifier: $0.processID) }
@@ -238,16 +238,5 @@ final class MouseAppExceptions: ObservableObject {
         cachedIdentity = nil
         cachedRegion = nil
         cachedAt = -1
-    }
-
-    /// The on-screen windows, front to back, without the desktop and its
-    /// icons: scrolling the empty desktop must fall through to the app in
-    /// front rather than answer with the file manager behind everything.
-    private static func onScreenWindows() -> [MouseAppExceptionSupport.Window] {
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else {
-            return []
-        }
-        return MouseAppExceptionSupport.windows(from: list)
     }
 }

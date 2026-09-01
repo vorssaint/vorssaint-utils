@@ -56,11 +56,13 @@ enum QuitProtectionSupport {
     static let defaultDoublePressIntervalMilliseconds = 600.0
 
     static func sanitizedHoldDuration(_ value: Double) -> Double {
-        min(max(value, holdDurationRange.lowerBound), holdDurationRange.upperBound)
+        guard value.isFinite else { return defaultHoldDurationMilliseconds }
+        return min(max(value, holdDurationRange.lowerBound), holdDurationRange.upperBound)
     }
 
     static func sanitizedDoublePressInterval(_ value: Double) -> Double {
-        min(max(value, doublePressIntervalRange.lowerBound), doublePressIntervalRange.upperBound)
+        guard value.isFinite else { return defaultDoublePressIntervalMilliseconds }
+        return min(max(value, doublePressIntervalRange.lowerBound), doublePressIntervalRange.upperBound)
     }
 
     /// CGEvent timestamps are monotonic nanoseconds. Confirmation uses them

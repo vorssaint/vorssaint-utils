@@ -161,7 +161,6 @@ extension ClipboardFeatureStrings {
         selectShortcutAction: "선택",
         pasteSelectedFormat: "%d개 붙여넣기",
         copySelectedFormat: "%d개 복사",
-        deleteSelectedFormat: "%d개 삭제",
         clearSelection: "선택 해제",
         moveUp: "위로 이동",
         moveDown: "아래로 이동",
@@ -183,7 +182,8 @@ extension ClipboardFeatureStrings {
         autoClearOnSleep: "Mac이 잠자기에 들어갈 때 클립보드 지우기",
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
-        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다."
+        autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        deleteSelectedFormat: "%d개 삭제"
     )
 }
 
@@ -445,7 +445,6 @@ struct ClipboardFeatureStrings {
     let selectShortcutAction: String
     let pasteSelectedFormat: String
     let copySelectedFormat: String
-    let deleteSelectedFormat: String
     let clearSelection: String
     let moveUp: String
     let moveDown: String
@@ -468,6 +467,7 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let deleteSelectedFormat: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -501,7 +501,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Select",
         pasteSelectedFormat: "Paste %d",
         copySelectedFormat: "Copy %d",
-        deleteSelectedFormat: "Delete %d",
         clearSelection: "Clear selection",
         moveUp: "Move up",
         moveDown: "Move down",
@@ -523,7 +522,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Clear clipboard on computer sleep",
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
-        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history."
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        deleteSelectedFormat: "Delete %d"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -558,7 +558,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Selecionar",
         pasteSelectedFormat: "Colar %d",
         copySelectedFormat: "Copiar %d",
-        deleteSelectedFormat: "Apagar %d",
         clearSelection: "Limpar seleção",
         moveUp: "Mover para cima",
         moveDown: "Mover para baixo",
@@ -580,7 +579,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Limpar o clipboard quando o Mac dormir",
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
-        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico."
+        autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        deleteSelectedFormat: "Apagar %d"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -615,7 +615,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Seç",
         pasteSelectedFormat: "%d öğeyi yapıştır",
         copySelectedFormat: "%d öğeyi kopyala",
-        deleteSelectedFormat: "%d öğeyi sil",
         clearSelection: "Seçimi temizle",
         moveUp: "Yukarı taşı",
         moveDown: "Aşağı taşı",
@@ -637,7 +636,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Mac uykuya geçince panoyu temizle",
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
-        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır."
+        autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        deleteSelectedFormat: "%d öğeyi sil"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -672,7 +672,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Выбрать",
         pasteSelectedFormat: "Вставить: %d",
         copySelectedFormat: "Копировать: %d",
-        deleteSelectedFormat: "Удалить: %d",
         clearSelection: "Снять выделение",
         moveUp: "Вверх",
         moveDown: "Вниз",
@@ -694,7 +693,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Очищать буфер обмена при переходе в режим сна",
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
-        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории."
+        autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        deleteSelectedFormat: "Удалить: %d"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -729,7 +729,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Seleccionar",
         pasteSelectedFormat: "Pegar %d",
         copySelectedFormat: "Copiar %d",
-        deleteSelectedFormat: "Eliminar %d",
         clearSelection: "Limpiar selección",
         moveUp: "Subir",
         moveDown: "Bajar",
@@ -751,7 +750,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vaciar el portapapeles al suspender el Mac",
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
-        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial."
+        autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        deleteSelectedFormat: "Eliminar %d"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -786,7 +786,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Auswählen",
         pasteSelectedFormat: "%d einfügen",
         copySelectedFormat: "%d kopieren",
-        deleteSelectedFormat: "%d löschen",
         clearSelection: "Auswahl löschen",
         moveUp: "Nach oben",
         moveDown: "Nach unten",
@@ -808,7 +807,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Zwischenablage beim Ruhezustand leeren",
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
-        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf."
+        autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        deleteSelectedFormat: "%d löschen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -843,7 +843,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Sélectionner",
         pasteSelectedFormat: "Coller %d",
         copySelectedFormat: "Copier %d",
-        deleteSelectedFormat: "Supprimer %d",
         clearSelection: "Effacer la sélection",
         moveUp: "Monter",
         moveDown: "Descendre",
@@ -865,7 +864,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Vider le presse-papiers à la mise en veille du Mac",
         autoClearOnDisplaySleep: "Vider le presse-papiers à l'extinction de l'écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l'écran",
-        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique."
+        autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l'historique.",
+        deleteSelectedFormat: "Supprimer %d"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -900,7 +900,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "Seleziona",
         pasteSelectedFormat: "Incolla %d",
         copySelectedFormat: "Copia %d",
-        deleteSelectedFormat: "Elimina %d",
         clearSelection: "Cancella selezione",
         moveUp: "Sposta su",
         moveDown: "Sposta giù",
@@ -922,7 +921,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "Svuota gli appunti quando il Mac va in stop",
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
-        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia."
+        autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        deleteSelectedFormat: "Elimina %d"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -957,7 +957,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "選択",
         pasteSelectedFormat: "%d件を貼り付け",
         copySelectedFormat: "%d件をコピー",
-        deleteSelectedFormat: "%d件を削除",
         clearSelection: "選択を解除",
         moveUp: "上へ移動",
         moveDown: "下へ移動",
@@ -979,7 +978,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "システムスリープ時にクリップボードを消去",
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
-        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。"
+        autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        deleteSelectedFormat: "%d件を削除"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1014,7 +1014,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "选择",
         pasteSelectedFormat: "粘贴 %d 项",
         copySelectedFormat: "拷贝 %d 项",
-        deleteSelectedFormat: "删除 %d 项",
         clearSelection: "清除选择",
         moveUp: "上移",
         moveDown: "下移",
@@ -1036,7 +1035,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠时清空剪贴板",
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
-        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。"
+        autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        deleteSelectedFormat: "删除 %d 项"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1071,7 +1071,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "選取",
         pasteSelectedFormat: "貼上 %d 個",
         copySelectedFormat: "拷貝 %d 個",
-        deleteSelectedFormat: "刪除 %d 個",
         clearSelection: "清除選取項目",
         moveUp: "上移",
         moveDown: "下移",
@@ -1093,7 +1092,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。"
+        autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        deleteSelectedFormat: "刪除 %d 個"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1128,7 +1128,6 @@ struct ClipboardFeatureStrings {
         selectShortcutAction: "選取",
         pasteSelectedFormat: "貼上 %d 個",
         copySelectedFormat: "複製 %d 個",
-        deleteSelectedFormat: "刪除 %d 個",
         clearSelection: "清除所選項目",
         moveUp: "上移",
         moveDown: "下移",
@@ -1150,7 +1149,8 @@ struct ClipboardFeatureStrings {
         autoClearOnSleep: "睡眠時清除剪貼簿",
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
-        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。"
+        autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        deleteSelectedFormat: "刪除 %d 個"
     )
 }
 

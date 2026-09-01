@@ -92,7 +92,6 @@ struct ScreenshotFeatureStrings {
     let autoCopyCaption: String
     let hintLoupe: String
     let lastRegionToggle: String
-    let loupeStartsOnToggle: String
     let backdropBlurLabel: String
     let scrollingCaptureButton: String
     let scrollingCaptureTitle: String
@@ -143,6 +142,7 @@ struct ScreenshotFeatureStrings {
     let clipboardImageMissing: String
     let screenCaptureTitle: String
     let dragOutHandleLabel: String
+    let loupeStartsOnToggle: String
 }
 
 extension FeatureStrings {
@@ -254,7 +254,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Every capture goes to the clipboard as soon as it is taken, ready to paste. Saving a file stays a separate choice.",
         hintLoupe: "Z toggles the loupe",
         lastRegionToggle: "Show the last capture outline",
-        loupeStartsOnToggle: "Start selection with the magnifier on",
         backdropBlurLabel: "Blur",
         scrollingCaptureButton: "Scrolling capture",
         scrollingCaptureTitle: "Scrolling screenshot",
@@ -304,7 +303,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
         screenCaptureTitle: "Screen capture",
-        dragOutHandleLabel: "Drag and drop"
+        dragOutHandleLabel: "Drag and drop",
+        loupeStartsOnToggle: "Start selection with the magnifier on"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -395,7 +395,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Toda captura vai para a área de transferência assim que é feita, pronta para colar. Salvar um arquivo continua sendo uma escolha à parte.",
         hintLoupe: "Z alterna a lupa",
         lastRegionToggle: "Mostrar o contorno da última captura",
-        loupeStartsOnToggle: "Iniciar a seleção com a lupa ativada",
         backdropBlurLabel: "Desfoque",
         scrollingCaptureButton: "Captura com rolagem",
         scrollingCaptureTitle: "Captura com rolagem",
@@ -445,7 +444,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
         screenCaptureTitle: "Ferramentas de captura",
-        dragOutHandleLabel: "Arraste e solte"
+        dragOutHandleLabel: "Arraste e solte",
+        loupeStartsOnToggle: "Iniciar a seleção com a lupa ativada"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -536,7 +536,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Her yakalama alınır alınmaz panoya gider ve yapıştırmaya hazır olur. Dosya olarak kaydetmek ayrı bir seçim olarak kalır.",
         hintLoupe: "Z büyüteci açar/kapatır",
         lastRegionToggle: "Son yakalamanın çerçevesini göster",
-        loupeStartsOnToggle: "Seçime büyüteç açık başla",
         backdropBlurLabel: "Bulanıklık",
         scrollingCaptureButton: "Kaydırmalı yakalama",
         scrollingCaptureTitle: "Kaydırmalı ekran görüntüsü",
@@ -586,7 +585,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
         screenCaptureTitle: "Ekran yakalama",
-        dragOutHandleLabel: "Sürükle ve bırak"
+        dragOutHandleLabel: "Sürükle ve bırak",
+        loupeStartsOnToggle: "Seçime büyüteç açık başla"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -677,7 +677,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Каждый снимок попадает в буфер обмена сразу после съёмки и готов к вставке. Сохранение файла остаётся отдельным выбором.",
         hintLoupe: "Z включает лупу",
         lastRegionToggle: "Показывать контур последней области",
-        loupeStartsOnToggle: "Начинать выделение с включённой лупой",
         backdropBlurLabel: "Размытие",
         scrollingCaptureButton: "Снимок с прокруткой",
         scrollingCaptureTitle: "Снимок с прокруткой",
@@ -727,7 +726,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Редактировать изображение из буфера",
         clipboardImageMissing: "Сначала скопируйте изображение",
         screenCaptureTitle: "Захват экрана",
-        dragOutHandleLabel: "Перетащить"
+        dragOutHandleLabel: "Перетащить",
+        loupeStartsOnToggle: "Начинать выделение с включённой лупой"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -818,7 +818,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Cada captura va al portapapeles en cuanto se toma, lista para pegar. Guardar un archivo sigue siendo una elección aparte.",
         hintLoupe: "Z activa la lupa",
         lastRegionToggle: "Mostrar sombra de la última captura",
-        loupeStartsOnToggle: "Empezar la selección con la lupa activada",
         backdropBlurLabel: "Desenfoque",
         scrollingCaptureButton: "Captura con desplazamiento",
         scrollingCaptureTitle: "Captura con desplazamiento",
@@ -868,7 +867,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
         screenCaptureTitle: "Herramientas de captura",
-        dragOutHandleLabel: "Arrastrar y soltar"
+        dragOutHandleLabel: "Arrastrar y soltar",
+        loupeStartsOnToggle: "Empezar la selección con la lupa activada"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -959,7 +959,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Jede Aufnahme landet sofort in der Zwischenablage, bereit zum Einfügen. Das Speichern als Datei bleibt eine eigene Entscheidung.",
         hintLoupe: "Z schaltet die Lupe um",
         lastRegionToggle: "Umriss der letzten Aufnahme anzeigen",
-        loupeStartsOnToggle: "Auswahl mit aktivierter Lupe starten",
         backdropBlurLabel: "Unschärfe",
         scrollingCaptureButton: "Scroll-Aufnahme",
         scrollingCaptureTitle: "Scroll-Screenshot",
@@ -1009,7 +1008,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Kopiertes Bild bearbeiten",
         clipboardImageMissing: "Kopiere zuerst ein Bild",
         screenCaptureTitle: "Bildschirm erfassen",
-        dragOutHandleLabel: "Ziehen und ablegen"
+        dragOutHandleLabel: "Ziehen und ablegen",
+        loupeStartsOnToggle: "Auswahl mit aktivierter Lupe starten"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1100,7 +1100,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Chaque capture va dans le presse-papiers dès qu'elle est prise, prête à être collée. Enregistrer un fichier reste un choix distinct.",
         hintLoupe: "Z active la loupe",
         lastRegionToggle: "Afficher le contour de la dernière capture",
-        loupeStartsOnToggle: "Démarrer la sélection avec la loupe activée",
         backdropBlurLabel: "Flou",
         scrollingCaptureButton: "Capture avec défilement",
         scrollingCaptureTitle: "Capture avec défilement",
@@ -1150,7 +1149,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
         screenCaptureTitle: "Outils de capture",
-        dragOutHandleLabel: "Glisser-déposer"
+        dragOutHandleLabel: "Glisser-déposer",
+        loupeStartsOnToggle: "Démarrer la sélection avec la loupe activée"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1241,7 +1241,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "Ogni cattura va negli appunti appena viene fatta, pronta da incollare. Salvare un file resta una scelta a parte.",
         hintLoupe: "Z attiva la lente",
         lastRegionToggle: "Mostra il contorno dell'ultima cattura",
-        loupeStartsOnToggle: "Avvia la selezione con la lente attiva",
         backdropBlurLabel: "Sfocatura",
         scrollingCaptureButton: "Cattura con scorrimento",
         scrollingCaptureTitle: "Screenshot con scorrimento",
@@ -1291,7 +1290,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "Modifica immagine copiata",
         clipboardImageMissing: "Copia prima un'immagine",
         screenCaptureTitle: "Acquisizione schermo",
-        dragOutHandleLabel: "Trascina e rilascia"
+        dragOutHandleLabel: "Trascina e rilascia",
+        loupeStartsOnToggle: "Avvia la selezione con la lente attiva"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1382,7 +1382,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "撮影した瞬間にクリップボードへ入り、すぐに貼り付けられます。ファイルとして保存するかどうかは別の選択のままです。",
         hintLoupe: "Zでルーペを切り替え",
         lastRegionToggle: "最後のキャプチャ範囲を表示",
-        loupeStartsOnToggle: "選択開始時に拡大鏡をオンにする",
         backdropBlurLabel: "ぼかし",
         scrollingCaptureButton: "スクロール撮影",
         scrollingCaptureTitle: "スクロールスクリーンショット",
@@ -1432,7 +1431,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "コピーした画像を編集",
         clipboardImageMissing: "先に画像をコピーしてください",
         screenCaptureTitle: "画面キャプチャ",
-        dragOutHandleLabel: "ドラッグ＆ドロップ"
+        dragOutHandleLabel: "ドラッグ＆ドロップ",
+        loupeStartsOnToggle: "選択開始時に拡大鏡をオンにする"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1523,7 +1523,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "캡처하는 즉시 클립보드에 담겨 바로 붙여넣을 수 있습니다. 파일로 저장하는 것은 여전히 별도의 선택입니다.",
         hintLoupe: "Z 키로 확대경 전환",
         lastRegionToggle: "마지막 캡처 영역 표시",
-        loupeStartsOnToggle: "선택 시작 시 돋보기 켜기",
         backdropBlurLabel: "흐림",
         scrollingCaptureButton: "스크롤 캡처",
         scrollingCaptureTitle: "스크롤 스크린샷",
@@ -1573,7 +1572,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "복사한 이미지 편집",
         clipboardImageMissing: "먼저 이미지를 복사하세요",
         screenCaptureTitle: "화면 캡처",
-        dragOutHandleLabel: "드래그 앤 드롭"
+        dragOutHandleLabel: "드래그 앤 드롭",
+        loupeStartsOnToggle: "선택 시작 시 돋보기 켜기"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1664,7 +1664,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "每次截屏后会立即进入剪贴板，随时可以粘贴。是否存储为文件仍是单独的选择。",
         hintLoupe: "按 Z 切换放大镜",
         lastRegionToggle: "显示上次截屏区域轮廓",
-        loupeStartsOnToggle: "开始选择时启用放大镜",
         backdropBlurLabel: "模糊",
         scrollingCaptureButton: "滚动截图",
         scrollingCaptureTitle: "滚动截图",
@@ -1714,7 +1713,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "编辑已拷贝的图像",
         clipboardImageMissing: "请先拷贝一张图像",
         screenCaptureTitle: "屏幕捕捉",
-        dragOutHandleLabel: "拖放"
+        dragOutHandleLabel: "拖放",
+        loupeStartsOnToggle: "开始选择时启用放大镜"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1805,7 +1805,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "每次截圖後會立即進入剪貼板，隨時可以貼上。是否儲存為檔案仍是獨立的選擇。",
         hintLoupe: "按 Z 切換放大鏡",
         lastRegionToggle: "顯示上次截圖區域輪廓",
-        loupeStartsOnToggle: "開始選取時啟用放大鏡",
         backdropBlurLabel: "模糊",
         scrollingCaptureButton: "捲動截圖",
         scrollingCaptureTitle: "捲動截圖",
@@ -1855,7 +1854,8 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
         screenCaptureTitle: "螢幕擷取",
-        dragOutHandleLabel: "拖放"
+        dragOutHandleLabel: "拖放",
+        loupeStartsOnToggle: "開始選取時啟用放大鏡"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1946,7 +1946,6 @@ extension ScreenshotFeatureStrings {
         autoCopyCaption: "每次截圖後會立即進入剪貼板，隨時可以貼上。是否儲存為檔案仍是獨立的選擇。",
         hintLoupe: "按 Z 切換放大鏡",
         lastRegionToggle: "顯示上次截圖區域輪廓",
-        loupeStartsOnToggle: "開始選取時啟用放大鏡",
         backdropBlurLabel: "模糊",
         scrollingCaptureButton: "捲動截圖",
         scrollingCaptureTitle: "捲動截圖",
@@ -1996,6 +1995,7 @@ extension ScreenshotFeatureStrings {
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
         screenCaptureTitle: "螢幕擷取",
-        dragOutHandleLabel: "拖放"
+        dragOutHandleLabel: "拖放",
+        loupeStartsOnToggle: "開始選取時啟用放大鏡"
     )
 }

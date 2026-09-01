@@ -43,18 +43,12 @@ enum ScreenshotCapturePolicy {
     /// ScreenCaptureKit for the one window that was clicked returns it without
     /// whatever the app put on top — the capture comes back showing a dialog
     /// that is plainly on screen as missing. The relationship is not in the
-    /// window list, and the Accessibility API that does know it would put a
-    /// permission behind a feature that needs only Screen Recording, so the
-    /// shape it has instead: same application, in front of the window, and
-    /// lying entirely within it.
+    /// window list, so this first pass finds the shape it has there: same
+    /// application, in front of the window, and lying entirely within it.
     ///
-    /// Containment is what carries this, and it is deliberately strict.
-    /// Drawing a window the person did not choose is worse than leaving a
-    /// dialog out, because the shot then quietly holds something they never
-    /// selected, so anything that reaches past the clicked window's edge —
-    /// another document window, a compose window, an inspector — is left to
-    /// the ordinary capture. It also takes a sheet the full width of its
-    /// parent, which a rule about being smaller would have thrown away.
+    /// Containment bounds the first pass to the clicked window's area. Anything
+    /// reaching past its edge is left to the ordinary capture, while a sheet
+    /// the full width of its parent still qualifies.
     ///
     /// `nil` when nothing is attached, which leaves the ordinary single-window
     /// capture to answer.
@@ -73,5 +67,18 @@ enum ScreenshotCapturePolicy {
         let ordered = Array(attached.reversed())
         return AttachedCapturePlan(windowIDs: [target.id] + ordered.map(\.id),
                                    bounds: target.frame)
+    }
+
+    /// Narrows a geometric plan to the attached windows Accessibility named.
+    /// A missing answer leaves geometry alone; an answer with no matches leaves
+    /// the ordinary single-window capture to answer.
+    static func confirmedAttachment(_ plan: AttachedCapturePlan,
+                                    confirmedIDs: Set<CGWindowID>?) -> AttachedCapturePlan? {
+        guard let confirmedIDs else { return plan }
+        guard let targetID = plan.windowIDs.first else { return nil }
+        let attachedIDs = plan.windowIDs.dropFirst().filter(confirmedIDs.contains)
+        guard !attachedIDs.isEmpty else { return nil }
+        return AttachedCapturePlan(windowIDs: [targetID] + attachedIDs,
+                                   bounds: plan.bounds)
     }
 }

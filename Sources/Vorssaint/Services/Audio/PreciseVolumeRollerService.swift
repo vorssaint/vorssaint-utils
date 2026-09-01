@@ -37,6 +37,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         if let source {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
         }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         source = nil
         gate.reset()
