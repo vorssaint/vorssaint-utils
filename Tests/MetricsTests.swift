@@ -21614,26 +21614,17 @@ struct MetricsTests {
         }
 
         // Disabling a tap and dropping the last Swift reference does not hand
-        // the port back. Measured on main: after tapEnable(false),
-        // CFRunLoopRemoveSource and setting the properties to nil, the mach
-        // port name still carries receive and send rights, and
-        // CGGetEventTapList still reports the tap against this process — one
-        // more per start/stop cycle, for the life of the process. Only
-        // CFMachPortInvalidate deregisters it, so the rule is the absence of a
-        // tap owner that never invalidates, not a list of the ones somebody
-        // noticed. Counted per tap, not per file: BrightnessService and
-        // SuperKeyService own two taps each and WindowLayoutService three, so
-        // one invalidate somewhere in the file must not answer for all of
-        // them. Comments are stripped first, as in the per-service check
-        // above, so prose naming the API cannot answer for it either. The
-        // owners the sweep actually found are counted and asserted, because a
-        // file with no literal `CGEvent.tapCreate` is skipped: move the call
-        // behind a helper and every owner drops out, leaving a loop that
-        // passes having checked nothing. A count above the tap count is not
-        // headroom either — MouseClickDebounceService's two invalidations are
-        // both on its one tap, so a second tap added there would pass for
-        // free; the rule catches a file that invalidates none of its taps, not
-        // one that misses a tap it already covers twice.
+        // the port back: CGGetEventTapList still reports the tap against this
+        // process, one more per start/stop cycle, for the life of the process.
+        // Only CFMachPortInvalidate deregisters it. Counted per tap rather than
+        // per file, because BrightnessService and SuperKeyService own two taps
+        // each and WindowLayoutService three, and on comment-stripped source,
+        // as in the per-service check above, so prose naming the API cannot
+        // answer for a missing call. A margin does not cover a tap added later:
+        // MouseClickDebounceService's two invalidations are both on its one
+        // tap. The owners reached are counted too, because a file with no
+        // literal CGEvent.tapCreate is skipped, so moving the call behind a
+        // helper would otherwise leave a sweep that passes having read nothing.
         var tapOwnersWithoutInvalidate: [String] = []
         var tapOwners = 0
         let tapOwnerSources = FileManager.default
