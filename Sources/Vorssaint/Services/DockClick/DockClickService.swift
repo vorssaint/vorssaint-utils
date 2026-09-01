@@ -477,6 +477,11 @@ final class DockClickService {
     /// Minimize item (⌘M): one window per click, but the click works. This
     /// runs off the tap, so it can afford a longer leash than the tap-side
     /// window enumeration — busy JVMs routinely need it.
+    /// Menu items one Minimize All walk may read. The other menu walks in
+    /// this app stop at 600; an unbounded one here reads every item of every
+    /// menu the app has, at two or three cross-process reads each.
+    private static let minimizeMenuItemBudget = 600
+
     private static func handleMinimizeMenu(pid: pid_t) -> MinimizeMenuOutcome {
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 1.0)
@@ -487,12 +492,24 @@ final class DockClickService {
         var plainMinimize: AXUIElement?
         var minimizeAll: AXUIElement?
         var hasConflictingOptionM = false
-        // The Window menu sits near the end of the menu bar.
-        for barItem in topLevel.reversed() {
+        // Deliberately not stopped once both items are in hand. The blind
+        // ⌥⌘M this outcome may authorise would fire whatever else is bound to
+        // that combination, so `hasConflictingOptionM` is only trustworthy
+        // after the whole menu bar has been read. The cap below bounds the
+        // walk instead, and a walk that hits it reports the conflict it cannot
+        // rule out. The Window menu sits near the end, hence the reversal.
+        var visited = 0
+        var truncated = false
+        outer: for barItem in topLevel.reversed() {
             guard let menus = elementArray(barItem, kAXChildrenAttribute as String) else { continue }
             for menu in menus {
                 guard let items = elementArray(menu, kAXChildrenAttribute as String) else { continue }
                 for item in items {
+                    guard visited < Self.minimizeMenuItemBudget else {
+                        truncated = true
+                        break outer
+                    }
+                    visited += 1
                     let commandCharacter = stringAttribute(item, "AXMenuItemCmdChar")
                     let modifiers = intAttribute(item, "AXMenuItemCmdModifiers")
                     let isVerifiedMinimizeAll = DockClickSupport.isVerifiedMinimizeAll(
@@ -502,7 +519,12 @@ final class DockClickService {
                     )
                     if isVerifiedMinimizeAll, minimizeAll == nil {
                         minimizeAll = item
-                    } else if commandCharacter?.uppercased() == "M", modifiers == 2 {
+                    }
+                    // Independent of the capture above: a second verified
+                    // Minimize All used to fall through to this branch and
+                    // report the real item as the conflict.
+                    if !isVerifiedMinimizeAll,
+                       commandCharacter?.uppercased() == "M", modifiers == 2 {
                         hasConflictingOptionM = true
                     }
                     if commandCharacter?.uppercased() == "M",
@@ -526,7 +548,9 @@ final class DockClickService {
                 return .performed
             }
         }
-        return hasConflictingOptionM ? .shortcutUnsafe : .unavailable
+        // A truncated walk cannot vouch for the absence of another ⌥⌘M, and
+        // `.unavailable` is what authorises posting one blind.
+        return (hasConflictingOptionM || truncated) ? .shortcutUnsafe : .unavailable
     }
 
     private static func postMinimizeAllShortcut() {
