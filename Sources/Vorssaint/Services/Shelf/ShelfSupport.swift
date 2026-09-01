@@ -353,6 +353,70 @@ enum ShelfEdgeDragSupport {
     }
 }
 
+enum ShelfDockDragSupport {
+    /// How long the pointer has to stay within the collapsed pill trigger
+    /// area before expanding into the full shelf card, so a fast pass
+    /// across the menu bar does not fire unintentionally.
+    static let dwell: TimeInterval = 0.15
+
+    /// Margin around the collapsed pill and menu bar anchor that counts
+    /// as aiming for the docked shelf.
+    static let triggerMargin: CGFloat = 16
+
+    /// Margin around the expanded card to keep it open while aiming for
+    /// tiles or drop targets without jitter.
+    static let retreatMargin: CGFloat = 32
+
+    /// The hit target zone while the docked shelf is collapsed. Uses the
+    /// pill frame when available, expanded by triggerMargin and unioned with
+    /// the status item anchor in the menu bar.
+    static func triggerFrame(pillFrame: CGRect?,
+                             anchorFrame: CGRect?,
+                             screenFrame: CGRect?) -> CGRect? {
+        if let pillFrame, pillFrame.width > 0, pillFrame.height > 0 {
+            let padded = pillFrame.insetBy(dx: -triggerMargin, dy: -triggerMargin)
+            if let anchorFrame, anchorFrame.width > 0, anchorFrame.height > 0 {
+                return padded.union(anchorFrame.insetBy(dx: -triggerMargin, dy: 0))
+            }
+            return padded
+        }
+        if let anchorFrame, anchorFrame.width > 0, anchorFrame.height > 0 {
+            let fallbackHeight: CGFloat = 32
+            let pillY = anchorFrame.minY - 4 - fallbackHeight
+            let estimatedPill = CGRect(x: anchorFrame.midX - 36,
+                                       y: pillY,
+                                       width: 72,
+                                       height: fallbackHeight)
+            return estimatedPill.insetBy(dx: -triggerMargin, dy: -triggerMargin).union(anchorFrame)
+        }
+        return nil
+    }
+
+    /// Whether the pointer is inside the trigger zone (when collapsed)
+    /// or inside the retreat zone (when expanded).
+    static func isPointNearDock(point: CGPoint,
+                                isProximate: Bool,
+                                panelFrame: CGRect?,
+                                anchorFrame: CGRect?,
+                                screenFrame: CGRect?) -> Bool {
+        if isProximate, let panelFrame, panelFrame.width > 0, panelFrame.height > 0 {
+            return panelFrame.insetBy(dx: -retreatMargin, dy: -retreatMargin).contains(point)
+        }
+        guard let target = triggerFrame(pillFrame: panelFrame,
+                                       anchorFrame: anchorFrame,
+                                       screenFrame: screenFrame) else {
+            return false
+        }
+        return target.contains(point)
+    }
+
+    /// Whether a dwell that began at `since` has lasted long enough to count
+    /// as aiming to open the docked card.
+    static func hasDwelled(since: TimeInterval, now: TimeInterval, required: TimeInterval = dwell) -> Bool {
+        now - since >= required
+    }
+}
+
 /// Persisted form of one shelf item, so the shelf survives relaunches (and app
 /// updates, which relaunch the app). Payloads and titles are stored; icons and
 /// image flags are rebuilt from the payload at load.

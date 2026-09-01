@@ -293,7 +293,9 @@ enum SettingsBackupSupport {
     }
 
     private static func isNumber(_ value: Any) -> Bool {
-        guard let value = number(value) else { return false }
-        return CFGetTypeID(value) != CFBooleanGetTypeID()
+        guard let value = number(value), CFGetTypeID(value) != CFBooleanGetTypeID() else {
+            return false
+        }
+        return value.doubleValue.isFinite
     }
 }

@@ -17,6 +17,18 @@ final class MouseClickDebounceService {
 
     private static let ownProcessID = Int64(getpid())
 
+    private static let eventMask: CGEventMask = [
+        CGEventType.leftMouseDown,
+        .leftMouseDragged,
+        .leftMouseUp,
+        .rightMouseDown,
+        .rightMouseDragged,
+        .rightMouseUp,
+        .otherMouseDown,
+        .otherMouseDragged,
+        .otherMouseUp,
+    ].reduce(0) { $0 | (CGEventMask(1) << $1.rawValue) }
+
     private let eventLock = NSLock()
     private let lifecycleLock = NSLock()
     private var tap: CFMachPort?
@@ -130,20 +142,11 @@ final class MouseClickDebounceService {
                 return
             }
 
-            let mask = CGEventMask(1 << CGEventType.leftMouseDown.rawValue)
-                | CGEventMask(1 << CGEventType.leftMouseDragged.rawValue)
-                | CGEventMask(1 << CGEventType.leftMouseUp.rawValue)
-                | CGEventMask(1 << CGEventType.rightMouseDown.rawValue)
-                | CGEventMask(1 << CGEventType.rightMouseDragged.rawValue)
-                | CGEventMask(1 << CGEventType.rightMouseUp.rawValue)
-                | CGEventMask(1 << CGEventType.otherMouseDown.rawValue)
-                | CGEventMask(1 << CGEventType.otherMouseDragged.rawValue)
-                | CGEventMask(1 << CGEventType.otherMouseUp.rawValue)
             guard let tap = CGEvent.tapCreate(
                 tap: .cghidEventTap,
                 place: .headInsertEventTap,
                 options: .defaultTap,
-                eventsOfInterest: mask,
+                eventsOfInterest: Self.eventMask,
                 callback: { _, type, event, userInfo in
                     guard let userInfo else { return Unmanaged.passUnretained(event) }
                     let service = Unmanaged<MouseClickDebounceService>

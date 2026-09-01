@@ -24,6 +24,7 @@ final class AutoQuitService: ObservableObject {
         kAXWindowCreatedNotification,
         kAXMainWindowChangedNotification,
         kAXFocusedWindowChangedNotification,
+        kAXApplicationActivatedNotification,
         kAXApplicationDeactivatedNotification,
         kAXApplicationHiddenNotification,
         kAXApplicationShownNotification
@@ -37,6 +38,7 @@ final class AutoQuitService: ObservableObject {
         kAXWindowCreatedNotification as String,
         kAXWindowDeminiaturizedNotification as String,
         kAXApplicationShownNotification as String,
+        kAXApplicationActivatedNotification as String,
         kAXMainWindowChangedNotification as String,
         kAXFocusedWindowChangedNotification as String
     ])
@@ -109,7 +111,7 @@ final class AutoQuitService: ObservableObject {
         activateToken = center.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
                                            object: nil, queue: .main) { [weak self] note in
             guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
-            self?.attach(app)
+            self?.handleAppActivated(app)
         }
         // AX cannot describe a window parked on another Space. Keep such apps
         // dormant after the bounded retry round, then try them again when the
@@ -157,6 +159,18 @@ final class AutoQuitService: ObservableObject {
 
     // MARK: - Per-app observers
 
+    private func handleAppActivated(_ app: NSRunningApplication) {
+        guard running, app.activationPolicy == .regular else { return }
+        let pid = app.processIdentifier
+        guard pid != getpid() else { return }
+        if let observer = observers[pid] {
+            refreshWindows(pid: pid, observer: observer)
+        } else {
+            retryingApps.remove(pid)
+            attach(app)
+        }
+    }
+
     private func attach(_ app: NSRunningApplication) {
         attach(app, attempt: 0)
     }
@@ -190,7 +204,8 @@ final class AutoQuitService: ObservableObject {
         if AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windows) == .cannotComplete {
             guard attempt < 6 else { retryingApps.remove(pid); return }
             retryingApps.insert(pid)
-            let delay = 5.0 * pow(2.0, Double(attempt))
+            let delays = [0.15, 0.4, 1.0, 2.5, 5.0, 10.0]
+            let delay = attempt < delays.count ? delays[attempt] : 5.0 * pow(2.0, Double(attempt))
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, self.running, !app.isTerminated else { return }
                 self.attach(app, attempt: attempt + 1)
@@ -267,6 +282,9 @@ final class AutoQuitService: ObservableObject {
         }
         if notification == (kAXApplicationDeactivatedNotification as String) {
             return .appDeactivated
+        }
+        if notification == (kAXApplicationActivatedNotification as String) {
+            return .appActivated
         }
         if notification == (kAXMainWindowChangedNotification as String) {
             return .mainWindowChanged
@@ -413,10 +431,13 @@ final class AutoQuitService: ObservableObject {
         }
         // Every user window needs a destroy notification. Accessibility can
         // list none despite the window server seeing one, or an individual
-        // registration can fail after the list succeeds.
+        // registration can fail after the list succeeds. An app that has never
+        // yet shown any window also retries during its initial watch window so
+        // apps creating windows asynchronously on launch are caught.
         if AutoQuitSupport.needsWindowWatchRetry(registeredWindows: watchedWindows,
                                                  listedWindows: windows.count,
-                                                 foundUserWindow: foundUserWindow) {
+                                                 foundUserWindow: foundUserWindow,
+                                                 hadPriorWindows: hadWindows[pid] == true) {
             scheduleWindowWatchRetry(pid: pid)
         } else {
             windowWatchRetries[pid] = nil
@@ -659,11 +680,23 @@ final class AutoQuitService: ObservableObject {
               let candidate = WindowServerTrafficLightHitTest.candidate(
                 at: event.location,
                 button: .close,
-                pidIsEligible: { [weak self] pid in self?.observers[pid] != nil }
+                pidIsEligible: { [weak self] pid in
+                    guard let self else { return false }
+                    if self.observers[pid] != nil { return true }
+                    if let app = NSRunningApplication(processIdentifier: pid), app.activationPolicy == .regular {
+                        self.retryingApps.remove(pid)
+                        self.attach(app)
+                        return self.observers[pid] != nil
+                    }
+                    return false
+                }
               ),
               AXIsProcessTrusted(),
               let pid = closeButtonPID(at: event.location, candidate: candidate) else {
             return Unmanaged.passUnretained(event)
+        }
+        if let observer = observers[pid] {
+            refreshWindows(pid: pid, observer: observer)
         }
         markCloseButtonRequest(pid: pid)
         return Unmanaged.passUnretained(event)
@@ -684,13 +717,20 @@ final class AutoQuitService: ObservableObject {
                 command: true, control: false)
         }
         guard isCloseShortcut,
-              let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              observers[pid] != nil else { return }
+              let app = NSWorkspace.shared.frontmostApplication,
+              app.activationPolicy == .regular else { return }
+        let pid = app.processIdentifier
+        if observers[pid] == nil {
+            retryingApps.remove(pid)
+            attach(app)
+        }
+        guard let observer = observers[pid] else { return }
         // Cmd+W may close only a tab, so it is a weak signal: re-check windows
         // shortly (a genuinely closed last window fails the check and quits),
         // but never unlock the hidden-app quit path — otherwise closing a tab
         // and hiding the app would terminate an app whose window (with all its
         // tabs) still exists.
+        refreshWindows(pid: pid, observer: observer)
         scheduleWindowChecks(pid: pid)
     }
 

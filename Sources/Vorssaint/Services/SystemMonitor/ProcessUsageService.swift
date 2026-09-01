@@ -9,7 +9,7 @@ import IOKit
 struct ProcessUsage: Identifiable, Equatable {
     let pid: pid_t
     let name: String
-    /// CPU/GPU: percentage (0–100+). Memory: bytes. Network: total bytes/s.
+    /// CPU/GPU/energy: percentage (0–100). Memory: bytes. Network: total bytes/s.
     let value: Double
     let networkDownBytesPerSec: Double?
     let networkUpBytesPerSec: Double?
@@ -30,10 +30,10 @@ struct ProcessUsage: Identifiable, Equatable {
 }
 
 /// Answers "which apps are eating this resource?" for the panel's System
-/// section. CPU and memory come from `ps`; GPU comes from the accelerator's
-/// per-process `accumulatedGPUTime` counters, sampled as deltas between calls.
-/// Helper processes are consolidated under the app responsible for them, so
-/// one app shows up once instead of as a pile of helper rows.
+/// section. CPU and GPU come from cumulative per-process counters sampled as
+/// deltas; memory uses `ps` to rank candidates before reading kernel footprint.
+/// Helper processes are consolidated under the app responsible for them, so one
+/// app shows up once instead of as a pile of helper rows.
 final class ProcessUsageService {
     static let shared = ProcessUsageService()
 
@@ -46,7 +46,6 @@ final class ProcessUsageService {
     private let cacheFreshSeconds: TimeInterval = 5
     private let memoryCacheFreshSeconds: TimeInterval = 8
     private let staleCacheSeconds: TimeInterval = 18
-    private let minimumGPUSampleInterval: TimeInterval = 1.8
     private let maximumCachedRows = 60
     private var cpuCache: CachedRows?
     private var memoryCache: CachedRows?
@@ -81,12 +80,26 @@ final class ProcessUsageService {
         return limitedRows(cache, limit: limit, now: now, maxAge: maxAge)
     }
 
-    func top(_ kind: BreakdownKind, limit: Int) -> [ProcessUsage] {
+    func top(_ kind: BreakdownKind,
+             limit: Int,
+             sampleInterval: TimeInterval = 2,
+             cpuPercentage: Double? = nil,
+             gpuPercentage: Double? = nil) -> [ProcessUsage] {
         switch kind {
-        case .cpu: return topCPU(limit: limit)
-        case .gpu: return topGPU(limit: limit)
+        case .cpu:
+            return topCPU(limit: limit,
+                          sampleInterval: sampleInterval,
+                          aggregatePercentage: cpuPercentage)
+        case .gpu:
+            return topGPU(limit: limit,
+                          sampleInterval: sampleInterval,
+                          aggregatePercentage: gpuPercentage)
         case .memory: return topMemory(limit: limit)
-        case .energy: return topEnergy(limit: limit)
+        case .energy:
+            return topEnergy(limit: limit,
+                             sampleInterval: sampleInterval,
+                             cpuPercentage: cpuPercentage,
+                             gpuPercentage: gpuPercentage)
         case .network: return topNetwork(limit: limit)
         }
     }
@@ -162,10 +175,14 @@ final class ProcessUsageService {
     /// macOS does not expose Activity Monitor's Energy Impact as a `ps` column.
     /// For the live battery list, combine the current CPU and GPU app shares and
     /// keep only rows that are meaningfully active right now.
-    func topEnergy(limit: Int = 5) -> [ProcessUsage] {
+    func topEnergy(limit: Int = 5,
+                   sampleInterval: TimeInterval = 2,
+                   cpuPercentage: Double? = nil,
+                   gpuPercentage: Double? = nil) -> [ProcessUsage] {
         let now = ProcessInfo.processInfo.systemUptime
+        let freshness = max(0.5, sampleInterval * 0.8)
         cacheLock.lock()
-        if let cached = limitedRows(energyCache, limit: limit, now: now, maxAge: cacheFreshSeconds) {
+        if let cached = limitedRows(energyCache, limit: limit, now: now, maxAge: freshness) {
             cacheLock.unlock()
             return cached
         }
@@ -178,8 +195,12 @@ final class ProcessUsageService {
         cacheLock.unlock()
 
         let sampleLimit = max(limit * 3, 12)
-        let cpuRows = topCPU(limit: sampleLimit)
-        let gpuRows = topGPU(limit: sampleLimit)
+        let cpuRows = topCPU(limit: sampleLimit,
+                             sampleInterval: sampleInterval,
+                             aggregatePercentage: cpuPercentage)
+        let gpuRows = topGPU(limit: sampleLimit,
+                             sampleInterval: sampleInterval,
+                             aggregatePercentage: gpuPercentage)
         var scores: [pid_t: (name: String, value: Double)] = [:]
 
         for row in cpuRows + gpuRows {
@@ -193,7 +214,9 @@ final class ProcessUsageService {
             .filter { _, score in score.value >= 2 }
             .sorted { $0.value.value > $1.value.value }
             .map { pid, score in
-                ProcessUsage(pid: pid, name: score.name, value: score.value)
+                ProcessUsage(pid: pid,
+                             name: score.name,
+                             value: MetricFormat.boundedPercentage(score.value))
             }
         cacheLock.lock()
         energyCache = cachedRows(from: rows)
@@ -321,13 +344,23 @@ final class ProcessUsageService {
 
     // MARK: - CPU
 
-    func topCPU(limit: Int = 5) -> [ProcessUsage] {
+    private var previousCPUSample: (time: TimeInterval, perPid: [pid_t: UInt64])?
+    private let cpuSampleLock = NSLock()
+
+    func topCPU(limit: Int = 5,
+                sampleInterval: TimeInterval = 2,
+                aggregatePercentage: Double? = nil) -> [ProcessUsage] {
         let now = ProcessInfo.processInfo.systemUptime
-        cacheLock.lock()
-        if let cached = limitedRows(cpuCache, limit: limit, now: now, maxAge: cacheFreshSeconds) {
-            cacheLock.unlock()
-            return cached
+        let minimumInterval = max(0.5, sampleInterval * 0.8)
+
+        cpuSampleLock.lock()
+        let previousTime = previousCPUSample?.time
+        cpuSampleLock.unlock()
+        if let previousTime, now - previousTime < minimumInterval {
+            return cachedTop(.cpu, limit: limit, maxAge: staleCacheSeconds) ?? []
         }
+
+        cacheLock.lock()
         if cpuLoading {
             let cached = limitedRows(cpuCache, limit: limit, now: now, maxAge: staleCacheSeconds) ?? []
             cacheLock.unlock()
@@ -336,11 +369,67 @@ final class ProcessUsageService {
         cpuLoading = true
         cacheLock.unlock()
 
-        let result = Shell.run("/bin/ps", ["-Aceo", "pid,pcpu,comm", "-r"])
-        let rows = result.status == 0
-            ? groupedByApp(parsePS(result.output, maxRows: rawProcessRowLimit(for: limit)) { Double($0) ?? 0 })
-            : nil
-        return finishCPU(rows, limit: limit)
+        let current = Self.cpuTimePerPid()
+        cpuSampleLock.lock()
+        let previous = previousCPUSample
+        previousCPUSample = (now, current)
+        cpuSampleLock.unlock()
+
+        guard let previous, now > previous.time,
+              now - previous.time < max(30, sampleInterval * 4) else {
+            return finishCPU(nil, limit: limit)
+        }
+
+        let elapsed = now - previous.time
+        let processorCount = ProcessInfo.processInfo.activeProcessorCount
+        var rows: [ProcessUsage] = []
+        rows.reserveCapacity(current.count)
+        for (pid, total) in current {
+            guard let before = previous.perPid[pid] else { continue }
+            let percentage = MetricFormat.processCPUPercentage(previousNanoseconds: before,
+                                                                currentNanoseconds: total,
+                                                                elapsed: elapsed,
+                                                                processorCount: processorCount)
+            guard percentage >= 0.01 else { continue }
+            rows.append(ProcessUsage(pid: pid, name: "pid \(pid)", value: percentage))
+        }
+        return finishCPU(reconciledUsageRows(groupedByApp(rows),
+                                             aggregatePercentage: aggregatePercentage),
+                         limit: limit)
+    }
+
+    /// Cumulative user + system CPU nanoseconds for every process visible to
+    /// libproc. Deltas over the monitor interval avoid `ps`'s separate average.
+    private static func cpuTimePerPid() -> [pid_t: UInt64] {
+        var timebase = mach_timebase_info_data_t()
+        guard mach_timebase_info(&timebase) == KERN_SUCCESS else { return [:] }
+        let estimatedCount = max(1, Int(proc_listallpids(nil, 0)))
+        var pids = [pid_t](repeating: 0, count: estimatedCount + 32)
+        let count = pids.withUnsafeMutableBytes { buffer in
+            proc_listallpids(buffer.baseAddress, Int32(buffer.count))
+        }
+        guard count > 0 else { return [:] }
+
+        var perPid: [pid_t: UInt64] = [:]
+        perPid.reserveCapacity(Int(count))
+        for pid in pids.prefix(min(Int(count), pids.count)) where pid > 0 {
+            var info = rusage_info_current()
+            let status = withUnsafeMutablePointer(to: &info) { pointer in
+                pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { rebound in
+                    proc_pid_rusage(pid, RUSAGE_INFO_CURRENT, rebound)
+                }
+            }
+            guard status == 0 else { continue }
+            let total = info.ri_user_time.addingReportingOverflow(info.ri_system_time)
+            guard !total.overflow,
+                  let nanoseconds = MetricFormat.machTimeNanoseconds(
+                      total.partialValue,
+                      numerator: timebase.numer,
+                      denominator: timebase.denom
+                  ) else { continue }
+            perPid[pid] = nanoseconds
+        }
+        return perPid
     }
 
     // MARK: - Memory
@@ -436,6 +525,18 @@ final class ProcessUsageService {
             }
     }
 
+    private func reconciledUsageRows(_ rows: [ProcessUsage],
+                                     aggregatePercentage: Double?) -> [ProcessUsage] {
+        let sampledTotal = rows.reduce(0) { $0 + $1.value }
+        let scale = MetricFormat.processReconciliationScale(sampledTotal: sampledTotal,
+                                                             aggregatePercentage: aggregatePercentage)
+        return rows.map { row in
+            ProcessUsage(pid: row.pid,
+                         name: row.name,
+                         value: MetricFormat.boundedPercentage(row.value * scale))
+        }
+    }
+
     private func groupedNetworkByApp(_ samples: [NetworkProcessSample]) -> [ProcessUsage] {
         var totals: [pid_t: (down: Double, up: Double)] = [:]
         var fallbackNames: [pid_t: String] = [:]
@@ -472,24 +573,16 @@ final class ProcessUsageService {
     /// Per-process GPU share since the previous call. The first call after a
     /// while only primes the baseline and returns [] — callers show a
     /// "measuring" placeholder until the next tick.
-    func topGPU(limit: Int = 5) -> [ProcessUsage] {
+    func topGPU(limit: Int = 5,
+                sampleInterval: TimeInterval = 2,
+                aggregatePercentage: Double? = nil) -> [ProcessUsage] {
         let now = ProcessInfo.processInfo.systemUptime
-        cacheLock.lock()
-        if let cached = limitedRows(gpuCache, limit: limit, now: now, maxAge: cacheFreshSeconds) {
-            cacheLock.unlock()
-            return cached
-        }
-        if gpuLoading {
-            let cached = limitedRows(gpuCache, limit: limit, now: now, maxAge: staleCacheSeconds) ?? []
-            cacheLock.unlock()
-            return cached
-        }
-        cacheLock.unlock()
+        let minimumInterval = max(0.5, sampleInterval * 0.8)
 
         gpuSampleLock.lock()
         let previousTime = previousGPUSample?.time
         gpuSampleLock.unlock()
-        if let previousTime, now - previousTime < minimumGPUSampleInterval {
+        if let previousTime, now - previousTime < minimumInterval {
             return cachedTop(.gpu, limit: limit, maxAge: staleCacheSeconds) ?? []
         }
 
@@ -509,7 +602,7 @@ final class ProcessUsageService {
         gpuSampleLock.unlock()
 
         guard let previous, now > previous.time,
-              now - previous.time < 30 // stale baseline => re-prime
+              now - previous.time < max(30, sampleInterval * 4) // stale baseline => re-prime
         else { return finishGPU(nil, limit: limit) }
 
         let elapsedNs = (now - previous.time) * 1_000_000_000
@@ -520,7 +613,9 @@ final class ProcessUsageService {
             guard percent >= 0.05 else { continue }
             rows.append(ProcessUsage(pid: pid, name: "pid \(pid)", value: min(percent, 100)))
         }
-        return finishGPU(groupedByApp(rows), limit: limit)
+        let groupedRows = reconciledUsageRows(groupedByApp(rows),
+                                               aggregatePercentage: aggregatePercentage)
+        return finishGPU(groupedRows, limit: limit)
     }
 
     private func finishCPU(_ rows: [ProcessUsage]?, limit: Int) -> [ProcessUsage] {

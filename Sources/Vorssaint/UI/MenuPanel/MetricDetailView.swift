@@ -144,6 +144,7 @@ struct MetricDetailView: View {
     @ObservedObject private var speed = SpeedTest.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
     let kind: MetricDetailKind
     @State private var processRows: [ProcessUsage] = []
     @State private var processRowsLoading = false
@@ -177,7 +178,7 @@ struct MetricDetailView: View {
             }
             refreshProcessRows(force: true, delay: 0.2)
         }
-        .onReceive(monitor.$snapshot) { _ in refreshProcessRows(force: false, delay: 0.85) }
+        .onReceive(monitor.$snapshot) { _ in refreshProcessRows(force: false) }
         .onDisappear {
             refreshSerial &+= 1
             processRows = []
@@ -613,17 +614,27 @@ struct MetricDetailView: View {
                 processRowsLoading = true
             }
         }
-        guard force || Date().timeIntervalSince(lastProcessRefresh) > 4 else { return }
+        guard force || Date().timeIntervalSince(lastProcessRefresh) >= processKind.processRefreshInterval(
+            configuredMonitorInterval: monitorInterval
+        ) * 0.8
+        else { return }
 
         refreshSerial &+= 1
         let serial = refreshSerial
+        let sampleInterval = percentageSampleInterval
+        let cpuPercentage = monitor.snapshot.cpuUsage.map { $0 * 100 }
+        let gpuPercentage = monitor.snapshot.gpuUsage.map { $0 * 100 }
         let run = {
             guard self.refreshSerial == serial,
                   self.kind.processKind == processKind else { return }
             self.lastProcessRefresh = Date()
             self.processRowsLoading = self.processRows.isEmpty
             DispatchQueue.global(qos: .utility).async {
-                let rows = ProcessUsageService.shared.top(processKind, limit: processLimit)
+                let rows = ProcessUsageService.shared.top(processKind,
+                                                          limit: processLimit,
+                                                          sampleInterval: sampleInterval,
+                                                          cpuPercentage: cpuPercentage,
+                                                          gpuPercentage: gpuPercentage)
                 let isWarmingUp = processKind == .network && ProcessUsageService.shared.networkMonitoringIsWarmingUp
                 DispatchQueue.main.async {
                     guard self.refreshSerial == serial,
@@ -643,6 +654,10 @@ struct MetricDetailView: View {
         } else {
             run()
         }
+    }
+
+    private var percentageSampleInterval: TimeInterval {
+        TimeInterval(Defaults.sanitizedMonitorInterval(monitorInterval))
     }
 
     private func startNetworkMonitoringIfNeeded() {

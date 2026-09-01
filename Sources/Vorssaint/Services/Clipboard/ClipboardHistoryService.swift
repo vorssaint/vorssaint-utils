@@ -463,10 +463,20 @@ final class ClipboardHistoryService: ObservableObject {
         quickSelectionIndex = clampedQuickSelectionIndex(for: filteredQuickEntries.count)
     }
 
-    func removeSelectedQuickEntry() {
-        guard let entry = selectedQuickEntry else { return }
-        remove(entry)
+    func removeSelectedQuickEntries() {
+        let selectedEntries = quickEntriesForPrimaryAction()
+        guard !selectedEntries.isEmpty else { return }
+        let idsToRemove = Set(selectedEntries.map(\.id))
+        entries.removeAll { idsToRemove.contains($0.id) }
+        var selected = quickBatchEntryIDs
+        selected.subtract(idsToRemove)
+        quickBatchEntryIDs = selected
         quickSelectionIndex = clampedQuickSelectionIndex(for: filteredQuickEntries.count)
+        save()
+    }
+
+    func removeSelectedQuickEntry() {
+        removeSelectedQuickEntries()
     }
 
     /// Where the pointer sat when the keyboard last moved the selection. Rows
@@ -1223,9 +1233,10 @@ final class ClipboardHistoryService: ObservableObject {
                 self.togglePinSelectedQuickEntry()
                 return nil
             }
-            if modifiers == [.option],
+            if (modifiers == [.option]
+                || (modifiers == [.command] && ClipboardHistoryBatch.listOwnsDeleteShortcut(batchCount: self.quickBatchCount))),
                event.keyCode == UInt16(kVK_Delete) || event.keyCode == UInt16(kVK_ForwardDelete) {
-                self.removeSelectedQuickEntry()
+                self.removeSelectedQuickEntries()
                 return nil
             }
             if event.keyCode == UInt16(kVK_DownArrow) {
