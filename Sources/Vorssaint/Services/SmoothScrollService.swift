@@ -2,8 +2,10 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Combine
 import CoreGraphics
+import QuartzCore
 
 /// Turns the mouse wheel's discrete jumps into short glides: a tap swallows
 /// each wheel tick and replays its distance as a stream of continuous pixel
@@ -25,11 +27,16 @@ final class SmoothScrollService: ObservableObject {
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var displayLink: CADisplayLink?
     private var frameTimer: Timer?
-    /// Remaining glide distance per axis, in pixels. Touched only on the main
-    /// thread (tap callback and timer both live on the main run loop).
-    private var remainingVertical: Double = 0
-    private var remainingHorizontal: Double = 0
+    private var schedulerDisplayID: CGDirectDisplayID?
+    private var screenObserver: NSObjectProtocol?
+    private var sleepObserver: NSObjectProtocol?
+    /// Pure per-axis distance engine. The tap callback and timer both live on
+    /// the main run loop, so no lock is needed around its state.
+    private var engine = SmoothScrollSupport.Engine()
+    private var lastFrameTimestamp: TimeInterval?
+    private var currentResponse = SmoothScrollSupport.defaultResponse
     /// Sub-pixel leftovers kept between frames, so a wheel that moves in
     /// fractions of a pixel still travels its full distance.
     private var carryVertical: Double = 0
@@ -51,6 +58,8 @@ final class SmoothScrollService: ObservableObject {
     /// Timestamp (ns, event clock) of the last event carrying a gesture phase —
     /// only touch devices emit those. Read/written solely on the tap callback.
     private var lastGesturePhaseTimestamp: UInt64?
+    private var tapCreationRetryUsed = false
+    private var tapCreationRetryWork: DispatchWorkItem?
 
     private init() {
         // Fast user switching: the tap goes back while this session is off
@@ -65,7 +74,7 @@ final class SmoothScrollService: ObservableObject {
         let wanted = AppFeature.smoothScroll.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.smoothScrollEnabled)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
-                                               accessibilityGranted: Permissions.shared.accessibility,
+                                               accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
             start()
         } else {
@@ -83,6 +92,8 @@ final class SmoothScrollService: ObservableObject {
             if let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
+            installScreenObserver()
+            installSleepObserver()
             MouseAppExceptions.shared.setSourceTracking(true, for: .smoothScroll)
             isRunning = true
             return
@@ -103,10 +114,21 @@ final class SmoothScrollService: ObservableObject {
             MouseAppExceptions.shared.setSourceTracking(false, for: .smoothScroll)
             isRunning = false
             // A create that fails during the session handoff gets one more look once the switch settles.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.syncWithPreferences() }
+            guard !tapCreationRetryUsed else { return }
+            tapCreationRetryUsed = true
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.tapCreationRetryWork = nil
+                self.syncWithPreferences()
+            }
+            tapCreationRetryWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
             return
         }
 
+        tapCreationRetryUsed = false
+        tapCreationRetryWork?.cancel()
+        tapCreationRetryWork = nil
         self.tap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         runLoopSource = source
@@ -114,11 +136,18 @@ final class SmoothScrollService: ObservableObject {
         _ = ScrollInverter.shared
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        installScreenObserver()
+        installSleepObserver()
         isRunning = true
     }
 
     private func stop() {
+        tapCreationRetryWork?.cancel()
+        tapCreationRetryWork = nil
+        tapCreationRetryUsed = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .smoothScroll)
+        removeScreenObserver()
+        removeSleepObserver()
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -142,8 +171,21 @@ final class SmoothScrollService: ObservableObject {
         // unless this session is the one that was switched away from, where
         // the stall is the reason the tap was disabled and re-arming feeds it.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if SessionActivity.shared.isActive, let tap {
+            stopGlide()
+            let wanted = AppFeature.smoothScroll.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.smoothScrollEnabled)
+            let shouldRearm = SessionActivitySupport.tapShouldRun(
+                featureWanted: wanted,
+                accessibilityGranted: AXIsProcessTrusted(),
+                sessionIsActive: SessionActivity.shared.isActive
+            )
+            if shouldRearm, let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in
+                    self?.stop()
+                    self?.syncWithPreferences()
+                }
             }
             return Unmanaged.passUnretained(event)
         }
@@ -236,7 +278,7 @@ final class SmoothScrollService: ObservableObject {
             // never translates continuous events, apps react to the replayed
             // Shift flag.
             let userStep = Double(SmoothScrollSupport.sanitizedStep(
-                UserDefaults.standard.integer(forKey: DefaultsKey.smoothScrollStep)))
+                defaults.integer(forKey: DefaultsKey.smoothScrollStep)))
             vertical = SmoothScrollSupport.continuousDistance(
                 fixedPointDelta: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1),
                 pointDelta: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)),
@@ -263,7 +305,7 @@ final class SmoothScrollService: ObservableObject {
             vertical = axes.vertical * invertVertical
             horizontal = axes.horizontal * invertHorizontal
             step = Double(SmoothScrollSupport.sanitizedStep(
-                UserDefaults.standard.integer(forKey: DefaultsKey.smoothScrollStep)))
+                defaults.integer(forKey: DefaultsKey.smoothScrollStep)))
         }
         guard vertical != 0 || horizontal != 0 else {
             return Unmanaged.passUnretained(event)
@@ -274,20 +316,19 @@ final class SmoothScrollService: ObservableObject {
         // sign handling. Drop the old tail instead of fighting it.
         if currentFlags.contains(.maskShift) != shiftPressed
             || glideFromContinuous != traits.isContinuous {
-            remainingVertical = 0
-            remainingHorizontal = 0
+            engine.reset()
             carryVertical = 0
             carryHorizontal = 0
         }
-        carryVertical = SmoothScrollSupport.carry(carryVertical, continuing: vertical)
-        carryHorizontal = SmoothScrollSupport.carry(carryHorizontal, continuing: horizontal)
-        remainingVertical = SmoothScrollSupport.remaining(afterTicks: vertical,
-                                                          step: step,
-                                                          current: remainingVertical)
-        remainingHorizontal = SmoothScrollSupport.remaining(afterTicks: horizontal,
-                                                            step: step,
-                                                            current: remainingHorizontal)
+        let verticalDistance = vertical * step
+        let horizontalDistance = horizontal * step
+        carryVertical = SmoothScrollSupport.carry(carryVertical, continuing: verticalDistance)
+        carryHorizontal = SmoothScrollSupport.carry(carryHorizontal, continuing: horizontalDistance)
+        engine.add(vertical: verticalDistance, horizontal: horizontalDistance)
         currentFlags = event.flags
+        currentResponse = SmoothScrollSupport.sanitizedResponse(
+            defaults.integer(forKey: DefaultsKey.smoothScrollResponse)
+        )
         glideFromContinuous = traits.isContinuous
         startGlideIfNeeded()
         // The tick itself is swallowed; the glide replays its distance.
@@ -297,42 +338,122 @@ final class SmoothScrollService: ObservableObject {
     // MARK: - Glide
 
     private func startGlideIfNeeded() {
-        guard frameTimer == nil else { return }
+        let screen = NSScreen.withMouse
+        var displayID: CGDirectDisplayID?
+        if let candidate = screen?.displayID, candidate != 0 {
+            displayID = candidate
+        }
+        if displayLink != nil, displayID == schedulerDisplayID { return }
+        if frameTimer != nil, displayID == nil { return }
+
+        stopFrameScheduler()
+        if let screen, let displayID {
+            let displayLink = screen.displayLink(
+                target: self,
+                selector: #selector(displayLinkDidFire(_:))
+            )
+            self.displayLink = displayLink
+            schedulerDisplayID = displayID
+            displayLink.add(to: .main, forMode: .common)
+            return
+        }
+
+        lastFrameTimestamp = ProcessInfo.processInfo.systemUptime - SmoothScrollSupport.frameInterval
         let timer = Timer(timeInterval: SmoothScrollSupport.frameInterval, repeats: true) { [weak self] _ in
-            self?.emitFrame()
+            self?.emitTimerFrame()
         }
         RunLoop.main.add(timer, forMode: .common)
         frameTimer = timer
-        emitFrame()
+        emitTimerFrame()
     }
 
     private func stopGlide() {
-        frameTimer?.invalidate()
-        frameTimer = nil
-        remainingVertical = 0
-        remainingHorizontal = 0
+        stopFrameScheduler()
+        engine.reset()
         carryVertical = 0
         carryHorizontal = 0
     }
 
-    private func emitFrame() {
-        let vertical = SmoothScrollSupport.frameDelta(remaining: remainingVertical)
-        let horizontal = SmoothScrollSupport.frameDelta(remaining: remainingHorizontal)
-        remainingVertical -= vertical
-        remainingHorizontal -= horizontal
+    private func stopFrameScheduler() {
+        // A scheduled display link retains its target until invalidated.
+        displayLink?.invalidate()
+        displayLink = nil
+        frameTimer?.invalidate()
+        frameTimer = nil
+        schedulerDisplayID = nil
+        lastFrameTimestamp = nil
+    }
+
+    @objc private func displayLinkDidFire(_ sender: CADisplayLink) {
+        guard let displayLink, sender === displayLink else { return }
+        let firstElapsed = sender.duration > 0 ? sender.duration : SmoothScrollSupport.frameInterval
+        emitFrame(at: sender.timestamp, firstElapsed: firstElapsed)
+    }
+
+    private func emitTimerFrame() {
+        emitFrame(
+            at: ProcessInfo.processInfo.systemUptime,
+            firstElapsed: SmoothScrollSupport.frameInterval
+        )
+    }
+
+    private func emitFrame(at timestamp: TimeInterval, firstElapsed: TimeInterval) {
+        let elapsed: TimeInterval
+        if let lastFrameTimestamp {
+            elapsed = timestamp - lastFrameTimestamp
+        } else {
+            elapsed = firstElapsed
+        }
+        lastFrameTimestamp = timestamp
+        let frame = engine.advance(elapsed: elapsed, response: currentResponse)
 
         // The frame that empties the budget is the glide's last, so it spends
         // the leftovers rather than saving them for a frame that never comes.
-        let landing = remainingVertical == 0 && remainingHorizontal == 0
-        if vertical != 0 || horizontal != 0 {
-            post(vertical: vertical, horizontal: horizontal, landing: landing)
+        if frame.vertical != 0 || frame.horizontal != 0 {
+            post(vertical: frame.vertical, horizontal: frame.horizontal, landing: frame.finished)
         }
-        if landing {
-            frameTimer?.invalidate()
-            frameTimer = nil
+        if frame.finished {
+            stopFrameScheduler()
             carryVertical = 0
             carryHorizontal = 0
         }
+    }
+
+    private func installScreenObserver() {
+        guard screenObserver == nil else { return }
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard self?.engine.isActive == true else { return }
+            self?.startGlideIfNeeded()
+        }
+    }
+
+    private func removeScreenObserver() {
+        if let screenObserver {
+            NotificationCenter.default.removeObserver(screenObserver)
+        }
+        screenObserver = nil
+    }
+
+    private func installSleepObserver() {
+        guard sleepObserver == nil else { return }
+        sleepObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.stopGlide()
+        }
+    }
+
+    private func removeSleepObserver() {
+        if let sleepObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(sleepObserver)
+        }
+        sleepObserver = nil
     }
 
     private func post(vertical: Double, horizontal: Double, landing: Bool) {

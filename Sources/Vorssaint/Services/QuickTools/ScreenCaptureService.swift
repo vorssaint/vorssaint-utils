@@ -195,7 +195,11 @@ final class ScreenCaptureService: ObservableObject {
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
             mode: policy.usesGeometry ? .geometry : .image,
             supportsScrollingCapture: options.availableTools.contains(.screenshot),
-            screenCaptureOptions: options)
+            screenCaptureOptions: options,
+            onCapturePolicyChange: { [weak self, weak options] in
+                guard let self, let options else { return }
+                self.replaceSelection(options: options)
+            })
         selection = controller
         controller.begin { [weak self, weak controller, weak options] outcome in
             guard let self, let controller, let options,
@@ -204,6 +208,21 @@ final class ScreenCaptureService: ObservableObject {
             self.options = nil
             self.route(outcome, selected: options.selectedTool,
                        recorderAudio: options.recorderAudio)
+        }
+    }
+
+    /// Rebuilds only when the newly selected tool needs different source
+    /// pixels or window policy. Tools with the same policy keep switching in
+    /// place, preserving the flicker-free chooser.
+    private func replaceSelection(options: ScreenCaptureSelectionOptions) {
+        guard let controller = selection, self.options === options else { return }
+        selection = nil
+        controller.cancel()
+        DispatchQueue.main.async { [weak self, weak options] in
+            guard let self, let options, self.selection == nil,
+                  self.options === options,
+                  options.selectedTool.feature.isAvailable else { return }
+            self.startSelection(options: options)
         }
     }
 

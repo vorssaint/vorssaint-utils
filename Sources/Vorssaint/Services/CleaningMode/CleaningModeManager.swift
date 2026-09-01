@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Combine
 import CoreGraphics
 import SwiftUI
@@ -39,6 +40,7 @@ final class CleaningModeManager: ObservableObject {
     private var runLoopSource: CFRunLoopSource?
     private var overlays: [NSPanel] = []
     private var screenObserver: NSObjectProtocol?
+    private var shouldRestoreSuspendedFeaturesOnSessionReturn = false
 
     /// The unlock-gesture state machine (pure, unit-tested separately).
     /// The 6s press window forgives hesitant, deliberate presses — at 2s a user
@@ -53,7 +55,21 @@ final class CleaningModeManager: ObservableObject {
                                                     threshold: unlockThreshold,
                                                     pressWindow: 6.0)
 
-    private init() {}
+    private init() {
+        // A switched-away login session cannot keep a filter tap in the input
+        // chain. Cleaning is a temporary local state, so leaving the session
+        // ends it; suspended features resume only after this session returns.
+        SessionActivity.shared.onChange { [weak self] active in
+            guard let self else { return }
+            if active {
+                guard self.shouldRestoreSuspendedFeaturesOnSessionReturn else { return }
+                self.shouldRestoreSuspendedFeaturesOnSessionReturn = false
+                self.resumeSuspendedFeatures()
+            } else if self.isActive {
+                self.deactivate(restoreSuspendedFeatures: false)
+            }
+        }
+    }
 
     func toggle() { isActive ? deactivate() : activate() }
 
@@ -72,6 +88,7 @@ final class CleaningModeManager: ObservableObject {
         // of ours (head-insert order depends on creation order) and would eat
         // the repeated same-key presses the unlock gesture counts on.
         KeyboardDebounceService.shared.suspend()
+        MouseClickDebounceService.shared.suspend()
         // Wiping the trackpad is nothing but stray three-finger contacts;
         // middle-click emulation must not fire from them.
         MiddleClickService.shared.suspend()
@@ -90,6 +107,10 @@ final class CleaningModeManager: ObservableObject {
     }
 
     func deactivate() {
+        deactivate(restoreSuspendedFeatures: true)
+    }
+
+    private func deactivate(restoreSuspendedFeatures: Bool) {
         guard isActive else { return }
         removeTap()
         removeScreenObserver()
@@ -97,8 +118,19 @@ final class CleaningModeManager: ObservableObject {
         unlock.reset()
         unlockProgress = 0
         isActive = false
-        // Restore debounce and middle click if the user still has them enabled.
+        guard restoreSuspendedFeatures else {
+            shouldRestoreSuspendedFeaturesOnSessionReturn = true
+            return
+        }
+        shouldRestoreSuspendedFeaturesOnSessionReturn = false
+        resumeSuspendedFeatures()
+    }
+
+    private func resumeSuspendedFeatures() {
+        // Each owner reads its current availability, preference and permission,
+        // so a feature changed while Cleaning Mode was active stays changed.
         KeyboardDebounceService.shared.syncWithPreferences()
+        MouseClickDebounceService.shared.syncWithPreferences()
         MiddleClickService.shared.syncWithPreferences()
         MouseNavigationService.shared.syncWithPreferences()
         MouseButtonShortcutService.shared.syncWithPreferences()
@@ -139,6 +171,7 @@ final class CleaningModeManager: ObservableObject {
     private func removeTap() {
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let runLoopSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes) }
+        if let tap { CFMachPortInvalidate(tap) }
         tap = nil
         runLoopSource = nil
     }
@@ -149,8 +182,15 @@ final class CleaningModeManager: ObservableObject {
         // The system disables taps that stall or when the session locks; re-arm so
         // the keyboard stays locked instead of silently coming back.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
-            return nil
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                return nil
+            }
+            let restoreSuspendedFeatures = SessionActivity.shared.isActive
+            DispatchQueue.main.async { [weak self] in
+                self?.deactivate(restoreSuspendedFeatures: restoreSuspendedFeatures)
+            }
+            return Unmanaged.passUnretained(event)
         }
 
         // Feed key-downs to the unlock state machine. Auto-repeat (holding a key)

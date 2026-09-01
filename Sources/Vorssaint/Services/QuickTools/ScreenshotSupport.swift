@@ -1433,8 +1433,14 @@ enum ScreenshotSupport {
     /// edge the sample slides inward instead of shrinking, and the loupe's
     /// reticle still marks the exact adjusted pixel.
     static let captureLoupeBaseSampleSide: CGFloat = 13
+    static let captureLoupeMinSampleSide: CGFloat = 3
     static let captureLoupeMinZoom: CGFloat = 0.5
-    static let captureLoupeMaxZoom: CGFloat = 4
+    static var captureLoupeMaxZoom: CGFloat {
+        captureLoupeBaseSampleSide / captureLoupeMinSampleSide
+    }
+    /// The magnifier square on screen, in view points. Big enough that each
+    /// sampled pixel becomes a readable grid cell at every zoom level.
+    static let captureLoupeFrameSide: CGFloat = 132
 
     static func captureLoupeZoom(_ zoom: CGFloat, adjustedBy scrollDelta: CGFloat) -> CGFloat {
         guard scrollDelta != 0 else {
@@ -1444,9 +1450,31 @@ enum ScreenshotSupport {
         return min(max(zoom * factor, captureLoupeMinZoom), captureLoupeMaxZoom)
     }
 
+    /// Sampled source pixels per side. Always an odd whole number, never
+    /// below three, so the pixel under the pointer is a real middle cell
+    /// that the grid can outline instead of a boundary between two cells.
     static func captureLoupeSampleSide(zoom: CGFloat) -> CGFloat {
         let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
-        return captureLoupeBaseSampleSide / clamped
+        let raw = captureLoupeBaseSampleSide / clamped
+        let odd = 2 * (raw / 2).rounded(.down) + 1
+        return max(captureLoupeMinSampleSide, odd)
+    }
+
+    /// The pixel grid earns its ink only once a cell is big enough that the
+    /// lines separate pixels instead of shading the whole image.
+    static func captureLoupeGridVisible(frameSide: CGFloat, sampleSide: CGFloat) -> Bool {
+        sampleSide > 0 && frameSide / sampleSide >= 6
+    }
+
+    /// Arrow keys move the pointer by whole device pixels of the screen it is
+    /// on, in points, so one press always lands on the neighbouring pixel
+    /// even on Retina displays. Shift covers ten pixels per press.
+    static func captureLoupeNudge(dx: CGFloat,
+                                  dy: CGFloat,
+                                  fast: Bool,
+                                  scale: CGFloat) -> CGPoint {
+        let step = (fast ? 10 : 1) / max(scale, 1)
+        return CGPoint(x: dx * step, y: dy * step)
     }
 
     /// The square of source pixels a loupe magnifies. The two loupes centre on

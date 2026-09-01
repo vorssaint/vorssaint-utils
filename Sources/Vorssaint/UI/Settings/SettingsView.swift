@@ -358,6 +358,7 @@ struct SettingsView: View {
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
+        case .quitProtection: QuitProtectionSettings()
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
         case .urlCleaner: URLCleanerSettings()
@@ -902,11 +903,23 @@ struct MouseSettings: View {
         FocusFollowsMouseSupport.defaultDelayMilliseconds
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
+    @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
+        SmoothScrollSupport.defaultResponse
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
+    @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
+        Defaults.defaultMouseClickDebounceWindowMs
+    @State private var smoothScrollMoreOptionsExpanded = false
+    @State private var mouseClickDebounceMoreOptionsExpanded = false
+
+    private var mouseClickDebounceText: MouseClickDebounceStrings {
+        FeatureStrings.mouseClickDebounce(l10n.language)
+    }
 
     var body: some View {
         Form {
@@ -915,10 +928,12 @@ struct MouseSettings: View {
                     Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
                         .onChange(of: invertVertical) { _, _ in
                             ScrollInverter.shared.syncWithPreferences()
+                            if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
                     Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
                         .onChange(of: invertHorizontal) { _, _ in
                             ScrollInverter.shared.syncWithPreferences()
+                            if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
                     if scrollDirectionEnabled, inverter.isRunning {
                         HStack(spacing: 6) {
@@ -959,6 +974,7 @@ struct MouseSettings: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 68, alignment: .trailing)
                         }
+                        MouseExceptionsList(scope: .focusFollowsMouse)
                     }
                 }
                 .settingsSectionAnchor(.focusFollowsMouse)
@@ -966,8 +982,9 @@ struct MouseSettings: View {
             if AppFeature.smoothScroll.isAvailable {
                 Section(l10n.s.smoothScrollName) {
                     Toggle(l10n.s.smoothScrollName, isOn: $smoothScrollEnabled)
-                        .onChange(of: smoothScrollEnabled) { _, _ in
+                        .onChange(of: smoothScrollEnabled) { _, enabled in
                             SmoothScrollService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
                         }
                     Text(l10n.s.smoothScrollCaption)
                         .font(.caption)
@@ -984,16 +1001,46 @@ struct MouseSettings: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 34, alignment: .trailing)
                         }
+                        DisclosureGroup(isExpanded: $smoothScrollMoreOptionsExpanded) {
+                            HStack {
+                                Slider(value: smoothScrollResponseBinding,
+                                       in: Double(SmoothScrollSupport.responseRange.lowerBound)
+                                           ... Double(SmoothScrollSupport.responseRange.upperBound),
+                                       step: 5) {
+                                    Text(l10n.s.smoothScrollResponseLabel)
+                                }
+                                Text("\(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse))%")
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 42, alignment: .trailing)
+                            }
+                            .padding(.top, 4)
+                        } label: {
+                            Text(mouseClickDebounceText.moreOptions)
+                        }
                         MouseExceptionsList(scope: .smoothScroll)
                     }
                 }
                 .settingsSectionAnchor(.smoothScroll)
             }
+            if AppFeature.mouseAcceleration.isAvailable {
+                Section(l10n.s.mouseAccelerationName) {
+                    Toggle(l10n.s.mouseAccelerationName, isOn: $mouseAccelerationDisabled)
+                        .onChange(of: mouseAccelerationDisabled) { _, _ in
+                            MouseAccelerationService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.mouseAccelerationCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .settingsSectionAnchor(.mouseAcceleration)
+            }
             if AppFeature.mouseNavigation.isAvailable {
                 Section(l10n.s.mouseNavigationSection) {
                     Toggle(l10n.s.mouseNavigationEnable, isOn: $mouseNavigationEnabled)
-                        .onChange(of: mouseNavigationEnabled) { _, _ in
+                        .onChange(of: mouseNavigationEnabled) { _, enabled in
                             MouseNavigationService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
                         }
                     Text(l10n.s.mouseNavigationCaption)
                         .font(.caption)
@@ -1012,11 +1059,41 @@ struct MouseSettings: View {
             if AppFeature.mouseButtonShortcuts.isAvailable {
                 MouseButtonShortcutsSection()
             }
+            if AppFeature.mouseClickDebounce.isAvailable {
+                Section(mouseClickDebounceText.title) {
+                    Toggle(mouseClickDebounceText.title, isOn: $mouseClickDebounceEnabled)
+                        .onChange(of: mouseClickDebounceEnabled) { _, enabled in
+                            MouseClickDebounceService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
+                        }
+                    SettingsCaptionText(mouseClickDebounceText.caption)
+                    if mouseClickDebounceEnabled {
+                        DisclosureGroup(isExpanded: $mouseClickDebounceMoreOptionsExpanded) {
+                            Stepper(value: mouseClickDebounceWindowBinding,
+                                    in: Defaults.allowedMouseClickDebounceWindowRange,
+                                    step: 5) {
+                                HStack {
+                                    Text(mouseClickDebounceText.windowLabel)
+                                    Spacer()
+                                    Text("\(Defaults.sanitizedMouseClickDebounceWindow(mouseClickDebounceWindow)) ms")
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                            }
+                            SettingsCaptionText(mouseClickDebounceText.windowCaption)
+                        } label: {
+                            Text(mouseClickDebounceText.moreOptions)
+                        }
+                    }
+                }
+                .settingsSectionAnchor(.mouseClickDebounce)
+            }
             if AppFeature.middleClick.isAvailable {
                 Section(l10n.s.middleClickSection) {
                     Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
-                        .onChange(of: middleClickEnabled) { _, _ in
+                        .onChange(of: middleClickEnabled) { _, enabled in
                             MiddleClickService.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
                         }
                     Text(l10n.s.middleClickEnableCaption)
                         .font(.caption)
@@ -1066,6 +1143,7 @@ struct MouseSettings: View {
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || ((mouseButtonShortcutsEnabled || spacesEnabled)
                 && AppFeature.mouseButtonShortcuts.isAvailable)
+            || (mouseClickDebounceEnabled && AppFeature.mouseClickDebounce.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
@@ -1081,12 +1159,29 @@ struct MouseSettings: View {
         )
     }
 
+    private var smoothScrollResponseBinding: Binding<Double> {
+        Binding(
+            get: { Double(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse)) },
+            set: { smoothScrollResponse = Int($0) }
+        )
+    }
+
     private var focusFollowsMouseDelayBinding: Binding<Double> {
         Binding(
             get: { Double(FocusFollowsMouseSupport.sanitizedDelay(focusFollowsMouseDelay)) },
             set: {
                 focusFollowsMouseDelay = Int($0)
                 FocusFollowsMouseService.shared.preferencesDidChange()
+            }
+        )
+    }
+
+    private var mouseClickDebounceWindowBinding: Binding<Int> {
+        Binding(
+            get: { Defaults.sanitizedMouseClickDebounceWindow(mouseClickDebounceWindow) },
+            set: {
+                mouseClickDebounceWindow = Defaults.sanitizedMouseClickDebounceWindow($0)
+                MouseClickDebounceService.shared.syncWithPreferences()
             }
         )
     }
@@ -1100,6 +1195,7 @@ struct SwitcherSettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
+    @AppStorage(DefaultsKey.switcherTakeOverSystemShortcuts) private var switcherTakeOverSystemShortcuts = false
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
@@ -1126,6 +1222,18 @@ struct SwitcherSettings: View {
     private var switcherShortcutDisplayString: String {
         (GlobalShortcut(storageValue: switcherShortcutStorage) ?? .switcherDefault).displayString
     }
+    private var switcherWindowlessAppsSelection: Binding<String> {
+        Binding(
+            get: {
+                SwitcherWindowlessApps.mode(
+                    storedValue: switcherWindowlessApps,
+                    takeOverSystemShortcuts: switcherTakeOverSystemShortcuts).rawValue
+            },
+            set: { value in
+                if !switcherTakeOverSystemShortcuts { switcherWindowlessApps = value }
+            }
+        )
+    }
 
     var body: some View {
         Form {
@@ -1149,6 +1257,15 @@ struct SwitcherSettings: View {
                         AppSwitcher.shared.syncWithPreferences()
                     }
                     Text(l10n.s.switcherWindowShortcutCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.switcherTakeOverSystemShortcuts,
+                           isOn: $switcherTakeOverSystemShortcuts)
+                        .disabled(!switcherEnabled)
+                        .onChange(of: switcherTakeOverSystemShortcuts) { _, _ in
+                            AppSwitcher.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.switcherTakeOverSystemShortcutsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(String(format: l10n.s.switcherUsageHintFormat,
@@ -1242,12 +1359,13 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    Picker(l10n.s.switcherWindowlessApps, selection: $switcherWindowlessApps) {
+                    Picker(l10n.s.switcherWindowlessApps,
+                           selection: switcherWindowlessAppsSelection) {
                         Text(l10n.s.switcherWindowlessAppsOff).tag(SwitcherWindowlessApps.off.rawValue)
                         Text(l10n.s.switcherWindowlessAppsFinder).tag(SwitcherWindowlessApps.finder.rawValue)
                         Text(l10n.s.switcherWindowlessAppsAll).tag(SwitcherWindowlessApps.all.rawValue)
                     }
-                    .disabled(!switcherEnabled)
+                    .disabled(!switcherEnabled || switcherTakeOverSystemShortcuts)
                     Text(l10n.s.switcherWindowlessAppsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)

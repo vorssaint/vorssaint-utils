@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import ScreenCaptureKit
 
 /// Raw pixel acquisition for the screenshot tool. Displays go through
@@ -131,10 +132,21 @@ enum ScreenshotCaptureEngine {
         // the ordinary capture keeps the faster route.
         let onScreen = onScreenWindows()
         if let target = onScreen.first(where: { $0.id == windowID }),
-           let plan = ScreenshotCapturePolicy.attachedCapturePlan(target: target,
-                                                                  frontToBack: onScreen),
-           let composited = await captureAttached(plan) {
-            return composited
+           let geometricPlan = ScreenshotCapturePolicy.attachedCapturePlan(
+               target: target, frontToBack: onScreen) {
+            var plan: ScreenshotCapturePolicy.AttachedCapturePlan? = geometricPlan
+            if Permissions.shared.accessibility {
+                let confirmedIDs = accessibilityAttachedWindowIDs(
+                    targetWindowID: target.id,
+                    ownerPID: target.ownerPID,
+                    candidateWindowIDs: Array(geometricPlan.windowIDs.dropFirst()))
+                plan = ScreenshotCapturePolicy.confirmedAttachment(
+                    geometricPlan, confirmedIDs: confirmedIDs)
+            }
+            if let plan,
+               let composited = await captureAttached(plan) {
+                return composited
+            }
         }
         var clippedFallback: CGImage?
         if let image = WindowPreviewProvider.captureViaWindowServer(windowID) {
@@ -185,6 +197,62 @@ enum ScreenshotCaptureEngine {
         }
     }
 
+    /// The geometric candidates Accessibility does not positively identify as
+    /// standard windows. `nil` means the app did not provide a window map that
+    /// names the target.
+    private static func accessibilityAttachedWindowIDs(
+        targetWindowID: CGWindowID,
+        ownerPID: pid_t,
+        candidateWindowIDs: [CGWindowID]) -> Set<CGWindowID>? {
+        guard AXIsProcessTrusted() else { return nil }
+        let application = AXUIElementCreateApplication(ownerPID)
+        guard let windows = accessibilityElements(application, kAXWindowsAttribute as CFString)
+        else { return nil }
+
+        var elementsByID: [CGWindowID: AXUIElement] = [:]
+        for window in windows {
+            if let id = AXWindowResolver.windowID(for: window) {
+                elementsByID[id] = window
+            }
+        }
+        guard !elementsByID.isEmpty,
+              elementsByID[targetWindowID] != nil
+        else { return nil }
+
+        var confirmed: Set<CGWindowID> = []
+        for candidateID in candidateWindowIDs {
+            guard let element = elementsByID[candidateID] else {
+                // AX had no answer for this one — only a window AX positively identifies as standard is filtered out.
+                confirmed.insert(candidateID)
+                continue
+            }
+            // The standard set matches what the auto-quit and enumeration paths already read.
+            if let subrole = accessibilityString(element, kAXSubroleAttribute as CFString),
+               subrole == (kAXStandardWindowSubrole as String) || subrole == "AXFullScreenWindow" {
+                continue
+            }
+            confirmed.insert(candidateID)
+        }
+        return confirmed
+    }
+
+    private static func accessibilityElements(_ element: AXUIElement,
+                                              _ attribute: CFString) -> [AXUIElement]? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success,
+              let elements = value as? [AXUIElement]
+        else { return nil }
+        return elements
+    }
+
+    private static func accessibilityString(_ element: AXUIElement,
+                                            _ attribute: CFString) -> String? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success
+        else { return nil }
+        return value as? String
+    }
+
     /// Draws the clicked window together with what the app stacked on it.
     /// ScreenCaptureKit is the only route that takes more than one window. It
     /// captures their composited display, then crops it to the area they cover.
@@ -197,8 +265,13 @@ enum ScreenshotCaptureEngine {
         let windows = plan.windowIDs.compactMap { id in
             content.windows.first { $0.windowID == id }
         }
+        let hits = content.displays.filter { $0.frame.intersects(plan.bounds) }
+        // A window straddling two displays has no single display to crop from,
+        // while one hanging off a lone display's edge still does: the crop
+        // clamps the part that is on screen.
         guard windows.count == plan.windowIDs.count,
-              let display = content.displays.first(where: { $0.frame.intersects(plan.bounds) }),
+              hits.count == 1,
+              let display = hits.first,
               let screen = NSScreen.screens.first(where: { $0.displayID == display.displayID }),
               let mainScreen = NSScreen.screens.first
         else { return nil }

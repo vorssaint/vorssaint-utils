@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "侧键当前已启用",
         smoothScrollName: "平滑滚动",
         smoothScrollCaption: "把鼠标滚轮的每一格变成短暂顺滑的滑动。触控板不受影响。",
-        smoothScrollStepLabel: "每格滚动距离",
+        smoothScrollStepLabel: "滚动速度",
         mouseNavigationSection: "导航",
         mouseNavigationEnable: "使用侧键后退和前进",
         mouseNavigationCaption: "将鼠标的后退和前进按钮转换为 Finder、浏览器和兼容 App 的导航命令。",
@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "App",
         switcherShortcutHintWindows: "窗口",
         switcherWindowShortcutCaption: "打开最前 App 的窗口切换器。App 切换器打开时，在所选 App 的窗口之间跳转。",
+        switcherTakeOverSystemShortcuts: "接管 macOS 的 ⌘Tab 和 ⌘`",
+        switcherTakeOverSystemShortcutsCaption: "仅在 Vorssaint 切换器运行时停用对应的 macOS App 与窗口快捷键，并保留所有正在运行的 App 入口。",
         switcherAppearanceDelay: "显示延迟",
         switcherAppearanceDelayCaption: "按住快捷键多久后显示切换器。",
         switcherMergeTabs: "每个 App 仅显示一项",
@@ -803,6 +805,9 @@ extension Strings {
         cleaningOverlaySubtitle: "按下 Esc 键 5 次以解锁",
         cleaningOverlayUnlock: "解锁",
         cleaningOverlayMouseHint: "你的鼠标和触控板仍可使用",
+        cleaningKeepScreenVisibleToggle: "保持屏幕可见",
+        cleaningKeepScreenVisibleCaption: "在屏幕角落显示小巧的指示条，而不调暗屏幕内容。",
+        cleaningStartNow: "立即锁定键盘",
         cleaningNeedsAxTitle: "需要辅助功能",
         cleaningNeedsAxBody: "为安全地锁定键盘，Vorssaint 需要辅助功能权限。请在“系统设置”中授予后重试。",
 
@@ -977,6 +982,9 @@ extension Strings {
         switcherScreenPlacementPointer: "指针所在的屏幕",
         switcherScreenPlacementMenuBar: "菜单栏所在的屏幕",
         switcherScreenPlacementActiveWindow: "活跃窗口所在的屏幕",
-        switcherScreenPlacementCaption: "连接多个屏幕时，切换器在哪个屏幕上打开。"
+        switcherScreenPlacementCaption: "连接多个屏幕时，切换器在哪个屏幕上打开。",
+        smoothScrollResponseLabel: "响应",
+        mouseAccelerationName: "关闭鼠标加速",
+        mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。"
     )
 }

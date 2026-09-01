@@ -404,6 +404,9 @@ struct MenuPanelView: View {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
                          horizontalPadding: 7) {
+                // The hosted utility's own page, or the general one from the
+                // panel's lists: the router is sticky, so it is set every time.
+                SettingsRouter.shared.page = PanelInteractionState.shared.hostedSettingsPage ?? .general
                 appDelegate()?.openSettingsWindow()
             }
 
@@ -625,9 +628,32 @@ struct UtilitiesSection: View {
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
         }
-        .onDisappear {
-            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        .onChange(of: hostedSettingsPage) { _, page in
+            PanelInteractionState.shared.hostedSettingsPage = page
         }
+        .onDisappear {
+            // Another section, or a metric, replacing this one takes the
+            // tool off screen with it; a closed panel does not, and keeps it.
+            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            PanelInteractionState.shared.hostedSettingsPage = nil
+        }
+    }
+
+    /// The Settings page that belongs to whichever tool the section is
+    /// showing, derived from the same state as `isHostingUtility` so every
+    /// hosted tool is covered by the one list. Mirrored by the `onChange`
+    /// beside it, and cleared only where this section leaves the screen.
+    private var hostedSettingsPage: SettingsPage? {
+        if showUninstaller { return .uninstaller }
+        if showCleanerPanel { return .cleaner }
+        if showURLCleaner { return .urlCleaner }
+        if showHomebrewPanel { return .homebrew }
+        if showMediaPanel { return .media }
+        if showClipboardPanel { return .clipboard }
+        if showRecentCapturesPanel { return .screenshot }
+        if showWindowLayoutPanel { return .windowLayout }
+        if showAppUpdatesPanel { return .appUpdates }
+        return nil
     }
 
     /// True while the section is showing one of the tools instead of its own
@@ -1010,8 +1036,9 @@ struct UtilitiesSection: View {
 }
 
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
-    case mouseScroll, focusFollowsMouse, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
-         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey
+    case mouseScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
+         dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
+         mouseClickDebounce
 
     var id: String { rawValue }
 
@@ -1021,6 +1048,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         switch self {
         case .mouseScroll: return .scrollInverter
         case .focusFollowsMouse: return .focusFollowsMouse
+        case .mouseAcceleration: return .mouseAcceleration
         case .mouseNavigation: return .mouseNavigation
         case .switcher: return .switcher
         case .cutPaste: return .finderCutPaste
@@ -1035,6 +1063,7 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .radialMenu: return .radialMenu
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
+        case .mouseClickDebounce: return .mouseClickDebounce
         }
     }
 }
@@ -1050,8 +1079,8 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
         switch item {
         case .switcher, .dockPreview, .dockClick, .dockClickHide, .dockClickCycle, .windowMaximize, .autoQuit:
             return .windows
-        case .mouseScroll, .focusFollowsMouse, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
-             .textSnippets, .radialMenu, .superKey:
+        case .mouseScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
+             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -1096,6 +1125,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.superKeyEnabled) private var superKeyEnabled = false
+    @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifierStorage =
         SuperKeySupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
@@ -1118,6 +1149,8 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlRadialMenu) private var showRadialMenu = true
     @AppStorage(DefaultsKey.panelControlMouseButtonShortcuts) private var showMouseButtonShortcuts = true
     @AppStorage(DefaultsKey.panelControlSuperKey) private var showSuperKey = true
+    @AppStorage(DefaultsKey.panelControlMouseAcceleration) private var showMouseAcceleration = true
+    @AppStorage(DefaultsKey.panelControlMouseClickDebounce) private var showMouseClickDebounce = true
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1219,6 +1252,7 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll: return scrollDirectionEnabled
         case .focusFollowsMouse: return focusFollowsMouseEnabled
+        case .mouseAcceleration: return mouseAccelerationDisabled
         case .mouseNavigation: return mouseNavigationEnabled
         case .switcher: return switcherEnabled
         case .cutPaste: return cutPasteEnabled
@@ -1235,6 +1269,7 @@ struct QuickControlsSection: View {
         case .radialMenu: return radialMenuEnabled
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
+        case .mouseClickDebounce: return mouseClickDebounceEnabled
         }
     }
 
@@ -1294,6 +1329,7 @@ struct QuickControlsSection: View {
         switch item {
         case .mouseScroll: return showScroll
         case .focusFollowsMouse: return showFocusFollowsMouse
+        case .mouseAcceleration: return showMouseAcceleration
         case .mouseNavigation: return showMouseNavigation
         case .switcher: return showSwitcher
         case .keyDebounce: return showKeyDebounce
@@ -1310,6 +1346,7 @@ struct QuickControlsSection: View {
         case .radialMenu: return showRadialMenu
         case .mouseButtonShortcuts: return showMouseButtonShortcuts
         case .superKey: return showSuperKey
+        case .mouseClickDebounce: return showMouseClickDebounce
         }
     }
 
@@ -1663,6 +1700,34 @@ struct QuickControlsSection: View {
                     SuperKeyService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .mouseAcceleration:
+            PanelToggleRow(title: l10n.s.mouseAccelerationName,
+                           caption: l10n.s.mouseAccelerationCaption,
+                           systemImage: "cursorarrow.rays",
+                           isOn: $mouseAccelerationDisabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showMouseAcceleration)
+                .onChange(of: mouseAccelerationDisabled) { _, _ in
+                    MouseAccelerationService.shared.syncWithPreferences()
+                }
+        case .mouseClickDebounce:
+            let debounceStrings = FeatureStrings.mouseClickDebounce(l10n.language)
+            PanelToggleRow(title: debounceStrings.title,
+                           caption: caption(debounceStrings.caption,
+                                            needsAccessibility: mouseClickDebounceEnabled),
+                           systemImage: "cursorarrow.click",
+                           isOn: $mouseClickDebounceEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showMouseClickDebounce,
+                           needsAttention: mouseClickDebounceEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(mouseClickDebounceEnabled))
+                .onChange(of: mouseClickDebounceEnabled) { _, enabled in
+                    MouseClickDebounceService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
         }
     }
 
@@ -1694,6 +1759,8 @@ struct QuickControlsSection: View {
         showRadialMenu = true
         showMouseButtonShortcuts = true
         showSuperKey = true
+        showMouseAcceleration = true
+        showMouseClickDebounce = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false

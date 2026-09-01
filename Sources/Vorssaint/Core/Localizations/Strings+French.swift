@@ -155,7 +155,7 @@ extension Strings {
         mouseNavigationActiveNow: "Boutons latéraux actifs en ce moment",
         smoothScrollName: "Défilement fluide",
         smoothScrollCaption: "Transforme chaque cran de la molette de la souris en un court glissement fluide. Le trackpad ne change pas.",
-        smoothScrollStepLabel: "Distance par cran",
+        smoothScrollStepLabel: "Vitesse de défilement",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Utiliser les boutons latéraux pour Précédent et Suivant",
         mouseNavigationCaption: "Transforme les boutons Précédent et Suivant de la souris en commandes de navigation dans le Finder, les navigateurs et les apps compatibles.",
@@ -207,6 +207,8 @@ extension Strings {
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Fenêtres",
         switcherWindowShortcutCaption: "Ouvre un sélecteur pour les fenêtres de l’app au premier plan. Sélecteur d’apps ouvert, passe d’une fenêtre à l’autre de l’app sélectionnée.",
+        switcherTakeOverSystemShortcuts: "Remplacer ⌘Tab et ⌘` de macOS",
+        switcherTakeOverSystemShortcutsCaption: "Désactive les raccourcis macOS correspondants uniquement lorsque le sélecteur Vorssaint est actif. Toutes les apps ouvertes restent accessibles.",
         switcherAppearanceDelay: "Délai d’affichage",
         switcherAppearanceDelayCaption: "Durée pendant laquelle le raccourci doit rester enfoncé avant l’affichage du sélecteur.",
         switcherMergeTabs: "Afficher une seule entrée par app",
@@ -803,6 +805,9 @@ extension Strings {
         cleaningOverlaySubtitle: "Appuyez 5 fois sur Échap pour déverrouiller",
         cleaningOverlayUnlock: "Déverrouiller",
         cleaningOverlayMouseHint: "Votre souris et votre trackpad fonctionnent toujours",
+        cleaningKeepScreenVisibleToggle: "Garder l'écran visible",
+        cleaningKeepScreenVisibleCaption: "Affiche un indicateur discret dans un coin de l'écran sans masquer le contenu.",
+        cleaningStartNow: "Verrouiller le clavier maintenant",
         cleaningNeedsAxTitle: "Accessibilité requise",
         cleaningNeedsAxBody: "Pour verrouiller le clavier en toute sécurité, Vorssaint a besoin de l’autorisation Accessibilité. Accordez-la dans les Réglages Système et réessayez.",
 
@@ -977,6 +982,9 @@ extension Strings {
         switcherScreenPlacementPointer: "Écran avec le pointeur",
         switcherScreenPlacementMenuBar: "Écran avec la barre des menus",
         switcherScreenPlacementActiveWindow: "Écran avec la fenêtre active",
-        switcherScreenPlacementCaption: "Sur quel écran le sélecteur s'ouvre quand plusieurs sont connectés."
+        switcherScreenPlacementCaption: "Sur quel écran le sélecteur s'ouvre quand plusieurs sont connectés.",
+        smoothScrollResponseLabel: "Réactivité",
+        mouseAccelerationName: "Désactiver l’accélération de la souris",
+        mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint."
     )
 }

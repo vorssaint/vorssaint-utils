@@ -19,12 +19,20 @@ final class FocusFollowsMouseService {
     private var delayMilliseconds = FocusFollowsMouseSupport.defaultDelayMilliseconds
     private var isRunning = false
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in
+            self?.syncWithPreferences()
+        }
+    }
 
     func syncWithPreferences() {
         let wanted = AppFeature.focusFollowsMouse.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseEnabled)
-        if wanted, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(
+            featureWanted: wanted,
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive
+        ) {
             start()
         } else {
             stop()
@@ -53,7 +61,7 @@ final class FocusFollowsMouseService {
         }
         delayMilliseconds = Self.savedDelay()
         guard let mouseMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: .mouseMoved,
+            matching: [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged],
             handler: { [weak self] event in
                 guard let point = event.cgEvent?.location else { return }
                 self?.recordMovement(to: point)
@@ -96,7 +104,9 @@ final class FocusFollowsMouseService {
               NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
               let evaluation = state.nextEvaluation(
                   at: ProcessInfo.processInfo.systemUptime,
-                  delayMilliseconds: delayMilliseconds)
+                  delayMilliseconds: delayMilliseconds),
+              !MouseAppExceptions.shared.excludesPointerTarget(
+                  .focusFollowsMouse, at: evaluation.point)
         else { return }
 
         queryQueue.async { [weak self] in
