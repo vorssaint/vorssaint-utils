@@ -21355,8 +21355,17 @@ struct MetricsTests {
         // SuperKeyService own two taps each and WindowLayoutService three, so
         // one invalidate somewhere in the file must not answer for all of
         // them. Comments are stripped first, as in the per-service check
-        // above, so prose naming the API cannot answer for it either.
+        // above, so prose naming the API cannot answer for it either. The
+        // owners the sweep actually found are counted and asserted, because a
+        // file with no literal `CGEvent.tapCreate` is skipped: move the call
+        // behind a helper and every owner drops out, leaving a loop that
+        // passes having checked nothing. A count above the tap count is not
+        // headroom either — MouseClickDebounceService's two invalidations are
+        // both on its one tap, so a second tap added there would pass for
+        // free; the rule catches a file that invalidates none of its taps, not
+        // one that misses a tap it already covers twice.
         var tapOwnersWithoutInvalidate: [String] = []
+        var tapOwners = 0
         let tapOwnerSources = FileManager.default
             .enumerator(atPath: "Sources/Vorssaint")?
             .compactMap { $0 as? String }
@@ -21369,13 +21378,15 @@ struct MetricsTests {
                 .joined(separator: "\n")
             let taps = code.components(separatedBy: "CGEvent.tapCreate").count - 1
             guard taps > 0 else { continue }
+            tapOwners += 1
             let invalidations = code.components(separatedBy: "CFMachPortInvalidate").count - 1
             if invalidations < taps {
                 tapOwnersWithoutInvalidate.append("\(file) (\(taps) taps, \(invalidations) invalidated)")
             }
         }
-        expect(!tapOwnerSources.isEmpty && tapOwnersWithoutInvalidate.isEmpty,
-               "every event tap owner invalidates its port on teardown: \(tapOwnersWithoutInvalidate)")
+        expect(tapOwners > 0 && tapOwnersWithoutInvalidate.isEmpty,
+               "every event tap owner invalidates its port on teardown, across "
+               + "\(tapOwners) scanned owners: \(tapOwnersWithoutInvalidate)")
 
         let mouseTapAppDelegateSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
