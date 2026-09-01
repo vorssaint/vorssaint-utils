@@ -541,13 +541,24 @@ final class AutoQuitService: ObservableObject {
         let watchedWindow = WatchedWindow(element: window)
         if watchedWindowElements[pid]?.contains(watchedWindow) == true { return true }
         var watched = false
+        // The destroy notification alone decides whether this counts as a
+        // watched window, but the memo has to hold all three: an app that stops
+        // answering partway leaves the miniaturize pair unregistered, and
+        // remembering the window on the strength of the destroy registration
+        // would mean never asking for the other two again. Without the
+        // deminiaturized notification the window is never cleared from
+        // `minimizedWindows`, so the app reads as still having a minimized
+        // window and never quits.
+        var allRegistered = true
         for notification in Self.windowNotifications {
             let result = AXObserverAddNotification(observer, window, notification as CFString, refcon)
+            let registered = AutoQuitSupport.isWindowNotificationRegistered(result)
+            if !registered { allRegistered = false }
             if notification == kAXUIElementDestroyedNotification {
-                watched = AutoQuitSupport.isWindowNotificationRegistered(result)
+                watched = registered
             }
         }
-        if watched { watchedWindowElements[pid, default: []].insert(watchedWindow) }
+        if allRegistered { watchedWindowElements[pid, default: []].insert(watchedWindow) }
         return watched
     }
 

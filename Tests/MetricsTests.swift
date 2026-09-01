@@ -5047,14 +5047,22 @@ struct MetricsTests {
             "needsWindowWatchRetry(registeredWindows: watchedWindows,",
             "listedWindows: windows.count,",
             "if notification == kAXUIElementDestroyedNotification {",
-            "watched = AutoQuitSupport.isWindowNotificationRegistered(result)",
+            "watched = registered",
         ]
         let missingWindowWatchRetryCode = windowWatchRetryCode.filter {
             autoQuitServiceCodeLines(containing: $0).isEmpty
         }
         expect(missingWindowWatchRetryCode.isEmpty,
                "the AutoQuit window-watch retry stays bounded, origin-based, re-armed by Space changes, and counts only windows whose destroy notification registered: missing \(missingWindowWatchRetryCode)")
-        // The memo of already-watched windows is only worth having while it
+        // The memo is gated on all three registrations while the retry count is
+        // gated on the destroyed one alone, and the two must not be merged. A
+        // window whose destroy registered but whose miniaturize pair did not
+        // has to keep counting as watched, or the retry never settles — but it
+        // must not be memoized, or nothing ever asks for the missing pair
+        // again, `clearMinimizedWindow` never runs for it, and the app reads as
+        // still holding a minimized window for the rest of its run.
+        //
+        // The memo is also only worth having while it
         // stays free to consult: it is keyed on the window element, whose
         // `CFEqual` and `CFHash` answer locally, and a key that had to be
         // fetched from the app would cost more messaging than it saves. Both
@@ -5066,7 +5074,8 @@ struct MetricsTests {
             "CFEqual(lhs.element, rhs.element)",
             "hasher.combine(CFHash(element))",
             "if watchedWindowElements[pid]?.contains(watchedWindow) == true { return true }",
-            "if watched { watchedWindowElements[pid, default: []].insert(watchedWindow) }",
+            "if !registered { allRegistered = false }",
+            "if allRegistered { watchedWindowElements[pid, default: []].insert(watchedWindow) }",
             "watchedWindowElements[pid] = nil",
             "watchedWindowElements.removeAll()",
             "guard pendingRefreshes.insert(pid).inserted else { return }",

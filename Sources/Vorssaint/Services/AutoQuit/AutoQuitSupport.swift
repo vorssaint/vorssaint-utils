@@ -65,10 +65,10 @@ enum AutoQuitSupport {
     }
 
     /// Whether adding a window notification left the observer watching for it.
-    /// Already registered is the ordinary answer, not a failure: every refresh
-    /// registers the windows it is already watching again, and counting those
-    /// as unwatched would zero the count above on every refresh and leave the
-    /// retry firing for as long as the app runs.
+    /// Already registered is the ordinary answer, not a failure: a window the
+    /// service has not yet memoized is asked for again, and counting an answer
+    /// of already-registered as unwatched would zero the count above and leave
+    /// the retry firing for as long as the app runs.
     static func isWindowNotificationRegistered(_ result: AXError) -> Bool {
         result == .success || result == .notificationAlreadyRegistered
     }
