@@ -3314,6 +3314,8 @@ struct MetricsTests {
                "panel Homebrew utility is visible by default")
         expect(registeredDefaults[DefaultsKey.panelUtilityMedia] as? Bool == true,
                "panel Media utility is visible by default")
+        expect(registeredDefaults[DefaultsKey.archiveExcludeDSStore] as? Bool == true,
+               "archive creation excludes .DS_Store files by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseScroll] as? Bool == true,
                "panel mouse scroll control is visible by default")
         expect(registeredDefaults[DefaultsKey.panelControlMouseNavigation] as? Bool == true,
@@ -8523,6 +8525,7 @@ struct MetricsTests {
             (.cleaner, .cleaner),
             (.uninstaller, .uninstaller),
             (.appUpdates, .appUpdates),
+            (.archiveTools, .archiveTools),
         ]
         let actionCoveredPages = actionCoveredMappings.map { page, feature in
             SettingsSearchItem(id: .page(page), destination: FeatureSettingsDestination(page),
@@ -8540,6 +8543,13 @@ struct MetricsTests {
                     && !actionCoveredItems.contains { $0.id == .feature(feature) },
                    "the differently titled \(feature.rawValue) rows keep only the page identity")
         }
+        let archiveSearchItem = actionCoveredItems.first { $0.id == .page(.archiveTools) }
+        let unavailableArchiveRoute = archiveSearchItem.map {
+            SettingsSearchSupport.route(for: $0) { _ in false }
+        }
+        expect(unavailableArchiveRoute?.destination == FeatureSettingsDestination(.features)
+                && unavailableArchiveRoute?.targetFeature == .archiveTools,
+               "an unavailable Archive tools page targets its exact Feature Hub row")
 
         let dedicatedSettingsItems = [
             SettingsSearchItem(id: .page(.features),
@@ -12295,6 +12305,17 @@ struct MetricsTests {
         expect(timedOutProcess.timedOut && timedOutProcess.status == -1
                 && Date().timeIntervalSince(timeoutStarted) < 1.5,
                "a stalled subprocess is terminated inside its deadline")
+        let cancellationToken = CancellationToken()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.05) {
+            cancellationToken.cancel()
+        }
+        let cancellationStarted = Date()
+        let cancelledProcess = BoundedProcessRunner.run(
+            "/bin/sh", ["-c", "trap '' TERM; /bin/sleep 5"],
+            timeout: nil, maxOutputBytes: 1_024, cancellationToken: cancellationToken)
+        expect(cancellationToken.isCancelled && !cancelledProcess.timedOut
+                && Date().timeIntervalSince(cancellationStarted) < 1.5,
+               "a cancellation token terminates a process without dropping bounded pipe cleanup")
 
         // Reproduces the freeze in issue #971 from the other side: the app's
         // own abandoned waits had filled the shared dispatch pool, so nothing
@@ -12662,7 +12683,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -12670,7 +12691,7 @@ struct MetricsTests {
             "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
-            "diskImageInstaller",
+            "diskImageInstaller", "archiveTools",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
@@ -12741,6 +12762,7 @@ struct MetricsTests {
         expect(AppFeature.availabilityDefaults.count == AppFeature.allCases.count
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.archiveTools.availabilityKey] as? Bool) == true
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
@@ -12749,7 +12771,7 @@ struct MetricsTests {
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
-               "new opt-in features ship uninstalled while existing features remain available")
+               "hardware-sensitive and higher-risk features opt in while ordinary file tools remain available")
         expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
                 == AppFeature.allCases.count,
                "every feature belongs to exactly one group")
@@ -12836,6 +12858,12 @@ struct MetricsTests {
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
                 && AppFeature.diskImageInstaller.energyProfile == .idle,
                "the disk image installer is an event-driven file feature with contextual app access")
+        expect(AppFeature.archiveTools.group == .clipboardFiles
+                && AppFeature.archiveTools.enabledKeys.isEmpty
+                && AppFeature.archiveTools.permissions.isEmpty
+                && AppFeature.archiveTools.energyProfile == .idle
+                && AppFeature.archiveTools.settingsDestination == FeatureSettingsDestination(.archiveTools),
+               "Archive tools is an on-demand file feature with a dedicated page and no broad permission")
         expect(AppFeature.bluetoothSleep.group == .energyDisplay
                 && AppFeature.bluetoothSleep.enabledKeys == [DefaultsKey.bluetoothSleepEnabled]
                 && AppFeature.bluetoothSleep.permissions.isEmpty
@@ -12893,6 +12921,337 @@ struct MetricsTests {
                          "\(language.rawValue) installer kept-download format")
             expectFormat(strings.alreadyInstalledBodyFormat, ["@"],
                          "\(language.rawValue) installer existing-app format")
+        }
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.archiveTools(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 14 && values.allSatisfy { !$0.isEmpty },
+                   "Archive tools has every create-ZIP string for \(language.rawValue)")
+            expectFormat(strings.selectedItemsFormat, ["d"],
+                         "\(language.rawValue) Archive tools selection format")
+            expectFormat(strings.completedFormat, ["@"],
+                         "\(language.rawValue) Archive tools completion format")
+            expectFormat(strings.duplicateSourceFormat, ["@"],
+                         "\(language.rawValue) Archive tools duplicate format")
+        }
+
+        // MARK: Archive tools
+
+        expect((AppFeature.availabilityDefaults[AppFeature.archiveTools.availabilityKey] as? Bool) == true,
+               "Archive tools ships available because it has no permission or background cost")
+        let settingsDirectoryCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SettingsDirectory.swift",
+            encoding: .utf8)) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.split(separator: "//", maxSplits: 1, omittingEmptySubsequences: false).first ?? "" }
+            .joined(separator: "\n")
+        expect(settingsDirectoryCode.contains("SettingsDirectoryItem(page: .archiveTools,")
+                && settingsDirectoryCode.contains("FeatureStrings.archiveTools(language).title"),
+               "the Settings directory keeps the dedicated Archive tools page searchable")
+        let archiveToolsViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Archive/ArchiveToolsView.swift",
+            encoding: .utf8)) ?? ""
+        expect(archiveToolsViewSource.contains(".dropDestination(for: URL.self)")
+                && archiveToolsViewSource.contains("archive.create(sources:"),
+               "the first Archive tools slice accepts Finder drops and exposes ZIP creation")
+        expect(ArchiveSupport.archiveBaseName(for: [URL(fileURLWithPath: "/tmp/Report.txt")]) == "Report"
+                && ArchiveSupport.archiveBaseName(for: [URL(fileURLWithPath: "/tmp/A"),
+                                                         URL(fileURLWithPath: "/tmp/B")]) == "Archive",
+               "archive names derive from one source and use Archive for a multi-source ZIP")
+        expect(ArchiveSupport.duplicateTopLevelName(in: [
+            URL(fileURLWithPath: "/tmp/A/Same"), URL(fileURLWithPath: "/tmp/B/same"),
+        ]) == "same",
+               "duplicate top-level source names are rejected before they can merge in a ZIP")
+
+        let archiveArguments = ArchiveSupport.createArguments(
+            sources: [URL(fileURLWithPath: "/tmp/A/file.txt"),
+                      URL(fileURLWithPath: "/tmp/B/folder", isDirectory: true)],
+            stagedOutput: URL(fileURLWithPath: "/tmp/out.zip"),
+            excludesDSStore: true)
+        expect(archiveArguments == ["-a", "-cf", "/tmp/out.zip", "--exclude", ".DS_Store",
+                                    "-C", "/tmp/A", "./file.txt",
+                                    "-C", "/tmp/B", "./folder"],
+               "archive creation keeps arbitrary source roots and conditionally excludes .DS_Store")
+        expect(!ArchiveSupport.createArguments(
+            sources: [URL(fileURLWithPath: "/tmp/file.txt")],
+            stagedOutput: URL(fileURLWithPath: "/tmp/out.zip"),
+            excludesDSStore: false).contains(".DS_Store"),
+               "the archive command can preserve .DS_Store when requested")
+        expect(ArchiveSupport.stageDirectoryIsOutsideSources(
+            URL(fileURLWithPath: "/tmp/staging"),
+            sources: [URL(fileURLWithPath: "/tmp/source", isDirectory: true)])
+                && !ArchiveSupport.stageDirectoryIsOutsideSources(
+                    URL(fileURLWithPath: "/tmp/source/staging"),
+                    sources: [URL(fileURLWithPath: "/tmp/source", isDirectory: true)]),
+               "archive staging rejects a directory inside any selected source root")
+
+        let archiveFailureRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-archive-failure-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: archiveFailureRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: archiveFailureRoot) }
+        let archiveFailureSource = archiveFailureRoot.appendingPathComponent("source.txt")
+        try? Data("source".utf8).write(to: archiveFailureSource)
+        let missingArchiveSource = archiveFailureRoot.appendingPathComponent("removed.txt")
+        expect(ArchiveOperationWorker().create(
+            sources: [missingArchiveSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: false, token: CancellationToken()) == .failure(.sourceUnavailable),
+               "a source removed after selection reports that it is unavailable")
+        let unsafeArchiveStage = archiveFailureRoot.appendingPathComponent(
+            "replacement", isDirectory: true)
+        try? FileManager.default.createDirectory(at: unsafeArchiveStage,
+                                                 withIntermediateDirectories: true)
+        var unsafeStageCommandRan = false
+        let unsafeStageArchive = ArchiveOperationWorker(
+            stageDirectoryProvider: { _ in unsafeArchiveStage },
+            commandRunner: { _, _, _ in
+                unsafeStageCommandRan = true
+                return BoundedProcessRunner.Result(status: 0, output: Data(), timedOut: false)
+            }).create(
+                sources: [archiveFailureRoot], destinationDirectory: archiveFailureRoot,
+                excludesDSStore: false, token: CancellationToken())
+        expect(unsafeStageArchive == .failure(.cannotPrepare)
+                && !unsafeStageCommandRan
+                && FileManager.default.fileExists(atPath: archiveFailureSource.path),
+               "an unsafe replacement directory is rejected before tar can traverse staged output")
+        var abandonedArchiveStage: URL?
+        let failedArchive = ArchiveOperationWorker(commandRunner: { path, arguments, _ in
+            if path == "/usr/bin/tar", let outputIndex = arguments.firstIndex(of: "-cf"),
+               arguments.indices.contains(outputIndex + 1) {
+                let output = URL(fileURLWithPath: arguments[outputIndex + 1])
+                abandonedArchiveStage = output.deletingLastPathComponent()
+                try? Data("partial".utf8).write(to: output)
+            }
+            return BoundedProcessRunner.Result(status: 2,
+                                               output: Data("failed".utf8),
+                                               timedOut: false)
+        }).create(
+            sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: false, token: CancellationToken())
+        if case .failure(.commandFailed) = failedArchive {
+            expect(abandonedArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+                   "a failed archive creation removes its complete temporary workspace")
+        } else {
+            expect(false, "a failed archive command reports an actionable command failure")
+        }
+
+        let cancelledArchiveToken = CancellationToken()
+        cancelledArchiveToken.cancel()
+        var cancelledArchiveStage: URL?
+        let cancelledArchive = ArchiveOperationWorker(commandRunner: { _, arguments, _ in
+            if let outputIndex = arguments.firstIndex(of: "-cf"),
+               arguments.indices.contains(outputIndex + 1) {
+                let output = URL(fileURLWithPath: arguments[outputIndex + 1])
+                cancelledArchiveStage = output.deletingLastPathComponent()
+                try? Data("partial".utf8).write(to: output)
+            }
+            return BoundedProcessRunner.Result(status: -1, output: Data(), timedOut: false)
+        }).create(
+            sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: false, token: cancelledArchiveToken)
+        expect(cancelledArchive == .failure(.cancelled)
+                && cancelledArchiveStage.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+               "a cancelled archive creation reports cancellation and removes partial output")
+
+        expect(ArchivePublisher.renameFailureAttempt(for: EEXIST) == .destinationExists,
+               "an exclusive rename collision retries with a unique archive name")
+        expect(ArchivePublisher.renameFailureAttempt(for: EINVAL) == .unsupported
+                && ArchivePublisher.renameFailureAttempt(for: EPERM) == .unsupported,
+               "unknown exclusive rename errors use the safe copy fallback")
+        let originalFallbackFlags = UInt32(UF_NODUMP)
+        let hiddenFallbackFlags = ArchivePublisher.fallbackCopyFlags(
+            originalFallbackFlags, hidden: true)
+        expect(hiddenFallbackFlags & UInt32(UF_HIDDEN) != 0
+                && hiddenFallbackFlags & UInt32(UF_NODUMP) != 0
+                && ArchivePublisher.fallbackCopyFlags(hiddenFallbackFlags, hidden: false)
+                    == originalFallbackFlags,
+               "fallback copies stay hidden until their complete contents are ready")
+
+        let fallbackStage = archiveFailureRoot.appendingPathComponent("fallback-stage.zip")
+        let occupiedFallback = archiveFailureRoot.appendingPathComponent("Fallback.zip")
+        try? Data("archive".utf8).write(to: fallbackStage)
+        try? Data("existing".utf8).write(to: occupiedFallback)
+        let fallbackPublisher = ArchivePublisher(
+            renameExclusive: { _, _, _ in .unsupported })
+        let fallbackPublished = try? fallbackPublisher.publish(
+            fallbackStage, in: archiveFailureRoot, baseName: "Fallback",
+            fileManager: .default, token: CancellationToken())
+        var fallbackPublishedStatus = stat()
+        let fallbackPublishedIsVisible = fallbackPublished?.withUnsafeFileSystemRepresentation { path in
+            guard let path, lstat(path, &fallbackPublishedStatus) == 0 else { return false }
+            return fallbackPublishedStatus.st_flags & UInt32(UF_HIDDEN) == 0
+        } ?? false
+        expect(fallbackPublished?.lastPathComponent == "Fallback 2.zip"
+                && !FileManager.default.fileExists(atPath: fallbackStage.path)
+                && (try? Data(contentsOf: occupiedFallback)) == Data("existing".utf8)
+                && fallbackPublished.flatMap { try? Data(contentsOf: $0) } == Data("archive".utf8)
+                && fallbackPublishedIsVisible,
+               "unsupported exclusive rename falls back without replacing an existing archive")
+
+        let unsupportedFlagsStage = archiveFailureRoot.appendingPathComponent(
+            "unsupported-flags-stage.zip")
+        let unsupportedFlagsOutput = archiveFailureRoot.appendingPathComponent(
+            "Unsupported flags.zip")
+        try? Data("archive without flags".utf8).write(to: unsupportedFlagsStage)
+        var unsupportedFlagsAttempts = 0
+        let unsupportedFlagsResult = ArchivePublisher.systemCopyExclusive(
+            unsupportedFlagsStage,
+            unsupportedFlagsOutput,
+            CancellationToken(),
+            writeFlags: { _, _ in
+                unsupportedFlagsAttempts += 1
+                return -1
+            })
+        expect(unsupportedFlagsResult == .success
+                && unsupportedFlagsAttempts == 1
+                && !FileManager.default.fileExists(atPath: unsupportedFlagsStage.path)
+                && (try? Data(contentsOf: unsupportedFlagsOutput))
+                    == Data("archive without flags".utf8),
+               "unsupported file flags do not discard a completed fallback copy")
+
+        let unsupportedRestoreStage = archiveFailureRoot.appendingPathComponent(
+            "unsupported-restore-stage.zip")
+        let unsupportedRestoreOutput = archiveFailureRoot.appendingPathComponent(
+            "Unsupported restore.zip")
+        try? Data("archive with failed restore".utf8).write(to: unsupportedRestoreStage)
+        var restoreFlagsAttempts = 0
+        let unsupportedRestoreResult = ArchivePublisher.systemCopyExclusive(
+            unsupportedRestoreStage,
+            unsupportedRestoreOutput,
+            CancellationToken(),
+            writeFlags: { _, _ in
+                restoreFlagsAttempts += 1
+                return restoreFlagsAttempts == 1 ? 0 : -1
+            })
+        expect(unsupportedRestoreResult == .success
+                && restoreFlagsAttempts == 2
+                && !FileManager.default.fileExists(atPath: unsupportedRestoreStage.path)
+                && (try? Data(contentsOf: unsupportedRestoreOutput))
+                    == Data("archive with failed restore".utf8),
+               "a failed flag restore does not discard a completed fallback copy")
+
+        let publishCancellationToken = CancellationToken()
+        var cancelledPublishedURL: URL?
+        let cancellingPublisher = ArchivePublisher(
+            renameExclusive: { _, _, _ in .unsupported },
+            copyExclusive: { source, destination, token in
+                try? Data(contentsOf: source).write(to: destination, options: .withoutOverwriting)
+                cancelledPublishedURL = destination
+                token.cancel()
+                return .success
+            })
+        let cancelledPublishWorker = ArchiveOperationWorker(
+            commandRunner: { _, arguments, _ in
+                guard let outputIndex = arguments.firstIndex(of: "-cf"),
+                      arguments.indices.contains(outputIndex + 1) else {
+                    return BoundedProcessRunner.Result(status: 2, output: Data(), timedOut: false)
+                }
+                try? Data("archive".utf8).write(
+                    to: URL(fileURLWithPath: arguments[outputIndex + 1]))
+                return BoundedProcessRunner.Result(status: 0, output: Data(), timedOut: false)
+            },
+            publisher: cancellingPublisher)
+        let cancelledDuringPublish = cancelledPublishWorker.create(
+            sources: [archiveFailureSource], destinationDirectory: archiveFailureRoot,
+            excludesDSStore: true, token: publishCancellationToken)
+        expect(cancelledDuringPublish == .failure(.cancelled)
+                && cancelledPublishedURL.map { !FileManager.default.fileExists(atPath: $0.path) } == true,
+               "cancelling during fallback publication removes the owned result and reports cancellation")
+
+        let racedStage = archiveFailureRoot.appendingPathComponent("race-stage.zip")
+        try? Data("our archive".utf8).write(to: racedStage)
+        var raceAttempts = 0
+        let racedPublisher = ArchivePublisher(renameExclusive: { source, destination, _ in
+            raceAttempts += 1
+            if raceAttempts == 1 {
+                try? Data("racing archive".utf8).write(
+                    to: destination, options: .withoutOverwriting)
+                return .destinationExists
+            }
+            do {
+                try FileManager.default.moveItem(at: source, to: destination)
+                return .success
+            } catch {
+                return .failed
+            }
+        })
+        let racedPublished = try? racedPublisher.publish(
+            racedStage, in: archiveFailureRoot, baseName: "Raced",
+            fileManager: .default, token: CancellationToken())
+        expect(raceAttempts == 2
+                && (try? Data(contentsOf: archiveFailureRoot.appendingPathComponent("Raced.zip")))
+                    == Data("racing archive".utf8)
+                && racedPublished?.lastPathComponent == "Raced 2.zip"
+                && racedPublished.flatMap { try? Data(contentsOf: $0) } == Data("our archive".utf8),
+               "a publication collision that appears after naming retries without overwriting it")
+
+        let archiveRoundTripRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-archive-roundtrip-\(UUID().uuidString)", isDirectory: true)
+        let archiveSource = archiveRoundTripRoot.appendingPathComponent("Payload", isDirectory: true)
+        let archiveNested = archiveSource.appendingPathComponent("Nested", isDirectory: true)
+        let archiveOutput = archiveSource.appendingPathComponent("Output", isDirectory: true)
+        let secondSource = archiveRoundTripRoot.appendingPathComponent("Other", isDirectory: true)
+        let externalFile = archiveRoundTripRoot.appendingPathComponent("outside.txt")
+        try? FileManager.default.createDirectory(at: archiveNested, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: archiveOutput, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: secondSource, withIntermediateDirectories: true)
+        try? Data("visible".utf8).write(to: archiveNested.appendingPathComponent("file.txt"))
+        try? Data("hidden".utf8).write(to: archiveNested.appendingPathComponent(".hidden"))
+        try? Data("root metadata".utf8).write(to: archiveSource.appendingPathComponent(".DS_Store"))
+        try? Data("nested metadata".utf8).write(to: archiveNested.appendingPathComponent(".DS_Store"))
+        try? Data("other".utf8).write(to: secondSource.appendingPathComponent("other.txt"))
+        try? Data("outside".utf8).write(to: externalFile)
+        try? FileManager.default.createSymbolicLink(
+            at: archiveNested.appendingPathComponent("outside-link"),
+            withDestinationURL: externalFile)
+        defer { try? FileManager.default.removeItem(at: archiveRoundTripRoot) }
+
+        let roundTripWorker = ArchiveOperationWorker()
+        let preservedArchive = roundTripWorker.create(
+            sources: [archiveSource, secondSource], destinationDirectory: archiveOutput,
+            excludesDSStore: false, token: CancellationToken())
+        let excludedArchive = roundTripWorker.create(
+            sources: [archiveSource, secondSource], destinationDirectory: archiveOutput,
+            excludesDSStore: true, token: CancellationToken())
+        func archiveListing(_ url: URL, verbose: Bool = false) -> String {
+            let arguments = verbose ? ["-tvf", url.path] : ["-tf", url.path]
+            let result = BoundedProcessRunner.run("/usr/bin/tar", arguments,
+                                                  timeout: 10,
+                                                  maxOutputBytes: 4 * 1024 * 1024,
+                                                  environment: ["LC_ALL": "C"])
+            return String(data: result.output, encoding: .utf8) ?? ""
+        }
+        if case let .success(preservedURL) = preservedArchive,
+           case let .success(excludedURL) = excludedArchive {
+            let preservedListing = archiveListing(preservedURL)
+            let excludedListing = archiveListing(excludedURL)
+            let verboseListing = archiveListing(excludedURL, verbose: true)
+            expect(preservedListing.contains(".DS_Store")
+                    && !excludedListing.contains(".DS_Store")
+                    && excludedListing.contains("Payload/Nested/.hidden")
+                    && excludedListing.contains("Other/other.txt"),
+                   "real ZIP creation supports both .DS_Store policies and keeps multiple roots")
+            expect(verboseListing.split(separator: "\n").contains { line in
+                line.first == "l" && line.contains("Payload/Nested/outside-link")
+            }, "a symlink outside the selected roots is archived as a link instead of followed")
+            expect(!preservedListing.contains("Archive.zip"),
+                   "an output destination inside a selected root never makes the archive include itself")
+            expect(preservedURL.lastPathComponent == "Archive.zip"
+                    && excludedURL.lastPathComponent == "Archive 2.zip"
+                    && FileManager.default.fileExists(atPath: preservedURL.path)
+                    && FileManager.default.fileExists(atPath: excludedURL.path),
+                   "a second archive publishes under a collision-free name without replacing the first")
+            expect((try? Data(contentsOf: archiveNested.appendingPathComponent("file.txt")))
+                        == Data("visible".utf8)
+                    && (try? Data(contentsOf: archiveNested.appendingPathComponent(".hidden")))
+                        == Data("hidden".utf8)
+                    && (try? Data(contentsOf: secondSource.appendingPathComponent("other.txt")))
+                        == Data("other".utf8)
+                    && FileManager.default.fileExists(
+                        atPath: archiveNested.appendingPathComponent("outside-link").path),
+                   "archive creation preserves the selected source tree and its contents")
+        } else {
+            expect(false, "real system ZIP creation succeeds for multiple roots and both metadata policies")
         }
 
         let installerInfo: [String: Any] = [
@@ -13953,6 +14312,9 @@ struct MetricsTests {
                "the quick toggles alone keep the quick tools page")
         expect(pageVisible(.clipboard, available: [.finderCutPaste]),
                "the image paste option keeps the Clipboard page available")
+        expect(pageVisible(.archiveTools, available: [.archiveTools])
+                && !pageVisible(.archiveTools, available: []),
+               "the Archive tools page follows its installable feature")
         expect(AppFeature.allCases.allSatisfy { feature in
             let destination = feature.settingsDestination
             let gate = FeatureVisibilitySupport.features(for: destination.page)
@@ -13978,6 +14340,9 @@ struct MetricsTests {
                 && AppFeature.diskImageInstaller.settingsDestination
                 == FeatureSettingsDestination(.features),
                "features without dedicated pages use explicit nearest Settings destinations")
+        expect(AppFeature.archiveTools.settingsDestination == FeatureSettingsDestination(.archiveTools)
+                && AppFeature.archiveTools.hasNavigableSettingsDestination,
+               "Archive tools links from the hub to its dedicated page")
         expect(!AppFeature.diskImageInstaller.hasNavigableSettingsDestination
                 && AppFeature.allCases.filter { $0 != .diskImageInstaller }
                     .allSatisfy(\.hasNavigableSettingsDestination),

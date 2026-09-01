@@ -171,6 +171,12 @@ enum SettingsDirectory {
                                                              FeatureStrings.clipboardIgnoredApps(language)
                                                                 .listTitle]),
                                        ]),
+                SettingsDirectoryItem(page: .archiveTools,
+                                      title: FeatureStrings.archiveTools(language).title,
+                                      icon: "archivebox",
+                                      keywords: ["ZIP",
+                                                 FeatureStrings.archiveTools(language).startCreate,
+                                                 FeatureStrings.archiveTools(language).chooseSources]),
                 SettingsDirectoryItem(page: .cutPaste,
                                        title: FeatureStrings.finderRename(language).pageTitle,
                                        icon: "filemenu.and.selection",

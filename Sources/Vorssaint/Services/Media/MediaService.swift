@@ -108,23 +108,6 @@ enum MediaServiceState: Equatable {
     case cancelled
 }
 
-private final class MediaCancellationToken {
-    private let lock = NSLock()
-    private var _isCancelled = false
-
-    var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _isCancelled
-    }
-
-    func cancel() {
-        lock.lock()
-        _isCancelled = true
-        lock.unlock()
-    }
-}
-
 final class MediaService: ObservableObject {
     static let shared = MediaService()
 
@@ -133,7 +116,7 @@ final class MediaService: ObservableObject {
     private let queue = DispatchQueue(label: "com.vorssaint.media", qos: .userInitiated)
     private let lock = NSLock()
     private var operationID: UUID?
-    private var token: MediaCancellationToken?
+    private var token: CancellationToken?
     private var activeProcess: Process?
     private var activeVisionRequest: VNRequest?
 
@@ -200,9 +183,9 @@ final class MediaService: ObservableObject {
     }
 
     private func run(_ tool: MediaTool,
-                     _ work: @escaping (UUID, MediaCancellationToken) throws -> Void) {
+                     _ work: @escaping (UUID, CancellationToken) throws -> Void) {
         let id = UUID()
-        let token = MediaCancellationToken()
+        let token = CancellationToken()
         lock.lock()
         self.token?.cancel()
         self.activeProcess?.terminate()
@@ -230,7 +213,7 @@ final class MediaService: ObservableObject {
     }
 
     private func compressVideoWork(inputURL: URL, outputURL: URL, options: MediaVideoOptions,
-                                   operationID: UUID, token: MediaCancellationToken) throws {
+                                   operationID: UUID, token: CancellationToken) throws {
         let started = Date()
         let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
         defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
@@ -281,7 +264,7 @@ final class MediaService: ObservableObject {
                               displaySize: CGSize,
                               started: Date,
                               operationID: UUID,
-                              token: MediaCancellationToken) throws {
+                              token: CancellationToken) throws {
         let outSize = MediaSupport.scaledVideoSize(source: displaySize,
                                                    maxDimension: options.maxDimension)
         let preset = avconvertPreset(codec: options.codec,
@@ -343,7 +326,7 @@ final class MediaService: ObservableObject {
                                          trim: MediaTrimRange,
                                          targetBytes: Int64,
                                          operationID: UUID,
-                                         token: MediaCancellationToken) throws {
+                                         token: CancellationToken) throws {
         guard let geometry else { throw MediaFailureBox(.noVideoTrack) }
         let source = MediaVideoTargetEncoder.Source(asset: asset,
                                                     videoTrack: geometry.videoTrack,
@@ -383,7 +366,7 @@ final class MediaService: ObservableObject {
     }
 
     private func makeGIFWork(inputURL: URL, outputURL: URL, options: MediaGIFOptions,
-                             operationID: UUID, token: MediaCancellationToken) throws {
+                             operationID: UUID, token: CancellationToken) throws {
         let started = Date()
         let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
         defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
@@ -448,7 +431,7 @@ final class MediaService: ObservableObject {
                           fps: Double,
                           options: MediaGIFOptions,
                           operationID: UUID,
-                          token: MediaCancellationToken) throws {
+                          token: CancellationToken) throws {
         guard let frameCount = MediaSupport.safeGIFFrameCount(duration: trim.duration, fps: fps) else {
             throw MediaFailureBox(.gifTooLong(maxSeconds: MediaSupport.maximumGIFDuration(fps: fps)))
         }
@@ -498,7 +481,7 @@ final class MediaService: ObservableObject {
                                    explicitOutputURL: URL?,
                                    options: MediaImageOptions,
                                    operationID: UUID,
-                                   token: MediaCancellationToken) throws {
+                                   token: CancellationToken) throws {
         let started = Date()
         let inputs = inputURLs.filter { !$0.path.isEmpty }
         guard !inputs.isEmpty else { throw MediaFailureBox(.noInput) }
@@ -598,7 +581,7 @@ final class MediaService: ObservableObject {
     private func makeProcessedImage(inputURL: URL,
                                     options: MediaImageOptions,
                                     watermarkLogo: CGImage?,
-                                    token: MediaCancellationToken) throws -> PreparedImage {
+                                    token: CancellationToken) throws -> PreparedImage {
         guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
             throw MediaFailureBox(.unsupported)
@@ -669,7 +652,7 @@ final class MediaService: ObservableObject {
     }
 
     private func extractTextWork(inputURL: URL, outputURL: URL?, options: MediaTextOptions,
-                                 operationID: UUID, token: MediaCancellationToken) throws {
+                                 operationID: UUID, token: CancellationToken) throws {
         let started = Date()
         guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
@@ -733,7 +716,7 @@ final class MediaService: ObservableObject {
     private func commit(_ stagedURL: URL,
                         at outputURL: URL,
                         operationID: UUID,
-                        token: MediaCancellationToken) throws {
+                        token: CancellationToken) throws {
         lock.lock()
         defer { lock.unlock() }
         guard self.operationID == operationID, !token.isCancelled else {
@@ -984,7 +967,7 @@ final class MediaService: ObservableObject {
 
     private func loadVideoMetadata(from asset: AVAsset,
                                    includeGeometry: Bool,
-                                   token: MediaCancellationToken) throws -> VideoMetadata {
+                                   token: CancellationToken) throws -> VideoMetadata {
         try runAsync(token: token) {
             let tracks = try await asset.loadTracks(withMediaType: .video)
             guard let track = tracks.first else { throw MediaFailureBox(.noVideoTrack) }
@@ -1012,7 +995,7 @@ final class MediaService: ObservableObject {
 
     private func generateCGImage(from generator: AVAssetImageGenerator,
                                  at time: CMTime,
-                                 token: MediaCancellationToken) throws -> CGImage {
+                                 token: CancellationToken) throws -> CGImage {
         let semaphore = DispatchSemaphore(value: 0)
         var result: Result<CGImage, Error>?
 
@@ -1038,7 +1021,7 @@ final class MediaService: ObservableObject {
         return try result.get()
     }
 
-    private func runAsync<T>(token: MediaCancellationToken,
+    private func runAsync<T>(token: CancellationToken,
                              _ operation: @escaping () async throws -> T) throws -> T {
         let semaphore = DispatchSemaphore(value: 0)
         var result: Result<T, Error>?
@@ -1123,7 +1106,7 @@ final class MediaService: ObservableObject {
         try? FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: outputURL.path)
     }
 
-    private func checkCancellation(_ token: MediaCancellationToken) throws {
+    private func checkCancellation(_ token: CancellationToken) throws {
         if token.isCancelled { throw MediaFailureBox(.cancelled) }
     }
 
@@ -1132,7 +1115,7 @@ final class MediaService: ObservableObject {
     /// its operation was replaced or cancelled.
     private func launch(process: Process,
                         operationID: UUID,
-                        token: MediaCancellationToken) throws {
+                        token: CancellationToken) throws {
         lock.lock()
         defer { lock.unlock() }
         guard self.operationID == operationID, !token.isCancelled else {
@@ -1144,7 +1127,7 @@ final class MediaService: ObservableObject {
 
     private func setActiveVisionRequest(_ request: VNRequest,
                                         operationID: UUID,
-                                        token: MediaCancellationToken) throws {
+                                        token: CancellationToken) throws {
         lock.lock()
         defer { lock.unlock() }
         guard self.operationID == operationID, !token.isCancelled else {

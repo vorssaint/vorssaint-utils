@@ -283,6 +283,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AppUpdateStrings.swift \
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
+        Sources/Vorssaint/Core/ArchiveToolsStrings.swift \
+        Sources/Vorssaint/Services/FileOutputSupport.swift \
+        Sources/Vorssaint/Services/Archive/ArchiveSupport.swift \
+        Sources/Vorssaint/Services/Archive/ArchiveService.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift \
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift \
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
