@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
-# Read-only UI smoke test for the installed Developer build. Drives the real
+# Read-only UI smoke test for the installed Test build. Drives the real
 # app through Accessibility (menu panel, quick panel, Settings), captures
 # screenshots and fails loudly when a surface does not appear. It never
 # changes preferences: everything it opens is closed again, and no toggle is
@@ -12,8 +12,8 @@
 # Usage: ./Tools/ui-smoke.sh [output-dir]
 set -uo pipefail
 
-APP="/Applications/Vorssaint (Developer).app"
-PROCESS="VorssaintDeveloper"
+APP="/Applications/Vorssaint - Test.app"
+PROCESS="VorssaintTest"
 OUT="${1:-$(mktemp -d /tmp/vorss-ui-smoke.XXXXXX)}"
 mkdir -p "$OUT"
 FAILURES=0
@@ -47,7 +47,7 @@ else
 fi
 
 step "Menu panel"
-ax 'click menu bar item 1 of menu bar 2' >/dev/null
+ax 'perform action "AXPress" of menu bar item 1 of menu bar 2' >/dev/null
 sleep 1.5
 if [[ "$(ax 'exists pop over 1 of menu bar item 1 of menu bar 2')" == "true" ]]; then
     pass "panel popover opened"
@@ -59,22 +59,34 @@ osascript -e 'tell application "System Events" to key code 53' >/dev/null
 sleep 0.8
 
 step "Quick panel"
-osascript -e 'tell application "System Events" to keystroke "v" using {control down, command down}' >/dev/null
-sleep 1.5
-QP=$(ax 'get position of window "Vorssaint"')
-if [[ -n "${QP:-}" ]]; then
-    pass "quick panel window at $QP"
-    screencapture -x "$OUT/quick-panel.png"
+if [[ "$(defaults read com.vorssaint.utils.dev featureAvailable.clipboardHistory 2>/dev/null)" == "1" ]]; then
+    osascript -e 'tell application "System Events" to keystroke "v" using {control down, command down}' >/dev/null
+    sleep 1.5
+    QP=$(ax 'get position of window "Vorssaint"')
+    if [[ -n "${QP:-}" ]]; then
+        pass "quick panel window at $QP"
+        screencapture -x "$OUT/quick-panel.png"
+    else
+        fail "quick panel window did not appear"
+    fi
+    osascript -e 'tell application "System Events" to key code 53' >/dev/null
+    sleep 0.8
 else
-    fail "quick panel window did not appear"
+    pass "quick panel skipped (Clipboard history is not installed)"
 fi
-osascript -e 'tell application "System Events" to key code 53' >/dev/null
-sleep 0.8
 
 step "Settings window"
-ax 'click menu bar item 1 of menu bar 2' >/dev/null
+ax 'perform action "AXPress" of menu bar item 1 of menu bar 2' >/dev/null
 sleep 1.2
-ax 'click button 9 of group 1 of pop over 1 of menu bar item 1 of menu bar 2' >/dev/null
+osascript <<APPLESCRIPT >/dev/null
+tell application "System Events"
+    tell process "$PROCESS"
+        set panelPosition to position of pop over 1 of menu bar item 1 of menu bar 2
+        set panelSize to size of pop over 1 of menu bar item 1 of menu bar 2
+    end tell
+    click at {(item 1 of panelPosition) + 75, (item 2 of panelPosition) + (item 2 of panelSize) - 33}
+end tell
+APPLESCRIPT
 sleep 1.5
 SW=$(ax 'get position of window "Vorssaint Settings"')
 if [[ -n "${SW:-}" ]]; then

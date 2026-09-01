@@ -10,7 +10,7 @@ struct MixerInputDevice: Identifiable, Equatable {
     let uid: String
     let name: String
     let isDefault: Bool
-    fileprivate let audioObjectID: AudioObjectID
+    let audioObjectID: AudioObjectID
 }
 
 /// Keeps Vorssaint's preferred microphone in sync with macOS' global input.
@@ -48,13 +48,16 @@ final class AudioInputDeviceManager: ObservableObject {
     /// the original back.
     private var inputDeviceBeforeOverride: String?
     private var appliedInputDeviceUID: String?
+    /// True while Audio device priority is steering the input: the singular
+    /// preferred-input enforcement steps aside so the two do not fight.
+    var inputPriorityIsActive = false
 
     private init() {}
 
     /// The microphone selector lives in the mixer panel section, so it
     /// follows the mixer's hub availability.
     func syncWithPreferences() {
-        if AppFeature.mixer.isAvailable {
+        if AppFeature.mixer.isAvailable || AppFeature.audioPriority.isAvailable {
             start()
         } else {
             stop()
@@ -103,10 +106,52 @@ final class AudioInputDeviceManager: ObservableObject {
         }
         preferredInputDeviceUID = sanitized
         lastError = nil
+        // When Audio device priority is active, a manual microphone choice
+        // promotes the selected UID to the front of the priority list so
+        // enforcement does not immediately undo it.
+        if let sanitized {
+            AudioPriorityService.shared.promoteInputDevice(sanitized)
+        }
         // The choice supersedes a sweep still reading the HAL: that one saw the
         // previous preference and would publish it back for an instant.
         refresh.discardInFlight()
         refreshAndApply()
+    }
+
+    /// Sets the system input device by UID without going through the
+    /// preferred-input path. Used by Audio device priority enforcement so
+    /// it does not clobber the user's singular preferred-microphone choice.
+    @discardableResult
+    func setCurrentInputDeviceUID(_ uid: String) -> Bool {
+        guard let device = inputDevices.first(where: { $0.uid == uid }) else {
+            return false
+        }
+        let deviceBeforeOverride = inputDeviceBeforeOverride
+            ?? currentInputDeviceUID
+            ?? Self.defaultInputDeviceUID()
+        let status = Self.setDefaultInputDevice(device.audioObjectID)
+        guard status == noErr else {
+            let message = "OSStatus \(status)"
+            if lastError != message { lastError = message }
+            return false
+        }
+        if lastError != nil { lastError = nil }
+        if inputDeviceBeforeOverride == nil {
+            inputDeviceBeforeOverride = deviceBeforeOverride
+        }
+        appliedInputDeviceUID = device.uid
+        if currentInputDeviceUID != device.uid {
+            currentInputDeviceUID = device.uid
+        }
+        let updated = inputDevices.map {
+            MixerInputDevice(id: $0.id,
+                             uid: $0.uid,
+                             name: $0.name,
+                             isDefault: $0.uid == device.uid,
+                             audioObjectID: $0.audioObjectID)
+        }
+        if inputDevices != updated { inputDevices = updated }
+        return true
     }
 
     /// The smallest possible answer to a change: the system decides which
@@ -200,7 +245,7 @@ final class AudioInputDeviceManager: ObservableObject {
             savedUID: Defaults.sanitizedPreferredInputDeviceUID(
                 UserDefaults.standard.string(forKey: DefaultsKey.preferredInputDevice)),
             inputDeviceBeforeOverride: inputDeviceBeforeOverride,
-            mayApplyPreferred: !applyingPreferred)
+            mayApplyPreferred: !applyingPreferred && !inputPriorityIsActive)
 
         halQueue.async { [weak self] in
             let snapshot = Self.readSnapshot(request)

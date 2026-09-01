@@ -114,7 +114,7 @@ extension AppFeature {
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
-        case .mouseAcceleration, .pastePlain, .soundOutputSwitcher, .micMute,
+        case .mouseAcceleration, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
              .musicBlock, .bluetoothSleep, .keepAwake, .brightness, .quickLauncher, .quickToggles, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .fanControl,

@@ -695,6 +695,22 @@ struct Strings {
     let mixerHiddenCountLabel: String
     let mixerHideFromList: String
 
+    // MARK: Panel — audio device priority
+    let audioPrioritySection: String
+    let audioPriorityOutputEnable: String
+    let audioPriorityInputEnable: String
+    let audioPriorityOutputList: String
+    let audioPriorityInputList: String
+    let audioPriorityAddOutput: String
+    let audioPriorityAddInput: String
+    let audioPriorityMoveUp: String
+    let audioPriorityMoveDown: String
+    let audioPriorityRemove: String
+    let audioPriorityUnavailable: String
+    let audioPriorityCurrent: String
+    let audioPriorityEmpty: String
+    let audioPriorityCaption: String
+
     // MARK: Settings — updates
     let updatesSection: String
     let autoCheckToggle: String
@@ -1700,6 +1716,20 @@ extension Strings {
         mixerAllShown: "Todos",
         mixerHiddenCountLabel: "Escondidos",
         mixerHideFromList: "Esconder da lista",
+        audioPrioritySection: "Prioridade dos dispositivos de áudio",
+        audioPriorityOutputEnable: "Trocar automaticamente para a saída de áudio com maior prioridade",
+        audioPriorityInputEnable: "Trocar automaticamente para o microfone de maior prioridade",
+        audioPriorityOutputList: "Prioridade das saídas de áudio",
+        audioPriorityInputList: "Prioridade dos microfones",
+        audioPriorityAddOutput: "Adicionar saída de áudio",
+        audioPriorityAddInput: "Adicionar microfone",
+        audioPriorityMoveUp: "Mover para cima",
+        audioPriorityMoveDown: "Mover para baixo",
+        audioPriorityRemove: "Remover",
+        audioPriorityUnavailable: "Indisponível",
+        audioPriorityCurrent: "Em uso",
+        audioPriorityEmpty: "Nenhum dispositivo selecionado",
+        audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
         updatesSection: "Atualizações",
         autoCheckToggle: "Procurar atualizações automaticamente",
@@ -2688,6 +2718,20 @@ extension Strings {
         mixerAllShown: "All",
         mixerHiddenCountLabel: "Hidden",
         mixerHideFromList: "Hide from the list",
+        audioPrioritySection: "Audio priority",
+        audioPriorityOutputEnable: "Automatically switch to the highest-priority output",
+        audioPriorityInputEnable: "Automatically switch to the highest-priority microphone",
+        audioPriorityOutputList: "Output priority",
+        audioPriorityInputList: "Microphone priority",
+        audioPriorityAddOutput: "Add output",
+        audioPriorityAddInput: "Add microphone",
+        audioPriorityMoveUp: "Move up",
+        audioPriorityMoveDown: "Move down",
+        audioPriorityRemove: "Remove",
+        audioPriorityUnavailable: "Unavailable",
+        audioPriorityCurrent: "Current",
+        audioPriorityEmpty: "No devices selected",
+        audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
         updatesSection: "Updates",
         autoCheckToggle: "Check for updates automatically",
