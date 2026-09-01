@@ -72,7 +72,14 @@ final class RadialMenuService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
     private var promptedForAccessibility = false
 
-    private init() {}
+    private init() {
+        // A filter tap owned by a switched-away login session stalls input in
+        // the session on screen. Hand the mouse tap back on resign and build
+        // it again from preferences when this session comes back.
+        SessionActivity.shared.onChange { [weak self] _ in
+            self?.syncMouseTap()
+        }
+    }
 
     var sessionActive: Bool { !stack.isEmpty }
 
@@ -128,16 +135,28 @@ final class RadialMenuService: ObservableObject {
     // app under the pointer; alive only while a button is configured, torn
     // down with the feature)
 
-    private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
+    /// Whether the button tap has a job right now. The capture row needs it
+    /// even with the feature switched off, so it can tell a button this app
+    /// cannot see from one that is simply set to something else.
+    private func mouseTapWanted(profiles: [RadialMenuProfile]?) -> Bool {
         let defaults = UserDefaults.standard
-        let currentProfiles = profiles ?? RadialMenuSupport.decodeProfiles(
+        let hasAnyButton = profiles.map { list in
+            list.contains { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber != nil }
+        } ?? !RadialMenuSupport.claimedMouseButtons(
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
-        )
-        let hasAnyButton = currentProfiles.contains {
-            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber != nil
-        }
-        guard hasAnyButton || isReportingMouseButtons else {
+        ).isEmpty
+        let enabled = AppFeature.radialMenu.isAvailable
+            && defaults.bool(forKey: DefaultsKey.radialMenuEnabled)
+        return (hasAnyButton && enabled) || isReportingMouseButtons
+    }
+
+    private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
+        guard SessionActivitySupport.tapShouldRun(
+            featureWanted: mouseTapWanted(profiles: profiles),
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive
+        ) else {
             tearDownMouseTap()
             return
         }
@@ -146,7 +165,7 @@ final class RadialMenuService: ObservableObject {
         if let mouseTap, !CGEvent.tapIsEnabled(tap: mouseTap) {
             tearDownMouseTap()
         }
-        guard mouseTap == nil, AXIsProcessTrusted() else { return }
+        guard mouseTap == nil else { return }
         let mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
         guard let tap = CGEvent.tapCreate(
@@ -184,7 +203,18 @@ final class RadialMenuService: ObservableObject {
 
     private func handleMouseTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let mouseTap { CGEvent.tapEnable(tap: mouseTap, enable: true) }
+            let shouldRearm = SessionActivitySupport.tapShouldRun(
+                featureWanted: mouseTapWanted(profiles: nil),
+                accessibilityGranted: AXIsProcessTrusted(),
+                sessionIsActive: SessionActivity.shared.isActive
+            )
+            if shouldRearm, let mouseTap {
+                CGEvent.tapEnable(tap: mouseTap, enable: true)
+            } else {
+                // Invalidating the port from its own callback stack is unsafe;
+                // finish this callback fail-open, then release the tap.
+                DispatchQueue.main.async { [weak self] in self?.syncMouseTap() }
+            }
             return Unmanaged.passUnretained(event)
         }
         let pressed = Int(event.getIntegerValueField(.mouseEventButtonNumber))
@@ -202,17 +232,17 @@ final class RadialMenuService: ObservableObject {
             lastMouseButtonSeen = pressed
         }
         let defaults = UserDefaults.standard
-        let profiles = RadialMenuSupport.decodeProfiles(
+        let button = Int64(pressed)
+        // Every press and release of every extra button lands here, so the
+        // cheap question comes first: the wheels themselves are decoded only
+        // once a press turns out to be a summoner, and only to open one.
+        guard RadialMenuSupport.claimedMouseButtons(
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
-        )
-        guard let matchingProfile = profiles.first(where: {
-            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == Int64(pressed)
-        }) else {
+        ).contains(button) else {
             return Unmanaged.passUnretained(event)
         }
 
-        let button = Int64(pressed)
         // The source lives on the main run loop, so this already runs on
         // main; acting synchronously keeps a quick click ordered (the down
         // opens the wheel before its own up arrives). The claimed button is
@@ -221,6 +251,15 @@ final class RadialMenuService: ObservableObject {
         // caption promises exactly that).
         if type == .otherMouseDown {
             if !sessionActive {
+                let profiles = RadialMenuSupport.decodeProfiles(
+                    defaults.data(forKey: DefaultsKey.radialMenuProfiles),
+                    defaults: defaults
+                )
+                guard let matchingProfile = profiles.first(where: {
+                    RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == button
+                }) else {
+                    return Unmanaged.passUnretained(event)
+                }
                 beginSession(for: matchingProfile, hold: false, heldButton: button)
             } else if !holdPhase {
                 endSession()

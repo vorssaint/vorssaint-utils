@@ -15237,6 +15237,34 @@ struct MetricsTests {
         expect(samplePNG.map { RadialMenuFaviconFetcher.sourceDimensionsAreSafe($0) } == true
                && !RadialMenuFaviconFetcher.sourceDimensionsAreSafe(Data("not an image".utf8)),
                "favicon decoding accepts bounded images and rejects invalid payloads")
+
+        // The event taps read the cheap answer on every side-button event, so
+        // it has to agree with the full decode, custom icons and all.
+        let iconProfile = RadialMenuProfile(
+            name: "Icons",
+            mouseButton: RadialMenuMouseTrigger.button(6).rawValue,
+            items: [RadialMenuItem(kind: .app,
+                                   payload: "/Applications/Safari.app",
+                                   customIconData: samplePNG)]
+        )
+        let iconProfilesData = RadialMenuSupport.encodeProfiles([iconProfile, profileA])
+        let fullyDecodedButtons = RadialMenuSupport.decodeProfiles(iconProfilesData)
+            .compactMap { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber }
+        expect(fullyDecodedButtons == [6, MouseButtonShortcutSupport.backButtonNumber]
+                && RadialMenuSupport.claimedMouseButtons(iconProfilesData) == fullyDecodedButtons,
+               "claimed mouse buttons read without the items match the full profile decode")
+
+        let legacyButtonDefaults = UserDefaults(suiteName: "com.vorssaint.tests.radialLegacyButton")!
+        legacyButtonDefaults.removePersistentDomain(forName: "com.vorssaint.tests.radialLegacyButton")
+        legacyButtonDefaults.set(RadialMenuMouseTrigger.forward.rawValue,
+                                 forKey: DefaultsKey.radialMenuMouseButton)
+        expect(RadialMenuSupport.claimedMouseButtons(nil, defaults: legacyButtonDefaults)
+                == [MouseButtonShortcutSupport.forwardButtonNumber]
+                && RadialMenuSupport.claimedMouseButtons(Data("not profiles".utf8),
+                                                         defaults: legacyButtonDefaults)
+                == [MouseButtonShortcutSupport.forwardButtonNumber],
+               "claimed mouse buttons fall back to the legacy button key like the full decode")
+        legacyButtonDefaults.removePersistentDomain(forName: "com.vorssaint.tests.radialLegacyButton")
         expect(RadialMenuFaviconFetcher.faviconURL(
             for: "https://example.com:8443/path?q=1#part")?.absoluteString
                 == "https://example.com:8443/favicon.ico"

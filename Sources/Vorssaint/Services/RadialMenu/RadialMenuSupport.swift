@@ -105,6 +105,19 @@ private struct FailableRadialMenuProfile: Decodable {
     }
 }
 
+/// A profile read for its mouse button alone: the question the event taps ask,
+/// answered without walking the items or decoding the icons they carry.
+private struct RadialMenuProfileButton: Decodable {
+    let mouseButton: String?
+
+    private enum CodingKeys: String, CodingKey { case mouseButton }
+
+    init(from decoder: Decoder) throws {
+        let container = try? decoder.container(keyedBy: CodingKeys.self)
+        mouseButton = (try? container?.decodeIfPresent(String.self, forKey: .mouseButton)) ?? nil
+    }
+}
+
 /// Curated starter presets when creating new profiles.
 enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
     case general, media, tools, windowLayout, quickToggles, blank
@@ -422,9 +435,11 @@ extension RadialMenuSupport {
     }
 
     /// Whether the radial menu currently owns this extra button as its
-    /// summoner. Mouse navigation asks this from its own tap and lets a
-    /// claimed button through; pure defaults reads, so asking never wakes
-    /// the radial menu service.
+    /// summoner. Mouse navigation and the mouse button shortcuts both ask
+    /// this from inside their own tap callbacks, on every event of a
+    /// side-button gesture, so it reads defaults and the stored buttons only:
+    /// never the items, and never `decodeProfiles`, which decodes their
+    /// custom icons. Asking never wakes the radial menu service.
     static func claimsMouseButton(_ button: Int64) -> Bool {
         claimsMouseButton(button, defaults: .standard)
     }
@@ -432,10 +447,8 @@ extension RadialMenuSupport {
     static func claimsMouseButton(_ button: Int64, defaults: UserDefaults) -> Bool {
         guard defaults.bool(forKey: AppFeature.radialMenu.availabilityKey),
               defaults.bool(forKey: DefaultsKey.radialMenuEnabled) else { return false }
-        let profiles = decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles), defaults: defaults)
-        return profiles.contains {
-            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == button
-        }
+        return claimedMouseButtons(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
+                                   defaults: defaults).contains(button)
     }
 }
 
@@ -699,9 +712,31 @@ enum RadialMenuSupport {
         }
     }
 
+    /// The mouse buttons the wheel is bound to right now, decoded from the
+    /// stored buttons alone.
+    ///
+    /// This is the question the event taps ask, so it must stay cheap:
+    /// `decodeProfiles` answers it too, but only by paying for every item on
+    /// every wheel. The legacy fallback is the same one it migrates from, so
+    /// the two answers cannot drift apart for a user who has not saved a
+    /// profile yet.
+    static func claimedMouseButtons(_ data: Data?, defaults: UserDefaults = .standard) -> [Int64] {
+        if let data, let decoded = try? JSONDecoder().decode([RadialMenuProfileButton].self, from: data) {
+            return decoded.compactMap { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber }
+        }
+        let legacy = RadialMenuMouseTrigger.sanitized(
+            defaults.string(forKey: DefaultsKey.radialMenuMouseButton))
+        return legacy.buttonNumber.map { [$0] } ?? []
+    }
+
     /// Decodes profiles from JSON blob. If missing, checks for legacy
     /// items / shortcut / mouse button to migrate existing users, or creates
     /// the starter profile.
+    ///
+    /// Walks every item on every wheel and decodes each custom icon (up to
+    /// `RadialMenuFaviconFetcher.maxStoredIconBytes` of PNG apiece), so it
+    /// belongs to settings and session start, never to an event-tap callback.
+    /// A callback that only needs the summoner wants `claimedMouseButtons`.
     static func decodeProfiles(_ data: Data?, defaults: UserDefaults = .standard) -> [RadialMenuProfile] {
         if let data, let decoded = try? JSONDecoder().decode([FailableRadialMenuProfile].self, from: data) {
             let sanitized = sanitizedProfiles(decoded.compactMap(\.value))
