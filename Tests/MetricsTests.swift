@@ -4275,6 +4275,21 @@ struct MetricsTests {
                     layout: .month, category: .image, date: whatsNow,
                     calendar: utcCalendar) == ["2026", "07"],
                "the organizer produces stable flat, type and month folder layouts")
+        let volumeA = NSData(bytes: [0x67, 0x45, 0x64, 0x00] as [UInt8], length: 4)
+        let volumeB = NSData(bytes: [0x69, 0x98, 0x66, 0x00] as [UInt8], length: 4)
+        expect(WhatsAppDownloadSupport.isSameVolume(
+                    source: volumeA,
+                    destination: NSData(bytes: [0x67, 0x45, 0x64, 0x00] as [UInt8], length: 4)),
+               "two equal volume identifiers are one volume even as separate objects")
+        expect(!WhatsAppDownloadSupport.isSameVolume(source: volumeA, destination: volumeB),
+               "two different volume identifiers never skip the destination check")
+        expect(!WhatsAppDownloadSupport.isSameVolume(source: NSNumber(value: 1),
+                                                     destination: NSString(string: "1")),
+               "unequal identities that print the same string still take the verified path")
+        expect(!WhatsAppDownloadSupport.isSameVolume(source: volumeA, destination: nil)
+                && !WhatsAppDownloadSupport.isSameVolume(source: nil, destination: volumeB)
+                && !WhatsAppDownloadSupport.isSameVolume(source: nil, destination: nil),
+               "an unknown volume identity keeps the verified copy rather than an unchecked rename")
         expect(WhatsAppDownloadSupport.nextAutomaticCheck(
                     after: scheduleDate(20, 8, 0), calendar: utcCalendar) == scheduleDate(20, 9, 0)
                 && WhatsAppDownloadSupport.nextAutomaticCheck(
@@ -13985,6 +14000,17 @@ struct MetricsTests {
                 == "Thu Aug 27 10:20:30 2026"
                && KillProcessSupport.normalizedStartDescription("bad'; kill 1") == nil,
                "Kill Process accepts only safe normalized start identities for the admin command")
+        // pid 1 -> 10 -> {20, 21} -> 30, with 40 on an unrelated branch, 50
+        // its own parent and 21 <-> 22 pointing at each other.
+        let processTable: [(pid: pid_t, ppid: pid_t)] = [
+            (10, 1), (20, 10), (21, 10), (30, 20), (40, 1), (50, 50), (22, 21), (21, 22),
+        ]
+        let treeBelowTen = KillProcessSupport.descendants(of: 10, parents: processTable)
+        expect(treeBelowTen == [20, 21, 30, 22],
+               "Kill Process collects a whole process tree breadth first so the caller kills deepest first")
+        expect(KillProcessSupport.descendants(of: 30, parents: processTable).isEmpty
+               && KillProcessSupport.descendants(of: 50, parents: processTable).isEmpty,
+               "Kill Process reports no descendants for a leaf and never follows a self-parenting row")
 
         for language in AppLanguage.allCases {
             let categoryValues = Mirror(reflecting: FeatureStrings.settingsCategories(language)).children
