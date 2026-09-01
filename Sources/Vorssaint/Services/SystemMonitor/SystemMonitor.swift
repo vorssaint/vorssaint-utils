@@ -1015,21 +1015,25 @@ final class SystemMonitor: ObservableObject {
                                            &iterator) == kIOReturnSuccess else { return nil }
         defer { IOObjectRelease(iterator) }
 
+        // Released by hand rather than in a `defer`, because the defer would
+        // also have to advance the iterator: on the way out it would take a
+        // reference on the next service that nothing then releases. Machines
+        // with a second IOAccelerator (Intel dual graphics, an eGPU) leaked
+        // one io_object_t per sampling tick that way.
         var entry = IOIteratorNext(iterator)
         while entry != 0 {
-            defer {
-                IOObjectRelease(entry)
-                entry = IOIteratorNext(iterator)
-            }
             // Fetch ONLY PerformanceStatistics, not the whole (large) property
             // tree. Copying every property each tick is what made continuous GPU
             // sampling for the menu bar expensive.
-            guard let ref = IORegistryEntryCreateCFProperty(entry, "PerformanceStatistics" as CFString,
-                                                            kCFAllocatorDefault, 0),
-                  let stats = ref.takeRetainedValue() as? [String: Any],
-                  let utilization = stats["Device Utilization %"] as? Int
-            else { continue }
-            return Double(utilization) / 100.0
+            if let ref = IORegistryEntryCreateCFProperty(entry, "PerformanceStatistics" as CFString,
+                                                         kCFAllocatorDefault, 0),
+               let stats = ref.takeRetainedValue() as? [String: Any],
+               let utilization = stats["Device Utilization %"] as? Int {
+                IOObjectRelease(entry)
+                return Double(utilization) / 100.0
+            }
+            IOObjectRelease(entry)
+            entry = IOIteratorNext(iterator)
         }
         return nil
     }
