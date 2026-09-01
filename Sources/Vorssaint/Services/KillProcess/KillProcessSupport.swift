@@ -25,6 +25,31 @@ enum KillProcessSupport {
         return ascending ? comparison == .orderedAscending : comparison == .orderedDescending
     }
 
+    /// Every descendant of `root` from a flat parent table, breadth first so
+    /// the caller can reverse it and kill deepest first. A pid is visited
+    /// once, so a self-parenting or circular row cannot loop, and the total
+    /// is capped well above any real process tree.
+    static func descendants(of root: pid_t, parents: [(pid: pid_t, ppid: pid_t)]) -> [pid_t] {
+        var children: [pid_t: [pid_t]] = [:]
+        for row in parents {
+            children[row.ppid, default: []].append(row.pid)
+        }
+        var result: [pid_t] = []
+        var seen: Set<pid_t> = [root]
+        var frontier = [root]
+        while !frontier.isEmpty, result.count < 4096 {
+            var next: [pid_t] = []
+            for parent in frontier {
+                for child in children[parent] ?? [] where seen.insert(child).inserted {
+                    next.append(child)
+                }
+            }
+            result.append(contentsOf: next)
+            frontier = next
+        }
+        return result
+    }
+
     static func normalizedStartDescription(_ value: String) -> String? {
         let normalized = value.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !normalized.isEmpty,
