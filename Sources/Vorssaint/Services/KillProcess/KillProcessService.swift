@@ -293,9 +293,9 @@ final class KillProcessService: ObservableObject {
     /// the per-pid `pgrep` walk raced the same way, and `killBatch` still
     /// re-checks every target's identity before it signals anything.
     private static func descendants(of pid: pid_t) -> [pid_t] {
-        let result = Shell.run("/bin/ps", ["-eo", "pid,ppid"])
-        guard result.status == 0 else { return [] }
-        let parents: [(pid: pid_t, ppid: pid_t)] = result.output
+        let listing = Shell.run("/bin/ps", ["-eo", "pid,ppid"])
+        guard listing.status == 0 else { return [] }
+        let parents: [(pid: pid_t, ppid: pid_t)] = listing.output
             .split(separator: "\n").dropFirst().compactMap { line in
                 let columns = line.split(separator: " ", omittingEmptySubsequences: true)
                 guard columns.count >= 2, let child = pid_t(columns[0]),
