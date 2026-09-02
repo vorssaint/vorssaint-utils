@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, inactiveApps, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -166,6 +166,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
+        case .inactiveApps: return FeatureSettingsDestination(.inactiveApps)
         case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
 
         case .scrollInverter:
@@ -272,6 +273,7 @@ enum FeatureVisibilitySupport {
         case .switcher: return [.switcher, .dockPreview, .dockClick]
         case .windowLayout: return [.windowLayout]
         case .autoQuit: return [.autoQuit]
+        case .inactiveApps: return [.inactiveApps]
         case .quitProtection: return [.quitWindowProtection]
         case .clipboard: return [.clipboardHistory, .pastePlain, .finderCutPaste]
         case .cutPaste: return [.finderCutPaste, .finderRename]

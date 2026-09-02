@@ -120,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
+        PeripheralAlertService.shared.start()
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }

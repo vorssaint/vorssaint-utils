@@ -807,7 +807,7 @@ final class ClipboardHistoryService: ObservableObject {
                 case .text: preview = entry.text
                 case .image: preview = "Image Copied"
                 case .files: preview = "\(entry.filePaths.count) Files Copied"
-                default: preview = "Item Copied"
+                @unknown default: preview = "Item Copied"
                 }
                 self.newlyCopiedPreview.send(preview)
             }

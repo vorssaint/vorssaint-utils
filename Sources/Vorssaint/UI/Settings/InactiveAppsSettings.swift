@@ -89,9 +89,12 @@ struct InactiveAppsSettings: View {
                 .disabled(!enabled)
             }
 
-            if enabled, !permissions.notifications {
+            if enabled, permissions.notifications != .granted {
                 Section("Permission Required") {
-                    PermissionRow(kind: .notifications)
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange)
+                        Text("Please enable Notifications in System Settings to receive alerts.")
+                    }
                 }
             }
         }
