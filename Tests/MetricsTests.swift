@@ -6497,11 +6497,9 @@ struct MetricsTests {
                "sound output switcher does nothing when the only selected output is already current")
         func looksLikeHeadphones(_ name: String,
                                  uid: String = "",
-                                 transport: UInt32? = nil,
                                  dataSource: UInt32? = nil,
                                  dataSourceName: String? = nil) -> Bool {
-            MixerRoutingSupport.outputLooksLikeHeadphones(transportType: transport,
-                                                          dataSourceID: dataSource,
+            MixerRoutingSupport.outputLooksLikeHeadphones(dataSourceID: dataSource,
                                                           name: name,
                                                           uid: uid,
                                                           dataSourceName: dataSourceName)
@@ -6519,16 +6517,16 @@ struct MetricsTests {
         // The device name and the data source name HAL reports are localized,
         // so the word list alone answers "no headphones here" on a Mac that is
         // not running in English, and the disconnect never lowers the speakers.
-        // The port id is the same four-character code in every language.
+        // The port id is the same four-character code in every language. The
+        // uid here is deliberately one the word list cannot match, so this
+        // assertion reaches the port id and is red without it.
         expect(looksLikeHeadphones("MacBook Air",
-                                   uid: "BuiltInHeadphoneOutputDevice",
-                                   transport: kAudioDeviceTransportTypeBuiltIn,
+                                   uid: "BuiltInSpeakerDevice",
                                    dataSource: MixerRoutingSupport.headphonesDataSourceID,
                                    dataSourceName: "外置耳机"),
-               "the headphone port id is recognized when its localized name matches no known word")
+               "the headphone port id is recognized when neither the uid nor the localized name matches a known word")
         expect(!looksLikeHeadphones("MacBook Air扬声器",
                                     uid: "BuiltInSpeakerDevice",
-                                    transport: kAudioDeviceTransportTypeBuiltIn,
                                     dataSource: 0x6973_706b, // 'ispk'
                                     dataSourceName: "MacBook Air扬声器"),
                "a built-in speaker port is not treated as headphones")
@@ -6537,22 +6535,9 @@ struct MetricsTests {
         // answer it gets today.
         expect(looksLikeHeadphones("Built-in Output",
                                    uid: "BuiltInHeadphoneOutputDevice",
-                                   transport: kAudioDeviceTransportTypeBuiltIn,
                                    dataSource: 0x6573_706b, // 'espk'
                                    dataSourceName: "Headphones"),
                "a jack reported as a speaker port is still headphones when the name says so")
-        expect(!looksLikeHeadphones("Living Room Beats",
-                                    transport: kAudioDeviceTransportTypeAirPlay),
-               "an AirPlay receiver is not headphones even when its name matches the word list")
-        expect(!looksLikeHeadphones("Mi Monitor",
-                                    transport: kAudioDeviceTransportTypeDisplayPort),
-               "a DisplayPort monitor is not treated as headphones")
-        expect(looksLikeHeadphones("Jabra Evolve2",
-                                   transport: kAudioDeviceTransportTypeUSB),
-               "USB falls back to the name list, which still knows common headsets")
-        expect(!looksLikeHeadphones("Sennheiser HD 450BT",
-                                    transport: kAudioDeviceTransportTypeBluetooth),
-               "a Bluetooth output the word list does not know keeps today's answer")
         // Issue #256: some browsers' audio helpers answer for themselves, so
         // the mixer walks the parent chain to the nearest regular app.
         let helperParents: [pid_t: pid_t] = [500: 100, 100: 1, 700: 1,

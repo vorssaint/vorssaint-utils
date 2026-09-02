@@ -278,27 +278,15 @@ enum MixerRoutingSupport {
     /// and headphones sharing one port — is recognized today by the data source
     /// name, and a port-first test would call it speakers.
     ///
-    /// - Parameters:
-    ///   - transportType: `kAudioDevicePropertyTransportType`, nil when unreadable.
-    ///   - dataSourceID: `kAudioDevicePropertyDataSource` on the output scope,
-    ///     nil when the device has no selectable port.
-    static func outputLooksLikeHeadphones(transportType: UInt32?,
-                                          dataSourceID: UInt32?,
+    /// - Parameter dataSourceID: `kAudioDevicePropertyDataSource` on the
+    ///   output scope, nil when the device has no selectable port.
+    static func outputLooksLikeHeadphones(dataSourceID: UInt32?,
                                           name: String,
                                           uid: String,
                                           dataSourceName: String?) -> Bool {
         // The built-in driver names its own headphone port, in a code that is
         // the same in every language. Nothing else can answer this.
         if dataSourceID == headphonesDataSourceID { return true }
-
-        // A display, a TV or an AirPlay receiver is never headphones, whatever
-        // it happens to be called.
-        switch transportType {
-        case kAudioDeviceTransportTypeHDMI, kAudioDeviceTransportTypeDisplayPort,
-             kAudioDeviceTransportTypeAirPlay:
-            return false
-        default: break
-        }
 
         // The word list, unchanged, so every device recognized today is still
         // recognized. A device it does not know is not headphones, as before.

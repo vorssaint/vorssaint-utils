@@ -1559,15 +1559,12 @@ final class AppVolumeMixer: ObservableObject {
                 : uid
             guard name != "Vorssaint Mixer" else { continue }
             let dataSource = outputDataSource(for: deviceID)
-            var transportType: UInt32 = 0
-            let hasTransportType = read(deviceID, kAudioDevicePropertyTransportType, &transportType)
 
             devices.append(MixerOutputDevice(id: uid,
                                              uid: uid,
                                              name: name,
                                              isDefault: uid == defaultUID,
                                              isHeadphones: MixerRoutingSupport.outputLooksLikeHeadphones(
-                                                transportType: hasTransportType ? transportType : nil,
                                                 dataSourceID: dataSource?.id,
                                                 name: name,
                                                 uid: uid,
