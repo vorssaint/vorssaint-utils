@@ -65,7 +65,10 @@ final class HomebrewManager: ObservableObject {
         brewPath = detectBrewPath()
     }
 
-    func refreshInstalled() {
+    /// - Parameter clearingError: pass `false` when refreshing straight after a
+    ///   failed operation, so the reason that operation gave is still on screen
+    ///   while the fresh state loads.
+    func refreshInstalled(clearingError: Bool = true) {
         guard let brewPath = detectBrewPath() else {
             self.brewPath = nil
             installed = []
@@ -76,7 +79,7 @@ final class HomebrewManager: ObservableObject {
             outdatedGeneration += 1
             outdatedPackagesByID = [:]
             isLoadingOutdated = false
-            errorMessage = nil
+            if clearingError { errorMessage = nil }
             isShellConfigured = true
             shellConfigProfilePath = nil
             didOpenShellConfig = false
@@ -85,7 +88,7 @@ final class HomebrewManager: ObservableObject {
         self.brewPath = brewPath
         updateShellConfigStatus(brewPath: brewPath)
         isLoadingInstalled = true
-        errorMessage = nil
+        if clearingError { errorMessage = nil }
         clearUntrustedTap()
         let command = HomebrewCommandBuilder.installed(brewPath: brewPath)
         run(command) { [weak self] status, output in
@@ -392,22 +395,34 @@ final class HomebrewManager: ObservableObject {
                     self.markOperationComplete(result: .cancelled,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: nil)
+                    self.refreshInstalled(clearingError: false)
                 } else if HomebrewCommandBuilder.needsTerminalFallback(output: output) {
                     self.terminalFallbackCommand = HomebrewCommandBuilder.shellCommand(command)
                     self.markOperationComplete(result: .needsTerminal,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: HomebrewProgressParser.visibleError(from: output))
+                    // Same partly-done case: `upgrade` moves the formulae, then a
+                    // cask asks for a password and brew stops there.
+                    self.refreshInstalled(clearingError: false)
                 } else if let tap = HomebrewCommandBuilder.untrustedTapName(fromOutput: output) {
                     self.presentUntrustedTap(tap) { [weak self] in self?.perform(action, package: package) }
                     self.markOperationComplete(result: .failed,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: nil)
+                    // No refresh here: `refreshInstalled` calls `clearUntrustedTap()`,
+                    // which would drop the prompt and retry closure just installed.
                 } else {
                     let message = HomebrewProgressParser.visibleError(from: output)
                     self.errorMessage = message.isEmpty ? output.trimmingCharacters(in: .whitespacesAndNewlines) : message
                     self.markOperationComplete(result: .failed,
                                                phase: self.operationStatus?.phase ?? .finalizing,
                                                activity: self.errorMessage)
+                    // brew reports a run as failed when it could not do all of it,
+                    // not only when it did none of it: one disabled package makes
+                    // `upgrade` skip that one, upgrade the rest and still exit
+                    // non-zero. Re-read regardless, or the panel keeps showing the
+                    // versions from before a run that moved most of them.
+                    self.refreshInstalled(clearingError: false)
                 }
                 self.cancelRequested = false
             }

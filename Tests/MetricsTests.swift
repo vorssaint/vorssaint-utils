@@ -11637,6 +11637,30 @@ struct MetricsTests {
         expect(HomebrewCommandBuilder.upgradeAll(brewPath: brewPath).arguments
                == ["upgrade"],
                "Homebrew update all command upgrades all outdated packages")
+
+        // brew exits non-zero when it could not do all of a run, not only when it
+        // did none of it, so the installed and outdated lists have to be re-read
+        // after a failed operation too. Read from the source: the refresh happens
+        // inside a completion closure that no unit test can drive.
+        let managerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift",
+            encoding: .utf8)) ?? ""
+        expect(!managerSource.isEmpty, "HomebrewManager source is readable for the refresh checks")
+        let managerCode = managerSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let refreshCalls = managerCode
+            .components(separatedBy: "self.refreshInstalled(clearingError: false)").count - 1
+        expect(refreshCalls == 3,
+               "the cancelled, needs-terminal and failed operation paths all re-read, "
+               + "found \(refreshCalls)")
+        let guardedBannerClears = managerCode
+            .components(separatedBy: "if clearingError { errorMessage = nil }").count - 1
+        expect(guardedBannerClears == 2,
+               "both banner clears in refreshInstalled are behind its parameter, so the reason "
+               + "a failed operation gave survives the refresh that follows it, found "
+               + "\(guardedBannerClears)")
         expect(HomebrewOperation.Action.install.runningSystemImage == "arrow.down.circle.fill",
                "Homebrew install status uses a download icon")
         expect(HomebrewOperation.Action.uninstall.runningSystemImage == "trash.circle.fill",
