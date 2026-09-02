@@ -20,11 +20,6 @@ let package = Package(
             name: "Vorssaint",
             dependencies: ["VMStatisticsCompat", "HIDEventSystem"],
             path: "Sources/Vorssaint"
-        ),
-        .testTarget(
-            name: "PanelKeyboardNavigatorTests",
-            dependencies: ["Vorssaint"],
-            path: "Tests/PanelKeyboardNavigatorTests"
         )
     ]
 )
