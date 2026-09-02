@@ -1459,13 +1459,12 @@ private struct CaptureChromeBackdrop<S: Shape>: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
-    /// Taken from the same worst case the shared backdrop is calibrated for: a
-    /// panel over a full white window in the dark theme, or a full black one in
-    /// the light theme, with the material assumed to hold nothing back. Reduced
-    /// transparency already gives an opaque material, so the plate steps aside.
+    /// Reduced transparency already gives an opaque material, so the plate
+    /// steps aside; otherwise it carries the same calibration the shared
+    /// backdrop documents.
     private var plateOpacity: Double {
         guard !reduceTransparency else { return 0 }
-        return colorScheme == .dark ? 0.55 : 0.5
+        return HUDBackdrop.plateOpacity(dark: colorScheme == .dark)
     }
 
     var body: some View {
