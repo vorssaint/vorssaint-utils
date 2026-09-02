@@ -911,6 +911,7 @@ extension Strings {
         cleanerScheduleCaption: "選んだ時刻に安全な部分だけを自動で掃除し、すべてゴミ箱に移動します。",
         cleanerScheduleLastFormat: "前回の自動クリーンアップで %@ 解放されました。",
         cleanerAutoNotificationFormat: "%@ を解放してゴミ箱に移動しました。",
+        cleanerAutoLeftFormat: "%d 件はそのまま残りました。",
         cleanerScheduleNextFormat: "次のクリーンアップは %@。",
         cleanerScheduleRanFormat: "前回の自動クリーンアップは %@。",
         cleanerScheduleNotifyToggle: "完了時に通知",

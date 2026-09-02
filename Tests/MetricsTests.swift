@@ -4748,7 +4748,7 @@ struct MetricsTests {
         let junkCleanerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift",
             encoding: .utf8)) ?? ""
-        let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected()",
+        let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected(",
                                            to: "private static func mayRemove")
         expect(cleanSelectedBody.contains("chosen.contains { $0.category == .leftovers }")
                && cleanSelectedBody.contains("? Self.installedBundleIDs() : []")
@@ -4858,6 +4858,24 @@ struct MetricsTests {
                "device backups joined the cleaner with a stable category id")
         expect(!CleanerPolicy.precheckDeviceBackups,
                "device backups never start checked, they are the user's safety net")
+        // CleanerScheduler and CleanerView are outside this test binary, so
+        // pin escalation at the call sites: the unattended pass must never
+        // reach Finder's administrator prompt, and no default lets a later
+        // automatic caller inherit it.
+        let compact = { (path: String) -> String in
+            ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .split(whereSeparator: \.isWhitespace).joined()
+        }
+        let schedulerCode = compact("Sources/Vorssaint/Services/Cleaner/CleanerScheduler.swift")
+        let cleanerViewCode = compact("Sources/Vorssaint/UI/Cleaner/CleanerView.swift")
+        expect(schedulerCode.components(separatedBy: "cleanSelected(").count == 2
+               && schedulerCode.contains("cleanSelected(escalate:false)")
+               && schedulerCode.contains("notifyIfWanted(freed:freed,failed:failed)"),
+               "the scheduled clean never escalates and reports what it left in place")
+        expect(junkCleanerSource.contains("func cleanSelected(escalate: Bool) {")
+               && cleanerViewCode.components(separatedBy: "cleanSelected(").count == 2
+               && cleanerViewCode.contains("cleanSelected(escalate:true)"),
+               "cleanSelected has no default escalation and the manual clean still asks")
         expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
                "stale DeviceSupport symbol caches count as developer junk")
@@ -11924,6 +11942,7 @@ struct MetricsTests {
             expect(strings.quickToolsTab == strings.launcherName,
                    "\(prefix) Quick panel keeps the same name in Settings")
             expectFormat(strings.cutMovedPluralFormat, ["d"], "\(prefix) cut plural format")
+            expectFormat(strings.cleanerAutoLeftFormat, ["d"], "\(prefix) cleaner left-in-place format")
             expectFormat(strings.uninstallerSelectedFormat, ["d", "d"], "\(prefix) uninstaller selected format")
             expectFormat(strings.uninstallerFreedFormat, ["@"], "\(prefix) uninstaller freed format")
             expectFormat(strings.shelfSelectedFormat, ["d"], "\(prefix) shelf selection format")
