@@ -223,17 +223,9 @@ enum CalendarSupport {
         return stride(from: 0, to: cells.count, by: 7).map { Array(cells[$0..<min($0 + 7, cells.count)]) }
     }
 
-    static func duration(from interval: TimeInterval) -> String {
-        let minutes = max(0, Int(interval / 60))
-        if minutes == 0 { return "0 minutes" }
-        let days = minutes / 1_440
-        let hours = (minutes % 1_440) / 60
-        let remaining = minutes % 60
-        var parts: [String] = []
-        if days > 0 { parts.append(days == 1 ? "1 day" : "\(days) days") }
-        if hours > 0 { parts.append(hours == 1 ? "1 hour" : "\(hours) hours") }
-        if remaining > 0 { parts.append(remaining == 1 ? "1 minute" : "\(remaining) minutes") }
-        return parts.joined(separator: " ")
+    static func duration(from interval: TimeInterval,
+                         strings: CalendarStrings = .current(.enUS)) -> String {
+        strings.duration(from: interval)
     }
 
     static func selectedCalendarIDs(from data: Data?) -> Set<String>? {

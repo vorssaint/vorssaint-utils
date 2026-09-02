@@ -26009,6 +26009,16 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.calendarAlertEnabled] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.calendarAlertMinutesBefore] as? Int == 5,
                "Calendar ships with stable, opt-in defaults")
+        let calendarPopoverSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/CalendarPopoverView.swift", encoding: .utf8)) ?? ""
+        let calendarServiceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Calendar/CalendarService.swift", encoding: .utf8)) ?? ""
+        let calendarInfoPrompt = (NSDictionary(contentsOfFile: "Resources/Info.plist") as? [String: Any])?["NSCalendarsFullAccessUsageDescription"] as? String ?? ""
+        expect(calendarPopoverSource.contains("strings.noEvents")
+                && calendarPopoverSource.contains("strings.allDay")
+                && calendarPopoverSource.contains("strings.join")
+                && calendarPopoverSource.contains("strings.duration")
+                && calendarServiceSource.contains("autosaveName")
+                && calendarInfoPrompt.localizedCaseInsensitiveContains("create events"),
+               "Calendar routes popover copy, preserves status-item placement, and declares write access")
         expect(AppFeature.calendar.group == .tools && AppFeature.calendar.symbolName == "calendar"
                 && AppFeature.calendar.monitorsPermissionChanges,
                "Calendar is a Tools feature that observes permission changes")
@@ -26040,7 +26050,8 @@ struct MetricsTests {
                "Calendar menu bar components preserve inclusion and ordering")
         expect(CalendarSupport.duration(from: 0) == "0 minutes"
                 && CalendarSupport.duration(from: 45 * 60) == "45 minutes"
-                && CalendarSupport.duration(from: 90 * 60) == "1 hour 30 minutes",
+                && CalendarSupport.duration(from: 90 * 60) == "1 hour 30 minutes"
+                && CalendarStrings.current(.ptBR).duration(from: 90 * 60) == "1 hora 30 minutos",
                "Calendar duration helper formats common meeting lengths")
         let calendarDraftNow = ISO8601DateFormatter().date(from: "2026-09-02T09:00:00Z")!
         var calendarDraft = CalendarQuickEventParser.parse("Reunião amanhã às 15:30 por 2 horas /Trabalho", now: calendarDraftNow, calendar: utcCalendar)

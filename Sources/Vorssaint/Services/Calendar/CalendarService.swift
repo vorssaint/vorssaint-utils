@@ -25,6 +25,7 @@ final class CalendarService: ObservableObject {
     private var flashTimer: Timer?
     private var statusItem: NSStatusItem?
     private let alerts = CalendarAlertScheduler()
+    private static let statusItemAutosaveName = "VorssaintCalendarItem"
 
     private init() {}
 
@@ -154,6 +155,7 @@ final class CalendarService: ObservableObject {
     private func installStatusItemIfNeeded() {
         guard statusItem == nil else { return }
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = Self.statusItemAutosaveName
         item.button?.target = self
         item.button?.action = #selector(showCalendar)
         statusItem = item

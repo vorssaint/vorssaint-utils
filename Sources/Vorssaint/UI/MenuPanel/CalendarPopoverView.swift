@@ -5,6 +5,7 @@ import SwiftUI
 
 struct CalendarPopoverView: View {
     @ObservedObject private var service = CalendarService.shared
+    @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.calendarShowWeekNumbers) private var showWeekNumbers = false
     @AppStorage(DefaultsKey.calendarShowWeekends) private var showWeekends = true
     @AppStorage(DefaultsKey.calendarShowLunarDate) private var showLunarDate = false
@@ -20,6 +21,8 @@ struct CalendarPopoverView: View {
     @State private var selectedEvent: EKEvent?
     @State private var showingQuickAdd = false
 
+    private var strings: CalendarStrings { CalendarStrings.current(l10n.language) }
+
     var body: some View {
         let selectedDayEvents = CalendarSupport.visibleEvents(
             CalendarSupport.dayEvents(for: day, in: service.events, showDeclinedEvents: showDeclinedEvents),
@@ -30,10 +33,10 @@ struct CalendarPopoverView: View {
             if service.authorizationStatus != .fullAccess { permissionState }
             else {
                 HStack {
-                    Text("Agenda: \(selectedDayEvents.count)").font(.caption).foregroundStyle(.secondary)
+                    Text("\(strings.agenda): \(selectedDayEvents.count)").font(.caption).foregroundStyle(.secondary)
                     Spacer()
-                    Button { showingQuickAdd = true } label: { Image(systemName: "plus") }.buttonStyle(.plain).help("Criar evento")
-                    Button { NSWorkspace.shared.open(URL(string: "ical://")!) } label: { Image(systemName: "calendar") }.buttonStyle(.plain).help("Abrir Calendário")
+                    Button { showingQuickAdd = true } label: { Image(systemName: "plus") }.buttonStyle(.plain).help(strings.newEvent)
+                    Button { NSWorkspace.shared.open(URL(string: "ical://")!) } label: { Image(systemName: "calendar") }.buttonStyle(.plain).help(strings.openInCalendar)
                 }
                 CalendarMonthView(month: $month, selectedDay: $day, events: service.events,
                                   showWeekNumbers: showWeekNumbers, showWeekends: showWeekends, showLunarDate: showLunarDate,
@@ -41,15 +44,15 @@ struct CalendarPopoverView: View {
                                   eventDots: CalendarEventDots(rawValue: eventDots) ?? .multiple,
                                   showDeclinedEvents: showDeclinedEvents)
                 Divider()
-                CalendarEventListView(events: selectedDayEvents, selectedEvent: $selectedEvent, showPastEvents: showPastEvents, showDeclinedEvents: showDeclinedEvents)
+                CalendarEventListView(events: selectedDayEvents, selectedEvent: $selectedEvent, showPastEvents: showPastEvents, showDeclinedEvents: showDeclinedEvents, strings: strings)
                 if let selectedEvent {
-                    CalendarEventDetailView(event: selectedEvent)
+                    CalendarEventDetailView(event: selectedEvent, strings: strings)
                 }
             }
         }
         .frame(width: 330)
         .padding(12)
-        .sheet(isPresented: $showingQuickAdd) { CalendarQuickAddView(initialDate: day) }
+        .sheet(isPresented: $showingQuickAdd) { CalendarQuickAddView(initialDate: day, strings: strings) }
         .onAppear { restoreSelectedDate() }
         .onReceive(NotificationCenter.default.publisher(for: .calendarPopoverWillShow)) { _ in restoreSelectedDate() }
         .onChange(of: day) { _, value in
@@ -63,8 +66,8 @@ struct CalendarPopoverView: View {
     private var permissionState: some View {
         VStack(spacing: 10) {
             Image(systemName: "calendar.badge.exclamationmark").font(.title2)
-            Text("O acesso ao Calendário é necessário para mostrar seus eventos.").multilineTextAlignment(.center)
-            Button("Abrir Preferências") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!) }
+            Text(strings.accessRequired).multilineTextAlignment(.center)
+            Button(strings.openPreferences) { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!) }
         }.padding(24)
     }
 
@@ -95,7 +98,7 @@ private struct CalendarMonthView: View {
             HStack {
                 Button { month = calendar.date(byAdding: .month, value: -1, to: month) ?? month } label: { Image(systemName: "chevron.left") }.buttonStyle(.plain)
                 Spacer(); Text(formatter.string(from: month)).font(.headline); Spacer()
-                Button { month = Date() } label: { Image(systemName: "circle") }.buttonStyle(.plain).help("Hoje")
+                Button { month = Date() } label: { Image(systemName: "circle") }.buttonStyle(.plain)
                 Button { month = calendar.date(byAdding: .month, value: 1, to: month) ?? month } label: { Image(systemName: "chevron.right") }.buttonStyle(.plain)
             }
             VStack(spacing: 6) {
@@ -196,6 +199,7 @@ private struct CalendarEventListView: View {
     @Binding var selectedEvent: EKEvent?
     let showPastEvents: Bool
     let showDeclinedEvents: Bool
+    let strings: CalendarStrings
     var visibleEvents: [EKEvent] {
         CalendarSupport.visibleEvents(events, showPastEvents: showPastEvents, showDeclinedEvents: showDeclinedEvents)
     }
@@ -203,13 +207,13 @@ private struct CalendarEventListView: View {
     var body: some View {
         let listHeight = CalendarSupport.eventListHeight(for: visibleEvents.count)
         ScrollView { LazyVStack(alignment: .leading, spacing: 4) {
-            if visibleEvents.isEmpty { Text("Nenhum evento").frame(maxWidth: .infinity).foregroundStyle(.secondary).padding(.vertical, 18) }
+            if visibleEvents.isEmpty { Text(strings.noEvents).frame(maxWidth: .infinity).foregroundStyle(.secondary).padding(.vertical, 18) }
             ForEach(visibleEvents, id: \.eventIdentifier) { event in Button { selectedEvent = event } label: {
                 HStack(spacing: 8) {
                     Rectangle().fill(Color(nsColor: event.calendar.color ?? .controlAccentColor)).frame(width: 3)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(event.title ?? "").lineLimit(1)
-                        Text(event.isAllDay ? "Dia todo" : "\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))  ·  \(CalendarSupport.duration(from: event.endDate.timeIntervalSince(event.startDate)))").font(.caption).foregroundStyle(.secondary)
+                        Text(event.isAllDay ? strings.allDay : "\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))  ·  \(strings.duration(from: event.endDate.timeIntervalSince(event.startDate)))").font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
                     if event.hasRecurrenceRules { Image(systemName: "repeat").font(.caption).foregroundStyle(.secondary) }
@@ -222,6 +226,7 @@ private struct CalendarEventListView: View {
 
 private struct CalendarEventDetailView: View {
     let event: EKEvent
+    let strings: CalendarStrings
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -229,7 +234,7 @@ private struct CalendarEventDetailView: View {
                     Text(event.title ?? "")
                         .font(.system(size: 13, weight: .semibold))
                         .lineLimit(2)
-                    Text("\(event.calendar.title) · \(CalendarSupport.duration(from: event.endDate.timeIntervalSince(event.startDate)))")
+                    Text("\(event.calendar.title) · \(strings.duration(from: event.endDate.timeIntervalSince(event.startDate)))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -244,7 +249,7 @@ private struct CalendarEventDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Label(event.isAllDay ? "Dia todo" : "\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))", systemImage: "clock")
+                Label(event.isAllDay ? strings.allDay : "\(event.startDate.formatted(date: .omitted, time: .shortened)) – \(event.endDate.formatted(date: .omitted, time: .shortened))", systemImage: "clock")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .labelStyle(.titleAndIcon)
@@ -274,10 +279,10 @@ private struct CalendarEventDetailView: View {
 
             HStack(spacing: 8) {
                 if let link = MeetingLinkDetector.detect(event: event) {
-                    Button("Entrar") { MeetingLinkDetector.open(kind: link) }
+                    Button(strings.join) { MeetingLinkDetector.open(kind: link) }
                         .buttonStyle(.borderedProminent)
                 }
-                Button("Abrir no Calendário") {
+                Button(strings.openInCalendar) {
                     NSWorkspace.shared.open(URL(string: "ical://")!)
                 }
                 .buttonStyle(.bordered)
@@ -295,25 +300,29 @@ private struct CalendarQuickAddView: View {
     @State private var text = ""
     @State private var draft: CalendarQuickEventDraft
     @State private var error: String?
+    let strings: CalendarStrings
 
-    init(initialDate: Date) { _draft = State(initialValue: CalendarQuickEventDraft(title: "", startDate: initialDate, endDate: initialDate.addingTimeInterval(3600), isAllDay: false, calendarName: nil)) }
+    init(initialDate: Date, strings: CalendarStrings) {
+        self.strings = strings
+        _draft = State(initialValue: CalendarQuickEventDraft(title: "", startDate: initialDate, endDate: initialDate.addingTimeInterval(3600), isAllDay: false, calendarName: nil))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Novo evento")
+            Text(strings.newEvent)
                 .font(.headline)
-            TextField("Ex.: Reunião amanhã às 15:00 por 1 hora /Trabalho", text: $text)
+            TextField(strings.quickAddPlaceholder, text: $text)
                 .onChange(of: text) { _, value in
                     draft = CalendarQuickEventParser.parse(value, now: draft.startDate)
                 }
                 .textFieldStyle(.roundedBorder)
             VStack(alignment: .leading, spacing: 8) {
-                DatePicker("Início", selection: $draft.startDate, displayedComponents: [.date, .hourAndMinute])
-                DatePicker("Fim", selection: $draft.endDate, displayedComponents: [.date, .hourAndMinute])
-                Toggle("Dia todo", isOn: $draft.isAllDay)
+                DatePicker(strings.start, selection: $draft.startDate, displayedComponents: [.date, .hourAndMinute])
+                DatePicker(strings.end, selection: $draft.endDate, displayedComponents: [.date, .hourAndMinute])
+                Toggle(strings.allDay, isOn: $draft.isAllDay)
             }
             if let name = draft.calendarName {
-                Text("Calendário: \(name)")
+                Text("\(strings.calendarLabel): \(name)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -324,8 +333,8 @@ private struct CalendarQuickAddView: View {
             }
             HStack {
                 Spacer()
-                Button("Cancelar") { dismiss() }
-                Button("Salvar") { save() }
+                Button(strings.cancel) { dismiss() }
+                Button(strings.save) { save() }
                     .disabled(draft.title.isEmpty)
             }
         }
