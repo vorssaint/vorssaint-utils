@@ -321,6 +321,9 @@ extension Strings {
         uninstallerCatLogs: "Логи",
         uninstallerCatState: "Сохранённое состояние",
         uninstallerCatOther: "Другое",
+        uninstallerCommandBarBrowseTitle: "Удалить приложение",
+        uninstallerCommandBarToggle: "Показывать в командной панели",
+        uninstallerCommandBarCaption: "Добавляет в командную панель строку удаления для каждого приложения, а также ярлык для приложения, выбранного в Finder.",
 
         urlCleanerName: "Очистка URL",
         urlCleanerEnable: "Очищать URL при копировании",

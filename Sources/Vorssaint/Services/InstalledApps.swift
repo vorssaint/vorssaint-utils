@@ -73,6 +73,26 @@ enum InstalledApps {
         return systemPathPrefixes.contains { path.hasPrefix($0) }
     }
 
+    /// Whether `url` sits somewhere under one of the folders installed apps
+    /// live in - /Applications or ~/Applications - at any depth, not just
+    /// directly inside them. Matches `installedApplications`'s own walk of
+    /// these same two roots, which recurses into subfolders (an installer
+    /// that drops its app inside a vendor subfolder, e.g.
+    /// /Applications/Adobe/Photoshop.app, is exactly what that walk already
+    /// treats as installed) - this used to require the app sit directly in
+    /// one of the roots, which meant a bundle `installedApplications` would
+    /// list could still be refused here.
+    static func isInApplicationsFolder(_ url: URL) -> Bool {
+        let containingDirectory = url.deletingLastPathComponent()
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        let roots = [
+            URL(fileURLWithPath: "/Applications").standardizedFileURL.path,
+            URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Applications")
+                .standardizedFileURL.path,
+        ]
+        return roots.contains { containingDirectory == $0 || containingDirectory.hasPrefix($0 + "/") }
+    }
+
     static func installedApplications(includeSystemApplications: Bool = false,
                                       spotlightPaths: [String] = []) -> [InstalledApp] {
         let fm = FileManager.default

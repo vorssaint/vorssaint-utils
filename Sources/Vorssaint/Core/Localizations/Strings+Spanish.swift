@@ -320,6 +320,9 @@ extension Strings {
         uninstallerCatLogs: "Registros",
         uninstallerCatState: "Estado guardado",
         uninstallerCatOther: "Otros",
+        uninstallerCommandBarBrowseTitle: "Desinstalar aplicación",
+        uninstallerCommandBarToggle: "Mostrar en la Barra de Comandos",
+        uninstallerCommandBarCaption: "Añade una fila de desinstalación por cada app a la Barra de Comandos, además de un acceso directo para la app seleccionada en Finder.",
 
         urlCleanerName: "Limpiar URL",
         urlCleanerEnable: "Limpiar URL al copiarlas",

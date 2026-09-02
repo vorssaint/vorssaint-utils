@@ -19,6 +19,13 @@ final class CommandBarService: ObservableObject {
         case search
         case argument(entryID: String)
         case confirm(entryID: String)
+        /// The full leftover-files checklist for one app, in place of a
+        /// one-line confirm: this is what `opensUninstallReview` rows lead to.
+        case uninstallReview(entryID: String)
+        /// Guards a Homebrew-managed app's removal, since that runs `brew
+        /// uninstall` and takes longer than a Trash move - the same extra
+        /// step the Settings page and menu panel already ask for.
+        case uninstallHomebrewConfirm(entryID: String)
         /// The list of things that can be done to one row: pin it, name it,
         /// hide it, forget it. Everything the person controls lives here, one
         /// key away from whatever they were looking at.
@@ -118,6 +125,9 @@ final class CommandBarService: ObservableObject {
     private var appEntries: [CommandBarEntry] = []
     private var windowEntries: [CommandBarEntry] = []
     private var quitEntries: [CommandBarEntry] = []
+    /// One row per installed app, offered only while browsing the
+    /// "Uninstall Application" category - never in the flat search pool.
+    private var uninstallEntries: [CommandBarEntry] = []
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
@@ -140,6 +150,10 @@ final class CommandBarService: ObservableObject {
     /// `KillProcessService`'s own cache, same lifetime as `selectionEntries`.
     private var killProcessEntries: [CommandBarEntry] = []
     private var killProcessEntriesLoading = false
+    /// One row for whatever single app is selected in Finder's Applications
+    /// folder, same lifetime as `selectionEntries`.
+    private var uninstallSelectionEntries: [CommandBarEntry] = []
+    private var uninstallSelectionLoading = false
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
     private var menusLoading = false
@@ -206,6 +220,8 @@ final class CommandBarService: ObservableObject {
             appEntries = []
             windowEntries = []
             quitEntries = []
+            uninstallEntries = []
+            uninstallSelectionEntries = []
             menuEntries = []
             emojiEntries = []
             macSettingsEntries = []
@@ -305,6 +321,7 @@ final class CommandBarService: ObservableObject {
         selectionPreview = ""
         selectedText = ""
         killProcessEntries = []
+        uninstallSelectionEntries = []
         rebuildCatalog(index: false)
         rebuildRunningEntries()
         startBackgroundLoads(for: presentationID)
@@ -321,6 +338,7 @@ final class CommandBarService: ObservableObject {
         loadMenusIfNeeded(for: id)
         loadSelection(for: id)
         loadKillProcessEntries(for: id)
+        loadUninstallSelectionEntries(for: id)
     }
 
     private func present(_ panel: NSPanel) {
@@ -351,6 +369,21 @@ final class CommandBarService: ObservableObject {
         }
         removeMonitors()
         panel?.orderOut(nil)
+        // Leaving mid-review through this path (global shortcut, outside
+        // click) skipped the reset stepBack() does for the same mode -
+        // AppUninstaller kept its selected target and scanned checklist,
+        // which then showed up unprompted in Settings and the menu panel.
+        // Guarded the same way: don't tear down a removal - Homebrew or
+        // plain - that's still actually running in the background.
+        switch mode {
+        case .uninstallReview, .uninstallHomebrewConfirm:
+            let uninstaller = AppUninstaller.shared
+            if uninstaller.phase != .removing, !uninstaller.isRemovingWithHomebrew {
+                uninstaller.reset()
+            }
+        default:
+            break
+        }
         mode = .search
         // A selection belongs to the moment the bar was opened. Keeping it
         // would offer to act on text the person may have replaced since.
@@ -362,6 +395,10 @@ final class CommandBarService: ObservableObject {
         }
         if !killProcessEntries.isEmpty {
             killProcessEntries = []
+            indexEntries()
+        }
+        if !uninstallSelectionEntries.isEmpty {
+            uninstallSelectionEntries = []
             indexEntries()
         }
         // What was typed is remembered for the next opening, where the first
@@ -595,7 +632,7 @@ final class CommandBarService: ObservableObject {
             }
         case .killProcess:
             return AppFeature.killProcess.isAvailable
-        case .quitApps, .answers, .calculator, .selection, .files:
+        case .quitApps, .uninstallApps, .answers, .calculator, .selection, .files:
             return false
         }
     }
@@ -615,6 +652,7 @@ final class CommandBarService: ObservableObject {
         case .windows: rows = windowEntries
         case .menus: rows = menuEntries
         case .emoji: rows = emojiEntries
+        case .uninstallApps: rows = uninstallEntries
         case .settingsPages, .snippets, .folders, .links:
             rows = catalog.filter { CommandBarPreferences.source(ofRowID: $0.id) == source }
         case .clipboard:
@@ -646,6 +684,7 @@ final class CommandBarService: ObservableObject {
         case .menus: return bar.kindMenu
         case .windows: return bar.sourceWindows
         case .quitApps: return bar.sourceQuitApps
+        case .uninstallApps: return L10n.shared.s.uninstallerName
         case .settingsPages: return bar.sourceSettingsPages
         case .macSettings: return bar.sourceMacSettings
         case .snippets: return bar.sourceSnippets
@@ -861,8 +900,9 @@ final class CommandBarService: ObservableObject {
     /// Every row the bar can rank right now, in the order the pool builds
     /// them: what the Mac holds first, what is borrowed after.
     private var indexableEntries: [CommandBarEntry] {
-        selectionEntries + killProcessEntries + catalog + appEntries + macSettingsEntries + windowEntries
-            + quitEntries + menuEntries + emojiEntries
+        selectionEntries + killProcessEntries + uninstallSelectionEntries + catalog + appEntries
+            + uninstallEntries + macSettingsEntries + windowEntries + quitEntries + menuEntries
+            + emojiEntries
     }
 
     private func indexEntries() {
@@ -910,6 +950,7 @@ final class CommandBarService: ObservableObject {
                                                   runningBundleIDs: bundleIDs,
                                                   runningPaths: paths,
                                                   bar: bar)
+        uninstallEntries = CommandBarCatalog.uninstallEntries(cachedApps, bar: bar)
         if index { indexEntries() }
     }
 
@@ -1000,7 +1041,8 @@ final class CommandBarService: ObservableObject {
                                                       query: query,
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
-        case .argument, .confirm, .actions, .naming, .capturingShortcut:
+        case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .actions, .naming,
+             .capturingShortcut:
             setCompactHome(false)
         }
         refreshPanelLayout()
@@ -1129,8 +1171,8 @@ final class CommandBarService: ObservableObject {
         case .links: return bar.kindLink
         case .snippets: return bar.kindSnippet
         case .folders: return bar.kindFolder
-        case .actions, .apps, .menus, .windows, .quitApps, .settingsPages, .macSettings,
-             .clipboard, .emoji, .calculator, .selection, .files, .killProcess:
+        case .actions, .apps, .menus, .windows, .quitApps, .uninstallApps, .settingsPages,
+             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess:
             return entry.subtitle.isEmpty ? bar.everythingTitle : entry.subtitle
         }
     }
@@ -1271,7 +1313,8 @@ final class CommandBarService: ObservableObject {
 
         // What is selected comes first, so a tie goes to the thing the person
         // is already looking at.
-        var pool = selectionEntries + catalog + appEntries + macSettingsEntries + windowEntries
+        var pool = selectionEntries + uninstallSelectionEntries + catalog + appEntries
+            + macSettingsEntries + windowEntries
         // Two script names can overlap ("run" and "run report"). Only the
         // longest matching one is eligible; otherwise the shorter row can win
         // a ranking tie and Return runs a different file from the answer shown.
@@ -1747,6 +1790,41 @@ final class CommandBarService: ObservableObject {
         appDelegate()?.openSettingsWindow()
     }
 
+    /// Return (or the Remove button) from the review checklist while it is
+    /// still showing results. A plain app just gets trashed in place; a
+    /// Homebrew-managed one needs its own confirmation first, guarded by
+    /// `.uninstallHomebrewConfirm` the same way a destructive row guards
+    /// itself with `.confirm`.
+    private func confirmUninstallReview(entryID: String) {
+        let uninstaller = AppUninstaller.shared
+        guard uninstaller.phase == .results else { return }
+        if uninstaller.selectedHomebrewPackage != nil {
+            mode = .uninstallHomebrewConfirm(entryID: entryID)
+            refreshPanelLayout()
+            return
+        }
+        uninstaller.removeSelected()
+    }
+
+    /// The Homebrew confirmation itself: runs the removal and returns to the
+    /// checklist, which shows its live progress the same way the menu panel
+    /// already does while `AppUninstaller` waits on it.
+    private func confirmUninstallHomebrewRemoval(entryID: String) {
+        AppUninstaller.shared.removeSelectedWithHomebrew()
+        mode = .uninstallReview(entryID: entryID)
+        refreshPanelLayout()
+    }
+
+    /// Return (or the Done button) once removal has finished. Nothing is left
+    /// to review, so this goes all the way home with an empty field rather
+    /// than reoffering whatever was typed before the review began.
+    private func finishUninstallReview() {
+        AppUninstaller.shared.reset()
+        mode = .search
+        query = ""
+        refreshResults()
+    }
+
     func openActions() {
         guard canOpenActions, let entry = selectedEntry else { return }
         savedQuery = query
@@ -1875,6 +1953,14 @@ final class CommandBarService: ObservableObject {
         case .confirm(let id):
             guard let entry = entry(withID: id) else { return }
             finish(entry, value: nil)
+        case .uninstallReview(let id):
+            switch AppUninstaller.shared.phase {
+            case .results: confirmUninstallReview(entryID: id)
+            case .done: finishUninstallReview()
+            case .empty, .scanning, .removing: break
+            }
+        case .uninstallHomebrewConfirm(let id):
+            confirmUninstallHomebrewRemoval(entryID: id)
         case .argument(let id):
             guard let entry = entry(withID: id), let range = entry.numericRange,
                   let value = CommandBarSearch.argumentValue(query, in: range) else {
@@ -1910,6 +1996,13 @@ final class CommandBarService: ObservableObject {
             hide()
             SettingsRouter.shared.page = page
             appDelegate()?.openSettingsWindow()
+            return
+        }
+        if entry.opensUninstallReview {
+            entry.run(nil)
+            savedQuery = query
+            mode = .uninstallReview(entryID: entry.id)
+            refreshPanelLayout()
             return
         }
         if entry.confirmationPrompt != nil {
@@ -1961,6 +2054,23 @@ final class CommandBarService: ObservableObject {
             mode = .search
             query = savedQuery
             refreshResults()
+        case .uninstallReview:
+            if case .done = AppUninstaller.shared.phase {
+                finishUninstallReview()
+            } else {
+                let uninstaller = AppUninstaller.shared
+                if uninstaller.phase != .removing, !uninstaller.isRemovingWithHomebrew {
+                    uninstaller.reset()
+                }
+                mode = .search
+                query = savedQuery
+                refreshResults()
+            }
+        case .uninstallHomebrewConfirm(let id):
+            // Cancelling the Homebrew confirmation returns to the checklist
+            // it came from, not all the way home.
+            mode = .uninstallReview(entryID: id)
+            refreshPanelLayout()
         case .search:
             // A long query typed by mistake should be clearable without
             // throwing the whole session away; then Esc leaves the category,
@@ -2275,6 +2385,38 @@ final class CommandBarService: ObservableObject {
                 KillProcessService.shared.entries, killStrings: killStrings)
             self.indexEntries()
             self.refreshResults()
+        }
+    }
+
+    /// Whatever single app is selected in Finder's Applications folder, so an
+    /// "Uninstall <App>" row can appear inline. Read away from the main
+    /// thread (Apple Events over `AppleScriptRunner`) and only while the bar
+    /// is open, same lifetime and guard shape as `loadSelection(for:)`.
+    private func loadUninstallSelectionEntries(for id: UUID) {
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
+        else { return }
+        guard !uninstallSelectionLoading else { return }
+        uninstallSelectionLoading = true
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let urls = FinderBridge.selectionURLs()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.uninstallSelectionLoading = false
+                guard self.presentationLifecycle.acceptsHomeUpdates(
+                    id, isVisible: self.isVisible) else {
+                    let current = self.presentationID
+                    if self.presentationLifecycle.acceptsHomeUpdates(
+                        current, isVisible: self.isVisible) {
+                        self.loadUninstallSelectionEntries(for: current)
+                    }
+                    return
+                }
+                self.uninstallSelectionEntries = CommandBarCatalog.uninstallSelectionEntries(
+                    urls: urls, automationDenied: self.finderAutomationDenied)
+                self.indexEntries()
+                self.refreshResults()
+            }
         }
     }
 
@@ -2632,6 +2774,8 @@ final class CommandBarService: ObservableObject {
                 // down. Otherwise a destructive Return stays armed behind
                 // what looks like an ordinary search.
                 if case .confirm = self.mode { self.stepBack() }
+                if case .uninstallReview = self.mode { self.stepBack() }
+                if case .uninstallHomebrewConfirm = self.mode { self.stepBack() }
                 if case .naming = self.mode { self.aliasWarning = nil }
                 return event
             }

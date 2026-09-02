@@ -19762,8 +19762,8 @@ struct MetricsTests {
         // MARK: Command bar, what the person controls
 
         expect(CommandBarSource.allCases.map(\.rawValue) == [
-            "actions", "apps", "menus", "windows", "quitApps", "settingsPages", "macSettings",
-            "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
+            "actions", "apps", "menus", "windows", "quitApps", "uninstallApps", "settingsPages",
+            "macSettings", "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
             "selection", "links", "files", "killProcess",
         ], "source ids are stable (they persist inside the disabled list)")
         expect(CommandBarSource.actions.isAlwaysOn
@@ -19973,7 +19973,8 @@ struct MetricsTests {
         expect(invalidFileSearchBackup?.isEmpty == true,
                "a backup cannot restore non-text file search preferences")
         expect(CommandBarPreferences.rankBias(for: .files) < 0
-                && CommandBarPreferences.rankBias(for: .apps) == 0,
+                && CommandBarPreferences.rankBias(for: .apps) == 0
+                && CommandBarPreferences.rankBias(for: .uninstallApps) == 0,
                "a file leads only when it is a plainly better match than a command")
 
         // MARK: The Mac's own Settings panes
@@ -20076,8 +20077,13 @@ struct MetricsTests {
         expect(CommandBarPreferences.acceptsAlias(rowID: "app.x")
                 && !CommandBarPreferences.acceptsAlias(rowID: "menu.1.Bold")
                 && !CommandBarPreferences.acceptsAlias(rowID: "window.4")
-                && !CommandBarPreferences.acceptsAlias(rowID: "clipboard.abc"),
+                && !CommandBarPreferences.acceptsAlias(rowID: "clipboard.abc")
+                && !CommandBarPreferences.acceptsAlias(rowID: "uninstall.x"),
                "only rows that are the same thing tomorrow can be named")
+        expect(!CommandBarPreferences.acceptsPin(rowID: "uninstall.x")
+                && !CommandBarPreferences.acceptsPin(rowID: "menu.1.Bold")
+                && CommandBarPreferences.acceptsPin(rowID: "app.x"),
+               "an uninstall row is offered fresh each time, so it cannot be pinned")
 
         var barPins = CommandBarPreferences.togglingPin("action.screenshot", in: [])
         barPins = CommandBarPreferences.togglingPin("app.chat", in: barPins)
@@ -21339,6 +21345,13 @@ struct MetricsTests {
                 && !InstalledApps.isSystemApplication(
                     at: URL(fileURLWithPath: "/Applications/UserUtility.app")),
                "app controls never offer system apps to the uninstaller")
+        expect(InstalledApps.isInApplicationsFolder(
+                    URL(fileURLWithPath: "/Applications/UserUtility.app"))
+                && InstalledApps.isInApplicationsFolder(
+                    URL(fileURLWithPath: "/Applications/Vendor/Nested.app"))
+                && !InstalledApps.isInApplicationsFolder(
+                    URL(fileURLWithPath: "/Users/someone/Downloads/Rogue.app")),
+               "an app nested in an Applications subfolder counts as installed, same as installedApplications' own recursive walk")
 
         // MARK: Command bar search and ranking
 
