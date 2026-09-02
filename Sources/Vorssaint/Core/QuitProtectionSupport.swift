@@ -9,7 +9,7 @@ enum QuitProtectionShortcut: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var character: String { self == .quit ? "q" : "w" }
-    /// Positional fallback only. Matching uses the layout-resolved character first.
+    /// The US position, used only while no layout and no character can be read.
     var fallbackKeyCode: Int64 { self == .quit ? 12 : 13 }
     var symbol: String { self == .quit ? "⌘Q" : "⌘W" }
 }
@@ -98,17 +98,22 @@ enum QuitProtectionSupport {
     /// user cannot bypass protection by pressing plain Command-Q/Command-W.
     static func isBaseShortcut(keyCharacter: String?,
                                keyCode: Int64,
+                               commandLabel: String?,
                                command: Bool,
                                control: Bool,
                                option: Bool,
                                shift: Bool,
                                shortcut: QuitProtectionShortcut) -> Bool {
         guard command, !control, !option, !shift else { return false }
-        return matchesKey(keyCharacter: keyCharacter, keyCode: keyCode, shortcut: shortcut)
+        return matchesKey(keyCharacter: keyCharacter,
+                          keyCode: keyCode,
+                          commandLabel: commandLabel,
+                          shortcut: shortcut)
     }
 
     static func isExtraShortcut(keyCharacter: String?,
                                 keyCode: Int64,
+                                commandLabel: String?,
                                 command: Bool,
                                 control: Bool,
                                 option: Bool,
@@ -122,12 +127,22 @@ enum QuitProtectionSupport {
         case .option: hasExtra = option && !shift && !control
         case .control: hasExtra = control && !shift && !option
         }
-        return hasExtra && matchesKey(keyCharacter: keyCharacter, keyCode: keyCode, shortcut: shortcut)
+        return hasExtra && matchesKey(keyCharacter: keyCharacter,
+                                      keyCode: keyCode,
+                                      commandLabel: commandLabel,
+                                      shortcut: shortcut)
     }
 
+    /// `commandLabel` is what the layout's Command table types on this key, the
+    /// table macOS resolves Command-Q through; `keyCharacter` is the bare one,
+    /// "й" on Russian and ";" on Greek for the very key that quits.
     static func matchesKey(keyCharacter: String?,
                            keyCode: Int64,
+                           commandLabel: String?,
                            shortcut: QuitProtectionShortcut) -> Bool {
+        if let commandLabel {
+            return commandLabel.lowercased() == shortcut.character
+        }
         if let keyCharacter {
             return keyCharacter.lowercased() == shortcut.character
         }

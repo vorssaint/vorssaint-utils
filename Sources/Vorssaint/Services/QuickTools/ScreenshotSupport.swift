@@ -102,6 +102,15 @@ enum ScreenshotSupport {
         let includePointer: Bool
         let hideVorssaintWindows: Bool
         let usesGeometry: Bool
+
+        /// Two tools can want the same photograph and still do different
+        /// things with it, so only the fields that decide which pixels are
+        /// taken force a new one.
+        func sharesSource(with other: UnifiedCapturePolicy) -> Bool {
+            freeze == other.freeze
+                && includePointer == other.includePointer
+                && hideVorssaintWindows == other.hideVorssaintWindows
+        }
     }
 
     static func unifiedCapturePolicy(for tool: ScreenCaptureTool,

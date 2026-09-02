@@ -269,6 +269,47 @@ enum WindowLayoutGeometry {
         return action
     }
 
+    /// Where a repeated side action goes: asking for the same side again keeps
+    /// pushing that way, so the window leaves through that edge and lands
+    /// against the opposite one on the display beside it. Top and bottom keep
+    /// promoting to maximize instead.
+    static func displayCrossing(
+        for action: WindowLayoutAction,
+        previousAction: WindowLayoutAction?
+    ) -> (action: WindowLayoutAction, movingRight: Bool)? {
+        guard action == previousAction else { return nil }
+        switch action {
+        case .leftHalf: return (.rightHalf, false)
+        case .rightHalf: return (.leftHalf, true)
+        default: return nil
+        }
+    }
+
+    /// The display sitting on one side of this one. Only a display that starts
+    /// further along that side counts, so one stacked above or below never
+    /// answers a sideways push, and the nearest one wins when several share an
+    /// edge. Next and previous display keep their own order, which cycles
+    /// through every screen.
+    static func horizontalNeighbourIndex(currentIndex: Int,
+                                         frames: [CGRect],
+                                         movingRight: Bool) -> Int? {
+        guard frames.indices.contains(currentIndex) else { return nil }
+        let current = frames[currentIndex]
+        return frames.indices
+            .filter { movingRight ? frames[$0].minX > current.minX : frames[$0].minX < current.minX }
+            .min { lhs, rhs in
+                let lhsFrame = frames[lhs]
+                let rhsFrame = frames[rhs]
+                if lhsFrame.minX != rhsFrame.minX {
+                    return movingRight ? lhsFrame.minX < rhsFrame.minX : lhsFrame.minX > rhsFrame.minX
+                }
+                let lhsDistance = abs(lhsFrame.midY - current.midY)
+                let rhsDistance = abs(rhsFrame.midY - current.midY)
+                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+                return lhs < rhs
+            }
+    }
+
     static func rect(for action: WindowLayoutAction,
                      current: CGRect,
                      visibleFrame: CGRect,

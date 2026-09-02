@@ -2,7 +2,7 @@
 "NSAppleEventsUsageDescription" = "Vorssaint 使用自動化在 Finder 中移動檔案、將項目丟到垃圾桶，並在你要求 Homebrew 動作時開啟終端機指令。";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint 僅取用各個 App 的音訊，用來在混音器中調整它們的音量。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
+"NSAudioCaptureUsageDescription" = "Vorssaint 使用各個 App 的音訊，用來在混音器中調整它們的音量，以及在你開始的螢幕錄製中加入 Mac 的聲音。不會有任何資料離開你的 Mac。";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint 僅使用藍牙讀取已連接周邊裝置的電池電量。不會有任何資料離開你的 Mac。";

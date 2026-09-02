@@ -124,6 +124,13 @@ struct RecorderFeatureStrings {
     let automaticZoomCaption: String
     let pauseButton: String
     let resumeButton: String
+    let blurLaneLabel: String
+    let addBlurButton: String
+    let blurLaneEmptyHint: String
+    let thisBlurLabel: String
+    let blurPickArea: String
+    let blurPickAreaHint: String
+    let blurCaption: String
 }
 
 extension FeatureStrings {
@@ -266,7 +273,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Add zooms automatically",
         automaticZoomCaption: "Turn this off to start new recordings without zooms. You can still add them in the editor.",
         pauseButton: "Pause recording",
-        resumeButton: "Resume recording"
+        resumeButton: "Resume recording",
+        blurLaneLabel: "Blur",
+        addBlurButton: "Blur an area",
+        blurLaneEmptyHint: "Click here to add a blur",
+        thisBlurLabel: "This blur",
+        blurPickArea: "Choose the area",
+        blurPickAreaHint: "Drag over what should stay hidden",
+        blurCaption: "Hidden for as long as its block lasts on the timeline."
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -388,7 +402,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Adicionar zooms automaticamente",
         automaticZoomCaption: "Desative para começar novas gravações sem zooms. Você ainda pode adicioná-los no editor.",
         pauseButton: "Pausar gravação",
-        resumeButton: "Retomar gravação"
+        resumeButton: "Retomar gravação",
+        blurLaneLabel: "Desfoque",
+        addBlurButton: "Desfocar uma área",
+        blurLaneEmptyHint: "Clique aqui para adicionar um desfoque",
+        thisBlurLabel: "Este desfoque",
+        blurPickArea: "Escolher a área",
+        blurPickAreaHint: "Arraste sobre o que deve ficar escondido",
+        blurCaption: "Fica escondido enquanto o bloco durar na linha do tempo."
     )
 
     static let tr = RecorderFeatureStrings(
@@ -510,7 +531,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Yakınlaştırmaları otomatik ekle",
         automaticZoomCaption: "Yeni kayıtları yakınlaştırmasız başlatmak için kapatın. Düzenleyicide yine ekleyebilirsiniz.",
         pauseButton: "Kaydı duraklat",
-        resumeButton: "Kayda devam et"
+        resumeButton: "Kayda devam et",
+        blurLaneLabel: "Bulanıklık",
+        addBlurButton: "Bir alanı bulanıklaştır",
+        blurLaneEmptyHint: "Bulanıklık eklemek için buraya tıklayın",
+        thisBlurLabel: "Bu bulanıklık",
+        blurPickArea: "Alanı seç",
+        blurPickAreaHint: "Gizli kalması gerekenin üzerine sürükleyin",
+        blurCaption: "Zaman çizelgesindeki blok sürdüğü sürece gizli kalır."
     )
 
     static let ru = RecorderFeatureStrings(
@@ -632,7 +660,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Добавлять масштабирование автоматически",
         automaticZoomCaption: "Отключите, чтобы новые записи начинались без масштабирования. Его можно добавить в редакторе.",
         pauseButton: "Приостановить запись",
-        resumeButton: "Продолжить запись"
+        resumeButton: "Продолжить запись",
+        blurLaneLabel: "Размытие",
+        addBlurButton: "Размыть область",
+        blurLaneEmptyHint: "Нажмите здесь, чтобы добавить размытие",
+        thisBlurLabel: "Это размытие",
+        blurPickArea: "Выбрать область",
+        blurPickAreaHint: "Проведите по тому, что нужно скрыть",
+        blurCaption: "Скрыто, пока длится блок на шкале времени."
     )
 
     static let es = RecorderFeatureStrings(
@@ -754,7 +789,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Añadir zooms automáticamente",
         automaticZoomCaption: "Desactívalo para iniciar nuevas grabaciones sin zooms. Aún puedes añadirlos en el editor.",
         pauseButton: "Pausar grabación",
-        resumeButton: "Reanudar grabación"
+        resumeButton: "Reanudar grabación",
+        blurLaneLabel: "Desenfoque",
+        addBlurButton: "Desenfocar un área",
+        blurLaneEmptyHint: "Haz clic aquí para añadir un desenfoque",
+        thisBlurLabel: "Este desenfoque",
+        blurPickArea: "Elegir el área",
+        blurPickAreaHint: "Arrastra sobre lo que debe quedar oculto",
+        blurCaption: "Queda oculto mientras dure su bloque en la línea de tiempo."
     )
 
     static let de = RecorderFeatureStrings(
@@ -876,7 +918,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Zooms automatisch hinzufügen",
         automaticZoomCaption: "Deaktivieren, um neue Aufnahmen ohne Zooms zu beginnen. Im Editor kannst du sie weiterhin hinzufügen.",
         pauseButton: "Aufnahme pausieren",
-        resumeButton: "Aufnahme fortsetzen"
+        resumeButton: "Aufnahme fortsetzen",
+        blurLaneLabel: "Unschärfe",
+        addBlurButton: "Bereich unkenntlich machen",
+        blurLaneEmptyHint: "Hier klicken, um eine Unschärfe hinzuzufügen",
+        thisBlurLabel: "Diese Unschärfe",
+        blurPickArea: "Bereich wählen",
+        blurPickAreaHint: "Über das ziehen, was verborgen bleiben soll",
+        blurCaption: "Bleibt verborgen, solange der Block in der Zeitleiste dauert."
     )
 
     static let fr = RecorderFeatureStrings(
@@ -998,7 +1047,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Ajouter les zooms automatiquement",
         automaticZoomCaption: "Désactivez cette option pour commencer sans zoom. Vous pourrez toujours en ajouter dans l’éditeur.",
         pauseButton: "Mettre l’enregistrement en pause",
-        resumeButton: "Reprendre l’enregistrement"
+        resumeButton: "Reprendre l’enregistrement",
+        blurLaneLabel: "Flou",
+        addBlurButton: "Flouter une zone",
+        blurLaneEmptyHint: "Cliquez ici pour ajouter un flou",
+        thisBlurLabel: "Ce flou",
+        blurPickArea: "Choisir la zone",
+        blurPickAreaHint: "Faites glisser sur ce qui doit rester caché",
+        blurCaption: "Reste caché tant que son bloc dure dans la chronologie."
     )
 
     static let it = RecorderFeatureStrings(
@@ -1120,7 +1176,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Aggiungi zoom automaticamente",
         automaticZoomCaption: "Disattiva per iniziare le nuove registrazioni senza zoom. Puoi comunque aggiungerli nell’editor.",
         pauseButton: "Metti in pausa la registrazione",
-        resumeButton: "Riprendi la registrazione"
+        resumeButton: "Riprendi la registrazione",
+        blurLaneLabel: "Sfocatura",
+        addBlurButton: "Sfoca un’area",
+        blurLaneEmptyHint: "Fai clic qui per aggiungere una sfocatura",
+        thisBlurLabel: "Questa sfocatura",
+        blurPickArea: "Scegli l’area",
+        blurPickAreaHint: "Trascina su ciò che deve restare nascosto",
+        blurCaption: "Resta nascosto finché dura il blocco nella timeline."
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1242,7 +1305,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "ズームを自動的に追加",
         automaticZoomCaption: "オフにすると、新しい収録はズームなしで始まります。エディタで後から追加できます。",
         pauseButton: "収録を一時停止",
-        resumeButton: "収録を再開"
+        resumeButton: "収録を再開",
+        blurLaneLabel: "ぼかし",
+        addBlurButton: "範囲をぼかす",
+        blurLaneEmptyHint: "ここをクリックしてぼかしを追加",
+        thisBlurLabel: "このぼかし",
+        blurPickArea: "範囲を選ぶ",
+        blurPickAreaHint: "隠したい部分をドラッグ",
+        blurCaption: "タイムラインのブロックが続く間は隠れたままです。"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1364,7 +1434,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "확대 효과 자동 추가",
         automaticZoomCaption: "끄면 새 화면 기록이 확대 효과 없이 시작됩니다. 편집기에서 나중에 추가할 수 있습니다.",
         pauseButton: "화면 기록 일시 정지",
-        resumeButton: "화면 기록 계속"
+        resumeButton: "화면 기록 계속",
+        blurLaneLabel: "흐림",
+        addBlurButton: "영역 흐리게",
+        blurLaneEmptyHint: "여기를 클릭해 흐림을 추가하세요",
+        thisBlurLabel: "선택한 흐림",
+        blurPickArea: "영역 선택",
+        blurPickAreaHint: "숨길 부분 위로 드래그하세요",
+        blurCaption: "타임라인의 블록이 지속되는 동안 숨겨집니다."
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1486,7 +1563,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自动添加缩放",
         automaticZoomCaption: "关闭后，新录制将不带缩放。你仍可在编辑器中添加缩放。",
         pauseButton: "暂停录制",
-        resumeButton: "继续录制"
+        resumeButton: "继续录制",
+        blurLaneLabel: "模糊",
+        addBlurButton: "模糊一个区域",
+        blurLaneEmptyHint: "点按此处添加模糊",
+        thisBlurLabel: "当前模糊",
+        blurPickArea: "选取区域",
+        blurPickAreaHint: "拖过需要隐藏的内容",
+        blurCaption: "在时间线上的区块持续期间保持隐藏。"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1608,7 +1692,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自動加入縮放",
         automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
         pauseButton: "暫停錄製",
-        resumeButton: "繼續錄製"
+        resumeButton: "繼續錄製",
+        blurLaneLabel: "模糊",
+        addBlurButton: "模糊一個區域",
+        blurLaneEmptyHint: "按一下這裡加入模糊",
+        thisBlurLabel: "這個模糊",
+        blurPickArea: "選取區域",
+        blurPickAreaHint: "拖曳過需要隱藏的內容",
+        blurCaption: "在時間軸上的區塊持續期間保持隱藏。"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1730,6 +1821,13 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自動加入縮放",
         automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
         pauseButton: "暫停錄製",
-        resumeButton: "繼續錄製"
+        resumeButton: "繼續錄製",
+        blurLaneLabel: "模糊",
+        addBlurButton: "模糊一個區域",
+        blurLaneEmptyHint: "點按這裡加入模糊",
+        thisBlurLabel: "這個模糊",
+        blurPickArea: "選取區域",
+        blurPickAreaHint: "拖曳過需要隱藏的內容",
+        blurCaption: "在時間軸上的區塊持續期間保持隱藏。"
     )
 }

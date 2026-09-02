@@ -17,6 +17,10 @@ struct DiskImageInstallerStrings {
     let failedBody: String
     let verificationFailedBody: String
     let alreadyInstalledBodyFormat: String
+    let trashDownloadOption: String
+    let revealAppOption: String
+    let installedKeptDownloadBodyFormat: String
+    let installingFormat: String
 }
 
 extension FeatureStrings {
@@ -44,7 +48,7 @@ extension DiskImageInstallerStrings {
         title: "Disk image installer",
         hubDescription: "Install the single app inside a disk image and clean up the download",
         promptTitle: "Install this app?",
-        promptBodyFormat: "%@ will be copied to Applications. The disk image is then ejected and its download moved to Trash.",
+        promptBodyFormat: "%@ will be copied to Applications and the disk image ejected.",
         installButton: "Install",
         installedTitle: "App installed",
         installedBodyFormat: "%@ is ready in Applications. The disk image was ejected and its download moved to Trash.",
@@ -53,14 +57,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Could not install",
         failedBody: "Nothing was changed. You can still drag the app to Applications.",
         verificationFailedBody: "This Mac could not verify the app, so nothing was installed.",
-        alreadyInstalledBodyFormat: "%@ is already in Applications."
+        alreadyInstalledBodyFormat: "%@ is already in Applications.",
+        trashDownloadOption: "Move the download to Trash",
+        revealAppOption: "Show the app in Applications",
+        installedKeptDownloadBodyFormat: "%@ is ready in Applications. The disk image was ejected and its download kept.",
+        installingFormat: "Installing %@…"
     )
 
     static let ptBR = DiskImageInstallerStrings(
         title: "Instalador de imagens de disco",
         hubDescription: "Instale o único app de uma imagem de disco e limpe o download",
         promptTitle: "Instalar este app?",
-        promptBodyFormat: "%@ será copiado para Aplicativos. Depois, a imagem de disco será ejetada e o download irá para o Lixo.",
+        promptBodyFormat: "%@ será copiado para Aplicativos e a imagem de disco será ejetada.",
         installButton: "Instalar",
         installedTitle: "App instalado",
         installedBodyFormat: "%@ está pronto em Aplicativos. A imagem de disco foi ejetada e o download foi para o Lixo.",
@@ -69,14 +77,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Não foi possível instalar",
         failedBody: "Nada foi alterado. Você ainda pode arrastar o app para Aplicativos.",
         verificationFailedBody: "Este Mac não conseguiu verificar o app, então nada foi instalado.",
-        alreadyInstalledBodyFormat: "%@ já está em Aplicativos."
+        alreadyInstalledBodyFormat: "%@ já está em Aplicativos.",
+        trashDownloadOption: "Mover o download para o Lixo",
+        revealAppOption: "Mostrar o app em Aplicativos",
+        installedKeptDownloadBodyFormat: "%@ está pronto em Aplicativos. A imagem de disco foi ejetada e o download foi mantido.",
+        installingFormat: "Instalando %@…"
     )
 
     static let tr = DiskImageInstallerStrings(
         title: "Disk görüntüsü yükleyicisi",
         hubDescription: "Disk görüntüsündeki tek uygulamayı yükle ve indirilen dosyayı temizle",
         promptTitle: "Bu uygulama yüklensin mi?",
-        promptBodyFormat: "%@ Uygulamalar'a kopyalanacak. Ardından disk görüntüsü çıkarılacak ve indirilen dosya Çöp Sepeti'ne taşınacak.",
+        promptBodyFormat: "%@ Uygulamalar'a kopyalanacak ve disk görüntüsü çıkarılacak.",
         installButton: "Yükle",
         installedTitle: "Uygulama yüklendi",
         installedBodyFormat: "%@ Uygulamalar'da hazır. Disk görüntüsü çıkarıldı ve indirilen dosya Çöp Sepeti'ne taşındı.",
@@ -85,14 +97,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Yüklenemedi",
         failedBody: "Hiçbir şey değiştirilmedi. Uygulamayı yine de Uygulamalar'a sürükleyebilirsiniz.",
         verificationFailedBody: "Bu Mac uygulamayı doğrulayamadığı için hiçbir şey yüklenmedi.",
-        alreadyInstalledBodyFormat: "%@ zaten Uygulamalar'da."
+        alreadyInstalledBodyFormat: "%@ zaten Uygulamalar'da.",
+        trashDownloadOption: "İndirilen dosyayı Çöp Sepeti'ne taşı",
+        revealAppOption: "Uygulamayı Uygulamalar'da göster",
+        installedKeptDownloadBodyFormat: "%@ Uygulamalar'da hazır. Disk görüntüsü çıkarıldı ve indirilen dosya tutuldu.",
+        installingFormat: "%@ yükleniyor…"
     )
 
     static let ru = DiskImageInstallerStrings(
         title: "Установка из образа диска",
         hubDescription: "Установите единственное приложение из образа диска и удалите загрузку",
         promptTitle: "Установить это приложение?",
-        promptBodyFormat: "%@ будет скопировано в папку «Программы». Затем образ диска будет извлечён, а загрузка перемещена в Корзину.",
+        promptBodyFormat: "%@ будет скопировано в папку «Программы», а образ диска извлечён.",
         installButton: "Установить",
         installedTitle: "Приложение установлено",
         installedBodyFormat: "%@ готово в папке «Программы». Образ диска извлечён, а загрузка перемещена в Корзину.",
@@ -101,14 +117,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Не удалось установить",
         failedBody: "Ничего не изменено. Приложение по-прежнему можно перетащить в папку «Программы».",
         verificationFailedBody: "Этот Mac не смог проверить приложение, поэтому оно не было установлено.",
-        alreadyInstalledBodyFormat: "%@ уже находится в папке «Программы»."
+        alreadyInstalledBodyFormat: "%@ уже находится в папке «Программы».",
+        trashDownloadOption: "Переместить загрузку в Корзину",
+        revealAppOption: "Показать приложение в папке «Программы»",
+        installedKeptDownloadBodyFormat: "%@ готово в папке «Программы». Образ диска извлечён, а загрузка сохранена.",
+        installingFormat: "Установка %@…"
     )
 
     static let es = DiskImageInstallerStrings(
         title: "Instalador de imágenes de disco",
         hubDescription: "Instala la única app de una imagen de disco y limpia la descarga",
         promptTitle: "¿Instalar esta app?",
-        promptBodyFormat: "%@ se copiará en Aplicaciones. Después, se expulsará la imagen de disco y la descarga irá a la Papelera.",
+        promptBodyFormat: "%@ se copiará en Aplicaciones y se expulsará la imagen de disco.",
         installButton: "Instalar",
         installedTitle: "App instalada",
         installedBodyFormat: "%@ está lista en Aplicaciones. La imagen de disco se expulsó y la descarga se movió a la Papelera.",
@@ -117,14 +137,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "No se pudo instalar",
         failedBody: "No se cambió nada. Todavía puedes arrastrar la app a Aplicaciones.",
         verificationFailedBody: "Este Mac no pudo verificar la app, así que no se instaló nada.",
-        alreadyInstalledBodyFormat: "%@ ya está en Aplicaciones."
+        alreadyInstalledBodyFormat: "%@ ya está en Aplicaciones.",
+        trashDownloadOption: "Mover la descarga a la Papelera",
+        revealAppOption: "Mostrar la app en Aplicaciones",
+        installedKeptDownloadBodyFormat: "%@ está lista en Aplicaciones. La imagen de disco se expulsó y la descarga se conservó.",
+        installingFormat: "Instalando %@…"
     )
 
     static let de = DiskImageInstallerStrings(
         title: "Disk-Image-Installer",
         hubDescription: "Installiere die einzige App in einem Disk-Image und räume den Download auf",
         promptTitle: "Diese App installieren?",
-        promptBodyFormat: "%@ wird in Programme kopiert. Danach wird das Disk-Image ausgeworfen und der Download in den Papierkorb gelegt.",
+        promptBodyFormat: "%@ wird in Programme kopiert und das Disk-Image ausgeworfen.",
         installButton: "Installieren",
         installedTitle: "App installiert",
         installedBodyFormat: "%@ ist in Programme bereit. Das Disk-Image wurde ausgeworfen und der Download in den Papierkorb gelegt.",
@@ -133,14 +157,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Installation fehlgeschlagen",
         failedBody: "Es wurde nichts geändert. Du kannst die App weiterhin nach Programme ziehen.",
         verificationFailedBody: "Dieser Mac konnte die App nicht überprüfen, daher wurde nichts installiert.",
-        alreadyInstalledBodyFormat: "%@ befindet sich bereits in Programme."
+        alreadyInstalledBodyFormat: "%@ befindet sich bereits in Programme.",
+        trashDownloadOption: "Download in den Papierkorb legen",
+        revealAppOption: "App in Programme anzeigen",
+        installedKeptDownloadBodyFormat: "%@ ist in Programme bereit. Das Disk-Image wurde ausgeworfen und der Download behalten.",
+        installingFormat: "%@ wird installiert…"
     )
 
     static let fr = DiskImageInstallerStrings(
         title: "Installation depuis une image disque",
         hubDescription: "Installez l'unique app d'une image disque et nettoyez le téléchargement",
         promptTitle: "Installer cette app ?",
-        promptBodyFormat: "%@ sera copiée dans Applications. L'image disque sera ensuite éjectée et le téléchargement placé dans la Corbeille.",
+        promptBodyFormat: "%@ sera copiée dans Applications et l'image disque éjectée.",
         installButton: "Installer",
         installedTitle: "App installée",
         installedBodyFormat: "%@ est prête dans Applications. L'image disque a été éjectée et le téléchargement placé dans la Corbeille.",
@@ -149,14 +177,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Installation impossible",
         failedBody: "Rien n'a été modifié. Vous pouvez toujours faire glisser l'app vers Applications.",
         verificationFailedBody: "Ce Mac n'a pas pu vérifier l'app, donc rien n'a été installé.",
-        alreadyInstalledBodyFormat: "%@ se trouve déjà dans Applications."
+        alreadyInstalledBodyFormat: "%@ se trouve déjà dans Applications.",
+        trashDownloadOption: "Placer le téléchargement dans la Corbeille",
+        revealAppOption: "Afficher l'app dans Applications",
+        installedKeptDownloadBodyFormat: "%@ est prête dans Applications. L'image disque a été éjectée et le téléchargement conservé.",
+        installingFormat: "Installation de %@…"
     )
 
     static let it = DiskImageInstallerStrings(
         title: "Installazione da immagine disco",
         hubDescription: "Installa l'unica app di un'immagine disco e ripulisci il download",
         promptTitle: "Installare questa app?",
-        promptBodyFormat: "%@ verrà copiata in Applicazioni. Poi l'immagine disco verrà espulsa e il download spostato nel Cestino.",
+        promptBodyFormat: "%@ verrà copiata in Applicazioni e l'immagine disco espulsa.",
         installButton: "Installa",
         installedTitle: "App installata",
         installedBodyFormat: "%@ è pronta in Applicazioni. L'immagine disco è stata espulsa e il download spostato nel Cestino.",
@@ -165,14 +197,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "Installazione non riuscita",
         failedBody: "Non è stato modificato nulla. Puoi ancora trascinare l'app in Applicazioni.",
         verificationFailedBody: "Questo Mac non ha potuto verificare l'app, quindi non è stato installato nulla.",
-        alreadyInstalledBodyFormat: "%@ è già in Applicazioni."
+        alreadyInstalledBodyFormat: "%@ è già in Applicazioni.",
+        trashDownloadOption: "Sposta il download nel Cestino",
+        revealAppOption: "Mostra l'app in Applicazioni",
+        installedKeptDownloadBodyFormat: "%@ è pronta in Applicazioni. L'immagine disco è stata espulsa e il download conservato.",
+        installingFormat: "Installazione di %@…"
     )
 
     static let ja = DiskImageInstallerStrings(
         title: "ディスクイメージからインストール",
         hubDescription: "ディスクイメージ内の1つのアプリをインストールし、ダウンロードを片付けます",
         promptTitle: "このアプリをインストールしますか？",
-        promptBodyFormat: "%@をアプリケーションにコピーします。その後、ディスクイメージを取り出し、ダウンロードをゴミ箱に移動します。",
+        promptBodyFormat: "%@をアプリケーションにコピーし、ディスクイメージを取り出します。",
         installButton: "インストール",
         installedTitle: "アプリをインストールしました",
         installedBodyFormat: "%@をアプリケーションにインストールしました。ディスクイメージを取り出し、ダウンロードをゴミ箱に移動しました。",
@@ -181,14 +217,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "インストールできませんでした",
         failedBody: "何も変更していません。アプリケーションへドラッグしてインストールできます。",
         verificationFailedBody: "このMacでアプリを確認できなかったため、インストールしませんでした。",
-        alreadyInstalledBodyFormat: "%@はすでにアプリケーションにあります。"
+        alreadyInstalledBodyFormat: "%@はすでにアプリケーションにあります。",
+        trashDownloadOption: "ダウンロードをゴミ箱に移動",
+        revealAppOption: "アプリケーションでアプリを表示",
+        installedKeptDownloadBodyFormat: "%@をアプリケーションにインストールしました。ディスクイメージを取り出し、ダウンロードは残しています。",
+        installingFormat: "%@をインストール中…"
     )
 
     static let ko = DiskImageInstallerStrings(
         title: "디스크 이미지 설치",
         hubDescription: "디스크 이미지 안의 단일 앱을 설치하고 다운로드를 정리합니다",
         promptTitle: "이 앱을 설치할까요?",
-        promptBodyFormat: "%@을(를) 응용 프로그램에 복사합니다. 그런 다음 디스크 이미지를 추출하고 다운로드를 휴지통으로 이동합니다.",
+        promptBodyFormat: "%@을(를) 응용 프로그램에 복사하고 디스크 이미지를 추출합니다.",
         installButton: "설치",
         installedTitle: "앱 설치 완료",
         installedBodyFormat: "%@이(가) 응용 프로그램에 준비되었습니다. 디스크 이미지를 추출하고 다운로드를 휴지통으로 이동했습니다.",
@@ -197,14 +237,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "설치할 수 없음",
         failedBody: "아무것도 변경하지 않았습니다. 앱을 응용 프로그램으로 직접 드래그할 수 있습니다.",
         verificationFailedBody: "이 Mac에서 앱을 확인할 수 없어 설치하지 않았습니다.",
-        alreadyInstalledBodyFormat: "%@은(는) 이미 응용 프로그램에 있습니다."
+        alreadyInstalledBodyFormat: "%@은(는) 이미 응용 프로그램에 있습니다.",
+        trashDownloadOption: "다운로드를 휴지통으로 이동",
+        revealAppOption: "응용 프로그램에서 앱 표시",
+        installedKeptDownloadBodyFormat: "%@이(가) 응용 프로그램에 준비되었습니다. 디스크 이미지를 추출했고 다운로드는 그대로 두었습니다.",
+        installingFormat: "%@ 설치 중…"
     )
 
     static let zhHans = DiskImageInstallerStrings(
         title: "磁盘映像安装器",
         hubDescription: "安装磁盘映像中的唯一 App，并清理下载文件",
         promptTitle: "安装此 App？",
-        promptBodyFormat: "%@ 将拷贝到“应用程序”。随后会推出磁盘映像，并将下载文件移到废纸篓。",
+        promptBodyFormat: "%@ 将拷贝到“应用程序”，随后会推出磁盘映像。",
         installButton: "安装",
         installedTitle: "App 已安装",
         installedBodyFormat: "%@ 已在“应用程序”中就绪。磁盘映像已推出，下载文件已移到废纸篓。",
@@ -213,14 +257,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "无法安装",
         failedBody: "没有更改任何内容。你仍可将 App 拖到“应用程序”中。",
         verificationFailedBody: "这台 Mac 无法验证该 App，因此没有安装。",
-        alreadyInstalledBodyFormat: "%@ 已在“应用程序”中。"
+        alreadyInstalledBodyFormat: "%@ 已在“应用程序”中。",
+        trashDownloadOption: "将下载文件移到废纸篓",
+        revealAppOption: "在“应用程序”中显示 App",
+        installedKeptDownloadBodyFormat: "%@ 已在“应用程序”中就绪。磁盘映像已推出，下载文件已保留。",
+        installingFormat: "正在安装 %@…"
     )
 
     static let zhTW = DiskImageInstallerStrings(
         title: "磁碟映像檔安裝器",
         hubDescription: "安裝磁碟映像檔中的單一 App，並清理下載檔案",
         promptTitle: "要安裝此 App 嗎？",
-        promptBodyFormat: "%@ 將複製到「應用程式」。接著會退出磁碟映像檔，並將下載檔案移到垃圾桶。",
+        promptBodyFormat: "%@ 將複製到「應用程式」，接著會退出磁碟映像檔。",
         installButton: "安裝",
         installedTitle: "App 已安裝",
         installedBodyFormat: "%@ 已可在「應用程式」中使用。磁碟映像檔已退出，下載檔案已移到垃圾桶。",
@@ -229,14 +277,18 @@ extension DiskImageInstallerStrings {
         failedTitle: "無法安裝",
         failedBody: "沒有變更任何內容。你仍可將 App 拖到「應用程式」。",
         verificationFailedBody: "這部 Mac 無法驗證此 App，因此沒有安裝。",
-        alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。"
+        alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。",
+        trashDownloadOption: "將下載檔案移到垃圾桶",
+        revealAppOption: "在「應用程式」中顯示 App",
+        installedKeptDownloadBodyFormat: "%@ 已可在「應用程式」中使用。磁碟映像檔已退出，下載檔案已保留。",
+        installingFormat: "正在安裝 %@…"
     )
 
     static let zhHK = DiskImageInstallerStrings(
         title: "磁碟映像檔安裝器",
         hubDescription: "安裝磁碟映像檔中的單一 App，並清理下載檔案",
         promptTitle: "要安裝此 App 嗎？",
-        promptBodyFormat: "%@ 將複製到「應用程式」。之後會退出磁碟映像檔，並將下載檔案移到垃圾桶。",
+        promptBodyFormat: "%@ 將複製到「應用程式」，之後會退出磁碟映像檔。",
         installButton: "安裝",
         installedTitle: "App 已安裝",
         installedBodyFormat: "%@ 已可在「應用程式」中使用。磁碟映像檔已退出，下載檔案已移到垃圾桶。",
@@ -245,6 +297,10 @@ extension DiskImageInstallerStrings {
         failedTitle: "無法安裝",
         failedBody: "沒有變更任何內容。你仍可將 App 拖到「應用程式」。",
         verificationFailedBody: "這部 Mac 無法驗證此 App，因此沒有安裝。",
-        alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。"
+        alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。",
+        trashDownloadOption: "將下載檔案移到垃圾桶",
+        revealAppOption: "在「應用程式」中顯示 App",
+        installedKeptDownloadBodyFormat: "%@ 已可在「應用程式」中使用。磁碟映像檔已退出，下載檔案已保留。",
+        installingFormat: "正在安裝 %@…"
     )
 }

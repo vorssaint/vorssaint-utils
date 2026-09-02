@@ -4,6 +4,7 @@
 import AppKit
 import Darwin
 import Foundation
+import SwiftUI
 
 final class DiskImageInstallerService {
     static let shared = DiskImageInstallerService()
@@ -29,10 +30,15 @@ final class DiskImageInstallerService {
     }
 
     private enum InstallOutcome {
-        case installed
+        case installed(downloadTrashed: Bool)
         case installedKeepingMount
         case installedKeepingDownload
         case failed(InstallFailure)
+
+        var isInstalled: Bool {
+            if case .failed = self { return false }
+            return true
+        }
     }
 
     private struct CommandResult {
@@ -46,6 +52,7 @@ final class DiskImageInstallerService {
     private var pending: [Candidate] = []
     private var processingMounts = Set<String>()
     private var promptActive = false
+    private var progressPanel: NSPanel?
 
     private init() {}
 
@@ -147,19 +154,88 @@ final class DiskImageInstallerService {
         alert.icon = NSWorkspace.shared.icon(forFile: candidate.appURL.path)
         alert.addButton(withTitle: strings.installButton)
         alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
+
+        let defaults = UserDefaults.standard
+        let trashDownload = NSButton(checkboxWithTitle: strings.trashDownloadOption, target: nil, action: nil)
+        trashDownload.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerTrashesDownload) ? .on : .off
+        let revealApp = NSButton(checkboxWithTitle: strings.revealAppOption, target: nil, action: nil)
+        revealApp.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerRevealsApp) ? .on : .off
+        let options = NSStackView(views: [trashDownload, revealApp])
+        options.orientation = .vertical
+        options.alignment = .leading
+        options.spacing = 6
+        options.frame = NSRect(origin: .zero, size: options.fittingSize)
+        alert.accessoryView = options
+
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else {
             finishCurrentCandidate()
             return
         }
+        let trashesDownload = trashDownload.state == .on
+        let revealsApp = revealApp.state == .on
+        defaults.set(trashesDownload, forKey: DefaultsKey.diskImageInstallerTrashesDownload)
+        defaults.set(revealsApp, forKey: DefaultsKey.diskImageInstallerRevealsApp)
+        showProgress(for: candidate, strings: strings)
 
         workQueue.async { [weak self] in
-            let outcome = self?.install(candidate) ?? .failed(.copy)
+            let outcome = self?.install(candidate, trashingDownload: trashesDownload) ?? .failed(.copy)
             DispatchQueue.main.async { [weak self] in
+                self?.hideProgress()
                 self?.present(outcome: outcome, candidate: candidate)
+                if revealsApp, outcome.isInstalled {
+                    NSWorkspace.shared.activateFileViewerSelecting([candidate.destinationURL])
+                }
                 self?.finishCurrentCandidate()
             }
         }
+    }
+
+    /// Copying and verifying take a few seconds with nothing else on screen,
+    /// which reads as a failure. A quiet floating card keeps the wait honest.
+    private func showProgress(for candidate: Candidate, strings: DiskImageInstallerStrings) {
+        let host = NSHostingController(rootView: DiskImageInstallProgressView(
+            icon: NSWorkspace.shared.icon(forFile: candidate.appURL.path),
+            message: String(format: strings.installingFormat, candidate.displayName)))
+        host.view.layoutSubtreeIfNeeded()
+        let size = host.view.fittingSize
+
+        let panel = progressPanel ?? Self.makeProgressPanel()
+        progressPanel = panel
+        panel.contentViewController = host
+        let screen = NSScreen.pointerVisibleFrame
+        panel.setFrame(NSRect(x: (screen.midX - size.width / 2).rounded(),
+                              y: (screen.maxY - size.height - 24).rounded(),
+                              width: size.width,
+                              height: size.height),
+                       display: true)
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            panel.animator().alphaValue = 1
+        }
+    }
+
+    private func hideProgress() {
+        progressPanel?.orderOut(nil)
+        progressPanel?.contentViewController = nil
+    }
+
+    private static func makeProgressPanel() -> NSPanel {
+        let panel = NSPanel(contentRect: .zero,
+                            styleMask: [.borderless, .nonactivatingPanel],
+                            backing: .buffered,
+                            defer: false)
+        panel.level = .statusBar
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.ignoresMouseEvents = true
+        panel.hidesOnDeactivate = false
+        panel.isReleasedWhenClosed = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+        return panel
     }
 
     private func finishCurrentCandidate() {
@@ -167,7 +243,7 @@ final class DiskImageInstallerService {
         presentNextCandidate()
     }
 
-    private func install(_ candidate: Candidate) -> InstallOutcome {
+    private func install(_ candidate: Candidate, trashingDownload: Bool) -> InstallOutcome {
         let fm = FileManager.default
         guard !fm.fileExists(atPath: candidate.destinationURL.path) else {
             return .failed(.alreadyInstalled)
@@ -212,12 +288,13 @@ final class DiskImageInstallerService {
             return .installedKeepingMount
         }
 
+        guard trashingDownload else { return .installed(downloadTrashed: false) }
         guard Self.fileIdentity(at: candidate.imageURL) == candidate.imageIdentity else {
             return .installedKeepingDownload
         }
         do {
             try fm.trashItem(at: candidate.imageURL, resultingItemURL: nil)
-            return .installed
+            return .installed(downloadTrashed: true)
         } catch {
             return .installedKeepingDownload
         }
@@ -228,9 +305,12 @@ final class DiskImageInstallerService {
         let alert = NSAlert()
         alert.icon = NSWorkspace.shared.icon(forFile: candidate.destinationURL.path)
         switch outcome {
-        case .installed:
+        case let .installed(downloadTrashed):
             alert.messageText = strings.installedTitle
-            alert.informativeText = String(format: strings.installedBodyFormat, candidate.displayName)
+            alert.informativeText = String(format: downloadTrashed
+                                               ? strings.installedBodyFormat
+                                               : strings.installedKeptDownloadBodyFormat,
+                                           candidate.displayName)
         case .installedKeepingMount:
             alert.alertStyle = .warning
             alert.messageText = strings.installedTitle
@@ -302,5 +382,37 @@ final class DiskImageInstallerService {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
         return CommandResult(status: process.terminationStatus, output: data)
+    }
+}
+
+private struct DiskImageInstallProgressView: View {
+    let icon: NSImage
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: icon)
+                .resizable()
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .controlSize(.small)
+            }
+            .frame(width: 220, alignment: .leading)
+        }
+        .padding(14)
+        .background(HUDBackdrop(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(message)
     }
 }

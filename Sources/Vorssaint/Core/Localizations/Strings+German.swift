@@ -125,6 +125,8 @@ extension Strings {
         advancedUninstallButton: "Vorssaint vollständig deinstallieren",
         advancedUninstallConfirmTitle: "Vorssaint deinstallieren?",
         advancedUninstallConfirmBody: "Vorssaint setzt seine Berechtigungen zurück, entfernt seine Einstellungen und wandert in den Papierkorb, dann beendet es sich. Das lässt sich aus der App nicht rückgängig machen, doch sie bleibt im Papierkorb, bis du ihn leerst.",
+        advancedUninstallFailedTitle: "Deinstallation gestoppt",
+        advancedUninstallFailedBody: "Vorssaint konnte eine geänderte Systemeinstellung nicht wiederherstellen: Ruhezustand, Lüfterdrehzahl oder Mausbeschleunigung. Es wurde nichts entfernt. Versuche es erneut und erlaube die Kennwortabfrage, falls sie erscheint.",
 
         launchAtLogin: "Beim Anmelden öffnen",
         languageLabel: "Sprache",

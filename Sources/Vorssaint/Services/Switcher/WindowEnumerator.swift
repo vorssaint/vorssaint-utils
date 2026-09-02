@@ -633,6 +633,12 @@ enum WindowEnumerator {
             guard !isCancelled() else { return nil }
             if let window = accessibilityWindowAttribute(app, attribute as String) {
                 guard !isCancelled() else { return nil }
+                // The main and focused window are almost always ones the
+                // window list already described, and usually the same window
+                // as each other. CFEqual answers that locally, while
+                // isUserFacingWindow spends several Accessibility round trips
+                // in the other process to reach a window we would then drop.
+                guard !contains(window, in: axWindows) else { continue }
                 AXUIElementSetMessagingTimeout(window, 0.35)
                 if isUserFacingWindow(window,
                                       bundleIdentifier: bundleIdentifier,
@@ -640,7 +646,7 @@ enum WindowEnumerator {
                                       normalLevelWindowIDs: normalLevelWindowIDs,
                                       screenFrames: screenFrames,
                                       isCancelled: isCancelled) {
-                    appendUnique(window, to: &axWindows)
+                    axWindows.append(window)
                 }
             }
         }
@@ -840,8 +846,12 @@ enum WindowEnumerator {
     }
 
     private static func appendUnique(_ window: AXUIElement, to windows: inout [AXUIElement]) {
-        guard !windows.contains(where: { CFEqual($0, window) }) else { return }
+        guard !contains(window, in: windows) else { return }
         windows.append(window)
+    }
+
+    private static func contains(_ window: AXUIElement, in windows: [AXUIElement]) -> Bool {
+        windows.contains { CFEqual($0, window) }
     }
 
     private static func accessibilityWindowAttribute(_ app: AXUIElement, _ attribute: String) -> AXUIElement? {

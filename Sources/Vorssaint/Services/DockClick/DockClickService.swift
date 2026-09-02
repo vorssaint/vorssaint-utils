@@ -705,7 +705,7 @@ final class DockClickService {
     private static func activate(pid: pid_t) {
         DispatchQueue.main.async {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-            NSApp.yieldActivation(to: app)
+            ActivationHandoff.yield(to: app)
             if !app.activate(from: NSRunningApplication.current, options: []) {
                 app.activate(options: [])
             }

@@ -56,16 +56,18 @@ final class ScreenshotSelectionController {
     private var keyMonitor: Any?
     private var globalKeyMonitor: Any?
     private var completion: ((Outcome) -> Void)?
-    private let freeze: Bool
-    private let includePointer: Bool
+    private var freeze: Bool
+    private var includePointer: Bool
     private let showLastRegion: Bool
-    private let hideVorssaintWindows: Bool
+    private var hideVorssaintWindows: Bool
     private let otherProtectedWindowIDs: () -> Set<CGWindowID>
     private let baseMode: Mode
     private let supportsScrollingCapture: Bool
     private let screenCaptureOptions: ScreenCaptureSelectionOptions?
-    private let capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
-    private let onCapturePolicyChange: (() -> Void)?
+    private var capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
+    /// Bumped whenever the source is re-photographed, so a capture that a
+    /// later tool change already replaced never reaches the panels.
+    private var sourceGeneration = 0
     fileprivate let requiresDraggedRegion: Bool
     private var finished = false
     /// Read by the overlays so a late event finds a session that is over.
@@ -124,8 +126,7 @@ final class ScreenshotSelectionController {
          mode: Mode = .image,
          supportsScrollingCapture: Bool = false,
          requiresDraggedRegion: Bool = false,
-         screenCaptureOptions: ScreenCaptureSelectionOptions? = nil,
-         onCapturePolicyChange: (() -> Void)? = nil) {
+         screenCaptureOptions: ScreenCaptureSelectionOptions? = nil) {
         self.freeze = freeze
         self.includePointer = includePointer
         self.showLastRegion = showLastRegion
@@ -141,7 +142,6 @@ final class ScreenshotSelectionController {
             includePointer: includePointer,
             hideVorssaintWindows: hideVorssaintWindows,
             usesGeometry: mode == .geometry)
-        self.onCapturePolicyChange = onCapturePolicyChange
     }
 
     private var activeTool: ScreenCaptureTool? { screenCaptureOptions?.selectedTool }
@@ -189,13 +189,9 @@ final class ScreenshotSelectionController {
         for screen in NSScreen.screens {
             let displayID = screen.displayID
             if freeze, frozenImages[displayID] == nil { continue }
-            let windows = pickable.map { entry -> ScreenshotSupport.PickableWindow in
-                let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: entry.bounds,
-                                                        mainScreenHeight: mainHeight)
-                let viewRect = ScreenshotSupport.flippedViewRect(fromCocoa: cocoa,
-                                                                 screenFrame: screen.frame)
-                return ScreenshotSupport.PickableWindow(windowID: entry.id, frame: viewRect)
-            }.filter { $0.frame.intersects(CGRect(origin: .zero, size: screen.frame.size)) }
+            let windows = Self.pickableWindows(pickable,
+                                               on: screen.frame,
+                                               mainScreenHeight: mainHeight)
 
             let panel = ScreenshotOverlayPanel(screen: screen,
                                                frozenImage: frozenImages[displayID],
@@ -234,9 +230,8 @@ final class ScreenshotSelectionController {
                 screenshotIncludePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
                 screenshotHideVorssaintWindows: defaults.bool(
                     forKey: DefaultsKey.screenshotHideVorssaintWindows))
-            if nextPolicy != capturePolicy {
-                onCapturePolicyChange?()
-                return
+            if !nextPolicy.sharesSource(with: capturePolicy) {
+                adoptCapturePolicy(nextPolicy)
             }
         }
         scrollingCaptureEnabled = false
@@ -244,6 +239,60 @@ final class ScreenshotSelectionController {
         if isPickingColor, !freeze { loadLiveLoupeImages() }
         panels.forEach { $0.overlayView.captureToolDidChange() }
         if selectionInProgress { selectionInProgress = false }
+    }
+
+    /// The chooser stays on screen while the tool changes, so a tool that
+    /// needs other pixels gets them behind the panels instead of taking the
+    /// surface down and putting an identical one back up.
+    private func adoptCapturePolicy(_ policy: ScreenshotSupport.UnifiedCapturePolicy) {
+        capturePolicy = policy
+        freeze = policy.freeze
+        includePointer = policy.includePointer
+        hideVorssaintWindows = policy.hideVorssaintWindows
+        sourceGeneration += 1
+        let generation = sourceGeneration
+        guard policy.freeze else {
+            applySource(frozenImages: [:])
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let images = await ScreenshotCaptureEngine.captureAllDisplays(
+                includePointer: policy.includePointer,
+                hideVorssaintWindows: policy.hideVorssaintWindows,
+                protectedWindowIDs: self.captureExcludedWindowIDs)
+            guard !self.finished, self.sourceGeneration == generation else { return }
+            self.applySource(frozenImages: images)
+        }
+    }
+
+    /// A display whose new photograph is missing keeps the one it has, so a
+    /// failed capture leaves the surface intact instead of see-through.
+    private func applySource(frozenImages: [CGDirectDisplayID: CGImage]) {
+        let pickable = ScreenshotCaptureEngine.pickableWindows(
+            hideVorssaintWindows: hideVorssaintWindows,
+            protectedWindowIDs: captureExcludedWindowIDs)
+        let mainHeight = NSScreen.screens.first?.frame.height ?? 0
+        for panel in panels {
+            let image = freeze ? (frozenImages[panel.displayID] ?? panel.frozenImage) : nil
+            panel.update(frozenImage: image,
+                         windows: Self.pickableWindows(pickable,
+                                                       on: panel.screenFrame,
+                                                       mainScreenHeight: mainHeight))
+        }
+    }
+
+    private static func pickableWindows(_ entries: [(id: CGWindowID, bounds: CGRect)],
+                                        on screenFrame: CGRect,
+                                        mainScreenHeight: CGFloat)
+        -> [ScreenshotSupport.PickableWindow] {
+        entries.map { entry -> ScreenshotSupport.PickableWindow in
+            let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: entry.bounds,
+                                                    mainScreenHeight: mainScreenHeight)
+            let viewRect = ScreenshotSupport.flippedViewRect(fromCocoa: cocoa,
+                                                             screenFrame: screenFrame)
+            return ScreenshotSupport.PickableWindow(windowID: entry.id, frame: viewRect)
+        }.filter { $0.frame.intersects(CGRect(origin: .zero, size: screenFrame.size)) }
     }
 
     /// Live selection stays transparent, but the loupe still needs source
@@ -670,9 +719,10 @@ final class ScreenshotSelectionController {
 private final class ScreenshotOverlayPanel: NSPanel {
     let screenFrame: CGRect
     let displayID: CGDirectDisplayID
-    let frozenImage: CGImage?
+    private(set) var frozenImage: CGImage?
     let pixelScale: CGFloat
     private(set) var overlayViewStorage: ScreenshotOverlayView!
+    private var backdropView: NSImageView!
 
     var overlayView: ScreenshotOverlayView { overlayViewStorage }
 
@@ -713,13 +763,12 @@ private final class ScreenshotOverlayPanel: NSPanel {
         // layer configured before the view joins a window can lose its
         // contents, and the chrome's dim must paint over the image anyway.
         let container = NSView(frame: CGRect(origin: .zero, size: screen.frame.size))
-        if let frozenImage {
-            let imageView = NSImageView(frame: container.bounds)
-            imageView.image = NSImage(cgImage: frozenImage, size: screen.frame.size)
-            imageView.imageScaling = .scaleAxesIndependently
-            imageView.autoresizingMask = [.width, .height]
-            container.addSubview(imageView)
-        }
+        let imageView = NSImageView(frame: container.bounds)
+        imageView.image = frozenImage.map { NSImage(cgImage: $0, size: screen.frame.size) }
+        imageView.imageScaling = .scaleAxesIndependently
+        imageView.autoresizingMask = [.width, .height]
+        container.addSubview(imageView)
+        backdropView = imageView
         let view = ScreenshotOverlayView(frame: CGRect(origin: .zero, size: screen.frame.size),
                                          frozenImage: frozenImage,
                                          loupeImage: frozenImage,
@@ -735,6 +784,16 @@ private final class ScreenshotOverlayPanel: NSPanel {
         contentView = container
     }
 
+    /// New pixels for a tool that needs its own photograph, without the
+    /// panel ever leaving the screen.
+    func update(frozenImage: CGImage?, windows: [ScreenshotSupport.PickableWindow]) {
+        self.frozenImage = frozenImage
+        isOpaque = frozenImage != nil
+        backgroundColor = frozenImage == nil ? .clear : .black
+        backdropView.image = frozenImage.map { NSImage(cgImage: $0, size: screenFrame.size) }
+        overlayView.update(frozenImage: frozenImage, windows: windows)
+    }
+
     override var canBecomeKey: Bool { true }
 }
 
@@ -744,9 +803,9 @@ private final class ScreenshotOverlayPanel: NSPanel {
 /// and the magnifier; owns all mouse interaction. Flipped so
 /// geometry matches image pixels (top-left origin) with no sign juggling.
 private final class ScreenshotOverlayView: NSView {
-    private let frozenImage: CGImage?
+    private var frozenImage: CGImage?
     fileprivate var loupeImage: CGImage?
-    private let windows: [ScreenshotSupport.PickableWindow]
+    private var windows: [ScreenshotSupport.PickableWindow]
     /// Both are held weakly on purpose. The session hands its result over
     /// after the panels leave the screen, so the controller is already gone
     /// while the window server still delivers the tail of a gesture here.
@@ -784,6 +843,13 @@ private final class ScreenshotOverlayView: NSView {
         ScreenshotSupport.selectionAcceptsPointerInput(
             sessionIsOver: controller?.isOver ?? true,
             capturePending: isCapturePending)
+    }
+
+    func update(frozenImage: CGImage?, windows: [ScreenshotSupport.PickableWindow]) {
+        self.frozenImage = frozenImage
+        self.loupeImage = frozenImage
+        self.windows = windows
+        refreshPointerState()
     }
 
     override var isFlipped: Bool { true }

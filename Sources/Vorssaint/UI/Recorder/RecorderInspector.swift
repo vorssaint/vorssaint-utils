@@ -36,6 +36,8 @@ struct RecorderInspector: View {
                 // swap is what teaches the selection model, without a word.
                 if let text = model.selectedText {
                     selectedTextSection(text)
+                } else if model.selectedBlur != nil {
+                    selectedBlurSection
                 } else if let selected = model.selectedZoom {
                     selectedZoomSection(selected)
                 } else {
@@ -417,6 +419,50 @@ struct RecorderInspector: View {
             }
 
             Button(strings.removeText) { model.removeSelectedText() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - One blur
+
+    /// The area is the whole thing, and it is drawn on the picture rather than
+    /// typed here: a blur that misses by a few pixels is not a blur.
+    private var selectedBlurSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                model.selectLaneItem(.blur, id: nil)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(strings.backToOptions)
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color.accentColor)
+            .keyboardShortcut(.escape, modifiers: [])
+            sectionTitle(strings.thisBlurLabel)
+
+            Button {
+                model.beginPickingBlurArea()
+            } label: {
+                Label(strings.blurPickArea, systemImage: "aqi.medium")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            .disabled(model.isPickingBlurArea)
+            Text(model.isPickingBlurArea ? strings.blurPickAreaHint : strings.blurCaption)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(strings.removeZoom) { model.removeSelectedBlur() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)

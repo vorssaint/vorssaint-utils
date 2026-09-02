@@ -125,6 +125,8 @@ extension Strings {
         advancedUninstallButton: "Vorssaint'i tamamen kaldır",
         advancedUninstallConfirmTitle: "Vorssaint kaldırılsın mı?",
         advancedUninstallConfirmBody: "Vorssaint izinlerini temizleyecek, tercihlerini kaldıracak ve Çöp Sepeti'ne taşınıp kapanacak. Bu işlem uygulama içinden geri alınamaz, ama Çöp Sepeti'ni boşaltana kadar orada kalır.",
+        advancedUninstallFailedTitle: "Kaldırma durduruldu",
+        advancedUninstallFailedBody: "Vorssaint değiştirdiği bir sistem ayarını geri alamadı: uyku, fan hızı veya fare hızlandırması. Hiçbir şey silinmedi. Yeniden deneyin ve parola istenirse izin verin.",
 
         launchAtLogin: "Oturum açınca başlat",
         languageLabel: "Dil",

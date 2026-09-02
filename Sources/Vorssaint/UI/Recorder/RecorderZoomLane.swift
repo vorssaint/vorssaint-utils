@@ -19,6 +19,7 @@ struct RecorderZoomLane: NSViewRepresentable {
     enum Kind {
         case zoom
         case text
+        case blur
     }
 
     @ObservedObject var model: RecorderEditorModel
@@ -272,9 +273,12 @@ struct RecorderZoomLane: NSViewRepresentable {
                 return
             }
 
-            let accent = kind == .zoom
-                ? (NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue)
-                : NSColor.systemPurple
+            let accent: NSColor
+            switch kind {
+            case .zoom: accent = NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue
+            case .text: accent = .systemPurple
+            case .blur: accent = .systemTeal
+            }
             for segment in segments {
                 let frame = rect(for: segment)
                 let path = CGPath(roundedRect: frame, cornerWidth: radius,
@@ -284,8 +288,14 @@ struct RecorderZoomLane: NSViewRepresentable {
                 context.fillPath()
 
                 // The hold reads brighter than the two ramps, so a block shows
-                // its own easing without anything having to explain it.
-                let ramp = kind == .zoom ? RecorderMotion.zoomRampIn : RecorderTextOverlay.fade
+                // its own easing without anything having to explain it. A blur
+                // has no ramp: it is either hiding something or it is not.
+                let ramp: Double
+                switch kind {
+                case .zoom: ramp = RecorderMotion.zoomRampIn
+                case .text: ramp = RecorderTextOverlay.fade
+                case .blur: ramp = 0
+                }
                 let rampIn = min(ramp, (segment.end - segment.start) / 2)
                 let holdStart = x(for: segment.start + rampIn)
                 let holdEnd = x(for: max(segment.start + rampIn, segment.end))

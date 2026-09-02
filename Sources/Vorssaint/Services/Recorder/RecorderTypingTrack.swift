@@ -22,9 +22,12 @@ struct RecorderTypingTrack: Codable, Equatable {
 /// The monitor exists only while recording and remembers timing, never keys.
 final class RecorderTypingSampler {
     private let pauseClock: RecorderPauseClock
+    /// Written by `start()` and read by the monitor callback, so it lives
+    /// under the same lock as the buffer it times events against.
     private var startedAt: CFTimeInterval = 0
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private let lock = NSLock()
     private var times: [Double] = []
 
     init(pauseClock: RecorderPauseClock) {
@@ -33,7 +36,7 @@ final class RecorderTypingSampler {
 
     func start() {
         guard globalMonitor == nil, localMonitor == nil else { return }
-        startedAt = CACurrentMediaTime()
+        lock.withLock { startedAt = CACurrentMediaTime() }
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             self?.record(event)
         }
@@ -48,14 +51,20 @@ final class RecorderTypingSampler {
         if let localMonitor { NSEvent.removeMonitor(localMonitor) }
         globalMonitor = nil
         localMonitor = nil
-        return RecorderTypingTrack(times: times)
+        return lock.withLock {
+            let track = RecorderTypingTrack(times: times)
+            times.removeAll()
+            return track
+        }
     }
 
     private func record(_ event: NSEvent) {
         guard !event.isARepeat else { return }
         let now = CACurrentMediaTime()
-        guard let time = pauseClock.eventTime(now, since: startedAt) else { return }
-        times.append(time)
+        lock.withLock {
+            guard let time = pauseClock.eventTime(now, since: startedAt) else { return }
+            times.append(time)
+        }
     }
 
     deinit {

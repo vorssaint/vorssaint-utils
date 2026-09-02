@@ -474,7 +474,10 @@ final class UpdateService: ObservableObject {
     }
 }
 
-private final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDelegate {
+/// Writes a response to a scratch file and abandons it once it passes
+/// `byteLimit`, so a body that never ends cannot fill the disk. Shared by the
+/// app update download and the What's New showcase video.
+final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDelegate {
     private let byteLimit: Int64
     private let progress: (Int64, Int64?) -> Void
     private let completion: (URL?, URLResponse?, Error?) -> Void
