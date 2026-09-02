@@ -17477,28 +17477,13 @@ struct MetricsTests {
                 && customScreenshotTools.count == 13
                 && Set(customScreenshotTools).count == 13,
                "a saved screenshot tool order drops invalid duplicates and appends missing tools")
-        expect(ScreenshotSupport.Tool.shortcutTool(number: 1,
-                                                   orderRaw: nil,
-                                                   enabled: true) == .select
-                && ScreenshotSupport.Tool.shortcutTool(number: 3,
-                                                       orderRaw: nil,
-                                                       enabled: true) == .pixelate
-                && ScreenshotSupport.Tool.shortcutTool(number: 9,
-                                                       orderRaw: nil,
-                                                       enabled: true) == .freehand
-                && ScreenshotSupport.Tool.shortcutTool(number: 1,
-                                                       orderRaw: nil,
-                                                       enabled: false) == nil
-                && ScreenshotSupport.Tool.shortcutTool(number: 10,
-                                                       orderRaw: nil,
-                                                       enabled: true) == nil,
-               "number keys 1 through 9 follow tool order and can be disabled together")
-        expect(ScreenshotSupport.Tool.shortcutNumber(for: .crop,
-                                                     orderRaw: "arrow,crop",
-                                                     enabled: true) == 2
-                && ScreenshotSupport.Tool.shortcutNumber(for: .redact,
-                                                         orderRaw: nil,
-                                                         enabled: true) == nil,
+        expect(ScreenshotSupport.Tool.shortcutTool(number: 1, orderRaw: nil) == .select
+                && ScreenshotSupport.Tool.shortcutTool(number: 3, orderRaw: nil) == .pixelate
+                && ScreenshotSupport.Tool.shortcutTool(number: 9, orderRaw: nil) == .freehand
+                && ScreenshotSupport.Tool.shortcutTool(number: 10, orderRaw: nil) == nil,
+               "number keys 1 through 9 follow tool order")
+        expect(ScreenshotSupport.Tool.shortcutNumber(for: .crop, orderRaw: "arrow,crop") == 2
+                && ScreenshotSupport.Tool.shortcutNumber(for: .redact, orderRaw: nil) == nil,
                "the rail exposes only the first nine configured shortcut numbers")
         let cropAssignedFirst = ScreenshotSupport.Tool.assigningShortcut(
             1, to: .crop, orderRaw: nil)
@@ -17507,14 +17492,32 @@ struct MetricsTests {
         expect(cropAssignedFirst.first == .crop
                 && ScreenshotSupport.Tool.shortcutNumber(
                     for: .crop,
-                    orderRaw: cropAssignedFirst.map(\.rawValue).joined(separator: ","),
-                    enabled: true) == 1
+                    orderRaw: cropAssignedFirst.map(\.rawValue).joined(separator: ",")) == 1
                 && selectWithoutShortcut.firstIndex(of: .select) == 9
                 && ScreenshotSupport.Tool.shortcutNumber(
                     for: .select,
-                    orderRaw: selectWithoutShortcut.map(\.rawValue).joined(separator: ","),
-                    enabled: true) == nil,
+                    orderRaw: selectWithoutShortcut.map(\.rawValue).joined(separator: ",")) == nil,
                "the visible shortcut menu assigns a numbered slot or removes a tool from 1 through 9")
+        expect(ScreenshotSupport.Tool.shortcutTool(character: "3", orderRaw: nil,
+                                                    enabled: true, style: .number) == .pixelate
+                && ScreenshotSupport.Tool.shortcutTool(character: "3", orderRaw: nil,
+                                                       enabled: false, style: .number) == nil
+                && ScreenshotSupport.Tool.shortcutTool(character: "t", orderRaw: nil,
+                                                       enabled: true, style: .letter) == .text
+                && ScreenshotSupport.Tool.shortcutTool(character: "T", orderRaw: nil,
+                                                       enabled: true, style: .letter) == .text
+                && ScreenshotSupport.Tool.shortcutTool(character: "t", orderRaw: nil,
+                                                       enabled: false, style: .letter) == nil
+                && ScreenshotSupport.Tool.shortcutTool(character: "3", orderRaw: nil,
+                                                       enabled: true, style: .letter) == nil,
+               "shortcuts respect the enabled flag and dispatch to the chosen style")
+        expect(ScreenshotSupport.Tool.shortcutBadge(for: .text, orderRaw: nil,
+                                                     enabled: true, style: .letter) == "T"
+                && ScreenshotSupport.Tool.shortcutBadge(for: .text, orderRaw: nil,
+                                                        enabled: false, style: .letter) == nil
+                && ScreenshotSupport.Tool.shortcutBadge(for: .pixelate, orderRaw: nil,
+                                                        enabled: true, style: .number) == "3",
+               "the rail badge reflects the active shortcut style, or nothing when disabled")
 
         expect(ScreenshotSupport.cropLoupeSampleRect(
             around: CGPoint(x: 50, y: 40),
@@ -17680,6 +17683,8 @@ struct MetricsTests {
                "the always-on loupe is an opt-in and ships off")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcutsEnabled] as? Bool == true,
                "screenshot number shortcuts ship enabled")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcutStyle] as? String == "number",
+               "screenshot shortcuts ship using rail-position numbers, not letter mnemonics")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
                "screenshot preview placement preserves the existing automatic behavior by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
@@ -19568,6 +19573,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotShowLastRegion)
                 && backupKeys.contains(DefaultsKey.screenshotToolOrder)
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
+                && backupKeys.contains(DefaultsKey.screenshotToolShortcutStyle)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)

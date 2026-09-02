@@ -1121,6 +1121,14 @@ enum ScreenshotSupport {
 
     // MARK: - Annotation model
 
+    /// Which key a tool responds to, once shortcuts are enabled. Kept
+    /// separate from the on/off preference (`screenshotToolShortcutsEnabled`)
+    /// rather than merged into one 3-way key, so turning shortcuts off
+    /// never depends on — or resets — which style a user had picked.
+    enum ShortcutStyle: String, CaseIterable {
+        case number, letter
+    }
+
     enum Tool: String, CaseIterable {
         // Case order is the default rail order and therefore the default
         // mapping for keys 1 through 9. Put the common actions first.
@@ -1165,22 +1173,81 @@ enum ScreenshotSupport {
         }
 
         static func shortcutTool(number: Int,
-                                 orderRaw: String?,
-                                 enabled: Bool) -> Tool? {
-            guard enabled, (1...shortcutLimit).contains(number) else { return nil }
+                                 orderRaw: String?) -> Tool? {
+            guard (1...shortcutLimit).contains(number) else { return nil }
             let order = ordered(from: orderRaw)
             let index = number - 1
             return order.indices.contains(index) ? order[index] : nil
         }
 
         static func shortcutNumber(for tool: Tool,
-                                   orderRaw: String?,
-                                   enabled: Bool) -> Int? {
-            guard enabled,
-                  let index = ordered(from: orderRaw).firstIndex(of: tool),
+                                   orderRaw: String?) -> Int? {
+            guard let index = ordered(from: orderRaw).firstIndex(of: tool),
                   index < shortcutLimit
             else { return nil }
             return index + 1
+        }
+
+        /// Fixed single-letter mnemonic, independent of rail position — the
+        /// point of a mnemonic is that it never changes when the rail is
+        /// reordered. Matches CleanShot X's defaults where it has an
+        /// equivalent tool (arrow, rect, ellipse, line, text, highlight,
+        /// pixelate, crop, counter); the rest have no external precedent.
+        var shortcutLetter: Character {
+            switch self {
+            case .select: return "s"
+            case .arrow: return "a"
+            case .rect: return "r"
+            case .ellipse: return "e"
+            case .line: return "l"
+            case .freehand: return "d"
+            case .text: return "t"
+            case .highlight: return "h"
+            case .pixelate: return "p"
+            case .redact: return "x"
+            case .crop: return "c"
+            case .sticker: return "k"
+            case .counter: return "n"
+            }
+        }
+
+        static func shortcutTool(letter: Character) -> Tool? {
+            allCases.first { $0.shortcutLetter == letter }
+        }
+
+        /// The badge shown next to a tool in the rail and in Settings, or
+        /// nil when shortcuts are off.
+        static func shortcutBadge(for tool: Tool,
+                                  orderRaw: String?,
+                                  enabled: Bool,
+                                  style: ShortcutStyle) -> String? {
+            guard enabled else { return nil }
+            switch style {
+            case .number:
+                return shortcutNumber(for: tool, orderRaw: orderRaw).map(String.init)
+            case .letter:
+                return String(tool.shortcutLetter).uppercased()
+            }
+        }
+
+        /// The tool a pressed key selects, or nil when shortcuts are off.
+        /// Number style reads rail position; letter style reads the fixed
+        /// per-tool mnemonic and ignores rail order entirely. `character`
+        /// follows the keyboard layout (the key's printed label), matching
+        /// how the rest of the app's shortcuts already behave — see #1047,
+        /// where reading the physical keyCode instead was the bug.
+        static func shortcutTool(character: Character,
+                                 orderRaw: String?,
+                                 enabled: Bool,
+                                 style: ShortcutStyle) -> Tool? {
+            guard enabled else { return nil }
+            switch style {
+            case .number:
+                guard let number = Int(String(character)) else { return nil }
+                return shortcutTool(number: number, orderRaw: orderRaw)
+            case .letter:
+                return shortcutTool(letter: Character(character.lowercased()))
+            }
         }
 
         /// Assigning a number is the same operation as moving the tool into
