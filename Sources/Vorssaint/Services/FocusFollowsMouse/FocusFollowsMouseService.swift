@@ -100,8 +100,12 @@ final class FocusFollowsMouseService {
     }
 
     private func evaluateIfSettled() {
-        guard AXIsProcessTrusted(), !buttonsArePressed,
-              NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+        guard AXIsProcessTrusted(),
+              FocusFollowsMouseSupport.canEvaluate(
+                  pressedMouseButtons: NSEvent.pressedMouseButtons,
+                  modifierKeysArePressed: !NSEvent.modifierFlags
+                      .intersection([.command, .control, .option, .shift]).isEmpty
+              ),
               let evaluation = state.nextEvaluation(
                   at: ProcessInfo.processInfo.systemUptime,
                   delayMilliseconds: delayMilliseconds),
@@ -124,12 +128,6 @@ final class FocusFollowsMouseService {
                                          retry: false)
             }
         }
-    }
-
-    private var buttonsArePressed: Bool {
-        CGEventSource.buttonState(.combinedSessionState, button: .left)
-            || CGEventSource.buttonState(.combinedSessionState, button: .right)
-            || CGEventSource.buttonState(.combinedSessionState, button: .center)
     }
 
     private func target(at point: CGPoint) -> Target? {

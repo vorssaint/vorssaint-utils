@@ -1513,6 +1513,14 @@ struct MetricsTests {
                 && FocusFollowsMouseSupport.sanitizedDelay(2_000)
                 == FocusFollowsMouseSupport.delayRange.upperBound,
                "focus follows mouse clamps a damaged delay preference")
+        let extraMouseButton = 1 << 3
+        expect(FocusFollowsMouseSupport.canEvaluate(pressedMouseButtons: 0,
+                                                    modifierKeysArePressed: false)
+                && !FocusFollowsMouseSupport.canEvaluate(pressedMouseButtons: extraMouseButton,
+                                                         modifierKeysArePressed: false)
+                && !FocusFollowsMouseSupport.canEvaluate(pressedMouseButtons: 0,
+                                                         modifierKeysArePressed: true),
+               "focus follows mouse waits for every mouse button and modifier to be released")
         var focusFollowsMouseState = FocusFollowsMouseState()
         focusFollowsMouseState.recordMovement(to: CGPoint(x: 40, y: 70), at: 10)
         expect(focusFollowsMouseState.nextEvaluation(at: 10.20, delayMilliseconds: 250) == nil,
@@ -1540,8 +1548,10 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(focusFollowsMouseServiceSource.contains(".leftMouseDragged")
                 && focusFollowsMouseServiceSource.contains(".rightMouseDragged")
-                && focusFollowsMouseServiceSource.contains(".otherMouseDragged"),
-               "focus follows mouse tracks the final pointer position while a button is held")
+                && focusFollowsMouseServiceSource.contains(".otherMouseDragged")
+                && focusFollowsMouseServiceSource.contains(
+                    "pressedMouseButtons: NSEvent.pressedMouseButtons"),
+               "focus follows mouse tracks drags and checks every held mouse button")
         expect(focusFollowsMouseServiceSource.contains("excludesPointerTarget(")
                 && focusFollowsMouseServiceSource.contains(
                     ".focusFollowsMouse, at: evaluation.point"),

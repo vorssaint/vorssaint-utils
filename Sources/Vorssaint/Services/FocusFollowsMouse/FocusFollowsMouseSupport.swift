@@ -11,6 +11,10 @@ enum FocusFollowsMouseSupport {
     static func sanitizedDelay(_ milliseconds: Int) -> Int {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)
     }
+
+    static func canEvaluate(pressedMouseButtons: Int, modifierKeysArePressed: Bool) -> Bool {
+        pressedMouseButtons == 0 && !modifierKeysArePressed
+    }
 }
 
 struct FocusFollowsMouseEvaluation: Equatable {

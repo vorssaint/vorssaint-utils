@@ -87,7 +87,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Smooth Scroll and Scroll Inverter now step aside during fast user switching and resume on return, preventing background scroll stalls. Thanks to @iltonandrew.
 - Turning features on and off repeatedly no longer leaves unused keyboard and mouse listeners registered with the system for the rest of the session. Thanks to @PathGao.
 - Mouse navigation, button shortcuts and middle click now step aside outside the active login session or after Accessibility access is removed, preventing input stalls.
-- Focus follows mouse now leaves chosen apps alone and tracks the final pointer position during drags before changing focus.
+- Focus follows mouse now leaves chosen apps alone, waits for every held mouse button to be released and tracks the final pointer position during drags before changing focus.
 - Cleaning Mode now ends when its login session leaves the screen, preventing its input lock from affecting another active user.
 - Window capture now includes attached sheets, alerts and modal dialogs stacked on a window, including when part of it is off-screen, while preserving full-window capture when it crosses displays. Thanks to @iltonandrew.
 - Accessibility messaging now uses a single, consistent process-wide timeout floor instead of allowing separate features to overwrite the shared limit. Thanks to @PathGao.
