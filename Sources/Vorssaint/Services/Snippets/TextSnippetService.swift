@@ -350,12 +350,15 @@ final class TextSnippetService {
                 date: Date(),
                 clipboard: clipboard
             )
+            let keepsTriggeringDelimiter = TextSnippetSupport.keepsTriggeringDelimiter(
+                caretRetreat: insertion.caretRetreat
+            )
             return Self.postExpansion(deleteCount: deleteCount,
                                       text: insertion.text,
                                       caretRetreat: insertion.caretRetreat,
-                                      trailingKeyCode: trailingKeyCode,
+                                      trailingKeyCode: keepsTriggeringDelimiter ? trailingKeyCode : nil,
                                       trailingFlags: trailingFlags,
-                                      trailingText: trailingText,
+                                      trailingText: keepsTriggeringDelimiter ? trailingText : "",
                                       failureKeyCode: failureKeyCode,
                                       failureFlags: failureFlags)
         }

@@ -121,6 +121,10 @@ enum TextSnippetSupport {
         text + trailingText.replacingOccurrences(of: "\r", with: "\n")
     }
 
+    static func keepsTriggeringDelimiter(caretRetreat: Int?) -> Bool {
+        caretRetreat == nil
+    }
+
     /// Splits the marker before variable expansion so clipboard text that
     /// contains the same literal is never reinterpreted as cursor placement.
     static func expandedInsertion(_ replacement: String,

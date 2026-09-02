@@ -14608,6 +14608,10 @@ struct MetricsTests {
                 && singleBracedCursor.text == "Hello {cursor}world"
                 && singleBracedCursor.caretRetreat == nil,
                "one literal cursor marker sets the caret without reinterpreting clipboard text")
+        expect(TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: nil)
+               && !TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: 0)
+               && !TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: 5),
+               "only cursor placement suppresses the triggering delimiter")
 
         // Only a replacement that names the clipboard pays for reading it: the
         // pasteboard can hang on content nobody renders any more, and that read
