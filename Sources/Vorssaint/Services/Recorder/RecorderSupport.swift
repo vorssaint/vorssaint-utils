@@ -286,6 +286,21 @@ enum RecorderSupport {
         return CGRect(origin: origin, size: size)
     }
 
+    // MARK: - System audio source
+
+    /// Whether the next recording writes the Mac's sound from the process
+    /// tap rather than from the screen stream. A tap without its permission
+    /// delivers silence, never an error, so only sound it actually heard
+    /// earns trust, and a recording in which the stream heard sound the tap
+    /// missed takes that trust away. A silent recording proves nothing.
+    static func trustsSystemAudioTap(previously trusted: Bool,
+                                     tapHeardSound: Bool,
+                                     streamHeardSound: Bool) -> Bool {
+        if tapHeardSound { return true }
+        if streamHeardSound { return false }
+        return trusted
+    }
+
     // MARK: - Frame rate
 
     static let frameRates = [30, 60]

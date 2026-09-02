@@ -30,6 +30,13 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     private let engine = RecorderCaptureEngine()
     private let pauseClock = RecorderPauseClock()
     private let microphone: RecorderMicrophoneCapture?
+    private let capturesSystemAudio: Bool
+    /// The Mac's sound read once per process, when the audio system grants
+    /// one. Both it and the stream's audio run whenever the Mac's sound is
+    /// wanted; which of the two the file receives is settled in `start()`.
+    private var systemAudioTap: RecorderSystemAudioTap?
+    private var writesTapAudio = false
+    private let streamHeard = RecorderAudioFlag()
     private let pointer: RecorderPointerSampler
     private let typing: RecorderTypingSampler
     private let writerQueue = DispatchQueue(label: "com.vorssaint.recorder.writer",
@@ -57,6 +64,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         self.take = take
         self.region = region
         self.writer = writer
+        self.capturesSystemAudio = capturesSystemAudio
         microphone = capturesMicrophone ? RecorderMicrophoneCapture() : nil
         pointer = RecorderPointerSampler(region: region, pauseClock: pauseClock)
         typing = RecorderTypingSampler(pauseClock: pauseClock)
@@ -76,6 +84,18 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             _ = startGate.claimStartFailure()
             return .writerFailed
         }
+        if capturesSystemAudio {
+            systemAudioTap = await RecorderSystemAudioTap.make()
+        }
+        let tap = systemAudioTap
+        // A tap that has not yet heard sound on this Mac may be waiting on a
+        // permission, and it answers that with silence, not an error. The
+        // stream's sound is written until the tap has proven itself.
+        writesTapAudio = tap != nil
+            && UserDefaults.standard.bool(forKey: DefaultsKey.recorderSystemAudioTapVerified)
+        tap?.onSample = { [weak self] sampleBuffer in
+            self?.appendTapSample(sampleBuffer)
+        }
         if let failure = await engine.start(region: region,
                                             frameRate: frameRate,
                                             capturesSystemAudio: capturesSystemAudio,
@@ -84,9 +104,25 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                                 self?.startGate.isAuthorized != true
                                             }) {
             if startGate.claimStartFailure() { writer.cancel() }
+            await tap?.stop()
             return failure
         }
         guard startGate.isAuthorized else {
+            await tap?.stop()
+            await engine.stop()
+            return .streamFailed
+        }
+        // The tap starts before the microphone so the Mac's sound has the
+        // shortest possible gap at the head of the file while it comes up.
+        if let tap, let clock = engine.synchronizationClock {
+            let started = await tap.start(synchronizingTo: clock)
+            // A trusted tap that could not build a reader this time (no output
+            // device, or a permission just revoked) would otherwise leave the
+            // file's sound silent, since the stream's copy is being dropped.
+            if writesTapAudio, !started { writesTapAudio = false }
+        }
+        guard startGate.isAuthorized else {
+            await tap?.stop()
             await engine.stop()
             return .streamFailed
         }
@@ -95,14 +131,11 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                 onMicrophoneUnavailable?()
             }
             guard startGate.isAuthorized else {
+                await tap?.stop()
                 await microphone.stop()
                 await engine.stop()
                 return .streamFailed
             }
-        }
-        guard startGate.isAuthorized else {
-            await engine.stop()
-            return .streamFailed
         }
         // This method is nonisolated and async, so its body runs on the
         // cooperative pool however main-actor the caller was (SE-0338). The
@@ -135,12 +168,22 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         let ownsFinalization = startGate.cancelAndClaimStop()
         await startGate.waitUntilFinished()
         guard ownsFinalization else { return false }
+        let tap = systemAudioTap
+        async let tapStop: Void = { if let tap { await tap.stop() } }()
         if let microphone {
             async let microphoneStop: Void = microphone.stop()
             await engine.stop()
             await microphoneStop
         } else {
             await engine.stop()
+        }
+        await tapStop
+        if let tap {
+            UserDefaults.standard.set(
+                RecorderSupport.trustsSystemAudioTap(previously: writesTapAudio,
+                                                     tapHeardSound: tap.heardSound,
+                                                     streamHeardSound: streamHeard.value),
+                forKey: DefaultsKey.recorderSystemAudioTapVerified)
         }
         let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
         let end = CMClockGetTime(CMClockGetHostTimeClock())
@@ -158,7 +201,21 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     func captureEngine(_ engine: RecorderCaptureEngine,
                        didOutput sampleBuffer: CMSampleBuffer,
                        of kind: RecorderCaptureEngine.Kind) {
+        if kind == .systemAudio {
+            // The stream keeps listening even when the tap is written: a tap
+            // that stays silent through sound the stream heard has lost its
+            // permission, and the next recording goes back to the stream.
+            if !streamHeard.value, RecorderAudioProbe.containsSound(sampleBuffer) {
+                streamHeard.raise()
+            }
+            if writesTapAudio { return }
+        }
         append(sampleBuffer, kind: kind)
+    }
+
+    private func appendTapSample(_ sampleBuffer: CMSampleBuffer) {
+        guard writesTapAudio else { return }
+        append(sampleBuffer, kind: .systemAudio)
     }
 
     func captureEngine(_ engine: RecorderCaptureEngine, didStopWith failure: RecorderFailure) {

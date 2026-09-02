@@ -12188,7 +12188,7 @@ struct MetricsTests {
         expect(bundleLocalizations.contains("tr"), "Info.plist declares Turkish as a bundle localization")
         expect(bundleLocalizations.contains("ko"), "Info.plist declares Korean as a bundle localization")
         let baseAudioPrompt = infoPlist?["NSAudioCaptureUsageDescription"] as? String ?? ""
-        expect(baseAudioPrompt.contains("Vorssaint taps individual app audio"),
+        expect(baseAudioPrompt.contains("Vorssaint uses each app's audio"),
                "base audio permission prompt is an English fallback")
         let organizerFolderPromptKeys = [
             "NSDesktopFolderUsageDescription", "NSDocumentsFolderUsageDescription",
@@ -12213,7 +12213,7 @@ struct MetricsTests {
         let koreanInfoPlistStrings = (try? String(contentsOfFile: "Resources/ko.lproj/InfoPlist.strings",
                                                   encoding: .utf8)) ?? ""
         expect(koreanInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
-               && koreanInfoPlistStrings.contains("어떤 오디오도 녹음되거나"),
+               && koreanInfoPlistStrings.contains("Mac 밖으로 나가지"),
                "Korean InfoPlist.strings localizes the audio permission prompt")
 
         // MARK: Network speed math
@@ -13479,6 +13479,8 @@ struct MetricsTests {
         expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
                "audio capture reads as unused once the mixer is off in the hub")
+        expect(activeSet(.audioCapture, on: [DefaultsKey.recorderSystemAudio]) == [.mixer, .screenRecorder],
+               "the recorder uses audio capture only while the Mac's sound is a chosen source")
         expect(activeSet(.microphone).isEmpty
                 && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder],
                "the recorder uses microphone access only when that optional source is on")
@@ -15100,6 +15102,50 @@ struct MetricsTests {
                                                     appBundleIdentifier: nil,
                                                     appPID: 0) == nil,
                "paused or ownerless metadata degrades to Nothing Playing")
+        let adapterLine = Data("""
+            {"kMRMediaRemoteNowPlayingInfoTitle":"Midnight City","kMRMediaRemoteNowPlayingInfoArtist":"M83",\
+            "kMRMediaRemoteNowPlayingInfoPlaybackRate":1,"artworkBase64":"AQID","pid":42,\
+            "displayID":"com.apple.Music","isPlaying":true}
+            """.utf8)
+        let adapterReply = RadialNowPlayingSupport.adapterReply(from: adapterLine)
+        expect(adapterReply?.info[RadialNowPlayingSupport.titleKey] as? String == "Midnight City"
+                && adapterReply?.info[RadialNowPlayingSupport.artistKey] as? String == "M83"
+                && adapterReply?.info[RadialNowPlayingSupport.artworkDataKey] as? Data == Data([1, 2, 3])
+                && (adapterReply?.info[RadialNowPlayingSupport.playbackRateKey] as? NSNumber)?.doubleValue == 1
+                && adapterReply?.pid == 42
+                && adapterReply?.displayID == "com.apple.Music"
+                && adapterReply?.isPlaying == true,
+               "the Now Playing adapter line is read back into the MediaRemote keys the snapshot builder takes")
+        let adapterPaused = RadialNowPlayingSupport.adapterReply(
+            from: Data(#"{"kMRMediaRemoteNowPlayingInfoTitle":"Midnight City","isPlaying":false}"#.utf8))
+        expect(adapterPaused?.pid == 0 && adapterPaused?.displayID == nil && adapterPaused?.isPlaying == false
+                && RadialNowPlayingSupport.snapshot(
+                    info: adapterPaused?.info ?? [:],
+                    isPlaying: RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: adapterPaused?.isPlaying,
+                                                                       info: adapterPaused?.info ?? [:]),
+                    appBundleIdentifier: adapterPaused?.displayID,
+                    appPID: adapterPaused?.pid ?? 0) == nil,
+               "a paused adapter reply degrades to Nothing Playing through the same path as before")
+        expect(RadialNowPlayingSupport.adapterReply(from: Data(#"{"error":"MRMediaRemoteGetNowPlayingInfo unavailable"}"#.utf8)) == nil
+                && RadialNowPlayingSupport.adapterReply(from: Data("[1,2]".utf8)) == nil
+                && RadialNowPlayingSupport.adapterReply(from: Data("perl: cannot load".utf8)) == nil
+                && RadialNowPlayingSupport.adapterReply(from: Data(#"{"artworkBase64":"***"}"#.utf8))?
+                    .info[RadialNowPlayingSupport.artworkDataKey] == nil,
+               "an adapter error, a non-object, shell noise or bad base64 never become a snapshot")
+        let adapterAfterWarning = RadialNowPlayingSupport.adapterReply(from: Data("""
+            perl: warning: Setting locale failed.
+            perl: warning: Falling back to the standard locale ("C").
+            {"kMRMediaRemoteNowPlayingInfoTitle":"Midnight City","pid":42,"isPlaying":true}
+
+            """.utf8))
+        expect(adapterAfterWarning?.info[RadialNowPlayingSupport.titleKey] as? String == "Midnight City"
+                && adapterAfterWarning?.pid == 42 && adapterAfterWarning?.isPlaying == true,
+               "a perl warning on the shared stderr pipe ahead of the adapter's JSON line still parses")
+        let nowPlayingBuildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        expect(nowPlayingBuildScript.contains("Sources/NowPlayingAdapter/NowPlayingAdapter.swift")
+                && nowPlayingBuildScript.contains("Resources/now-playing.pl")
+                && nowPlayingBuildScript.contains("Contents/Frameworks/$NOW_PLAYING_ADAPTER"),
+               "build.sh compiles the Now Playing adapter and stages the library and its perl loader")
         let radialQuickToggle = RadialMenuItem(kind: .quickToggle,
                                                payload: RadialMenuQuickToggle.darkMode.rawValue)
         expect(RadialMenuSupport.sanitized([radialQuickToggle]) == [radialQuickToggle]
@@ -20163,7 +20209,7 @@ struct MetricsTests {
         expect(AppFeature.screenRecorder.group == .tools
                 && AppFeature.screenRecorder.enabledKeys.isEmpty
                 && AppFeature.screenRecorder.permissions
-                    == [.screenRecording, .accessibility, .microphone],
+                    == [.screenRecording, .accessibility, .audioCapture, .microphone],
                "the recorder keeps its optional capture permissions contextual")
         expect(AppFeature.screenRecorder.energyProfile == .idle,
                "the recorder costs nothing between recordings")
@@ -20271,6 +20317,22 @@ struct MetricsTests {
         expect(RecorderSupport.elapsedLabel(seconds: -5) == "0:00",
                "a clock that never went forward still reads as zero")
 
+        expect(RecorderSupport.trustsSystemAudioTap(previously: false, tapHeardSound: true,
+                                                    streamHeardSound: true)
+                && RecorderSupport.trustsSystemAudioTap(previously: false, tapHeardSound: true,
+                                                        streamHeardSound: false),
+               "a tap that heard sound is trusted for the next recording")
+        expect(!RecorderSupport.trustsSystemAudioTap(previously: true, tapHeardSound: false,
+                                                     streamHeardSound: true),
+               "a tap that stayed silent through sound the stream heard loses its trust")
+        expect(RecorderSupport.trustsSystemAudioTap(previously: true, tapHeardSound: false,
+                                                    streamHeardSound: false)
+                && !RecorderSupport.trustsSystemAudioTap(previously: false, tapHeardSound: false,
+                                                         streamHeardSound: false),
+               "a silent recording proves nothing about the tap")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudioTapVerified)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudio),
+               "the tap grant this Mac gave stays out of the backup while the sound choice travels")
         var pauseTimeline = RecorderPauseTimeline()
         expect(pauseTimeline.pause(at: 3) && !pauseTimeline.pause(at: 4),
                "a recording enters one pause only once")

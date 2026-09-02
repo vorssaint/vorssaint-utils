@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, the screen recording editor, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls, snippet controls and the disk image installer, broadens app update and safe cleanup discovery, and hardens shortcut capture and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling and shared on-screen parsing, pasteboard restoration, the docked shelf's saved items, sensor selection, Cleaning Mode unlock, favicon downloads, the What's New showcase video download and stopping a recording. It also improves mouse scrolling feel, disk space and system monitor metrics, Command Bar and radial menu responsiveness, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, the screen recording editor, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls, snippet controls and the disk image installer, broadens app update and safe cleanup discovery, and hardens shortcut capture and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling and shared on-screen parsing, pasteboard restoration, the radial menu's Now Playing card, the docked shelf's saved items, sensor selection, Cleaning Mode unlock, favicon downloads, the What's New showcase video download, stopping a recording, and the sound of screen recordings. It also improves mouse scrolling feel, disk space and system monitor metrics, Command Bar and radial menu responsiveness, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
 
 ### Added
 - Settings now includes optional protections for Command-Q and Command-W with customizable hold duration, double press, extra modifier requirements and per-app scopes. Thanks to @RuanMD and @PathGao.
@@ -52,6 +52,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - The radial menu now checks only which extra mouse button opens a wheel when a side button is pressed, instead of loading every wheel and its icons on each event, so holding a side button and moving the mouse no longer risks dropped clicks. Thanks to @PathGao.
 
 ### Fixed
+- The radial menu's Now Playing action now finds the playing track again on macOS 15.4 and later, where it had quietly shown nothing. Thanks to @PathGao.
 - Super key now keeps modifiers active while holding non-autorepeating source keys such as Caps Lock remapped to F18. Thanks to @victoraraujo01.
 - Dock icon window cycling now rotates only across windows on the active Space instead of switching desktops unexpectedly. Thanks to @PathGao.
 - App Switcher can explicitly replace the matching macOS app and window switcher shortcuts, with crash recovery and a windowless-app fallback. Thanks to @BenjaminD2023.
@@ -110,6 +111,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Cleaning Mode now uses a forgiving 6-second press window for the Escape unlock gesture and resets the count when modifier keys are pressed while wiping. Thanks to @iltonandrew.
 - Dock previews now move to the vacated screen edge when an auto-hiding Dock slides away instead of floating detached. Thanks to @iltonandrew.
 - Stopping a recording while you are still typing no longer risks a crash or a recording whose typing moments land in the wrong place. Thanks to @PathGao.
+- Screen recordings now capture the Mac's sound once, so apps adjusted in the Volume Mixer, such as a voice call turned down while gaming, no longer come back doubled in the file.
 
 ## [3.3.3-beta.3] - 2026-08-26
 
