@@ -345,13 +345,14 @@ final class TextSnippetService {
             let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
                 ? NSPasteboard.general.string(forType: .string)
                 : nil
-            let text = TextSnippetSupport.expand(
+            let insertion = TextSnippetSupport.expandedInsertion(
                 snippet.replacement,
                 date: Date(),
                 clipboard: clipboard
             )
             return Self.postExpansion(deleteCount: deleteCount,
-                                      text: text,
+                                      text: insertion.text,
+                                      caretRetreat: insertion.caretRetreat,
                                       trailingKeyCode: trailingKeyCode,
                                       trailingFlags: trailingFlags,
                                       trailingText: trailingText,
@@ -369,6 +370,7 @@ final class TextSnippetService {
     @discardableResult
     static func postExpansion(deleteCount: Int,
                               text: String,
+                              caretRetreat: Int? = nil,
                               trailingKeyCode: CGKeyCode?,
                               trailingFlags: CGEventFlags,
                               trailingText: String = "",
@@ -387,6 +389,12 @@ final class TextSnippetService {
                 post(event)
             }
         }
+        func postCaretRetreat() {
+            guard let caretRetreat else { return }
+            for _ in 0..<(caretRetreat + trailingText.count) {
+                postKey(CGKeyCode(kVK_LeftArrow))
+            }
+        }
 
         if TextSnippetSupport.requiresPaste(text) {
             let payload = TextSnippetSupport.pastePayload(text: text, trailingText: trailingText)
@@ -395,6 +403,7 @@ final class TextSnippetService {
                 willPostShortcut: {
                     for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
                 },
+                didPostShortcut: postCaretRetreat,
                 didFail: {
                     if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
                 }
@@ -426,6 +435,7 @@ final class TextSnippetService {
         if let trailingKeyCode {
             postKey(trailingKeyCode, flags: trailingFlags)
         }
+        postCaretRetreat()
         return true
     }
 }

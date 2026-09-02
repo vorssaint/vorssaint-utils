@@ -168,14 +168,16 @@ final class SnippetLibraryService: ObservableObject {
         let clipboard = TextSnippetSupport.needsClipboard(snippet.replacement)
             ? NSPasteboard.general.string(forType: .string)
             : nil
-        let text = TextSnippetSupport.expand(snippet.replacement,
-                                             date: Date(),
-                                             clipboard: clipboard)
+        let insertion = TextSnippetSupport.expandedInsertion(snippet.replacement,
+                                                             date: Date(),
+                                                             clipboard: clipboard)
         // A beat for the panel to leave the screen; the target app kept focus
         // (the panel never activates), so the caret is exactly where the user
         // left it.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-            self?.postWhenModifiersReleased(text: text, attempt: 0)
+            self?.postWhenModifiersReleased(text: insertion.text,
+                                            caretRetreat: insertion.caretRetreat,
+                                            attempt: 0)
         }
     }
 
@@ -184,7 +186,9 @@ final class SnippetLibraryService: ObservableObject {
     /// clean keyboard first: every 15 ms for up to ~1.5 s, plus a settle beat
     /// (PastePlain's proven dance). Secure input means a password field:
     /// nothing may be typed there.
-    private func postWhenModifiersReleased(text: String, attempt: Int) {
+    private func postWhenModifiersReleased(text: String,
+                                           caretRetreat: Int?,
+                                           attempt: Int) {
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         // A modifier still pinned after ~1.5 s means the keyboard never came
@@ -196,7 +200,9 @@ final class SnippetLibraryService: ObservableObject {
         }
         guard held.isEmpty else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
-                self?.postWhenModifiersReleased(text: text, attempt: attempt + 1)
+                self?.postWhenModifiersReleased(text: text,
+                                                caretRetreat: caretRetreat,
+                                                attempt: attempt + 1)
             }
             return
         }
@@ -207,6 +213,7 @@ final class SnippetLibraryService: ObservableObject {
             }
             TextSnippetService.postExpansion(deleteCount: 0,
                                              text: text,
+                                             caretRetreat: caretRetreat,
                                              trailingKeyCode: nil,
                                              trailingFlags: [])
         }

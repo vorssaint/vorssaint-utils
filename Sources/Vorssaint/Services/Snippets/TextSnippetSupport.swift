@@ -121,6 +121,22 @@ enum TextSnippetSupport {
         text + trailingText.replacingOccurrences(of: "\r", with: "\n")
     }
 
+    /// Splits the marker before variable expansion so clipboard text that
+    /// contains the same literal is never reinterpreted as cursor placement.
+    static func expandedInsertion(_ replacement: String,
+                                  date: Date,
+                                  clipboard: String?,
+                                  locale: Locale = .current) -> (text: String, caretRetreat: Int?) {
+        guard let marker = replacement.range(of: "{{cursor}}") else {
+            return (expand(replacement, date: date, clipboard: clipboard, locale: locale), nil)
+        }
+        let before = expand(String(replacement[..<marker.lowerBound]),
+                            date: date, clipboard: clipboard, locale: locale)
+        let after = expand(String(replacement[marker.upperBound...]),
+                           date: date, clipboard: clipboard, locale: locale)
+        return (before + after, after.count)
+    }
+
     static func expand(_ replacement: String,
                        date: Date,
                        clipboard: String?,
