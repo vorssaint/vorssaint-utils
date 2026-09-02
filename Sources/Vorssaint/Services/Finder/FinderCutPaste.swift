@@ -89,7 +89,9 @@ final class FinderCutPaste: ObservableObject {
         static let v: Int64 = 9
     }
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     var isRunning: Bool { tapLifecycleLock.withLock { tap != nil } }
 
@@ -105,7 +107,9 @@ final class FinderCutPaste: ObservableObject {
         showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
         pasteImageAsFileEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
-        if (cutPasteEnabled || pasteImageAsFileEnabled), Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
             installTap()
         } else {
             removeTap()
@@ -253,7 +257,11 @@ final class FinderCutPaste: ObservableObject {
     private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
+                CGEvent.tapEnable(tap: currentTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             return Unmanaged.passUnretained(event)
         }
         guard type == .keyDown,

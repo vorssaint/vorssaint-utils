@@ -80,11 +80,16 @@ final class WindowLayoutService: ObservableObject {
     private let resizeGestureUpdateInterval: TimeInterval = 1.0 / 60.0
     private let edgeSnapSampleInterval: TimeInterval = 1.0 / 30.0
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let available = AppFeature.windowLayout.isAvailable
-        let trusted = AXIsProcessTrusted()
+        let trusted = SessionActivitySupport.tapShouldRun(
+            featureWanted: available,
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive)
         let wantsShortcuts = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
             && trusted
@@ -221,6 +226,26 @@ final class WindowLayoutService: ObservableObject {
             }
             frameHistory.discardLatest(for: target.key)
             return finish(.failure(.failed))
+        }
+        if let crossing = WindowLayoutGeometry.displayCrossing(for: action,
+                                                               previousAction: lastActions[target.key]),
+           accepted(actual: target.frame,
+                    targetRect: placement(for: action,
+                                          current: target.frame,
+                                          visibleFrame: screen.visibleFrame).rect,
+                    action: action),
+           let destination = sidewaysScreen(to: screen,
+                                            screens: screens,
+                                            movingRight: crossing.movingRight) {
+            // The window is already parked on that side, so the same shortcut
+            // keeps pushing in the same direction: over to the display beside
+            // it, snapped against the edge it came in through. Without a
+            // display on that side the placement below simply leaves it where
+            // it is.
+            return applyPlacement(crossing.action,
+                                  to: target,
+                                  visibleFrame: destination.visibleFrame,
+                                  cyclesRepeatedAction: false)
         }
         return applyPlacement(action,
                               to: target,
@@ -1016,7 +1041,11 @@ final class WindowLayoutService: ObservableObject {
     private func observeEdgeSnapEvent(type: CGEventType,
                                       event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let edgeSnapTap { CGEvent.tapEnable(tap: edgeSnapTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let edgeSnapTap {
+                CGEvent.tapEnable(tap: edgeSnapTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             DispatchQueue.main.async { [weak self] in self?.cancelEdgeSnapTracking() }
             return Unmanaged.passUnretained(event)
         }
@@ -1462,7 +1491,11 @@ final class WindowLayoutService: ObservableObject {
 
         let tapDisabled = type == .tapDisabledByTimeout || type == .tapDisabledByUserInput
         if tapDisabled, let gestureTap {
-            CGEvent.tapEnable(tap: gestureTap, enable: true)
+            if SessionActivity.shared.isActive, AXIsProcessTrusted() {
+                CGEvent.tapEnable(tap: gestureTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
         }
 
         var chord: (button: WindowPointerGesture.Button, wantsResize: Bool)?
@@ -1820,6 +1853,19 @@ final class WindowLayoutService: ObservableObject {
                 currentIndex: currentIndex,
                 frames: screens.map(\.frame),
                 movingForward: movingForward
+              )
+        else { return nil }
+        return screens[destinationIndex]
+    }
+
+    private func sidewaysScreen(to current: NSScreen,
+                                screens: [NSScreen],
+                                movingRight: Bool) -> NSScreen? {
+        guard let currentIndex = screens.firstIndex(where: { $0 === current }),
+              let destinationIndex = WindowLayoutGeometry.horizontalNeighbourIndex(
+                currentIndex: currentIndex,
+                frames: screens.map(\.frame),
+                movingRight: movingRight
               )
         else { return nil }
         return screens[destinationIndex]

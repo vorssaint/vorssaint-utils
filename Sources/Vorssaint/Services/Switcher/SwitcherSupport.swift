@@ -1076,27 +1076,33 @@ enum SwitcherSupport {
             || frontmostCanBeSystemPromotion
     }
 
+    /// The three Accessibility-backed inputs are autoclosures because the
+    /// minimize restore fires this on every pulse of a dense timer and most
+    /// pulses stop at the frontmost checks below. Taking them as values let a
+    /// caller pay a `kAXWindows` copy and two AX reads per pulse for an answer
+    /// the cheap comparisons had already given; taking them as closures means
+    /// a caller cannot pay that cost early even by accident.
     static func shouldRestoreSourceAfterTargetMinimizeIntent(targetPID: pid_t,
                                                              sourcePID: pid_t?,
                                                              frontmostPID: pid_t?,
-                                                             focusedWindowID: UInt32?,
+                                                             focusedWindowID: @autoclosure () -> UInt32?,
                                                              targetWindowID: UInt32,
-                                                             targetIsMinimized: Bool,
+                                                             targetIsMinimized: @autoclosure () -> Bool,
                                                              ownPID: pid_t = ProcessInfo.processInfo.processIdentifier,
-                                                             frontmostMatchesTargetBundle: Bool = false,
+                                                             frontmostMatchesTargetBundle: @autoclosure () -> Bool = false,
                                                              frontmostCanBeSystemPromotion: Bool = false) -> Bool {
         guard let sourcePID,
               sourcePID != targetPID else { return false }
         if frontmostPID == sourcePID { return false }
-        if let frontmostPID,
-           frontmostPID != targetPID,
-           frontmostPID != ownPID,
-           !frontmostMatchesTargetBundle,
-           !(targetIsMinimized && frontmostCanBeSystemPromotion) {
-            return false
-        }
+        let frontmostIsForeign = frontmostPID != nil
+            && frontmostPID != targetPID
+            && frontmostPID != ownPID
+            && !frontmostMatchesTargetBundle()
+        if frontmostIsForeign, !frontmostCanBeSystemPromotion { return false }
+        let targetIsMinimized = targetIsMinimized()
+        if frontmostIsForeign, !targetIsMinimized { return false }
         if targetIsMinimized { return true }
-        guard let focusedWindowID else { return false }
+        guard let focusedWindowID = focusedWindowID() else { return false }
         return focusedWindowID != targetWindowID
     }
 

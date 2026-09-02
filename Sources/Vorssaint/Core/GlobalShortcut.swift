@@ -512,7 +512,7 @@ struct GlobalShortcut: Equatable, Hashable {
     /// Answered from the cache: deriving a label asks Text Input Services,
     /// which traps the process off the main thread, and the Switcher's tap
     /// asks for one on every key from its own (issue #578).
-    private static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
+    static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
         let cacheKey = LayoutLabelKey(keyCode: keyCode, usesCommand: usesCommand)
         if let cached = (layoutLabelLock.withLock { layoutLabels[cacheKey] }) {
             return cached

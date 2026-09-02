@@ -72,7 +72,19 @@ final class RadialMenuService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
     private var promptedForAccessibility = false
 
-    private init() {}
+    private init() {
+        // A filter tap owned by a switched-away login session keeps its place
+        // in the chain, so the account on screen waits out this tap's timeout
+        // on every extra-button click it makes (issue #1075). Hand the tap
+        // back on resign and build it again from preferences on the way in.
+        // The open wheel goes with it: this tap is the only thing that sees a
+        // held summoner released, so a wheel still up when the tap is handed
+        // back would come back stuck in hold phase with no release coming.
+        SessionActivity.shared.onChange { [weak self] active in
+            if !active { self?.endSession() }
+            self?.syncMouseTap()
+        }
+    }
 
     var sessionActive: Bool { !stack.isEmpty }
 
@@ -128,7 +140,13 @@ final class RadialMenuService: ObservableObject {
     // app under the pointer; alive only while a button is configured, torn
     // down with the feature)
 
-    private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
+    /// Whether the button tap has a job right now. The feature check is here
+    /// rather than only in `syncWithPreferences`, because the resign handler
+    /// and the capture row call the sync directly and so never pass that
+    /// guard. The capture row wants the tap even with the feature switched
+    /// off, so it can tell a button this app cannot see from one that is
+    /// simply set to something else.
+    private func mouseTapWanted(profiles: [RadialMenuProfile]?) -> Bool {
         let defaults = UserDefaults.standard
         // Asked of the stored buttons alone when the caller has no profiles in
         // hand: this only needs to know whether any wheel is bound to a button,
@@ -139,7 +157,21 @@ final class RadialMenuService: ObservableObject {
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
         ).isEmpty
-        guard hasAnyButton || isReportingMouseButtons else {
+        let enabled = AppFeature.radialMenu.isAvailable
+            && defaults.bool(forKey: DefaultsKey.radialMenuEnabled)
+        return (hasAnyButton && enabled) || isReportingMouseButtons
+    }
+
+    private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
+        // Accessibility is asked of the system and not of `Permissions.shared`,
+        // whose answer is a poll up to `PermissionPollingSupport.interval` old.
+        // The re-arm hands a tap it declines to put back to this sync to be
+        // stopped, and a stale grant here would install it straight back.
+        guard SessionActivitySupport.tapShouldRun(
+            featureWanted: mouseTapWanted(profiles: profiles),
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive
+        ) else {
             tearDownMouseTap()
             return
         }
@@ -148,7 +180,7 @@ final class RadialMenuService: ObservableObject {
         if let mouseTap, !CGEvent.tapIsEnabled(tap: mouseTap) {
             tearDownMouseTap()
         }
-        guard mouseTap == nil, AXIsProcessTrusted() else { return }
+        guard mouseTap == nil else { return }
         let mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
         guard let tap = CGEvent.tapCreate(
@@ -186,7 +218,23 @@ final class RadialMenuService: ObservableObject {
 
     private func handleMouseTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let mouseTap { CGEvent.tapEnable(tap: mouseTap, enable: true) }
+            // This tap's callback runs on the main run loop, so the session
+            // flag is read where it is written. A tap put straight back is a
+            // tap put back into whatever session is on screen now, which is
+            // the stall the gate exists to end (issue #1075). Accessibility is
+            // asked for the same reason as the sync: this tap swallows the
+            // click, so a revoked grant has to end it rather than put it back.
+            if SessionActivitySupport.tapShouldRun(
+                featureWanted: mouseTapWanted(profiles: nil),
+                accessibilityGranted: AXIsProcessTrusted(),
+                sessionIsActive: SessionActivity.shared.isActive
+            ), let mouseTap {
+                CGEvent.tapEnable(tap: mouseTap, enable: true)
+            } else {
+                // Invalidating the port from its own callback stack is unsafe;
+                // finish this callback fail-open, then release the tap.
+                DispatchQueue.main.async { [weak self] in self?.syncMouseTap() }
+            }
             return Unmanaged.passUnretained(event)
         }
         let pressed = Int(event.getIntegerValueField(.mouseEventButtonNumber))

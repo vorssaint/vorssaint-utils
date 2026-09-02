@@ -157,13 +157,23 @@ final class AppSwitcher: ObservableObject {
         static let upArrow: Int64 = 126
     }
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     private var isTapLive: Bool {
         lifecycleLock.withLock {
             guard let tap else { return false }
             return CFMachPortIsValid(tap) && CGEvent.tapIsEnabled(tap: tap)
         }
+    }
+
+    private var tapIsWanted: Bool {
+        SessionActivitySupport.tapShouldRun(
+            featureWanted: AppFeature.switcher.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive)
     }
 
     /// Applies the persisted preference; safe to call repeatedly.
@@ -176,9 +186,7 @@ final class AppSwitcher: ObservableObject {
             routeShortcut = shortcut
             routeWindowShortcut = windowShortcut
         }
-        let enabled = AppFeature.switcher.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled)
-        let canStartSession = enabled && Permissions.shared.accessibility
+        let canStartSession = tapIsWanted
         routeLock.withLock { routeCanStartSession = canStartSession }
         if canStartSession {
             startObservingKeyboardLayout()
@@ -283,9 +291,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func reconcileTakeover() {
-        guard AppFeature.switcher.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
-              Permissions.shared.accessibility else {
+        guard tapIsWanted else {
             restoreNativeHotkeys()
             return
         }
@@ -455,7 +461,11 @@ final class AppSwitcher: ObservableObject {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             // Never resurrect a tap that removeTap is already tearing down.
             let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
+                CGEvent.tapEnable(tap: currentTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             routeLock.withLock { routePendingSessionStart = nil }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.sessionActive else { return }

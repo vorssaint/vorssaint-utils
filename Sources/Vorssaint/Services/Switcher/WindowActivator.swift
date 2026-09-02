@@ -364,7 +364,7 @@ enum WindowActivator {
     }
 
     private static func activateApp(_ app: NSRunningApplication, allWindows: Bool = true) {
-        NSApp.yieldActivation(to: app)
+        ActivationHandoff.yield(to: app)
         if allWindows {
             if !app.activate(from: NSRunningApplication.current, options: [.activateAllWindows]) {
                 app.activate(options: [.activateAllWindows])
@@ -559,17 +559,16 @@ enum WindowActivator {
         let frontmostPID = reportedFrontmostPID == restore.targetWindowOwnerPID
             ? restore.targetPID
             : reportedFrontmostPID
-        let targetIsMinimized = windowIsMinimized(windowID: restore.windowID,
-                                                  pid: restore.targetWindowOwnerPID)
-        let focusedID = focusedWindowID(for: restore.targetWindowOwnerPID)
-        guard SwitcherSupport.shouldRestoreSourceAfterTargetMinimizeIntent(targetPID: restore.targetPID,
-                                                                           sourcePID: restore.sourcePID,
-                                                                           frontmostPID: frontmostPID,
-                                                                           focusedWindowID: focusedID,
-                                                                           targetWindowID: restore.windowID,
-                                                                           targetIsMinimized: targetIsMinimized,
-                                                                           frontmostMatchesTargetBundle: restore.matchesTargetBundle(frontmostPID),
-                                                                           frontmostCanBeSystemPromotion: allowSystemPromotion) else { return }
+        guard SwitcherSupport.shouldRestoreSourceAfterTargetMinimizeIntent(
+                targetPID: restore.targetPID,
+                sourcePID: restore.sourcePID,
+                frontmostPID: frontmostPID,
+                focusedWindowID: focusedWindowID(for: restore.targetWindowOwnerPID),
+                targetWindowID: restore.windowID,
+                targetIsMinimized: windowIsMinimized(windowID: restore.windowID,
+                                                     pid: restore.targetWindowOwnerPID),
+                frontmostMatchesTargetBundle: restore.matchesTargetBundle(frontmostPID),
+                frontmostCanBeSystemPromotion: allowSystemPromotion) else { return }
         guard activateSource(pid: restore.sourcePID,
                              windowID: restore.sourceWindowID,
                              windowOwnerPID: restore.sourceWindowOwnerPID) else {
@@ -593,7 +592,7 @@ enum WindowActivator {
         if let windowID {
             prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID ?? pid)
         }
-        NSApp.yieldActivation(to: sourceApp)
+        ActivationHandoff.yield(to: sourceApp)
         if !sourceApp.activate(from: NSRunningApplication.current, options: []) {
             sourceApp.activate(options: [])
         }
