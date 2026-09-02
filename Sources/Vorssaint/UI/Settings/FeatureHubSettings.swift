@@ -742,6 +742,7 @@ extension AppFeature {
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .calendar: return CalendarStrings.current(L10n.shared.language).title
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
@@ -806,6 +807,7 @@ extension AppFeature {
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
+        case .calendar: return CalendarStrings.current(L10n.shared.language).description
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
         case .cleaner:
