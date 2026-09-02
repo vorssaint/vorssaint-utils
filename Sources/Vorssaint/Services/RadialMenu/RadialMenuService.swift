@@ -130,13 +130,15 @@ final class RadialMenuService: ObservableObject {
 
     private func syncMouseTap(profiles: [RadialMenuProfile]? = nil) {
         let defaults = UserDefaults.standard
-        let currentProfiles = profiles ?? RadialMenuSupport.decodeProfiles(
+        // Asked of the stored buttons alone when the caller has no profiles in
+        // hand: this only needs to know whether any wheel is bound to a button,
+        // and the full decode pays for every item and icon to answer it.
+        let hasAnyButton = profiles.map { list in
+            list.contains { RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber != nil }
+        } ?? !RadialMenuSupport.claimedMouseButtons(
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
-        )
-        let hasAnyButton = currentProfiles.contains {
-            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber != nil
-        }
+        ).isEmpty
         guard hasAnyButton || isReportingMouseButtons else {
             tearDownMouseTap()
             return
@@ -202,17 +204,17 @@ final class RadialMenuService: ObservableObject {
             lastMouseButtonSeen = pressed
         }
         let defaults = UserDefaults.standard
-        let profiles = RadialMenuSupport.decodeProfiles(
+        let button = Int64(pressed)
+        // Every press and release of every extra button lands here, so the
+        // cheap question comes first: the wheels themselves are decoded only
+        // once a press turns out to be a summoner, and only to open one.
+        guard RadialMenuSupport.claimedMouseButtons(
             defaults.data(forKey: DefaultsKey.radialMenuProfiles),
             defaults: defaults
-        )
-        guard let matchingProfile = profiles.first(where: {
-            RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == Int64(pressed)
-        }) else {
+        ).contains(button) else {
             return Unmanaged.passUnretained(event)
         }
 
-        let button = Int64(pressed)
         // The source lives on the main run loop, so this already runs on
         // main; acting synchronously keeps a quick click ordered (the down
         // opens the wheel before its own up arrives). The claimed button is
@@ -221,7 +223,20 @@ final class RadialMenuService: ObservableObject {
         // caption promises exactly that).
         if type == .otherMouseDown {
             if !sessionActive {
-                beginSession(for: matchingProfile, hold: false, heldButton: button)
+                let profiles = RadialMenuSupport.decodeProfiles(
+                    defaults.data(forKey: DefaultsKey.radialMenuProfiles),
+                    defaults: defaults
+                )
+                // The guard above already claimed the click, and the release
+                // will be swallowed to match it. A profile the full decode
+                // drops but the cheap read keeps (a corrupt blob) therefore
+                // opens no wheel and still costs the app under the pointer
+                // nothing: never one half of a click.
+                if let matchingProfile = profiles.first(where: {
+                    RadialMenuMouseTrigger.sanitized($0.mouseButton).buttonNumber == button
+                }) {
+                    beginSession(for: matchingProfile, hold: false, heldButton: button)
+                }
             } else if !holdPhase {
                 endSession()
             }

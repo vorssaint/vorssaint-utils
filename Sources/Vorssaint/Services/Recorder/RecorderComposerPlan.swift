@@ -50,7 +50,9 @@ extension RecorderComposer {
         let needsCanvas = hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
         let hasCuts = !document.cuts.isEmpty
         let texts = RecorderTextOverlay.normalized(document.texts, duration: duration)
+        let blurs = RecorderBlurRegion.normalized(document.blurs, duration: duration)
         guard showsPointer || !segments.isEmpty || needsCanvas || hasCuts || !texts.isEmpty
+            || !blurs.isEmpty
         else { return nil }
 
         // Everything the pointer track knows is in the RECORDING's own time,
@@ -182,6 +184,13 @@ extension RecorderComposer {
             }
         }
 
+        var blurCovers: [[Bool]] = []
+        if !blurs.isEmpty {
+            blurCovers = blurs.map { region in
+                (0..<frames).map { region.covers(sourceTimes[$0]) }
+            }
+        }
+
         let corner = hasBackdrop
             ? RecorderSupport.cardCorner(style.cornerRadius, cardSize: card.size)
             : 0
@@ -221,7 +230,9 @@ extension RecorderComposer {
                     plate: plate,
                     mask: mask,
                     texts: texts,
-                    textOpacity: textOpacity)
+                    textOpacity: textOpacity,
+                    blurs: blurs,
+                    blurCovers: blurCovers)
     }
 
     // MARK: - Plate

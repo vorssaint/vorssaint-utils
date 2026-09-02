@@ -492,6 +492,34 @@ enum RecorderSupport {
         return min(audioGainRange.upperBound, max(audioGainRange.lowerBound, raw))
     }
 
+    /// How coarse the mosaic under a blur is, in the recording's own pixels.
+    /// Sized from the area rather than the picture: a strip drawn around one
+    /// line of text gets blocks taller than its letters, which is what makes
+    /// it unreadable, while a big area is not turned into four squares.
+    static func blurBlockSize(for area: CGSize) -> CGFloat {
+        let side = min(area.width, area.height)
+        guard side.isFinite, side > 0 else { return 8 }
+        return min(48, max(8, (side / 3).rounded()))
+    }
+
+    /// A point on the stage, turned into the recorded picture's own 0...1
+    /// space with a top-left origin. The picture is letterboxed inside the
+    /// stage, so the empty bands on either side come off first. Not clamped:
+    /// the caller decides whether a point outside the picture means anything.
+    static func unitPoint(at location: CGPoint,
+                          in viewSize: CGSize,
+                          sourceSize: CGSize) -> CGPoint? {
+        guard sourceSize.width > 0, sourceSize.height > 0,
+              viewSize.width > 0, viewSize.height > 0
+        else { return nil }
+        let fit = min(viewSize.width / sourceSize.width, viewSize.height / sourceSize.height)
+        let shown = CGSize(width: sourceSize.width * fit, height: sourceSize.height * fit)
+        let originX = (viewSize.width - shown.width) / 2
+        let originY = (viewSize.height - shown.height) / 2
+        return CGPoint(x: (location.x - originX) / shown.width,
+                       y: (location.y - originY) / shown.height)
+    }
+
     /// How big the drawn pointer is in the recording's own pixels. Tied to the
     /// height of the picture so it reads the same on a small area and on a
     /// whole Retina display, and multiplied by the size the person was

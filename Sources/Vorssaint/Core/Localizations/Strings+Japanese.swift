@@ -125,6 +125,8 @@ extension Strings {
         advancedUninstallButton: "Vorssaint を完全にアンインストール",
         advancedUninstallConfirmTitle: "Vorssaint をアンインストールしますか？",
         advancedUninstallConfirmBody: "Vorssaint はアクセス権を消去し、環境設定を削除し、ゴミ箱に移動してから終了します。この操作はアプリからは取り消せませんが、ゴミ箱を空にするまではゴミ箱に残ります。",
+        advancedUninstallFailedTitle: "アンインストールを中止しました",
+        advancedUninstallFailedBody: "Vorssaint が変更したシステム設定（スリープ、ファンの回転数、マウス加速）を元に戻せませんでした。何も削除していません。もう一度試して、パスワードの入力を求められたら許可してください。",
 
         launchAtLogin: "ログイン時に起動",
         languageLabel: "言語",

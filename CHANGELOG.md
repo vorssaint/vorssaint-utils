@@ -7,17 +7,17 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls, snippet controls and the disk image installer, broadens app update and safe cleanup discovery, and hardens shortcut capture and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling and shared on-screen parsing, pasteboard restoration, sensor selection, Cleaning Mode unlock, favicon downloads, the What's New showcase video download and stopping a recording. It also improves mouse scrolling feel, disk space and system monitor metrics, Command Bar responsiveness, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, the screen recording editor, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls, snippet controls and the disk image installer, broadens app update and safe cleanup discovery, and hardens shortcut capture and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, window handling and shared on-screen parsing, pasteboard restoration, the docked shelf's saved items, sensor selection, Cleaning Mode unlock, favicon downloads, the What's New showcase video download and stopping a recording. It also improves mouse scrolling feel, disk space and system monitor metrics, Command Bar and radial menu responsiveness, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
 
 ### Added
-- Settings now includes optional protections for Command-Q and Command-W with customizable hold duration, double press, extra modifier requirements and per-app scopes. Thanks to @RuanMD.
+- Settings now includes optional protections for Command-Q and Command-W with customizable hold duration, double press, extra modifier requirements and per-app scopes. Thanks to @RuanMD and @PathGao.
 - The capture magnifier now shows each screen pixel on a grid with the pointer's position and color, moves one pixel at a time with the arrow keys, copies the color with C without ending the capture, and can optionally open enabled by default from Settings. Thanks to @ruvelro.
 - Mouse settings now include an optional control to disable pointer acceleration for connected mice, restoring the previous system setting when it is turned off or the app quits. Thanks to @CrowKiller.
 - Mouse settings now include an optional filter for rapid accidental extra clicks from worn primary, secondary and middle buttons.
 - Cleaning Mode now offers an option in Settings to keep the screen visible with a discreet corner indicator instead of blacking out the screen.
 - Mouse button shortcuts can now switch Spaces or open Mission Control and App Exposé by holding an extra button and dragging. Thanks to @iltonandrew.
 - Window Layout now offers configurable window and screen gaps, so snapped windows can keep a preset distance from each other and from the screen edge. Thanks to @marcelharinck.
-- Eject all disks can now exclude specific drives in Settings, keeping backup drives and permanent storage mounted when ejecting other external disks.
+- Eject all disks can now exclude specific drives in Settings, keeping backup drives and permanent storage mounted when ejecting other external disks. Thanks to @PathGao.
 - Dock Preview now includes an option in Settings to quit an app from a thumbnail's × button instead of closing only that window, and closes the preview as soon as the quit request is accepted. Thanks to @arefshal.
 - Copy Text from Screen now includes an option in Settings to remove line breaks and join recognized lines as a single paragraph with script-aware spacing. Thanks to @ywu73.
 - Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
@@ -27,6 +27,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - The App Switcher can now open on the screen under the pointer, the screen with the menu bar or the screen with the active window. Thanks to @noahjstewart.
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
 - The disk image installer now shows a progress card while it copies and verifies the app, asks whether to move the download to Trash and whether to show the installed app in Applications, and remembers both choices.
+- The screen recording editor can now blur any area of the picture for as long as you choose, keeping names, emails and other private details unreadable even inside zooms.
 
 ### Changed
 - Window controls, Dock clicks and mouse exceptions now share consistent on-screen window parsing while preserving their existing behavior. Thanks to @PathGao.
@@ -48,6 +49,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - The downloads organizer now confirms whether a file is staying on the same disk before filing it, and skips the second integrity read when the move is only a rename, so large videos are filed without being read twice. Thanks to @PathGao.
 - Cleaning now checks which apps are still installed once per run instead of once per leftover, and skips that check entirely when no leftover is selected, so a clean starts without scanning the application folders. Thanks to @PathGao.
 - GPU usage sampling no longer leaves a system resource behind on Macs with more than one graphics processor, and extra brightness now does less work on each refresh. Thanks to @PathGao.
+- The radial menu now checks only which extra mouse button opens a wheel when a side button is pressed, instead of loading every wheel and its icons on each event, so holding a side button and moving the mouse no longer risks dropped clicks. Thanks to @PathGao.
 
 ### Fixed
 - Super key now keeps modifiers active while holding non-autorepeating source keys such as Caps Lock remapped to F18. Thanks to @victoraraujo01.
@@ -86,6 +88,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Text snippets now keep their trigger buffer when typed on the macOS Accessibility Keyboard. Thanks to @fermincasagrande.
 - Dock click actions and previews now stay behind fullscreen content and sample high-rate pointer movement without overloading the hover tap. Thanks to @iltonandrew.
 - Clipboard history now trims against the encoded file size before saving, preventing its store from becoming unreadable.
+- The docked shelf now keeps its saved items and the text and images it stored for them when its saved list cannot be read completely, instead of clearing the shelf and deleting those files. Thanks to @PathGao.
 - Kill Process now sorts consistently and revalidates the exact process before terminating it, preventing a recycled process identifier from targeting a different process.
 - Music launch blocking now fails open when its media-key listener is unavailable.
 - Radial Menu favicon downloads now stay on the link origin and reject cross-origin redirects, oversized payloads and unsafe image dimensions.

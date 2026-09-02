@@ -211,7 +211,8 @@ final class MouseNavigationService: ObservableObject {
         // other side button keeps navigating. While the shortcut capture row
         // is listening, every press belongs to it, including a button with no
         // mapping yet, or the capture could never see the button it is asked
-        // to watch for.
+        // to watch for. Both claims are asked again on every Drag of a held
+        // side button, so both have to stay cheap.
         if RadialMenuSupport.claimsMouseButton(buttonNumber)
             || MouseButtonShortcutSupport.claimsButton(buttonNumber)
             || MouseButtonShortcutService.isCaptureActive {

@@ -53,6 +53,7 @@ final class DiskSampler {
             return DiskDeviceReading(id: volume.mountPath,
                                      name: volume.name,
                                      mountPath: volume.mountPath,
+                                     volumeUUID: volume.volumeUUID,
                                      bsdName: metadata.bsdName,
                                      wholeDisk: wholeDisk,
                                      ioCounterID: counter?.id,
@@ -164,6 +165,7 @@ final class DiskSampler {
     private struct MountedVolume {
         var name: String
         var mountPath: String
+        var volumeUUID: String?
         var totalBytes: UInt64
         var freeBytes: UInt64
         var rawFreeBytes: UInt64?
@@ -187,6 +189,7 @@ final class DiskSampler {
             .volumeIsRemovableKey,
             .volumeIsEjectableKey,
             .volumeIsLocalKey,
+            .volumeUUIDStringKey,
         ]
         guard let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: Array(keys),
                                                                options: [.skipHiddenVolumes]) else {
@@ -214,6 +217,7 @@ final class DiskSampler {
             let identity = statfsIdentity(for: url.path)
             return MountedVolume(name: name.isEmpty ? url.path : name,
                                  mountPath: url.path,
+                                 volumeUUID: values.volumeUUIDString,
                                  totalBytes: total,
                                  freeBytes: min(free, total),
                                  rawFreeBytes: rawFree,

@@ -369,7 +369,9 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// Rebuilt after a beat so dragging a slider does not thrash it.
     fileprivate func rebuildPreview() {
         previewTask?.cancel()
-        guard duration > 0, sourceSize.width > 0 else { return }
+        // While an area is being drawn the stage shows the recording as
+        // captured; whatever changed meanwhile is drawn when the drawing ends.
+        guard duration > 0, sourceSize.width > 0, !isPickingBlurArea else { return }
         let document = document
         let track = pointerTrack
         let sourceSize = sourceSize
@@ -646,7 +648,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         next.zoomEnabled = true
         next.zoomsGenerated = true
         applyDuringInteraction(next)
-        selectedZoomID = segment.id
+        selectLaneItem(.zoom, id: segment.id)
         commitZoomEdit()
     }
 
@@ -748,19 +750,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// 0...1 space so a later change of shape or quality cannot invalidate it.
     func aim(at location: CGPoint, in viewSize: CGSize) {
         defer { isAimingZoom = false }
-        guard sourceSize.width > 0, sourceSize.height > 0,
-              viewSize.width > 0, viewSize.height > 0
+        guard let point = RecorderSupport.unitPoint(at: location,
+                                                    in: viewSize,
+                                                    sourceSize: sourceSize),
+              point.x >= 0, point.x <= 1, point.y >= 0, point.y <= 1
         else { return }
-        // The picture is letterboxed inside the stage, so the empty bands on
-        // either side have to come off before the click means anything.
-        let fit = min(viewSize.width / sourceSize.width, viewSize.height / sourceSize.height)
-        let shown = CGSize(width: sourceSize.width * fit, height: sourceSize.height * fit)
-        let originX = (viewSize.width - shown.width) / 2
-        let originY = (viewSize.height - shown.height) / 2
-        let u = (location.x - originX) / shown.width
-        let v = (location.y - originY) / shown.height
-        guard u >= 0, u <= 1, v >= 0, v <= 1 else { return }
-        setSelectedZoomFocus(CGPoint(x: u, y: v))
+        setSelectedZoomFocus(point)
     }
 
     private func beginInteraction() {
@@ -791,10 +786,16 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// Both lanes speak the same language to the view, so there is one set of
     /// gestures to learn and one implementation to keep right.
     @Published var selectedTextID: UUID?
+    @Published var selectedBlurID: UUID?
 
     var selectedText: RecorderTextOverlay? {
         guard let selectedTextID else { return nil }
         return document.texts.first { $0.id == selectedTextID }
+    }
+
+    var selectedBlur: RecorderBlurRegion? {
+        guard let selectedBlurID else { return nil }
+        return document.blurs.first { $0.id == selectedBlurID }
     }
 
     func laneItems(_ kind: RecorderZoomLane.Kind) -> [RecorderZoomLane.Item] {
@@ -815,28 +816,50 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                                       label: String($0.text.prefix(18)),
                                       glyph: "T")
             }
+        case .blur:
+            let label = FeatureStrings.recorder(L10n.shared.language).blurLaneLabel
+            return document.blurs.map {
+                RecorderZoomLane.Item(id: $0.id,
+                                      start: $0.start,
+                                      end: $0.end,
+                                      label: label,
+                                      glyph: "\u{25A6}")
+            }
         }
     }
 
     func laneSelection(_ kind: RecorderZoomLane.Kind) -> UUID? {
-        kind == .zoom ? selectedZoomID : selectedTextID
+        switch kind {
+        case .zoom: return selectedZoomID
+        case .text: return selectedTextID
+        case .blur: return selectedBlurID
+        }
     }
 
     func selectLaneItem(_ kind: RecorderZoomLane.Kind, id: UUID?) {
         switch kind {
         case .zoom:
             selectedZoomID = id
-            if id != nil { selectedTextID = nil }
         case .text:
             selectedTextID = id
-            if id != nil { selectedZoomID = nil }
+        case .blur:
+            selectedBlurID = id
         }
+        if id != nil {
+            if kind != .zoom { selectedZoomID = nil }
+            if kind != .text { selectedTextID = nil }
+            if kind != .blur { selectedBlurID = nil }
+        }
+        // Drawing an area belongs to the blur that was selected; once that
+        // selection is gone, so is the drawing.
+        if selectedBlurID == nil { endPickingBlurArea() }
     }
 
     func addLaneItem(_ kind: RecorderZoomLane.Kind, at time: Double) {
         switch kind {
         case .zoom: addZoom(at: time)
         case .text: addText(at: time)
+        case .blur: addBlur(at: time)
         }
     }
 
@@ -851,6 +874,20 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             let span = overlay.duration
             let clamped = max(0, min(start, duration - span))
             next.texts = next.texts.map { item -> RecorderTextOverlay in
+                guard item.id == id else { return item }
+                var copy = item
+                copy.start = clamped
+                copy.end = clamped + span
+                return copy
+            }
+            applyDuringInteraction(next)
+        case .blur:
+            guard let region = document.blurs.first(where: { $0.id == id }) else { return }
+            beginInteraction()
+            var next = document
+            let span = region.duration
+            let clamped = max(0, min(start, duration - span))
+            next.blurs = next.blurs.map { item -> RecorderBlurRegion in
                 guard item.id == id else { return item }
                 var copy = item
                 copy.start = clamped
@@ -882,6 +919,20 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 return copy
             }
             applyDuringInteraction(next)
+        case .blur:
+            guard let region = document.blurs.first(where: { $0.id == id }) else { return }
+            beginInteraction()
+            var next = document
+            next.blurs = next.blurs.map { item -> RecorderBlurRegion in
+                guard item.id == id else { return item }
+                var copy = item
+                switch edge {
+                case .start: copy.start = max(0, min(time, region.end - 0.4))
+                case .end: copy.end = min(duration, max(time, region.start + 0.4))
+                }
+                return copy
+            }
+            applyDuringInteraction(next)
         }
     }
 
@@ -889,6 +940,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         switch kind {
         case .zoom: removeSelectedZoom()
         case .text: removeSelectedText()
+        case .blur: removeSelectedBlur()
         }
     }
 
@@ -929,6 +981,78 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         next.texts.removeAll { $0.id == id }
         applyDuringInteraction(next)
         selectedTextID = nil
+        commitZoomEdit()
+    }
+
+    // MARK: - Blur
+
+    /// True while a drag on the picture draws the selected blur's area,
+    /// instead of playing or pausing.
+    @Published var isPickingBlurArea = false
+
+    /// A new blur runs to the end of the recording: a name on screen at this
+    /// moment is usually still there later, and a hidden thing that comes
+    /// back is worse than a blur that stayed a beat too long.
+    func addBlur(at time: Double) {
+        guard duration > 0 else { return }
+        beginInteraction()
+        let start = max(0, min(time, max(0, duration - 0.4)))
+        let region = RecorderBlurRegion(start: start, end: duration)
+        var next = document
+        next.blurs.append(region)
+        applyDuringInteraction(next)
+        selectLaneItem(.blur, id: region.id)
+        commitZoomEdit()
+        beginPickingBlurArea()
+    }
+
+    /// Drawing the area happens over the recording as it was captured: no
+    /// zoom, no background, nothing between the drag and the pixels it is
+    /// meant to cover.
+    func beginPickingBlurArea() {
+        guard selectedBlurID != nil else { return }
+        pause()
+        previewTask?.cancel()
+        player.currentItem?.videoComposition = nil
+        isPickingBlurArea = true
+    }
+
+    func endPickingBlurArea() {
+        guard isPickingBlurArea else { return }
+        isPickingBlurArea = false
+        rebuildPreview()
+    }
+
+    /// The two corners of a drag on the stage, turned into the recorded
+    /// picture's own space. A drag that leaves the picture is clamped to its
+    /// edge; one too small to be an area leaves the blur where it was.
+    func pickBlurArea(from first: CGPoint, to second: CGPoint, in viewSize: CGSize) {
+        defer { endPickingBlurArea() }
+        guard let id = selectedBlurID,
+              let start = RecorderSupport.unitPoint(at: first, in: viewSize,
+                                                    sourceSize: sourceSize),
+              let end = RecorderSupport.unitPoint(at: second, in: viewSize,
+                                                  sourceSize: sourceSize),
+              let rect = RecorderBlurRegion.normalizedRect(from: start, to: end)
+        else { return }
+        beginInteraction()
+        var next = document
+        next.blurs = next.blurs.map { item -> RecorderBlurRegion in
+            guard item.id == id else { return item }
+            return RecorderBlurRegion(id: item.id, start: item.start, end: item.end, rect: rect)
+        }
+        applyDuringInteraction(next)
+        commitZoomEdit()
+    }
+
+    func removeSelectedBlur() {
+        guard let id = selectedBlurID else { return }
+        isPickingBlurArea = false
+        beginInteraction()
+        var next = document
+        next.blurs.removeAll { $0.id == id }
+        applyDuringInteraction(next)
+        selectedBlurID = nil
         commitZoomEdit()
     }
 
@@ -1437,6 +1561,10 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     self.model.removeSelectedZoom()
                     return nil
                 }
+                if self.model.selectedBlurID != nil {
+                    self.model.removeSelectedBlur()
+                    return nil
+                }
                 self.discard()
                 return nil
             case kVK_Escape:
@@ -1448,8 +1576,16 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     self.model.isAimingZoom = false
                     return nil
                 }
+                if self.model.isPickingBlurArea {
+                    self.model.endPickingBlurArea()
+                    return nil
+                }
                 if self.model.selectedZoomID != nil {
                     self.model.selectZoom(nil)
+                    return nil
+                }
+                if self.model.selectedBlurID != nil {
+                    self.model.selectLaneItem(.blur, id: nil)
                     return nil
                 }
                 return event

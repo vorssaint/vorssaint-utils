@@ -12,6 +12,9 @@ struct RecorderEditorView: View {
     let controller: RecorderEditorController
     @ObservedObject private var l10n = L10n.shared
     @State private var sharedRecord: RecordingShareRecord?
+    /// The area being drawn for a blur, in the stage's own points, while the
+    /// mouse is down.
+    @State private var blurDraft: CGRect?
     @AppStorage(DefaultsKey.recorderSharingEnabled) private var sharingEnabled = true
 
     private var strings: RecorderFeatureStrings {
@@ -225,6 +228,9 @@ struct RecorderEditorView: View {
                     }
                     .allowsHitTesting(false)
                 }
+                if model.isPickingBlurArea {
+                    blurPicker(in: proxy.size)
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
@@ -236,15 +242,65 @@ struct RecorderEditorView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .onTapGesture {
-            guard !model.isAimingZoom else { return }
-            // Clicking the picture puts a selected zoom down before it does
-            // anything else, so there is always a way out of it.
+            guard !model.isAimingZoom, !model.isPickingBlurArea else { return }
+            // Clicking the picture puts a selected zoom or blur down before it
+            // does anything else, so there is always a way out of it.
             if model.selectedZoomID != nil {
                 model.selectZoom(nil)
+            } else if model.selectedBlurID != nil {
+                model.selectLaneItem(.blur, id: nil)
             } else {
                 model.togglePlay()
             }
         }
+    }
+
+    /// Drawing the area is one drag on the picture, and the rectangle that
+    /// follows the mouse is what says so. It is drawn over the recording as
+    /// captured, so what is inside the rectangle is exactly what gets hidden.
+    private func blurPicker(in size: CGSize) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color.black.opacity(0.001)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            blurDraft = CGRect(
+                                x: min(value.startLocation.x, value.location.x),
+                                y: min(value.startLocation.y, value.location.y),
+                                width: abs(value.location.x - value.startLocation.x),
+                                height: abs(value.location.y - value.startLocation.y))
+                        }
+                        .onEnded { value in
+                            blurDraft = nil
+                            model.pickBlurArea(from: value.startLocation,
+                                               to: value.location,
+                                               in: size)
+                        }
+                )
+            if let draft = blurDraft {
+                Rectangle()
+                    .fill(Color.teal.opacity(0.22))
+                    .overlay {
+                        Rectangle().strokeBorder(Color.teal, lineWidth: 1.5)
+                    }
+                    .frame(width: draft.width, height: draft.height)
+                    .offset(x: draft.minX, y: draft.minY)
+                    .allowsHitTesting(false)
+            }
+            VStack {
+                Text(strings.blurPickAreaHint)
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 10)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+        }
+        .onDisappear { blurDraft = nil }
     }
 
     private var bottomBand: some View {
@@ -265,6 +321,13 @@ struct RecorderEditorView: View {
                 timelineRow(strings.textContentLabel) {
                     RecorderZoomLane(model: model, kind: .text,
                                      emptyHint: strings.textLaneEmptyHint)
+                        .frame(height: 30)
+                }
+            }
+            if !model.document.blurs.isEmpty {
+                timelineRow(strings.blurLaneLabel) {
+                    RecorderZoomLane(model: model, kind: .blur,
+                                     emptyHint: strings.blurLaneEmptyHint)
                         .frame(height: 30)
                 }
             }
@@ -325,6 +388,15 @@ struct RecorderEditorView: View {
                 model.addText(at: model.sourceTime)
             } label: {
                 Label(strings.addTextButton, systemImage: "textformat")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color(white: 0.8))
+
+            Button {
+                model.addBlur(at: model.sourceTime)
+            } label: {
+                Label(strings.addBlurButton, systemImage: "aqi.medium")
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.borderless)

@@ -125,6 +125,8 @@ extension Strings {
         advancedUninstallButton: "完全解除安裝 Vorssaint",
         advancedUninstallConfirmTitle: "解除安裝 Vorssaint？",
         advancedUninstallConfirmBody: "Vorssaint 將清除其權限、移除偏好設定並移到垃圾桶，然後結束。此操作無法從 App 內復原，但在你清倒垃圾桶之前它仍會留在其中。",
+        advancedUninstallFailedTitle: "已停止解除安裝",
+        advancedUninstallFailedBody: "Vorssaint 無法還原它變更過的系統設定：睡眠、風扇轉速或滑鼠加速。沒有移除任何項目。請再試一次，並在出現密碼要求時允許。",
 
         launchAtLogin: "登入時啟動",
         languageLabel: "語言",
