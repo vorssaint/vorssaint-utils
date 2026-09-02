@@ -500,6 +500,8 @@ extension Strings {
         shelfCloseAfterDropCaption: "目标接收项目后关闭暂存架。面板中的图钉可让它保持打开。",
         shelfRemoveAfterDrop: "拖放后移除项目",
         shelfRemoveAfterDropCaption: "其他 App 接收的项目会离开暂存架。关闭此项可保留副本。",
+        shelfClearOnClose: "关闭时清空",
+        shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。",
         shelfExclusionsTitle: "自动例外",
         shelfExclusionsEmpty: "尚未添加 App。",
         shelfExclusionsCaption: "从这些 App 开始拖移时，摇动手势和菜单栏区域不会打开。快捷键和立即打开仍可使用。",

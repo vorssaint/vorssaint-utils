@@ -2176,6 +2176,15 @@ final class ShelfService: ObservableObject {
         scheduleDockedSync()
     }
 
+    /// Handles the floating panel's explicit close button. Automatic hiding,
+    /// shortcut toggling and collapsing the docked shelf keep their contents.
+    func close() {
+        if UserDefaults.standard.bool(forKey: DefaultsKey.shelfClearOnClose) {
+            clear()
+        }
+        hide()
+    }
+
     func noteInteraction() {
         guard panel?.isVisible == true else { return }
         cancelAutoHideFade()

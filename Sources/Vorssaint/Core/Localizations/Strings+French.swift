@@ -500,6 +500,8 @@ extension Strings {
         shelfCloseAfterDropCaption: "Ferme l’étagère quand la destination accepte les éléments. L’épingle du panneau la maintient ouverte.",
         shelfRemoveAfterDrop: "Retirer les éléments après le dépôt",
         shelfRemoveAfterDropCaption: "Les éléments acceptés par une autre app quittent l’étagère. Désactivez cette option pour en garder une copie.",
+        shelfClearOnClose: "Vider à la fermeture",
+        shelfClearOnCloseCaption: "Vide l’étagère uniquement lorsque vous cliquez sur le bouton de fermeture. Le masquage automatique et la réduction conservent les éléments.",
         shelfExclusionsTitle: "Exceptions automatiques",
         shelfExclusionsEmpty: "Aucune app ajoutée.",
         shelfExclusionsCaption: "Le geste de secousse et la zone de dépôt restent inactifs pour les glissements commencés dans ces apps. Le raccourci et Ouvrir restent disponibles.",

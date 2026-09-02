@@ -500,6 +500,8 @@ extension Strings {
         shelfCloseAfterDropCaption: "Cierra el estante cuando el destino acepta los ítems. El alfiler del panel lo mantiene abierto.",
         shelfRemoveAfterDrop: "Quitar ítems después de soltarlos",
         shelfRemoveAfterDropCaption: "Los ítems aceptados por otra app salen del estante. Desactívalo para conservar una copia.",
+        shelfClearOnClose: "Borrar al cerrar",
+        shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems.",
         shelfExclusionsTitle: "Excepciones automáticas",
         shelfExclusionsEmpty: "No se añadieron apps.",
         shelfExclusionsCaption: "Agitar y la zona de la barra de menús no se activan en arrastres iniciados en estas apps. El atajo y Abrir ahora siguen funcionando.",

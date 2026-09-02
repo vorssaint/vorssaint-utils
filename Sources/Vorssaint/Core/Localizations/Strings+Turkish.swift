@@ -500,6 +500,8 @@ extension Strings {
         shelfCloseAfterDropCaption: "Hedef öğeleri kabul edince rafı kapatır. Paneldeki iğne rafı açık tutar.",
         shelfRemoveAfterDrop: "Bıraktıktan sonra öğeleri kaldır",
         shelfRemoveAfterDropCaption: "Başka bir uygulamanın kabul ettiği öğeler raftan çıkar. Bir kopyayı tutmak için kapat.",
+        shelfClearOnClose: "Kapatınca temizle",
+        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
         shelfExclusionsTitle: "Otomatik istisnalar",
         shelfExclusionsEmpty: "Uygulama eklenmedi.",
         shelfExclusionsCaption: "Bu uygulamalarda başlayan sürüklemelerde sallama ve menü çubuğu alanı açılmaz. Kısayol ve Şimdi aç çalışmaya devam eder.",

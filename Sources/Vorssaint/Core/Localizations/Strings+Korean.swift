@@ -501,6 +501,8 @@ extension Strings {
         shelfCloseAfterDropCaption: "대상 앱이 항목을 받으면 선반을 닫습니다. 패널 고정으로 열어 둘 수 있습니다.",
         shelfRemoveAfterDrop: "놓은 후 항목 제거",
         shelfRemoveAfterDropCaption: "다른 앱이 받은 항목을 선반에서 제거합니다. 사본을 남기려면 끄세요.",
+        shelfClearOnClose: "닫을 때 항목 지우기",
+        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
         shelfExclusionsTitle: "자동 표시 예외",
         shelfExclusionsEmpty: "추가한 앱이 없습니다.",
         shelfExclusionsCaption: "이 앱에서 시작한 드래그에서는 흔들기 동작과 메뉴 막대 영역이 열리지 않습니다. 단축키와 지금 열기는 계속 사용할 수 있습니다.",
