@@ -17820,6 +17820,16 @@ struct MetricsTests {
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID).spacesGesture\""),
                "the Command Bar exposes the Spaces gesture as its own localized toggle row")
 
+        let restartAppCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("id: \"action.restartApp\"")
+        }.map {
+            commandBarCatalogLines[$0...].prefix(8).filter(isCodeLine).joined(separator: "\n")
+        } ?? ""
+        expect(restartAppCode.contains("bar.restartAppFormat")
+                && restartAppCode.contains("AppInfo.name")
+                && restartAppCode.contains("FeatureRuntime.shared.relaunchApp()"),
+               "the Command Bar exposes its own localized relaunch action")
+
         func appStorageProperty(_ key: String, in lines: [String]) -> String? {
             guard let line = lines.first(where: {
                 isCodeLine($0) && $0.contains("@AppStorage(\(key))")
