@@ -912,7 +912,6 @@ extension Strings {
         cleanerScheduleCaption: "В выбранное время сама очищает только безопасную часть и отправляет всё в Корзину.",
         cleanerScheduleLastFormat: "Последняя автоматическая очистка освободила %@.",
         cleanerAutoNotificationFormat: "%@ освобождено и отправлено в Корзину.",
-        cleanerAutoLeftFormat: "Осталось на месте объектов: %d.",
         cleanerScheduleNextFormat: "Следующая очистка %@.",
         cleanerScheduleRanFormat: "Последняя автоматическая очистка %@.",
         cleanerScheduleNotifyToggle: "Уведомлять по завершении",

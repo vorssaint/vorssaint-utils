@@ -911,7 +911,6 @@ extension Strings {
         cleanerScheduleCaption: "Seçilen saatte yalnızca güvenli kısmı kendiliğinden temizler ve her şeyi Çöp Sepetine gönderir.",
         cleanerScheduleLastFormat: "Son otomatik temizlik %@ boşalttı.",
         cleanerAutoNotificationFormat: "%@ boşaltıldı ve Çöp Sepetine gönderildi.",
-        cleanerAutoLeftFormat: "%d öğe yerinde kaldı.",
         cleanerScheduleNextFormat: "Sonraki temizlik %@.",
         cleanerScheduleRanFormat: "Son otomatik temizlik %@.",
         cleanerScheduleNotifyToggle: "Bitince bildir",

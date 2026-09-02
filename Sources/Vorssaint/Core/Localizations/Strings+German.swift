@@ -911,7 +911,6 @@ extension Strings {
         cleanerScheduleCaption: "Räumt zur gewählten Zeit von selbst nur den sicheren Teil auf und legt alles in den Papierkorb.",
         cleanerScheduleLastFormat: "Das letzte automatische Aufräumen hat %@ freigegeben.",
         cleanerAutoNotificationFormat: "%@ freigegeben und in den Papierkorb gelegt.",
-        cleanerAutoLeftFormat: "Nicht verschobene Objekte: %d.",
         cleanerScheduleNextFormat: "Nächstes Aufräumen %@.",
         cleanerScheduleRanFormat: "Letztes automatisches Aufräumen %@.",
         cleanerScheduleNotifyToggle: "Nach Abschluss benachrichtigen",

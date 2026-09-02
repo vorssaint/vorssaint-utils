@@ -183,7 +183,7 @@ final class CleanerScheduler: ObservableObject {
         // An unattended pass never escalates, so what it left behind has to
         // be said or a deferred find reads like one that was never there.
         if failed > 0 {
-            sentences.append(String(format: strings.cleanerAutoLeftFormat, failed))
+            sentences.append(strings.uninstallerSomeFailed)
         }
         if sentences.isEmpty { sentences.append(strings.cleanerNothingFound) }
         Notifier.post(title: strings.cleanerScheduleTitle, body: sentences.joined(separator: " "))

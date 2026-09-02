@@ -1055,7 +1055,6 @@ struct Strings {
     let cleanerScheduleCaption: String
     let cleanerScheduleLastFormat: String   // + size string
     let cleanerAutoNotificationFormat: String  // + size string
-    let cleanerAutoLeftFormat: String          // + count of items an automatic pass left in place
     let cleanerScheduleNextFormat: String   // + relative date and time
     let cleanerScheduleRanFormat: String    // + relative date and time
     let cleanerScheduleNotifyToggle: String
@@ -2045,7 +2044,6 @@ extension Strings {
         cleanerScheduleCaption: "Limpa sozinha só a parte segura no horário escolhido e manda tudo para a Lixeira.",
         cleanerScheduleLastFormat: "A última limpeza automática liberou %@.",
         cleanerAutoNotificationFormat: "%@ liberados e enviados para a Lixeira.",
-        cleanerAutoLeftFormat: "Itens que ficaram no lugar: %d.",
         cleanerScheduleNextFormat: "Próxima limpeza %@.",
         cleanerScheduleRanFormat: "Última limpeza automática %@.",
         cleanerScheduleNotifyToggle: "Avisar quando terminar",
@@ -3036,7 +3034,6 @@ extension Strings {
         cleanerScheduleCaption: "Cleans only the safe part on its own at the chosen time and sends everything to the Trash.",
         cleanerScheduleLastFormat: "The last automatic cleanup freed %@.",
         cleanerAutoNotificationFormat: "%@ freed and sent to the Trash.",
-        cleanerAutoLeftFormat: "Items left in place: %d.",
         cleanerScheduleNextFormat: "Next cleanup %@.",
         cleanerScheduleRanFormat: "Last automatic cleanup %@.",
         cleanerScheduleNotifyToggle: "Notify when done",

@@ -912,7 +912,6 @@ extension Strings {
         cleanerScheduleCaption: "선택한 시간에 안전한 항목만 자동으로 정리하고 모두 휴지통으로 이동합니다.",
         cleanerScheduleLastFormat: "지난 자동 정리에서 %@을(를) 확보했습니다.",
         cleanerAutoNotificationFormat: "%@을(를) 확보하여 휴지통으로 이동했습니다.",
-        cleanerAutoLeftFormat: "%d개는 그대로 남았습니다.",
         cleanerScheduleNextFormat: "다음 정리: %@.",
         cleanerScheduleRanFormat: "지난 자동 정리: %@.",
         cleanerScheduleNotifyToggle: "완료 시 알림",

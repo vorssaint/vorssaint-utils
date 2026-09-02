@@ -911,7 +911,6 @@ extension Strings {
         cleanerScheduleCaption: "在所选时间自动清理安全部分，并把所有内容移到废纸篓。",
         cleanerScheduleLastFormat: "上次自动清理释放了 %@。",
         cleanerAutoNotificationFormat: "已释放 %@ 并移到废纸篓。",
-        cleanerAutoLeftFormat: "%d 个项目仍留在原处。",
         cleanerScheduleNextFormat: "下次清理%@。",
         cleanerScheduleRanFormat: "上次自动清理%@。",
         cleanerScheduleNotifyToggle: "完成时通知",

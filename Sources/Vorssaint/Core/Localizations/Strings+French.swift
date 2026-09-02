@@ -911,7 +911,6 @@ extension Strings {
         cleanerScheduleCaption: "Nettoie seul uniquement la partie sûre à l’heure choisie et envoie tout à la corbeille.",
         cleanerScheduleLastFormat: "Le dernier nettoyage automatique a libéré %@.",
         cleanerAutoNotificationFormat: "%@ libérés et envoyés à la corbeille.",
-        cleanerAutoLeftFormat: "Éléments restés en place : %d.",
         cleanerScheduleNextFormat: "Prochain nettoyage %@.",
         cleanerScheduleRanFormat: "Dernier nettoyage automatique %@.",
         cleanerScheduleNotifyToggle: "Prévenir à la fin",
