@@ -17498,19 +17498,29 @@ struct MetricsTests {
                     for: .select,
                     orderRaw: selectWithoutShortcut.map(\.rawValue).joined(separator: ",")) == nil,
                "the visible shortcut menu assigns a numbered slot or removes a tool from 1 through 9")
-        expect(ScreenshotSupport.Tool.shortcutTool(character: "3", orderRaw: nil,
+        expect(ScreenshotSupport.Tool.shortcutTool(character: "3", keyCode: -1, orderRaw: nil,
                                                     enabled: true, style: .number) == .pixelate
-                && ScreenshotSupport.Tool.shortcutTool(character: "3", orderRaw: nil,
+                && ScreenshotSupport.Tool.shortcutTool(character: "3", keyCode: -1, orderRaw: nil,
                                                        enabled: false, style: .number) == nil
-                && ScreenshotSupport.Tool.shortcutTool(character: "t", orderRaw: nil,
+                && ScreenshotSupport.Tool.shortcutTool(character: "t", keyCode: -1, orderRaw: nil,
                                                        enabled: true, style: .letter) == .text
-                && ScreenshotSupport.Tool.shortcutTool(character: "T", orderRaw: nil,
+                && ScreenshotSupport.Tool.shortcutTool(character: "T", keyCode: -1, orderRaw: nil,
                                                        enabled: true, style: .letter) == .text
-                && ScreenshotSupport.Tool.shortcutTool(character: "t", orderRaw: nil,
+                && ScreenshotSupport.Tool.shortcutTool(character: "t", keyCode: -1, orderRaw: nil,
                                                        enabled: false, style: .letter) == nil
-                && ScreenshotSupport.Tool.shortcutTool(character: "3", orderRaw: nil,
+                && ScreenshotSupport.Tool.shortcutTool(character: "3", keyCode: -1, orderRaw: nil,
                                                        enabled: true, style: .letter) == nil,
                "shortcuts respect the enabled flag and dispatch to the chosen style")
+        expect(ScreenshotSupport.Tool.shortcutTool(character: "т", keyCode: Int(kVK_ANSI_T),
+                                                    orderRaw: nil, enabled: true, style: .letter)
+                    == .text
+                && ScreenshotSupport.Tool.shortcutTool(character: nil, keyCode: Int(kVK_ANSI_T),
+                                                       orderRaw: nil, enabled: true, style: .letter)
+                    == .text
+                && ScreenshotSupport.Tool.shortcutTool(character: "т", keyCode: -1,
+                                                       orderRaw: nil, enabled: true, style: .letter)
+                    == nil,
+               "a non-Latin layout's printed character falls back to the QWERTY keyCode position")
         expect(ScreenshotSupport.Tool.shortcutBadge(for: .text, orderRaw: nil,
                                                      enabled: true, style: .letter) == "T"
                 && ScreenshotSupport.Tool.shortcutBadge(for: .text, orderRaw: nil,

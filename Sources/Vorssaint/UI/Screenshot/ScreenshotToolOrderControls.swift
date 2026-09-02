@@ -179,12 +179,12 @@ struct ScreenshotToolOrderControls: View {
         }
     }
 
+    /// Dimmed rather than removed while off, matching how this control has
+    /// always behaved: assigning a number doesn't require shortcuts to be
+    /// on, so a user can lay out the rail before switching them on.
     @ViewBuilder
     private func shortcutControl(for tool: ScreenshotSupport.Tool) -> some View {
-        if !enabled {
-            badge(l10n.s.shortcutNone)
-                .opacity(0.48)
-        } else {
+        Group {
             switch style {
             case .number:
                 shortcutMenu(for: tool,
@@ -195,6 +195,7 @@ struct ScreenshotToolOrderControls: View {
                 badge(String(tool.shortcutLetter).uppercased())
             }
         }
+        .opacity(enabled ? 1 : 0.48)
     }
 
     private func badge(_ text: String) -> some View {

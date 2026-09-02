@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -1211,8 +1212,38 @@ enum ScreenshotSupport {
             }
         }
 
-        static func shortcutTool(letter: Character) -> Tool? {
-            allCases.first { $0.shortcutLetter == letter }
+        /// The ANSI keyCode of `shortcutLetter`'s position on a US QWERTY
+        /// layout — a fallback for layouts whose printed characters are not
+        /// Latin letters at all (Cyrillic, Greek, kana...), where no
+        /// `event.characters` value could ever equal `shortcutLetter`.
+        var shortcutKeyCode: Int {
+            switch self {
+            case .select: return kVK_ANSI_S
+            case .arrow: return kVK_ANSI_A
+            case .rect: return kVK_ANSI_R
+            case .ellipse: return kVK_ANSI_E
+            case .line: return kVK_ANSI_L
+            case .freehand: return kVK_ANSI_D
+            case .text: return kVK_ANSI_T
+            case .highlight: return kVK_ANSI_H
+            case .pixelate: return kVK_ANSI_P
+            case .redact: return kVK_ANSI_X
+            case .crop: return kVK_ANSI_C
+            case .sticker: return kVK_ANSI_K
+            case .counter: return kVK_ANSI_N
+            }
+        }
+
+        /// Compares as strings, never by forcing the lowercased result back
+        /// into a single `Character` — `Character.lowercased()` returns a
+        /// `String`, and some inputs lowercase into more than one grapheme.
+        static func shortcutTool(letter character: Character) -> Tool? {
+            let lowered = String(character).lowercased()
+            return allCases.first { String($0.shortcutLetter) == lowered }
+        }
+
+        static func shortcutTool(keyCode: Int) -> Tool? {
+            allCases.first { $0.shortcutKeyCode == keyCode }
         }
 
         /// The badge shown next to a tool in the rail and in Settings, or
@@ -1231,22 +1262,29 @@ enum ScreenshotSupport {
         }
 
         /// The tool a pressed key selects, or nil when shortcuts are off.
-        /// Number style reads rail position; letter style reads the fixed
-        /// per-tool mnemonic and ignores rail order entirely. `character`
-        /// follows the keyboard layout (the key's printed label), matching
-        /// how the rest of the app's shortcuts already behave — see #1047,
-        /// where reading the physical keyCode instead was the bug.
-        static func shortcutTool(character: Character,
+        /// Number style reads rail position and needs the pressed digit as
+        /// `character`. Letter style reads the fixed per-tool mnemonic,
+        /// ignoring rail order entirely: it tries `character` first — the
+        /// keyboard layout's printed label, matching how the rest of the
+        /// app's shortcuts behave (see #1047, where reading the physical
+        /// keyCode instead was the bug) — then falls back to `keyCode` when
+        /// the layout doesn't print Latin letters at all (Cyrillic, Greek,
+        /// kana...), where no printed character could ever match.
+        static func shortcutTool(character: Character?,
+                                 keyCode: Int,
                                  orderRaw: String?,
                                  enabled: Bool,
                                  style: ShortcutStyle) -> Tool? {
             guard enabled else { return nil }
             switch style {
             case .number:
-                guard let number = Int(String(character)) else { return nil }
+                guard let character, let number = Int(String(character)) else { return nil }
                 return shortcutTool(number: number, orderRaw: orderRaw)
             case .letter:
-                return shortcutTool(letter: Character(character.lowercased()))
+                if let character, let tool = shortcutTool(letter: character) {
+                    return tool
+                }
+                return shortcutTool(keyCode: keyCode)
             }
         }
 

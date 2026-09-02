@@ -1125,9 +1125,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             let style = ScreenshotSupport.ShortcutStyle(
                 rawValue: UserDefaults.standard.string(
                     forKey: DefaultsKey.screenshotToolShortcutStyle) ?? "") ?? .number
-            guard let character = event.characters?.first,
-                  let tool = ScreenshotSupport.Tool.shortcutTool(
-                    character: character,
+            guard let tool = ScreenshotSupport.Tool.shortcutTool(
+                    character: event.characters?.first,
+                    keyCode: key,
                     orderRaw: UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder),
                     enabled: UserDefaults.standard.bool(
                         forKey: DefaultsKey.screenshotToolShortcutsEnabled),
