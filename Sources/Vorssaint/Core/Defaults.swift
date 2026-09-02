@@ -42,9 +42,13 @@ enum DefaultsKey {
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
     static let smoothScrollEnabled = "smoothScrollEnabled"
-    static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
+    static let smoothScrollVertical = "smoothScrollVertical"     // glide the vertical wheel axis
+    static let smoothScrollHorizontal = "smoothScrollHorizontal" // glide the horizontal wheel axis
+    static let smoothScrollStep = "smoothScrollStep"      // minimum stride per wheel tick
+    static let smoothScrollSpeed = "smoothScrollSpeed"    // impulse multiplier
+    static let smoothScrollDuration = "smoothScrollDuration" // coast length (maps to lerp α)
+    static let smoothScrollAcceleration = "smoothScrollAcceleration" // 0…1 blend with accelerated point delta
     static let mouseAccelerationDisabled = "mouseAccelerationDisabled" // sets HIDMouseAcceleration to -1 for mice
-    static let smoothScrollResponse = "smoothScrollResponse" // 0...100, higher follows the wheel sooner
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
     static let mouseButtonShortcutsEnabled = "mouseButtonShortcutsEnabled" // extra buttons press a key combination (issue #282)
     static let mouseButtonShortcuts = "mouseButtonShortcuts" // [button number: GlobalShortcut storage value]
@@ -60,8 +64,9 @@ enum DefaultsKey {
     // and which source to take back after a crash.
     static let superKeyMappingApplied = "superKeyMappingApplied"
     static let superKeyMappedSource = "superKeyMappedSource"
-    // One list of bundle ids per mouse feature: apps it leaves alone (issue #358).
+    // Mouse app identities (bundle ids or executable paths) left alone (issue #358).
     static let smoothScrollExceptions = "smoothScrollExceptions"
+    static let mouseScrollingExceptions = "mouseScrollingExceptions"
     static let scrollInverterExceptions = "scrollInverterExceptions"
     static let mouseNavigationExceptions = "mouseNavigationExceptions"
     static let mouseButtonExceptions = "mouseButtonExceptions"
@@ -834,9 +839,13 @@ enum Defaults {
         DefaultsKey.focusFollowsMouseEnabled: false,
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
         DefaultsKey.smoothScrollEnabled: false,
-        DefaultsKey.smoothScrollStep: 40,
+        DefaultsKey.smoothScrollVertical: true,
+        DefaultsKey.smoothScrollHorizontal: true,
+        DefaultsKey.smoothScrollStep: SmoothScrollSupport.defaultStep,
+        DefaultsKey.smoothScrollSpeed: SmoothScrollSupport.defaultSpeed,
+        DefaultsKey.smoothScrollDuration: SmoothScrollSupport.defaultDuration,
+        DefaultsKey.smoothScrollAcceleration: SmoothScrollSupport.defaultScrollAcceleration,
         DefaultsKey.mouseAccelerationDisabled: false,
-        DefaultsKey.smoothScrollResponse: SmoothScrollSupport.defaultResponse,
         DefaultsKey.mouseNavigationEnabled: false,
         DefaultsKey.mouseButtonShortcutsEnabled: false,
         DefaultsKey.mouseButtonShortcuts: [String: String](),
@@ -848,6 +857,15 @@ enum Defaults {
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
+        // Legacy scroll-exception keys stay registered so settings backups from
+        // older builds still carry them through exportKeys()/sanitizedSettings.
+        // The shared key is deliberately unregistered (see
+        // SettingsBackupSupport.unregisteredPreferenceKeys): a registered []
+        // would make "never written" indistinguishable from an empty list after
+        // clear, and restore migration would skip folding the legacy lists.
+        // Launch migration folds legacy into mouseScrollingExceptions only when
+        // that key was never written, then mirrors the shared list back so a
+        // downgrade restore still sees the lists.
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
         DefaultsKey.focusFollowsMouseExceptions: [String](),
@@ -1328,6 +1346,8 @@ enum Defaults {
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
+        migrateSmoothScrollNumbers(in: defaults)
+        migrateMouseScrollingExceptions(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -1384,6 +1404,62 @@ enum Defaults {
         }
         defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
                      forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+    }
+
+    /// Older builds stored step / speed / duration as Int. `@AppStorage` Double
+    /// bindings then refuse to read or write the key, so the feel sliders look
+    /// stuck. Rewrite any numeric leftovers as Doubles once.
+    static func migrateSmoothScrollNumbers(in defaults: UserDefaults) {
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollStep,
+                                  sanitize: SmoothScrollSupport.sanitizedStep)
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollSpeed,
+                                  sanitize: SmoothScrollSupport.sanitizedSpeed)
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollDuration,
+                                  sanitize: SmoothScrollSupport.sanitizedDuration)
+        rewriteSmoothScrollNumber(in: defaults, key: DefaultsKey.smoothScrollAcceleration,
+                                  sanitize: SmoothScrollSupport.sanitizedScrollAcceleration)
+    }
+
+    /// Smooth scrolling and reverse scrolling used to keep separate exception
+    /// lists (#358). They now share one key. When `mouseScrollingExceptions`
+    /// has never been written, this folds both legacy lists into that key
+    /// (upgrade and old-backup restore). Once the shared key exists it is the
+    /// only answer — legacy lists are not merged back in, or a removal would
+    /// come back on the next `reload()`. The shared list is then mirrored onto
+    /// the old keys so a settings backup from this build still restores both
+    /// lists on a pre-upgrade release. That can broaden an existing exception
+    /// on first upgrade: an app that was only on the smooth-scroll list also
+    /// stands down reverse scrolling after upgrade, and the reverse — the
+    /// split is not recoverable.
+    static func migrateMouseScrollingExceptions(in defaults: UserDefaults) {
+        let smooth = defaults.stringArray(forKey: DefaultsKey.smoothScrollExceptions) ?? []
+        let direction = defaults.stringArray(forKey: DefaultsKey.scrollInverterExceptions) ?? []
+        // Launch migration / restore migration: `stored` is nil only when the
+        // key was never written. The shared key stays out of registeredDefaults
+        // so a post-clear read is not the registered `[]`. From `reload()` after
+        // an add/remove it is always non-nil, including when the list is empty.
+        let stored = defaults.object(forKey: DefaultsKey.mouseScrollingExceptions) as? [String]
+        let merged = sanitizedBundleIdentifierList(stored ?? (smooth + direction))
+
+        if !merged.isEmpty
+            || defaults.object(forKey: DefaultsKey.mouseScrollingExceptions) != nil {
+            defaults.set(merged, forKey: DefaultsKey.mouseScrollingExceptions)
+        }
+        // Keep the legacy pair in lockstep with the shared key so export still
+        // carries a list an older build can read. Clearing them would make
+        // every backup from this build wipe scroll exceptions on downgrade.
+        defaults.set(merged, forKey: DefaultsKey.smoothScrollExceptions)
+        defaults.set(merged, forKey: DefaultsKey.scrollInverterExceptions)
+    }
+
+    private static func rewriteSmoothScrollNumber(in defaults: UserDefaults,
+                                                  key: String,
+                                                  sanitize: (Double) -> Double) {
+        // Int-backed values bridge to NSNumber and also satisfy `is Double` in
+        // Swift, so a type-identity guard would skip the rewrite every upgrader
+        // needs. Always go through NSNumber and write a real Double.
+        guard let number = defaults.object(forKey: key) as? NSNumber else { return }
+        defaults.set(sanitize(number.doubleValue), forKey: key)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

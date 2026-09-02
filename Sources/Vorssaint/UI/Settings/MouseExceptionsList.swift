@@ -5,8 +5,8 @@ import SwiftUI
 
 /// The "apps to leave alone" block that lives INSIDE a mouse feature's own
 /// section in Settings (issue #358), right under the switch it holds back, so
-/// the list is where the user is already looking. One list per feature: the
-/// same view with a different scope.
+/// the list is where the user is already looking. Scrolling presents one shared
+/// list; unrelated mouse behaviors use the same view with independent scopes.
 struct MouseExceptionsList: View {
     let scope: MouseExceptionScope
 

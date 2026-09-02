@@ -57,6 +57,10 @@ enum SettingsBackupSupport {
         DefaultsKey.panelPowerOrder,
         DefaultsKey.panelCollapsedSections,
         DefaultsKey.quickLauncherItemOrder,
+        // Shared scroll exceptions: absence means "never written", so restore
+        // migration can still fold the two legacy lists. Staying registered as
+        // [] would make a post-clear read look written and wipe those lists.
+        DefaultsKey.mouseScrollingExceptions,
         // Experience flags: a restored Mac must not replay onboarding or the
         // feature intros the user has already been through.
         DefaultsKey.hasOnboarded,
@@ -187,9 +191,13 @@ enum SettingsBackupSupport {
     /// paths across, applying a backup would delete the entries for programs
     /// that are not apps, including on the Mac the backup was written on. The
     /// restored order wins and a carried path already present is not doubled,
-    /// so applying the same backup twice lands on the same list. All five keys
-    /// register `[String]()`, so after the clear the read is `[]` rather than
-    /// the pre-restore list -- which is what makes this safe on a backup
+    /// so applying the same backup twice lands on the same list. The live
+    /// mouse exception keys that register `[String]()` — navigation, buttons,
+    /// middle click, plus the two legacy scroll lists — read `[]` after the
+    /// clear rather than the pre-restore list. The shared scroll key is
+    /// deliberately unregistered so "never written" stays `nil` and launch /
+    /// restore migration can still fold the legacy lists; reads use
+    /// `stringArray(forKey:) ?? []`. That is what makes this safe on a backup
     /// written before these keys existed, and not only on one that carries an
     /// empty array. (Reasoning from @PathGao's review.)
     static func restoredExceptionList(restored: [String], carried: [String]) -> [String] {
@@ -212,10 +220,16 @@ enum SettingsBackupSupport {
     ///
     /// Driven from `MouseExceptionScope.allCases` rather than a list of keys
     /// spelled here, so a scope that renames its key, or two scopes that come
-    /// to share one, are covered without this file being edited.
+    /// to share one, are covered without this file being edited. The two
+    /// legacy scroll lists stay registered for older backups even though no
+    /// scope names them anymore — they have to be unioned in, or a
+    /// hand-edited file can plant an executable path that launch migration
+    /// then folds into the shared key.
     private static func portableMouseExceptions(_ source: [String: Any]) -> [String: Any] {
         var settings = source
-        for key in Set(MouseExceptionScope.allCases.map(\.defaultsKey)) {
+        let keys = Set(MouseExceptionScope.allCases.map(\.defaultsKey))
+            .union([DefaultsKey.smoothScrollExceptions, DefaultsKey.scrollInverterExceptions])
+        for key in keys {
             guard let stored = settings[key] as? [String] else { continue }
             let portable = stored.filter { !MouseAppExceptionSupport.isExecutablePathIdentity($0) }
             guard portable.count != stored.count else { continue }

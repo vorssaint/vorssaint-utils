@@ -271,6 +271,19 @@ struct Strings {
     let mouseNavigationActiveNow: String
     let smoothScrollName: String
     let smoothScrollCaption: String
+    let mouseScrollingSection: String
+    let scrollDirectionEnableButton: String
+    let scrollDirectionUnavailableHint: String
+    let smoothScrollAccelerationCaption: String
+    let smoothScrollAccelerationLabel: String
+    let smoothScrollDurationCaption: String
+    let smoothScrollDurationLabel: String
+    let smoothScrollHorizontalLabel: String
+    let smoothScrollResetDefaults: String
+    let smoothScrollSpeedCaption: String
+    let smoothScrollSpeedLabel: String
+    let smoothScrollStepCaption: String
+    let smoothScrollVerticalLabel: String
     let smoothScrollStepLabel: String
     let mouseNavigationSection: String
     let mouseNavigationEnable: String
@@ -1129,7 +1142,6 @@ struct Strings {
     let switcherScreenPlacementMenuBar: String
     let switcherScreenPlacementActiveWindow: String
     let switcherScreenPlacementCaption: String
-    let smoothScrollResponseLabel: String
     let mouseAccelerationName: String
     let mouseAccelerationCaption: String
 }
@@ -1289,7 +1301,20 @@ extension Strings {
         mouseNavigationActiveNow: "Botões laterais ativos agora",
         smoothScrollName: "Rolagem suave",
         smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
-        smoothScrollStepLabel: "Velocidade da rolagem",
+        mouseScrollingSection: "Rolagem do mouse",
+        scrollDirectionEnableButton: "Ativar inversão de rolagem",
+        scrollDirectionUnavailableHint: "A inversão de rolagem está desligada em Recursos. Ative-a para alterar a direção.",
+        smoothScrollAccelerationCaption: "Controla o quanto movimentos rápidos da rodinha são acelerados",
+        smoothScrollAccelerationLabel: "Aceleração de rolagem",
+        smoothScrollDurationCaption: "Define a duração da animação de rolagem",
+        smoothScrollDurationLabel: "Duração",
+        smoothScrollHorizontalLabel: "Suavizar eixo horizontal",
+        smoothScrollResetDefaults: "Restaurar valores padrão",
+        smoothScrollSpeedCaption: "Define a velocidade de rolagem",
+        smoothScrollSpeedLabel: "Velocidade",
+        smoothScrollStepCaption: "Define a distância mínima de rolagem",
+        smoothScrollVerticalLabel: "Suavizar eixo vertical",
+        smoothScrollStepLabel: "Distância por passo",
         mouseNavigationSection: "Navegação",
         mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
         mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
@@ -2118,7 +2143,6 @@ extension Strings {
         switcherScreenPlacementMenuBar: "Tela com a barra de menus",
         switcherScreenPlacementActiveWindow: "Tela com a janela ativa",
         switcherScreenPlacementCaption: "Em qual tela o alternador abre quando há mais de uma conectada.",
-        smoothScrollResponseLabel: "Resposta",
         mouseAccelerationName: "Desativar aceleração do mouse",
         mouseAccelerationCaption: "Remove a aceleração do cursor para os mouses conectados. A configuração anterior volta ao desligar esta opção ou sair do Vorssaint."
     )
@@ -2279,7 +2303,20 @@ extension Strings {
         mouseNavigationActiveNow: "Side buttons active right now",
         smoothScrollName: "Smooth scrolling",
         smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
-        smoothScrollStepLabel: "Scrolling speed",
+        mouseScrollingSection: "Mouse scrolling",
+        scrollDirectionEnableButton: "Enable reverse scrolling",
+        scrollDirectionUnavailableHint: "Reverse scrolling is off in Features. Turn it on to change direction.",
+        smoothScrollAccelerationCaption: "Controls how strongly fast wheel movements are amplified",
+        smoothScrollAccelerationLabel: "Scroll acceleration",
+        smoothScrollDurationCaption: "Sets the duration of the scrolling animation",
+        smoothScrollDurationLabel: "Duration",
+        smoothScrollHorizontalLabel: "Smooth horizontal axis",
+        smoothScrollResetDefaults: "Reset to default values",
+        smoothScrollSpeedCaption: "Sets the scroll speed",
+        smoothScrollSpeedLabel: "Speed",
+        smoothScrollStepCaption: "Sets the minimum scrolling distance",
+        smoothScrollVerticalLabel: "Smooth vertical axis",
+        smoothScrollStepLabel: "Distance per step",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Use side buttons for Back and Forward",
         mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",
@@ -3108,7 +3145,6 @@ extension Strings {
         switcherScreenPlacementMenuBar: "Screen with the menu bar",
         switcherScreenPlacementActiveWindow: "Screen with the active window",
         switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected.",
-        smoothScrollResponseLabel: "Response",
         mouseAccelerationName: "Disable mouse acceleration",
         mouseAccelerationCaption: "Removes pointer acceleration for connected mice. Your previous setting returns when this is turned off or Vorssaint quits."
     )

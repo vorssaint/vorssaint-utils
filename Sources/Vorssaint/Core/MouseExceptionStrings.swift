@@ -16,8 +16,8 @@ struct MouseExceptionStrings {
 
     func caption(for scope: MouseExceptionScope) -> String {
         switch scope {
-        case .smoothScroll: return captionSmoothScroll
-        case .scrollDirection: return captionScrollDirection
+        case .smoothScroll, .scrollDirection:
+            return "\(captionSmoothScroll) \(captionScrollDirection)"
         case .focusFollowsMouse: return captionFocusFollowsMouse
         case .navigation: return captionNavigation
         case .buttonShortcuts: return captionButtonShortcuts

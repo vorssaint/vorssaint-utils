@@ -4,9 +4,9 @@
 import CoreGraphics
 import Foundation
 
-/// The mouse features that can be told to leave an app alone (issue #358).
-/// Each one keeps its OWN list, right under its switch in Settings: excepting
-/// an app from the wheel's glide must not also silence the side buttons there.
+/// The mouse behaviors that can be told to leave an app alone (issue #358).
+/// Both scrolling behaviors intentionally share one list; unrelated mouse
+/// actions keep their own lists.
 enum MouseExceptionScope: String, CaseIterable {
     case smoothScroll
     case scrollDirection
@@ -17,8 +17,7 @@ enum MouseExceptionScope: String, CaseIterable {
 
     var defaultsKey: String {
         switch self {
-        case .smoothScroll: return DefaultsKey.smoothScrollExceptions
-        case .scrollDirection: return DefaultsKey.scrollInverterExceptions
+        case .smoothScroll, .scrollDirection: return DefaultsKey.mouseScrollingExceptions
         case .focusFollowsMouse: return DefaultsKey.focusFollowsMouseExceptions
         case .navigation: return DefaultsKey.mouseNavigationExceptions
         case .buttonShortcuts: return DefaultsKey.mouseButtonExceptions
@@ -121,9 +120,9 @@ enum MouseAppExceptionSupport {
         return region.contains(point)
     }
 
-    static func isExcepted(_ bundleID: String?, exceptions: Set<String>) -> Bool {
-        guard let bundleID, !exceptions.isEmpty else { return false }
-        return exceptions.contains(bundleID)
+    static func isExcepted(_ identity: String?, exceptions: Set<String>) -> Bool {
+        guard let identity, !exceptions.isEmpty else { return false }
+        return exceptions.contains(identity)
     }
 
     /// A program that is not packaged as an app has no bundle identifier at
@@ -200,7 +199,38 @@ enum MouseAppExceptionSupport {
         return Int32(exactly: rawValue)
     }
 
-    static func isExcepted(_ bundleIDs: [String], exceptions: Set<String>) -> Bool {
-        bundleIDs.contains(where: exceptions.contains)
+    static func isExcepted(_ identities: [String], exceptions: Set<String>) -> Bool {
+        identities.contains(where: exceptions.contains)
+    }
+
+    /// Immutable answer the scroll taps consult. Built under the exceptions
+    /// lock so a dedicated tap thread never races the main-thread reload path.
+    struct LookupSnapshot: Equatable {
+        var lookups: [MouseExceptionScope: Set<String>]
+        var sourceProcessIDs: [MouseExceptionScope: Set<Int32>]
+
+        static let empty = LookupSnapshot(lookups: [:], sourceProcessIDs: [:])
+    }
+
+    /// Resolves whether a scope excludes the event after the cheap pid-set
+    /// checks. The pointer closure fills a cache miss synchronously (~190 µs)
+    /// so every event gets a correct verdict.
+    static func excludes(scope: MouseExceptionScope,
+                         snapshot: LookupSnapshot,
+                         sourceProcessID: Int64,
+                         targetProcessID: Int64,
+                         pointerIdentity: () -> String?) -> Bool {
+        guard let exceptions = snapshot.lookups[scope], !exceptions.isEmpty else {
+            return false
+        }
+        if let pid = Self.sourceProcessID(sourceProcessID),
+           snapshot.sourceProcessIDs[scope]?.contains(pid) == true {
+            return true
+        }
+        if let pid = Self.sourceProcessID(targetProcessID),
+           snapshot.sourceProcessIDs[scope]?.contains(pid) == true {
+            return true
+        }
+        return isExcepted(pointerIdentity(), exceptions: exceptions)
     }
 }

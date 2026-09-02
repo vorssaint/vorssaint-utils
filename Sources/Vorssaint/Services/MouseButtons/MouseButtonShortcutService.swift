@@ -172,6 +172,7 @@ final class MouseButtonShortcutService: ObservableObject {
     static func claimsSideWheel(_ input: Int64,
                                 at location: CGPoint,
                                 sourceProcessID: Int64,
+                                targetProcessID: Int64,
                                 eventTimestamp: UInt64) -> Bool {
         guard hasActiveSideWheelInterest else { return false }
         let service = shared
@@ -179,7 +180,10 @@ final class MouseButtonShortcutService: ObservableObject {
               service.isCapturing || service.mappings[input] != nil else { return false }
         guard service.isCapturing
             || !MouseAppExceptions.shared.excludesActionTarget(
-                .buttonShortcuts, at: location, sourceProcessID: sourceProcessID
+                .buttonShortcuts,
+                at: location,
+                sourceProcessID: sourceProcessID,
+                targetProcessID: targetProcessID
             ) else { return false }
         service.preflightedSideWheelTimestamp = eventTimestamp
         service.preflightedSideWheelInput = input
@@ -530,9 +534,13 @@ final class MouseButtonShortcutService: ObservableObject {
         }
         guard let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
+        let targetProcessID = event.getIntegerValueField(.eventTargetUnixProcessID)
         if !wasPreflighted,
            MouseAppExceptions.shared.excludesActionTarget(
-            .buttonShortcuts, at: event.location, sourceProcessID: sourceProcessID
+            .buttonShortcuts,
+            at: event.location,
+            sourceProcessID: sourceProcessID,
+            targetProcessID: targetProcessID
            ) {
             return Unmanaged.passUnretained(event)
         }
