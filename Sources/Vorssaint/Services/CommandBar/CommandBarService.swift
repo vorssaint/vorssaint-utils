@@ -2565,26 +2565,42 @@ final class CommandBarService: ObservableObject {
                 return nil
             }
 
+            let navigationModifiers = event.modifierFlags
+                .intersection([.command, .option, .shift, .control])
             if event.modifierFlags.contains(.command) {
-                switch Int(event.keyCode) {
-                case kVK_ANSI_Q, kVK_ANSI_W, kVK_ANSI_M, kVK_ANSI_H:
+                let key = event.charactersIgnoringModifiers?.lowercased()
+                switch key {
+                case "q", "w", "m", "h":
                     // The app's menu owns these combinations and the panel is
                     // key, so they would quit, close or hide Vorssaint while
                     // the person believes they are acting on the app the bar
                     // is floating over.
                     return nil
-                case kVK_ANSI_Comma:
+                case ",":
                     self.hide()
                     SettingsRouter.shared.page = .commandBar
                     appDelegate()?.openSettingsWindow()
                     return nil
+                case "k":
+                    self.openActions()
+                    return nil
+                case "p":
+                    if let entry = self.selectedEntry, !entry.isAnswer,
+                       CommandBarPreferences.acceptsPin(rowID: entry.id) {
+                        self.togglePin(entry)
+                    }
+                    return nil
+                case "a" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: panel) ? nil : event
+                case "c" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: panel) ? nil : event
+                case "x" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: panel) ? nil : event
+                case "v" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: panel) ? nil : event
                 default:
                     break
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_K {
-                self.openActions()
-                return nil
             }
             // ⌘Return shows the selected row where it lives. Guarded by the
             // row's own rule, so a row with nowhere to go hands the keys back
@@ -2596,13 +2612,6 @@ final class CommandBarService: ObservableObject {
                     self.revealInFinder(entry)
                     return nil
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_P {
-                if let entry = self.selectedEntry, !entry.isAnswer,
-                   CommandBarPreferences.acceptsPin(rowID: entry.id) {
-                    self.togglePin(entry)
-                }
-                return nil
             }
             switch Int(event.keyCode) {
             case kVK_Escape:
@@ -2636,8 +2645,6 @@ final class CommandBarService: ObservableObject {
                     self.run(at: index)
                     return nil
                 }
-                let navigationModifiers = event.modifierFlags
-                    .intersection([.command, .option, .shift, .control])
                 if navigationModifiers == [.control],
                    let key = event.charactersIgnoringModifiers?.lowercased() {
                     // Match the typed letter so alternate keyboard layouts
