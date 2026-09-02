@@ -1503,8 +1503,8 @@ private struct CaptureGuideView: View {
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(HUDBackdrop(cornerRadius: 16, contrast: .high))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1579,7 +1579,8 @@ private struct UnifiedCaptureGuideContent: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .background(HUDBackdrop(cornerRadius: 15, contrast: .high))
+        .clipShape(Capsule(style: .continuous))
         .overlay {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1597,8 +1598,8 @@ private struct UnifiedCaptureGuideContent: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10)
         .frame(height: 56)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(HUDBackdrop(cornerRadius: 14, contrast: .high))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1613,8 +1614,8 @@ private struct UnifiedCaptureGuideContent: View {
             }
         }
         .padding(4)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(HUDBackdrop(cornerRadius: 14, contrast: .high))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1729,7 +1730,8 @@ private struct RecorderSelectionAudioControls: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .padding(4)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .background(HUDBackdrop(cornerRadius: 14, contrast: .high))
+        .clipShape(Capsule(style: .continuous))
         .overlay {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
