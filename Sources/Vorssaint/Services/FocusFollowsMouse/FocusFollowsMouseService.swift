@@ -101,11 +101,8 @@ final class FocusFollowsMouseService {
 
     private func evaluateIfSettled() {
         guard AXIsProcessTrusted(),
-              FocusFollowsMouseSupport.canEvaluate(
-                  pressedMouseButtons: NSEvent.pressedMouseButtons,
-                  modifierKeysArePressed: !NSEvent.modifierFlags
-                      .intersection([.command, .control, .option, .shift]).isEmpty
-              ),
+              NSEvent.pressedMouseButtons == 0,
+              NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
               let evaluation = state.nextEvaluation(
                   at: ProcessInfo.processInfo.systemUptime,
                   delayMilliseconds: delayMilliseconds),
