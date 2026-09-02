@@ -14605,6 +14605,21 @@ struct MetricsTests {
                && TextSnippetSupport.pastePayload(text: "first\nsecond", trailingText: " ")
                 == "first\nsecond ",
                "multi-line snippets keep their delimiter in the same ordered paste")
+        let transientPasteSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/TransientPaste.swift",
+            encoding: .utf8)) ?? ""
+        let pasteCompletionSettles: Bool
+        if let keyUp = transientPasteSource.range(of: "keyUp.post(tap: .cghidEventTap)"),
+           let settle = transientPasteSource.range(
+               of: "DispatchQueue.main.asyncAfter(deadline: .now() + postShortcutSettleDelay)"),
+           let completion = transientPasteSource.range(of: "completion(true)") {
+            pasteCompletionSettles = keyUp.upperBound <= settle.lowerBound
+                && settle.upperBound <= completion.lowerBound
+        } else {
+            pasteCompletionSettles = false
+        }
+        expect(pasteCompletionSettles,
+               "transient paste settles before posting completion events")
 
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")
