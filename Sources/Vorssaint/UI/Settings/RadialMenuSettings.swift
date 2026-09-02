@@ -301,6 +301,10 @@ struct RadialMenuSettings: View {
         }
         .disabled(!enabled)
 
+        Text(text.mouseTriggerRequirement)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
         if RadialMenuMouseTrigger.sanitized(profile.mouseButton) != .off {
             if let button = RadialMenuMouseTrigger.sanitized(profile.mouseButton).buttonNumber,
                button == MouseButtonShortcutSupport.backButtonNumber
