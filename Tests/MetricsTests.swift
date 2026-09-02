@@ -21703,10 +21703,11 @@ struct MetricsTests {
             .last ?? "").components(separatedBy: "\n    private func ")
         let monitor = monitorParts.first ?? ""
         expect(monitorParts.count > 1
-                && monitor.contains("event.charactersIgnoringModifiers?.lowercased()")
+                && monitor.contains("let key = event.characters?.lowercased()")
+                && monitor.contains("let key = event.charactersIgnoringModifiers?.lowercased()")
                 && !monitor.contains("case kVK_ANSI_Q")
                 && monitor.contains("digitIndex(for: event.keyCode)"),
-               "the Command Bar follows typed letters while number shortcuts stay positional")
+               "the Command Bar uses macOS Command letters while Control follows typed letters and digits stay positional")
         expect(monitor.contains("#selector(NSText.selectAll(_:))")
                 && monitor.contains("#selector(NSText.copy(_:))")
                 && monitor.contains("#selector(NSText.cut(_:))")

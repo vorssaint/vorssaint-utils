@@ -2568,7 +2568,10 @@ final class CommandBarService: ObservableObject {
             let navigationModifiers = event.modifierFlags
                 .intersection([.command, .option, .shift, .control])
             if event.modifierFlags.contains(.command) {
-                let key = event.charactersIgnoringModifiers?.lowercased()
+                // `characters` is the Command-aware key macOS resolves: it
+                // follows remapped Latin layouts and supplies the positional
+                // Latin equivalent when the active layout is non-Latin.
+                let key = event.characters?.lowercased()
                 switch key {
                 case "q", "w", "m", "h":
                     // The app's menu owns these combinations and the panel is
