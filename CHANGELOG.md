@@ -53,6 +53,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Cleaning now checks which apps are still installed once per run instead of once per leftover, and skips that check entirely when no leftover is selected, so a clean starts without scanning the application folders. Thanks to @PathGao.
 - GPU usage sampling no longer leaves a system resource behind on Macs with more than one graphics processor, and extra brightness now does less work on each refresh. Thanks to @PathGao.
 - The radial menu now checks only which extra mouse button opens a wheel when a side button is pressed, instead of loading every wheel and its icons on each event, so holding a side button and moving the mouse no longer risks dropped clicks. Thanks to @PathGao.
+- The recording editor's filmstrip now scrubs through the video when you drag across it, showing the frame under the pointer as you go. Hold Shift while dragging to pick a stretch to cut out, and each cut-out stretch now goes dark on the filmstrip. Thanks to @saminton.
 
 ### Fixed
 - Automatic cleaning now leaves protected items in place instead of requesting an administrator password while unattended, and reports that they could not be moved to the Trash. Thanks to @PathGao.
