@@ -2512,6 +2512,28 @@ final class CommandBarService: ObservableObject {
 
     // MARK: - Monitors
 
+    /// The letter a keystroke means to the bar's shortcuts: what the key
+    /// prints, or where it sits when it prints no Latin letter.
+    private static func shortcutCharacter(for event: NSEvent) -> Character? {
+        KeyboardLetters.shortcutCharacter(typedCharacter: event.charactersIgnoringModifiers,
+                                          keyCode: Int(event.keyCode))
+    }
+
+    /// Sends one editing shortcut down the responder chain, to the field
+    /// editor of whichever panel is key. Answers whether something took it,
+    /// so a combination nobody wanted is handed back to the field untouched.
+    private func sendEditingAction(for event: NSEvent) -> Bool {
+        let action: Selector
+        switch Self.shortcutCharacter(for: event) {
+        case "a": action = #selector(NSText.selectAll(_:))
+        case "c": action = #selector(NSText.copy(_:))
+        case "x": action = #selector(NSText.cut(_:))
+        case "v": action = #selector(NSText.paste(_:))
+        default: return false
+        }
+        return NSApp.sendAction(action, to: nil, from: nil)
+    }
+
     private func installMonitors(for panel: NSPanel) {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
@@ -2536,25 +2558,52 @@ final class CommandBarService: ObservableObject {
             }
 
             if event.modifierFlags.contains(.command) {
-                switch Int(event.keyCode) {
-                case kVK_ANSI_Q, kVK_ANSI_W, kVK_ANSI_M, kVK_ANSI_H:
+                // Letters are read as they are printed on the keyboard, not by
+                // where the key sits: on AZERTY the key marked A is where Q
+                // lives on ANSI, so matching by position took every Cmd+A for
+                // a quit and swallowed it before the field could answer. A
+                // layout that prints no Latin letter has none to answer with,
+                // so the key's position stands in there, which is where macOS
+                // resolves that layout's command shortcuts: without it ⌘Q goes
+                // unrecognised on Cyrillic and Greek and the menu quits the
+                // app behind the bar.
+                let onlyCommand = event.modifierFlags
+                    .intersection([.command, .option, .shift, .control]) == [.command]
+                switch Self.shortcutCharacter(for: event) {
+                case "q", "w", "m", "h":
                     // The app's menu owns these combinations and the panel is
                     // key, so they would quit, close or hide Vorssaint while
                     // the person believes they are acting on the app the bar
                     // is floating over.
                     return nil
-                case kVK_ANSI_Comma:
+                case ",":
                     self.hide()
                     SettingsRouter.shared.page = .commandBar
                     appDelegate()?.openSettingsWindow()
                     return nil
+                case "k":
+                    self.openActions()
+                    return nil
+                case "p":
+                    if let entry = self.selectedEntry, !entry.isAnswer,
+                       CommandBarPreferences.acceptsPin(rowID: entry.id) {
+                        self.togglePin(entry)
+                    }
+                    return nil
+                case "a", "c", "x", "v":
+                    // The bar is a non-activating panel, so the app is key
+                    // without being active and the Edit menu never gets to
+                    // fire its own equivalents. That leaves the field without
+                    // the four shortcuts every text field is expected to
+                    // answer. Handing them to whatever is editing gives them
+                    // back; a combination nobody takes goes on its way, and
+                    // one carrying another modifier was never meant for the
+                    // field.
+                    guard onlyCommand else { break }
+                    return self.sendEditingAction(for: event) ? nil : event
                 default:
                     break
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_K {
-                self.openActions()
-                return nil
             }
             // ⌘Return shows the selected row where it lives. Guarded by the
             // row's own rule, so a row with nowhere to go hands the keys back
@@ -2566,13 +2615,6 @@ final class CommandBarService: ObservableObject {
                     self.revealInFinder(entry)
                     return nil
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_P {
-                if let entry = self.selectedEntry, !entry.isAnswer,
-                   CommandBarPreferences.acceptsPin(rowID: entry.id) {
-                    self.togglePin(entry)
-                }
-                return nil
             }
             switch Int(event.keyCode) {
             case kVK_Escape:
