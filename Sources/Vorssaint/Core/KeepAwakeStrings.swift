@@ -11,6 +11,8 @@ struct KeepAwakeAutomationStrings {
     let externalDisplayActive: String
     let powerToggle: String
     let powerActive: String
+    let pauseWhenLockedToggle: String
+    let pauseWhenLockedCaption: String
     let automationActive: String
 
     func activeStatus(for conditions: Set<KeepAwakeAutomationCondition>) -> String {
@@ -139,6 +141,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Active while an external display is connected",
         powerToggle: "Power",
         powerActive: "Active while connected to power",
+        pauseWhenLockedToggle: "Pause while the Mac is locked",
+        pauseWhenLockedCaption: "Follows normal sleep rules while locked and resumes the remaining session after you unlock.",
         automationActive: "Active because an automatic condition is met"
     )
 
@@ -150,6 +154,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Ativo enquanto há um monitor externo conectado",
         powerToggle: "Energia",
         powerActive: "Ativo enquanto está conectado à energia",
+        pauseWhenLockedToggle: "Pausar enquanto o Mac estiver bloqueado",
+        pauseWhenLockedCaption: "Segue as regras normais de repouso enquanto estiver bloqueado e retoma o tempo restante após o desbloqueio.",
         automationActive: "Ativo porque uma condição automática foi atendida"
     )
 
@@ -161,6 +167,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Harici ekran bağlı olduğu sürece etkin",
         powerToggle: "Güç",
         powerActive: "Güce bağlı olduğu sürece etkin",
+        pauseWhenLockedToggle: "Mac kilitliyken duraklat",
+        pauseWhenLockedCaption: "Kilitliyken normal uyku kurallarını izler ve kilidi açtığınızda kalan oturumu sürdürür.",
         automationActive: "Otomatik bir koşul sağlandığı için etkin"
     )
 
@@ -172,6 +180,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Активно, пока подключён внешний дисплей",
         powerToggle: "Питание",
         powerActive: "Активно, пока подключено питание",
+        pauseWhenLockedToggle: "Приостанавливать, пока Mac заблокирован",
+        pauseWhenLockedCaption: "Пока Mac заблокирован, действуют обычные правила сна, а после разблокировки продолжается оставшееся время сеанса.",
         automationActive: "Активно по автоматическому условию"
     )
 
@@ -183,6 +193,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Activo mientras haya una pantalla externa conectada",
         powerToggle: "Corriente",
         powerActive: "Activo mientras está conectado a la corriente",
+        pauseWhenLockedToggle: "Pausar mientras el Mac esté bloqueado",
+        pauseWhenLockedCaption: "Sigue las reglas de reposo habituales mientras está bloqueado y reanuda el tiempo restante al desbloquearlo.",
         automationActive: "Activo porque se cumple una condición automática"
     )
 
@@ -194,6 +206,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Aktiv, solange ein externes Display verbunden ist",
         powerToggle: "Strom",
         powerActive: "Aktiv, solange Strom verbunden ist",
+        pauseWhenLockedToggle: "Pausieren, solange der Mac gesperrt ist",
+        pauseWhenLockedCaption: "Im Sperrzustand gelten die normalen Ruhezustandsregeln. Nach dem Entsperren läuft die verbleibende Sitzung weiter.",
         automationActive: "Aktiv, weil eine automatische Bedingung erfüllt ist"
     )
 
@@ -205,6 +219,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Actif tant qu'un écran externe est connecté",
         powerToggle: "Secteur",
         powerActive: "Actif tant que le Mac est branché sur secteur",
+        pauseWhenLockedToggle: "Suspendre lorsque le Mac est verrouillé",
+        pauseWhenLockedCaption: "Suit les règles de veille habituelles pendant le verrouillage et reprend le temps restant après le déverrouillage.",
         automationActive: "Actif car une condition automatique est remplie"
     )
 
@@ -216,6 +232,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Attivo mentre è collegato uno schermo esterno",
         powerToggle: "Alimentazione",
         powerActive: "Attivo mentre è collegato all'alimentazione",
+        pauseWhenLockedToggle: "Metti in pausa quando il Mac è bloccato",
+        pauseWhenLockedCaption: "Segue le normali regole di stop quando è bloccato e riprende il tempo rimanente dopo lo sblocco.",
         automationActive: "Attivo perché una condizione automatica è soddisfatta"
     )
 
@@ -227,6 +245,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "外部ディスプレイ接続中は有効",
         powerToggle: "電源",
         powerActive: "電源に接続されている間は有効",
+        pauseWhenLockedToggle: "Macのロック中は一時停止",
+        pauseWhenLockedCaption: "ロック中は通常のスリープ設定に従い、ロック解除後に残りのセッションを再開します。",
         automationActive: "自動条件が満たされているため有効"
     )
 
@@ -238,6 +258,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "외부 디스플레이가 연결된 동안 활성화",
         powerToggle: "전원",
         powerActive: "전원에 연결된 동안 활성화",
+        pauseWhenLockedToggle: "Mac이 잠겨 있는 동안 일시 정지",
+        pauseWhenLockedCaption: "잠겨 있는 동안 일반 잠자기 설정을 따르고 잠금 해제 후 남은 세션을 다시 시작합니다.",
         automationActive: "자동 조건이 충족되어 활성화"
     )
 
@@ -249,6 +271,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "外接显示器连接期间保持唤醒",
         powerToggle: "电源",
         powerActive: "连接电源期间保持唤醒",
+        pauseWhenLockedToggle: "Mac 锁定时暂停",
+        pauseWhenLockedCaption: "锁定期间遵循正常的睡眠设置，解锁后继续剩余时段。",
         automationActive: "因满足自动条件而保持唤醒"
     )
 
@@ -260,6 +284,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "外接顯示器連接期間保持喚醒",
         powerToggle: "電源",
         powerActive: "連接電源期間保持喚醒",
+        pauseWhenLockedToggle: "Mac 鎖定時暫停",
+        pauseWhenLockedCaption: "鎖定期間會依照正常的睡眠設定，解鎖後繼續剩餘時段。",
         automationActive: "因符合自動條件而保持喚醒"
     )
 
@@ -271,6 +297,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "外置顯示器連接期間保持喚醒",
         powerToggle: "電源",
         powerActive: "連接電源期間保持喚醒",
+        pauseWhenLockedToggle: "Mac 鎖定時暫停",
+        pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。",
         automationActive: "因符合自動條件而保持喚醒"
     )
 }

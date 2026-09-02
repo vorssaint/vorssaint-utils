@@ -2006,6 +2006,10 @@ struct MetricsTests {
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakePauseWhenLocked] as? Bool == false,
+               "pausing Keep Awake on screen lock is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePauseWhenLocked),
+               "the Keep Awake screen-lock preference follows settings backups")
         expect(registeredDefaults[DefaultsKey.hotkeyEnabled] as? Bool == true,
                "global hotkey is on for clean installs")
         expect(registeredDefaults[DefaultsKey.keepAwakeShortcut] as? String == "control+option+command:40",
@@ -2064,6 +2068,29 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        expect(KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": true]
+        ), "the Keep Awake lock guard reads a locked session")
+        expect(!KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": false]
+        ), "the Keep Awake lock guard reads an unlocked session")
+        expect(!KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: nil),
+               "an unreadable lock state does not strand Keep Awake in a pause")
+        expect(KeepAwakeAutomationSupport.shouldPauseForScreenLock(
+            preferenceEnabled: true, screenLocked: true
+        ), "an opted-in session pauses while the screen is locked")
+        expect(!KeepAwakeAutomationSupport.shouldPauseForScreenLock(
+            preferenceEnabled: false, screenLocked: true
+        ), "screen lock leaves Keep Awake unchanged when the option is off")
+        let keepAwakeResumeNow = Date(timeIntervalSinceReferenceDate: 1_000)
+        expect(KeepAwakeAutomationSupport.canResumeSession(endDate: nil, now: keepAwakeResumeNow),
+               "an indefinite Keep Awake session resumes after unlock")
+        expect(KeepAwakeAutomationSupport.canResumeSession(
+            endDate: keepAwakeResumeNow.addingTimeInterval(1), now: keepAwakeResumeNow
+        ), "a timed Keep Awake session resumes while time remains")
+        expect(!KeepAwakeAutomationSupport.canResumeSession(
+            endDate: keepAwakeResumeNow, now: keepAwakeResumeNow
+        ), "an expired Keep Awake session does not resume after unlock")
         let sleepDisabledReport = """
         System-wide power settings:
          SleepDisabled\t\t1

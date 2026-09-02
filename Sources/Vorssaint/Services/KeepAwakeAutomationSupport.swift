@@ -15,8 +15,25 @@ enum KeepAwakeAutomationAction: Equatable {
 }
 
 enum KeepAwakeAutomationSupport {
+    private static let screenLockedKey = "CGSSessionScreenIsLocked"
+
     static func hasExternalDisplay(builtInFlags: [Bool]) -> Bool {
         builtInFlags.contains(false)
+    }
+
+    static func isScreenLocked(sessionDictionary: [String: Any]?) -> Bool {
+        guard let value = sessionDictionary?[screenLockedKey] else { return false }
+        if let locked = value as? Bool { return locked }
+        return (value as? NSNumber)?.boolValue ?? false
+    }
+
+    static func shouldPauseForScreenLock(preferenceEnabled: Bool,
+                                         screenLocked: Bool) -> Bool {
+        preferenceEnabled && screenLocked
+    }
+
+    static func canResumeSession(endDate: Date?, now: Date) -> Bool {
+        endDate.map { $0 > now } ?? true
     }
 
     static func matchingConditions(externalDisplayEnabled: Bool,
