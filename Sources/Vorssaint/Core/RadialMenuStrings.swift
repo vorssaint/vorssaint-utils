@@ -51,7 +51,6 @@ struct RadialMenuFeatureStrings {
     let mouseTriggerBack: String
     let mouseTriggerForward: String
     let mouseTriggerWarning: String
-    let mouseTriggerRequirement: String
     let buttonTestLabel: String
     let buttonTestWaiting: String
     let buttonTestSeen: String
@@ -95,6 +94,7 @@ struct RadialMenuFeatureStrings {
     let fetchFaviconLoading: String
     let fetchFaviconSuccess: String
     let fetchFaviconError: String
+    let mouseTriggerRequirement: String
 }
 
 extension FeatureStrings {
@@ -166,7 +166,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Back side button",
         mouseTriggerForward: "Forward side button",
         mouseTriggerWarning: "While this is on, that button no longer goes back or forward in apps. If you navigate with it, leave this off.",
-        mouseTriggerRequirement: "Only extra mouse buttons work here. With a trackpad or a mouse without extra buttons, use the keyboard shortcut above.",
         buttonTestLabel: "Button test",
         buttonTestWaiting: "Press the button now",
         buttonTestSeen: "Vorssaint sees this button",
@@ -209,7 +208,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Connects to the website once to download its icon. Saved locally.",
         fetchFaviconLoading: "Fetching icon…",
         fetchFaviconSuccess: "Icon downloaded",
-        fetchFaviconError: "Could not find a website icon"
+        fetchFaviconError: "Could not find a website icon",
+        mouseTriggerRequirement: "Only extra mouse buttons work here. With a trackpad or a mouse without extra buttons, use the keyboard shortcut above."
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -260,7 +260,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Botão lateral de voltar",
         mouseTriggerForward: "Botão lateral de avançar",
         mouseTriggerWarning: "Enquanto isso está ligado, esse botão deixa de voltar ou avançar nos apps. Se você navega com ele, deixe desligado.",
-        mouseTriggerRequirement: "Só botões extras do mouse funcionam aqui. Com um trackpad ou um mouse sem botões extras, use o atalho de teclado acima.",
         buttonTestLabel: "Teste do botão",
         buttonTestWaiting: "Aperte o botão agora",
         buttonTestSeen: "O Vorssaint enxerga esse botão",
@@ -303,7 +302,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Conecta ao site uma única vez para baixar o ícone. Salvo localmente.",
         fetchFaviconLoading: "Buscando ícone…",
         fetchFaviconSuccess: "Ícone baixado",
-        fetchFaviconError: "Não foi possível encontrar o ícone do site"
+        fetchFaviconError: "Não foi possível encontrar o ícone do site",
+        mouseTriggerRequirement: "Só botões extras do mouse funcionam aqui. Com um trackpad ou um mouse sem botões extras, use o atalho de teclado acima."
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -354,7 +354,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Geri yan düğmesi",
         mouseTriggerForward: "İleri yan düğmesi",
         mouseTriggerWarning: "Bu açıkken o düğme uygulamalarda artık geri veya ileri gitmez. Onunla geziniyorsanız kapalı bırakın.",
-        mouseTriggerRequirement: "Burada yalnızca ek fare düğmeleri çalışır. İzleme dörtgeni veya ek düğmesi olmayan bir fareyle yukarıdaki klavye kestirmesini kullanın.",
         buttonTestLabel: "Düğme testi",
         buttonTestWaiting: "Şimdi düğmeye basın",
         buttonTestSeen: "Vorssaint bu düğmeyi görüyor",
@@ -397,7 +396,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Simgeyi indirmek için web sitesine bir kez bağlanır. Yerel olarak kaydedilir.",
         fetchFaviconLoading: "Simge getiriliyor…",
         fetchFaviconSuccess: "Simge indirildi",
-        fetchFaviconError: "Web sitesi simgesi bulunamadı"
+        fetchFaviconError: "Web sitesi simgesi bulunamadı",
+        mouseTriggerRequirement: "Burada yalnızca ek fare düğmeleri çalışır. İzleme dörtgeni veya ek düğmesi olmayan bir fareyle yukarıdaki klavye kestirmesini kullanın."
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -448,7 +448,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Боковая кнопка «Назад»",
         mouseTriggerForward: "Боковая кнопка «Вперёд»",
         mouseTriggerWarning: "Пока это включено, кнопка перестаёт работать как «Назад» и «Вперёд» в приложениях. Если вы так переходите по страницам, оставьте выключенным.",
-        mouseTriggerRequirement: "Здесь работают только дополнительные кнопки мыши. С трекпадом или мышью без дополнительных кнопок используйте сочетание клавиш выше.",
         buttonTestLabel: "Проверка кнопки",
         buttonTestWaiting: "Нажмите кнопку сейчас",
         buttonTestSeen: "Vorssaint видит эту кнопку",
@@ -491,7 +490,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Подключается к сайту один раз для загрузки значка. Сохраняется локально.",
         fetchFaviconLoading: "Загрузка значка…",
         fetchFaviconSuccess: "Значок загружен",
-        fetchFaviconError: "Не удалось найти значок сайта"
+        fetchFaviconError: "Не удалось найти значок сайта",
+        mouseTriggerRequirement: "Здесь работают только дополнительные кнопки мыши. С трекпадом или мышью без дополнительных кнопок используйте сочетание клавиш выше."
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -542,7 +542,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Botón lateral de retroceso",
         mouseTriggerForward: "Botón lateral de avance",
         mouseTriggerWarning: "Mientras esté activado, ese botón deja de ir atrás o adelante en las apps. Si navegas con él, déjalo desactivado.",
-        mouseTriggerRequirement: "Aquí solo funcionan los botones adicionales del ratón. Con un trackpad o un ratón sin botones adicionales, usa el atajo de teclado de arriba.",
         buttonTestLabel: "Prueba del botón",
         buttonTestWaiting: "Pulsa el botón ahora",
         buttonTestSeen: "Vorssaint ve este botón",
@@ -585,7 +584,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Se conecta al sitio web una sola vez para descargar el icono. Guardado localmente.",
         fetchFaviconLoading: "Obteniendo icono…",
         fetchFaviconSuccess: "Icono descargado",
-        fetchFaviconError: "No se pudo encontrar el icono del sitio web"
+        fetchFaviconError: "No se pudo encontrar el icono del sitio web",
+        mouseTriggerRequirement: "Aquí solo funcionan los botones adicionales del ratón. Con un trackpad o un ratón sin botones adicionales, usa el atajo de teclado de arriba."
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -636,7 +636,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Seitliche Zurück-Taste",
         mouseTriggerForward: "Seitliche Vorwärts-Taste",
         mouseTriggerWarning: "Solange das aktiv ist, geht die Taste in Apps nicht mehr zurück oder vor. Wer damit navigiert, lässt es besser aus.",
-        mouseTriggerRequirement: "Hier funktionieren nur zusätzliche Maustasten. Verwende mit einem Trackpad oder einer Maus ohne zusätzliche Tasten den Tastaturkurzbefehl oben.",
         buttonTestLabel: "Tastentest",
         buttonTestWaiting: "Jetzt die Taste drücken",
         buttonTestSeen: "Vorssaint sieht diese Taste",
@@ -679,7 +678,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Verbindet sich einmal mit der Website, um das Icon zu laden. Lokal gespeichert.",
         fetchFaviconLoading: "Icon wird geladen…",
         fetchFaviconSuccess: "Icon heruntergeladen",
-        fetchFaviconError: "Website-Icon konnte nicht gefunden werden"
+        fetchFaviconError: "Website-Icon konnte nicht gefunden werden",
+        mouseTriggerRequirement: "Hier funktionieren nur zusätzliche Maustasten. Verwende mit einem Trackpad oder einer Maus ohne zusätzliche Tasten den Tastaturkurzbefehl oben."
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -730,7 +730,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Bouton latéral précédent",
         mouseTriggerForward: "Bouton latéral suivant",
         mouseTriggerWarning: "Tant que c'est activé, ce bouton ne fait plus précédent ou suivant dans les apps. Si vous naviguez avec, laissez désactivé.",
-        mouseTriggerRequirement: "Seuls les boutons supplémentaires de la souris fonctionnent ici. Avec un trackpad ou une souris sans boutons supplémentaires, utilisez le raccourci clavier ci-dessus.",
         buttonTestLabel: "Test du bouton",
         buttonTestWaiting: "Appuyez sur le bouton",
         buttonTestSeen: "Vorssaint voit ce bouton",
@@ -773,7 +772,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Se connecte au site web une seule fois pour télécharger l'icône. Enregistrée localement.",
         fetchFaviconLoading: "Récupération de l'icône…",
         fetchFaviconSuccess: "Icône téléchargée",
-        fetchFaviconError: "Impossible de trouver l'icône du site web"
+        fetchFaviconError: "Impossible de trouver l'icône du site web",
+        mouseTriggerRequirement: "Seuls les boutons supplémentaires de la souris fonctionnent ici. Avec un trackpad ou une souris sans boutons supplémentaires, utilisez le raccourci clavier ci-dessus."
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -824,7 +824,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "Pulsante laterale indietro",
         mouseTriggerForward: "Pulsante laterale avanti",
         mouseTriggerWarning: "Finché è attivo, quel pulsante non va più indietro o avanti nelle app. Se lo usi per navigare, lascialo disattivato.",
-        mouseTriggerRequirement: "Qui funzionano solo i pulsanti aggiuntivi del mouse. Con un trackpad o un mouse senza pulsanti aggiuntivi, usa l’abbreviazione da tastiera qui sopra.",
         buttonTestLabel: "Prova del pulsante",
         buttonTestWaiting: "Premi ora il pulsante",
         buttonTestSeen: "Vorssaint vede questo pulsante",
@@ -867,7 +866,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "Si connette al sito una sola volta per scaricare l'icona. Salvata localmente.",
         fetchFaviconLoading: "Scaricamento icona…",
         fetchFaviconSuccess: "Icona scaricata",
-        fetchFaviconError: "Impossibile trovare l'icona del sito"
+        fetchFaviconError: "Impossibile trovare l'icona del sito",
+        mouseTriggerRequirement: "Qui funzionano solo i pulsanti aggiuntivi del mouse. Con un trackpad o un mouse senza pulsanti aggiuntivi, usa l’abbreviazione da tastiera qui sopra."
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -918,7 +918,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "サイドの「戻る」ボタン",
         mouseTriggerForward: "サイドの「進む」ボタン",
         mouseTriggerWarning: "オンの間、そのボタンではアプリ内で戻る/進むができなくなります。ナビゲーションに使っている場合はオフのままにしてください。",
-        mouseTriggerRequirement: "ここではマウスの追加ボタンだけを使用できます。トラックパッドや追加ボタンのないマウスでは、上のキーボードショートカットを使用してください。",
         buttonTestLabel: "ボタンのテスト",
         buttonTestWaiting: "いまボタンを押してください",
         buttonTestSeen: "Vorssaint はこのボタンを認識しています",
@@ -961,7 +960,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "アイコンをダウンロードするために1回だけWebサイトに接続します。ローカルに保存されます。",
         fetchFaviconLoading: "アイコンを取得中…",
         fetchFaviconSuccess: "アイコンをダウンロードしました",
-        fetchFaviconError: "Webサイトのアイコンが見つかりませんでした"
+        fetchFaviconError: "Webサイトのアイコンが見つかりませんでした",
+        mouseTriggerRequirement: "ここではマウスの追加ボタンだけを使用できます。トラックパッドや追加ボタンのないマウスでは、上のキーボードショートカットを使用してください。"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -1012,7 +1012,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "뒤로 가기 측면 버튼",
         mouseTriggerForward: "앞으로 가기 측면 버튼",
         mouseTriggerWarning: "이 기능이 켜져 있는 동안 해당 버튼은 앱에서 뒤로/앞으로 이동하지 않습니다. 이 버튼으로 탐색한다면 꺼 두세요.",
-        mouseTriggerRequirement: "여기서는 마우스의 추가 버튼만 사용할 수 있습니다. 트랙패드나 추가 버튼이 없는 마우스에서는 위의 키보드 단축키를 사용하세요.",
         buttonTestLabel: "버튼 테스트",
         buttonTestWaiting: "지금 버튼을 눌러 보세요",
         buttonTestSeen: "Vorssaint가 이 버튼을 인식합니다",
@@ -1055,7 +1054,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "아이콘을 다운로드하기 위해 웹사이트에 한 번 연결합니다. 로컬에 저장됩니다.",
         fetchFaviconLoading: "아이콘 가져오는 중…",
         fetchFaviconSuccess: "아이콘 다운로드됨",
-        fetchFaviconError: "웹사이트 아이콘을 찾을 수 없습니다"
+        fetchFaviconError: "웹사이트 아이콘을 찾을 수 없습니다",
+        mouseTriggerRequirement: "여기서는 마우스의 추가 버튼만 사용할 수 있습니다. 트랙패드나 추가 버튼이 없는 마우스에서는 위의 키보드 단축키를 사용하세요."
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -1106,7 +1106,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "侧面后退键",
         mouseTriggerForward: "侧面前进键",
         mouseTriggerWarning: "开启期间，该按钮在 App 里不再后退或前进。如果你用它来导航，请保持关闭。",
-        mouseTriggerRequirement: "这里仅支持鼠标的额外按键。使用触控板或没有额外按键的鼠标时，请使用上方的键盘快捷键。",
         buttonTestLabel: "按键测试",
         buttonTestWaiting: "现在按一下该按键",
         buttonTestSeen: "Vorssaint 能看到这个按键",
@@ -1149,7 +1148,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "仅连接网站一次以下载图标。保存在本地。",
         fetchFaviconLoading: "正在获取图标…",
         fetchFaviconSuccess: "图标已下载",
-        fetchFaviconError: "未找到网站图标"
+        fetchFaviconError: "未找到网站图标",
+        mouseTriggerRequirement: "这里仅支持鼠标的额外按键。使用触控板或没有额外按键的鼠标时，请使用上方的键盘快捷键。"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -1200,7 +1200,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "側面上一頁鍵",
         mouseTriggerForward: "側面下一頁鍵",
         mouseTriggerWarning: "開啟期間，該按鈕在 App 裡不再上一頁或下一頁。如果你用它來瀏覽，請保持關閉。",
-        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用觸控式軌跡板或沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。",
         buttonTestLabel: "按鍵測試",
         buttonTestWaiting: "現在按一下該按鍵",
         buttonTestSeen: "Vorssaint 看得到這個按鍵",
@@ -1243,7 +1242,8 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "僅連接網站一次以下載圖示。儲存在本機。",
         fetchFaviconLoading: "正在取得圖示…",
         fetchFaviconSuccess: "圖示已下載",
-        fetchFaviconError: "找不到網站圖示"
+        fetchFaviconError: "找不到網站圖示",
+        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用觸控式軌跡板或沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -1294,7 +1294,6 @@ extension RadialMenuFeatureStrings {
         mouseTriggerBack: "側面上一頁鍵",
         mouseTriggerForward: "側面下一頁鍵",
         mouseTriggerWarning: "開啟期間，該按鈕在 App 裡不再上一頁或下一頁。如果你用它來瀏覽，請保持關閉。",
-        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用觸控板或沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。",
         buttonTestLabel: "按鍵測試",
         buttonTestWaiting: "現在按一下該按鍵",
         buttonTestSeen: "Vorssaint 看得到這個按鍵",
@@ -1337,6 +1336,7 @@ extension RadialMenuFeatureStrings {
         fetchFaviconDisclaimer: "僅連線網站一次以下載圖示。儲存在本機。",
         fetchFaviconLoading: "正在取得圖示…",
         fetchFaviconSuccess: "圖示已下載",
-        fetchFaviconError: "找不到網站圖示"
+        fetchFaviconError: "找不到網站圖示",
+        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用觸控板或沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。"
     )
 }

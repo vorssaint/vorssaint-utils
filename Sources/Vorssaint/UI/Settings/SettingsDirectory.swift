@@ -256,7 +256,8 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.radialMenu(language).addButton,
                                                  FeatureStrings.radialMenu(language).kindApp,
                                                  FeatureStrings.radialMenu(language).kindMedia,
-                                                 FeatureStrings.radialMenu(language).kindSubmenu]),
+                                                 FeatureStrings.radialMenu(language).kindSubmenu,
+                                                 FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",
