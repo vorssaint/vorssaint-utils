@@ -987,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind.",
         smoothScrollResponseLabel: "Reaktion",
         mouseAccelerationName: "Mausbeschleunigung deaktivieren",
-        mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt."
+        mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt.",
+        shelfClearOnClose: "Beim Schließen leeren",
+        shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte."
     )
 }

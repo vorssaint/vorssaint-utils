@@ -773,6 +773,10 @@ private struct Filmstrip: View {
 
     private let handleWidth: CGFloat = 12
     private let coordinateSpace = "recorderFilmstrip"
+    /// Whether the drag in progress is picking a stretch to cut rather than
+    /// scrubbing. Decided on its first movement and kept, so letting go of
+    /// Shift halfway through does not turn the pick into a scrub.
+    @State private var dragPicksCut: Bool?
 
     var body: some View {
         GeometryReader { proxy in
@@ -786,34 +790,49 @@ private struct Filmstrip: View {
                 // The strip itself is what scrubbing listens to. The handles
                 // sit above it with their own gestures, so a drag that starts
                 // on a handle trims and never moves the playhead too.
-                // Dragging across the film picks a stretch to remove; a plain
-                // click clears it. Scrubbing lives on the ruler above, so the
-                // two never fight over the same drag.
+                // Dragging across the film scrubs, the way every simple
+                // editor does; holding Shift while dragging picks a stretch
+                // to remove instead. The picture follows the pointer either
+                // way, so a cut can land on the exact moment.
                 thumbnails
                     .frame(width: width, height: height)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 2)
                             .onChanged { value in
-                                let from = seconds(at: value.startLocation.x, width: width)
+                                let picksCut = dragPicksCut
+                                    ?? NSEvent.modifierFlags.contains(.shift)
+                                dragPicksCut = picksCut
                                 let to = seconds(at: value.location.x, width: width)
-                                model.setCutSelection(min(from, to)...max(from, to))
+                                if picksCut {
+                                    let from = seconds(at: value.startLocation.x, width: width)
+                                    model.setCutSelection(min(from, to)...max(from, to))
+                                }
+                                model.seek(to: to)
                             }
+                            .onEnded { _ in dragPicksCut = nil }
                     )
                     .onTapGesture { location in
-                        if model.cutSelection != nil {
-                            model.setCutSelection(nil)
-                        } else {
-                            model.seek(to: seconds(at: location.x, width: width))
-                        }
+                        // A click goes to that moment and puts down any
+                        // selection, the way clicking away works everywhere.
+                        model.setCutSelection(nil)
+                        model.seek(to: seconds(at: location.x, width: width))
                     }
 
-                // What was already cut out, as a seam you can click to undo.
+                // What was already cut out goes dark like the trimmed ends,
+                // with a seam at its start you can click to put it back.
                 ForEach(Array(model.document.cuts.enumerated()), id: \.offset) { _, cut in
                     let seam = position(cut.start, width: width)
+                    let from = max(startX, seam)
+                    let to = min(endX, position(cut.end, width: width))
+                    Color.black.opacity(0.62)
+                        .frame(width: max(0, to - from), height: height)
+                        .offset(x: from)
+                        .allowsHitTesting(false)
                     Rectangle()
                         .fill(Color.orange.opacity(0.9))
                         .frame(width: 3, height: height)
+                        .contentShape(Rectangle().inset(by: -4))
                         .offset(x: max(0, seam - 1.5))
                         .onTapGesture { model.restoreCut(at: cut.start) }
                 }

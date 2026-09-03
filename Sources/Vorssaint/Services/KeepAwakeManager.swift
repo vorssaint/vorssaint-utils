@@ -32,7 +32,7 @@ final class KeepAwakeManager: ObservableObject {
             UserDefaults.standard.set(clamshellPreferred, forKey: DefaultsKey.clamshellPreferred)
             clamshellSetupFailed = false
             if clamshellPreferred {
-                applyClamshellPreference()
+                if !sessionPausedForScreenLock { applyClamshellPreference() }
             } else if clamshellActive {
                 clamshellSetupInProgress = false
                 disableClamshell(synchronous: false)
@@ -54,11 +54,16 @@ final class KeepAwakeManager: ObservableObject {
     private var pendingMouseReturn: DispatchWorkItem?
     private var defaultsObserver: AnyCancellable?
     private var screenParametersObserver: NSObjectProtocol?
+    private var screenLockObservers: [NSObjectProtocol] = []
     private var powerSourceRunLoopSource: CFRunLoopSource?
     private var automationEvaluationWorkItem: DispatchWorkItem?
     private var lastExternalDisplayConnected: Bool?
+    private var screenLocked = false
+    private var sessionPausedForScreenLock = false
     private var automationSuppressedUntilConditionsClear = false
     private var recoveryCompleted = false
+    private static let screenLockNotification = Notification.Name("com.apple.screenIsLocked")
+    private static let screenUnlockNotification = Notification.Name("com.apple.screenIsUnlocked")
     /// Guards the closed-lid setup against an infinite retry loop: if `pmset
     /// disablesleep` keeps failing while the sudoers rule still checks out as
     /// installed, re-preparing would bounce here forever (and flicker the
@@ -121,9 +126,9 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     func syncWithPreferences() {
-        if isActive { applyAssertions() }
-        syncMouseJiggleTimer()
         syncAutomationMonitoring()
+        if isActive, !sessionPausedForScreenLock { applyAssertions() }
+        syncMouseJiggleTimer()
     }
 
     /// Called by automation controls so a deliberate preference change can
@@ -144,7 +149,10 @@ final class KeepAwakeManager: ObservableObject {
         let minutes = Defaults.sanitizedDefaultDuration(minutes)
         endTimer?.invalidate()
         endTimer = nil
-        applyAssertions()
+        syncScreenLockMonitoring()
+        sessionPausedForScreenLock = screenLocked
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+        if !sessionPausedForScreenLock { applyAssertions() }
         sessionTrigger = trigger
         if trigger == .manual {
             activeAutomationConditions.removeAll()
@@ -157,9 +165,9 @@ final class KeepAwakeManager: ObservableObject {
         } else {
             endDate = nil
         }
-        startBatteryWatch()
+        if !sessionPausedForScreenLock { startBatteryWatch() }
         syncMouseJiggleTimer()
-        if clamshellPreferred {
+        if clamshellPreferred, !sessionPausedForScreenLock {
             applyClamshellPreference()
         }
     }
@@ -194,6 +202,7 @@ final class KeepAwakeManager: ObservableObject {
         sessionTrigger = nil
         activeAutomationConditions.removeAll()
         isActive = false
+        sessionPausedForScreenLock = false
         stopBatteryWatch()
         stopMouseJiggleTimer()
         if hadSession, reason != .quit, reason != .manual {
@@ -205,6 +214,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func syncAutomationMonitoring() {
         let available = AppFeature.keepAwake.isAvailable
+        syncScreenLockMonitoring()
         let observeScreens = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
         let observePower = available
@@ -213,6 +223,77 @@ final class KeepAwakeManager: ObservableObject {
         setScreenMonitoringEnabled(observeScreens)
         setPowerMonitoringEnabled(observePower)
         evaluateAutomation()
+    }
+
+    private func syncScreenLockMonitoring() {
+        let enabled = AppFeature.keepAwake.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+        let center = DistributedNotificationCenter.default()
+
+        if enabled {
+            guard screenLockObservers.isEmpty else { return }
+            screenLockObservers = [
+                center.addObserver(forName: Self.screenLockNotification,
+                                   object: nil, queue: .main) { [weak self] _ in
+                    self?.screenLockStateDidChange(locked: true)
+                },
+                center.addObserver(forName: Self.screenUnlockNotification,
+                                   object: nil, queue: .main) { [weak self] _ in
+                    self?.screenLockStateDidChange(locked: false)
+                },
+            ]
+            screenLocked = KeepAwakeAutomationSupport.isScreenLocked(
+                sessionDictionary: CGSessionCopyCurrentDictionary() as? [String: Any]
+            )
+            syncSessionWithScreenLock()
+        } else {
+            guard !screenLockObservers.isEmpty else { return }
+            for observer in screenLockObservers { center.removeObserver(observer) }
+            screenLockObservers.removeAll()
+            screenLocked = false
+            syncSessionWithScreenLock()
+        }
+    }
+
+    private func screenLockStateDidChange(locked: Bool) {
+        guard screenLocked != locked else { return }
+        screenLocked = locked
+        syncSessionWithScreenLock()
+        evaluateAutomation()
+    }
+
+    private func syncSessionWithScreenLock() {
+        guard isActive else {
+            sessionPausedForScreenLock = false
+            return
+        }
+        let shouldPause = screenLocked
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+        guard shouldPause != sessionPausedForScreenLock else { return }
+
+        if shouldPause {
+            sessionPausedForScreenLock = true
+            releaseAssertions()
+            if clamshellActive { disableClamshell(synchronous: false) }
+            stopBatteryWatch()
+            stopMouseJiggleTimer()
+            return
+        }
+
+        sessionPausedForScreenLock = false
+        if let endDate, endDate <= Date() {
+            if !continueAutomaticallyAfterTimerIfNeeded() { deactivate(reason: .timer) }
+            return
+        }
+        if sessionTrigger == .automation, currentMatchingAutomationConditions().isEmpty {
+            deactivate(reason: .manual)
+            return
+        }
+        startBatteryWatch()
+        guard isActive else { return }
+        applyAssertions()
+        syncMouseJiggleTimer()
+        if clamshellPreferred { applyClamshellPreference() }
     }
 
     private func setScreenMonitoringEnabled(_ enabled: Bool) {
@@ -267,6 +348,11 @@ final class KeepAwakeManager: ObservableObject {
         automationEvaluationWorkItem = nil
         setScreenMonitoringEnabled(false)
         setPowerMonitoringEnabled(false)
+        let center = DistributedNotificationCenter.default()
+        for observer in screenLockObservers { center.removeObserver(observer) }
+        screenLockObservers.removeAll()
+        screenLocked = false
+        sessionPausedForScreenLock = false
         activeAutomationConditions.removeAll()
     }
 
@@ -281,6 +367,12 @@ final class KeepAwakeManager: ObservableObject {
             if sessionTrigger == .automation {
                 deactivate(reason: .manual)
             }
+            return
+        }
+
+        if screenLocked,
+           UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked) {
+            if sessionTrigger == .automation { activeAutomationConditions = matches }
             return
         }
 
@@ -425,7 +517,7 @@ final class KeepAwakeManager: ObservableObject {
         // automatic setup retry again.
         clamshellSetupRetried = false
         if passwordlessClamshell {
-            if isActive {
+            if isActive, !sessionPausedForScreenLock {
                 enableClamshell()
             }
         } else {
@@ -463,7 +555,7 @@ final class KeepAwakeManager: ObservableObject {
             return
         }
 
-        if isActive, clamshellPreferred {
+        if isActive, clamshellPreferred, !sessionPausedForScreenLock {
             enableClamshell()
         }
     }
@@ -479,7 +571,8 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func enableClamshell() {
-        guard !clamshellActive else { return }
+        guard isActive, clamshellPreferred, !sessionPausedForScreenLock,
+              !clamshellActive else { return }
         Sudoers.pmsetDisableSleep(true) { ok in
             DispatchQueue.main.async {
                 guard ok else {
@@ -500,7 +593,7 @@ final class KeepAwakeManager: ObservableObject {
                 }
                 self.passwordlessClamshell = true
                 UserDefaults.standard.set(true, forKey: DefaultsKey.sleepDisabledFlag)
-                if self.isActive, self.clamshellPreferred {
+                if self.isActive, self.clamshellPreferred, !self.sessionPausedForScreenLock {
                     self.clamshellActive = true
                 } else {
                     // The session ended (or the preference flipped) while the
@@ -611,6 +704,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func syncMouseJiggleTimer() {
         guard isActive,
+              !sessionPausedForScreenLock,
               UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled)
         else {
             stopMouseJiggleTimer()

@@ -150,7 +150,10 @@ final class JunkCleaner: ObservableObject {
 
     // MARK: - Clean
 
-    func cleanSelected() {
+    /// `escalate: false` leaves whatever the Trash move refused in place
+    /// instead of handing it to Finder, which is an administrator password
+    /// prompt. No default: each caller says whether someone is there to answer.
+    func cleanSelected(escalate: Bool) {
         let chosen = items.filter(\.include)
         guard !chosen.isEmpty else { return }
         phase = .cleaning
@@ -204,7 +207,11 @@ final class JunkCleaner: ObservableObject {
             // Finder, which shows the standard administrator prompt and moves
             // them to the Trash exactly like a drag would. One batch, one
             // prompt; a cancel leaves them in place and they count as failed.
-            if !stubborn.isEmpty {
+            if !escalate {
+                // Unattended pass: nobody can answer the prompt, so they
+                // stay put and count as failed.
+                failed += stubborn.count
+            } else if !stubborn.isEmpty {
                 let stillSafe = stubborn.filter { Self.mayRemove($0, installed: installed) }
                 failed += stubborn.count - stillSafe.count
                 Self.trashViaFinder(stillSafe.map(\.url))

@@ -7,9 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds quit and close protections, expands screen text recognition, capture magnifier, the screen recording editor, clipboard, Super key, Dock Preview, App Switcher, Window Layout, mouse controls, snippet controls and the disk image installer, broadens app update and safe cleanup discovery, and hardens shortcut capture and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, update and uninstallation teardown, switching to the chosen app, window handling and shared on-screen parsing, pasteboard restoration, the Homebrew panel's package list, the radial menu's Now Playing card, the docked shelf's saved items, sensor selection, Cleaning Mode unlock, favicon downloads, the What's New showcase video download, stopping a recording, and the sound of screen recordings. It also improves mouse scrolling feel, disk space and system monitor metrics, Command Bar, App Switcher and radial menu responsiveness, Settings, Scratchpad, Screenshot Editor, floating panels and several menu bar behaviors.
+Vorssaint adds quit and close protections, a pause-on-lock option for Keep Awake and a Command Bar restart action, expands screen text recognition, capture magnifier, the screen recording editor, clipboard controls, Super key, Dock Preview, App Switcher, Window Layout, mouse controls, snippet controls and the disk image installer, broadens app update and safe cleanup discovery, and hardens unattended cleanup, shortcut capture, Command Bar editing and key caps, permission guide recovery, input session switching, Accessibility timeouts, Volume Mixer audio rendering, helper process attribution and teardown, Super key shutdown, process termination, local build signing, update and uninstallation teardown, switching to the chosen app, window handling and shared on-screen parsing, pasteboard restoration, the Homebrew panel's package list and long running package jobs, the radial menu's Now Playing card, the docked shelf's saved items and closing behavior, sensor selection, Cleaning Mode unlock, favicon downloads, the What's New showcase video download, temporary share links, stopping a recording, and the sound of screen recordings. It also improves mouse scrolling feel, disk space and system monitor metrics, screen recording preparation, Command Bar, App Switcher, Dock Preview and radial menu responsiveness and input guidance, Settings, Scratchpad, Screenshot Editor, screen capture selector contrast, floating panels and several menu bar behaviors.
 
 ### Added
+- Keep Awake can pause while the Mac is locked and resume the remaining session after it is unlocked. Thanks to @Advaith3600.
+- The Command Bar can now restart Vorssaint directly. Thanks to @CSkjolden.
 - Settings now includes optional protections for Command-Q and Command-W that follow the active keyboard layout, with customizable hold duration, double press, extra modifier requirements and per-app scopes. Thanks to @RuanMD and @PathGao.
 - The capture magnifier now shows each screen pixel on a grid with the pointer's position and color, moves one pixel at a time with the arrow keys, copies the color with C without ending the capture, and can optionally open enabled by default from Settings. Thanks to @ruvelro.
 - Mouse settings now include an optional control to disable pointer acceleration for connected mice, restoring the previous system setting when it is turned off or the app quits. Thanks to @CrowKiller.
@@ -22,6 +24,8 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Copy Text from Screen now includes an option in Settings to remove line breaks and join recognized lines as a single paragraph with script-aware spacing. Thanks to @ywu73.
 - Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
 - Clipboard history multi-selection now offers a bulk deletion button and supports Command-Delete and Option-Delete to remove selected items at once. Thanks to @ElPotara.
+- Shelf can now clear every item when its close button is used, while automatic hiding and collapsing continue to keep items. Thanks to @bilalnoork.
+- Clipboard history can now clear all unpinned items from the Command Bar after an inline confirmation. Thanks to @CSkjolden.
 - Super key can now use Caps Lock or the right Command, Option, Control or Shift key, with the chosen key shown across Settings, shortcuts and the menu panel. Thanks to @JoanLaRosa.
 - The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
 - The App Switcher can now open on the screen under the pointer, the screen with the menu bar or the screen with the active window. Thanks to @noahjstewart.
@@ -30,6 +34,10 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - The screen recording editor can now blur any area of the picture for as long as you choose, keeping names, emails and other private details unreadable even inside zooms.
 
 ### Changed
+- Dock Preview now does less work on every mouse move the system produces. Thanks to @PathGao.
+- The Command Bar now prepares each group of rows once while it opens instead of redoing the same work as every source arrives, so the first keystrokes land sooner. Thanks to @PathGao.
+- Window Layout shortcuts now find the app that owns the focused window directly instead of reading the whole list of running apps for each candidate. Thanks to @PathGao.
+- Long screen recordings now prepare pointer and zoom effects more efficiently before preview and export. Thanks to @PathGao.
 - Minimizing a window right after switching to it now stops reading window state once the previous app is back, instead of repeating the same Accessibility reads throughout the minimize animation, so the keyboard stays responsive. Thanks to @PathGao.
 - Using the same Window Layout shortcut for left or right again now carries the window to the display on that side, landing on the half it came in through.
 - Window controls, Dock clicks and mouse exceptions now share consistent on-screen window parsing while preserving their existing behavior. Thanks to @PathGao.
@@ -52,8 +60,17 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Cleaning now checks which apps are still installed once per run instead of once per leftover, and skips that check entirely when no leftover is selected, so a clean starts without scanning the application folders. Thanks to @PathGao.
 - GPU usage sampling no longer leaves a system resource behind on Macs with more than one graphics processor, and extra brightness now does less work on each refresh. Thanks to @PathGao.
 - The radial menu now checks only which extra mouse button opens a wheel when a side button is pressed, instead of loading every wheel and its icons on each event, so holding a side button and moving the mouse no longer risks dropped clicks. Thanks to @PathGao.
+- The recording editor's filmstrip now scrubs through the video when you drag across it, showing the frame under the pointer as you go. Hold Shift while dragging to pick a stretch to cut out, and each cut-out stretch now goes dark on the filmstrip. Thanks to @saminton.
 
 ### Fixed
+- Radial Menu settings now make clear that its mouse trigger needs an extra button and that trackpads and mice without one use the keyboard shortcut. Thanks to @PathGao.
+- The Command Bar now supports Select All, Copy, Cut and Paste in its search field, and its own shortcuts follow alternate keyboard layouts. Thanks to @alexis-morain and @PathGao.
+- Temporary screenshot and recording links no longer stay listed as available after they expire while the Mac is asleep. Thanks to @PathGao.
+- The screen capture selector now uses high-contrast backdrops behind its guides, mode palette and hints, keeping text readable over bright and mixed backgrounds. Thanks to @nik-2002.
+- A Homebrew install, upgrade or uninstall that stops responding no longer leaves the panel unable to answer anything else, and a slow download or build is still allowed to finish. Thanks to @PathGao.
+- Automatic cleaning now leaves protected items in place instead of requesting an administrator password while unattended, and reports that they could not be moved to the Trash. Thanks to @PathGao.
+- Local builds now verify their stable signing identity before use and unlock its dedicated keychain when needed, preventing rebuilds from losing existing system permissions. Thanks to @PathGao.
+- Features that handle keyboard, mouse and media keys now step aside during fast user switching, preventing input stalls in the active account. Thanks to @PathGao.
 - Restoring screen gamma before switching off a display now verifies the display's identity, preventing a dimmed curve from applying to another monitor after reconnections. Thanks to @PathGao.
 - The radial menu now releases its mouse button tap when switching macOS user accounts and closes any open wheel, preventing extra button clicks from stalling in the other account. Thanks to @PathGao.
 - Paste as plain text no longer freezes the app when the app you copied from is slow to hand over the copied content. Thanks to @PathGao.
@@ -75,7 +92,7 @@ Vorssaint adds quit and close protections, expands screen text recognition, capt
 - Smooth Scroll and Scroll Inverter now step aside during fast user switching and resume on return, preventing background scroll stalls. Thanks to @iltonandrew.
 - Turning features on and off repeatedly no longer leaves unused keyboard and mouse listeners registered with the system for the rest of the session. Thanks to @PathGao.
 - Mouse navigation, button shortcuts and middle click now step aside outside the active login session or after Accessibility access is removed, preventing input stalls.
-- Focus follows mouse now leaves chosen apps alone and tracks the final pointer position during drags before changing focus.
+- Focus follows mouse now leaves chosen apps alone, waits for every held mouse button to be released and tracks the final pointer position during drags before changing focus. Thanks to @khichinho.
 - Cleaning Mode now ends when its login session leaves the screen, preventing its input lock from affecting another active user.
 - Window capture now includes attached sheets, alerts and modal dialogs stacked on a window, including when part of it is off-screen, while preserving full-window capture when it crosses displays. Thanks to @iltonandrew.
 - Accessibility messaging now uses a single, consistent process-wide timeout floor instead of allowing separate features to overwrite the shared limit. Thanks to @PathGao.

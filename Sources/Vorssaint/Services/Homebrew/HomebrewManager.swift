@@ -681,6 +681,11 @@ final class HomebrewManager: ObservableObject {
     /// These are normally fast, but a hung NFS share or locked database can
     /// make them stall indefinitely.
     private static let brewReadTimeout: TimeInterval = 30
+    /// Install/upgrade/uninstall run on the same serial queue as every read, so a
+    /// hung one must end eventually. A big download, a source build and a copy into
+    /// Applications are all slow but never silent, so the bound is on silence: a cap
+    /// on total time would end work that was still going.
+    private static let brewSilenceTimeout: TimeInterval = 15 * 60
     private static let processTerminationGrace: TimeInterval = 2
 
     /// SIGTERM is cooperative. Escalate only when a command ignores it so a
@@ -758,6 +763,7 @@ final class HomebrewManager: ObservableObject {
             process.standardOutput = pipe
             process.standardError = pipe
             var output = Data()
+            var lastOutput = Date()
             let lock = NSLock()
             let drained = DispatchSemaphore(value: 0)
             pipe.fileHandleForReading.readabilityHandler = { handle in
@@ -768,11 +774,14 @@ final class HomebrewManager: ObservableObject {
                 }
                 lock.lock()
                 output.append(data)
+                lastOutput = Date()
                 lock.unlock()
                 if let chunk = String(data: data, encoding: .utf8) {
                     DispatchQueue.main.async { onOutput(chunk) }
                 }
             }
+            let finished = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in finished.signal() }
             do {
                 try process.run()
             } catch {
@@ -785,14 +794,22 @@ final class HomebrewManager: ObservableObject {
                 self.activeProcess = process
                 if self.cancelRequested { Self.stop(process) }
             }
-            process.waitUntilExit()
+            while finished.wait(timeout: .now() + Self.brewSilenceTimeout) == .timedOut {
+                lock.lock()
+                let silence = Date().timeIntervalSince(lastOutput)
+                lock.unlock()
+                if silence >= Self.brewSilenceTimeout {
+                    Self.stop(process, finished: finished)
+                    break
+                }
+            }
             _ = drained.wait(timeout: .now() + 1)
             pipe.fileHandleForReading.readabilityHandler = nil
             try? pipe.fileHandleForReading.close()
             lock.lock()
             let finalOutput = String(data: output, encoding: .utf8) ?? ""
             lock.unlock()
-            completion(process.terminationStatus, finalOutput)
+            completion(process.isRunning ? -1 : process.terminationStatus, finalOutput)
         }
     }
 

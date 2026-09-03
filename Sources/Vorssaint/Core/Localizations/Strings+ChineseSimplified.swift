@@ -987,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "连接多个屏幕时，切换器在哪个屏幕上打开。",
         smoothScrollResponseLabel: "响应",
         mouseAccelerationName: "关闭鼠标加速",
-        mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。"
+        mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
+        shelfClearOnClose: "关闭时清空",
+        shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。"
     )
 }

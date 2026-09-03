@@ -102,7 +102,7 @@ final class CommandBarService: ObservableObject {
     private var flagsMonitor: Any?
     private var activationObserver: NSObjectProtocol?
 
-    private var catalog: [CommandBarEntry] = []
+    private var catalog: [CommandBarEntry] = [] { didSet { foldedSections[.catalog] = nil } }
     let scriptRunner = CommandBarScriptRunner()
     let fileSearch = CommandBarFileSearch()
     /// Which row answered which few letters, for as long as the app runs. Not
@@ -115,30 +115,30 @@ final class CommandBarService: ObservableObject {
     private var entriesByStableKey: [String: CommandBarEntry] = [:]
     private var presentationLifecycle = CommandBarPresentationLifecycle()
     private var deferredRowShortcut = CommandBarDeferredRowShortcut()
-    private var appEntries: [CommandBarEntry] = []
-    private var windowEntries: [CommandBarEntry] = []
-    private var quitEntries: [CommandBarEntry] = []
+    private var appEntries: [CommandBarEntry] = [] { didSet { foldedSections[.apps] = nil } }
+    private var windowEntries: [CommandBarEntry] = [] { didSet { foldedSections[.windows] = nil } }
+    private var quitEntries: [CommandBarEntry] = [] { didSet { foldedSections[.quit] = nil } }
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
     private var appsLoading = false
     private var windowsLoading = false
     private var windowsLoadedAt: Date?
-    private var menuEntries: [CommandBarEntry] = []
-    private var emojiEntries: [CommandBarEntry] = []
+    private var menuEntries: [CommandBarEntry] = [] { didSet { foldedSections[.menus] = nil } }
+    private var emojiEntries: [CommandBarEntry] = [] { didSet { foldedSections[.emoji] = nil } }
     /// The Mac's own Settings panes, scanned once per launch. The language
     /// they were built in comes with them, because the words they answer to
     /// are translated and a change of language has to reread them.
-    private var macSettingsEntries: [CommandBarEntry] = []
+    private var macSettingsEntries: [CommandBarEntry] = [] { didSet { foldedSections[.macSettings] = nil } }
     private var macSettingsLanguage: AppLanguage?
     private var macSettingsLoading = false
     /// Rows that act on what was selected when the bar opened. Read once per
     /// opening and thrown away on close: a selection is a moment, not a state.
-    private var selectionEntries: [CommandBarEntry] = []
+    private var selectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.selection] = nil } }
     private var selectionLoading = false
     /// One row per running process. Read once per opening through
     /// `KillProcessService`'s own cache, same lifetime as `selectionEntries`.
-    private var killProcessEntries: [CommandBarEntry] = []
+    private var killProcessEntries: [CommandBarEntry] = [] { didSet { foldedSections[.killProcess] = nil } }
     private var killProcessEntriesLoading = false
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
@@ -674,7 +674,9 @@ final class CommandBarService: ObservableObject {
     /// The rest of what the person decided, cached for the same reason and
     /// with the same lifetime: read once when the bar opens, asked for by
     /// every row on every keystroke after that.
-    private var aliasCache: [String: String] = [:]
+    private var aliasCache: [String: String] = [:] {
+        didSet { if aliasCache != oldValue { foldedSections = [:] } }
+    }
     private var hiddenCache: Set<String> = []
     private var disabledCache: Set<CommandBarSource> = []
     private var usageCache: [String: CommandBarUse] = [:]
@@ -858,43 +860,71 @@ final class CommandBarService: ObservableObject {
         return indexableEntries.last { $0.stableKey == key }
     }
 
-    /// Every row the bar can rank right now, in the order the pool builds
-    /// them: what the Mac holds first, what is borrowed after.
-    private var indexableEntries: [CommandBarEntry] {
-        selectionEntries + killProcessEntries + catalog + appEntries + macSettingsEntries + windowEntries
-            + quitEntries + menuEntries + emojiEntries
+    /// The nine lists the pool is made of, in the order it builds them: what
+    /// the Mac holds first, what is borrowed after.
+    private enum PoolSection: CaseIterable {
+        case selection, killProcess, catalog, apps, macSettings, windows, quit, menus, emoji
     }
 
-    private func indexEntries() {
-        index(indexableEntries)
+    private func entries(in section: PoolSection) -> [CommandBarEntry] {
+        switch section {
+        case .selection: return selectionEntries
+        case .killProcess: return killProcessEntries
+        case .catalog: return catalog
+        case .apps: return appEntries
+        case .macSettings: return macSettingsEntries
+        case .windows: return windowEntries
+        case .quit: return quitEntries
+        case .menus: return menuEntries
+        case .emoji: return emojiEntries
+        }
     }
+
+    /// Every row the bar can rank right now.
+    private var indexableEntries: [CommandBarEntry] {
+        PoolSection.allCases.flatMap { entries(in: $0) }
+    }
+
+    /// Each list's folded copy, dropped by the `didSet` when that list is
+    /// assigned again. The lists land from separate background passes, each
+    /// calling `indexEntries()`, so one opening indexes seven to ten times.
+    private var foldedSections: [PoolSection: [(title: String, keywords: String)]] = [:]
 
     private func clearIndex() {
         entriesByID = [:]
         normalizedByID = [:]
         entriesByStableKey = [:]
+        // Nothing folded outlives the panel.
+        foldedSections = [:]
     }
 
-    private func index(_ entries: [CommandBarEntry]) {
-        entriesByID = [:]
-        for entry in entries {
-            entriesByID[entry.id] = entry
-        }
+    private func indexEntries() {
         // Folding a thousand titles on every keystroke is the one thing that
-        // could make typing feel heavy. It happens here instead, once per
-        // rebuild.
+        // could make typing feel heavy. It happens here instead, once per list
+        // per rebuild: a list nobody assigned again keeps the copy it has.
+        let names = aliasCache
+        for section in PoolSection.allCases where foldedSections[section] == nil {
+            foldedSections[section] = entries(in: section).map { entry in
+                // A name the person gave is searchable text like any other, so
+                // the row surfaces even when its real title shares nothing with it.
+                let alias = names[entry.stableKey]
+                    .map { " " + CommandBarSearch.normalized($0) } ?? ""
+                return (CommandBarSearch.normalized(entry.matchTitle ?? entry.title),
+                        CommandBarSearch.normalized(entry.keywords) + alias)
+            }
+        }
+        // The three maps are built from nothing every time, so a row that left
+        // its list - the menus of the app that was in front a moment ago -
+        // cannot stay pressable.
+        entriesByID = [:]
         normalizedByID = [:]
         entriesByStableKey = [:]
-        let names = aliasCache
-        for entry in entries {
-            entriesByStableKey[entry.stableKey] = entry
-            // A name the person gave is searchable text like any other, so the
-            // row surfaces even when its real title shares nothing with it.
-            let alias = names[entry.stableKey]
-                .map { " " + CommandBarSearch.normalized($0) } ?? ""
-            normalizedByID[entry.id] = (
-                CommandBarSearch.normalized(entry.matchTitle ?? entry.title),
-                CommandBarSearch.normalized(entry.keywords) + alias)
+        for section in PoolSection.allCases {
+            for (entry, folded) in zip(entries(in: section), foldedSections[section] ?? []) {
+                entriesByID[entry.id] = entry
+                entriesByStableKey[entry.stableKey] = entry
+                normalizedByID[entry.id] = folded
+            }
         }
     }
 
@@ -2535,26 +2565,50 @@ final class CommandBarService: ObservableObject {
                 return nil
             }
 
+            let navigationModifiers = event.modifierFlags
+                .intersection([.command, .option, .shift, .control])
             if event.modifierFlags.contains(.command) {
-                switch Int(event.keyCode) {
-                case kVK_ANSI_Q, kVK_ANSI_W, kVK_ANSI_M, kVK_ANSI_H:
+                // `characters` is the Command-aware key macOS resolves: it
+                // follows remapped Latin layouts and supplies the positional
+                // Latin equivalent when the active layout is non-Latin. Option
+                // rewrites it into the alternate glyph, and the app's own menu
+                // owns ⌥⌘H, so while Option is held the unmodified reading is
+                // the one that still names the key to swallow.
+                let key = (event.modifierFlags.contains(.option)
+                    ? event.charactersIgnoringModifiers
+                    : event.characters)?.lowercased()
+                switch key {
+                case "q", "w", "m", "h":
                     // The app's menu owns these combinations and the panel is
                     // key, so they would quit, close or hide Vorssaint while
                     // the person believes they are acting on the app the bar
                     // is floating over.
                     return nil
-                case kVK_ANSI_Comma:
+                case ",":
                     self.hide()
                     SettingsRouter.shared.page = .commandBar
                     appDelegate()?.openSettingsWindow()
                     return nil
+                case "k":
+                    self.openActions()
+                    return nil
+                case "p":
+                    if let entry = self.selectedEntry, !entry.isAnswer,
+                       CommandBarPreferences.acceptsPin(rowID: entry.id) {
+                        self.togglePin(entry)
+                    }
+                    return nil
+                case "a" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: panel) ? nil : event
+                case "c" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: panel) ? nil : event
+                case "x" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: panel) ? nil : event
+                case "v" where navigationModifiers == [.command]:
+                    return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: panel) ? nil : event
                 default:
                     break
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_K {
-                self.openActions()
-                return nil
             }
             // ⌘Return shows the selected row where it lives. Guarded by the
             // row's own rule, so a row with nowhere to go hands the keys back
@@ -2566,13 +2620,6 @@ final class CommandBarService: ObservableObject {
                     self.revealInFinder(entry)
                     return nil
                 }
-            }
-            if event.modifierFlags.contains(.command), Int(event.keyCode) == kVK_ANSI_P {
-                if let entry = self.selectedEntry, !entry.isAnswer,
-                   CommandBarPreferences.acceptsPin(rowID: entry.id) {
-                    self.togglePin(entry)
-                }
-                return nil
             }
             switch Int(event.keyCode) {
             case kVK_Escape:
@@ -2606,8 +2653,6 @@ final class CommandBarService: ObservableObject {
                     self.run(at: index)
                     return nil
                 }
-                let navigationModifiers = event.modifierFlags
-                    .intersection([.command, .option, .shift, .control])
                 if navigationModifiers == [.control],
                    let key = event.charactersIgnoringModifiers?.lowercased() {
                     // Match the typed letter so alternate keyboard layouts

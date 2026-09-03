@@ -921,15 +921,15 @@ struct CleanerView: View {
             Spacer()
             Button(l10n.s.uninstallerCancel) { cleaner.reset() }
                 .panelKeyboardRow(keyboardRow("cleaner-cancel"), actions: PanelRowActions(activate: { cleaner.reset() }))
+            // Someone is at the keyboard for either path, so both may escalate.
+            let cleanNow = { cleaner.cleanSelected(escalate: true) }
             Button(String(format: l10n.s.cleanerCleanSizeFormat,
-                          Self.byteString(cleaner.selectedSize))) {
-                cleaner.cleanSelected()
-            }
+                          Self.byteString(cleaner.selectedSize)), action: cleanNow)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(cleaner.selectedCount == 0)
             .panelKeyboardRow(cleaner.selectedCount == 0 ? nil : keyboardRow("cleaner-apply"),
-                              actions: PanelRowActions(activate: { cleaner.cleanSelected() }))
+                              actions: PanelRowActions(activate: cleanNow))
         }
         .padding(compact ? 12 : 16)
     }

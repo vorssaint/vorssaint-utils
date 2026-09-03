@@ -122,7 +122,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Clipboard history.** Local history of text, images and files with pinned favorites, search, quick paste shortcuts and an on-demand preview where text can be selected or edited.
 - **Auto clear clipboard.** Empty the system clipboard a set time after you copy, and when the Mac sleeps, the display sleeps or the screen locks. Each trigger is optional, works with history off, and leaves your saved items untouched.
 - **Paste as plain text.** One shortcut pastes without fonts, colors or links, and the original stays on the clipboard.
-- **Shelf.** Park files, text and links near your cursor mid drag, or open it from a screen edge, then drop them where they belong later.
+- **Shelf.** Park files, text and links near your cursor mid drag, or open it from a screen edge, then drop them where they belong later. Choose whether its close button clears every item or keeps them for later.
 - **Finder shortcuts.** ⌘X and ⌘V move files, an optional F2 shortcut renames the selection, and copied images can become PNG files with ⌘V.
 - **Clean URL.** Strips tracking parameters and extra names you choose from copied links, on demand or automatically.
 - **Disk image installer.** When a mounted disk image contains one app, install it into Applications with one click and eject the image. Choose whether to move its download to Trash and show the installed app in Finder.
@@ -150,7 +150,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Energy and display
 
-- **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, including with the lid closed, let displays sleep without stopping local work, choose the active menu bar icon and color, see the remaining time beside it, and optionally toggle it with a right click.
+- **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display or power connection, pause the session while the Mac is locked, keep going with the lid closed, let displays sleep without stopping local work, choose the active menu bar icon and color, see the remaining time beside it, and optionally toggle it with a right click.
 - **Displays.** Adjust brightness or turn individual displays on and off. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage.
 - **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom.
 - **Bluetooth on sleep.** Switches Bluetooth off while the Mac sleeps, so a laptop in a bag stops stealing the headphones you are listening to elsewhere. Bluetooth you had already turned off stays off, and only what Vorssaint switched off comes back on wake.

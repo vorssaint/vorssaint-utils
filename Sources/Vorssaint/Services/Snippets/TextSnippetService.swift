@@ -33,7 +33,9 @@ final class TextSnippetService {
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     var isRunning: Bool { tapLifecycleLock.withLock { tap != nil } }
 
@@ -44,7 +46,9 @@ final class TextSnippetService {
         let hasWork = inputLock.withLock {
             !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
         }
-        if enabled, hasWork, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(featureWanted: enabled && hasWork,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
             let libraryIsVisible = SnippetLibraryService.shared.isVisible
             let commandBarIsVisible = AppFeature.commandBar.isAvailable
                 && CommandBarService.shared.isVisible
@@ -223,7 +227,11 @@ final class TextSnippetService {
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
+                CGEvent.tapEnable(tap: currentTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             return Unmanaged.passUnretained(event)
         }
         // Clicks move the caret somewhere unknown; the half-typed trigger is

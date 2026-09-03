@@ -987,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno.",
         smoothScrollResponseLabel: "Reattività",
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
-        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint."
+        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+        shelfClearOnClose: "Svuota alla chiusura",
+        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano."
     )
 }
