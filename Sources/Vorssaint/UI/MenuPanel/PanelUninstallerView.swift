@@ -341,6 +341,10 @@ struct PanelUninstallerView: View {
                                       }
                                   }), cornerRadius: 6)
             }
+            .panelKeyboardRowGroup([
+                PanelRowID(.utilities, "uninstaller-footerCancel"),
+                PanelRowID(.utilities, "uninstaller-remove"),
+            ])
         }
     }
 

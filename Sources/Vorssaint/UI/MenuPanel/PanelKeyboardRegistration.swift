@@ -62,6 +62,14 @@ private struct PanelRowGeometryPreferenceKey: PreferenceKey {
     }
 }
 
+private struct PanelRowGroupPreferenceKey: PreferenceKey {
+    static var defaultValue: [[PanelRowID]] = []
+
+    static func reduce(value: inout [[PanelRowID]], nextValue: () -> [[PanelRowID]]) {
+        value.append(contentsOf: nextValue())
+    }
+}
+
 private struct PanelKeyboardRowModifier: ViewModifier {
     @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.isMenuPanelHost) private var isMenuPanelHost
@@ -143,18 +151,41 @@ private struct PanelKeyboardRowListModifier: ViewModifier {
 }
 
 private struct PanelKeyboardRowOrderModifier: ViewModifier {
+    @State private var entries: [PanelRowGeometry] = []
+    @State private var groups: [[PanelRowID]] = []
+
     func body(content: Content) -> some View {
         content
             .coordinateSpace(name: PanelKeyboardNavigator.rowCoordinateSpace)
             .onPreferenceChange(PanelRowGeometryPreferenceKey.self) { entries in
-                // A list's rows all take their container's frame: the panel's
-                // own scroll view only ever needs to bring the list into view,
-                // and the list scrolls to the focused row from the inside.
-                let ordered = entries
-                    .sorted { $0.frame.minY < $1.frame.minY }
-                    .flatMap { entry in entry.ids.map { ($0, entry.frame) } }
-                PanelKeyboardNavigator.shared.configureRowOrder(ordered)
+                self.entries = entries
+                configureNavigator()
             }
+            .onPreferenceChange(PanelRowGroupPreferenceKey.self) { groups in
+                self.groups = groups
+                configureNavigator()
+            }
+    }
+
+    private func configureNavigator() {
+        // Keep equal-height rows in the order SwiftUI reported them. Sorting
+        // only by minY is not stable, so same-line controls could randomly
+        // trade places or make vertical navigation appear to skip rows.
+        let ordered = entries.enumerated()
+            .sorted { lhs, rhs in
+                let delta = lhs.element.frame.minY - rhs.element.frame.minY
+                return abs(delta) > 0.5 ? delta < 0 : lhs.offset < rhs.offset
+            }
+            .flatMap { entry in entry.element.ids.map { ($0, entry.element.frame) } }
+        PanelKeyboardNavigator.shared.configureRowOrder(ordered, groups: groups)
+    }
+}
+
+private struct PanelKeyboardRowGroupModifier: ViewModifier {
+    let ids: [PanelRowID]
+
+    func body(content: Content) -> some View {
+        content.preference(key: PanelRowGroupPreferenceKey.self, value: [ids])
     }
 }
 
@@ -214,6 +245,13 @@ extension View {
     /// list has.
     func panelKeyboardRowList(_ ids: [PanelRowID]) -> some View {
         modifier(PanelKeyboardRowListModifier(ids: ids))
+    }
+
+    /// Treats controls on one visual line as one Up/Down stop. Left/Right
+    /// walks within the line; vertical movement enters and leaves the group
+    /// without visiting every control sideways.
+    func panelKeyboardRowGroup(_ ids: [PanelRowID]) -> some View {
+        modifier(PanelKeyboardRowGroupModifier(ids: ids))
     }
 
     /// Marks the root of a section's scrollable content: establishes the

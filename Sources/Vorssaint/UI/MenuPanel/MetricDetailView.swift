@@ -148,6 +148,7 @@ struct MetricDetailView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var speed = SpeedTest.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
@@ -650,7 +651,7 @@ struct MetricDetailView: View {
                           self.kind.processKind == processKind else { return }
                     self.processRowsLoading = rows.isEmpty && isWarmingUp
                     if !rows.isEmpty || self.processRows.isEmpty {
-                        self.processRows = rows
+                        self.processRows = self.stabilizedProcessRows(rows)
                     }
                     if rows.isEmpty && isWarmingUp {
                         self.refreshProcessRows(force: true, delay: 1.0)
@@ -663,6 +664,30 @@ struct MetricDetailView: View {
         } else {
             run()
         }
+    }
+
+    /// Resource samples are ranked on every refresh. Replacing the list with
+    /// that new ranking while a process row has keyboard focus moves the ring
+    /// without a key press, then makes the next arrow appear to skip. Keep the
+    /// current visual order for surviving PIDs during keyboard traversal and
+    /// update only their values; newly observed processes follow afterward.
+    private func stabilizedProcessRows(_ refreshed: [ProcessUsage]) -> [ProcessUsage] {
+        guard case .row(let focused)? = navigator.focus,
+              focused.section == kind.panelSection,
+              let focusedPID = processPID(from: focused),
+              processRows.contains(where: { $0.pid == focusedPID }) else {
+            return refreshed
+        }
+        let byPID = Dictionary(uniqueKeysWithValues: refreshed.map { ($0.pid, $0) })
+        let surviving = processRows.compactMap { byPID[$0.pid] }
+        let existingPIDs = Set(processRows.map(\.pid))
+        return surviving + refreshed.filter { !existingPIDs.contains($0.pid) }
+    }
+
+    private func processPID(from row: PanelRowID) -> pid_t? {
+        guard let local = row.local.base as? String,
+              local.hasPrefix("process-") else { return nil }
+        return Int32(local.dropFirst("process-".count))
     }
 
     private var percentageSampleInterval: TimeInterval {

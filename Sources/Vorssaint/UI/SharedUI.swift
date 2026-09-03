@@ -75,12 +75,21 @@ struct FullDiskAccessNote: View {
             }
             .controlSize(.small)
             .font(compact ? .system(size: 10.5) : nil)
+            .panelKeyboardRowGroup(keyboardRowGroup)
         }
         .padding(compact ? 9 : 11)
         .background(
             RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
                 .fill(Color.primary.opacity(compact ? 0.045 : 0.05))
         )
+    }
+
+    private var keyboardRowGroup: [PanelRowID] {
+        guard let keyboardSection else { return [] }
+        return [
+            PanelRowID(keyboardSection, "fullDiskAccess-grant"),
+            PanelRowID(keyboardSection, "fullDiskAccess-relaunch"),
+        ]
     }
 }
 

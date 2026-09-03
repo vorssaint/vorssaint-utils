@@ -103,6 +103,7 @@ final class PanelKeyboardNavigator: ObservableObject {
 
     // Kept current by the row registration modifier and its order collector.
     private var rowOrder: [PanelRowID] = []
+    private var rowGroups: [PanelRowID: [PanelRowID]] = [:]
     private var rowFrames: [PanelRowID: CGRect] = [:]
     private var rowActions: [PanelRowID: PanelRowActions] = [:]
 
@@ -171,13 +172,17 @@ final class PanelKeyboardNavigator: ObservableObject {
     /// `rowCoordinateSpace` — the coordinate space of the scroll view's own
     /// document view, so `OverlayScrollView` can scroll a row into view
     /// without knowing anything about the panel's content.
-    func configureRowOrder(_ rows: [(id: PanelRowID, frame: CGRect)]) {
+    func configureRowOrder(_ rows: [(id: PanelRowID, frame: CGRect)],
+                           groups: [[PanelRowID]] = []) {
         // Layout can report the same id twice for a pass while a list
         // rebuilds. The row keeps the first place it was reported in and the
         // last frame it was measured at, rather than the panel trapping on a
         // duplicate key.
         var seen: Set<PanelRowID> = []
         rowOrder = rows.map(\.id).filter { seen.insert($0).inserted }
+        rowGroups = groups.reduce(into: [:]) { result, group in
+            for row in group { result[row] = group }
+        }
         rowFrames = Dictionary(rows.map { ($0.id, $0.frame) }, uniquingKeysWith: { _, latest in latest })
         if case .row(let focused)? = focus, !rowOrder.contains(focused) {
             focus = fallbackFocus()
@@ -305,7 +310,16 @@ final class PanelKeyboardNavigator: ObservableObject {
         if !tabs.isEmpty, let activeTab {
             steps.append(.tab(activeTab))
         }
-        steps.append(contentsOf: rowOrder.map { .row($0) })
+        var includedGroups: Set<PanelRowID> = []
+        for row in rowOrder {
+            if let group = rowGroups[row], let representative = group.first(where: rowOrder.contains) {
+                guard includedGroups.insert(representative).inserted else { continue }
+                let focused = group.contains { focus == .row($0) }
+                steps.append(.row(focused ? group.first(where: { focus == .row($0) })! : representative))
+            } else {
+                steps.append(.row(row))
+            }
+        }
         steps.append(contentsOf: trailingChrome.map { .chrome($0) })
         return steps
     }
@@ -320,9 +334,11 @@ final class PanelKeyboardNavigator: ObservableObject {
         case .chrome:
             return false
         case .row(let id):
-            guard let actions = rowActions[id] else { return false }
-            if let adjust = actions.adjust { return adjust(.decrease, fine) }
-            if let exit = actions.exit { return exit() }
+            if let actions = rowActions[id] {
+                if let adjust = actions.adjust { return adjust(.decrease, fine) }
+                if let exit = actions.exit { return exit() }
+            }
+            if moveWithinRowGroup(id, forward: false) { return true }
             return false
         case nil:
             return false
@@ -339,9 +355,11 @@ final class PanelKeyboardNavigator: ObservableObject {
         case .chrome:
             return false
         case .row(let id):
-            guard let actions = rowActions[id] else { return false }
-            if let adjust = actions.adjust { return adjust(.increase, fine) }
-            if let enter = actions.enter { return enter() }
+            if let actions = rowActions[id] {
+                if let adjust = actions.adjust { return adjust(.increase, fine) }
+                if let enter = actions.enter { return enter() }
+            }
+            if moveWithinRowGroup(id, forward: true) { return true }
             return false
         case nil:
             return false
@@ -355,9 +373,16 @@ final class PanelKeyboardNavigator: ObservableObject {
             self.focus = steps.first
             return true
         }
-        if index + 1 < steps.count {
-            self.focus = steps[index + 1]
-        }
+        guard index + 1 < steps.count else { return false }
+        self.focus = steps[index + 1]
+        return true
+    }
+
+    private func moveWithinRowGroup(_ id: PanelRowID, forward: Bool) -> Bool {
+        guard let group = rowGroups[id], let index = group.firstIndex(of: id) else { return false }
+        let destination = forward ? index + 1 : index - 1
+        guard group.indices.contains(destination), rowOrder.contains(group[destination]) else { return false }
+        focus = .row(group[destination])
         return true
     }
 
@@ -365,12 +390,11 @@ final class PanelKeyboardNavigator: ObservableObject {
         let steps = sequence
         guard !steps.isEmpty else { return false }
         guard let focus, let index = steps.firstIndex(of: focus) else {
-            self.focus = steps.first
+            self.focus = steps.last
             return true
         }
-        if index > 0 {
-            self.focus = steps[index - 1]
-        }
+        guard index > 0 else { return false }
+        self.focus = steps[index - 1]
         return true
     }
 

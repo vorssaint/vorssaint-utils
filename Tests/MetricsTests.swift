@@ -22830,6 +22830,47 @@ struct MetricsTests {
             expect(navigator.focus == .chrome(.footerSettings), "left moves back along the footer")
 
             reset()
+            navigator.focusRow(PanelRowID(.disk, "stale"))
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up recovers from stale focus")
+            expect(navigator.focus == .chrome(.footerQuit), "up from stale focus recovers at the bottom")
+
+            reset()
+            navigator.focusRow(PanelRowID(.disk, "stale"))
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down recovers from stale focus")
+            expect(navigator.focus == .chrome(.headerFeedback), "down from stale focus recovers at the top")
+
+            reset()
+            navigator.focusRow(PanelRowID(section, "second"))
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down reaches the footer")
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right reaches the last footer action")
+            expect(!navigator.handleKeyDown(key(kVK_DownArrow)), "down at the bottom is handed back")
+            expect(navigator.focus == .chrome(.footerQuit), "down at the bottom leaves focus put")
+
+            reset()
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down reaches the first stop")
+            expect(!navigator.handleKeyDown(key(kVK_UpArrow)), "up at the top is handed back")
+            expect(navigator.focus == .chrome(.headerFeedback), "up at the top leaves focus put")
+
+            reset()
+            let leftGroupRow = PanelRowID(section, "first")
+            let rightGroupRow = PanelRowID(section, "second")
+            let afterGroupRow = PanelRowID(section, "after-group")
+            navigator.configureRowOrder([
+                (leftGroupRow, .zero),
+                (rightGroupRow, .zero),
+                (afterGroupRow, .zero),
+            ], groups: [[leftGroupRow, rightGroupRow]])
+            navigator.focusRow(leftGroupRow)
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right walks within a row group")
+            expect(navigator.focus == .row(rightGroupRow), "right reaches the next control in a row group")
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down leaves a row group")
+            expect(navigator.focus == .row(afterGroupRow), "down skips the remaining horizontal controls")
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up enters a row group")
+            expect(navigator.focus == .row(leftGroupRow), "up enters at the row group's first control")
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right walks forward within a row group")
+            expect(navigator.focus == .row(rightGroupRow), "right reaches the next control in a row group")
+
+            reset()
             var adjustments: [(PanelAdjustDirection, Bool)] = []
             let adjustable = PanelRowID(section, "first")
             navigator.registerRow(adjustable, actions: PanelRowActions(adjust: { direction, fine in
