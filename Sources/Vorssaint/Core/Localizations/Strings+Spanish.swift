@@ -500,8 +500,6 @@ extension Strings {
         shelfCloseAfterDropCaption: "Cierra el estante cuando el destino acepta los ítems. El alfiler del panel lo mantiene abierto.",
         shelfRemoveAfterDrop: "Quitar ítems después de soltarlos",
         shelfRemoveAfterDropCaption: "Los ítems aceptados por otra app salen del estante. Desactívalo para conservar una copia.",
-        shelfClearOnClose: "Borrar al cerrar",
-        shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems.",
         shelfExclusionsTitle: "Excepciones automáticas",
         shelfExclusionsEmpty: "No se añadieron apps.",
         shelfExclusionsCaption: "Agitar y la zona de la barra de menús no se activan en arrastres iniciados en estas apps. El atajo y Abrir ahora siguen funcionando.",
@@ -989,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada.",
         smoothScrollResponseLabel: "Respuesta",
         mouseAccelerationName: "Desactivar la aceleración del ratón",
-        mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint."
+        mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
+        shelfClearOnClose: "Borrar al cerrar",
+        shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems."
     )
 }

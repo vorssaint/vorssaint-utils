@@ -500,8 +500,6 @@ extension Strings {
         shelfCloseAfterDropCaption: "ドロップ先が項目を受け取るとシェルフを閉じます。パネルのピンで開いたままにできます。",
         shelfRemoveAfterDrop: "ドロップ後に項目を削除",
         shelfRemoveAfterDropCaption: "別のアプリが受け取った項目をシェルフから削除します。コピーを残す場合はオフにします。",
-        shelfClearOnClose: "閉じるときに項目を消去",
-        shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。",
         shelfExclusionsTitle: "自動表示の例外",
         shelfExclusionsEmpty: "アプリは追加されていません。",
         shelfExclusionsCaption: "これらのアプリから始めたドラッグでは、振る操作とメニューバーの領域は開きません。ショートカットと今すぐ開くは引き続き使えます。",
@@ -989,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。",
         smoothScrollResponseLabel: "反応",
         mouseAccelerationName: "マウス加速を無効にする",
-        mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。"
+        mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
+        shelfClearOnClose: "閉じるときに項目を消去",
+        shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。"
     )
 }

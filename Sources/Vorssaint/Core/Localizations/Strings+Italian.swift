@@ -500,8 +500,6 @@ extension Strings {
         shelfCloseAfterDropCaption: "Chiude lo scaffale quando la destinazione accetta gli elementi. La puntina nel pannello lo mantiene aperto.",
         shelfRemoveAfterDrop: "Rimuovi gli elementi dopo il rilascio",
         shelfRemoveAfterDropCaption: "Gli elementi accettati da un’altra app lasciano lo scaffale. Disattiva per conservarne una copia.",
-        shelfClearOnClose: "Svuota alla chiusura",
-        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano.",
         shelfExclusionsTitle: "Eccezioni automatiche",
         shelfExclusionsEmpty: "Nessuna app aggiunta.",
         shelfExclusionsCaption: "Lo scuotimento e l’area nella barra dei menu restano inattivi per i trascinamenti avviati in queste app. La scorciatoia e Apri ora funzionano ancora.",
@@ -989,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno.",
         smoothScrollResponseLabel: "Reattività",
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
-        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint."
+        mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+        shelfClearOnClose: "Svuota alla chiusura",
+        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano."
     )
 }

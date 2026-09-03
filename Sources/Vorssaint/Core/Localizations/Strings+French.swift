@@ -500,8 +500,6 @@ extension Strings {
         shelfCloseAfterDropCaption: "Ferme l’étagère quand la destination accepte les éléments. L’épingle du panneau la maintient ouverte.",
         shelfRemoveAfterDrop: "Retirer les éléments après le dépôt",
         shelfRemoveAfterDropCaption: "Les éléments acceptés par une autre app quittent l’étagère. Désactivez cette option pour en garder une copie.",
-        shelfClearOnClose: "Vider à la fermeture",
-        shelfClearOnCloseCaption: "Vide l’étagère uniquement lorsque vous cliquez sur le bouton de fermeture. Le masquage automatique et la réduction conservent les éléments.",
         shelfExclusionsTitle: "Exceptions automatiques",
         shelfExclusionsEmpty: "Aucune app ajoutée.",
         shelfExclusionsCaption: "Le geste de secousse et la zone de dépôt restent inactifs pour les glissements commencés dans ces apps. Le raccourci et Ouvrir restent disponibles.",
@@ -989,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "Sur quel écran le sélecteur s'ouvre quand plusieurs sont connectés.",
         smoothScrollResponseLabel: "Réactivité",
         mouseAccelerationName: "Désactiver l’accélération de la souris",
-        mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint."
+        mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint.",
+        shelfClearOnClose: "Vider à la fermeture",
+        shelfClearOnCloseCaption: "Vide l’étagère uniquement lorsque vous cliquez sur le bouton de fermeture. Le masquage automatique et la réduction conservent les éléments."
     )
 }

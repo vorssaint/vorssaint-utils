@@ -501,8 +501,6 @@ extension Strings {
         shelfCloseAfterDropCaption: "目標接收項目後關閉暫存架。面板中的圖釘可讓它保持開啟。",
         shelfRemoveAfterDrop: "拖放後移除項目",
         shelfRemoveAfterDropCaption: "其他 App 接收的項目會離開暫存架。關閉此選項可保留副本。",
-        shelfClearOnClose: "關閉時清空",
-        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。",
         shelfExclusionsTitle: "自動例外",
         shelfExclusionsEmpty: "尚未加入 App。",
         shelfExclusionsCaption: "從這些 App 開始拖移時，搖動手勢和選單列區域不會開啟。快速鍵和立即開啟仍可使用。",
@@ -990,6 +988,8 @@ extension Strings {
         switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。",
         smoothScrollResponseLabel: "反應速度",
         mouseAccelerationName: "關閉滑鼠加速",
-        mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原先前的設定。"
+        mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原先前的設定。",
+        shelfClearOnClose: "關閉時清空",
+        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。"
     )
 }
