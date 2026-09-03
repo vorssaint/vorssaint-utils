@@ -11310,6 +11310,40 @@ struct MetricsTests {
                     nativeShortcuts: remappedNativeShortcuts)
                == Set(SwitcherNativeSymbolicHotKey.allCases),
                "takeover follows the current macOS shortcut mappings instead of hardcoded keys")
+
+        // The ids come from the WindowServer's own table: 27 and 220 are the
+        // two window-cycling keys, 28 is "save picture of screen as a file".
+        // Mapping from raw ids the way `configuredShortcuts()` does keeps a
+        // wrong id from silently pointing the take-over at the wrong key.
+        let liveSwitcherTable: [Int32: GlobalShortcut] = [
+            1: .switcherDefault,
+            2: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.command, .shift]),
+            27: .switcherWindowDefault,
+            28: GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command, .shift]),
+            220: GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]),
+        ]
+        let mappedSwitcherShortcuts = Dictionary(uniqueKeysWithValues:
+            SwitcherNativeSymbolicHotKey.allCases.compactMap { id in
+                liveSwitcherTable[id.rawValue].map { (id, $0) }
+            })
+        let screenshotToFile = GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command, .shift])
+        expect(mappedSwitcherShortcuts[.previousWindow]
+               == GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]),
+               "the reverse window switcher resolves to Command-Shift-Backtick in the live table")
+        expect(SwitcherSupport.nativeHotkeysToSuppress(
+                    takeOverSystemShortcuts: true,
+                    appsShortcut: .switcherDefault,
+                    windowShortcut: .switcherWindowDefault,
+                    nativeShortcuts: mappedSwitcherShortcuts)
+               == Set(SwitcherNativeSymbolicHotKey.allCases),
+               "with the real ids, Command-Shift-Backtick is taken over together with Command-Backtick")
+        let threeKeyTakeover = SwitcherSupport.nativeHotkeysToSuppress(
+            takeOverSystemShortcuts: true,
+            appsShortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command]),
+            windowShortcut: .switcherWindowDefault,
+            nativeShortcuts: mappedSwitcherShortcuts)
+        expect(!threeKeyTakeover.contains { mappedSwitcherShortcuts[$0] == screenshotToFile },
+               "a switcher shortcut on the 3 key never switches the macOS screenshot key off")
         expect(SwitcherSupport.nativeHotkeyTransition(
                     from: [],
                     to: Set(SwitcherNativeSymbolicHotKey.allCases),

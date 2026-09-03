@@ -45,12 +45,15 @@ enum SwitcherPendingKeyDecision: Equatable {
     case cancelAndSwallow
 }
 
-/// WindowServer identifiers for the app and window switcher actions.
+/// WindowServer identifiers for the app and window switcher actions. Read
+/// them from the table, not from memory: 28 is "save picture of screen as a
+/// file", and mapping the reverse window key there once let a switcher
+/// shortcut on the 3 key switch the macOS screenshot key off.
 enum SwitcherNativeSymbolicHotKey: Int32, CaseIterable, Hashable {
     case commandTab = 1
     case commandShiftTab = 2
     case nextWindow = 27
-    case previousWindow = 28
+    case previousWindow = 220
 }
 
 struct SwitcherNativeHotkeyTransition: Equatable {
