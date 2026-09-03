@@ -38,6 +38,12 @@ struct ScreenshotFeatureStrings {
     let toolShortcutsCaption: String
     let toolSelect: String
     let toolArrow: String
+    let arrowStyleLabel: String
+    let arrowStyleFilled: String
+    let arrowStyleOutline: String
+    let arrowStyleOpen: String
+    let arrowStyleDoubleEnded: String
+    let arrowStyleScribbly: String
     let toolLine: String
     let toolRect: String
     let toolEllipse: String
@@ -200,6 +206,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Use the arrows or choose a number. The first nine tools use 1 to 9. The others have no shortcut.",
         toolSelect: "Select",
         toolArrow: "Arrow",
+        arrowStyleLabel: "Arrow style",
+        arrowStyleFilled: "Solid",
+        arrowStyleOutline: "Outline",
+        arrowStyleOpen: "Open",
+        arrowStyleDoubleEnded: "Double-ended",
+        arrowStyleScribbly: "Scribbly",
         toolLine: "Line",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -341,6 +353,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Use as setas ou escolha um número. As nove primeiras ferramentas usam 1 a 9. As demais ficam sem atalho.",
         toolSelect: "Selecionar",
         toolArrow: "Seta",
+        arrowStyleLabel: "Estilo da seta",
+        arrowStyleFilled: "Sólida",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Aberta",
+        arrowStyleDoubleEnded: "Duas pontas",
+        arrowStyleScribbly: "Rabiscada",
         toolLine: "Linha",
         toolRect: "Retângulo",
         toolEllipse: "Elipse",
@@ -482,6 +500,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Okları kullanın veya bir sayı seçin. İlk dokuz araç 1 ile 9'u kullanır. Diğerlerinin kısayolu yoktur.",
         toolSelect: "Seç",
         toolArrow: "Ok",
+        arrowStyleLabel: "Ok stili",
+        arrowStyleFilled: "Dolu",
+        arrowStyleOutline: "Kontur",
+        arrowStyleOpen: "Açık",
+        arrowStyleDoubleEnded: "Çift uçlu",
+        arrowStyleScribbly: "Karalama",
         toolLine: "Çizgi",
         toolRect: "Dikdörtgen",
         toolEllipse: "Elips",
@@ -623,6 +647,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Используйте стрелки или выберите цифру. Первые девять инструментов используют цифры от 1 до 9. У остальных нет сочетания.",
         toolSelect: "Выбор",
         toolArrow: "Стрелка",
+        arrowStyleLabel: "Стиль стрелки",
+        arrowStyleFilled: "Сплошная",
+        arrowStyleOutline: "Контурная",
+        arrowStyleOpen: "Открытая",
+        arrowStyleDoubleEnded: "Двунаправленная",
+        arrowStyleScribbly: "Набросок",
         toolLine: "Линия",
         toolRect: "Прямоугольник",
         toolEllipse: "Эллипс",
@@ -764,6 +794,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Usa las flechas o elige un número. Las primeras nueve herramientas usan del 1 al 9. Las demás no tienen atajo.",
         toolSelect: "Seleccionar",
         toolArrow: "Flecha",
+        arrowStyleLabel: "Estilo de flecha",
+        arrowStyleFilled: "Sólida",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Abierta",
+        arrowStyleDoubleEnded: "De doble punta",
+        arrowStyleScribbly: "Garabato",
         toolLine: "Línea",
         toolRect: "Rectángulo",
         toolEllipse: "Elipse",
@@ -905,6 +941,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Mit den Pfeilen verschieben oder eine Ziffer wählen. Die ersten neun Werkzeuge verwenden 1 bis 9. Die übrigen haben keinen Kurzbefehl.",
         toolSelect: "Auswählen",
         toolArrow: "Pfeil",
+        arrowStyleLabel: "Pfeilstil",
+        arrowStyleFilled: "Voll",
+        arrowStyleOutline: "Umriss",
+        arrowStyleOpen: "Offen",
+        arrowStyleDoubleEnded: "Beidseitig",
+        arrowStyleScribbly: "Gekritzelt",
         toolLine: "Linie",
         toolRect: "Rechteck",
         toolEllipse: "Ellipse",
@@ -1046,6 +1088,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Utilisez les flèches ou choisissez un numéro. Les neuf premiers outils utilisent 1 à 9. Les autres n’ont pas de raccourci.",
         toolSelect: "Sélectionner",
         toolArrow: "Flèche",
+        arrowStyleLabel: "Style de flèche",
+        arrowStyleFilled: "Pleine",
+        arrowStyleOutline: "Contour",
+        arrowStyleOpen: "Ouverte",
+        arrowStyleDoubleEnded: "À deux pointes",
+        arrowStyleScribbly: "Gribouillée",
         toolLine: "Ligne",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -1187,6 +1235,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "Usa le frecce o scegli un numero. I primi nove strumenti usano i tasti da 1 a 9. Gli altri non hanno una scorciatoia.",
         toolSelect: "Seleziona",
         toolArrow: "Freccia",
+        arrowStyleLabel: "Stile freccia",
+        arrowStyleFilled: "Piena",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Aperta",
+        arrowStyleDoubleEnded: "A doppia punta",
+        arrowStyleScribbly: "Scarabocchio",
         toolLine: "Linea",
         toolRect: "Rettangolo",
         toolEllipse: "Ellisse",
@@ -1328,6 +1382,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "矢印を使うか数字を選びます。最初の9個は1から9を使い、それ以降にはショートカットがありません。",
         toolSelect: "選択",
         toolArrow: "矢印",
+        arrowStyleLabel: "矢印のスタイル",
+        arrowStyleFilled: "塗りつぶし",
+        arrowStyleOutline: "アウトライン",
+        arrowStyleOpen: "開いた矢印",
+        arrowStyleDoubleEnded: "両矢印",
+        arrowStyleScribbly: "手描き",
         toolLine: "直線",
         toolRect: "長方形",
         toolEllipse: "楕円",
@@ -1469,6 +1529,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "화살표를 사용하거나 숫자를 선택합니다. 처음 9개 도구는 1부터 9를 사용하고 나머지는 단축키가 없습니다.",
         toolSelect: "선택",
         toolArrow: "화살표",
+        arrowStyleLabel: "화살표 스타일",
+        arrowStyleFilled: "채움",
+        arrowStyleOutline: "윤곽선",
+        arrowStyleOpen: "열린 화살표",
+        arrowStyleDoubleEnded: "양방향",
+        arrowStyleScribbly: "낙서풍",
         toolLine: "직선",
         toolRect: "사각형",
         toolEllipse: "타원",
@@ -1610,6 +1676,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "使用箭头或选择数字。前九个工具使用 1 到 9，其余工具没有快捷键。",
         toolSelect: "选择",
         toolArrow: "箭头",
+        arrowStyleLabel: "箭头样式",
+        arrowStyleFilled: "实心",
+        arrowStyleOutline: "轮廓",
+        arrowStyleOpen: "开口",
+        arrowStyleDoubleEnded: "双向",
+        arrowStyleScribbly: "涂鸦",
         toolLine: "直线",
         toolRect: "矩形",
         toolEllipse: "椭圆",
@@ -1751,6 +1823,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "使用箭頭或選擇數字。前九個工具使用 1 到 9，其餘工具沒有快速鍵。",
         toolSelect: "選取",
         toolArrow: "箭頭",
+        arrowStyleLabel: "箭頭樣式",
+        arrowStyleFilled: "實心",
+        arrowStyleOutline: "輪廓",
+        arrowStyleOpen: "開口",
+        arrowStyleDoubleEnded: "雙向",
+        arrowStyleScribbly: "塗鴉",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -1892,6 +1970,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutsCaption: "使用箭嘴或選擇數字。前九個工具使用 1 到 9，其餘工具沒有快速鍵。",
         toolSelect: "選取",
         toolArrow: "箭嘴",
+        arrowStyleLabel: "箭嘴樣式",
+        arrowStyleFilled: "實心",
+        arrowStyleOutline: "輪廓",
+        arrowStyleOpen: "開口",
+        arrowStyleDoubleEnded: "雙向",
+        arrowStyleScribbly: "塗鴉",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -1998,4 +2082,16 @@ extension ScreenshotFeatureStrings {
         dragOutHandleLabel: "拖放",
         loupeStartsOnToggle: "開始選取時啟用放大鏡"
     )
+}
+
+extension ScreenshotFeatureStrings {
+    func arrowStyleTitle(_ style: ScreenshotSupport.ArrowStyleID) -> String {
+        switch style {
+        case .filled: return arrowStyleFilled
+        case .outline: return arrowStyleOutline
+        case .open: return arrowStyleOpen
+        case .doubleEnded: return arrowStyleDoubleEnded
+        case .scribbly: return arrowStyleScribbly
+        }
+    }
 }

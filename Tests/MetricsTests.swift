@@ -16711,6 +16711,22 @@ struct MetricsTests {
         expect(!ScreenshotSupport.canReorder(layered, moving: UUID(), .forward)
                 && !ScreenshotSupport.canReorder([], moving: layered[0].id, .backward),
                "an annotation that is not there can never be reordered")
+        let previousSelection = UUID()
+        expect(ScreenshotSupport.selectionAtStartOfAnnotationDrag(
+                    current: previousSelection,
+                    editingSelectedAnnotation: false) == nil
+                && ScreenshotSupport.selectionAtStartOfAnnotationDrag(
+                    current: previousSelection,
+                    editingSelectedAnnotation: true) == previousSelection,
+               "a new annotation drag cannot expose the previous layer selection")
+        let screenshotEditorSource = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift",
+            encoding: .utf8)) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(screenshotEditorSource.contains("selectionAtStartOfAnnotationDrag"),
+               "the editor clears stale selection before creating a new annotation")
 
         let resized = ScreenshotSupport.resizedRect(CGRect(x: 10, y: 10, width: 100, height: 100),
                                                     dragging: .bottomRight,
@@ -16754,6 +16770,42 @@ struct MetricsTests {
                                   using: .winding,
                                   transform: .identity),
                "the arrow stays filled where its shaft meets the head")
+        let arrowStyles = ScreenshotSupport.ArrowStyleID.allCases
+        expect(arrowStyles == [.filled, .outline, .open, .doubleEnded, .scribbly]
+                && ScreenshotSupport.ArrowStyleID.sanitized("unknown") == .filled,
+               "the screenshot editor offers five arrow styles and safely falls back to solid")
+        let openArrow = ScreenshotSupport.Annotation(tool: .arrow,
+                                                     points: [.zero, CGPoint(x: 100, y: 100)],
+                                                     arrowStyle: .open)
+        expect(openArrow.arrowStyle == .open,
+               "arrow annotations retain the chosen style independently of color and thickness")
+        let stableScribble = ScreenshotSupport.scribblyArrowGeometry(
+            from: .zero,
+            to: CGPoint(x: 160, y: 80),
+            strokeWidth: 4,
+            seed: 17)
+        let sameScribble = ScreenshotSupport.scribblyArrowGeometry(
+            from: .zero,
+            to: CGPoint(x: 160, y: 80),
+            strokeWidth: 4,
+            seed: 17)
+        let differentScribble = ScreenshotSupport.scribblyArrowGeometry(
+            from: .zero,
+            to: CGPoint(x: 160, y: 80),
+            strokeWidth: 4,
+            seed: 18)
+        expect(stableScribble == sameScribble
+                && stableScribble != differentScribble
+                && stableScribble.shaft.count > 2,
+               "scribbly arrows vary by seed but keep one stable design when redrawn")
+        let thickArrow = ScreenshotSupport.Annotation(tool: .arrow, stroke: .large)
+        let thinArrow = ScreenshotSupport.Annotation(tool: .arrow, stroke: .small)
+        expect(ScreenshotSupport.selectionStyle(for: thinArrow).stroke == .small
+                && ScreenshotSupport.selectionStyle(for: thinArrow)
+                    != ScreenshotSupport.selectionStyle(for: thickArrow),
+               "selecting a thin arrow exposes its own stroke in the editor controls")
+        expect(screenshotEditorSource.contains("selectionStyle(for: hit)"),
+               "the editor synchronizes controls from the selected annotation")
         expect(abs(ScreenshotSupport.distance(from: CGPoint(x: 50, y: 10),
                                               toSegment: CGPoint(x: 0, y: 0),
                                               CGPoint(x: 100, y: 0)) - 10) < 0.001,
@@ -17102,6 +17154,8 @@ struct MetricsTests {
                "the screenshot rail ships in its useful numbered order")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastSticker] as? String == "check",
                "the sticker tool starts with a safe built-in choice")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastArrowStyle] as? String == "filled",
+               "the arrow tool starts with the existing solid style")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotShortcut] as? String
                 == "control+option+command:21",
                "the default screenshot shortcut is control option command 4")
