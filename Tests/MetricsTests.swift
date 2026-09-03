@@ -3206,15 +3206,13 @@ struct MetricsTests {
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
                "support prompt never leaks into another release")
-        expect(SupportUpdateIntroStep.discord.next == .social
-               && SupportUpdateIntroStep.social.next == .support
-               && SupportUpdateIntroStep.support.next == nil,
-               "update intro moves from Discord to social updates and support")
-        expect(SupportUpdateIntroStep.discord.previous == nil
-               && SupportUpdateIntroStep.social.previous == .discord
-               && SupportUpdateIntroStep.support.previous == .social,
+        expect(SupportUpdateIntroStep.support.next == .social
+               && SupportUpdateIntroStep.social.next == nil,
+               "update intro moves from support to social updates")
+        expect(SupportUpdateIntroStep.support.previous == nil
+               && SupportUpdateIntroStep.social.previous == .support,
                "update intro navigates back without closing")
-        expect(SupportUpdateIntroStep.allCases == [.discord, .social, .support],
+        expect(SupportUpdateIntroStep.allCases == [.support, .social],
                "update intro page indicators follow the navigation order")
         expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
@@ -3228,28 +3226,31 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.3-beta.3",
+        expect(plistVersion == "3.3.3-beta.4",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "82",
+        expect(plistBuild == "83",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
-        // 3.3.2 adds several headline features, so the tour is re-curated
+        // 3.3.3 adds several headline features, so the tour is re-curated
         // around only what this update genuinely introduces.
-        expect(UpdateHighlightsInfo.releaseVersion == "3.3.2",
+        expect(UpdateHighlightsInfo.releaseVersion == "3.3.3",
                "re-decide the highlights tour on a feature release: re-curate its rows and move the pin to the shipping version")
-        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.1")
-               && UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil),
-               "highlights tour shows once after updating to its pinned release")
-        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.2"),
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: "3.3.2")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3-beta.5", lastSeenVersion: "3.3.2")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
+               "highlights tour shows once after updating to its pinned release or beta")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: "3.3.3")
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3-beta.5", lastSeenVersion: "3.3.3"),
                "highlights tour stays hidden after it is seen")
-        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
-               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil)
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.3.4", lastSeenVersion: nil),
                "highlights tour never leaks into another release")
-        expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-capture.png")
-               && FileManager.default.fileExists(atPath: "Resources/Images/highlights-clipboard.png"),
-               "3.3.2 highlights tour includes curated real captures for screenshot palette and clipboard")
+        expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-windowlayout.png")
+               && FileManager.default.fileExists(atPath: "Resources/Images/highlights-quitprotection.png")
+               && FileManager.default.fileExists(atPath: "Resources/Images/highlights-recorderblur.png"),
+               "3.3.3 highlights tour includes curated real captures for window layout, quit protection and recorder blur")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
@@ -5378,22 +5379,22 @@ struct MetricsTests {
                         screens: [WindowEdgeSnapScreen] = [snapScreen]) -> WindowEdgeSnapTarget? {
             WindowEdgeSnapSupport.target(at: point, screens: screens)
         }
-        let topSnapFrame = WindowLayoutGeometry.rect(for: .topHalf,
+        let topSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
                                                      current: snapVisibleFrame,
                                                      visibleFrame: snapVisibleFrame)
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY))
-               == WindowEdgeSnapTarget(action: .topHalf,
+               == WindowEdgeSnapTarget(action: .maximize,
                                        frame: topSnapFrame,
                                        visibleFrame: snapVisibleFrame),
-               "touching the lower edge of the menu bar previews the upper half")
-        expect(snapTarget(CGPoint(x: 720, y: 900))?.action == .topHalf,
-               "the full menu bar band remains a top snap target")
+               "touching the lower edge of the menu bar previews maximize")
+        expect(snapTarget(CGPoint(x: 720, y: 900))?.action == .maximize,
+               "the full menu bar band remains a top snap target for maximize")
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY - 13)) == nil,
                "the top target does not reach below its activation band")
         expect(snapTarget(CGPoint(x: 0, y: 450))?.action == .leftHalf
                && snapTarget(CGPoint(x: 1440, y: 450))?.action == .rightHalf
                && snapTarget(CGPoint(x: 720, y: 0))?.action == .bottomHalf,
-               "all four straight edges choose their matching halves")
+               "straight edges choose their matching placements")
         expect(snapTarget(CGPoint(x: 0, y: snapVisibleFrame.maxY))?.action == .topLeft
                && snapTarget(CGPoint(x: 1440, y: snapVisibleFrame.maxY))?.action == .topRight
                && snapTarget(CGPoint(x: 0, y: 0))?.action == .bottomLeft
@@ -14021,7 +14022,7 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 91 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 97 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
@@ -15558,6 +15559,35 @@ struct MetricsTests {
                 == [MouseButtonShortcutSupport.forwardButtonNumber],
                "claimed mouse buttons fall back to the legacy button key like the full decode")
         legacyButtonDefaults.removePersistentDomain(forName: "com.vorssaint.tests.radialLegacyButton")
+
+        var reorderItems = [
+            RadialMenuItem(kind: .app, name: "A"),
+            RadialMenuItem(kind: .app, name: "B"),
+            RadialMenuItem(kind: .app, name: "C"),
+        ]
+        let itemToMove = reorderItems[0]
+        let targetItem = reorderItems[2]
+        if let from = reorderItems.firstIndex(where: { $0.id == itemToMove.id }),
+           let to = reorderItems.firstIndex(where: { $0.id == targetItem.id }) {
+            reorderItems.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+        expect(reorderItems.map(\.name) == ["B", "C", "A"],
+               "radial items can be reordered correctly by drag target")
+
+        var swapItems = [
+            RadialMenuItem(kind: .app, name: "A"),
+            RadialMenuItem(kind: .app, name: "B"),
+            RadialMenuItem(kind: .app, name: "C"),
+            RadialMenuItem(kind: .app, name: "D"),
+        ]
+        let firstToSwap = swapItems[0]
+        let secondToSwap = swapItems[2]
+        if let from = swapItems.firstIndex(where: { $0.id == firstToSwap.id }),
+           let to = swapItems.firstIndex(where: { $0.id == secondToSwap.id }) {
+            swapItems.swapAt(from, to)
+        }
+        expect(swapItems.map(\.name) == ["C", "B", "A", "D"],
+               "radial items can be swapped directly without displacing intermediate items")
 
         // The cheap read and the full decode can disagree on a corrupt blob,
         // so only one of them may decide whether the click is passed on: once
@@ -22149,6 +22179,29 @@ struct MetricsTests {
         expect(UninstallerSupport.doneSymbol(hasLeftovers: true)
                 != UninstallerSupport.doneSymbol(hasLeftovers: false),
                "a removal that left something behind does not end on the same mark")
+        // The permission note has to be true when it appears: only sandboxed
+        // container data is gated by Full Disk Access, so a failure list made
+        // of ownership or identity refusals must not offer it.
+        let fdaHome = "/Users/someone"
+        expect(UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: [fdaHome + "/Library/Containers/com.vendor.editor"]),
+               "a failed container is the case Full Disk Access would have changed")
+        expect(UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: [fdaHome + "/Library/Application Support/Editor",
+                           fdaHome + "/Library/Group Containers/group.com.vendor.editor",
+                           fdaHome + "/Library/Caches/com.vendor.editor"]),
+               "one failed container among others is enough to offer the permission")
+        expect(UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: [fdaHome + "/Library/Application Scripts/com.vendor.editor"]),
+               "application scripts sit behind the same permission as containers")
+        expect(!UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: ["/Applications/Editor.app",
+                           fdaHome + "/Library/Application Support/Editor",
+                           fdaHome + "/Library/Preferences/com.vendor.editor.plist",
+                           "/Library/LaunchAgents/com.vendor.editor.plist"]),
+               "failures outside containers never offer a permission that would not help")
+        expect(!UninstallerSupport.failureNeedsFullDiskAccess(paths: []),
+               "no failure, no permission note")
         // Both done states have to route through that decision and name what
         // survived; neither may spell a tick of its own.
         for path in ["Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",

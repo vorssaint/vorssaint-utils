@@ -101,6 +101,16 @@ final class ShelfService: ObservableObject {
             case let .batch(items): return items.flatMap { $0.tooltipLeafKinds }
             }
         }
+
+        /// Whether this item, or anything nested in it, is a file. Recurses
+        /// the way leafCount does but stops at the first one it finds.
+        var holdsFile: Bool {
+            switch payload {
+            case .file: return true
+            case .text, .link: return false
+            case let .batch(items): return items.contains(where: \.holdsFile)
+            }
+        }
     }
 
     @Published private(set) var items: [Item] = [] {
@@ -1309,10 +1319,39 @@ final class ShelfService: ObservableObject {
     /// part of it; otherwise they stay scoped to that tile. Batches flatten to
     /// their leaves just like an external drag.
     func fileURLsForActions(startingAt item: Item) -> [URL] {
-        let candidates = selection.contains(item.id) ? selectedItems() : [item]
+        fileURLs(in: selection.contains(item.id) ? selectedItems() : [item])
+    }
+
+    /// What the panel's own buttons act on: the selection when there is one,
+    /// everything otherwise, the way its trash button already reads. A grab
+    /// whose files have all died says so and retires them, exactly as a dead
+    /// drag does, rather than leaving a button that quietly does nothing.
+    func fileURLsForActions() -> [URL] {
+        let candidates = selectionOrEverything
+        let urls = fileURLs(in: candidates)
+        guard urls.isEmpty else { return urls }
+        let leaves = dragItems(for: candidates)
+        if leaves.contains(where: \.holdsFile) {
+            handleDeadDrag(leaves)
+        }
+        return []
+    }
+
+    /// Whether those same candidates hold a file at all. It never touches the
+    /// disk and stops at the first one, so a button can ask on every redraw
+    /// and stay disabled while the shelf holds only text and links.
+    var hasFilesForActions: Bool {
+        selectionOrEverything.contains(where: \.holdsFile)
+    }
+
+    private var selectionOrEverything: [Item] {
+        selection.isEmpty ? items : selectedItems()
+    }
+
+    private func fileURLs(in candidates: [Item]) -> [URL] {
         // Actions heal moved files the same way a drag does: Open or Reveal
         // on a renamed file should find it, not shrug.
-        return livingDragItems(in: dragItems(for: candidates)).compactMap { entry in
+        livingDragItems(in: dragItems(for: candidates)).compactMap { entry in
             guard case let .file(url) = entry.payload else { return nil }
             return url
         }

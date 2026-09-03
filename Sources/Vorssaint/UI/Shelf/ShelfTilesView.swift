@@ -275,6 +275,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private var pendingRebuildAfterDrag = false
     private var closeButton: NSButton!
     private var expandButton: NSButton?
+    private let sharePresenter = ShelfSharePresenter()
 
     init(item: ShelfService.Item, isSelected: Bool, isExpanded: Bool) {
         self.item = item
@@ -492,12 +493,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
         }
         menu.addItem(openWith)
 
-        let airDrop = NSMenuItem(title: strings.shelfActionAirDrop,
-                                 action: #selector(shareWithAirDrop),
-                                 keyEquivalent: "")
-        airDrop.target = self
-        airDrop.isEnabled = NSSharingService(named: .sendViaAirDrop) != nil
-        menu.addItem(airDrop)
+        menu.addItem(sharePresenter.shareMenuItem(for: urls, title: strings.shelfActionShare))
         menu.addItem(.separator())
 
         let reveal = NSMenuItem(title: strings.cleanerRevealInFinder,
@@ -558,14 +554,6 @@ final class ShelfTileView: NSView, NSDraggingSource {
         NSWorkspace.shared.open(urls,
                                 withApplicationAt: applicationURL,
                                 configuration: configuration)
-    }
-
-    @objc private func shareWithAirDrop() {
-        let urls = ShelfService.shared.fileURLsForActions(startingAt: item)
-        guard !urls.isEmpty,
-              let service = NSSharingService(named: .sendViaAirDrop) else { return }
-        NSApp.activate(ignoringOtherApps: true)
-        service.perform(withItems: urls)
     }
 
     @objc private func revealFiles() {

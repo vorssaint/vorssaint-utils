@@ -129,7 +129,8 @@ struct UninstallFailureNote: View {
                     .font(compact ? .system(size: 9.5) : .caption2)
                     .foregroundStyle(.tertiary)
             }
-            if !permissions.fullDiskAccess {
+            if !permissions.fullDiskAccess,
+               UninstallerSupport.failureNeedsFullDiskAccess(paths: items.map(\.url.path)) {
                 FullDiskAccessNote(compact: compact, reason: l10n.s.uninstallerFailedNeedsFDA,
                                    keyboardSection: keyboardSection)
             }

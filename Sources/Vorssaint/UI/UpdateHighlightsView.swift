@@ -12,12 +12,6 @@ struct UpdateHighlightsView: View {
     let onFinish: () -> Void
 
     private var s: Strings { l10n.s }
-    private var screenshot: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(l10n.language)
-    }
-    private var clipboard: ClipboardFeatureStrings {
-        FeatureStrings.clipboard(l10n.language)
-    }
 
     private enum Layout {
         static let width: CGFloat = 600
@@ -38,25 +32,35 @@ struct UpdateHighlightsView: View {
 
     private var highlights: [Highlight] {
         var pages: [Highlight] = []
-        if AppFeature.screenshot.isAvailable {
+        if AppFeature.windowLayout.isAvailable {
             pages.append(Highlight(
-                id: "capture-palette",
-                imageName: "highlights-capture",
-                symbol: "camera.viewfinder",
-                title: screenshot.screenCaptureTitle,
-                caption: s.highlightsCaptionCapturePalette,
+                id: "window-layout",
+                imageName: "highlights-windowlayout",
+                symbol: "macwindow.on.rectangle",
+                title: s.highlightsTitleWindowLayout,
+                caption: s.highlightsCaptionWindowLayout,
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(AppFeature.screenshot.settingsDestination) }))
+                action: { openSettings(AppFeature.windowLayout.settingsDestination) }))
         }
-        if AppFeature.clipboardHistory.isAvailable {
+        if AppFeature.quitWindowProtection.isAvailable {
             pages.append(Highlight(
-                id: "clipboard-palette",
-                imageName: "highlights-clipboard",
-                symbol: "doc.on.clipboard",
-                title: s.highlightsTitleClipboardRedesign,
-                caption: s.highlightsCaptionClipboardRedesign,
+                id: "quit-protection",
+                imageName: "highlights-quitprotection",
+                symbol: "xmark.circle.fill",
+                title: s.highlightsTitleQuitProtection,
+                caption: s.highlightsCaptionQuitProtection,
                 actionLabel: s.highlightsConfigure,
-                action: { openSettings(AppFeature.clipboardHistory.settingsDestination) }))
+                action: { openSettings(AppFeature.quitWindowProtection.settingsDestination) }))
+        }
+        if AppFeature.screenRecorder.isAvailable {
+            pages.append(Highlight(
+                id: "recorder-blur",
+                imageName: "highlights-recorderblur",
+                symbol: "aqi.medium",
+                title: s.highlightsTitleRecorderBlur,
+                caption: s.highlightsCaptionRecorderBlur,
+                actionLabel: s.highlightsConfigure,
+                action: { openSettings(AppFeature.screenRecorder.settingsDestination) }))
         }
         return pages
     }

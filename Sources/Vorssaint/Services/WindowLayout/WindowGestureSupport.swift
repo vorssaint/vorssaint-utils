@@ -506,7 +506,7 @@ enum WindowEdgeSnapSupport {
                 } else if point.x >= frame.maxX - horizontalCorner {
                     action = .topRight
                 } else {
-                    action = .topHalf
+                    action = .maximize
                 }
             } else if nearBottom {
                 if point.x <= frame.minX + horizontalCorner {

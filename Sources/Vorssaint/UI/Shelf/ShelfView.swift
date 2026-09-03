@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -25,6 +26,10 @@ struct ShelfView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var targeted = false
     @State private var clearButtonHovered = false
+    @State private var shareButtonHovered = false
+    /// The system share sheet points at a real view, which SwiftUI does not
+    /// hand out; this invisible one sits behind the share button.
+    @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
     @State private var pinButtonHovered = false
     @State private var closeButtonHovered = false
 
@@ -176,30 +181,56 @@ struct ShelfView: View {
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
             Spacer(minLength: 8)
+            shareButton
             clearButton
         }
         .frame(minHeight: 30)
     }
 
+    private var shareButton: some View {
+        // Nothing to send means a button that has to read as unavailable,
+        // hover included, instead of looking exactly like the live one.
+        let enabled = shelf.hasFilesForActions
+        let hovered = shareButtonHovered && enabled
+        return Button(action: shareAction) {
+            footerButtonFace(systemImage: "square.and.arrow.up", tint: .accentColor, hovered: hovered)
+                .background(ShelfSharePickerAnchor(anchor: shareAnchor))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(hovered ? Color.accentColor : Color.secondary)
+        .opacity(enabled ? 1 : 0.4)
+        .onHover { shareButtonHovered = $0 }
+        .disabled(!enabled)
+        .help(l10n.s.shelfActionShare)
+        .accessibilityLabel(l10n.s.shelfActionShare)
+    }
+
     private var clearButton: some View {
         Button(action: trashAction) {
-            Image(systemName: shelf.selection.isEmpty ? "trash" : "trash.fill")
-                .font(.system(size: 12, weight: .semibold))
-                .frame(width: 42, height: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.red.opacity(clearButtonHovered ? 0.20 : 0.07))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.red.opacity(clearButtonHovered ? 0.34 : 0.12), lineWidth: 0.8)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            footerButtonFace(systemImage: shelf.selection.isEmpty ? "trash" : "trash.fill",
+                             tint: .red,
+                             hovered: clearButtonHovered)
         }
         .buttonStyle(.plain)
         .foregroundStyle(clearButtonHovered ? Color.red.opacity(0.82) : Color.secondary)
         .onHover { clearButtonHovered = $0 }
         .help(shelf.selection.isEmpty ? l10n.s.shelfClearAll : l10n.s.shelfRemoveSelected)
+    }
+
+    /// The shared face of the footer's two buttons.
+    private func footerButtonFace(systemImage: String, tint: Color, hovered: Bool) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 12, weight: .semibold))
+            .frame(width: 42, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(tint.opacity(hovered ? 0.20 : 0.07))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(tint.opacity(hovered ? 0.34 : 0.12), lineWidth: 0.8)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     private var title: String {
@@ -243,11 +274,44 @@ struct ShelfView: View {
             .overlay(WindowMoveHandle(acceptsDrops: true))
     }
 
+    private func shareAction() {
+        let urls = shelf.fileURLsForActions()
+        guard !urls.isEmpty else { return }
+        shareAnchor.present(urls)
+    }
+
     private func trashAction() {
         if shelf.selection.isEmpty {
             shelf.clear()
         } else {
             shelf.removeItems(Array(shelf.selection))
         }
+    }
+}
+
+/// Hosts the invisible view the system share sheet is anchored to. SwiftUI
+/// creates and owns that view, so the button reaches whichever one is on
+/// screen right now through the box below.
+private struct ShelfSharePickerAnchor: NSViewRepresentable {
+    final class Anchor {
+        fileprivate weak var view: NSView?
+        private let presenter = ShelfSharePresenter()
+
+        func present(_ urls: [URL]) {
+            guard let view else { return }
+            presenter.present(for: urls, from: view)
+        }
+    }
+
+    let anchor: Anchor
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        anchor.view = view
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        anchor.view = nsView
     }
 }

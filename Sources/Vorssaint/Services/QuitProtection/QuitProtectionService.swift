@@ -520,12 +520,15 @@ final class QuitProtectionService: ObservableObject {
         return app.terminate()
     }
 
+    /// Answers whether the press was posted, so a failed copy never leaves the
+    /// key up travelling alone.
     private func postSyntheticKeyDown(from event: CGEvent,
-                                      removing modifier: QuitProtectionExtraModifier? = nil) {
-        let copy = event.copy()!
+                                      removing modifier: QuitProtectionExtraModifier? = nil) -> Bool {
+        guard let copy = event.copy() else { return false }
         if let modifier { copy.flags = flags(for: event, removing: modifier) }
         copy.setIntegerValueField(.eventSourceUserData, value: Self.syntheticMarker)
         copy.post(tap: .cghidEventTap)
+        return true
     }
 
     private func postSyntheticKeyUp(from event: CGEvent,
@@ -541,7 +544,7 @@ final class QuitProtectionService: ObservableObject {
 
     private func postSyntheticPress(from event: CGEvent,
                                     removing modifier: QuitProtectionExtraModifier? = nil) {
-        postSyntheticKeyDown(from: event, removing: modifier)
+        guard postSyntheticKeyDown(from: event, removing: modifier) else { return }
         postSyntheticKeyUp(from: event, removing: modifier)
     }
 

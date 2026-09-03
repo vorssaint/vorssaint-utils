@@ -76,6 +76,16 @@ enum UninstallerSupport {
         hasLeftovers ? "exclamationmark.triangle.fill" : "checkmark.circle.fill"
     }
 
+    /// Whether Full Disk Access could have changed a failed removal. Only
+    /// sandboxed container data is gated by that permission; an item kept
+    /// back for ownership or identity reasons would fail exactly the same
+    /// with it granted, so offering the permission there misleads.
+    static func failureNeedsFullDiskAccess(paths: [String]) -> Bool {
+        let protected = ["/Library/Containers/", "/Library/Group Containers/",
+                         "/Library/Application Scripts/"]
+        return paths.contains { path in protected.contains { path.contains($0) } }
+    }
+
     static func verifiedBundleID(_ rawValue: String?) -> String? {
         guard let rawValue,
               CleanerSupport.looksLikeBundleID(rawValue),
