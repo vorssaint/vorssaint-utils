@@ -8524,6 +8524,22 @@ struct MetricsTests {
         expect(!GlobalShortcut.matchesSystemShortcut(optionShiftS, symbolicHotKeys: nil),
                "an unreadable system list reserves nothing")
 
+        // The WindowServer table stores Carbon modifier bits. Arrow and F keys
+        // carry the function-key bit there as well; it is a property of the key,
+        // not a modifier the recorder ever records, so it must drop out.
+        expect(GlobalShortcutModifiers(
+                    cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x20000 | 0x100000))
+               == [.shift, .command],
+               "Carbon shift and command bits convert to the recorder's modifiers")
+        expect(GlobalShortcutModifiers(
+                    cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x40000 | 0x800000))
+               == [.control],
+               "the function-key bit on arrow and F keys is not a recorded modifier")
+        expect(SymbolicHotKeys.scanRange.contains(255) && SymbolicHotKeys.scanRange.lowerBound == 0,
+               "the live scan covers every id macOS 26 populates (0 through 255)")
+        expect(SymbolicHotKeys.unassignedKeyCode == 0xFFFF,
+               "the unassigned marker matches what the plist matcher already skips")
+
         expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
                "the first known download fraction always publishes")
         expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.011, to: 0.019),
