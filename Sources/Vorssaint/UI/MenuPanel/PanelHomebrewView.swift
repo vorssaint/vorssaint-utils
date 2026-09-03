@@ -367,8 +367,8 @@ struct PanelHomebrewView: View {
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .panelKeyboardRowList(packages.flatMap(keyboardRows))
                     }
+                    .panelKeyboardRowList(packages.flatMap(keyboardRows))
                     .onChange(of: navigator.focus) { _, focus in
                         guard let packageID = focusedPackageID(focus, in: packages) else { return }
                         proxy.scrollTo(packageID, anchor: .center)

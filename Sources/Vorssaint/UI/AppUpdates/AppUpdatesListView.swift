@@ -177,13 +177,14 @@ struct AppUpdatesListView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .panelKeyboardRowList(updates.items.flatMap(keyboardRows))
+        let keyboardRowIDs = updates.items.flatMap(keyboardRows)
 
         if compact {
             // Height lands on whole rows, so the list never ends with half a
             // row peeking out of the panel.
             ScrollViewReader { proxy in
                 ScrollView { rows }
+                    .panelKeyboardRowList(keyboardRowIDs)
                     .onChange(of: navigator.focus) { _, focus in
                         guard let itemID = focusedItemID(focus) else { return }
                         proxy.scrollTo(itemID, anchor: .center)
@@ -191,7 +192,7 @@ struct AppUpdatesListView: View {
             }
             .frame(height: Self.compactHeight(rowCount: updates.items.count))
         } else {
-            rows
+            rows.panelKeyboardRowList(keyboardRowIDs)
         }
     }
 

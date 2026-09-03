@@ -23005,6 +23005,40 @@ struct MetricsTests {
             expect(missing.map(\.0) == [1, 3, 4], "a removed focused process leaves surviving rows stable")
         }
 
+        // Layout reports rows and whole lists; the navigator's order comes
+        // from sorting those entries, never their ids one by one — a list's
+        // ids all share one frame, and a tie broken by nothing scrambles them.
+        do {
+            let above = PanelRowID(.utilities, "above")
+            let below = PanelRowID(.utilities, "below")
+            let listed = (0..<4).map { PanelRowID(.utilities, "listed-\($0)") }
+            let ordered = PanelKeyboardNavigator.orderedRows(from: [
+                PanelRowGeometry(ids: [below], frame: CGRect(x: 0, y: 300, width: 10, height: 10)),
+                PanelRowGeometry(ids: listed, frame: CGRect(x: 0, y: 100, width: 10, height: 200)),
+                PanelRowGeometry(ids: [above], frame: CGRect(x: 0, y: 0, width: 10, height: 10)),
+            ])
+            expect(ordered.map(\.id) == [above] + listed + [below],
+                   "a list's rows keep their declared order at the list's position")
+            expect(ordered.filter { listed.contains($0.id) }.allSatisfy { $0.frame.minY == 100 },
+                   "a list's rows all carry the list's frame")
+
+            let left = PanelRowID(.utilities, "left")
+            let right = PanelRowID(.utilities, "right")
+            let sameLine = PanelKeyboardNavigator.orderedRows(from: [
+                PanelRowGeometry(ids: [left], frame: CGRect(x: 0, y: 50, width: 10, height: 10)),
+                PanelRowGeometry(ids: [right], frame: CGRect(x: 20, y: 50.2, width: 10, height: 10)),
+            ])
+            expect(sameLine.map(\.id) == [left, right], "controls on one line keep their reported order")
+
+            let repeated = PanelKeyboardNavigator.orderedRows(from: [
+                PanelRowGeometry(ids: [above], frame: CGRect(x: 0, y: 0, width: 10, height: 10)),
+                PanelRowGeometry(ids: [below], frame: CGRect(x: 0, y: 20, width: 10, height: 10)),
+                PanelRowGeometry(ids: [above], frame: CGRect(x: 0, y: 40, width: 10, height: 10)),
+            ])
+            expect(repeated.map(\.id) == [above, below], "a row reported twice keeps its first place")
+            expect(repeated.first?.frame.minY == 40, "a row reported twice keeps its last frame")
+        }
+
         // Loading the saved shelf keeps "nothing saved", "decoded whole",
         // "decoded with entries dropped" and "will not decode" apart. Only a
         // store read whole may be saved over and swept behind.

@@ -44,16 +44,6 @@ extension View {
 
 // MARK: - Row registration
 
-/// One entry in the layout-derived row order: either a single measured row,
-/// or a whole lazy list contributing its rows in data order at the position
-/// its container occupies. A `LazyVStack` only builds the rows it can show, so
-/// it reports the order itself instead of leaving the collector to infer one
-/// from frames the rows currently off screen do not have.
-private struct PanelRowGeometry: Equatable {
-    let ids: [PanelRowID]
-    let frame: CGRect
-}
-
 private struct PanelRowGeometryPreferenceKey: PreferenceKey {
     static var defaultValue: [PanelRowGeometry] = []
 
@@ -168,24 +158,8 @@ private struct PanelKeyboardRowOrderModifier: ViewModifier {
     }
 
     private func configureNavigator() {
-        // SwiftUI can propagate the same row preference through several
-        // nested containers. Deduplicate before sorting: deduplicating after
-        // sorting repeated batches can interleave a process list into strides
-        // (row 1, row 5, row 9...), making each arrow appear to skip four.
-        var unique: [PanelRowID: (index: Int, geometry: PanelRowGeometry)] = [:]
-        for (index, entry) in entries.enumerated() {
-            for id in entry.ids {
-                unique[id] = (unique[id]?.index ?? index,
-                              PanelRowGeometry(ids: [id], frame: entry.frame))
-            }
-        }
-        let ordered = unique.values
-            .sorted { lhs, rhs in
-                let delta = lhs.geometry.frame.minY - rhs.geometry.frame.minY
-                return abs(delta) > 0.5 ? delta < 0 : lhs.index < rhs.index
-            }
-            .map { ($0.geometry.ids[0], $0.geometry.frame) }
-        PanelKeyboardNavigator.shared.configureRowOrder(ordered, groups: groups)
+        PanelKeyboardNavigator.shared.configureRowOrder(
+            PanelKeyboardNavigator.orderedRows(from: entries), groups: groups)
     }
 }
 
@@ -251,6 +225,11 @@ extension View {
     /// Pair it with a `ScrollViewReader` that scrolls the focused row into
     /// view, which is also what builds a row the keyboard reaches before the
     /// list has.
+    ///
+    /// Apply it to the list's own `ScrollView` (or `List`), not the stack
+    /// inside it: the stack's frame in the panel's coordinate space moves
+    /// with the inner scroll offset, so a scrolled list would measure above
+    /// the rows that actually sit above it.
     func panelKeyboardRowList(_ ids: [PanelRowID]) -> some View {
         modifier(PanelKeyboardRowListModifier(ids: ids))
     }

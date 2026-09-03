@@ -120,8 +120,8 @@ struct RecentCapturesView: View {
                             row(entry).id(entry.id)
                         }
                     }
-                    .panelKeyboardRowList(visibleEntries.flatMap(keyboardRows))
                 }
+                .panelKeyboardRowList(visibleEntries.flatMap(keyboardRows))
                 .onChange(of: navigator.focus) { _, focus in
                     guard let entryID = focusedEntryID(focus) else { return }
                     proxy.scrollTo(entryID, anchor: .center)

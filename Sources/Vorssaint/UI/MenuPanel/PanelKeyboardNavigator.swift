@@ -41,6 +41,22 @@ struct PanelRowID: Hashable {
     }
 }
 
+/// One entry in the layout-derived row order, as the registration modifiers
+/// report it: a single measured row, or a whole list contributing its rows in
+/// data order at the position its container occupies. A `LazyVStack` or
+/// `List` only builds the rows it can show, so it declares the order itself
+/// instead of leaving the collector to infer one from frames the rows
+/// currently off screen do not have.
+struct PanelRowGeometry: Equatable {
+    let ids: [PanelRowID]
+    let frame: CGRect
+
+    init(ids: [PanelRowID], frame: CGRect) {
+        self.ids = ids
+        self.frame = frame
+    }
+}
+
 /// Which way an arrow-key press adjusts a row's value.
 enum PanelAdjustDirection {
     case decrease, increase
@@ -191,6 +207,31 @@ final class PanelKeyboardNavigator: ObservableObject {
 
     func frame(for row: PanelRowID) -> CGRect? {
         rowFrames[row]
+    }
+
+    /// Turns what layout reported into the top-to-bottom order the navigator
+    /// walks. Entries sort by their measured top edge; entries that share one
+    /// keep the order they were reported in, and a list's ids stay in the
+    /// order the list declared. Only whole entries are sorted — sorting ids
+    /// individually would leave every id of one list tied on the same frame,
+    /// and a tie broken by nothing is an arbitrary order that reads as the
+    /// arrow keys skipping around the list. An id reported more than once
+    /// keeps its first place and its last frame.
+    static func orderedRows(from entries: [PanelRowGeometry]) -> [(id: PanelRowID, frame: CGRect)] {
+        let sorted = entries.enumerated().sorted { lhs, rhs in
+            let delta = lhs.element.frame.minY - rhs.element.frame.minY
+            return abs(delta) > 0.5 ? delta < 0 : lhs.offset < rhs.offset
+        }
+        var latestFrame: [PanelRowID: CGRect] = [:]
+        for entry in entries {
+            for id in entry.ids { latestFrame[id] = entry.frame }
+        }
+        var seen: Set<PanelRowID> = []
+        return sorted.flatMap { entry in
+            entry.element.ids.compactMap { id in
+                seen.insert(id).inserted ? (id: id, frame: latestFrame[id] ?? entry.element.frame) : nil
+            }
+        }
     }
 
     /// Where focus lands when whatever it was on disappears out from under

@@ -13,19 +13,25 @@ struct ProcessUsageRow: View {
     var keyboardRow: PanelRowID? = nil
 
     var body: some View {
+        // Every row is a keyboard stop so the arrows move one visible row at
+        // a time. A process with no app to bring forward (kernel_task,
+        // WindowServer...) still takes focus; it just has nothing for Return
+        // to do, so the navigator hands that key back.
+        let canActivate = ProcessUsageService.shared.canActivate(row)
         Group {
-            if ProcessUsageService.shared.canActivate(row) {
+            if canActivate {
                 Button {
                     ProcessUsageService.shared.activate(row)
                 } label: {
                     content
                 }
                 .buttonStyle(.plain)
-                .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: { ProcessUsageService.shared.activate(row) }))
             } else {
                 content
             }
         }
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(
+            activate: canActivate ? { ProcessUsageService.shared.activate(row) } : nil))
         .help(row.name)
     }
 

@@ -133,8 +133,8 @@ struct AppPickerView: View {
                         }
                     }
                     .padding(.vertical, 3)
-                    .panelKeyboardRowList(apps.compactMap(keyboardRow))
                 }
+                .panelKeyboardRowList(apps.compactMap(keyboardRow))
                 .onChange(of: navigator.focus) { _, focus in
                     guard let path = focusedAppPath(focus, in: apps) else { return }
                     proxy.scrollTo(path, anchor: .center)
