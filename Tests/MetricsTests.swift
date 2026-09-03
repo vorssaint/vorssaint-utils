@@ -1540,8 +1540,9 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(focusFollowsMouseServiceSource.contains(".leftMouseDragged")
                 && focusFollowsMouseServiceSource.contains(".rightMouseDragged")
-                && focusFollowsMouseServiceSource.contains(".otherMouseDragged"),
-               "focus follows mouse tracks the final pointer position while a button is held")
+                && focusFollowsMouseServiceSource.contains(".otherMouseDragged")
+                && focusFollowsMouseServiceSource.contains("NSEvent.pressedMouseButtons == 0"),
+               "focus follows mouse tracks drags and checks every held mouse button")
         expect(focusFollowsMouseServiceSource.contains("excludesPointerTarget(")
                 && focusFollowsMouseServiceSource.contains(
                     ".focusFollowsMouse, at: evaluation.point"),
@@ -2005,6 +2006,10 @@ struct MetricsTests {
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakePauseWhenLocked] as? Bool == false,
+               "pausing Keep Awake on screen lock is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePauseWhenLocked),
+               "the Keep Awake screen-lock preference follows settings backups")
         expect(registeredDefaults[DefaultsKey.hotkeyEnabled] as? Bool == true,
                "global hotkey is on for clean installs")
         expect(registeredDefaults[DefaultsKey.keepAwakeShortcut] as? String == "control+option+command:40",
@@ -2063,6 +2068,17 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        expect(KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": true]
+        ), "the Keep Awake lock guard reads a locked session")
+        expect(!KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": false]
+        ), "the Keep Awake lock guard reads an unlocked session")
+        expect(KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": NSNumber(value: true)]
+        ), "the Keep Awake lock guard accepts the session dictionary's numeric bridge")
+        expect(!KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: nil),
+               "an unreadable lock state does not strand Keep Awake in a pause")
         let sleepDisabledReport = """
         System-wide power settings:
          SleepDisabled\t\t1
@@ -19853,6 +19869,28 @@ struct MetricsTests {
         expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
                                                         hasSavedItems: false),
                "an empty disabled clipboard still points to setup")
+        let japaneseClipboard = FeatureStrings.clipboard(.ja)
+        let clipboardClearKeywords = [japaneseClipboard.title,
+                                      ClipboardFeatureStrings.enUS.title,
+                                      ClipboardFeatureStrings.enUS.clearRecent]
+            .joined(separator: " ")
+        expect(CommandBarSearch.matches(title: japaneseClipboard.clearRecent,
+                                        keywords: clipboardClearKeywords,
+                                        query: "clear clipboard"),
+               "the clipboard clear action stays findable by its English name in a non-Latin locale")
+        let clipboardActionsCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("if AppFeature.clipboardHistory.isAvailable {")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("if AppFeature.textSnippets.isAvailable {") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        expect(clipboardActionsCode.contains("id: \"action.clipboardClearRecent\"")
+                && clipboardActionsCode.contains("title: clipboard.clearRecent")
+                && clipboardActionsCode.contains("confirmationPrompt: clipboard.clearRecent")
+                && clipboardActionsCode.contains("ClipboardHistoryService.shared.clearRecent()"),
+               "the Command Bar clears only unpinned clipboard items after confirmation")
 
         // MARK: Compact mode, what an empty field shows
         expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),
