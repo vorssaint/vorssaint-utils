@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
-import Darwin
 import Foundation
 
 /// Turns Dock's app/window switcher hotkeys off after explicit opt-in, and
@@ -19,39 +18,16 @@ enum SwitcherNativeHotkeys {
         })
     }()
 
-    private typealias SetEnabledFunction = @convention(c) (Int32, Bool) -> CGError
-    private typealias IsEnabledFunction = @convention(c) (Int32) -> Bool
-    private typealias GetValueFunction =
-        @convention(c) (Int32, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>) -> CGError
-    private static let setEnabled: SetEnabledFunction? = {
-        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSSetSymbolicHotKeyEnabled") else {
-            return nil
-        }
-        return unsafeBitCast(symbol, to: SetEnabledFunction.self)
-    }()
-    private static let isEnabled: IsEnabledFunction? = {
-        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSIsSymbolicHotKeyEnabled") else {
-            return nil
-        }
-        return unsafeBitCast(symbol, to: IsEnabledFunction.self)
-    }()
-    private static let getValue: GetValueFunction? = {
-        guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSGetSymbolicHotKeyValue") else {
-            return nil
-        }
-        return unsafeBitCast(symbol, to: GetValueFunction.self)
-    }()
-
     /// Current WindowServer mappings, including user remaps and temporarily
     /// disabled entries. Matching these avoids a second hardcoded shortcut list.
     static func configuredShortcuts() -> [SwitcherNativeSymbolicHotKey: GlobalShortcut] {
-        guard let getValue else { return [:] }
+        guard let getValue = SymbolicHotKeys.getValue else { return [:] }
         return Dictionary(uniqueKeysWithValues: SwitcherNativeSymbolicHotKey.allCases.compactMap { id in
             var character: UInt32 = 0
             var keyCode: UInt32 = 0
             var modifiers: UInt32 = 0
             guard getValue(id.rawValue, &character, &keyCode, &modifiers) == .success,
-                  keyCode != 0xFFFF else { return nil }
+                  keyCode != SymbolicHotKeys.unassignedKeyCode else { return nil }
             let shortcut = GlobalShortcut(
                 keyCode: Int64(keyCode),
                 modifiers: GlobalShortcutModifiers(
@@ -63,7 +39,8 @@ enum SwitcherNativeHotkeys {
     static func apply(_ desired: Set<SwitcherNativeSymbolicHotKey>) {
         lock.lock()
         defer { lock.unlock() }
-        guard let setEnabled, let isEnabled else { return }
+        guard let setEnabled = SymbolicHotKeys.setEnabled,
+              let isEnabled = SymbolicHotKeys.isEnabled else { return }
         let currentlyEnabled = Set(SwitcherNativeSymbolicHotKey.allCases.filter {
             isEnabled($0.rawValue)
         })
