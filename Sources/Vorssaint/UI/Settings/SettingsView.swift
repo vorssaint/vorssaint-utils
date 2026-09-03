@@ -685,6 +685,8 @@ struct EnergySettings: View {
                 Section(automationStrings.automationSection) {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
+                }
+                Section {
                     SettingsToggleWithCaption(title: automationStrings.pauseWhenLockedToggle,
                                               caption: automationStrings.pauseWhenLockedCaption,
                                               isOn: $keepAwakePauseWhenLocked)

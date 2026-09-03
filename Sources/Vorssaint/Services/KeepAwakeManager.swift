@@ -118,8 +118,8 @@ final class KeepAwakeManager: ObservableObject {
     /// (saved duration, tint, shortcut setting) stays for its return.
     func syncWithFeatures() {
         guard AppFeature.keepAwake.isAvailable else {
-            if isActive { deactivate(reason: .manual) }
             stopAutomationMonitoring()
+            if isActive { deactivate(reason: .manual) }
             return
         }
         syncWithPreferences()
@@ -150,10 +150,8 @@ final class KeepAwakeManager: ObservableObject {
         endTimer?.invalidate()
         endTimer = nil
         syncScreenLockMonitoring()
-        sessionPausedForScreenLock = KeepAwakeAutomationSupport.shouldPauseForScreenLock(
-            preferenceEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked),
-            screenLocked: screenLocked
-        )
+        sessionPausedForScreenLock = screenLocked
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         if !sessionPausedForScreenLock { applyAssertions() }
         sessionTrigger = trigger
         if trigger == .manual {
@@ -191,6 +189,9 @@ final class KeepAwakeManager: ObservableObject {
 
     func deactivate(reason: EndReason) {
         let hadSession = isActive
+        if reason == .quit {
+            stopAutomationMonitoring()
+        }
         endTimer?.invalidate()
         endTimer = nil
         endDate = nil
@@ -204,9 +205,6 @@ final class KeepAwakeManager: ObservableObject {
         sessionPausedForScreenLock = false
         stopBatteryWatch()
         stopMouseJiggleTimer()
-        if reason == .quit {
-            stopAutomationMonitoring()
-        }
         if hadSession, reason != .quit, reason != .manual {
             onSessionEnded?(reason)
         }
@@ -269,10 +267,8 @@ final class KeepAwakeManager: ObservableObject {
             sessionPausedForScreenLock = false
             return
         }
-        let shouldPause = KeepAwakeAutomationSupport.shouldPauseForScreenLock(
-            preferenceEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked),
-            screenLocked: screenLocked
-        )
+        let shouldPause = screenLocked
+            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         guard shouldPause != sessionPausedForScreenLock else { return }
 
         if shouldPause {
@@ -285,7 +281,7 @@ final class KeepAwakeManager: ObservableObject {
         }
 
         sessionPausedForScreenLock = false
-        guard KeepAwakeAutomationSupport.canResumeSession(endDate: endDate, now: Date()) else {
+        if let endDate, endDate <= Date() {
             if !continueAutomaticallyAfterTimerIfNeeded() { deactivate(reason: .timer) }
             return
         }
@@ -374,10 +370,8 @@ final class KeepAwakeManager: ObservableObject {
             return
         }
 
-        if KeepAwakeAutomationSupport.shouldPauseForScreenLock(
-            preferenceEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked),
-            screenLocked: screenLocked
-        ) {
+        if screenLocked,
+           UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked) {
             if sessionTrigger == .automation { activeAutomationConditions = matches }
             return
         }

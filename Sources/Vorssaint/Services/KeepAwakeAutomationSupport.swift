@@ -27,15 +27,6 @@ enum KeepAwakeAutomationSupport {
         return (value as? NSNumber)?.boolValue ?? false
     }
 
-    static func shouldPauseForScreenLock(preferenceEnabled: Bool,
-                                         screenLocked: Bool) -> Bool {
-        preferenceEnabled && screenLocked
-    }
-
-    static func canResumeSession(endDate: Date?, now: Date) -> Bool {
-        endDate.map { $0 > now } ?? true
-    }
-
     static func matchingConditions(externalDisplayEnabled: Bool,
                                    externalDisplayConnected: Bool,
                                    powerEnabled: Bool,
