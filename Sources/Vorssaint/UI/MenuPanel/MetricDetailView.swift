@@ -672,20 +672,14 @@ struct MetricDetailView: View {
     /// current visual order for surviving PIDs during keyboard traversal and
     /// update only their values; newly observed processes follow afterward.
     private func stabilizedProcessRows(_ refreshed: [ProcessUsage]) -> [ProcessUsage] {
-        guard case .row(let focused)? = navigator.focus,
-              focused.section == kind.panelSection,
-              let focusedPID = processPID(from: focused),
-              processRows.contains(where: { $0.pid == focusedPID }) else {
-            return refreshed
-        }
-        let byPID = Dictionary(uniqueKeysWithValues: refreshed.map { ($0.pid, $0) })
-        let surviving = processRows.compactMap { byPID[$0.pid] }
-        let existingPIDs = Set(processRows.map(\.pid))
-        return surviving + refreshed.filter { !existingPIDs.contains($0.pid) }
+        ProcessUsageNavigation.stabilized(refreshed, previous: processRows,
+                                          focusedID: focusedProcessPID, id: \.pid)
     }
 
-    private func processPID(from row: PanelRowID) -> pid_t? {
-        guard let local = row.local.base as? String,
+    private var focusedProcessPID: pid_t? {
+        guard case .row(let row)? = navigator.focus,
+              row.section == kind.panelSection,
+              let local = row.local.base as? String,
               local.hasPrefix("process-") else { return nil }
         return Int32(local.dropFirst("process-".count))
     }

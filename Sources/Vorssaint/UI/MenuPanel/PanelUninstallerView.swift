@@ -228,6 +228,18 @@ struct PanelUninstallerView: View {
                 }
             }
         }
+        .panelKeyboardRowList(leftoverKeyboardRows)
+    }
+
+    private var leftoverKeyboardRows: [PanelRowID] {
+        AppUninstaller.Category.allCases.flatMap { category in
+            uninstaller.items.filter { $0.category == category }.flatMap(keyboardRows)
+        }
+    }
+
+    private func keyboardRows(for item: AppUninstaller.Leftover) -> [PanelRowID] {
+        [PanelRowID(.utilities, "uninstaller-\(item.id)-include"),
+         PanelRowID(.utilities, "uninstaller-\(item.id)-reveal")]
     }
 
     private func categoryGroup(_ group: [AppUninstaller.Leftover],
@@ -292,6 +304,7 @@ struct PanelUninstallerView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(minHeight: 24)
+        .panelKeyboardRowGroup(keyboardRows(for: item))
     }
 
     private var footer: some View {

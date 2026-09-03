@@ -23,6 +23,7 @@ enum BreakdownKind {
 struct SystemSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
     @State private var expanded: BreakdownKind?
@@ -201,10 +202,20 @@ struct SystemSection: View {
                 guard expanded == kind else { return }
                 breakdownIsLoading = false
                 if !rows.isEmpty || breakdownRows.isEmpty {
-                    breakdownRows = rows
+                    breakdownRows = ProcessUsageNavigation.stabilized(
+                        rows, previous: breakdownRows, focusedID: focusedBreakdownPID(for: kind), id: \.pid)
                 }
             }
         }
+    }
+
+    private func focusedBreakdownPID(for kind: BreakdownKind) -> pid_t? {
+        guard case .row(let row)? = navigator.focus,
+              row.section == .system,
+              let local = row.local.base as? String else { return nil }
+        let prefix = "breakdown-\(kind)-"
+        guard local.hasPrefix(prefix) else { return nil }
+        return Int32(local.dropFirst(prefix.count))
     }
 
     private var percentageSampleInterval: TimeInterval {

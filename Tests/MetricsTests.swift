@@ -22988,6 +22988,23 @@ struct MetricsTests {
             navigator.clearFocus()
         }
 
+        do {
+            let previous: [(pid_t, Int)] = [(1, 10), (2, 20), (3, 30)]
+            let refreshed: [(pid_t, Int)] = [(3, 300), (1, 100), (4, 40)]
+            let ranked = ProcessUsageNavigation.stabilized(
+                refreshed, previous: previous, focusedID: nil, id: { $0.0 })
+            expect(ranked.map(\.0) == [3, 1, 4], "process rankings refresh normally without keyboard focus")
+
+            let stable = ProcessUsageNavigation.stabilized(
+                refreshed, previous: previous, focusedID: 1, id: { $0.0 })
+            expect(stable.map(\.0) == [1, 3, 4], "focused process lists retain surviving visual order")
+            expect(stable.map(\.1) == [100, 300, 40], "stable process rows still receive fresh values")
+
+            let missing = ProcessUsageNavigation.stabilized(
+                refreshed, previous: previous, focusedID: 2, id: { $0.0 })
+            expect(missing.map(\.0) == [1, 3, 4], "a removed focused process leaves surviving rows stable")
+        }
+
         // Loading the saved shelf keeps "nothing saved", "decoded whole",
         // "decoded with entries dropped" and "will not decode" apart. Only a
         // store read whole may be saved over and swept behind.

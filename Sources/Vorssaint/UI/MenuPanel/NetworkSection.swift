@@ -9,6 +9,7 @@ struct NetworkSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var speed = SpeedTest.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
     @AppStorage(DefaultsKey.monitorGraphNetwork) private var showGraph = true
@@ -349,7 +350,8 @@ struct NetworkSection: View {
                     guard self.appRefreshSerial == serial, self.netApps else { return }
                     self.appRowsLoading = rows.isEmpty && isWarmingUp
                     if !rows.isEmpty || self.appRows.isEmpty {
-                        self.appRows = rows
+                        self.appRows = ProcessUsageNavigation.stabilized(
+                            rows, previous: self.appRows, focusedID: self.focusedAppPID, id: \.pid)
                     }
                     if rows.isEmpty && isWarmingUp {
                         self.refreshAppRows(force: true, delay: 1.0)
@@ -362,6 +364,14 @@ struct NetworkSection: View {
         } else {
             run()
         }
+    }
+
+    private var focusedAppPID: pid_t? {
+        guard case .row(let row)? = navigator.focus,
+              row.section == .network,
+              let local = row.local.base as? String,
+              local.hasPrefix("app-") else { return nil }
+        return Int32(local.dropFirst("app-".count))
     }
 
     private func networkValue(_ row: ProcessUsage) -> String {
