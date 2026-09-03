@@ -360,20 +360,31 @@ enum CommandBarCatalog {
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
-            let clipboardTitle = FeatureStrings.clipboard(language).title
+            let clipboard = FeatureStrings.clipboard(language)
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
             let canUseHistory = CommandBarClipboardAccess.canUseHistory(
                 captureEnabled: keepsHistory,
                 hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
             entries.append(CommandBarEntry(
                 id: "action.clipboardWindow",
-                title: clipboardTitle,
-                subtitle: area(.clipboardHistory, under: clipboardTitle),
+                title: clipboard.title,
+                subtitle: area(.clipboardHistory, under: clipboard.title),
                 icon: .symbol("doc.on.clipboard"),
                 shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
                 trouble: canUseHistory ? nil
-                    : .needsSetup(featureTitle: clipboardTitle, page: .clipboard),
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            entries.append(CommandBarEntry(
+                id: "action.clipboardClearRecent",
+                title: clipboard.clearRecent,
+                subtitle: area(.clipboardHistory),
+                keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
+                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                icon: .symbol("trash"),
+                trouble: canUseHistory ? nil
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
+                confirmationPrompt: clipboard.clearRecent,
+                run: { _ in ClipboardHistoryService.shared.clearRecent() }))
         }
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
