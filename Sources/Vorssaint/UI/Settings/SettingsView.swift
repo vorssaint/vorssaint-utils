@@ -647,6 +647,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
+    @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -684,6 +685,11 @@ struct EnergySettings: View {
                 Section(automationStrings.automationSection) {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
+                }
+                Section {
+                    SettingsToggleWithCaption(title: automationStrings.pauseWhenLockedToggle,
+                                              caption: automationStrings.pauseWhenLockedCaption,
+                                              isOn: $keepAwakePauseWhenLocked)
                 }
                 if PowerSampler.hasInternalBattery {
                     Section(l10n.s.batteryProtectionSection) {

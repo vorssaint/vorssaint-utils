@@ -89,6 +89,8 @@ enum SettingsDirectory {
                                                         .externalDisplayToggle,
                                                       FeatureStrings.keepAwakeAutomation(language)
                                                         .powerToggle,
+                                                      FeatureStrings.keepAwakeAutomation(language)
+                                                        .pauseWhenLockedToggle,
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep]),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
