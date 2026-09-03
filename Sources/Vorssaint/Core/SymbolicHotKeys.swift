@@ -22,6 +22,9 @@ enum SymbolicHotKeys {
     typealias GetValueFunction =
         @convention(c) (Int32, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>) -> CGError
 
+    /// Writes go through `SwitcherNativeHotkeys.apply`, which owns the
+    /// write-ahead marker and the restore-after-crash bookkeeping. Nothing
+    /// else should call this directly.
     static let setEnabled: SetEnabledFunction? = {
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "CGSSetSymbolicHotKeyEnabled") else {
             return nil
@@ -41,8 +44,9 @@ enum SymbolicHotKeys {
         return unsafeBitCast(symbol, to: GetValueFunction.self)
     }()
 
-    /// macOS 26 populates ids up to 255; the headroom costs a few hundred
-    /// microseconds per read and spares a hardcoded ceiling.
+    /// macOS 26 populates ids up to 255; scanning the headroom costs a few
+    /// milliseconds of WindowServer round trips per read, which only happens
+    /// when a shortcut is recorded, and spares a hardcoded ceiling.
     static let scanRange: Range<Int32> = 0..<512
 
     /// The key code an entry carries when no key is assigned to it.

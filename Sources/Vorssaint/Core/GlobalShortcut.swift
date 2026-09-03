@@ -913,12 +913,26 @@ extension GlobalShortcut {
     /// The WindowServer's live table is the authority: the preferences plist
     /// only lists entries the user has customised, so a factory key such as
     /// ⌘⇧4 is missing from it and used to pass here while macOS still answered
-    /// it. The plist stays as the fallback for a macOS without the private calls.
+    /// it. The plist is the fallback when the private calls are unavailable,
+    /// and also when they answer with an empty table: an empty read says
+    /// nothing about what macOS answers, and treating it as all clear would
+    /// quietly revive the bug this check exists to catch.
     var conflictsWithSystemShortcut: Bool {
-        if let entries = SymbolicHotKeys.liveEntries() {
-            return Self.matchesLiveSystemShortcut(self, entries: entries)
+        Self.conflictsWithSystemShortcut(self,
+                                         liveEntries: SymbolicHotKeys.liveEntries(),
+                                         symbolicHotKeys: Self.systemSymbolicHotKeys)
+    }
+
+    /// The decision behind `conflictsWithSystemShortcut`, with both sources
+    /// injected so it can be tested without touching the WindowServer. The
+    /// plist is read only when the live table is missing or empty.
+    static func conflictsWithSystemShortcut(_ shortcut: GlobalShortcut,
+                                            liveEntries: [LiveSystemShortcut]?,
+                                            symbolicHotKeys: @autoclosure () -> [String: Any]?) -> Bool {
+        if let liveEntries, !liveEntries.isEmpty {
+            return matchesLiveSystemShortcut(shortcut, entries: liveEntries)
         }
-        return Self.matchesSystemShortcut(self, symbolicHotKeys: Self.systemSymbolicHotKeys)
+        return matchesSystemShortcut(shortcut, symbolicHotKeys: symbolicHotKeys())
     }
 
     /// Whether an enabled live entry uses exactly this combination. Rows with

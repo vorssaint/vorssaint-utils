@@ -54,6 +54,13 @@ enum SelfTest {
             warnings.append("AppleSMC unavailable")
         }
 
+        // The recorder's macOS-conflict check reads the WindowServer's live
+        // shortcut table through private calls; when they are gone it falls
+        // back to the preferences plist and loses factory keys such as ⌘⇧4.
+        if SymbolicHotKeys.liveEntries()?.isEmpty != false {
+            warnings.append("symbolic hotkey table unavailable; shortcut conflicts fall back to the plist")
+        }
+
         // Network counters should be readable and never run backwards.
         let net1 = NetworkSampler.readCounters()
         let net2 = NetworkSampler.readCounters()

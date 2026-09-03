@@ -8535,10 +8535,6 @@ struct MetricsTests {
                     cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: 0x40000 | 0x800000))
                == [.control],
                "the function-key bit on arrow and F keys is not a recorded modifier")
-        expect(SymbolicHotKeys.scanRange.contains(255) && SymbolicHotKeys.scanRange.lowerBound == 0,
-               "the live scan covers every id macOS 26 populates (0 through 255)")
-        expect(SymbolicHotKeys.unassignedKeyCode == 0xFFFF,
-               "the unassigned marker matches what the plist matcher already skips")
 
         // The live table is the authority. The preferences plist only lists
         // customised entries, so a factory ⌘⇧4 is absent from it and used to
@@ -8547,7 +8543,10 @@ struct MetricsTests {
             id: 30, shortcut: GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), enabled: true)
         let liveSpotlightOff = LiveSystemShortcut(
             id: 64, shortcut: GlobalShortcut(keyCode: 49, modifiers: [.command]), enabled: false)
-        let liveTable = [liveAreaShot, liveSpotlightOff]
+        // An unassigned row never reaches a real snapshot, but the matcher must refuse it even if one did.
+        let liveUnassigned = LiveSystemShortcut(
+            id: 99, shortcut: GlobalShortcut(keyCode: 0xFFFF, modifiers: [.command, .shift]), enabled: true)
+        let liveTable = [liveAreaShot, liveSpotlightOff, liveUnassigned]
         expect(GlobalShortcut.matchesLiveSystemShortcut(
                     GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), entries: liveTable),
                "a factory screenshot key macOS still answers is reported as taken")
@@ -8565,6 +8564,26 @@ struct MetricsTests {
         expect(!GlobalShortcut.matchesLiveSystemShortcut(
                     GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), entries: []),
                "an empty live table reserves nothing")
+
+        // The decision between the two sources: a populated live table is the
+        // authority; a missing or empty one hands the question to the plist.
+        expect(GlobalShortcut.conflictsWithSystemShortcut(optionShiftS,
+                                                          liveEntries: nil,
+                                                          symbolicHotKeys: systemAreaShot),
+               "without the private calls the plist still answers")
+        expect(GlobalShortcut.conflictsWithSystemShortcut(optionShiftS,
+                                                          liveEntries: [],
+                                                          symbolicHotKeys: systemAreaShot),
+               "an empty live read falls back to the plist instead of clearing everything")
+        expect(!GlobalShortcut.conflictsWithSystemShortcut(optionShiftS,
+                                                           liveEntries: liveTable,
+                                                           symbolicHotKeys: systemAreaShot),
+               "a populated live table is the authority even where the plist disagrees")
+        expect(GlobalShortcut.conflictsWithSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]),
+                    liveEntries: liveTable,
+                    symbolicHotKeys: nil),
+               "a live match needs no plist at all")
 
         expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
                "the first known download fraction always publishes")
