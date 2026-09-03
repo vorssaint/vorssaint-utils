@@ -168,15 +168,23 @@ private struct PanelKeyboardRowOrderModifier: ViewModifier {
     }
 
     private func configureNavigator() {
-        // Keep equal-height rows in the order SwiftUI reported them. Sorting
-        // only by minY is not stable, so same-line controls could randomly
-        // trade places or make vertical navigation appear to skip rows.
-        let ordered = entries.enumerated()
-            .sorted { lhs, rhs in
-                let delta = lhs.element.frame.minY - rhs.element.frame.minY
-                return abs(delta) > 0.5 ? delta < 0 : lhs.offset < rhs.offset
+        // SwiftUI can propagate the same row preference through several
+        // nested containers. Deduplicate before sorting: deduplicating after
+        // sorting repeated batches can interleave a process list into strides
+        // (row 1, row 5, row 9...), making each arrow appear to skip four.
+        var unique: [PanelRowID: (index: Int, geometry: PanelRowGeometry)] = [:]
+        for (index, entry) in entries.enumerated() {
+            for id in entry.ids {
+                unique[id] = (unique[id]?.index ?? index,
+                              PanelRowGeometry(ids: [id], frame: entry.frame))
             }
-            .flatMap { entry in entry.element.ids.map { ($0, entry.element.frame) } }
+        }
+        let ordered = unique.values
+            .sorted { lhs, rhs in
+                let delta = lhs.geometry.frame.minY - rhs.geometry.frame.minY
+                return abs(delta) > 0.5 ? delta < 0 : lhs.index < rhs.index
+            }
+            .map { ($0.geometry.ids[0], $0.geometry.frame) }
         PanelKeyboardNavigator.shared.configureRowOrder(ordered, groups: groups)
     }
 }
