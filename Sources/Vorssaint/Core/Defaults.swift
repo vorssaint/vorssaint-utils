@@ -481,6 +481,8 @@ enum DefaultsKey {
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
     static let commandBarCompactMode = "commandBarCompactMode"
+    /// The ASCII layout borrowed while the bar is open, restored on close. Off by default
+    static let commandBarASCIILayoutEnabled = "commandBarASCIILayoutEnabled"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
@@ -1217,6 +1219,7 @@ enum Defaults {
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
+        DefaultsKey.commandBarASCIILayoutEnabled: false,
         DefaultsKey.commandBarDisabledSources: "",
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",
