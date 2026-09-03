@@ -143,6 +143,15 @@ enum ScreenshotSupport {
         pointerOnDisplay && !selectionInProgress && !capturePending
     }
 
+    /// Whether the guide should advertise repeating the last capture region.
+    /// The region is remembered for this app session only and belongs to one
+    /// display, so the hint stays hidden until pressing the key would really
+    /// capture something.
+    static func offersRepeatLastRegion(isPickingColor: Bool,
+                                       storedRegionDisplayIsAvailable: Bool) -> Bool {
+        !isPickingColor && storedRegionDisplayIsAvailable
+    }
+
     // MARK: - Preferences
 
     static let recentCaptureLimit = 12

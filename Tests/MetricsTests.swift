@@ -16393,6 +16393,15 @@ struct MetricsTests {
                                                             selectionInProgress: false,
                                                             capturePending: false),
                "the capture chooser disappears for the whole drag and while capture is pending")
+        expect(ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
+                                                        storedRegionDisplayIsAvailable: true),
+               "the repeat hint is offered once a region is stored on a display still in the session")
+        expect(!ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
+                                                         storedRegionDisplayIsAvailable: false),
+               "no repeat hint before the first capture, or when its display is gone")
+        expect(!ScreenshotSupport.offersRepeatLastRegion(isPickingColor: true,
+                                                         storedRegionDisplayIsAvailable: true),
+               "the colour picker has no region to repeat, matching repeatLastRegion's own guard")
         let captureSelectionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
             encoding: .utf8)) ?? ""
