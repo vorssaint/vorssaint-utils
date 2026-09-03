@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -82,6 +83,29 @@ extension SuperKeyStrings {
         soloInputSource: "Switch input source; hold for Caps Lock",
         mappingForeignMapping: "Another app's key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
         mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again."
+    )
+
+    static let nl = SuperKeyStrings(
+        pageTitle: "Super toets",
+        hubDescription: "Maakt van één toets de combinatie met speciale toetsen die jij kiest.",
+        enableToggle: "Gebruik deze toets als super toets",
+        enableCaption: "Houd hem ingedrukt en druk op een willekeurige toets. Kies hieronder een of meer speciale toetsen.",
+        modifierKeysNote: "Laat deze toets ingesteld op de standaardactie in Systeeminstellingen › Toetsenbord › Speciale toetsen.",
+        sourceKey: "Toets om ingedrukt te houden",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Rechter %@",
+        holdHint: "Ingedrukt houden",
+        soloSection: "Een losse tik",
+        soloCaption: "Wat een snelle tik doet als er geen andere toets wordt ingedrukt.",
+        soloNothing: "Niets",
+        soloCapsLock: "Hoofdletters aan- en uitzetten",
+        soloEscape: "Druk op Escape",
+        activeNow: "Nu actief",
+        panelCaptionFormat: "%1$@ houdt %2$@ ingedrukt.",
+        manageButton: "Instellen…",
+        soloInputSource: "Invoerbron wisselen; ingedrukt houden voor Caps Lock",
+        mappingForeignMapping: "De toetstoewijzing van een andere app gebruikt de geselecteerde toets. Verwijder deze in die app: afsluiten is niet genoeg.",
+        mappingSystemRefused: "macOS heeft de toetstoewijzing geweigerd. Sluit het toetsenbord opnieuw aan of start de Mac opnieuw op, en schakel dit daarna weer in."
     )
 
     static let ptBR = SuperKeyStrings(

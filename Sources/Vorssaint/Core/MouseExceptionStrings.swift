@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -57,6 +58,18 @@ extension MouseExceptionStrings {
         captionButtonShortcuts: "Your extra mouse buttons stay quiet in these apps, and the press reaches them instead.",
         captionMiddleClick: "A three finger click stays a normal click in these apps.",
         captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps."
+    )
+
+    static let nl = MouseExceptionStrings(
+        listTitle: "Apps met rust laten",
+        addButton: "App toevoegen…",
+        removeButton: "Verwijderen",
+        captionSmoothScroll: "Het wieltje behoudt zijn gewone stappen in deze apps, voor apps die het op hun eigen manier lezen, zoals 3D- en ontwerptools.",
+        captionScrollDirection: "Het wieltje behoudt in deze apps de richting die macOS eraan geeft.",
+        captionNavigation: "De zijknoppen blijven doen wat deze apps er al mee doen.",
+        captionButtonShortcuts: "Je extra muisknoppen blijven stil in deze apps, en de klik komt in plaats daarvan bij de app terecht.",
+        captionMiddleClick: "Een klik met drie vingers blijft een gewone klik in deze apps.",
+        captionFocusFollowsMouse: "Zweven verandert in deze apps de focus niet en haalt geen venster naar voren."
     )
 
     static let ptBR = MouseExceptionStrings(

@@ -56,6 +56,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -92,6 +93,39 @@ extension MouseButtonFeatureStrings {
         spacesCaptureWaiting: "Now press an extra button.",
         spacesCaptureUnsupported: "That input cannot be held for a drag. Use an extra button.",
         spacesCaptureExists: "That button already has a shortcut. Pick another one."
+    )
+
+    static let nl = MouseButtonFeatureStrings(
+        pageTitle: "Sneltoetsen voor muisknoppen",
+        hubDescription: "Extra knoppen en richtingen van het zijwiel drukken een toetscombinatie die jij kiest.",
+        enableLabel: "Extra knoppen als sneltoetsen gebruiken",
+        enableCaption: "Elke extra knop of richting van het zijwiel kan een toetscombinatie voor je indrukken. Zolang er een sneltoets aan hangt, doet hij niet meer wat hij eerder deed.",
+        addButton: "Knop of zijwiel toevoegen",
+        captureWaiting: "Druk nu op een extra knop of beweeg het zijwiel.",
+        captureCancel: "Annuleren",
+        captureBlind: "Vorssaint kan de muis nu niet observeren.",
+        captureUnsupported: "Die invoer kan geen sneltoets krijgen. Gebruik een extra knop of een richting van het zijwiel.",
+        captureWheel: "Die knop opent al het radiaal menu. Kies een andere, of maak hem daar eerst vrij.",
+        captureExists: "Die knop of richting staat al in de lijst hieronder.",
+        captureHint: "Als er niets gebeurt, gebruikt de software van je muis die bediening misschien al zelf.",
+        backButtonName: "Zijknop terug",
+        forwardButtonName: "Zijknop vooruit",
+        otherButtonFormat: "Knop %d",
+        setShortcutButton: "Sneltoets instellen",
+        removeButton: "Verwijderen",
+        emptyCaption: "Nog geen sneltoetsen. Voeg een knop of richting van het zijwiel toe.",
+        rowWheelNote: "Deze knop opent nu het radiaal menu, dus de sneltoets wacht.",
+        manageButton: "Instellen…",
+        panelCaption: "Extra knoppen en richtingen van het zijwiel drukken toetscombinaties die jij kiest.",
+        sideWheelLeftName: "Zijwiel links",
+        sideWheelRightName: "Zijwiel rechts",
+        spacesEnableLabel: "Wissel van Spaces door een knop te slepen",
+        spacesEnableCaption: "Houd de gekozen knop ingedrukt en sleep: links of rechts gaat één Space verder, omhoog opent Mission Control, omlaag opent App Exposé. Een korte klik doet nog steeds wat hij altijd deed.",
+        spacesPickButton: "Kies een knop",
+        spacesShortcutsOffNote: "De toetsenbordsneltoetsen van Mission Control staan uit in Systeeminstellingen, dus dit gebaar heeft niets om aan te vragen.",
+        spacesCaptureWaiting: "Druk nu op een extra knop.",
+        spacesCaptureUnsupported: "Die invoer kan niet worden vastgehouden om te slepen. Gebruik een extra knop.",
+        spacesCaptureExists: "Die knop heeft al een sneltoets. Kies een andere."
     )
 
     static let ptBR = MouseButtonFeatureStrings(

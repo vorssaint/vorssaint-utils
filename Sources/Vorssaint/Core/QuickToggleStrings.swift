@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -81,6 +82,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Start the screen saver",
         screenSaverCaption: "Starts right away, on every display.",
         actionFailed: "Could not complete."
+    )
+
+    static let nl = QuickToggleFeatureStrings(
+        pageTitle: "Snelle schakelaars",
+        hubDescription: "Acties met één klik, zoals donkere modus en Prullenmand",
+        panelCaption: "Systeemacties met één klik in het menubalkpaneel en in het snelpaneel.",
+        darkModeToDark: "Schakel over naar donkere modus",
+        darkModeToLight: "Schakel over naar lichte modus",
+        darkModeCaption: "Verandert het uiterlijk van het hele systeem.",
+        emptyTrashTitle: "Prullenmand legen",
+        emptyTrashCaption: "Verwijdert alles uit de Prullenmand.",
+        emptyTrashConfirmTitle: "Prullenmand legen?",
+        emptyTrashConfirmMessage: "Alle items in de Prullenmand worden verwijderd. Dit kan niet ongedaan worden gemaakt.",
+        emptyTrashConfirmButton: "Prullenmand legen",
+        ejectTitle: "Alle schijven uitwerpen",
+        ejectCaption: "Werpt alle externe schijven veilig uit.",
+        hiddenFilesShow: "Verborgen bestanden tonen",
+        hiddenFilesHide: "Verborgen bestanden verbergen",
+        desktopIconsHide: "Bureaubladsymbolen verbergen",
+        desktopIconsShow: "Bureaubladsymbolen tonen",
+        finderRestartCaption: "Finder start opnieuw op om dit toe te passen.",
+        lockScreenTitle: "Scherm vergrendelen",
+        lockScreenCaption: "Vraagt om je wachtwoord om terug te keren.",
+        displayOffTitle: "Beeldscherm uitschakelen",
+        displayOffCaption: "De Mac blijft actief terwijl het scherm uit is.",
+        screenSaverTitle: "Schermbeveiliging starten",
+        screenSaverCaption: "Start meteen, op elk beeldscherm.",
+        actionFailed: "Kon niet worden voltooid."
     )
 
     static let ptBR = QuickToggleFeatureStrings(

@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -89,6 +90,39 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "You can keep up to %d scratchpads",
         previewFormatting: "Show formatting",
         editText: "Edit text"
+    )
+
+    static let nl = ScratchpadFeatureStrings(
+        pageTitle: "Kladblok",
+        hubDescription: "Zwevende kladblokken voor kortstondige notities",
+        panelCaption: "Snelle notities in aparte tabbladen",
+        openButton: "Kladblok openen",
+        placeholder: "Typ maar raak. Het bewaart zichzelf.",
+        copyAll: "Alles kopiëren",
+        copied: "Gekopieerd",
+        exportAction: "Bewaren als bestand",
+        clearAction: "Wissen",
+        retentionTitle: "Zelf wissen",
+        retentionNever: "Nooit",
+        retentionDay: "Na een dag ongebruikt",
+        retentionWeek: "Na een week ongebruikt",
+        retentionMonth: "Na een maand ongebruikt",
+        retentionCaption: "Het kladblok maakt zichzelf leeg zodra de tekst zo lang niet bewerkt is.",
+        closeOnClickOutside: "Sluiten als ik ernaast klik",
+        keepOpen: "Open houden",
+        backgroundOpacity: "Achtergrond kladblok",
+        backgroundTranslucent: "Doorschijnend",
+        backgroundOpaque: "Ondoorzichtig",
+        newPad: "Nieuw kladblok",
+        padActions: "Kladblokacties",
+        renamePad: "Kladblok hernoemen",
+        closePad: "Kladblok sluiten",
+        saveName: "Bewaren",
+        cancel: "Annuleren",
+        deletePadMessageFormat: "“%@” en alles erin verwijderen?",
+        padLimitFormat: "Je kunt tot %d kladblokken bewaren",
+        previewFormatting: "Opmaak tonen",
+        editText: "Tekst bewerken"
     )
 
     static let ptBR = ScratchpadFeatureStrings(

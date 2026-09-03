@@ -60,6 +60,7 @@ struct WhatsAppDownloadStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -106,6 +107,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "%1$d files (%2$@) moved to the Trash. %3$d failed.",
         scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings.",
         manageButton: "Manage…"
+    )
+
+    static let nl = WhatsAppDownloadStrings(
+        title: "WhatsApp-downloads",
+        hubDescription: "Houdt WhatsApp-bestanden in Downloads onder controle",
+        intro: "Vindt bestanden waarvan macOS bevestigt dat ze van WhatsApp komen. Bestandsinhoud en chats worden nooit gelezen.",
+        automatic: "Automatisch opschonen",
+        automaticCaption: "Controleert één keer per dag en verplaatst overeenkomende bestanden die ouder zijn dan je limiet naar de Prullenmand.",
+        folder: "Bewaakte map",
+        accessReady: "Downloads is toegankelijk",
+        accessDenied: "Vorssaint heeft geen toegang tot Downloads. Sta dit toe bij Bestanden en mappen.",
+        fileTypes: "Bestandstypen",
+        allTypes: "Alle",
+        image: "Afbeeldingen",
+        video: "Video's",
+        audio: "Audio en spraakberichten",
+        document: "Documenten",
+        archive: "Archieven",
+        other: "Overig",
+        retention: "Bewaren voor",
+        retentionCaption: "Recent bewerkte bestanden wachten opnieuw de volledige periode af.",
+        daysFormat: "%d dagen",
+        manualIntro: "Scan op elk moment. De eerste selectie volgt je typen en leeftijdslimiet; je kunt elk bevestigd bestand bekijken.",
+        noFiles: "Geen bevestigde WhatsApp-bestanden gevonden in Downloads.",
+        resultsFormat: "%1$d bevestigde bestanden · %2$@",
+        selectRules: "Selecteren volgens mijn regels",
+        cleanSelectedFormat: "Verplaats %1$d naar Prullenmand · %2$@",
+        keep: "Bewaren",
+        manageAgain: "Opnieuw beheren",
+        activity: "Activiteit",
+        neverRun: "Er is nog geen opschoning uitgevoerd.",
+        lastRunFormat: "Laatste opschoning %@: %d bestanden · %@ · %d mislukt",
+        nextRunFormat: "Volgende automatische controle %@.",
+        firstTitle: "Wat met bestaande bestanden?",
+        firstMessageFormat: "%d bestaande bestanden voldoen al aan je regels. Kies of automatisering die mag beheren, of alleen toekomstige downloads.",
+        futureOnly: "Alleen toekomstige downloads",
+        includeExisting: "Bestaande bestanden meenemen",
+        trashNote: "Bestanden worden verplaatst naar de Prullenmand en blijven herstelbaar totdat je die leegmaakt.",
+        localNote: "Alleen lokale bestandsmetadata wordt bekeken. Vorssaint leest nooit chats of bestandsinhoud.",
+        notificationTitle: "WhatsApp-opschoning",
+        notificationFormat: "%1$d bestanden (%2$@) verplaatst naar de Prullenmand. %3$d mislukt.",
+        scanFailed: "Downloads kon niet worden gescand. Controleer Bestanden en mappen in Systeeminstellingen.",
+        manageButton: "Beheren…"
     )
 
     static let es = WhatsAppDownloadStrings(
@@ -471,6 +515,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: es.lastRunFormat, nextRunFormat: es.nextRunFormat,
             firstMessageFormat: es.firstMessageFormat, localNote: es.localNote,
             notificationFormat: es.notificationFormat, scanFailed: es.scanFailed, manageButton: es.manageButton)
+        case .nl: return OperationalStrings(
+            automaticCaption: nl.automaticCaption, retentionCaption: nl.retentionCaption,
+            manualIntro: nl.manualIntro, resultsFormat: nl.resultsFormat,
+            selectRules: nl.selectRules, cleanSelectedFormat: nl.cleanSelectedFormat,
+            lastRunFormat: nl.lastRunFormat, nextRunFormat: nl.nextRunFormat,
+            firstMessageFormat: nl.firstMessageFormat, localNote: nl.localNote,
+            notificationFormat: nl.notificationFormat, scanFailed: nl.scanFailed, manageButton: nl.manageButton)
         }
     }
 

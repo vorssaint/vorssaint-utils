@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -45,6 +46,16 @@ extension BluetoothSleepStrings {
         restoreToggle: "Turn Bluetooth back on when the Mac wakes",
         restoreCaption: "Only when Vorssaint was the one that switched it off.",
         unsupported: "This Mac has no Bluetooth controller."
+    )
+
+    static let nl = BluetoothSleepStrings(
+        pageTitle: "Bluetooth bij sluimerstand",
+        hubDescription: "Schakelt Bluetooth uit terwijl de Mac in sluimerstand staat, zodat koptelefoons in een tas er niet meer automatisch mee verbinden.",
+        enable: "Bluetooth uitschakelen wanneer de Mac in sluimerstand gaat",
+        enableCaption: "Bluetooth dat al uit stond vóór de sluimerstand wordt niet aangeraakt en blijft uit na het wakker worden.",
+        restoreToggle: "Bluetooth weer inschakelen wanneer de Mac wakker wordt",
+        restoreCaption: "Alleen wanneer Vorssaint het heeft uitgeschakeld.",
+        unsupported: "Deze Mac heeft geen Bluetooth-controller."
     )
 
     static let ptBR = BluetoothSleepStrings(

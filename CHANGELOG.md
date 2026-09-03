@@ -30,6 +30,7 @@ Vorssaint adds quit and close protections, a pause-on-lock option for Keep Awake
 - The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
 - The App Switcher can now open on the screen under the pointer, the screen with the menu bar or the screen with the active window. Thanks to @noahjstewart.
 - Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
+- Vorssaint is now available in Dutch (Nederlands), with the full interface and permission prompts translated and the language selectable in onboarding and Settings. Thanks to @lennert-vangeert.
 - The disk image installer now shows a progress card while it copies and verifies the app, asks whether to move the download to Trash and whether to show the installed app in Applications, and remembers both choices.
 - The screen recording editor can now blur any area of the picture for as long as you choose, keeping names, emails and other private details unreadable even inside zooms.
 

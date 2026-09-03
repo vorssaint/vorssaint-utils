@@ -33,6 +33,7 @@
 		<string>ru</string>
 		<string>zh-TW</string>
 		<string>zh-HK</string>
+		<string>nl</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>Vorssaint</string>

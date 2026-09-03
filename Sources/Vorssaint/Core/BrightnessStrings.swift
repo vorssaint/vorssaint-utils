@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -67,6 +68,27 @@ extension BrightnessFeatureStrings {
         osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders.",
         keyboardLight: "Keyboard light",
         keyboardLightCaption: "Turns the keyboard backlight on or off."
+    )
+
+    static let nl = BrightnessFeatureStrings(
+        pageTitle: "Beeldschermen",
+        hubDescription: "Helderheid en aan/uit-bediening voor elk beeldscherm",
+        enable: "Beeldschermen bedienen",
+        enableCaption: "Bediening van helderheid en aan/uit voor het ingebouwde scherm en externe monitoren, hier en in het menubalkpaneel.",
+        externalCaption: "Externe monitoren worden aangepast via hetzelfde protocol als hun eigen knoppen. Als de verbinding dit niet kan doorgeven, zoals bij HDMI-adapters, dimt de schuifregelaar in plaats daarvan het beeld, zodat helderheidsregeling in beide gevallen werkt.",
+        noDisplays: "Geen beeldscherm gevonden.",
+        displayOff: "Uit",
+        turnOffDisplay: "Beeldscherm uitschakelen",
+        turnOnDisplay: "Beeldscherm inschakelen",
+        lastDisplayCaption: "Er moet minstens één beeldscherm aan blijven.",
+        switchUnavailable: "Beeldscherm aan/uit schakelen is niet beschikbaar op deze Mac.",
+        switchFailed: "Kon dit beeldscherm niet wijzigen.",
+        keysToggle: "Helderheidstoetsen volgen de aanwijzer",
+        keysCaption: "De helderheidstoetsen op het toetsenbord passen het beeldscherm onder de aanwijzer aan.",
+        osdToggle: "Toon helderheid tijdens aanpassen",
+        osdCaption: "Toont het helderheidspercentage wanneer je de helderheidstoetsen of schuifregelaars gebruikt.",
+        keyboardLight: "Toetsenbordverlichting",
+        keyboardLightCaption: "Schakelt de toetsenbordverlichting in of uit."
     )
 
     static let ptBR = BrightnessFeatureStrings(

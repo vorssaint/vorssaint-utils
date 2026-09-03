@@ -31,6 +31,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -46,6 +47,18 @@ extension RecorderShareStrings {
         tooLarge: "This recording cannot fit under 100 MB without losing too much quality.",
         failed: "The temporary link could not be created",
         tourCaption: "Compress a finished recording on this Mac and share it for 1 or 6 hours."
+    )
+
+    static let nl = RecorderShareStrings(
+        caption: "Kies 1 of 6 uur. De uiteindelijke video wordt op deze Mac gecomprimeerd tot onder 100 MB en automatisch verwijderd.",
+        privacyData: "Vorssaint verstuurt alleen de uiteindelijke video die van deze opname is gemaakt, inclusief het geluid dat je hebt behouden, en de vervaltijd die je kiest. Je naam, account of apparaat-ID worden niet verstuurd.",
+        privacyStorage: "Netwerkproviders en de dienst verwerken tijdelijk je openbare IP-adres om misbruik te voorkomen. De video en linkgegevens worden definitief verwijderd zodra je de link verwijdert of de tijd verstrijkt. De dienst maakt geen back-ups.",
+        privacyAccess: "Iedereen met de link kan de video bekijken, downloaden, bewaren of verder verspreiden. Actieve links zijn beschikbaar voor de beheerder van de dienst voor misbruikcontrole. Deel alleen met mensen die je vertrouwt.",
+        compressing: "Comprimeren om te delen…",
+        uploading: "Veilig uploaden…",
+        tooLarge: "Deze opname past niet onder 100 MB zonder te veel kwaliteit te verliezen.",
+        failed: "De tijdelijke link kon niet worden aangemaakt",
+        tourCaption: "Comprimeer een afgeronde opname op deze Mac en deel hem voor 1 of 6 uur."
     )
 
     static let ptBR = RecorderShareStrings(

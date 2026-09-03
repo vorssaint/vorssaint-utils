@@ -26,6 +26,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -36,6 +37,13 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Add an app…",
         removeButton: "Remove",
         caption: "Nothing you copy in these apps is saved to the history."
+    )
+
+    static let nl = ClipboardIgnoredAppsStrings(
+        listTitle: "Apps om over te slaan",
+        addButton: "App toevoegen…",
+        removeButton: "Verwijderen",
+        caption: "Niets van wat je in deze apps kopieert, wordt in de geschiedenis bewaard."
     )
 
     static let ptBR = ClipboardIgnoredAppsStrings(

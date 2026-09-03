@@ -86,6 +86,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -219,6 +220,70 @@ extension SnippetFeatureStrings {
         dateTimePreviewLabel: "Preview",
         dateTimeConfirmInsert: "Insert",
         dateTimeConfirmUpdate: "Update"
+    )
+
+    static let nl = SnippetFeatureStrings(
+        pageTitle: "Tekstfragmenten",
+        hubDescription: "Korte triggers worden uitgebreide tekst",
+        enable: "Fragmenten uitbreiden tijdens het typen",
+        enableCaption: "Typ ergens een trigger en die wordt de bijbehorende tekst. Alles blijft op deze Mac.",
+        addButton: "Fragment toevoegen",
+        newTitle: "Nieuw fragment",
+        editTitle: "Fragment bewerken",
+        nameLabel: "Naam",
+        namePlaceholder: "Persoonlijke e-mail",
+        triggerLabel: "Trigger",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Tekst",
+        replacementPlaceholder: "mijnemail@voorbeeld.nl",
+        expansionLabel: "Uitbreiden",
+        expansionImmediate: "Meteen",
+        expansionDelimiter: "Na spatie, Tab of Return",
+        variablesHint: "Variabelen: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Ze worden de datum, de tijd en de gekopieerde tekst op het moment van uitbreiden.",
+        emptyList: "Nog geen fragmenten. Voeg de eerste toe.",
+        duplicateTrigger: "Een ander fragment gebruikt deze trigger al.",
+        triggerTooShort: "De trigger heeft minstens 2 tekens nodig.",
+        deleteButton: "Verwijderen",
+        saveButton: "Bewaren",
+        manageButton: "Fragmenten beheren",
+        ignoreCaseLabel: "Hoofdlettergevoeligheid negeren",
+        libraryTitle: "Snel fragmentenmenu",
+        libraryToggle: "Fragmenten openen via een menu",
+        libraryCaption: "De sneltoets opent een doorzoekbaar menu. Als je een fragment kiest, wordt het meteen getypt waar je cursor staat.",
+        librarySearchPlaceholder: "Fragmenten zoeken",
+        libraryNoResults: "Geen fragment komt overeen met de zoekopdracht.",
+        libraryEmpty: "Nog niets om te tonen. Voeg fragmenten toe, of schakel 'Toon in het snelmenu' in voor de fragmenten die je het vaakst gebruikt.",
+        libraryFooterHint: "↩ voegt in · esc sluit",
+        folderLabel: "Map",
+        folderPlaceholder: "Werk",
+        showInLibraryLabel: "Toon in het snelmenu",
+        variablesFormatCaption: "Een notatie na een dubbele punt bepaalt hoe ze eruitzien, zoals {{date:yyyy-MM-dd}}. Een -tz(...)-deel stelt de tijdzone in, zoals {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Een notatie na een dubbele punt bepaalt hoe ze eruitzien, zoals {{date:yyyy-MM-dd}}, of gebruik de datum/tijd-knop hierboven. Een -tz(...)-deel stelt de tijdzone in, zoals {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Datum/tijd invoegen",
+        dateTimeEditButton: "Datum/tijd bewerken",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Datum",
+        dateTimeKindTime: "Tijd",
+        dateTimeKindDateTime: "Datum en tijd",
+        dateTimeStyleLabel: "Stijl",
+        dateTimeStyleShort: "Kort",
+        dateTimeStyleMedium: "Gemiddeld",
+        dateTimeStyleLong: "Lang",
+        dateTimeStyleFull: "Volledig",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Aangepast",
+        dateTimeStyleLocaleNote: "Een benoemde stijl bewaart de notatie die de regio van je Mac nu gebruikt.",
+        dateTimeTimezoneLabel: "Tijdzone",
+        dateTimeTimezoneDeviceDefault: "Standaard van apparaat",
+        dateTimeTimezoneValid: "Geldige tijdzone",
+        dateTimeTimezoneInvalid: "Niet-herkende tijdzone",
+        dateTimeTimezoneClear: "Tijdzone wissen",
+        dateTimeTimezoneSearchPlaceholder: "Tijdzones zoeken",
+        dateTimePatternLabel: "Patroon",
+        dateTimePreviewLabel: "Voorvertoning",
+        dateTimeConfirmInsert: "Invoegen",
+        dateTimeConfirmUpdate: "Bijwerken"
     )
 
     static let ptBR = SnippetFeatureStrings(

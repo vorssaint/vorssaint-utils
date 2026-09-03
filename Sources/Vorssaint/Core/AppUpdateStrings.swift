@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -107,6 +108,48 @@ extension AppUpdateStrings {
         includeOnlineCaption: "Downloads a public app catalog without sending the names or identifiers of apps on this Mac.",
         incompleteCheck: "Some apps could not be checked",
         onlineUnavailable: "The online check could not be completed. Other results are still shown."
+    )
+
+    static let nl = AppUpdateStrings(
+        pageTitle: "App-updates",
+        hubDescription: "Vind en installeer updates voor je apps",
+        caption: "Zoekt naar nieuwere versies van de apps op deze Mac en helpt je elke update af te ronden via de oorspronkelijke bron.",
+        panelCaption: "Bekijk welke apps een nieuwere versie hebben",
+        checkNow: "Nu controleren",
+        checking: "Bezig met controleren",
+        lastCheckFormat: "Laatst gecontroleerd %@",
+        neverChecked: "Nog niet gecontroleerd",
+        upToDate: "Geen updates gevonden",
+        coverageNote: "Controleert beheerde apps en store-apps, en vergelijkt de exacte naam van andere apps met een openbare online catalogus. Updates worden nog steeds via hun oorspronkelijke bron geïnstalleerd.",
+        selectAll: "Alles selecteren",
+        clearSelection: "Wissen",
+        updateSelectedFormat: "%d bijwerken",
+        updateOne: "Bijwerken",
+        openAppStore: "Open de App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Opent de App Store, waar deze update wordt geïnstalleerd",
+        frequencyLabel: "Controleren op de achtergrond",
+        frequencyOff: "Uit",
+        frequencyDaily: "Elke dag",
+        frequencyWeekly: "Elke week",
+        nextCheckFormat: "Volgende controle %@",
+        notifyToggle: "Laat het me weten als een app een update heeft",
+        includeStoreToggle: "Apps uit de App Store meenemen",
+        includeStoreCaption: "Vraagt Apple welke versie actueel is voor de apps die je uit de store hebt. Schakel dit uit om elke controle op deze Mac te houden.",
+        packageMissing: "Homebrew is niet geïnstalleerd, dus apps kunnen hier nog niet worden bijgewerkt.",
+        notificationBodyFormat: "%@ apps hebben een nieuwere versie.",
+        notificationBodyOne: "Eén app heeft een nieuwere versie.",
+        showInPanel: "Toon in paneel",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Bronnen",
+        includeHomebrewToggle: "Homebrew-apps meenemen",
+        onlineBadge: "Online",
+        openApp: "Open",
+        openAppHint: "Opent de app zodat de eigen updater kan afronden",
+        includeOnlineToggle: "Andere geïnstalleerde apps meenemen",
+        includeOnlineCaption: "Downloadt een openbare appcatalogus zonder de namen of identificatoren van apps op deze Mac te versturen.",
+        incompleteCheck: "Sommige apps konden niet worden gecontroleerd",
+        onlineUnavailable: "De online controle kon niet worden voltooid. Andere resultaten worden nog steeds getoond."
     )
 
     static let ptBR = AppUpdateStrings(

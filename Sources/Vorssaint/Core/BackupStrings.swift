@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -63,6 +64,18 @@ extension BackupFeatureStrings {
         importConfirmBody: "Your current settings are replaced by the file's and the app restarts. Nothing else on this Mac is touched.",
         importAction: "Import and restart",
         invalidFile: "This file is not a valid Vorssaint backup."
+    )
+
+    static let nl = BackupFeatureStrings(
+        title: "Back-up",
+        description: "Neem je instellingen mee naar een andere Mac: exporteer alle voorkeuren naar een bestand en importeer het daar. Het bestand bevat de tekst van je Kladblok-notities. Klembordgeschiedenis, items op de Shelf en systeemtoestemmingen verlaten deze Mac nooit.",
+        exportButton: "Instellingen exporteren…",
+        importButton: "Instellingen importeren…",
+        exported: "Back-up bewaard",
+        importConfirmTitle: "Deze instellingen importeren?",
+        importConfirmBody: "Je huidige instellingen worden vervangen door die van het bestand en de app herstart. Verder wordt er niets op deze Mac aangepast.",
+        importAction: "Importeren en herstarten",
+        invalidFile: "Dit bestand is geen geldige Vorssaint-back-up."
     )
 
     static let ptBR = BackupFeatureStrings(

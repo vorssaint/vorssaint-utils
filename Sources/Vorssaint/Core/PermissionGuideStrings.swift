@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -70,6 +71,19 @@ extension PermissionGuideStrings {
         staleHint: "Already on in that list? That entry belongs to an earlier copy of the app. Start over to replace it.",
         startOver: "Start over",
         relaunch: "Relaunch to apply"
+    )
+
+    static let nl = PermissionGuideStrings(
+        title: "Nog één stap",
+        stepOpen: "macOS heeft Systeeminstellingen geopend op de juiste lijst.",
+        stepToggle: "Zet Vorssaint aan in die lijst.",
+        stepReturn: "Kom terug. Deze kaart merkt het vanzelf.",
+        waiting: "Wachten op de toestemming…",
+        granted: "Toestemming verleend!",
+        closeHelp: "Sluiten",
+        staleHint: "Al aan in die lijst? Dat item hoort bij een eerdere versie van de app. Begin opnieuw om het te vervangen.",
+        startOver: "Opnieuw beginnen",
+        relaunch: "Herstart om toe te passen"
     )
 
     static let ptBR = PermissionGuideStrings(
