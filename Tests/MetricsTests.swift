@@ -19853,6 +19853,28 @@ struct MetricsTests {
         expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
                                                         hasSavedItems: false),
                "an empty disabled clipboard still points to setup")
+        let japaneseClipboard = FeatureStrings.clipboard(.ja)
+        let clipboardClearKeywords = [japaneseClipboard.title,
+                                      ClipboardFeatureStrings.enUS.title,
+                                      ClipboardFeatureStrings.enUS.clearRecent]
+            .joined(separator: " ")
+        expect(CommandBarSearch.matches(title: japaneseClipboard.clearRecent,
+                                        keywords: clipboardClearKeywords,
+                                        query: "clear clipboard"),
+               "the clipboard clear action stays findable by its English name in a non-Latin locale")
+        let clipboardActionsCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("if AppFeature.clipboardHistory.isAvailable {")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("if AppFeature.textSnippets.isAvailable {") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        expect(clipboardActionsCode.contains("id: \"action.clipboardClearRecent\"")
+                && clipboardActionsCode.contains("title: clipboard.clearRecent")
+                && clipboardActionsCode.contains("confirmationPrompt: clipboard.clearRecent")
+                && clipboardActionsCode.contains("ClipboardHistoryService.shared.clearRecent()"),
+               "the Command Bar clears only unpinned clipboard items after confirmation")
 
         // MARK: Compact mode, what an empty field shows
         expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),
