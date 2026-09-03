@@ -3280,6 +3280,9 @@ struct MetricsTests {
                "closing after a drop is new behavior and must arrive off in an update")
         expect(registeredDefaults[DefaultsKey.shelfRemoveAfterDrop] as? Bool == true,
                "shelf removes accepted items after a drop by default")
+        expect(registeredDefaults[DefaultsKey.shelfClearOnClose] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.shelfClearOnClose),
+               "clearing the shelf on close is opt-in and travels with settings backups")
         expect((registeredDefaults[DefaultsKey.shelfAutomaticExclusions] as? [String])?.isEmpty == true,
                "shelf automatic exclusions start empty")
         expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false,
@@ -8119,6 +8122,26 @@ struct MetricsTests {
         expect(dockedWatchdog.contains("updateDockedProximity(")
                 && dockedWatchdog.contains("handleDragForEdge(at:"),
                "the drag watchdog finishes dock and edge dwells after pointer movement stops")
+        let explicitShelfClose = shelfServiceSource
+            .components(separatedBy: "func close()")
+            .dropFirst().first?.components(separatedBy: "\n    func noteInteraction").first ?? ""
+        let ordinaryShelfHide = shelfServiceSource
+            .components(separatedBy: "func hide()")
+            .dropFirst().first?.components(separatedBy: "\n    func close").first ?? ""
+        let shelfViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Shelf/ShelfView.swift",
+            encoding: .utf8)) ?? ""
+        let dockedShelfViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Shelf/ShelfDropZoneView.swift",
+            encoding: .utf8)) ?? ""
+        expect(explicitShelfClose.contains("DefaultsKey.shelfClearOnClose")
+                && explicitShelfClose.contains("clear()")
+                && explicitShelfClose.contains("hide()")
+                && !ordinaryShelfHide.contains("DefaultsKey.shelfClearOnClose"),
+               "only an explicit shelf close consults the optional clearing preference")
+        expect(shelfViewSource.contains("onDismiss ?? { shelf.close() }")
+                && dockedShelfViewSource.contains("onDismiss: { shelf.collapseDocked() }"),
+               "the floating close clears when requested while docked collapse keeps items")
 
         let shelfFile = ShelfPersistedItem(id: UUID(), kind: .file, title: "notes.pdf",
                                            path: "/tmp/notes.pdf")
@@ -12125,6 +12148,11 @@ struct MetricsTests {
             expectFormat(strings.uninstallerSelectedFormat, ["d", "d"], "\(prefix) uninstaller selected format")
             expectFormat(strings.uninstallerFreedFormat, ["@"], "\(prefix) uninstaller freed format")
             expectFormat(strings.shelfSelectedFormat, ["d"], "\(prefix) shelf selection format")
+            expect(!strings.shelfClearOnClose.isEmpty
+                   && !strings.shelfClearOnCloseCaption.isEmpty
+                   && !strings.shelfClearOnClose.contains("—")
+                   && !strings.shelfClearOnCloseCaption.contains("—"),
+                   "\(prefix) shelf clear-on-close labels are present without em dash")
             expectFormat(strings.powerAdapterMaxFormat, ["@"], "\(prefix) adapter max format")
             expectFormat(strings.mixerInputErrorFormat, ["@"], "\(prefix) mixer input error format")
             expect(!strings.mixerSoundEffectsOutputTitle.isEmpty
@@ -17835,6 +17863,16 @@ struct MetricsTests {
                 && mouseButtonToggleCode.contains("spacesEnableLabel")
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID).spacesGesture\""),
                "the Command Bar exposes the Spaces gesture as its own localized toggle row")
+
+        let restartAppCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("id: \"action.restartApp\"")
+        }.map {
+            commandBarCatalogLines[$0...].prefix(8).filter(isCodeLine).joined(separator: "\n")
+        } ?? ""
+        expect(restartAppCode.contains("bar.restartAppFormat")
+                && restartAppCode.contains("AppInfo.name")
+                && restartAppCode.contains("FeatureRuntime.shared.relaunchApp()"),
+               "the Command Bar exposes its own localized relaunch action")
 
         func appStorageProperty(_ key: String, in lines: [String]) -> String? {
             guard let line = lines.first(where: {

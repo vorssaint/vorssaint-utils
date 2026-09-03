@@ -988,6 +988,8 @@ extension Strings {
         switcherScreenPlacementCaption: "화면이 두 개 이상 연결되어 있을 때 전환기를 어느 화면에 표시할지 선택합니다.",
         smoothScrollResponseLabel: "반응 속도",
         mouseAccelerationName: "마우스 가속 끄기",
-        mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다."
+        mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
+        shelfClearOnClose: "닫을 때 항목 지우기",
+        shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다."
     )
 }

@@ -988,6 +988,8 @@ extension Strings {
         switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。",
         smoothScrollResponseLabel: "反應速度",
         mouseAccelerationName: "關閉滑鼠加速",
-        mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原之前的設定。"
+        mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原之前的設定。",
+        shelfClearOnClose: "關閉時清空",
+        shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。"
     )
 }

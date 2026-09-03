@@ -987,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "Birden fazla ekran bağlıyken değiştiricinin hangi ekranda açılacağını belirler.",
         smoothScrollResponseLabel: "Tepki",
         mouseAccelerationName: "Fare hızlandırmasını kapat",
-        mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir."
+        mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
+        shelfClearOnClose: "Kapatınca temizle",
+        shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur."
     )
 }

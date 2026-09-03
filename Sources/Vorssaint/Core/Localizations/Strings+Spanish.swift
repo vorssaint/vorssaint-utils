@@ -987,6 +987,8 @@ extension Strings {
         switcherScreenPlacementCaption: "En qué pantalla se abre el selector cuando hay más de una conectada.",
         smoothScrollResponseLabel: "Respuesta",
         mouseAccelerationName: "Desactivar la aceleración del ratón",
-        mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint."
+        mouseAccelerationCaption: "Elimina la aceleración del puntero para los ratones conectados. El ajuste anterior vuelve al desactivarlo o salir de Vorssaint.",
+        shelfClearOnClose: "Borrar al cerrar",
+        shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems."
     )
 }
