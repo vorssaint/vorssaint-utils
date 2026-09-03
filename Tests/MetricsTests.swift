@@ -8540,6 +8540,32 @@ struct MetricsTests {
         expect(SymbolicHotKeys.unassignedKeyCode == 0xFFFF,
                "the unassigned marker matches what the plist matcher already skips")
 
+        // The live table is the authority. The preferences plist only lists
+        // customised entries, so a factory ⌘⇧4 is absent from it and used to
+        // pass the check while macOS still answered the key.
+        let liveAreaShot = LiveSystemShortcut(
+            id: 30, shortcut: GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), enabled: true)
+        let liveSpotlightOff = LiveSystemShortcut(
+            id: 64, shortcut: GlobalShortcut(keyCode: 49, modifiers: [.command]), enabled: false)
+        let liveTable = [liveAreaShot, liveSpotlightOff]
+        expect(GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), entries: liveTable),
+               "a factory screenshot key macOS still answers is reported as taken")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 49, modifiers: [.command]), entries: liveTable),
+               "a system shortcut switched off in the live table is not in the way")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift, .control]), entries: liveTable),
+               "the same key with other modifiers is a different shortcut in the live table")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 0xFFFF, modifiers: [.command, .shift]), entries: liveTable),
+               "an unassigned key code never matches a live entry")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(.screenshotDefault, entries: liveTable),
+               "the default screenshot shortcut stays clear of the live table")
+        expect(!GlobalShortcut.matchesLiveSystemShortcut(
+                    GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), entries: []),
+               "an empty live table reserves nothing")
+
         expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
                "the first known download fraction always publishes")
         expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.011, to: 0.019),

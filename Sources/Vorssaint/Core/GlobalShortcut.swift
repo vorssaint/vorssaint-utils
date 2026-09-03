@@ -902,15 +902,32 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 /// catches the collisions it can and leaves the rest to the registration
 /// failure the shortcut rows already report.
 extension GlobalShortcut {
-    /// The system's shortcut list. Read fresh every time: it can change in
-    /// System Settings while a shortcut field is open.
+    /// The customised half of the system's shortcut list, as System Settings
+    /// writes it. Only the fallback reads it; the live table is the authority.
+    /// Read fresh every time: it can change while a shortcut field is open.
     static var systemSymbolicHotKeys: [String: Any]? {
         UserDefaults(suiteName: "com.apple.symbolichotkeys")?
             .dictionary(forKey: "AppleSymbolicHotKeys")
     }
 
+    /// The WindowServer's live table is the authority: the preferences plist
+    /// only lists entries the user has customised, so a factory key such as
+    /// ⌘⇧4 is missing from it and used to pass here while macOS still answered
+    /// it. The plist stays as the fallback for a macOS without the private calls.
     var conflictsWithSystemShortcut: Bool {
-        Self.matchesSystemShortcut(self, symbolicHotKeys: Self.systemSymbolicHotKeys)
+        if let entries = SymbolicHotKeys.liveEntries() {
+            return Self.matchesLiveSystemShortcut(self, entries: entries)
+        }
+        return Self.matchesSystemShortcut(self, symbolicHotKeys: Self.systemSymbolicHotKeys)
+    }
+
+    /// Whether an enabled live entry uses exactly this combination. Rows with
+    /// no key assigned never reach the snapshot, and a disabled row is not in
+    /// anyone's way.
+    static func matchesLiveSystemShortcut(_ shortcut: GlobalShortcut,
+                                          entries: [LiveSystemShortcut]) -> Bool {
+        guard shortcut.keyCode != Self.noKeyCode else { return false }
+        return entries.contains { $0.enabled && $0.shortcut == shortcut }
     }
 
     /// Whether an enabled system shortcut uses exactly this combination. Entries
