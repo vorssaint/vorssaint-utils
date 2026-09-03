@@ -63,6 +63,16 @@ struct ScreenshotEditorView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
+        .onChange(of: toolOrderRaw) { _, raw in
+            let tool = ScreenshotSupport.Tool.availableTool(model.tool, orderRaw: raw)
+            if tool != model.tool {
+                commitEditingTextIfNeeded()
+                let rememberedTool = UserDefaults.standard.string(forKey: DefaultsKey.screenshotLastTool)
+                model.tool = tool
+                // The automatic fallback is not a new tool choice to remember.
+                UserDefaults.standard.set(rememberedTool, forKey: DefaultsKey.screenshotLastTool)
+            }
+        }
         .sheet(item: $sharedRecord) { record in
             ScreenshotEditorSharedLinkView(record: record,
                                            strings: strings,
@@ -563,7 +573,7 @@ struct ScreenshotEditorView: View {
     // MARK: - Tool rail
 
     private var orderedTools: [ScreenshotSupport.Tool] {
-        ScreenshotSupport.Tool.ordered(from: toolOrderRaw)
+        ScreenshotSupport.Tool.visibleTools(from: toolOrderRaw)
     }
 
     private var toolRail: some View {
