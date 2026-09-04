@@ -118,8 +118,12 @@ enum SystemShortcutTakeover {
         persist(suppressed)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         guard let setEnabled = SymbolicHotKeys.setEnabled else { return }
+        // A feature that claimed before recovery ran (keep-awake registers
+        // first) is a source too; keeping only the switcher's ids would give
+        // its key back and leave it off.
+        let keep = desired.union(SystemShortcutTakeoverSupport.union(of: wanted))
         suppressed = SystemShortcutTakeoverSupport.apply(
-            SystemShortcutTakeoverSupport.recoveryTransition(from: suppressed, keeping: desired),
+            SystemShortcutTakeoverSupport.recoveryTransition(from: suppressed, keeping: keep),
             owned: suppressed,
             setEnabled: { setEnabled($0, $1) == .success },
             persist: persist)
