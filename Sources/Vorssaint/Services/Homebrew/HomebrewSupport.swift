@@ -436,11 +436,11 @@ enum HomebrewAnalytics {
     static func compactCount(_ count: Int) -> String {
         if count >= 1_000_000 {
             let value = Double(count) / 1_000_000
-            return value >= 10 ? "\(Int(value.rounded()))M" : String(format: "%.1fM", value)
+            return value >= 10 ? "\(Int(value.rounded()))M" : String(format: "%.1fM", locale: MetricFormat.locale, value)
         }
         if count >= 1_000 {
             let value = Double(count) / 1_000
-            return value >= 10 ? "\(Int(value.rounded()))K" : String(format: "%.1fK", value)
+            return value >= 10 ? "\(Int(value.rounded()))K" : String(format: "%.1fK", locale: MetricFormat.locale, value)
         }
         return "\(max(count, 0))"
     }

@@ -36,6 +36,10 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// wanted; which of the two the file receives is settled in `start()`.
     private var systemAudioTap: RecorderSystemAudioTap?
     private var writesTapAudio = false
+    /// Raised when an output device change costs the tap its reader mid
+    /// recording. One way, and read from the audio threads, so it is the flag
+    /// type rather than a plain Bool.
+    private let tapReaderLost = RecorderAudioFlag()
     private let streamHeard = RecorderAudioFlag()
     private let pointer: RecorderPointerSampler
     private let typing: RecorderTypingSampler
@@ -96,6 +100,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         tap?.onSample = { [weak self] sampleBuffer in
             self?.appendTapSample(sampleBuffer)
         }
+        tap?.onReaderLost = { [weak self] in self?.tapReaderLost.raise() }
         if let failure = await engine.start(region: region,
                                             frameRate: frameRate,
                                             capturesSystemAudio: capturesSystemAudio,
@@ -178,7 +183,9 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             await engine.stop()
         }
         await tapStop
-        if let tap {
+        // A tap that lost its reader was cut short by a device change, not by a
+        // missing permission, so this recording proves nothing either way.
+        if let tap, !tapReaderLost.value {
             UserDefaults.standard.set(
                 RecorderSupport.trustsSystemAudioTap(previously: writesTapAudio,
                                                      tapHeardSound: tap.heardSound,
@@ -208,13 +215,13 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             if !streamHeard.value, RecorderAudioProbe.containsSound(sampleBuffer) {
                 streamHeard.raise()
             }
-            if writesTapAudio { return }
+            if writesTapAudio, !tapReaderLost.value { return }
         }
         append(sampleBuffer, kind: kind)
     }
 
     private func appendTapSample(_ sampleBuffer: CMSampleBuffer) {
-        guard writesTapAudio else { return }
+        guard writesTapAudio, !tapReaderLost.value else { return }
         append(sampleBuffer, kind: .systemAudio)
     }
 

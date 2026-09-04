@@ -42,10 +42,20 @@ struct MetricsTests {
 
         // MARK: Byte / rate formatting
 
+        // Pinned, because everything below reads a decimal point and this
+        // machine's region is only one of the ones the app ships for.
+        MetricFormat.locale = Locale(identifier: "en_US_POSIX")
         expectEqual(MetricFormat.bytes(0), "0 B", "bytes zero")
         expectEqual(MetricFormat.bytes(512), "512 B", "bytes < 1K")
         expectEqual(MetricFormat.bytes(1024), "1.0 KB", "bytes 1K")
         expectEqual(MetricFormat.bytes(1536), "1.5 KB", "bytes 1.5K")
+        // Seven of the thirteen languages here are spoken where a decimal is
+        // written with a comma, and the panel wrote a point at everyone.
+        MetricFormat.locale = Locale(identifier: "pt_BR")
+        expectEqual(MetricFormat.bytes(1536), "1,5 KB", "a comma region reads its own decimal")
+        expectEqual(MetricFormat.temperature(21.4, unit: .celsius), "21 °C",
+                    "a whole number is untouched by the region")
+        MetricFormat.locale = Locale(identifier: "en_US_POSIX")
         expectEqual(MetricFormat.bytes(10 * 1024), "10 KB", "bytes 10K drops decimal")
         expectEqual(MetricFormat.bytes(1024 * 1024), "1.0 MB", "bytes 1M")
         expectEqual(MetricFormat.bytes(3 * 1024 * 1024 * 1024), "3.0 GB", "bytes 3G")
@@ -752,6 +762,11 @@ struct MetricsTests {
         }
         expect(laneAnswer == 887, "the queued work runs once the lane comes free")
         expect(laneAnsweredOnMain, "the pasteboard lane answers on the main queue")
+        let pastePlainSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/PastePlainService.swift",
+            encoding: .utf8)) ?? ""
+        expect(pastePlainSource.contains("GeneralPasteboardAccess.shared.async"),
+               "paste as plain text reads the clipboard on the lane, not on the main thread")
 
         let maxCapacityStringJSON = Data(#"{"SPPowerDataType":[{"sppower_battery_health_info":{"sppower_battery_health_maximum_capacity":"93%"}}]}"#.utf8)
         expect(MaxCapacityProbe.percent(fromSystemProfilerJSON: maxCapacityStringJSON) == 93,
@@ -1535,8 +1550,9 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(focusFollowsMouseServiceSource.contains(".leftMouseDragged")
                 && focusFollowsMouseServiceSource.contains(".rightMouseDragged")
-                && focusFollowsMouseServiceSource.contains(".otherMouseDragged"),
-               "focus follows mouse tracks the final pointer position while a button is held")
+                && focusFollowsMouseServiceSource.contains(".otherMouseDragged")
+                && focusFollowsMouseServiceSource.contains("NSEvent.pressedMouseButtons == 0"),
+               "focus follows mouse tracks drags and checks every held mouse button")
         expect(focusFollowsMouseServiceSource.contains("excludesPointerTarget(")
                 && focusFollowsMouseServiceSource.contains(
                     ".focusFollowsMouse, at: evaluation.point"),
@@ -2000,6 +2016,10 @@ struct MetricsTests {
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakePauseWhenLocked] as? Bool == false,
+               "pausing Keep Awake on screen lock is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePauseWhenLocked),
+               "the Keep Awake screen-lock preference follows settings backups")
         expect(registeredDefaults[DefaultsKey.hotkeyEnabled] as? Bool == true,
                "global hotkey is on for clean installs")
         expect(registeredDefaults[DefaultsKey.keepAwakeShortcut] as? String == "control+option+command:40",
@@ -2058,6 +2078,17 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        expect(KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": true]
+        ), "the Keep Awake lock guard reads a locked session")
+        expect(!KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": false]
+        ), "the Keep Awake lock guard reads an unlocked session")
+        expect(KeepAwakeAutomationSupport.isScreenLocked(
+            sessionDictionary: ["CGSSessionScreenIsLocked": NSNumber(value: true)]
+        ), "the Keep Awake lock guard accepts the session dictionary's numeric bridge")
+        expect(!KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: nil),
+               "an unreadable lock state does not strand Keep Awake in a pause")
         let sleepDisabledReport = """
         System-wide power settings:
          SleepDisabled\t\t1
@@ -3185,15 +3216,13 @@ struct MetricsTests {
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
                "support prompt never leaks into another release")
-        expect(SupportUpdateIntroStep.discord.next == .social
-               && SupportUpdateIntroStep.social.next == .support
-               && SupportUpdateIntroStep.support.next == nil,
-               "update intro moves from Discord to social updates and support")
-        expect(SupportUpdateIntroStep.discord.previous == nil
-               && SupportUpdateIntroStep.social.previous == .discord
-               && SupportUpdateIntroStep.support.previous == .social,
+        expect(SupportUpdateIntroStep.support.next == .social
+               && SupportUpdateIntroStep.social.next == nil,
+               "update intro moves from support to social updates")
+        expect(SupportUpdateIntroStep.support.previous == nil
+               && SupportUpdateIntroStep.social.previous == .support,
                "update intro navigates back without closing")
-        expect(SupportUpdateIntroStep.allCases == [.discord, .social, .support],
+        expect(SupportUpdateIntroStep.allCases == [.support, .social],
                "update intro page indicators follow the navigation order")
         expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
                "the community action uses the permanent Discord invitation")
@@ -3207,28 +3236,31 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.3-beta.3",
+        expect(plistVersion == "3.3.3-beta.4",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "82",
+        expect(plistBuild == "83",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
-        // 3.3.2 adds several headline features, so the tour is re-curated
+        // 3.3.3 adds several headline features, so the tour is re-curated
         // around only what this update genuinely introduces.
-        expect(UpdateHighlightsInfo.releaseVersion == "3.3.2",
+        expect(UpdateHighlightsInfo.releaseVersion == "3.3.3",
                "re-decide the highlights tour on a feature release: re-curate its rows and move the pin to the shipping version")
-        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.1")
-               && UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil),
-               "highlights tour shows once after updating to its pinned release")
-        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: "3.3.2"),
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: "3.3.2")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3-beta.5", lastSeenVersion: "3.3.2")
+               && UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
+               "highlights tour shows once after updating to its pinned release or beta")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: "3.3.3")
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3-beta.5", lastSeenVersion: "3.3.3"),
                "highlights tour stays hidden after it is seen")
-        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.1", lastSeenVersion: nil)
-               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.3.3", lastSeenVersion: nil),
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.2", lastSeenVersion: nil)
+               && !UpdateHighlightsInfo.shouldShow(appVersion: "3.3.4", lastSeenVersion: nil),
                "highlights tour never leaks into another release")
-        expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-capture.png")
-               && FileManager.default.fileExists(atPath: "Resources/Images/highlights-clipboard.png"),
-               "3.3.2 highlights tour includes curated real captures for screenshot palette and clipboard")
+        expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-windowlayout.png")
+               && FileManager.default.fileExists(atPath: "Resources/Images/highlights-quitprotection.png")
+               && FileManager.default.fileExists(atPath: "Resources/Images/highlights-recorderblur.png"),
+               "3.3.3 highlights tour includes curated real captures for window layout, quit protection and recorder blur")
         expect(registeredDefaults[DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect] as? Bool == false,
                "headphone disconnect volume lowering is opt-in")
         expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
@@ -3259,6 +3291,9 @@ struct MetricsTests {
                "closing after a drop is new behavior and must arrive off in an update")
         expect(registeredDefaults[DefaultsKey.shelfRemoveAfterDrop] as? Bool == true,
                "shelf removes accepted items after a drop by default")
+        expect(registeredDefaults[DefaultsKey.shelfClearOnClose] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.shelfClearOnClose),
+               "clearing the shelf on close is opt-in and travels with settings backups")
         expect((registeredDefaults[DefaultsKey.shelfAutomaticExclusions] as? [String])?.isEmpty == true,
                "shelf automatic exclusions start empty")
         expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false,
@@ -4748,7 +4783,7 @@ struct MetricsTests {
         let junkCleanerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift",
             encoding: .utf8)) ?? ""
-        let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected()",
+        let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected(",
                                            to: "private static func mayRemove")
         expect(cleanSelectedBody.contains("chosen.contains { $0.category == .leftovers }")
                && cleanSelectedBody.contains("? Self.installedBundleIDs() : []")
@@ -4858,6 +4893,24 @@ struct MetricsTests {
                "device backups joined the cleaner with a stable category id")
         expect(!CleanerPolicy.precheckDeviceBackups,
                "device backups never start checked, they are the user's safety net")
+        // CleanerScheduler and CleanerView are outside this test binary, so
+        // pin escalation at the call sites: the unattended pass must never
+        // reach Finder's administrator prompt, and no default lets a later
+        // automatic caller inherit it.
+        let compact = { (path: String) -> String in
+            ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .split(whereSeparator: \.isWhitespace).joined()
+        }
+        let schedulerCode = compact("Sources/Vorssaint/Services/Cleaner/CleanerScheduler.swift")
+        let cleanerViewCode = compact("Sources/Vorssaint/UI/Cleaner/CleanerView.swift")
+        expect(schedulerCode.components(separatedBy: "cleanSelected(").count == 2
+               && schedulerCode.contains("cleanSelected(escalate:false)")
+               && schedulerCode.contains("notifyIfWanted(freed:freed,failed:failed)"),
+               "the scheduled clean never escalates and reports what it left in place")
+        expect(junkCleanerSource.contains("func cleanSelected(escalate: Bool) {")
+               && cleanerViewCode.components(separatedBy: "cleanSelected(").count == 2
+               && cleanerViewCode.contains("cleanSelected(escalate:true)"),
+               "cleanSelected has no default escalation and the manual clean still asks")
         expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),
                "stale DeviceSupport symbol caches count as developer junk")
@@ -5336,22 +5389,22 @@ struct MetricsTests {
                         screens: [WindowEdgeSnapScreen] = [snapScreen]) -> WindowEdgeSnapTarget? {
             WindowEdgeSnapSupport.target(at: point, screens: screens)
         }
-        let topSnapFrame = WindowLayoutGeometry.rect(for: .topHalf,
+        let topSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
                                                      current: snapVisibleFrame,
                                                      visibleFrame: snapVisibleFrame)
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY))
-               == WindowEdgeSnapTarget(action: .topHalf,
+               == WindowEdgeSnapTarget(action: .maximize,
                                        frame: topSnapFrame,
                                        visibleFrame: snapVisibleFrame),
-               "touching the lower edge of the menu bar previews the upper half")
-        expect(snapTarget(CGPoint(x: 720, y: 900))?.action == .topHalf,
-               "the full menu bar band remains a top snap target")
+               "touching the lower edge of the menu bar previews maximize")
+        expect(snapTarget(CGPoint(x: 720, y: 900))?.action == .maximize,
+               "the full menu bar band remains a top snap target for maximize")
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY - 13)) == nil,
                "the top target does not reach below its activation band")
         expect(snapTarget(CGPoint(x: 0, y: 450))?.action == .leftHalf
                && snapTarget(CGPoint(x: 1440, y: 450))?.action == .rightHalf
                && snapTarget(CGPoint(x: 720, y: 0))?.action == .bottomHalf,
-               "all four straight edges choose their matching halves")
+               "straight edges choose their matching placements")
         expect(snapTarget(CGPoint(x: 0, y: snapVisibleFrame.maxY))?.action == .topLeft
                && snapTarget(CGPoint(x: 1440, y: snapVisibleFrame.maxY))?.action == .topRight
                && snapTarget(CGPoint(x: 0, y: 0))?.action == .bottomLeft
@@ -5649,6 +5702,43 @@ struct MetricsTests {
                                                              frames: horizontalDisplays,
                                                              movingForward: true) == nil,
                "window layout leaves one display and invalid selections unchanged")
+        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
+                                                             frames: horizontalDisplays,
+                                                             movingRight: true) == 2
+                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
+                                                                 frames: horizontalDisplays,
+                                                                 movingRight: false) == 1
+                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 2,
+                                                                 frames: horizontalDisplays,
+                                                                 movingRight: false) == 0,
+               "window layout finds the display starting on the asked side")
+        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 2,
+                                                             frames: horizontalDisplays,
+                                                             movingRight: true) == nil
+                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 1,
+                                                                 frames: horizontalDisplays,
+                                                                 movingRight: false) == nil,
+               "window layout stops at the outermost display instead of wrapping sideways")
+        let stackedDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 0, y: 900, width: 1440, height: 900),
+        ]
+        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
+                                                             frames: stackedDisplays,
+                                                             movingRight: true) == nil
+                && WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 1,
+                                                                 frames: stackedDisplays,
+                                                                 movingRight: false) == nil,
+               "window layout never answers a sideways push with a stacked display")
+        let towerDisplays = [
+            CGRect(x: 0, y: 0, width: 1440, height: 900),
+            CGRect(x: 1440, y: 800, width: 1000, height: 1000),
+            CGRect(x: 1440, y: -100, width: 1000, height: 1000),
+        ]
+        expect(WindowLayoutGeometry.horizontalNeighbourIndex(currentIndex: 0,
+                                                             frames: towerDisplays,
+                                                             movingRight: true) == 2,
+               "window layout picks the closest display when several share the same edge")
         let portraitFrame = CGRect(x: -1200, y: -200, width: 1200, height: 1800)
         let scaledFrame = CGRect(x: 1440, y: 100, width: 2000, height: 1000)
         let portraitWindow = CGRect(x: -900, y: 1000, width: 600, height: 400)
@@ -5764,6 +5854,23 @@ struct MetricsTests {
                                                     visibleFrame: visibleFrame,
                                                     previousAction: .bottomHalf) == .rightHalf,
                "window layout right does not become a corner after bottom")
+        expect(WindowLayoutGeometry.displayCrossing(for: .rightHalf,
+                                                    previousAction: .rightHalf)?.action == .leftHalf
+                && WindowLayoutGeometry.displayCrossing(for: .rightHalf,
+                                                        previousAction: .rightHalf)?.movingRight == true,
+               "window layout right twice enters the display on the right from its left half")
+        expect(WindowLayoutGeometry.displayCrossing(for: .leftHalf,
+                                                    previousAction: .leftHalf)?.action == .rightHalf
+                && WindowLayoutGeometry.displayCrossing(for: .leftHalf,
+                                                        previousAction: .leftHalf)?.movingRight == false,
+               "window layout left twice enters the display on the left from its right half")
+        expect(WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: nil) == nil
+                && WindowLayoutGeometry.displayCrossing(for: .leftHalf, previousAction: .rightHalf) == nil,
+               "window layout only crosses displays when the same side is used twice in a row")
+        expect(WindowLayoutGeometry.displayCrossing(for: .topHalf, previousAction: .topHalf) == nil
+                && WindowLayoutGeometry.displayCrossing(for: .bottomHalf, previousAction: .bottomHalf) == nil
+                && WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
+               "window layout keeps top, bottom and thirds on their own display")
         let leftTarget = WindowLayoutGeometry.rect(for: .leftHalf,
                                                    current: currentWindow,
                                                    visibleFrame: visibleFrame)
@@ -6311,10 +6418,16 @@ struct MetricsTests {
                && sanitizedProfiles[1].name == "Work"
                && sanitizedProfiles[0].id != sanitizedProfiles[1].id,
                "Image profiles sanitize empty names and duplicate IDs")
+        // This run ends in exit(), which skips every defer, so scratch built
+        // in the temp area is listed here and handed back before it reports.
+        // The three defers that used to do it never ran once: a directory per
+        // run had been piling up in the system's temp area for as long as the
+        // suite has existed.
+        var scratchPaths: [URL] = []
         let uniqueDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorssaint-media-unique-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: uniqueDir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: uniqueDir) }
+        scratchPaths.append(uniqueDir)
         let firstImageOutput = MediaSupport.uniqueOutputURL(in: uniqueDir, baseName: "Export", fileExtension: "png")
         FileManager.default.createFile(atPath: firstImageOutput.path, contents: Data([1]), attributes: nil)
         expect(MediaSupport.uniqueOutputURL(in: uniqueDir, baseName: "Export", fileExtension: "png").lastPathComponent
@@ -6476,7 +6589,7 @@ struct MetricsTests {
             .appendingPathComponent("vorssaint-media-visibility-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: mediaVisibilityDir,
                                                  withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: mediaVisibilityDir) }
+        scratchPaths.append(mediaVisibilityDir)
         let visibleMediaOutput = mediaVisibilityDir.appendingPathComponent("Visible.gif")
         FileManager.default.createFile(atPath: visibleMediaOutput.path,
                                        contents: Data([0x47, 0x49, 0x46, 0x38]),
@@ -8026,6 +8139,26 @@ struct MetricsTests {
         expect(dockedWatchdog.contains("updateDockedProximity(")
                 && dockedWatchdog.contains("handleDragForEdge(at:"),
                "the drag watchdog finishes dock and edge dwells after pointer movement stops")
+        let explicitShelfClose = shelfServiceSource
+            .components(separatedBy: "func close()")
+            .dropFirst().first?.components(separatedBy: "\n    func noteInteraction").first ?? ""
+        let ordinaryShelfHide = shelfServiceSource
+            .components(separatedBy: "func hide()")
+            .dropFirst().first?.components(separatedBy: "\n    func close").first ?? ""
+        let shelfViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Shelf/ShelfView.swift",
+            encoding: .utf8)) ?? ""
+        let dockedShelfViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Shelf/ShelfDropZoneView.swift",
+            encoding: .utf8)) ?? ""
+        expect(explicitShelfClose.contains("DefaultsKey.shelfClearOnClose")
+                && explicitShelfClose.contains("clear()")
+                && explicitShelfClose.contains("hide()")
+                && !ordinaryShelfHide.contains("DefaultsKey.shelfClearOnClose"),
+               "only an explicit shelf close consults the optional clearing preference")
+        expect(shelfViewSource.contains("onDismiss ?? { shelf.close() }")
+                && dockedShelfViewSource.contains("onDismiss: { shelf.collapseDocked() }"),
+               "the floating close clears when requested while docked collapse keeps items")
 
         let shelfFile = ShelfPersistedItem(id: UUID(), kind: .file, title: "notes.pdf",
                                            path: "/tmp/notes.pdf")
@@ -8163,13 +8296,69 @@ struct MetricsTests {
         expect(String(format: FeatureStrings.clipboard(.ptBR).deleteSelectedFormat, 3) == "Apagar 3",
                "Portuguese bulk delete string formats count correctly")
 
+        // The switcher's header names the app and then the window under it. A
+        // window titled after its own app made that header say the same word
+        // twice, which reads as a bug. The model already knew the rule the
+        // other way round, in displaySubtitle, and now the header asks it too.
+        func switcherItem(title: String, appName: String, windowID: CGWindowID?) -> SwitcherItem {
+            SwitcherItem(id: "\(appName).\(title)", title: title, appName: appName,
+                         pid: 1, windowOwnerPID: 1, windowID: windowID,
+                         isOnScreen: true, isAppHidden: false, isMinimized: false,
+                         isFullscreen: false, isOnHiddenSpace: false, frame: .zero)
+        }
+        let sameName = switcherItem(title: "Claude", appName: "Claude", windowID: 7)
+        expect(sameName.windowDetail(noOpenWindow: "No window") == nil,
+               "the header says nothing under an app whose window carries the app's own name")
+        let realTitle = switcherItem(title: "Untitled.txt", appName: "TextEdit", windowID: 7)
+        expect(realTitle.windowDetail(noOpenWindow: "No window") == "Untitled.txt",
+               "a window with a name of its own still gets its line")
+        let noWindow = switcherItem(title: "", appName: "Finder", windowID: nil)
+        expect(noWindow.windowDetail(noOpenWindow: "No window") == "No window",
+               "an app with nothing open still says so")
+        let cased = switcherItem(title: "claude", appName: "Claude", windowID: 7)
+        expect(cased.windowDetail(noOpenWindow: "No window") == nil,
+               "the same name in another case is still the same name")
+
+
         // MARK: Shelf tile tooltip
 
-        let tooltipStrings = ShelfTooltipStrings(itemsFormat: "%d items",
-                                                 imageSingular: "%d image", imagePlural: "%d images",
-                                                 fileSingular: "%d file", filePlural: "%d files",
-                                                 noteSingular: "%d note", notePlural: "%d notes",
-                                                 linkSingular: "%d link", linkPlural: "%d links")
+        let tooltipStrings = ShelfTooltipStrings(itemsFormat: "%d items", itemsFew: "%d items",
+                                                 imageSingular: "%d image", imageFew: "%d images",
+                                                 imagePlural: "%d images",
+                                                 fileSingular: "%d file", fileFew: "%d files",
+                                                 filePlural: "%d files",
+                                                 noteSingular: "%d note", noteFew: "%d notes",
+                                                 notePlural: "%d notes",
+                                                 linkSingular: "%d link", linkFew: "%d links",
+                                                 linkPlural: "%d links",
+                                                 usesFewForm: false)
+        // Russian agrees a noun with the number in front of it three ways, and
+        // the rule is the number's last digits, not its size: 1 and 21 take the
+        // first, 2 and 22 the middle, 11 and 25 the last. A two-way choice put
+        // "2 файлов" on screen, which a reader sees as a mistake.
+        let slavicStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                                imageSingular: "one", imageFew: "few",
+                                                imagePlural: "many",
+                                                fileSingular: "one", fileFew: "few",
+                                                filePlural: "many",
+                                                noteSingular: "one", noteFew: "few",
+                                                notePlural: "many",
+                                                linkSingular: "one", linkFew: "few",
+                                                linkPlural: "many",
+                                                usesFewForm: true)
+        for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
+                                (11, .many), (12, .many), (14, .many), (15, .many),
+                                (21, .one), (22, .few), (25, .many), (101, .one), (111, .many)] {
+            expect(slavicStrings.form(for: count) == wanted,
+                   "a language with a middle form asks for the right one at \(count)")
+        }
+        for count in [1, 2, 5, 11, 21, 22] {
+            let wanted: ShelfTooltipStrings.Form = count == 1 ? .one : .many
+            expect(tooltipStrings.form(for: count) == wanted,
+                   "a language without a middle form still only chooses between one and many at \(count)")
+        }
+        expect(AppLanguage.allCases.filter(\.usesFewCountForm) == [.ru],
+               "Russian is the one language of the thirteen that asks for the middle form")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",
@@ -9832,10 +10021,50 @@ struct MetricsTests {
         let dockClickSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/DockClick/DockClickService.swift",
             encoding: .utf8)) ?? ""
-        expect(dockClickSource.contains("NSApp.yieldActivation(to: app)"),
+        expect(dockClickSource.contains("ActivationHandoff.yield(to: app)"),
                "a Dock click restore yields this app's activation first")
         expect(dockClickSource.contains("app.activate(from: NSRunningApplication.current, options: [])"),
                "a Dock click restore asks cooperatively before falling back")
+        // A yield only hands over activation this app holds, and it usually
+        // holds none when a switch commits, so the helper self-activates first
+        // and every yield goes through it. A bare yield added on a new path
+        // would bring the refused-handoff bug back on that path alone.
+        let activationHandoffSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/ActivationHandoff.swift",
+            encoding: .utf8)) ?? ""
+        let selfActivation = activationHandoffSource.range(of: "NSApp.activate(ignoringOtherApps: true)")
+        let yieldOnward = activationHandoffSource.range(of: "NSApp.yieldActivation(to: app)")
+        expect(selfActivation != nil && yieldOnward != nil
+                && selfActivation!.lowerBound < yieldOnward!.lowerBound,
+               "the activation handoff self-activates before it yields onward")
+        let handoffStamp = activationHandoffSource.range(of: "lastSelfActivation = CFAbsoluteTimeGetCurrent()")
+        expect(handoffStamp != nil && selfActivation != nil
+                && handoffStamp!.lowerBound < selfActivation!.lowerBound,
+               "the activation handoff stamps the self-activation before asking for it")
+        // Only the activation the handoff caused stays out of the history; the
+        // Dock icon, Settings and Vorssaint's own windows are real uses.
+        let useTrackerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
+            encoding: .utf8)) ?? ""
+        expect(useTrackerSource.contains(
+                   "pid == ProcessInfo.processInfo.processIdentifier && ActivationHandoff.isHandingOff"),
+               "only an activation the handoff caused is left out of the use history")
+        var bareActivationYields: [String] = []
+        var scannedActivationFiles = 0
+        if let sources = FileManager.default.enumerator(atPath: "Sources") {
+            for case let path as String in sources where path.hasSuffix(".swift") {
+                scannedActivationFiles += 1
+                guard (path as NSString).lastPathComponent != "ActivationHandoff.swift" else { continue }
+                let text = (try? String(contentsOfFile: "Sources/" + path, encoding: .utf8)) ?? ""
+                if text.contains("yieldActivation") {
+                    bareActivationYields.append((path as NSString).lastPathComponent)
+                }
+            }
+        }
+        expect(scannedActivationFiles > 0 && bareActivationYields.isEmpty,
+               "activation is yielded only through ActivationHandoff, "
+               + "found a bare yield in \(bareActivationYields.sorted()) "
+               + "across \(scannedActivationFiles) scanned files")
         expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: true,
@@ -10961,6 +11190,38 @@ struct MetricsTests {
                                                                              targetIsMinimized: true,
                                                                              ownPID: 99),
                "App Switcher does not restore source after minimize intent within the same app")
+        var minimizeIntentMinimizedReads = 0
+        var minimizeIntentFocusedReads = 0
+        func minimizeIntentMinimized(_ value: Bool) -> Bool {
+            minimizeIntentMinimizedReads += 1
+            return value
+        }
+        func minimizeIntentFocused(_ value: UInt32?) -> UInt32? {
+            minimizeIntentFocusedReads += 1
+            return value
+        }
+        expect(!SwitcherSupport.shouldRestoreSourceAfterTargetMinimizeIntent(
+                    targetPID: 10,
+                    sourcePID: 20,
+                    frontmostPID: 20,
+                    focusedWindowID: minimizeIntentFocused(55),
+                    targetWindowID: 44,
+                    targetIsMinimized: minimizeIntentMinimized(true),
+                    ownPID: 99),
+               "App Switcher stops a minimize restore pulse once the source is already frontmost")
+        expect(minimizeIntentMinimizedReads == 0 && minimizeIntentFocusedReads == 0,
+               "App Switcher reads no window state on a minimize pulse the frontmost check alone settles")
+        expect(SwitcherSupport.shouldRestoreSourceAfterTargetMinimizeIntent(
+                    targetPID: 10,
+                    sourcePID: 20,
+                    frontmostPID: 10,
+                    focusedWindowID: minimizeIntentFocused(55),
+                    targetWindowID: 44,
+                    targetIsMinimized: minimizeIntentMinimized(true),
+                    ownPID: 99),
+               "App Switcher restores the source once the target window reports itself minimized")
+        expect(minimizeIntentMinimizedReads == 1 && minimizeIntentFocusedReads == 0,
+               "App Switcher skips the focused-window read when the target is already minimized")
         expect(SwitcherSupport.shouldStageSourceBehindTarget(targetPID: 10,
                                                              sourcePID: 20,
                                                              sourceWindowID: 44,
@@ -11583,6 +11844,15 @@ struct MetricsTests {
 
         // MARK: Homebrew command building and parsing
 
+        let homebrewManagerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift",
+            encoding: .utf8)) ?? ""
+        let homebrewRunStreaming = homebrewManagerSource.components(separatedBy: "func runStreaming(")
+            .dropFirst().first?.components(separatedBy: "private func appendLog").first ?? ""
+        expect(homebrewRunStreaming.contains("brewSilenceTimeout")
+                && !homebrewRunStreaming.contains("waitUntilExit"),
+               "Homebrew operations wait on a bounded semaphore, not waitUntilExit")
+
         expect(HomebrewPackageKind.allCases == [.cask, .formula],
                "Homebrew package kinds keep casks before formulae")
         expect(HomebrewCommandBuilder.isValidToken("jq"), "simple Homebrew token is valid")
@@ -11938,6 +12208,187 @@ struct MetricsTests {
             (.zhHK, .zhHK)
         ]
         expect(localizedStrings.count == AppLanguage.allCases.count, "all app languages are covered by tests")
+        // Thirty-six feature string sets were held to the no-em-dash rule and
+        // the main one never was, so a caption in every language carried a
+        // pair of them.
+        for (language, strings) in localizedStrings {
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.allSatisfy { !$0.contains("\u{2014}") },
+                   "no em-dash in visible strings (\(language.rawValue))")
+        }
+        // The system writes an apostrophe as a curled mark, and so does every
+        // string here now: five hundred and ninety-nine of them were typewriter
+        // straight, and eleven quoted a setting with straight pairs instead of
+        // the marks their language uses.
+        var typewriterMarks: [String] = []
+        for folder in ["Sources/Vorssaint/Core", "Sources/Vorssaint/Core/Localizations"] {
+            for name in (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? [] {
+                guard name.hasSuffix("Strings.swift") || name.hasPrefix("Strings+")
+                        || name == "Localization.swift" else { continue }
+                let full = folder + "/" + name
+                for (index, line) in (((try? String(contentsOfFile: full, encoding: .utf8)) ?? "")
+                    .components(separatedBy: "\n")).enumerated() {
+                    guard !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") else { continue }
+                    guard let opening = line.firstIndex(of: "\""),
+                          let closing = line.lastIndex(of: "\""), opening < closing else { continue }
+                    if line[opening..<closing].contains("'") {
+                        typewriterMarks.append("\(full):\(index + 1)")
+                    }
+                }
+            }
+        }
+        expect(typewriterMarks.isEmpty,
+               "visible text curls its apostrophes (\(typewriterMarks.prefix(6).joined(separator: ", ")))")
+        // French sets a space before its double punctuation and inside its
+        // quotes, and that space must not break: a plain one lets a colon or a
+        // closing guillemet fall alone onto the next line of a narrow panel.
+        // Written as an escape so the character stays visible in the source.
+        func frenchLines(_ path: String) -> ArraySlice<String> {
+            let lines = ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+            guard !path.hasSuffix("Strings+French.swift") else { return lines[...] }
+            guard let start = lines.firstIndex(where: {
+                $0.trimmingCharacters(in: .whitespaces).hasPrefix("static let fr = ")
+            }) else { return [][...] }
+            let end = lines[(start + 1)...].firstIndex {
+                $0.trimmingCharacters(in: .whitespaces).hasPrefix("static let ")
+            } ?? lines.endIndex
+            return lines[start..<end]
+        }
+        var breakingFrench: [String] = []
+        var frenchSources = ["Sources/Vorssaint/Core/Localizations/Strings+French.swift"]
+        frenchSources += ((try? FileManager.default
+            .contentsOfDirectory(atPath: "Sources/Vorssaint/Core")) ?? [])
+            .filter { $0.hasSuffix("Strings.swift") }
+            .sorted()
+            .map { "Sources/Vorssaint/Core/" + $0 }
+        for path in frenchSources {
+            for line in frenchLines(path) {
+                guard !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") else { continue }
+                guard let opening = line.firstIndex(of: "\""),
+                      let closing = line.lastIndex(of: "\""), opening < closing else { continue }
+                let body = String(line[line.index(after: opening)..<closing])
+                let breaks = [" ;", " :", " !", " ?", " \u{00BB}", "\u{00AB} "]
+                if breaks.contains(where: { body.contains($0) }) {
+                    breakingFrench.append(path.components(separatedBy: "/").last ?? path)
+                }
+            }
+        }
+        expect(breakingFrench.isEmpty,
+               "French keeps its punctuation on the line it belongs to (\(Set(breakingFrench).sorted().prefix(4).joined(separator: ", ")))")
+        let themeSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Theme.swift",
+                                       encoding: .utf8)) ?? ""
+        let raisedReads = themeSource
+            .components(separatedBy: "accessibilityDisplayShouldIncreaseContrast").count - 1
+        expect(raisedReads == 2,
+               "both panel outlines answer raised contrast, and nothing else pretends to")
+        // A decimal built without a region is always written with a point, so
+        // the panel, the menu bar and the editors were showing one to readers
+        // whose system writes a comma. Every float says which region it is in;
+        // the two that feed a command line say so out loud.
+        var regionlessDecimals: [String] = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let full = "Sources/" + path
+            let lines = ((try? String(contentsOfFile: full, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+            for (index, line) in lines.enumerated() {
+                // A long call puts the region on the next line, so the whole
+                // statement is read, not the first line of it.
+                let statement = lines[index...min(index + 2, lines.count - 1)].joined()
+                guard line.contains("String(format:"), !statement.contains("locale:") else { continue }
+                let piece = line.components(separatedBy: "String(format:").dropFirst().first ?? ""
+                let format = piece.components(separatedBy: "\"").dropFirst().first ?? ""
+                if format.contains("f") && format.contains("%") {
+                    regionlessDecimals.append("\(full):\(index + 1)")
+                }
+            }
+        }
+        expect(regionlessDecimals.isEmpty,
+               "a decimal on screen names its region (\(regionlessDecimals.joined(separator: ", ")))")
+        // Purgeable space is a question for a writable volume. Asked of every
+        // mounted one, an attached disk image answered with an error on every
+        // sample; the bulk fetch no longer carries the key at all.
+        let samplerCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Metrics/DiskSampler.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!samplerCode.isEmpty, "the disk sampler reads back for its shape check")
+        let bulkKeys = samplerCode.components(separatedBy: "let keys: Set<URLResourceKey>")
+            .dropFirst().first?.components(separatedBy: "]").first ?? ""
+        expect(!bulkKeys.contains("volumeAvailableCapacityForImportantUsageKey")
+                && bulkKeys.contains("volumeIsReadOnlyKey"),
+               "the bulk volume fetch asks nothing that only a writable volume can answer")
+        expect(samplerCode.contains("guard !isReadOnly,"),
+               "purgeable space is read only where there is something to purge")
+        // A format string whose placeholders differ between languages feeds
+        // String(format:) arguments it was not written for, and the result is
+        // garbage or worse. Only fields that really reach a format are read:
+        // one caption documents the app's own file-name tokens in prose and
+        // its percent signs mean nothing here.
+        var formatFields: Set<String> = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let text = (try? String(contentsOfFile: "Sources/" + path, encoding: .utf8)) ?? ""
+            for piece in text.components(separatedBy: "String(format:").dropFirst() {
+                let head = piece.prefix(120)
+                guard let comma = head.firstIndex(of: ",") else { continue }
+                // The last dot BEFORE the comma: a dot in the arguments that
+                // follow belongs to something else entirely.
+                let expression = head[head.startIndex..<comma]
+                guard let dot = expression.lastIndex(of: ".") else { continue }
+                let name = expression[expression.index(after: dot)...]
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !name.isEmpty, name.allSatisfy({ $0.isLetter || $0.isNumber }) {
+                    formatFields.insert(name)
+                }
+            }
+        }
+        expect(formatFields.count > 10, "the format fields were found to compare (\(formatFields.count))")
+        var mismatched: [String] = []
+        for (language, strings) in localizedStrings where language != .enUS {
+            let mine = Mirror(reflecting: strings).children
+            let base = Mirror(reflecting: Strings.enUS).children
+            for (left, right) in zip(base, mine) {
+                guard let label = left.label, formatFields.contains(label),
+                      let english = left.value as? String,
+                      let other = right.value as? String else { continue }
+                if placeholderShape(english) != placeholderShape(other) {
+                    mismatched.append("\(label)/\(language.rawValue)")
+                }
+            }
+        }
+        expect(mismatched.isEmpty,
+               "every language fills a format the same way (\(mismatched.prefix(5).joined(separator: ", ")))")
+        // Quotation marks are part of looking native and each language has its
+        // own. Checked against what the system itself ships on this Mac: French
+        // and Russian use the angled pair, German pairs a low opening mark with
+        // a high closing one, and every other language here uses the curly
+        // pair. Spanish, Italian, Portuguese and Turkish had picked up the
+        // angled pair, which reads as a translation from somewhere else.
+        // A label that says work is under way ends with the ellipsis character,
+        // the way the system's own do, not with three periods. Ten of the
+        // thirteen languages had the periods while three already had the
+        // character, which is the tell that it was never a decision.
+        for (language, strings) in localizedStrings {
+            let working = [strings.homebrewOperationPreparing, strings.homebrewOperationDownloading,
+                           strings.homebrewOperationInstalling, strings.homebrewOperationUninstalling,
+                           strings.homebrewOperationUpgrading, strings.homebrewOperationFinalizing,
+                           strings.homebrewOperationRefreshing]
+            expect(working.allSatisfy { !$0.contains("...") && $0.contains("…") },
+                   "work in progress ends with the ellipsis character in \(language.rawValue)")
+        }
+        for (language, strings) in localizedStrings {
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            let anglesUsed = values.contains { $0.contains("«") || $0.contains("»") }
+            expect(anglesUsed == (language == .fr || language == .ru),
+                   "only French and Russian quote with angled marks (\(language.rawValue))")
+            let lowOpenUsed = values.contains { $0.contains("„") }
+            expect(lowOpenUsed == (language == .de),
+                   "only German opens a quote with the low mark (\(language.rawValue))")
+        }
         for (language, strings) in localizedStrings {
             let prefix = "localization \(language.rawValue)"
             expect(!strings.smoothScrollStepLabel.isEmpty
@@ -11951,6 +12402,11 @@ struct MetricsTests {
             expectFormat(strings.uninstallerSelectedFormat, ["d", "d"], "\(prefix) uninstaller selected format")
             expectFormat(strings.uninstallerFreedFormat, ["@"], "\(prefix) uninstaller freed format")
             expectFormat(strings.shelfSelectedFormat, ["d"], "\(prefix) shelf selection format")
+            expect(!strings.shelfClearOnClose.isEmpty
+                   && !strings.shelfClearOnCloseCaption.isEmpty
+                   && !strings.shelfClearOnClose.contains("—")
+                   && !strings.shelfClearOnCloseCaption.contains("—"),
+                   "\(prefix) shelf clear-on-close labels are present without em dash")
             expectFormat(strings.powerAdapterMaxFormat, ["@"], "\(prefix) adapter max format")
             expectFormat(strings.mixerInputErrorFormat, ["@"], "\(prefix) mixer input error format")
             expect(!strings.mixerSoundEffectsOutputTitle.isEmpty
@@ -12123,9 +12579,6 @@ struct MetricsTests {
                 strings.supportIntroCoffeeButton,
                 strings.discordIntroTitle,
                 strings.discordIntroMessage,
-                strings.discordIntroBenefitHelp,
-                strings.discordIntroBenefitFeedback,
-                strings.discordIntroBenefitPreviews,
                 strings.discordIntroJoinButton,
                 strings.communityIntroTitle,
                 strings.communityIntroMessage,
@@ -12229,6 +12682,244 @@ struct MetricsTests {
                                      encoding: .utf8)) ?? ""
             return organizerFolderPromptKeys.allSatisfy(value.contains)
         }, "every localization explains custom organizer folder access")
+        // What the bundle says it speaks and what it ships have to be the same
+        // list: a language declared without its folder makes the system offer
+        // the app in it and then show every permission prompt in English.
+        let shippedFolders = Set(localizedInfoPlists.map {
+            $0.replacingOccurrences(of: ".lproj", with: "")
+        })
+        let declared = Set(bundleLocalizations).subtracting(["en"])
+        expect(declared == shippedFolders,
+               "the bundle ships a folder for every language it claims "
+               + "(claimed only: \(declared.subtracting(shippedFolders).sorted()), "
+               + "shipped only: \(shippedFolders.subtracting(declared).sorted()))")
+        expect(bundleLocalizations.count == AppLanguage.allCases.count,
+               "the bundle speaks exactly the languages the app does")
+        // A symbol name that does not exist draws an empty box, and nobody
+        // notices until someone opens that screen. Every name the app asks
+        // for is resolved here instead.
+        var missingSymbols: [String] = []
+        var symbolNames: Set<String> = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let text = (try? String(contentsOfFile: "Sources/" + path, encoding: .utf8)) ?? ""
+            for piece in text.components(separatedBy: "systemName: \"").dropFirst() {
+                guard let end = piece.firstIndex(of: "\"") else { continue }
+                let name = String(piece[piece.startIndex..<end])
+                // Names built at run time are checked where they are built.
+                if !name.isEmpty, !name.contains("\\") { symbolNames.insert(name) }
+            }
+        }
+        expect(symbolNames.count > 80, "the symbol names were found (\(symbolNames.count))")
+        for name in symbolNames.sorted()
+        where NSImage(systemSymbolName: name, accessibilityDescription: nil) == nil {
+            missingSymbols.append(name)
+        }
+        expect(missingSymbols.isEmpty,
+               "every symbol the app draws exists (\(missingSymbols.joined(separator: ", ")))")
+        // Same blind spot, other half: a file asked for by name is nil at run
+        // time if it was renamed or dropped, and nothing says so until the
+        // screen that needs it is opened.
+        var namedResources: Set<String> = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let text = (try? String(contentsOfFile: "Sources/" + path, encoding: .utf8)) ?? ""
+            for marker in ["url(forResource: \"", "path(forResource: \"", "NSImage(named: \""] {
+                for piece in text.components(separatedBy: marker).dropFirst() {
+                    guard let end = piece.firstIndex(of: "\"") else { continue }
+                    let name = String(piece[piece.startIndex..<end])
+                    if !name.isEmpty, !name.contains("\\") { namedResources.insert(name) }
+                }
+            }
+        }
+        expect(namedResources.count >= 5, "the named resources were found (\(namedResources.count))")
+        var shippedNames: Set<String> = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Resources")) ?? [] {
+            let file = (path as NSString).lastPathComponent
+            shippedNames.insert((file as NSString).deletingPathExtension)
+            shippedNames.insert(file)
+        }
+        // The brand images are drawn during the build and staged from there,
+        // so the build script is where their names live.
+        let stagingScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        expect(!stagingScript.isEmpty, "the build script reads back for its resource names")
+        for word in stagingScript.components(separatedBy: CharacterSet(charactersIn: " \n\t\"'()")) {
+            let file = (word as NSString).lastPathComponent
+            guard !file.isEmpty else { continue }
+            shippedNames.insert((file as NSString).deletingPathExtension)
+            shippedNames.insert(file)
+        }
+        shippedNames.insert("CHANGELOG")
+        let absentResources = namedResources.filter { !shippedNames.contains($0) }.sorted()
+        expect(absentResources.isEmpty,
+               "every file the app asks for by name is in the bundle (\(absentResources.joined(separator: ", ")))")
+        // The scripts that drive the Finder are compiled when they run, so an
+        // unbalanced block fails in silence exactly where it matters most:
+        // these are the ones that delete files and empty the trash. The
+        // one-line form, "tell application X to do something", closes itself
+        // and is not counted as an opening.
+        var unbalancedScripts: [String] = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let text = (try? String(contentsOfFile: "Sources/" + path, encoding: .utf8)) ?? ""
+            for chunk in text.components(separatedBy: "\"\"\"").enumerated()
+            where chunk.offset % 2 == 1 && chunk.element.contains("tell application") {
+                let body = chunk.element.components(separatedBy: "\n")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                func opens(_ word: String, closing: String, inline: (String) -> Bool) -> Bool {
+                    let started = body.filter { $0.hasPrefix(word + " ") && !inline($0) }.count
+                    let ended = body.filter { $0 == closing }.count
+                    return started != ended
+                }
+                let name = (path as NSString).lastPathComponent
+                if opens("tell", closing: "end tell", inline: { $0.contains(" to ") }) {
+                    unbalancedScripts.append("\(name):tell")
+                }
+                if opens("repeat", closing: "end repeat", inline: { _ in false }) {
+                    unbalancedScripts.append("\(name):repeat")
+                }
+            }
+        }
+        expect(unbalancedScripts.isEmpty,
+               "every embedded script closes what it opens (\(unbalancedScripts.joined(separator: ", ")))")
+        // The command line tools the app shells out to. If macOS moves or drops
+        // one, the feature that calls it fails without a word, so their absence
+        // should fail here first. Framework paths are left out on purpose: they
+        // are opened with dlopen and live in the shared cache, not on disk.
+        var missingTools: [String] = []
+        var toolPaths: Set<String> = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let text = (try? String(contentsOfFile: "Sources/" + path, encoding: .utf8)) ?? ""
+            for piece in text.components(separatedBy: "\"/").dropFirst() {
+                guard let end = piece.firstIndex(of: "\"") else { continue }
+                let candidate = "/" + piece[piece.startIndex..<end]
+                guard candidate.hasPrefix("/bin/") || candidate.hasPrefix("/usr/bin/")
+                        || candidate.hasPrefix("/usr/sbin/") else { continue }
+                guard !candidate.contains(" "), !candidate.contains("\\") else { continue }
+                toolPaths.insert(candidate)
+            }
+        }
+        expect(toolPaths.count >= 15, "the system tools were found (\(toolPaths.count))")
+        for tool in toolPaths.sorted() where !FileManager.default.fileExists(atPath: tool) {
+            missingTools.append(tool)
+        }
+        expect(missingTools.isEmpty,
+               "every system tool the app runs is where it expects (\(missingTools.joined(separator: ", ")))")
+        // The fan helper's launchd plist ships with the release identifier in
+        // three places, and the Developer build rewrites each one so the two
+        // apps can run side by side. A fourth mention added without a matching
+        // rewrite would leave the Developer build asking launchd for a service
+        // that is registered under the other name, and fan control would just
+        // never answer.
+        let helperTemplate = (try? String(
+            contentsOfFile: "Resources/com.vorssaint.utils.fan-control.plist",
+            encoding: .utf8)) ?? ""
+        expect(!helperTemplate.isEmpty, "the helper template reads back")
+        let releaseHelperID = "com.vorssaint.utils.fan-control"
+        let mentions = helperTemplate.components(separatedBy: releaseHelperID).count - 1
+        expect(mentions == 3,
+               "the helper template names the release service exactly where the build rewrites it (\(mentions))")
+        let buildText = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
+        for key in ["Set :Label $FAN_HELPER_ID",
+                    "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID",
+                    "Delete :MachServices:" + releaseHelperID,
+                    "Add :MachServices:$FAN_HELPER_ID"] {
+            expect(buildText.contains(key), "the Developer build rewrites \(key)")
+        }
+        // Every shortcut the app ships with is written to disk as a string and
+        // read back on the next launch. One that does not survive the trip
+        // would leave that feature with no shortcut at all, on a fresh install,
+        // with nothing to show for it.
+        let defaultShortcuts: [(String, GlobalShortcut)] = [
+            ("cameraPreviewDefault", GlobalShortcut.cameraPreviewDefault),
+            ("clipboardDefault", GlobalShortcut.clipboardDefault),
+            ("colorPickerDefault", GlobalShortcut.colorPickerDefault),
+            ("commandBarDefault", GlobalShortcut.commandBarDefault),
+            ("finderRenameDefault", GlobalShortcut.finderRenameDefault),
+            ("keepAwakeDefault", GlobalShortcut.keepAwakeDefault),
+            ("micMuteDefault", GlobalShortcut.micMuteDefault),
+            ("pastePlainDefault", GlobalShortcut.pastePlainDefault),
+            ("quickLauncherDefault", GlobalShortcut.quickLauncherDefault),
+            ("radialMenuDefault", GlobalShortcut.radialMenuDefault),
+            ("scratchpadDefault", GlobalShortcut.scratchpadDefault),
+            ("screenOCRDefault", GlobalShortcut.screenOCRDefault),
+            ("screenRecorderDefault", GlobalShortcut.screenRecorderDefault),
+            ("screenshotClipboardDefault", GlobalShortcut.screenshotClipboardDefault),
+            ("screenshotDefault", GlobalShortcut.screenshotDefault),
+            ("screenshotFullScreenDefault", GlobalShortcut.screenshotFullScreenDefault),
+            ("screenshotLastCaptureDefault", GlobalShortcut.screenshotLastCaptureDefault),
+            ("shelfDefault", GlobalShortcut.shelfDefault),
+            ("snippetLibraryDefault", GlobalShortcut.snippetLibraryDefault),
+            ("soundOutputSwitcherDefault", GlobalShortcut.soundOutputSwitcherDefault),
+            ("switcherDefault", GlobalShortcut.switcherDefault),
+            ("switcherWindowDefault", GlobalShortcut.switcherWindowDefault),
+            ("windowDirectionalDefault", GlobalShortcut.windowDirectionalDefault),
+            ("windowLayoutBottomDefault", GlobalShortcut.windowLayoutBottomDefault),
+            ("windowLayoutBottomLeftDefault", GlobalShortcut.windowLayoutBottomLeftDefault),
+            ("windowLayoutBottomRightDefault", GlobalShortcut.windowLayoutBottomRightDefault),
+            ("windowLayoutCenterDefault", GlobalShortcut.windowLayoutCenterDefault),
+            ("windowLayoutCenterThirdDefault", GlobalShortcut.windowLayoutCenterThirdDefault),
+            ("windowLayoutLeftDefault", GlobalShortcut.windowLayoutLeftDefault),
+            ("windowLayoutLeftThirdDefault", GlobalShortcut.windowLayoutLeftThirdDefault),
+            ("windowLayoutLeftTwoThirdsDefault", GlobalShortcut.windowLayoutLeftTwoThirdsDefault),
+            ("windowLayoutMaximizeDefault", GlobalShortcut.windowLayoutMaximizeDefault),
+            ("windowLayoutNextDisplayDefault", GlobalShortcut.windowLayoutNextDisplayDefault),
+            ("windowLayoutRestoreDefault", GlobalShortcut.windowLayoutRestoreDefault),
+            ("windowLayoutRightDefault", GlobalShortcut.windowLayoutRightDefault),
+            ("windowLayoutRightThirdDefault", GlobalShortcut.windowLayoutRightThirdDefault),
+            ("windowLayoutRightTwoThirdsDefault", GlobalShortcut.windowLayoutRightTwoThirdsDefault),
+            ("windowLayoutTopDefault", GlobalShortcut.windowLayoutTopDefault),
+            ("windowLayoutTopLeftDefault", GlobalShortcut.windowLayoutTopLeftDefault),
+            ("windowLayoutTopRightDefault", GlobalShortcut.windowLayoutTopRightDefault),
+        ]
+        expect(defaultShortcuts.count == 40, "every default shortcut is in the round trip")
+        var brokenShortcuts: [String] = []
+        for (name, shortcut) in defaultShortcuts {
+            guard let restored = GlobalShortcut(storageValue: shortcut.storageValue),
+                  restored.storageValue == shortcut.storageValue else {
+                brokenShortcuts.append(name)
+                continue
+            }
+        }
+        expect(brokenShortcuts.isEmpty,
+               "a default shortcut survives being written and read back (\(brokenShortcuts.joined(separator: ", ")))")
+        // A restored backup is filtered by valueLooksRight, so a setting whose
+        // own registered default fails that filter would be dropped on import
+        // and come back at its factory value with nothing said. The app's own
+        // defaults are the one set guaranteed to be valid, so they are the
+        // honest fixture for it.
+        var rejectedByOwnFilter: [String] = []
+        for key in SettingsBackupSupport.exportKeys().sorted() {
+            guard let value = Defaults.registeredDefaults[key] else { continue }
+            if !SettingsBackupSupport.valueLooksRight(key, value) {
+                rejectedByOwnFilter.append(key)
+            }
+        }
+        expect(rejectedByOwnFilter.isEmpty,
+               "a restored backup keeps every setting the app itself ships (\(rejectedByOwnFilter.prefix(6).joined(separator: ", ")))")
+        // The two services that hold files for the user delete only what they
+        // put there themselves, and they check ownership again at the moment
+        // of deletion. An unguarded removeItem added here would be the one bug
+        // in this app that costs somebody a file, so it fails the suite first.
+        var ungardedDeletes: [String] = []
+        let ownershipGuards = ["isShelfOwnedFile", "discardablePaths", "ownedPayloadURLs",
+                               "isRegularFile", "tempDir", "legacyDir", "root", "uuidString",
+                               "storeRoot", "contentsOfDirectory"]
+        for path in ["Sources/Vorssaint/Services/Shelf/ShelfService.swift",
+                     "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift"] {
+            let lines = ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+            expect(!lines.isEmpty, "the store source reads back for its deletion check")
+            for (index, line) in lines.enumerated() where line.contains("removeItem(at:") {
+                let scope = lines[max(0, index - 10)...index].joined(separator: "\n")
+                if !ownershipGuards.contains(where: scope.contains) {
+                    ungardedDeletes.append("\((path as NSString).lastPathComponent):\(index + 1)")
+                }
+            }
+        }
+        expect(ungardedDeletes.isEmpty,
+               "a file is deleted only after the app checks it owns it (\(ungardedDeletes.joined(separator: ", ")))")
         let turkishInfoPlistStrings = (try? String(contentsOfFile: "Resources/tr.lproj/InfoPlist.strings",
                                                    encoding: .utf8)) ?? ""
         expect(turkishInfoPlistStrings.contains("NSAudioCaptureUsageDescription")
@@ -13822,7 +14513,7 @@ struct MetricsTests {
                    "no em-dash in visible camera preview strings (\(language.rawValue))")
             let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
                 .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 90 && radialMenuValues.allSatisfy { !$0.isEmpty },
+            expect(radialMenuValues.count == 97 && radialMenuValues.allSatisfy { !$0.isEmpty },
                    "every radial menu string is set for \(language.rawValue)")
             expect(radialMenuValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible radial menu strings (\(language.rawValue))")
@@ -13830,7 +14521,7 @@ struct MetricsTests {
                    "Now Playing keeps the app-name placeholder (\(language.rawValue))")
             let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
                 .compactMap { $0.value as? String }
-            expect(scratchpadValues.count == 30 && scratchpadValues.allSatisfy { !$0.isEmpty },
+            expect(scratchpadValues.count == 31 && scratchpadValues.allSatisfy { !$0.isEmpty },
                    "every scratchpad string is set for \(language.rawValue)")
             expect(scratchpadValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible scratchpad strings (\(language.rawValue))")
@@ -13860,7 +14551,7 @@ struct MetricsTests {
                    "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
             let recorderValues = Mirror(reflecting: FeatureStrings.recorder(language)).children
                 .compactMap { $0.value as? String }
-            expect(recorderValues.count == 126 && recorderValues.allSatisfy { !$0.isEmpty },
+            expect(recorderValues.count == 127 && recorderValues.allSatisfy { !$0.isEmpty },
                    "every screen recorder string is set for \(language.rawValue)")
             expect(recorderValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible screen recorder strings (\(language.rawValue))")
@@ -14170,6 +14861,10 @@ struct MetricsTests {
             .joined(separator: "\n")
         expect(!brightnessWorkQueueHalf.isEmpty && !brightnessWorkQueueCode.contains("NSScreen"),
                "the brightness work queue resolves display names without touching NSScreen")
+        // Display numbers are reissued after a reconnection, so the gamma
+        // restore before a switch-off must check the monitor like the others.
+        expect(brightnessSource.contains("baseline.fingerprint == Self.displayFingerprint(display.id)"),
+               "the pre-switch-off gamma restore checks the display fingerprint")
 
         let ddcWrite = BrightnessSupport.writePacket(code: 0x10, value: 0x1234)
         let expectedDDCWrite: [UInt8] = [0x84, 0x03, 0x10, 0x12, 0x34, 0x8E]
@@ -15285,6 +15980,19 @@ struct MetricsTests {
                 && decodedProfiles[0].items.count == 4,
                "profile encodes and decodes accurately with trimmed name")
 
+        let renamedPresetProfile = RadialMenuProfilePreset.media.createProfile(name: "Renamed")
+        let presetRoundTrip = RadialMenuSupport.decodeProfiles(
+            RadialMenuSupport.encodeProfiles([renamedPresetProfile]))
+        expect(renamedPresetProfile.preset == RadialMenuProfilePreset.media.rawValue
+                && presetRoundTrip.first?.preset == RadialMenuProfilePreset.media.rawValue,
+               "a wheel keeps the starter set it came from, whatever it is renamed to")
+        let profileWithoutPreset = Data("""
+        [{"id":"\(UUID().uuidString)","name":"Old Wheel","color":"accent",\
+        "shortcut":"","mouseButton":"off","items":[]}]
+        """.utf8)
+        expect(RadialMenuSupport.decodeProfiles(profileWithoutPreset).first?.preset == nil,
+               "a wheel saved before the starter set was recorded decodes without one")
+
         let dupID = UUID()
         let dups = [
             RadialMenuProfile(id: dupID, name: "First"),
@@ -15390,6 +16098,35 @@ struct MetricsTests {
                "claimed mouse buttons fall back to the legacy button key like the full decode")
         legacyButtonDefaults.removePersistentDomain(forName: "com.vorssaint.tests.radialLegacyButton")
 
+        var reorderItems = [
+            RadialMenuItem(kind: .app, name: "A"),
+            RadialMenuItem(kind: .app, name: "B"),
+            RadialMenuItem(kind: .app, name: "C"),
+        ]
+        let itemToMove = reorderItems[0]
+        let targetItem = reorderItems[2]
+        if let from = reorderItems.firstIndex(where: { $0.id == itemToMove.id }),
+           let to = reorderItems.firstIndex(where: { $0.id == targetItem.id }) {
+            reorderItems.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        }
+        expect(reorderItems.map(\.name) == ["B", "C", "A"],
+               "radial items can be reordered correctly by drag target")
+
+        var swapItems = [
+            RadialMenuItem(kind: .app, name: "A"),
+            RadialMenuItem(kind: .app, name: "B"),
+            RadialMenuItem(kind: .app, name: "C"),
+            RadialMenuItem(kind: .app, name: "D"),
+        ]
+        let firstToSwap = swapItems[0]
+        let secondToSwap = swapItems[2]
+        if let from = swapItems.firstIndex(where: { $0.id == firstToSwap.id }),
+           let to = swapItems.firstIndex(where: { $0.id == secondToSwap.id }) {
+            swapItems.swapAt(from, to)
+        }
+        expect(swapItems.map(\.name) == ["C", "B", "A", "D"],
+               "radial items can be swapped directly without displacing intermediate items")
+
         // The cheap read and the full decode can disagree on a corrupt blob,
         // so only one of them may decide whether the click is passed on: once
         // the button is claimed, nothing past that point hands an event back,
@@ -15406,6 +16143,17 @@ struct MetricsTests {
             .components(separatedBy: "private func hotkeyPressed").first ?? ""
         expect(!radialClaimedClick.isEmpty && !radialClaimedClick.contains("passUnretained"),
                "a claimed side button keeps both halves of its click whatever the full decode says")
+
+        // The tap is the only thing that ends a button-held wheel, so handing
+        // it back on resign has to end the session too; a wheel left open
+        // across the switch would come back in hold phase with no release
+        // coming for it.
+        let radialSessionResign = radialServiceCode
+            .components(separatedBy: "SessionActivity.shared.onChange")
+            .dropFirst().first?
+            .components(separatedBy: "var sessionActive").first ?? ""
+        expect(radialSessionResign.contains("endSession()"),
+               "the radial menu ends its session when the mouse tap is handed back on resign")
         expect(RadialMenuFaviconFetcher.faviconURL(
             for: "https://example.com:8443/path?q=1#part")?.absoluteString
                 == "https://example.com:8443/favicon.ico"
@@ -16269,6 +17017,102 @@ struct MetricsTests {
         expect(panelBody.contains("sendEvent") && panelBody.contains("leftMouseDown")
                 && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
                "clicking the screenshot preview takes key focus and still delivers every preview button")
+
+        // Both editors state a size the same way. The recorder wrote
+        // "1960x1274" beside a screenshot editor that already read
+        // "2940 \u{00D7} 1912 px", and the letter x is the tell.
+        let recorderEditorSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift",
+            encoding: .utf8)) ?? ""
+        expect(!recorderEditorSource.isEmpty, "the recorder editor source reads back for its shape check")
+        expect(recorderEditorSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
+               "the recorder states its output size with the multiplication sign")
+        // A card that names itself twice reads like filler. The look cards had
+        // borrowed the shape, pointer and background labels as subtitles, so
+        // two of the three said their own name back in English.
+        let inspectorSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderInspector.swift",
+            encoding: .utf8)) ?? ""
+        expect(!inspectorSource.isEmpty, "the recorder inspector source reads back for its shape check")
+        expect(!inspectorSource.contains("subtitle"),
+               "a look card carries one name, not a label borrowed from another control")
+        // A button says what it does. The empty zoom state had borrowed the
+        // timeline lane's hint, so the button read "Click here to add a zoom"
+        // while being the very thing the reader was already looking at.
+        for language in AppLanguage.allCases {
+            let recorder = FeatureStrings.recorder(language)
+            expect(!recorder.addZoomButton.isEmpty
+                    && recorder.addZoomButton != recorder.zoomLaneEmptyHint,
+                   "the empty zoom state has its own button label in \(language.rawValue)")
+        }
+        // A menu row says where the command lives. Every Mac app has a menu
+        // named after itself, so the app menu read its own name twice.
+        expect(CommandBarMenuPath.crumb(appName: "Notes", path: ["Notes"]) == "Notes",
+               "the app menu does not say the app name twice")
+        expect(CommandBarMenuPath.crumb(appName: "Notes", path: ["File", "Export"])
+                == "Notes \u{203A} File \u{203A} Export",
+               "a real trail keeps every step")
+        expect(CommandBarMenuPath.crumb(appName: "Notes", path: []) == "Notes",
+               "a command straight off the app names only the app")
+        expect(CommandBarMenuPath.crumb(appName: "Notes", path: ["", "View"])
+                == "Notes \u{203A} View",
+               "an empty step leaves no dangling separator")
+        // The cleanup above is the only kind that survives exit(). A defer
+        // that removes a file here would look like housekeeping and do none.
+        let suiteSource = (try? String(contentsOfFile: "Tests/MetricsTests.swift",
+                                       encoding: .utf8)) ?? ""
+        expect(!suiteSource.isEmpty, "the suite reads itself back for its own shape check")
+        // Split so the needle never matches the line that looks for it.
+        let deadCleanup = "defer { try? FileManager" + ".default.removeItem"
+        expect(!suiteSource.contains(deadCleanup),
+               "scratch is handed back before the run reports, never by a defer this exit skips")
+        // Reading a file is not a drawing step. The watermark logo was being
+        // decoded inside the preview's body, so every frame of an opacity
+        // drag re-read it from disk; it is loaded once per chosen file now,
+        // which is what a task is for.
+        var decodingInBody: [String] = []
+        for path in (try? FileManager.default.subpathsOfDirectory(atPath: "Sources/Vorssaint/UI")) ?? [] {
+            guard path.hasSuffix(".swift") else { continue }
+            let full = "Sources/Vorssaint/UI/" + path
+            let lines = ((try? String(contentsOfFile: full, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+            for (index, line) in lines.enumerated() {
+                let reads = line.contains("NSImage(contentsOfFile:")
+                    || line.contains("Data(contentsOf:")
+                guard reads else { continue }
+                let around = lines[max(0, index - 6)...min(lines.count - 1, index + 2)]
+                if !around.contains(where: { $0.contains(".task(") || $0.contains("func ")
+                                             || $0.contains("Task {") }) {
+                    decodingInBody.append("\(full):\(index + 1)")
+                }
+            }
+        }
+        expect(decodingInBody.isEmpty,
+               "a view reads a file once, never while drawing (\(decodingInBody.joined(separator: ", ")))")
+        // A word pinned to a fixed column has to be allowed to give: the
+        // backdrop sliders were labelled in a 64-point column that the Turkish
+        // and Spanish words for blur run past, so they were being cut.
+        let widestBackdropLabel = AppLanguage.allCases
+            .flatMap { language -> [String] in
+                let screenshot = FeatureStrings.screenshot(language)
+                return [screenshot.backdropPaddingLabel,
+                        screenshot.backdropCornersLabel,
+                        screenshot.backdropBlurLabel]
+            }
+            .map(\.count).max() ?? 0
+        expect(widestBackdropLabel >= 10,
+               "the backdrop labels are long enough somewhere for the column to matter")
+        for path in ["Sources/Vorssaint/UI/Screenshot/ScreenshotBackdropPopover.swift",
+                     "Sources/Vorssaint/UI/Recorder/RecorderInspector.swift"] {
+            let code = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            expect(!code.isEmpty, "the slider source reads back for its shape check")
+            let pinned = code.components(separatedBy: "\n")
+                .filter { $0.contains(".frame(width: 64, alignment: .leading)")
+                          || $0.contains(".frame(width: 50, alignment: .leading)") }
+            expect(!pinned.isEmpty, "the pinned label column is still there in \(path)")
+            expect(code.components(separatedBy: "minimumScaleFactor(0.82)").count - 1 == pinned.count,
+                   "every label pinned to that column may shrink instead of being cut (\(path))")
+        }
 
         let cocoa = ScreenshotSupport.cocoaRect(fromWindowServer: CGRect(x: 10, y: 30, width: 200, height: 100),
                                                 mainScreenHeight: 900)
@@ -17683,6 +18527,16 @@ struct MetricsTests {
                 && mouseButtonToggleCode.contains("spacesEnableLabel")
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID).spacesGesture\""),
                "the Command Bar exposes the Spaces gesture as its own localized toggle row")
+
+        let restartAppCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("id: \"action.restartApp\"")
+        }.map {
+            commandBarCatalogLines[$0...].prefix(8).filter(isCodeLine).joined(separator: "\n")
+        } ?? ""
+        expect(restartAppCode.contains("bar.restartAppFormat")
+                && restartAppCode.contains("AppInfo.name")
+                && restartAppCode.contains("FeatureRuntime.shared.relaunchApp()"),
+               "the Command Bar exposes its own localized relaunch action")
 
         func appStorageProperty(_ key: String, in lines: [String]) -> String? {
             guard let line = lines.first(where: {
@@ -19689,6 +20543,28 @@ struct MetricsTests {
         expect(!CommandBarClipboardAccess.canUseHistory(captureEnabled: false,
                                                         hasSavedItems: false),
                "an empty disabled clipboard still points to setup")
+        let japaneseClipboard = FeatureStrings.clipboard(.ja)
+        let clipboardClearKeywords = [japaneseClipboard.title,
+                                      ClipboardFeatureStrings.enUS.title,
+                                      ClipboardFeatureStrings.enUS.clearRecent]
+            .joined(separator: " ")
+        expect(CommandBarSearch.matches(title: japaneseClipboard.clearRecent,
+                                        keywords: clipboardClearKeywords,
+                                        query: "clear clipboard"),
+               "the clipboard clear action stays findable by its English name in a non-Latin locale")
+        let clipboardActionsCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("if AppFeature.clipboardHistory.isAvailable {")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("if AppFeature.textSnippets.isAvailable {") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        expect(clipboardActionsCode.contains("id: \"action.clipboardClearRecent\"")
+                && clipboardActionsCode.contains("title: clipboard.clearRecent")
+                && clipboardActionsCode.contains("confirmationPrompt: clipboard.clearRecent")
+                && clipboardActionsCode.contains("ClipboardHistoryService.shared.clearRecent()"),
+               "the Command Bar clears only unpinned clipboard items after confirmation")
 
         // MARK: Compact mode, what an empty field shows
         expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),
@@ -20452,7 +21328,7 @@ struct MetricsTests {
                                     isDirectory: true)
         try? FileManager.default.createDirectory(at: directSaveRoot,
                                                  withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directSaveRoot) }
+        scratchPaths.append(directSaveRoot)
 
         let savedID = UUID()
         let savedFolder = directSaveRoot.appendingPathComponent(
@@ -20818,6 +21694,111 @@ struct MetricsTests {
                "the ring is born at the click")
         expect(RecorderMotion.ringProgress(at: 2.0, clicks: clicks) == nil,
                "the ring is gone well before the next second")
+
+        // The composer carries one cursor per lookup across its frame loop
+        // instead of rescanning the click list per frame. Every query is
+        // compared bit for bit against the scan it replaced, carried and
+        // fresh, over a list with bursts, held buttons, presses never
+        // released and one at the very end.
+        var scanClicks: [RecorderMotion.Click] = []
+        var scanSeed: UInt64 = 0x9E37_79B9_7F4A_7C15
+        var scanAt: Double = 0.05
+        for step in 0..<300 {
+            scanSeed = scanSeed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            scanAt += Double((scanSeed >> 33) % 37) / 100 + 0.01
+            scanClicks.append(RecorderMotion.Click(time: scanAt, isDown: true))
+            guard step % 7 != 0 else { continue }
+            scanAt += Double((scanSeed >> 17) % 29) / 100 + 0.005
+            scanClicks.append(RecorderMotion.Click(time: scanAt, isDown: false))
+        }
+        scanAt += 0.5
+        scanClicks.append(RecorderMotion.Click(time: scanAt, isDown: true))
+        func scannedPunch(at time: Double) -> Double {
+            var weight: Double = 0
+            var pressedAt: Double?
+            for click in scanClicks {
+                if click.isDown {
+                    pressedAt = click.time
+                    if time >= click.time - RecorderMotion.pressPunchWindow, time <= click.time {
+                        weight = max(weight, RecorderMotion.smoothstep(
+                            (time - (click.time - RecorderMotion.pressPunchWindow))
+                                / RecorderMotion.pressPunchWindow))
+                    }
+                } else if let down = pressedAt {
+                    if time >= down, time <= click.time { weight = 1 }
+                    if time > click.time, time <= click.time + RecorderMotion.pressPunchWindow {
+                        weight = max(weight, RecorderMotion.smoothstep(
+                            1 - (time - click.time) / RecorderMotion.pressPunchWindow))
+                    }
+                    pressedAt = nil
+                }
+            }
+            if let down = pressedAt, time >= down { weight = 1 }
+            return 1 - (1 - RecorderMotion.pressPunchScale) * min(1, weight)
+        }
+        func scannedRing(at time: Double) -> Double? {
+            var best: Double?
+            for click in scanClicks where click.isDown {
+                let elapsed = time - click.time
+                guard elapsed >= 0, elapsed <= RecorderMotion.ringDuration else { continue }
+                best = min(best ?? elapsed / RecorderMotion.ringDuration,
+                           elapsed / RecorderMotion.ringDuration)
+            }
+            return best
+        }
+        func scannedAnchor(at time: Double) -> Double {
+            var weight: Double = 0
+            var pressedAt: Double?
+            for click in scanClicks {
+                if click.isDown {
+                    pressedAt = click.time
+                } else if let down = pressedAt {
+                    if time >= down, time <= click.time { return 1 }
+                    pressedAt = nil
+                }
+                let distance = abs(time - click.time)
+                guard distance <= RecorderMotion.clickAnchorWindow else { continue }
+                weight = max(weight, RecorderMotion.smoothstep(
+                    1 - distance / RecorderMotion.clickAnchorWindow))
+            }
+            if let down = pressedAt, time >= down { return 1 }
+            return weight
+        }
+        func scannedFocus(at time: Double) -> CGPoint {
+            var current = cluster.first?.center ?? CGPoint(x: 0.5, y: 0.5)
+            for entry in cluster where entry.time <= time { current = entry.center }
+            return current
+        }
+        var punchCursor = 0
+        var ringCursor = 0
+        var anchorCursor = 0
+        var focusCursor = 0
+        var cursorMatches = true
+        let scanFrames = Int((scanAt + 1) * 60)
+        for frame in 0..<scanFrames {
+            let time = Double(frame) / 60
+            let punch = scannedPunch(at: time)
+            let ring = scannedRing(at: time)
+            let anchor = scannedAnchor(at: time)
+            let focus = scannedFocus(at: time)
+            if RecorderMotion.pressScale(at: time, clicks: scanClicks, cursor: &punchCursor)
+                    != punch
+                || RecorderMotion.ringProgress(at: time, clicks: scanClicks, cursor: &ringCursor)
+                    != ring
+                || RecorderMotion.anchorWeight(at: time, clicks: scanClicks, cursor: &anchorCursor)
+                    != anchor
+                || RecorderMotion.focus(at: time, clusters: cluster, cursor: &focusCursor) != focus
+                || RecorderMotion.pressScale(at: time, clicks: scanClicks) != punch
+                || RecorderMotion.ringProgress(at: time, clicks: scanClicks) != ring
+                || RecorderMotion.anchorWeight(at: time, clicks: scanClicks) != anchor
+                || RecorderMotion.focus(at: time, clusters: cluster) != focus {
+                cursorMatches = false
+            }
+        }
+        expect(scanFrames > 5_000 && scanClicks.count > 500,
+               "the cursor comparison covers a long recording and a busy click list")
+        expect(cursorMatches,
+               "carried or fresh, every cursored lookup answers what the full scan answered")
 
         // The typing sampler fills an array from an NSEvent monitor callback
         // while the stop path reads it, so the append has to be under the
@@ -21200,7 +22181,91 @@ struct MetricsTests {
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
+            // The battery example chip types this word into the bar, and the
+            // answer it must reach is titled with it. Two words would not be
+            // one typable example, and an empty one would be no example.
+            let batteryExample = FeatureStrings.commandBar(language).answerBatteryLabel
+            expect(!batteryExample.isEmpty && !batteryExample.contains(" "),
+                   "the battery answer is one typable word in \(language.rawValue)")
         }
+
+        // A count in front of a noun makes the noun agree with it in these
+        // languages, and one string cannot hold every form. Where the sentence
+        // allows it, the count goes last behind a label, which is right at any
+        // number and is how the app already words several other counts. The
+        // ones left out need no agreement: Turkish keeps the noun singular
+        // after a number, and Chinese, Japanese and Korean do not inflect.
+        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .es, .de, .fr, .it]
+        for language in agreeingLanguages {
+            let selection = FeatureStrings.commandBar(language).selectionCountFormat
+            expect(!selection.hasPrefix("%d"),
+                   "the selection count does not put a bare number in front of a noun in \(language.rawValue)")
+            let processes = FeatureStrings.killProcess(language).processCountFormat
+            expect(!processes.hasPrefix("%d"),
+                   "the process count does not put a bare number in front of a noun in \(language.rawValue)")
+        }
+
+        // A plain sort orders by Unicode scalar, which throws every accented
+        // name past Z. Lists of names people read are sorted by the rules of
+        // the language instead, and the onboarding one is on the first screen
+        // anyone sees.
+        let accented = ["Zebra", "Ímã", "Área"]
+        expect(accented.sorted() == ["Zebra", "Área", "Ímã"],
+               "a plain sort really does put accented names after Z")
+        expect(accented.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+                == ["Área", "Ímã", "Zebra"],
+               "the localized compare is what puts them where a reader expects")
+        let onboardingSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",
+            encoding: .utf8)) ?? ""
+        expect(!onboardingSource.isEmpty, "the onboarding source reads back for its sorting check")
+        let onboardingCode = onboardingSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!onboardingCode.contains(".sorted()\n"),
+               "onboarding sorts the names it shows by the rules of the language")
+
+        // Case folding that inherits the Mac's locale answers differently for
+        // a Turkish user: there the dotted I folds to a dotless one, so a
+        // search for "istanbul" stops finding "ISTANBUL". The app ships
+        // Turkish, so every search normalizer folds with no locale at all.
+        let dottedI = "ISTANBUL"
+        let foldOptions: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive, .widthInsensitive]
+        expect(dottedI.folding(options: foldOptions, locale: Locale(identifier: "tr_TR"))
+                != dottedI.folding(options: foldOptions, locale: nil),
+               "the dotted I is exactly where locale-aware folding diverges")
+        for path in ["Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift",
+                     "Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift",
+                     "Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift",
+                     "Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift"] {
+            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            expect(!source.isEmpty, "\(path) reads back for its folding check")
+            let code = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            expect(!code.contains("locale: .current"),
+                   "search folding in \(path) does not follow the Mac's locale")
+        }
+        expect(ClipboardHistorySearch.matches("ISTANBUL kahvesi", query: "istanbul"),
+               "clipboard search folds case whatever the Mac's locale is")
+        expect(ClipboardHistorySearch.matches("café da manhã", query: "cafe"),
+               "clipboard search folds accents so a plain query still finds them")
+
+        // An example chip is a promise that typing it does something. The
+        // battery answer is titled with a localized string, so a fixed English
+        // "battery" matched nothing outside English and the chip led to an
+        // empty list, which teaches the opposite of what an example is for.
+        let commandBarViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/CommandBar/CommandBarView.swift",
+            encoding: .utf8)) ?? ""
+        expect(!commandBarViewSource.isEmpty, "the command bar view source reads back for its shape check")
+        // Comments are stripped so prose naming the old literal cannot fail
+        // for code that no longer uses it.
+        let commandBarViewCode = commandBarViewSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!commandBarViewCode.contains("\"battery\""),
+               "the command bar's battery example is the localized word, not a fixed English one")
 
         // A key glyph in front of a button label reads as that button's
         // shortcut, so neither command bar action button carries one.
@@ -21457,6 +22522,23 @@ struct MetricsTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
+        let monitorParts = (commandBarCode
+            .components(separatedBy: "private func installMonitors(for panel: NSPanel)")
+            .last ?? "").components(separatedBy: "\n    private func ")
+        let monitor = monitorParts.first ?? ""
+        expect(monitorParts.count > 1
+                && monitor.contains("? event.charactersIgnoringModifiers")
+                && monitor.contains(": event.characters)?.lowercased()")
+                && monitor.contains("let key = event.charactersIgnoringModifiers?.lowercased()")
+                && !monitor.contains("case kVK_ANSI_Q")
+                && monitor.contains("digitIndex(for: event.keyCode)"),
+               "the Command Bar uses macOS Command letters while Control follows typed letters and digits stay positional")
+        expect(monitor.contains("#selector(NSText.selectAll(_:))")
+                && monitor.contains("#selector(NSText.copy(_:))")
+                && monitor.contains("#selector(NSText.cut(_:))")
+                && monitor.contains("#selector(NSText.paste(_:))")
+                && monitor.contains("NSApp.sendAction"),
+               "the Command Bar sends standard editing commands through its responder chain")
         // Ends on the next declaration rather than naming a neighbour: a
         // rename would find no separator, leave the slice running to end of
         // file, and quietly restore the whole-file search.
@@ -21814,6 +22896,29 @@ struct MetricsTests {
         expect(UninstallerSupport.doneSymbol(hasLeftovers: true)
                 != UninstallerSupport.doneSymbol(hasLeftovers: false),
                "a removal that left something behind does not end on the same mark")
+        // The permission note has to be true when it appears: only sandboxed
+        // container data is gated by Full Disk Access, so a failure list made
+        // of ownership or identity refusals must not offer it.
+        let fdaHome = "/Users/someone"
+        expect(UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: [fdaHome + "/Library/Containers/com.vendor.editor"]),
+               "a failed container is the case Full Disk Access would have changed")
+        expect(UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: [fdaHome + "/Library/Application Support/Editor",
+                           fdaHome + "/Library/Group Containers/group.com.vendor.editor",
+                           fdaHome + "/Library/Caches/com.vendor.editor"]),
+               "one failed container among others is enough to offer the permission")
+        expect(UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: [fdaHome + "/Library/Application Scripts/com.vendor.editor"]),
+               "application scripts sit behind the same permission as containers")
+        expect(!UninstallerSupport.failureNeedsFullDiskAccess(
+                   paths: ["/Applications/Editor.app",
+                           fdaHome + "/Library/Application Support/Editor",
+                           fdaHome + "/Library/Preferences/com.vendor.editor.plist",
+                           "/Library/LaunchAgents/com.vendor.editor.plist"]),
+               "failures outside containers never offer a permission that would not help")
+        expect(!UninstallerSupport.failureNeedsFullDiskAccess(paths: []),
+               "no failure, no permission note")
         // Both done states have to route through that decision and name what
         // survived; neither may spell a tick of its own.
         for path in ["Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",
@@ -21982,6 +23087,21 @@ struct MetricsTests {
         expect(!signingSetupCode.contains("-legacy"),
                "setup-signing.sh avoids the -legacy flag the stock LibreSSL openssl rejects")
 
+        // MARK: The stable identity is judged by whether codesign can sign with it
+        // A find-identity listing names certificates codesign then rejects, and
+        // -v excludes every self-signed one, so neither spelling may decide.
+        let buildScriptCode = buildScript.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+        for (script, code, identity) in [("build.sh", buildScriptCode, "$LEGACY_IDENTITY"),
+                                         ("Tools/setup-signing.sh", signingSetupCode.components(separatedBy: "\n"),
+                                          "$IDENTITY")] {
+            expect(!code.contains { $0.contains("find-identity") && $0.contains(identity) },
+                   "\(script) never decides the stable identity by a find-identity listing")
+            expect(code.contains { $0.contains("cp /bin/echo") }
+                    && code.contains { $0.contains("--sign \"\(identity)\" \"$probe\"") },
+                   "\(script) asks codesign to sign a throwaway copy of /bin/echo with the stable identity")
+        }
+
         // MARK: Modifying mouse taps are handed back across a session switch
         // The tap owners cannot be reached from this list (they need the event
         // chain), so the wiring is pinned as text: each service follows the
@@ -22003,7 +23123,20 @@ struct MetricsTests {
                          "Sources/Vorssaint/Services/MouseNavigation/MouseNavigationService.swift",
                          "Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutService.swift",
                          "Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift",
-                         "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift"] {
+                         "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+                         "Sources/Vorssaint/Services/RadialMenu/RadialMenuService.swift",
+                         "Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
+                         "Sources/Vorssaint/Services/WindowMaximizer.swift",
+                         "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift",
+                         "Sources/Vorssaint/Services/Finder/FinderRenameService.swift",
+                         "Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
+                         "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift",
+                         "Sources/Vorssaint/Services/ShortcutRecordingTap.swift",
+                         "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
+                         "Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
+                         "Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",
+                         "Sources/Vorssaint/Services/DockClick/DockClickService.swift",
+                         "Sources/Vorssaint/Services/Display/BrightnessService.swift"] {
             let source = (try? String(contentsOfFile: tapOwner, encoding: .utf8)) ?? ""
             expect(!source.isEmpty, "\(tapOwner) reads back for its session-switch check")
             let code = source.components(separatedBy: "\n")
@@ -22018,8 +23151,10 @@ struct MetricsTests {
             if tapOwner.contains("MouseNavigation")
                 || tapOwner.contains("MouseButtonShortcut")
                 || tapOwner.contains("MiddleClick")
-                || tapOwner.contains("QuitProtection") {
-                expect(code.contains("AXIsProcessTrusted()"),
+                || tapOwner.contains("QuitProtection")
+                || tapOwner.contains("RadialMenu")
+                || tapOwner.contains("ShortcutRecordingTap") {
+                expect(rearm.contains("AXIsProcessTrusted()"),
                        "\(tapOwner) does not keep a modifying tap alive after Accessibility is lost")
             }
             // Switching a tap off leaves the process owning it, which is what
@@ -22228,35 +23363,91 @@ struct MetricsTests {
                                                  exceptions: ["com.example.editor"]),
                "all-except scope protects an unselected bundle")
 
+        expect(QuitProtectionSupport.matchesKey(keyCharacter: "\u{439}", keyCode: 12,
+                                                commandLabel: "Q", shortcut: .quit),
+               "a Cyrillic layout is protected on the key Command-Q quits from, "
+               + "which types \u{439} rather than q")
+        expect(!QuitProtectionSupport.matchesKey(keyCharacter: "'", keyCode: 12,
+                                                 commandLabel: "'", shortcut: .quit),
+               "a Dvorak layout leaves the key Command-Q does not quit from alone")
         expect(QuitProtectionSupport.matchesKey(keyCharacter: "q", keyCode: 0,
-                                                shortcut: .quit),
-               "quit protection prefers the layout-resolved q character")
+                                                commandLabel: nil, shortcut: .quit),
+               "quit protection falls back to the typed character without a layout")
         expect(QuitProtectionSupport.matchesKey(keyCharacter: nil, keyCode: 13,
-                                                shortcut: .close),
-               "quit protection falls back to the W key code without a character")
+                                                commandLabel: nil, shortcut: .close),
+               "quit protection falls back to the W key code with neither a character nor a layout")
         expect(QuitProtectionSupport.isBaseShortcut(keyCharacter: "q", keyCode: 12,
+                                                    commandLabel: "Q",
                                                     command: true, control: false,
                                                     option: false, shift: false, shortcut: .quit),
                "plain Command-Q is recognized")
         expect(!QuitProtectionSupport.isBaseShortcut(keyCharacter: "q", keyCode: 12,
+                                                     commandLabel: "Q",
                                                      command: true, control: false,
                                                      option: false, shift: true, shortcut: .quit),
                "Shift-Command-Q is not mistaken for plain Command-Q")
         expect(QuitProtectionSupport.isExtraShortcut(keyCharacter: "q", keyCode: 12,
+                                                     commandLabel: "Q",
                                                      command: true, control: false,
                                                      option: false, shift: true,
                                                      shortcut: .quit, extraModifier: .shift),
                "Shift-Command-Q is recognized as an extra-modifier confirmation")
         expect(QuitProtectionSupport.isExtraShortcut(keyCharacter: "w", keyCode: 13,
+                                                     commandLabel: "W",
                                                      command: true, control: true,
                                                      option: false, shift: false,
                                                      shortcut: .close, extraModifier: .control),
                "Control-Command-W is recognized as an extra-modifier confirmation")
         expect(!QuitProtectionSupport.isExtraShortcut(keyCharacter: "q", keyCode: 12,
+                                                      commandLabel: "Q",
                                                       command: true, control: false,
                                                       option: true, shift: false,
                                                       shortcut: .quit, extraModifier: .shift),
                "an unrelated modifier combination is not protected")
+
+        // Feeds the matcher what the tap sees for a key on an installed layout:
+        // the bare character the event carries and the Command-table label.
+        func layoutProtects(_ layoutID: String, _ keyCode: Int64,
+                            _ shortcut: QuitProtectionShortcut) -> Bool? {
+            guard let data = testLayoutData(for: layoutID) else { return nil }
+            GlobalShortcut.refreshLayoutLabels(layoutData: data)
+            return QuitProtectionSupport.matchesKey(
+                keyCharacter: GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: false),
+                keyCode: keyCode,
+                commandLabel: GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true),
+                shortcut: shortcut)
+        }
+        let usID = "com.apple.keylayout.US"
+        if let quit = layoutProtects(usID, 12, .quit), let close = layoutProtects(usID, 13, .close) {
+            expect(quit && close, "US layout keeps Command-Q and Command-W on their own keys")
+        }
+        let russianID = "com.apple.keylayout.Russian"
+        if let quit = layoutProtects(russianID, 12, .quit),
+           let close = layoutProtects(russianID, 13, .close) {
+            expect(quit && close,
+                   "a Cyrillic layout still quits and closes from the Latin Q and W keys")
+        }
+        let greekID = "com.apple.keylayout.Greek"
+        if let quit = layoutProtects(greekID, 12, .quit), let close = layoutProtects(greekID, 13, .close) {
+            expect(quit && close, "a Greek layout still quits and closes from the Latin Q and W keys")
+        }
+        let dvorakID = "com.apple.keylayout.Dvorak"
+        if let quit = layoutProtects(dvorakID, 7, .quit), let close = layoutProtects(dvorakID, 43, .close),
+           let quote = layoutProtects(dvorakID, 12, .quit) {
+            expect(quit && close && !quote,
+                   "Dvorak moves Command-Q and Command-W to the keys it types q and w on, "
+                   + "and leaves the key that types ' alone")
+        }
+        let dvorakCommandID = "com.apple.keylayout.DVORAK-QWERTYCMD"
+        if let quit = layoutProtects(dvorakCommandID, 12, .quit),
+           let close = layoutProtects(dvorakCommandID, 13, .close) {
+            expect(quit && close, "the Dvorak layout that reverts to QWERTY under Command is followed there")
+        }
+        let frenchID = "com.apple.keylayout.French"
+        if let quit = layoutProtects(frenchID, 0, .quit), let close = layoutProtects(frenchID, 6, .close) {
+            expect(quit && close, "French AZERTY moves Command-Q and Command-W to its own q and w keys")
+        }
+        GlobalShortcut.refreshLayoutLabels()
 
         let quitProtectionKeys = [
             DefaultsKey.quitProtectionQuitEnabled,
@@ -22441,6 +23632,16 @@ struct MetricsTests {
                    "\(pass) stores the whole sample before it decides whether the rows changed")
         }
 
+        // MARK: A sleeping clock
+        for shareService in ["Sources/Vorssaint/Services/QuickTools/ScreenshotShareService.swift",
+                             "Sources/Vorssaint/Services/Recorder/RecordingShareService.swift"] {
+            let shareCode = ((try? String(contentsOfFile: shareService, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            expect(shareCode.contains("NSWorkspace.didWakeNotification"),
+                   "\(shareService) recomputes share link expiry on wake, which its sleeping clock missed")
+        }
 
         // The confirmation HUD is a hand-laid AppKit panel, so its width is
         // pinned as source shape. It used to be a fixed 300pt, which clipped
@@ -22493,6 +23694,8 @@ struct MetricsTests {
                 && diskExclusionsListCode.contains("QuickTogglesSupport.isExcluded("),
                "the exclusions picker asks the shared exclusion test, UUID included, not a name-only one")
 
+        scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
+
         if failures.isEmpty {
             print("TESTS OK (\(checks) checks)")
             exit(0)
@@ -22501,6 +23704,12 @@ struct MetricsTests {
             failures.forEach { print("  - \($0)") }
             exit(1)
         }
+    }
+
+    /// The placeholders a format string carries, sorted, so two languages can
+    /// be compared without caring about the order they read in.
+    private static func placeholderShape(_ value: String) -> [String] {
+        formatSpecifiers(in: value).sorted()
     }
 
     private static func formatSpecifiers(in format: String) -> [String] {

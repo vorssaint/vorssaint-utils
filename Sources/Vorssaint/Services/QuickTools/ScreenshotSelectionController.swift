@@ -1444,6 +1444,36 @@ private final class PassThroughHostingView<Content: View>: NSHostingView<Content
     }
 }
 
+/// The backing plate the capture chrome draws behind its text.
+///
+/// The shared `HUDBackdrop` cannot serve here: its material blends with what
+/// sits behind the window, and this chrome lives inside the overlay window,
+/// which is opaque while it shows the frozen still. Blending there would read
+/// the live desktop instead of the still the person is aiming at. The plate is
+/// the part that fixes contrast anyway, so keep the material these panels
+/// already draw and add only the plate over it.
+private struct CaptureChromeBackdrop<S: Shape>: View {
+    let material: Material
+    let shape: S
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    /// Reduced transparency already gives an opaque material, so the plate
+    /// steps aside; otherwise it carries the same calibration the shared
+    /// backdrop documents.
+    private var plateOpacity: Double {
+        guard !reduceTransparency else { return 0 }
+        return HUDBackdrop.plateOpacity(dark: colorScheme == .dark)
+    }
+
+    var body: some View {
+        shape.fill(material)
+            .overlay(shape.fill(colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(plateOpacity))
+    }
+}
+
 private struct CaptureGuideView: View {
     let strings: ScreenshotFeatureStrings
     let purpose: String?
@@ -1503,8 +1533,9 @@ private struct CaptureGuideView: View {
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(CaptureChromeBackdrop(
+            material: .regularMaterial,
+            shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1579,7 +1610,8 @@ private struct UnifiedCaptureGuideContent: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .background(CaptureChromeBackdrop(material: .ultraThinMaterial,
+                                          shape: Capsule(style: .continuous)))
         .overlay {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1597,8 +1629,9 @@ private struct UnifiedCaptureGuideContent: View {
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10)
         .frame(height: 56)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(CaptureChromeBackdrop(
+            material: .regularMaterial,
+            shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1613,8 +1646,9 @@ private struct UnifiedCaptureGuideContent: View {
             }
         }
         .padding(4)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(CaptureChromeBackdrop(
+            material: .regularMaterial,
+            shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1729,7 +1763,8 @@ private struct RecorderSelectionAudioControls: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .padding(4)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .background(CaptureChromeBackdrop(material: .regularMaterial,
+                                          shape: Capsule(style: .continuous)))
         .overlay {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)

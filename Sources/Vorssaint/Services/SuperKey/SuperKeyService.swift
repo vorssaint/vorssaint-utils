@@ -109,7 +109,9 @@ final class SuperKeyService: ObservableObject {
         return min(30, max(3, firstRepeat * 2))
     }
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
@@ -132,6 +134,7 @@ final class SuperKeyService: ObservableObject {
         self.source = source
         let enabled = AppFeature.superKey.isAvailable
             && defaults.bool(forKey: DefaultsKey.superKeyEnabled)
+            && SessionActivity.shared.isActive
         guard enabled else {
             stop()
             return
@@ -593,8 +596,12 @@ final class SuperKeyService: ObservableObject {
             let currentTaps = lifecycleLock.withLock {
                 shouldStopTapThread ? (nil, nil) : (tap, mouseTap)
             }
-            if let currentTap = currentTaps.0 { CGEvent.tapEnable(tap: currentTap, enable: true) }
-            if let currentMouseTap = currentTaps.1 { CGEvent.tapEnable(tap: currentMouseTap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted() {
+                if let currentTap = currentTaps.0 { CGEvent.tapEnable(tap: currentTap, enable: true) }
+                if let currentMouseTap = currentTaps.1 { CGEvent.tapEnable(tap: currentMouseTap, enable: true) }
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             forgetHeldKey()
             return Unmanaged.passUnretained(event)
         }

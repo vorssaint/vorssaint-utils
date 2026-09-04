@@ -25,6 +25,7 @@ enum DefaultsKey {
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
+    static let keepAwakePauseWhenLocked = "keepAwakePauseWhenLocked"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
@@ -145,6 +146,7 @@ enum DefaultsKey {
     static let shelfEdgeDragEnabled = "shelfEdgeDragEnabled"
     static let shelfCloseAfterDrop = "shelfCloseAfterDrop"
     static let shelfRemoveAfterDrop = "shelfRemoveAfterDrop"
+    static let shelfClearOnClose = "shelfClearOnClose"
     static let shelfAutomaticExclusions = "shelfAutomaticExclusions" // [bundle id] blocks automatic opening only
     static let extraBrightnessEnabled = "extraBrightnessEnabled"
     static let extraBrightnessLevel = "extraBrightnessLevel"   // Int percent 0-100
@@ -651,10 +653,13 @@ enum UpdateHighlightsInfo {
     /// The single release whose first launch shows the tour; any other
     /// version never shows it. Bump deliberately for releases with headline
     /// features worth a tour.
-    static let releaseVersion = "3.3.2"
+    static let releaseVersion = "3.3.3"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
-        appVersion == releaseVersion && lastSeenVersion != releaseVersion
+        let matches = appVersion == releaseVersion
+            || appVersion.hasPrefix("\(releaseVersion)-")
+            || (AppInfo.isDeveloperBuild && appVersion.hasPrefix(releaseVersion))
+        return matches && lastSeenVersion != releaseVersion
     }
 }
 
@@ -670,23 +675,20 @@ enum SupportUpdateIntroInfo {
 }
 
 enum SupportUpdateIntroStep: CaseIterable, Hashable {
-    case discord
-    case social
     case support
+    case social
 
     var next: SupportUpdateIntroStep? {
         switch self {
-        case .discord: return .social
-        case .social: return .support
-        case .support: return nil
+        case .support: return .social
+        case .social: return nil
         }
     }
 
     var previous: SupportUpdateIntroStep? {
         switch self {
-        case .discord: return nil
-        case .social: return .discord
-        case .support: return .social
+        case .support: return nil
+        case .social: return .support
         }
     }
 }
@@ -821,6 +823,7 @@ enum Defaults {
         DefaultsKey.keepAwakeAllowDisplaySleep: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
+        DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
         DefaultsKey.hotkeyEnabled: true,
@@ -926,6 +929,7 @@ enum Defaults {
         // keeps the value shipped releases always had.
         DefaultsKey.shelfCloseAfterDrop: false,
         DefaultsKey.shelfRemoveAfterDrop: true,
+        DefaultsKey.shelfClearOnClose: false,
         DefaultsKey.shelfAutomaticExclusions: [String](),
         DefaultsKey.extraBrightnessEnabled: false,
         DefaultsKey.extraBrightnessLevel: 100,

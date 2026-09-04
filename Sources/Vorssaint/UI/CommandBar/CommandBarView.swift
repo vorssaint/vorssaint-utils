@@ -10,10 +10,21 @@ import SwiftUI
 struct CommandBarView: View {
     /// Short enough to sit on one line, chosen to show three different things
     /// the bar can do that a list of commands would never reveal.
-    static var examples: [String] {
-        ["100 km to mi", "2+2*3", "battery", "fire"].filter {
-            $0 != "battery" || PowerSampler.hasInternalBattery
+    ///
+    /// The battery one is the localized word, because that is the word the
+    /// answer is titled with. As a fixed English "battery" the chip matched
+    /// nothing in the other twelve languages and led to an empty list, which
+    /// teaches the opposite of what an example is for. The other three hold
+    /// everywhere: the maths is language-free, the conversion parser already
+    /// takes each language's own word for "to", and the emoji names come from
+    /// Unicode, which spells them in English on purpose.
+    static func examples(_ text: CommandBarFeatureStrings) -> [String] {
+        var examples = ["100 km to mi", "2+2*3"]
+        if PowerSampler.hasInternalBattery {
+            examples.append(text.answerBatteryLabel.lowercased())
         }
+        examples.append("fire")
+        return examples
     }
     /// As tall as the list is ever allowed to be, so the panel never grows
     /// past what a laptop screen can show above the fold.
@@ -392,7 +403,7 @@ struct CommandBarView: View {
                         .font(.system(size: 9, weight: .bold))
                         .tracking(0.5)
                         .foregroundStyle(.tertiary)
-                    ForEach(CommandBarView.examples, id: \.self) { example in
+                    ForEach(CommandBarView.examples(text), id: \.self) { example in
                         Button {
                             service.query = example
                         } label: {

@@ -164,7 +164,7 @@ final class ProcessUsageService {
         guard canActivate(row),
               let app = NSRunningApplication(processIdentifier: row.pid)
         else { return }
-        NSApp.yieldActivation(to: app)
+        ActivationHandoff.yield(to: app)
         if !app.activate(from: NSRunningApplication.current, options: []) {
             app.activate(options: [])
         }

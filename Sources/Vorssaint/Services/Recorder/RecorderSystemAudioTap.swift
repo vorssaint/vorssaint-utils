@@ -66,6 +66,11 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// the recording's clock. Set before `start`.
     var onSample: ((CMSampleBuffer) -> Void)?
 
+    /// Called on this tap's own queue when an output device change left it
+    /// without a reader, so the recording can go back to the stream's sound
+    /// instead of falling silent. Set before `start`.
+    var onReaderLost: (() -> Void)?
+
     /// Whether any sample was more than silence. Read after `stop`.
     var heardSound: Bool { heard.value }
 
@@ -265,6 +270,9 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         guard hostChanged || rateChanged else { return }
         teardownPipeline()
         buildPipeline()
+        // Nothing came back, and with no aggregate left this tap can no longer
+        // see a later change, so the rest of the recording needs the stream.
+        if aggregateID == 0 { onReaderLost?() }
     }
 
     private func watchDefaultOutputDevice() {

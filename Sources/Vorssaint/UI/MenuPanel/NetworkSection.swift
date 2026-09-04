@@ -301,7 +301,8 @@ struct NetworkSection: View {
     }
 
     private func mbps(_ value: Double) -> String {
-        value >= 100 ? String(format: "%.0f", value) : String(format: "%.1f", value)
+        value >= 100 ? String(format: "%.0f", locale: MetricFormat.locale, value)
+                     : String(format: "%.1f", locale: MetricFormat.locale, value)
     }
 
     private func startNetworkMonitoringIfNeeded() {
