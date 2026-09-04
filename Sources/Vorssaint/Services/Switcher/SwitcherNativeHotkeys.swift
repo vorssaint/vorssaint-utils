@@ -10,13 +10,9 @@ import Foundation
 /// write-ahead marker lets a fresh process repair state left by a crash.
 enum SwitcherNativeHotkeys {
     private static let lock = NSLock()
-    /// The marker the previous process left behind, split once at load into
-    /// the ids this build owns and the ids it no longer recognises.
-    private static let storedMarker = SwitcherSupport.storedNativeHotkeys(
-        UserDefaults.standard.array(
+    private static var state = SwitcherNativeHotkeyState(
+        stored: UserDefaults.standard.array(
             forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int] ?? [])
-    private static var suppressed: Set<SwitcherNativeSymbolicHotKey> = storedMarker.known
-    private static var orphaned = Set(storedMarker.orphaned)
 
     private typealias SetEnabledFunction = @convention(c) (Int32, Bool) -> CGError
     private typealias IsEnabledFunction = @convention(c) (Int32) -> Bool
@@ -68,49 +64,24 @@ enum SwitcherNativeHotkeys {
         lock.lock()
         defer { lock.unlock() }
         guard let setEnabled else { return }
-        repairOrphans(setEnabled)
-    }
-
-    private static func repairOrphans(_ setEnabled: SetEnabledFunction) {
-        guard !orphaned.isEmpty else { return }
-        // Keep failed repairs in every marker write, including writes made by
-        // `apply`, so another launch can still restore them after a crash.
-        orphaned = orphaned.filter { setEnabled($0, true) != .success }
-        persist(suppressed)
+        state.recoverOrphans(setEnabled: { setEnabled($0, $1) == .success },
+                             persist: persist)
     }
 
     static func apply(_ desired: Set<SwitcherNativeSymbolicHotKey>) {
         lock.lock()
         defer { lock.unlock() }
         guard let setEnabled, let isEnabled else { return }
-        repairOrphans(setEnabled)
-        let currentlyEnabled = Set(SwitcherNativeSymbolicHotKey.allCases.filter {
-            isEnabled($0.rawValue)
-        })
-        let transition = SwitcherSupport.nativeHotkeyTransition(
-            from: suppressed, to: desired, currentlyEnabled: currentlyEnabled)
-        var next = suppressed
-        for key in transition.suppress {
-            let newlyOwned = next.insert(key).inserted
-            if newlyOwned { persist(next) }
-            if setEnabled(key.rawValue, false) != .success, newlyOwned {
-                next.remove(key)
-                persist(next)
-            }
-        }
-        for key in transition.restore where setEnabled(key.rawValue, true) == .success {
-            next.remove(key)
-            persist(next)
-        }
-        suppressed = next
+        state.apply(desired, isEnabled: { isEnabled($0) },
+                    setEnabled: { setEnabled($0, $1) == .success },
+                    persist: persist)
     }
 
-    private static func persist(_ keys: Set<SwitcherNativeSymbolicHotKey>) {
-        let marker = Set(keys.map(\.rawValue)).union(orphaned)
+    private static func persist(_ marker: [Int]) {
         if marker.isEmpty {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         } else {
-            UserDefaults.standard.set(marker.map(Int.init).sorted(),
+            UserDefaults.standard.set(marker,
                                       forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         }
     }
