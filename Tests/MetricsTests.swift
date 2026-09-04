@@ -13021,6 +13021,23 @@ struct MetricsTests {
             owned: legacyMarker, setEnabled: recordRecoveryWrite, persist: { _ in })
         expect(recoveredOwnership == [27, 220] && recoveryWrites == [28],
                "crash recovery gives back stale keys without toggling retained keys or taking new ones")
+        // The switcher is not the only source by the time recovery runs: a
+        // feature that claimed first holds its ids too, so launch keeps what
+        // every source wants together rather than the switcher's ids alone.
+        var earlyClaimWrites: [Int32] = []
+        let earlyClaimOwnership = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTakeoverSupport.recoveryTransition(
+                from: [1, 28, 30],
+                keeping: SystemShortcutTakeoverSupport.union(
+                    of: ["switcher": [1], "keepAwakeShortcut": [30]])),
+            owned: [1, 28, 30],
+            setEnabled: { id, _ in
+                earlyClaimWrites.append(id)
+                return true
+            },
+            persist: { _ in })
+        expect(earlyClaimOwnership == [1, 30] && earlyClaimWrites == [28],
+               "launch keeps a claim made before recovery ran alongside the switcher's ids")
         // Say the WindowServer refused 28: `apply` leaves it in the marker, so
         // every later transition asks for it again and the give-back finishes
         // at the next take-over or in the next process.
