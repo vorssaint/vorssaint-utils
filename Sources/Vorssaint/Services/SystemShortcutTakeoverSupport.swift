@@ -67,3 +67,25 @@ enum SystemShortcutTakeoverSupport {
         Set(((old ?? []) + (new ?? [])).compactMap { Int32(exactly: $0) })
     }
 }
+
+/// What the recorder does with a combination that has already passed every
+/// Vorssaint-side check. One rule for all four rows, and testable.
+enum RecorderTakeOverDecision: Equatable {
+    /// Save it. `clearTakeOver` drops a stale take-over entry once the row has
+    /// moved to a key macOS does not answer.
+    case save(clearTakeOver: Bool)
+    /// Ask first: macOS answers this combination and the user has not agreed
+    /// to take exactly this one over.
+    case offer
+}
+
+extension SystemShortcutTakeoverSupport {
+    static func recorderDecision(shortcut: GlobalShortcut,
+                                 conflictsWithMacOS: Bool,
+                                 takenOver: Bool,
+                                 current: GlobalShortcut?) -> RecorderTakeOverDecision {
+        guard conflictsWithMacOS else { return .save(clearTakeOver: true) }
+        if takenOver, current == shortcut { return .save(clearTakeOver: false) }
+        return .offer
+    }
+}

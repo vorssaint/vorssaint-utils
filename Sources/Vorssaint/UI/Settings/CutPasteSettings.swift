@@ -120,7 +120,10 @@ struct CutPasteSettings: View {
                                 self.pendingRenameTakeOver = nil
                                 FinderRenameService.shared.syncWithPreferences()
                             },
-                            onDismiss: { self.pendingRenameTakeOver = nil }
+                            onDismiss: {
+                                self.pendingRenameTakeOver = nil
+                                renameError = String(format: l10n.s.shortcutConflictFormat, "macOS")
+                            }
                         )
                     }
                 } header: {
@@ -165,18 +168,19 @@ struct CutPasteSettings: View {
         }
         // The offer is the last word on a combination: every other check has
         // already passed, so accepting it writes exactly what a save writes.
-        if shortcut.conflictsWithSystemShortcut,
-           !SystemShortcutTakeover.isTakenOver(DefaultsKey.finderRenameShortcut) {
+        switch SystemShortcutTakeoverSupport.recorderDecision(
+            shortcut: shortcut,
+            conflictsWithMacOS: shortcut.conflictsWithSystemShortcut,
+            takenOver: SystemShortcutTakeover.isTakenOver(DefaultsKey.finderRenameShortcut),
+            current: GlobalShortcut(storageValue: renameShortcutRaw)) {
+        case .offer:
             pendingRenameTakeOver = shortcut
             renameError = nil
             return
-        }
-        renameShortcutRaw = shortcut.storageValue
-        renameError = nil
-        // Re-recording the key that is already taken over keeps the choice;
-        // moving the row to a key macOS does not want drops the stale entry.
-        if !shortcut.conflictsWithSystemShortcut {
-            SystemShortcutTakeover.setTakeOver(DefaultsKey.finderRenameShortcut, false)
+        case .save(let clearTakeOver):
+            renameShortcutRaw = shortcut.storageValue
+            renameError = nil
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(DefaultsKey.finderRenameShortcut, false) }
         }
         FinderRenameService.shared.syncWithPreferences()
     }

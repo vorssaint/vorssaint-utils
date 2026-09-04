@@ -389,7 +389,10 @@ struct ShortcutPreferenceRow: View {
                                                 self.pendingTakeOver = nil
                                                 onChange()
                                             },
-                                            onDismiss: { self.pendingTakeOver = nil })
+                                            onDismiss: {
+                                                self.pendingTakeOver = nil
+                                                errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+                                            })
             }
         }
         .onChange(of: l10n.language) { _, _ in errorText = nil }
@@ -419,17 +422,19 @@ struct ShortcutPreferenceRow: View {
         }
         // The offer is the last word on a combination: every other check has
         // already passed, so accepting it writes exactly what a save writes.
-        if shortcut.conflictsWithSystemShortcut, !SystemShortcutTakeover.isTakenOver(role.storageKey) {
+        switch SystemShortcutTakeoverSupport.recorderDecision(
+            shortcut: shortcut,
+            conflictsWithMacOS: shortcut.conflictsWithSystemShortcut,
+            takenOver: SystemShortcutTakeover.isTakenOver(role.storageKey),
+            current: GlobalShortcut(storageValue: rawValue)) {
+        case .offer:
             pendingTakeOver = shortcut
             errorText = nil
             return
-        }
-        rawValue = shortcut.storageValue
-        errorText = nil
-        // Re-recording the key that is already taken over keeps the choice;
-        // moving the row to a key macOS does not want drops the stale entry.
-        if !shortcut.conflictsWithSystemShortcut {
-            SystemShortcutTakeover.setTakeOver(role.storageKey, false)
+        case .save(let clearTakeOver):
+            rawValue = shortcut.storageValue
+            errorText = nil
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(role.storageKey, false) }
         }
         onChange()
     }

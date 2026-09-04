@@ -12898,6 +12898,24 @@ struct MetricsTests {
         expect(SystemShortcutTakeoverSupport.union(of: ["switcher": [1, 2], "screenshotShortcut": [30], "shelf": []]) == [1, 2, 30]
                && SystemShortcutTakeoverSupport.union(of: [:]).isEmpty,
                "the service applies what every source wants, together")
+        expect(SystemShortcutTakeoverSupport.transition(from: [1, 30], to: [], currentlyEnabled: [])
+               == SystemShortcutTransition(suppress: [], restore: [1, 30]),
+               "quitting hands back every key any feature took over")
+        // The recorder's one rule for a combination macOS answers: ask unless the
+        // user already agreed to exactly this key on this row; tidy the entry
+        // once the row moves to a key macOS does not want.
+        let areaShot = GlobalShortcut(keyCode: 21, modifiers: [.command, .shift])
+        expect(SystemShortcutTakeoverSupport.recorderDecision(shortcut: areaShot, conflictsWithMacOS: true,
+                                                              takenOver: false, current: .screenshotDefault) == .offer
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: areaShot, conflictsWithMacOS: true,
+                                                                 takenOver: true, current: areaShot) == .save(clearTakeOver: false)
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: GlobalShortcut(keyCode: 49, modifiers: [.command]),
+                                                                 conflictsWithMacOS: true, takenOver: true, current: areaShot) == .offer
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: areaShot, conflictsWithMacOS: true,
+                                                                 takenOver: true, current: nil) == .offer
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: .screenshotDefault, conflictsWithMacOS: false,
+                                                                 takenOver: true, current: areaShot) == .save(clearTakeOver: true),
+               "a taken-over row re-records its own key silently, is asked again for any other macOS key or when no key is recorded, and forgets the take-over when it leaves macOS keys")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.systemShortcutTakeOverKeys)
                && registeredDefaults[DefaultsKey.systemShortcutTakeOverKeys] == nil,
                "which shortcuts to take over is a preference that travels with a settings backup")
