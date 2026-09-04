@@ -679,6 +679,7 @@ final class WindowLayoutService: ObservableObject {
                                              &ref)
             if status == noErr, let ref {
                 hotKeyRefs[action] = ref
+                SystemShortcutTakeover.claim(action.shortcutKey, shortcut: shortcut)
             } else {
                 failures.insert(action)
             }
@@ -729,8 +730,9 @@ final class WindowLayoutService: ObservableObject {
     func suspendShortcuts() { unregisterHotkeys() }
 
     private func unregisterHotkeys() {
-        for ref in hotKeyRefs.values {
+        for (action, ref) in hotKeyRefs {
             UnregisterEventHotKey(ref)
+            SystemShortcutTakeover.release(action.shortcutKey)
         }
         hotKeyRefs.removeAll()
         registeredShortcuts.removeAll()
@@ -754,13 +756,17 @@ final class WindowLayoutService: ObservableObject {
             directionalHotKeyRef = ref
             registeredDirectionalShortcut = shortcut
             directionalShortcutRegistrationFailed = false
+            SystemShortcutTakeover.claim(DefaultsKey.windowDirectionalShortcut, shortcut: shortcut)
         } else {
             directionalShortcutRegistrationFailed = true
         }
     }
 
     private func unregisterDirectionalHotkey() {
-        if let directionalHotKeyRef { UnregisterEventHotKey(directionalHotKeyRef) }
+        if let directionalHotKeyRef {
+            UnregisterEventHotKey(directionalHotKeyRef)
+            SystemShortcutTakeover.release(DefaultsKey.windowDirectionalShortcut)
+        }
         directionalHotKeyRef = nil
         registeredDirectionalShortcut = nil
         directionalShortcutRegistrationFailed = false
