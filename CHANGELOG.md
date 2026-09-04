@@ -36,6 +36,7 @@ All notable changes to this project are documented here. The format follows
 - The zoom panel's button says what it does instead of borrowing the timeline's hint to click somewhere else.
 - Slider labels shrink instead of being cut where Turkish and Spanish run past the column, in the backdrop and recording panels.
 - Clicks and scrolling no longer lag in full-screen apps and games while the three-finger middle click or the reversed scroll direction is on.
+- Tapping Super key for Escape no longer carries a modifier still reported by the keyboard. Thanks to @gatzifratzi, @PathGao and @hash00.
 
 ## [3.3.3-beta.4] - 2026-09-03
 
