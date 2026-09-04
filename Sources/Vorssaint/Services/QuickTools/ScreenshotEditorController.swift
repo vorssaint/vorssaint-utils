@@ -523,6 +523,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 tool: tool, points: [point, point], color: color, stroke: stroke,
                 arrowStyle: arrowStyle)
             annotations.append(annotation)
+            selectedID = annotation.id
             draftID = annotation.id
         case .freehand:
             registerUndo()
@@ -530,6 +531,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, points: [point], color: color, stroke: stroke)
             annotations.append(annotation)
+            selectedID = annotation.id
             draftID = annotation.id
         case .rect, .ellipse, .highlight, .pixelate, .redact:
             if tool == .pixelate { ensurePixelated() }
@@ -539,6 +541,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 tool: tool, rect: CGRect(origin: point, size: .zero),
                 color: color, stroke: stroke)
             annotations.append(annotation)
+            selectedID = annotation.id
             draftID = annotation.id
         case .text, .sticker, .counter:
             break

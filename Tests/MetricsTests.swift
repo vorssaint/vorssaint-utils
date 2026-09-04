@@ -16719,6 +16719,8 @@ struct MetricsTests {
             .joined(separator: "\n")
         expect(screenshotEditorSource.contains("if tool != .select, tool != .crop {\n            selectedID = nil\n        }"),
                "the editor clears stale selection before creating a new annotation")
+        expect(screenshotEditorSource.contains("annotations.append(annotation)\n            selectedID = annotation.id\n            draftID = annotation.id"),
+               "a shape draft stays selected while it is being drawn")
 
         let resized = ScreenshotSupport.resizedRect(CGRect(x: 10, y: 10, width: 100, height: 100),
                                                     dragging: .bottomRight,
