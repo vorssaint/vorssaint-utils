@@ -600,6 +600,11 @@ extension Strings {
         permissionOpenSettings: "Systemeinstellungen öffnen…",
         permissionRequest: "Zugriff erlauben",
         permissionRestartNote: "macOS bittet nach dem Erteilen möglicherweise darum, die App erneut zu öffnen.",
+        secureInputTitle: "Sichere Eingabe ist aktiv",
+        secureInputHeldFormat: "%@ hält sie, daher kann Vorssaint nicht für dich tippen. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
+        secureInputUnattributed: "Keine laufende App beansprucht sie. Melde dich ab und wieder an, um sie zurückzusetzen.",
+        secureInputUnidentified: "Die App, die sie hält, konnte nicht identifiziert werden, daher kann Vorssaint nicht für dich tippen.",
+        secureInputRevealFormat: "%@ anzeigen",
 
         aboutDescription: "Eine Werkzeugzentrale für deinen Mac.\nEnergie, Systemüberwachung, Scrollen und ein Fensterumschalter, direkt in der Menüleiste.",
         versionPrefix: "Version",

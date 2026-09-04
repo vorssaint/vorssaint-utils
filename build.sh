@@ -403,6 +403,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
+        Sources/Vorssaint/Core/SecureInputSupport.swift \
         Tests/MetricsTests.swift \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.

@@ -600,6 +600,11 @@ extension Strings {
         permissionOpenSettings: "Sistem Ayarları'nı aç…",
         permissionRequest: "Erişim ver",
         permissionRestartNote: "macOS izin verdikten sonra uygulamayı yeniden açmanı isteyebilir.",
+        secureInputTitle: "Güvenli giriş açık",
+        secureInputHeldFormat: "%@ bunu açık tutuyor, bu yüzden Vorssaint senin yerine yazamıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
+        secureInputUnattributed: "Çalışan hiçbir uygulama bunu üstlenmiyor. Temizlemek için oturumu kapatıp yeniden aç.",
+        secureInputUnidentified: "Bunu açık tutan uygulama belirlenemedi, bu yüzden Vorssaint senin yerine yazamıyor.",
+        secureInputRevealFormat: "%@ uygulamasını göster",
 
         aboutDescription: "Mac'in için bir yardımcı merkez.\nEnerji, sistem monitörü, kaydırma ve pencere değiştirici, doğrudan menü çubuğunda.",
         versionPrefix: "Sürüm",

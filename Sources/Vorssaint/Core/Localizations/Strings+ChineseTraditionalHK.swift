@@ -601,6 +601,11 @@ extension Strings {
         permissionOpenSettings: "開啟系統設定…",
         permissionRequest: "允許存取",
         permissionRestartNote: "允許後，macOS 可能會要求重新開啟 App。",
+        secureInputTitle: "安全輸入已開啟",
+        secureInputHeldFormat: "%@ 正在佔用它，因此 Vorssaint 無法代你輸入。離開其密碼欄位或結束該 App 即可釋放。",
+        secureInputUnattributed: "沒有執行中的 App 佔用它。請登出後重新登入以清除。",
+        secureInputUnidentified: "無法辨識佔用它的 App，因此 Vorssaint 無法代你輸入。",
+        secureInputRevealFormat: "顯示 %@",
 
         aboutDescription: "你的 Mac 實用工具中心。\n電源、系統監控、捲動和視窗切換器，盡在選單列中。",
         versionPrefix: "版本",

@@ -600,6 +600,11 @@ extension Strings {
         permissionOpenSettings: "システム設定を開く…",
         permissionRequest: "アクセスを許可",
         permissionRestartNote: "許可後、macOS がアプリの再オープンを求めることがあります。",
+        secureInputTitle: "セキュア入力がオンです",
+        secureInputHeldFormat: "%@ が保持しているため、Vorssaint が代わりに入力できません。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
+        secureInputUnattributed: "実行中のどのアプリも保持していません。ログアウトしてから再度ログインすると解除されます。",
+        secureInputUnidentified: "保持しているアプリを特定できないため、Vorssaint が代わりに入力できません。",
+        secureInputRevealFormat: "%@ を表示",
 
         aboutDescription: "あなたの Mac のためのユーティリティハブ。\n省エネルギー、システムモニタ、スクロール、ウインドウスイッチャーを、メニューバーから。",
         versionPrefix: "バージョン",

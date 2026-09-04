@@ -600,6 +600,11 @@ extension Strings {
         permissionOpenSettings: "Ouvrir les Réglages Système…",
         permissionRequest: "Accorder l’accès",
         permissionRestartNote: "macOS peut demander de rouvrir l’app après l’avoir accordée.",
+        secureInputTitle: "La saisie sécurisée est activée",
+        secureInputHeldFormat: "%@ la maintient, Vorssaint ne peut donc pas saisir de texte à votre place. Quittez son champ de mot de passe, ou fermez l’app, pour la libérer.",
+        secureInputUnattributed: "Aucune app en cours d’exécution ne la revendique. Déconnectez-vous puis reconnectez-vous pour l’effacer.",
+        secureInputUnidentified: "L’app qui la maintient n’a pas pu être identifiée, Vorssaint ne peut donc pas saisir de texte à votre place.",
+        secureInputRevealFormat: "Afficher %@",
 
         aboutDescription: "Un centre d’utilitaires pour votre Mac.\nÉnergie, moniteur système, défilement et sélecteur de fenêtres, directement dans la barre des menus.",
         versionPrefix: "Version",

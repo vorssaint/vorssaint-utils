@@ -601,6 +601,11 @@ extension Strings {
         permissionOpenSettings: "시스템 설정 열기…",
         permissionRequest: "접근 허용",
         permissionRestartNote: "권한을 허용한 뒤 macOS에서 앱을 다시 열도록 요청할 수 있습니다.",
+        secureInputTitle: "보안 입력이 켜져 있습니다",
+        secureInputHeldFormat: "%@이(가) 보안 입력을 유지하고 있어 Vorssaint가 대신 입력할 수 없습니다. 암호 필드에서 포커스를 옮기거나 앱을 종료하면 해제됩니다.",
+        secureInputUnattributed: "실행 중인 앱 중 보안 입력을 사용하는 앱이 없습니다. 로그아웃한 후 다시 로그인하면 해제됩니다.",
+        secureInputUnidentified: "보안 입력을 유지하는 앱을 확인할 수 없어 Vorssaint가 대신 입력할 수 없습니다.",
+        secureInputRevealFormat: "%@ 보기",
 
         aboutDescription: "Mac을 위한 유틸리티 허브입니다.\n메뉴 막대에서 에너지 관리, 시스템 모니터, 스크롤 및 윈도우 전환을 제공합니다.",
         versionPrefix: "버전",

@@ -600,6 +600,11 @@ extension Strings {
         permissionOpenSettings: "Abrir Ajustes del Sistema…",
         permissionRequest: "Conceder acceso",
         permissionRestartNote: "macOS puede pedir que vuelvas a abrir la app tras concederlo.",
+        secureInputTitle: "La entrada segura está activada",
+        secureInputHeldFormat: "%@ la está reteniendo, por lo que Vorssaint no puede escribir por ti. Sal de su campo de contraseña, o ciérrala, para liberarla.",
+        secureInputUnattributed: "Ninguna app en ejecución la reclama. Cierra la sesión y vuelve a iniciarla para borrarla.",
+        secureInputUnidentified: "No se ha podido identificar la app que la está reteniendo, por lo que Vorssaint no puede escribir por ti.",
+        secureInputRevealFormat: "Mostrar %@",
 
         aboutDescription: "Un centro de utilidades para tu Mac.\nEnergía, monitor del sistema, desplazamiento y un selector de ventanas, directamente en la barra de menús.",
         versionPrefix: "Versión",
