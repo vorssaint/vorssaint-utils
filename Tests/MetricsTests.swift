@@ -23057,20 +23057,29 @@ struct MetricsTests {
                    "temp dir \(variable) is empty before the sweep is installed")
         }
 
-        // MARK: An identity-less Developer build creates its stable signing identity
+        // MARK: An identity-less build that installs creates its stable signing identity
         // An ad-hoc signature changes hash on every build, so macOS orphans
         // Accessibility and Screen Recording grants on each rebuild while
         // System Settings keeps showing them as granted. build.sh therefore
-        // routes identity-less --dev builds through Tools/setup-signing.sh
-        // before signing. The needle is the invocation at the start of a
-        // command line: the ad-hoc fallback's advice string also names the
-        // script, and must not satisfy this check.
+        // routes identity-less installs through Tools/setup-signing.sh before
+        // signing. The needle is the invocation at the start of a command
+        // line: the ad-hoc fallback's advice string also names the script, and
+        // must not satisfy this check.
         let runsSigningSetup = buildScript.components(separatedBy: "\n").contains {
             $0.range(of: #"^\s*(if\s+!?\s*)?\./Tools/setup-signing\.sh"#,
                      options: .regularExpression) != nil
         }
         expect(runsSigningSetup,
-               "an identity-less Developer build invokes Tools/setup-signing.sh itself")
+               "an identity-less build that installs invokes Tools/setup-signing.sh itself")
+        // The guard is on the install, not on the variant: a plain --install
+        // replaces the bundle under the released id, so it strands the grants
+        // on the app people actually use. CI never passes --install.
+        expect(buildScript.components(separatedBy: "\n").contains {
+                   !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#")
+                       && $0.contains("(( DEV || INSTALL ))")
+                       && $0.contains("developer_id_identity")
+               },
+               "the signing setup guard covers every install, not only the Developer variant")
         // The setup script must run against the stock /usr/bin/openssl, which
         // is LibreSSL: it rejects OpenSSL 3's -legacy flag outright, and the
         // script once died on exactly that with its stderr discarded. The

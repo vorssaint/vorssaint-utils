@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows
 - Panel outlines answer the system's Increase Contrast, which they were ignoring while already following reduced motion and transparency.
 
 ### Fixed
+- Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.
 - The Keep Awake option for no icon shows the crossed-out circle it promised, where the bar across it was never drawn.
 - Saving the scratchpad to a file says so when it cannot be written, where a full disk or a read-only volume ended in silence.
 - Numbers on screen use the decimal mark of your region, where the panel, the menu bar and the editors always wrote a point.
