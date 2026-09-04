@@ -77,7 +77,7 @@ extension ClipboardIgnoredAppsStrings {
         listTitle: "Apps à ignorer",
         addButton: "Ajouter une app…",
         removeButton: "Retirer",
-        caption: "Rien de ce que vous copiez dans ces apps n'est gardé dans l'historique."
+        caption: "Rien de ce que vous copiez dans ces apps n’est gardé dans l’historique."
     )
 
     static let it = ClipboardIgnoredAppsStrings(

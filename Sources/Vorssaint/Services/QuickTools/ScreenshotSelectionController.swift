@@ -628,8 +628,7 @@ final class ScreenshotSelectionController {
             imageSize: CGSize(width: image.width, height: image.height))
         let x = min(max(Int(point.x.rounded(.down)), 0), image.width - 1)
         let y = min(max(Int(point.y.rounded(.down)), 0), image.height - 1)
-        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)),
-              let color = NSBitmapImageRep(cgImage: pixel).colorAt(x: 0, y: 0)
+        guard let color = QuickToolsSupport.sampledColor(in: image, x: x, y: y)
         else {
             finish(.failed)
             return
@@ -1327,9 +1326,7 @@ private final class ScreenshotOverlayView: NSView {
         let x = min(max(Int(pixelPoint.x.rounded(.down)), 0), image.width - 1)
         let y = min(max(Int(pixelPoint.y.rounded(.down)), 0), image.height - 1)
         let point = CGPoint(x: x, y: y)
-        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
-        else { return (nil, point) }
-        return (NSBitmapImageRep(cgImage: pixel).colorAt(x: 0, y: 0), point)
+        return (QuickToolsSupport.sampledColor(in: image, x: x, y: y), point)
     }
 
     /// Readout bar under the magnifier: a swatch of the pixel under the

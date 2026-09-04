@@ -7,7 +7,49 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds protections for Command Q and Command W, a pause on lock option for Keep Awake, pointer and stray click controls for mice, blur in the recording editor, sharing from the Shelf, and new options across capture, clipboard, Super key, App Switcher, Dock Preview and Window Layout. It also makes the Command Bar, App Switcher, Dock Preview, radial menu and cleaning faster, widens app update and leftover discovery, and fixes input, window switching, clipboard, capture and audio behavior throughout.
+Vorssaint adds edge snap controls and a shortcut for recent captures, refines the radial menu, and improves color picking, app icons, readability, localization and mouse reconnection behavior.
+
+### Added
+- Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
+- Recent captures can open from their own assignable shortcut without returning to the menu bar panel.
+- Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
+
+### Changed
+- The radial menu throws its actions out of the center one after another when it opens and gathers them back in when it closes.
+- The radial menu's highlight sweeps to the pointed slice, and its actions sit on the glass as raised buttons with guides between them.
+- Panel outlines answer the system's Increase Contrast, which they were ignoring while already following reduced motion and transparency.
+
+### Fixed
+- Mouse acceleration stays disabled after disconnecting and reconnecting a mouse.
+- The App Switcher shows supported alternate app icons without flickering during navigation. Thanks to @EugeneCarldotme and @hash00.
+- Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
+- Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.
+- The Keep Awake option for no icon shows the crossed-out circle it promised, where the bar across it was never drawn.
+- Saving the scratchpad to a file says so when it cannot be written, where a full disk or a read-only volume ended in silence.
+- Numbers on screen use the decimal mark of your region, where the panel, the menu bar and the editors always wrote a point.
+- The App Switcher and Dock preview now show their selection on the light appearance, where it was white on a light card.
+- The App Switcher names an app once, where a window titled after its own app made it say the name three times.
+- Searching the clipboard and Settings works in Turkish, where the dotted I kept matches from being found.
+- The list of apps on the first screen sorts by the rules of your language, where accented names were pushed past Z.
+- Counts read correctly in Russian, where two to four items take a form of their own and were being given the wrong word.
+- The selected-text and process counts read correctly at one, where every language showed "1 words" and "1 processes".
+- Spanish, Italian, Portuguese and Turkish quote the way the system does, instead of borrowing the French marks.
+- French keeps its punctuation and quotation marks on the line they belong to, where a line break could strand them.
+- Labels that say work is under way end with a real ellipsis, and apostrophes across every language are the typographic ones.
+- The Command Bar's battery example works in every language, where the English word matched nothing and led to an empty list.
+- A menu command names its app once, where every app's own menu made the row read the name twice.
+- The Media preview stops re-reading the watermark image from disk on every frame while its opacity is dragged.
+- The disk monitor no longer asks a mounted image how much it could free, a question it answered with an error every sample.
+- The recording editor's look presets carry one name each instead of repeating it, and sizes use a proper multiplication sign.
+- The zoom panel's button says what it does instead of borrowing the timeline's hint to click somewhere else.
+- Slider labels shrink instead of being cut where Turkish and Spanish run past the column, in the backdrop and recording panels.
+- Clicks and scrolling no longer lag in full-screen apps and games while the three-finger middle click or the reversed scroll direction is on.
+- Tapping Super key for Escape no longer carries a modifier still reported by the keyboard. Thanks to @gatzifratzi, @PathGao and @hash00.
+
+## [3.3.3-beta.4] - 2026-09-03
+
+### Summary
+Vorssaint adds protections for Command Q and Command W, a pause on lock option for Keep Awake, pointer and stray click controls for mice, blur in the recording editor, sharing from the Shelf, and new options across capture, clipboard, Super key, App Switcher, Dock Preview and Window Layout. It also makes the Command Bar, App Switcher, Dock Preview, radial menu and cleaning faster, widens app update and leftover discovery, and fixes input, window switching, clipboard, capture, app installation and audio behavior throughout.
 
 ### Added
 - Optional protections for Command Q and Command W, with a hold, a double press or an extra modifier, per app and following your keyboard layout. Thanks to @RuanMD and @PathGao.
@@ -65,6 +107,7 @@ Vorssaint adds protections for Command Q and Command W, a pause on lock option f
 - The radial menu checks only which extra button opens a wheel, instead of loading every wheel and icon on each event. Thanks to @PathGao.
 
 ### Fixed
+- An app installed from a disk image now opens from Applications instead of a hidden read-only copy, so large apps start correctly.
 - Stopping a recording while you type no longer risks a crash or misplaced typing moments. Thanks to @PathGao.
 - Screen recordings capture the Mac's sound once, so apps turned down in the Volume Mixer no longer come back doubled.
 - Adding points to a custom cooling curve keeps every sensor and saves without crashing.
@@ -1728,7 +1771,7 @@ Vorssaint 3.1.0 adds three optional tools: Clipboard History for saving and reus
   default, with a setting to split them into separate CPU°C, GPU°C and BAT°C
   blocks.
 
-![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaintapp/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
+![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaint/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
 
 ## [3.0.7] - 2026-06-20
 

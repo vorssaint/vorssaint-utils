@@ -196,7 +196,7 @@ struct KillProcessView: View {
                     .lineLimit(1).truncationMode(.head)
             }
             Spacer()
-            Text(String(format: "%.1f%%", entry.cpuPercent))
+            Text(String(format: "%.1f%%", locale: MetricFormat.locale, entry.cpuPercent))
                 .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 .frame(width: 52, alignment: .trailing)
             Text(MetricFormat.bytes(UInt64(max(0, entry.memoryBytes))))

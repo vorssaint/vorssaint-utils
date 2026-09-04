@@ -324,9 +324,11 @@ enum SettingsSearchSupport {
     }
 
     private static func fold(_ value: String) -> String {
+        // No locale: Turkish folds a dotted I to a dotless one, which would
+        // make this page search answer differently there.
         value
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                     locale: .current)
+                     locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

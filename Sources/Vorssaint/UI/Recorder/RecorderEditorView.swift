@@ -460,7 +460,7 @@ struct RecorderEditorView: View {
     private var outputSizeLabel: String {
         let size = model.exportSize
         guard size.width > 0 else { return "" }
-        return "\(Int(size.width))x\(Int(size.height))"
+        return "\(Int(size.width)) × \(Int(size.height))"
     }
 
     private var timeLabel: String {

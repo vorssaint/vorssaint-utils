@@ -327,7 +327,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             let response = savePanel.runModal()
             self?.modalInteractionActive = false
             if response == .OK, let url = savePanel.url {
-                try? content.write(to: url, atomically: true, encoding: .utf8)
+                do {
+                    try content.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    // A read-only volume or a full disk used to end here in
+                    // silence, with the save panel closed and nothing written.
+                    QuickToolHUD.show(
+                        icon: "exclamationmark.triangle",
+                        message: FeatureStrings.scratchpad(L10n.shared.language).exportFailed)
+                }
             }
             guard let self, let panel = self.panel, panel.isVisible else { return }
             panel.makeKey()

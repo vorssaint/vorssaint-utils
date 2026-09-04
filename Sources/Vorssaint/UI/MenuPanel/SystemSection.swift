@@ -237,7 +237,8 @@ struct SystemSection: View {
     }
 
     private func breakdownValue(_ row: ProcessUsage, for kind: BreakdownKind) -> String {
-        kind == .memory ? formatMemory(UInt64(row.value)) : String(format: "%.1f%%", row.value)
+        kind == .memory ? formatMemory(UInt64(row.value))
+                        : String(format: "%.1f%%", locale: MetricFormat.locale, row.value)
     }
 
     // MARK: Temperatures
@@ -532,7 +533,7 @@ struct SystemSection: View {
                 .minimumScaleFactor(0.8)
                 .frame(width: 52, alignment: .leading)
             UsageBar(fraction: fraction ?? 0)
-            Text(fraction.map { String(format: "%.0f%%", $0 * 100) } ?? "-")
+            Text(fraction.map { String(format: "%.0f%%", locale: MetricFormat.locale, $0 * 100) } ?? "-")
                 .font(.system(size: 11, weight: .medium))
                 .monospacedDigit()
                 .frame(width: 38, alignment: .trailing)

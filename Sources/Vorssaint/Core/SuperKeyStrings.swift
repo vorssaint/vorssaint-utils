@@ -80,7 +80,7 @@ extension SuperKeyStrings {
         panelCaptionFormat: "%1$@ holds %2$@.",
         manageButton: "Set up…",
         soloInputSource: "Switch input source; hold for Caps Lock",
-        mappingForeignMapping: "Another app's key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
+        mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
         mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again."
     )
 
@@ -203,22 +203,22 @@ extension SuperKeyStrings {
         pageTitle: "Touche super",
         hubDescription: "Transforme une touche en la combinaison de modificateurs de votre choix.",
         enableToggle: "Utiliser cette touche comme touche Super",
-        enableCaption: "Maintenez-la et appuyez sur n'importe quelle touche. Choisissez un ou plusieurs modificateurs ci-dessous.",
+        enableCaption: "Maintenez-la et appuyez sur n’importe quelle touche. Choisissez un ou plusieurs modificateurs ci-dessous.",
         modifierKeysNote: "Conservez l’action par défaut de cette touche dans Réglages Système › Clavier › Touches de modification.",
         sourceKey: "Touche à maintenir",
         capsLockKey: "Verr. Maj",
         rightKeyFormat: "%@ droite",
         holdHint: "Maintenez",
         soloSection: "Un appui seul",
-        soloCaption: "Ce que fait un appui rapide quand aucune autre touche n'est pressée.",
+        soloCaption: "Ce que fait un appui rapide quand aucune autre touche n’est pressée.",
         soloNothing: "Rien",
         soloCapsLock: "Active et désactive les majuscules",
         soloEscape: "Appuie sur Échap",
         activeNow: "Actif maintenant",
         panelCaptionFormat: "%1$@ maintient %2$@.",
         manageButton: "Configurer…",
-        soloInputSource: "Changer de source d’entrée ; maintenir pour Verr. Maj",
-        mappingForeignMapping: "Le remappage d’une autre app utilise la touche sélectionnée. Supprimez-le dans cette app : la quitter ne suffit pas.",
+        soloInputSource: "Changer de source d’entrée\u{00A0}; maintenir pour Verr. Maj",
+        mappingForeignMapping: "Le remappage d’une autre app utilise la touche sélectionnée. Supprimez-le dans cette app\u{00A0}: la quitter ne suffit pas.",
         mappingSystemRefused: "macOS a refusé le remappage. Rebranchez le clavier ou redémarrez le Mac, puis réactivez ceci."
     )
 

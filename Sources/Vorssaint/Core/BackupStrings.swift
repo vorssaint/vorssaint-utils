@@ -60,7 +60,7 @@ extension BackupFeatureStrings {
         importButton: "Import settings…",
         exported: "Backup saved",
         importConfirmTitle: "Import these settings?",
-        importConfirmBody: "Your current settings are replaced by the file's and the app restarts. Nothing else on this Mac is touched.",
+        importConfirmBody: "Your current settings are replaced by the file’s and the app restarts. Nothing else on this Mac is touched.",
         importAction: "Import and restart",
         invalidFile: "This file is not a valid Vorssaint backup."
     )
@@ -79,12 +79,12 @@ extension BackupFeatureStrings {
 
     static let tr = BackupFeatureStrings(
         title: "Yedek",
-        description: "Kurulumunuzu başka bir Mac'e taşıyın: tüm tercihleri bir dosyaya aktarın ve orada içe aktarın. Karalama defteri notlarınızın metni dosyaya dahil edilir. Pano geçmişi, raf öğeleri ve sistem izinleri bu Mac'ten asla çıkmaz.",
+        description: "Kurulumunuzu başka bir Mac’e taşıyın: tüm tercihleri bir dosyaya aktarın ve orada içe aktarın. Karalama defteri notlarınızın metni dosyaya dahil edilir. Pano geçmişi, raf öğeleri ve sistem izinleri bu Mac’ten asla çıkmaz.",
         exportButton: "Ayarları dışa aktar…",
         importButton: "Ayarları içe aktar…",
         exported: "Yedek kaydedildi",
         importConfirmTitle: "Bu ayarlar içe aktarılsın mı?",
-        importConfirmBody: "Mevcut ayarlar dosyadakilerle değiştirilir ve uygulama yeniden başlar. Bu Mac'te başka hiçbir şeye dokunulmaz.",
+        importConfirmBody: "Mevcut ayarlar dosyadakilerle değiştirilir ve uygulama yeniden başlar. Bu Mac’te başka hiçbir şeye dokunulmaz.",
         importAction: "İçe aktar ve yeniden başlat",
         invalidFile: "Bu dosya geçerli bir Vorssaint yedeği değil."
     )
@@ -127,14 +127,14 @@ extension BackupFeatureStrings {
 
     static let fr = BackupFeatureStrings(
         title: "Sauvegarde",
-        description: "Emportez votre configuration sur un autre Mac : exportez toutes les préférences dans un fichier et importez-le là-bas. Le fichier inclut le texte de vos notes dans Brouillon. L'historique du presse-papiers, les éléments de l'étagère et les autorisations système ne quittent jamais ce Mac.",
+        description: "Emportez votre configuration sur un autre Mac\u{00A0}: exportez toutes les préférences dans un fichier et importez-le là-bas. Le fichier inclut le texte de vos notes dans Brouillon. L’historique du presse-papiers, les éléments de l’étagère et les autorisations système ne quittent jamais ce Mac.",
         exportButton: "Exporter les réglages…",
         importButton: "Importer les réglages…",
         exported: "Sauvegarde enregistrée",
-        importConfirmTitle: "Importer ces réglages ?",
-        importConfirmBody: "Les réglages actuels sont remplacés par ceux du fichier et l'app redémarre. Rien d'autre ne change sur ce Mac.",
+        importConfirmTitle: "Importer ces réglages\u{00A0}?",
+        importConfirmBody: "Les réglages actuels sont remplacés par ceux du fichier et l’app redémarre. Rien d’autre ne change sur ce Mac.",
         importAction: "Importer et redémarrer",
-        invalidFile: "Ce fichier n'est pas une sauvegarde Vorssaint valide."
+        invalidFile: "Ce fichier n’est pas une sauvegarde Vorssaint valide."
     )
 
     static let it = BackupFeatureStrings(
@@ -144,7 +144,7 @@ extension BackupFeatureStrings {
         importButton: "Importa impostazioni…",
         exported: "Backup salvato",
         importConfirmTitle: "Importare queste impostazioni?",
-        importConfirmBody: "Le impostazioni attuali vengono sostituite da quelle del file e l'app si riavvia. Nient'altro cambia su questo Mac.",
+        importConfirmBody: "Le impostazioni attuali vengono sostituite da quelle del file e l’app si riavvia. Nient’altro cambia su questo Mac.",
         importAction: "Importa e riavvia",
         invalidFile: "Questo file non è un backup Vorssaint valido."
     )

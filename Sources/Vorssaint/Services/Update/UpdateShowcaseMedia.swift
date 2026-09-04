@@ -10,7 +10,7 @@ enum UpdateShowcaseInfo {
     static let mediaSHA256 = "88031b2b48708b8eb96248fef1143432a0600382b59ad5ea39e0746af27ab9e8"
 
     static var remoteMediaURL: URL {
-        URL(string: "https://github.com/vorssaintapp/vorssaint-utils/releases/download/v\(releaseVersion)/\(mediaAssetName)")!
+        URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v\(releaseVersion)/\(mediaAssetName)")!
     }
 
     static var localDeveloperMediaURL: URL? {
