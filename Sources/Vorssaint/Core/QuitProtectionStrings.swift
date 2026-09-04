@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -474,5 +475,34 @@ extension QuitProtectionStrings {
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"
+    )
+
+    static let he = QuitProtectionStrings(
+        name: "הגנה על יציאה וסגירה",
+        description: "מגן על ⌘Q ו-⌘W מלחיצה בטעות",
+        intro: "הגדרו כל קיצור בנפרד. הפעולה המקורית ממשיכה רק לאחר האישור שבחרתם.",
+        enabled: "להגן על קיצור זה",
+        enabledCaption: "שאר קיצורי Command ממשיכים לפעול כרגיל.",
+        mode: "אופן האישור",
+        hold: "לחיצה ממושכת לאישור",
+        doublePress: "לחיצה כפולה",
+        extraModifier: "לדרוש מקש החלפה נוסף",
+        holdDuration: "משך הלחיצה",
+        doublePressInterval: "השהייה בין הלחיצות",
+        modifier: "מקש החלפה נוסף",
+        appScope: "יישומים",
+        allApps: "כל היישומים",
+        selectedOnly: "יישומים נבחרים בלבד",
+        allExceptSelected: "כל היישומים פרט לנבחרים",
+        exceptions: "חריגים",
+        noExceptions: "לא נבחרו יישומים",
+        addApp: "הוספת יישום…",
+        feedback: "להציג חיווי חזותי",
+        accessibilityCaption: "ההגנה משתמשת בנגישות כדי לעקוב גלובלית אחר ⌘Q ו-⌘W בלבד.",
+        holdHUDFormat: "לחצו לחיצה ממושכת על %@ ליציאה/סגירה",
+        doubleHUDFormat: "לחצו %@ שוב ליציאה/סגירה",
+        extraHUDFormat: "השתמשו ב-%@ ליציאה/סגירה",
+        cancelHint: "Esc מבטל",
+        releaseHint: "שחררו לאישור"
     )
 }

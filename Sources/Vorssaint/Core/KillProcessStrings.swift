@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -487,5 +488,38 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "無法結束處理程序",
         killFailedMessage: "該處理程序可能已經結束，或需要額外的權限。",
         adminPromptFormat: "Vorssaint 需要管理員權限才能結束「%@」。"
+    )
+
+    static let he = KillProcessFeatureStrings(
+        pageTitle: "סיום תהליך",
+        browseSubtitle: "עיון וסיום",
+        hubDescription: "חפש תהליכים פעילים וסיים בכוח, הפעל מחדש או סיום עץ תהליכים",
+        searchPlaceholder: "סנן לפי שם",
+        columnProcess: "תהליך",
+        columnCPU: "מעבד",
+        columnMemory: "זיכרון",
+        columnPID: "PID",
+        groupToggle: "קבץ תהליכים קשורים",
+        groupCaption: "מקבץ תהליכי עזר תחת האפליקציה האחראית להם.",
+        commandBarToggle: "הצג בסרגל הפקודות",
+        commandBarCaption: "מוסיף תהליכים פעילים לסרגל הפקודות, כדי שתוכל למצוא ולסיים אותם בלי לפתוח את ההגדרות.",
+        refreshTooltip: "רענן",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "%d תהליכים",
+        killButton: "סיים",
+        forceKillButton: "סיום בכוח",
+        killAllFormat: "סיים את כל '%@'",
+        killTreeButton: "סיים עץ תהליכים",
+        restartButton: "הפעל מחדש",
+        copyPID: "העתק PID",
+        copyPath: "העתק נתיב",
+        emptyStateTitle: "לא נמצאו תהליכים",
+        confirmKillFormat: "לסיים את %@?",
+        confirmForceKillFormat: "לסיים בכוח את %@?",
+        confirmKillAllFormat: "לסיים את כל התהליכים '%@'?",
+        confirmKillTreeFormat: "לסיים את %@ ואת כל תהליכי הצאצא שלו?",
+        killFailedTitle: "לא ניתן לסיים תהליך",
+        killFailedMessage: "התהליך אולי כבר הסתיים או דורש הרשאות נוספות.",
+        adminPromptFormat: "Vorssaint זקוק לגישת מנהל כדי לסיים את '%@'."
     )
 }

@@ -64,6 +64,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -652,5 +653,50 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。"
+    )
+
+    static let he = FanControlFeatureStrings(
+        title: "בקרת מאווררים",
+        hubDescription: "שלוט במאווררים ידנית או בעזרת עקומות טמפרטורה תוך צפייה ב-RPM נוכחי ויעד",
+        showInPanel: "הצג בקרת מאווררים בלוח",
+        settingsCaption: "מוסיף מהירויות מאוורר ידניות ועקומות טמפרטורה ללוח שורת התפריט.",
+        fanNameFormat: "מאוורר %d",
+        rpmFormat: "%d סל\"ד",
+        allowControl: "אפשר בקרת מאווררים",
+        approvalCaption: "אפשר את Vorssaint ב'פריטי התחברות' כדי להשתמש בבקר המאווררים המוגן.",
+        openSettings: "פתח הגדרות מערכת",
+        noFans: "ל-Mac זה אין מאוורר שניתן לשלוט בו.",
+        unsupported: "בקרת מאווררים אינה זמינה ב-Mac זה.",
+        alreadyControlled: "תהליך אחר שולט במאווררים. החזר אותו לשליטת המערכת תחילה.",
+        failed: "המאווררים חזרו לשליטת המערכת כי לא ניתן היה לאמת את הבקרה המבוקשת.",
+        safetyCaption: "הבקרה נשארת פעילה עד שתחזור ל'מערכת'. היא חוזרת אוטומטית אם האפליקציה מתנתקת, ה-Mac נכנס לשינה, קריאות החיישנים נכשלות או הלחץ התרמי עולה.",
+        safetyStopped: "חזר לשליטת המערכת כי בקרת המאווררים הופסקה.",
+        menuBarTitle: "מהירות מאווררים",
+        systemControl: "מערכת",
+        manualControl: "ידני",
+        customCurve: "עקומה",
+        mode: "מצב בקרה",
+        coolingIntensity: "מהירות מאווררים",
+        currentRPMFormat: "נוכחי %d סל\"ד",
+        targetRPMFormat: "יעד %d סל\"ד",
+        applyManual: "החל בקרה ידנית",
+        applyCurve: "החל עקומת מאווררים",
+        returnToSystem: "השתמש בבקרת המערכת",
+        temperatureUnavailable: "חיישן הטמפרטורה שנבחר הפסיק להגיב. בקרת המאווררים חזרה ל'מערכת'.",
+        curveUnavailable: "חיישן טמפרטורה שנבחר אינו זמין ב-Mac זה.",
+        sensor: "חיישן טמפרטורה",
+        temperature: "טמפרטורה",
+        fanSpeed: "מהירות מאווררים",
+        addPoint: "הוסף נקודה",
+        addSensor: "הוסף חיישן",
+        removePoint: "הסר נקודה",
+        removeSensor: "הסר חיישן",
+        curveGraph: "עקומת טמפרטורה ומהירות מאווררים",
+        averageSoC: "ממוצע SoC",
+        hottestSoC: "ה-SoC החם ביותר",
+        averageCPU: "ממוצע CPU",
+        hottestCPU: "ה-CPU החם ביותר",
+        hottestGPU: "ה-GPU החם ביותר",
+        helperUnavailable: "בקר המאווררים המוגן אינו זמין. אפשר את Vorssaint ב'פריטי התחברות' ונסה שוב."
     )
 }

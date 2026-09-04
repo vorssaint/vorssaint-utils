@@ -76,6 +76,7 @@ struct MediaImageConverterStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -845,6 +846,65 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "已儲存 %d 張圖像",
         batchPartialFormat: "已儲存 %d 張，%d 張失敗",
         batchSummaryHeaderFormat: "已儲存 %d 張，%d 張失敗",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let he = MediaImageConverterStrings(
+        filesSelectedFormat: "%d קבצים נבחרו",
+        profile: "פרופיל",
+        noProfile: "ללא פרופיל",
+        profileName: "שם פרופיל",
+        saveAsNew: "שמור חדש",
+        updateProfile: "עדכן",
+        deleteProfile: "מחק פרופיל",
+        profileModified: "שונה",
+        profileDefaultNameFormat: "פרופיל %d",
+        presetWeb: "אינטרנט",
+        presetSocial: "רשתות חברתיות",
+        presetDocs: "מסמכים",
+        resize: "שנה גודל",
+        resizeNone: "ללא שינוי",
+        resizeMax: "צד מקסימלי",
+        resizeWidth: "רוחב",
+        resizeHeight: "גובה",
+        resizeExact: "מותאם אישית",
+        exactStretch: "מתיחה",
+        exactFit: "התאמה",
+        exactFill: "מילוי",
+        height: "גובה",
+        watermark: "חותמת מים",
+        watermarkOff: "כבוי",
+        watermarkText: "טקסט",
+        watermarkLogo: "לוגו",
+        watermarkBoth: "טקסט + לוגו",
+        watermarkTextPlaceholder: "טקסט חותמת מים",
+        noLogo: "אין לוגו",
+        chooseLogo: "בחר לוגו",
+        position: "מיקום",
+        topLeft: "שמאל עליון",
+        topRight: "ימין עליון",
+        center: "מרכז",
+        bottomLeft: "שמאל תחתון",
+        bottomRight: "ימין תחתון",
+        opacity: "אטימות",
+        margin: "שוליים",
+        scale: "קנה מידה",
+        rename: "שנה שם",
+        preview: "תצוגה מקדימה",
+        outputName: "פלט",
+        background: "רקע",
+        backgroundTransparent: "שקוף",
+        backgroundWhite: "לבן",
+        backgroundBlack: "שחור",
+        preserveDate: "שמור תאריך שינוי מקורי",
+        moreOptions: "אפשרויות נוספות",
+        tooLarge: "ממדים אלה גדולים מדי לעיבוד בטוח. בחר גודל קטן יותר.",
+        copySummary: "העתק תקציר",
+        savedBytesFormat: "%@ נחסכו",
+        grewBytesFormat: "%@ גדול יותר",
+        batchSavedFormat: "%d תמונות נשמרו",
+        batchPartialFormat: "%d נשמרו, %d נכשלו",
+        batchSummaryHeaderFormat: "%d נשמרו, %d נכשלו",
         batchSummaryItemFormat: "%@ -> %@"
     )
 }

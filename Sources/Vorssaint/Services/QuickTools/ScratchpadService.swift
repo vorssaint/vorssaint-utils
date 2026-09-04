@@ -383,7 +383,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         panel.contentMinSize = NSSize(width: 280, height: 220)
         panel.minSize = NSSize(width: 280, height: 220)
         panel.delegate = self
-        let host = NSHostingController(rootView: ScratchpadView())
+        let host = NSHostingController(rootView: ScratchpadView().localizedLayoutDirection())
         // No preferred-size tracking: the pad is user-resizable and the view
         // fills whatever frame the panel has.
         host.sizingOptions = []

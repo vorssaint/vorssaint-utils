@@ -1249,7 +1249,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
     }
 
     func show() {
-        let content = RecorderEditorView(model: model, controller: self)
+        let content = RecorderEditorView(model: model, controller: self).localizedLayoutDirection()
         let host = NSHostingController(rootView: content)
         let window = NSWindow(contentViewController: host)
         window.title = strings.editorTitle

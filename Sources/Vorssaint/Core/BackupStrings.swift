@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -195,5 +196,17 @@ extension BackupFeatureStrings {
         importConfirmBody: "目前設定將被檔案中的設定取代,App 會重新啟動。這台 Mac 上的其他內容不受影響。",
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
+    )
+
+    static let he = BackupFeatureStrings(
+        title: "גיבוי",
+        description: "קח את ההגדרות שלך ל-Mac אחר: ייצא את כל ההעדפות לקובץ וייבא אותו שם. הקובץ כולל את הטקסט מההערות בפנקס טיוטה שלך. היסטוריית לוח הגזירים, פריטי המדף והרשאות המערכת לעולם לא עוזבים את ה-Mac הזה.",
+        exportButton: "ייצוא הגדרות…",
+        importButton: "ייבוא הגדרות…",
+        exported: "הגיבוי נשמר",
+        importConfirmTitle: "לייבא הגדרות אלו?",
+        importConfirmBody: "ההגדרות הנוכחיות שלך יוחלפו באלו שבקובץ והאפליקציה תופעל מחדש. שום דבר אחר ב-Mac הזה לא ישתנה.",
+        importAction: "ייבוא והפעלה מחדש",
+        invalidFile: "קובץ זה אינו גיבוי חוקי של Vorssaint."
     )
 }

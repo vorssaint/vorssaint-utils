@@ -62,6 +62,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -611,5 +612,47 @@ extension AppUpdateStrings {
         includeOnlineCaption: "下載公開 App 目錄，唔會傳送呢部 Mac 上 App 嘅名稱或識別碼。",
         incompleteCheck: "部分 App 無法檢查",
         onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。"
+    )
+
+    static let he = AppUpdateStrings(
+        pageTitle: "עדכוני אפליקציות",
+        hubDescription: "מצא והתקן עדכונים לאפליקציות שלך",
+        caption: "בודק אילו אפליקציות ב-Mac זה עם גרסאות חדשות יותר ועוזר לך להשלים כל עדכון מהמקור המקורי שלו.",
+        panelCaption: "ראה אילו אפליקציות עם גרסה חדשה יותר",
+        checkNow: "בדוק עכשיו",
+        checking: "בודק",
+        lastCheckFormat: "בדיקה אחרונה %@",
+        neverChecked: "טרם נבדק",
+        upToDate: "לא נמצאו עדכונים",
+        coverageNote: "בודק אפליקציות מנוהלות ואפליקציות חנות, ומשווה שמות מדויקים של אפליקציות אחרות עם קטלוג מקוון ציבורי. עדכונים עדיין מותקנים דרך המקור המקורי.",
+        selectAll: "בחר הכל",
+        clearSelection: "נקה",
+        updateSelectedFormat: "עדכן %d",
+        updateOne: "עדכן",
+        openAppStore: "פתח את App Store",
+        appStoreBadge: "App Store",
+        storeHint: "פותח את App Store, שם מותקן עדכון זה",
+        frequencyLabel: "בדוק ברקע",
+        frequencyOff: "כבוי",
+        frequencyDaily: "כל יום",
+        frequencyWeekly: "כל שבוע",
+        nextCheckFormat: "בדיקה הבאה %@",
+        notifyToggle: "הודע לי כאשר אפליקציה עם עדכון",
+        includeStoreToggle: "כלול אפליקציות מ-App Store",
+        includeStoreCaption: "שואל את Apple מה הגרסה הנוכחית של האפליקציות שקיבלת מהחנות. כבה כדי להשאיר כל בדיקה ב-Mac זה בלבד.",
+        packageMissing: "Homebrew לא מותקן, כך שאפליקציות לא ניתנות לעדכון מכאן עדיין.",
+        notificationBodyFormat: "%@ אפליקציות עם גרסה חדשה יותר.",
+        notificationBodyOne: "אפליקציה אחת עם גרסה חדשה יותר.",
+        showInPanel: "הצג בפאנל",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "מקורות",
+        includeHomebrewToggle: "כלול אפליקציות Homebrew",
+        onlineBadge: "מקוון",
+        openApp: "פתח",
+        openAppHint: "פותח את האפליקציה כדי שהעדכון שלה יוכל להסתיים",
+        includeOnlineToggle: "כלול אפליקציות מותקנות אחרות",
+        includeOnlineCaption: "מוריד קטלוג אפליקציות ציבורי מבלי לשלוח את השמות או המזהים של האפליקציות ב-Mac זה.",
+        incompleteCheck: "חלק מהאפליקציות לא ניתן היה לבדוק",
+        onlineUnavailable: "הבדיקה המקוונת לא הצליחה להסתיים. תוצאות אחרות עדיין מוצגות."
     )
 }

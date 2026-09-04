@@ -988,6 +988,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         // the hosting controller then maintains contentMinSize itself.
         let content = ScreenshotEditorView(model: model, controller: self)
             .frame(minWidth: minimumSize.width, minHeight: minimumSize.height)
+            .localizedLayoutDirection()
         let host = NSHostingController(rootView: content)
         host.sizingOptions = [.minSize]
         let window = NSWindow(contentViewController: host)

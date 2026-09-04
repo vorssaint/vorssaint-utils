@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -148,5 +149,14 @@ extension DiskExclusionStrings {
         removeButton: "移除",
         customPlaceholder: "磁碟機或宗卷名稱",
         caption: "使用「推出所有磁碟」時，此清單中的磁碟機絕不會被推出。"
+    )
+
+    static let he = DiskExclusionStrings(
+        listTitle: "כוננים שאינם נפלטים",
+        addButton: "הוסף כונן…",
+        otherDrive: "שם כונן אחר…",
+        removeButton: "הסר",
+        customPlaceholder: "שם הכונן או הערכה",
+        caption: "כוננים ברשימה זו לעולם אינם נפלטים בעת שימוש ב'פלוט את כל הכוננים'."
     )
 }

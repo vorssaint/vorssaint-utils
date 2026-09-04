@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -417,5 +418,33 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "啟動螢幕保護程式",
         screenSaverCaption: "在所有顯示器上立即啟動。",
         actionFailed: "無法完成。"
+    )
+
+    static let he = QuickToggleFeatureStrings(
+        pageTitle: "פעולות מהירות",
+        hubDescription: "פעולות בלחיצה אחת כמו מצב כהה ואשפה",
+        panelCaption: "פעולות מערכת בלחיצה אחת בלוח שורת התפריט ובלוח המהיר.",
+        darkModeToDark: "עבור למצב כהה",
+        darkModeToLight: "עבור למצב בהיר",
+        darkModeCaption: "משנה את המראה של כל המערכת.",
+        emptyTrashTitle: "רוקן את האשפה",
+        emptyTrashCaption: "מסיר הכל מהאשפה.",
+        emptyTrashConfirmTitle: "לרוקן את האשפה?",
+        emptyTrashConfirmMessage: "כל הפריטים באשפה יוסרו. לא ניתן לבטל זאת.",
+        emptyTrashConfirmButton: "רוקן את האשפה",
+        ejectTitle: "הוצא את כל הדיסקים",
+        ejectCaption: "מוצא בבטחה את כל הדיסקים החיצוניים.",
+        hiddenFilesShow: "הצג קבצים מוסתרים",
+        hiddenFilesHide: "הסתר קבצים מוסתרים",
+        desktopIconsHide: "הסתר סמלי שולחן עבודה",
+        desktopIconsShow: "הצג סמלי שולחן עבודה",
+        finderRestartCaption: "ה-Finder מופעל מחדש כדי להחיל זאת.",
+        lockScreenTitle: "נעל את המסך",
+        lockScreenCaption: "דורש סיסמה כדי לחזור.",
+        displayOffTitle: "כבה את המסך",
+        displayOffCaption: "ה-Mac ממשיך לפעול כשהמסך כבוי.",
+        screenSaverTitle: "הפעל שומר מסך",
+        screenSaverCaption: "מתחיל מיד, בכל המסכים.",
+        actionFailed: "לא הצליח להשלים."
     )
 }

@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -319,5 +320,26 @@ extension BrightnessFeatureStrings {
         osdCaption: "使用亮度鍵或滑桿時顯示亮度百分比。",
         keyboardLight: "鍵盤背光",
         keyboardLightCaption: "開啟或關閉鍵盤背光。"
+    )
+
+    static let he = BrightnessFeatureStrings(
+        pageTitle: "תצוגות",
+        hubDescription: "בקרת בהירות והפעלה לכל תצוגה",
+        enable: "שליטה בתצוגות",
+        enableCaption: "בקרת בהירות והפעלה/כיבוי למסך המובנה ולצגים חיצוניים, כאן ובפאנל שורת התפריט.",
+        externalCaption: "צגים חיצוניים מותאמים דרך אותו פרוטוקול כמו הלחצנים שלהם. כאשר החיבור לא יכול לשאת אותו, כמו עם מתאמי HDMI, המחוון מחשיך את התמונה במקום, כך שבקרת הבהירות עובדת בכל מקרה.",
+        noDisplays: "לא נמצאה תצוגה.",
+        displayOff: "כבוי",
+        turnOffDisplay: "כבה תצוגה",
+        turnOnDisplay: "הפעל תצוגה",
+        lastDisplayCaption: "לפחות תצוגה אחת חייבת להישאר דלוקה.",
+        switchUnavailable: "החלפת תצוגה אינה זמינה ב-Mac הזה.",
+        switchFailed: "לא ניתן היה לשנות תצוגה זו.",
+        keysToggle: "מקשי בהירות עוקבים אחר הסמן",
+        keysCaption: "מקשי הבהירות במקלדת משנים את התצוגה שתחת הסמן.",
+        osdToggle: "הצג בהירות בעת התאמה",
+        osdCaption: "מציג את אחוז הבהירות כאשר משתמשים במקשי הבהירות או במחוונים.",
+        keyboardLight: "תאורת מקלדת",
+        keyboardLightCaption: "מדליק או מכבה את תאורת המקלדת האחורית."
     )
 }

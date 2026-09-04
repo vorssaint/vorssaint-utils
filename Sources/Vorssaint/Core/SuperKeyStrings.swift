@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -358,5 +359,28 @@ extension SuperKeyStrings {
         soloInputSource: "切換輸入法；長撳切換大寫鎖定",
         mappingForeignMapping: "另一個 App 嘅按鍵對應用咗所選按鍵。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
         mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。"
+    )
+
+    static let he = SuperKeyStrings(
+        pageTitle: "מקש סופר",
+        hubDescription: "הופך מקש אחד לשילוב מקשי השינוי שתבחר.",
+        enableToggle: "השתמש במקש זה כמקש סופר",
+        enableCaption: "החזק אותו ולחץ על כל מקש. בחר מקש שינוי אחד או יותר למטה.",
+        modifierKeysNote: "שמור על הפעולה הרגילה של מקש זה בהגדרות מערכת › מקלדת › מקשי שינוי.",
+        sourceKey: "מקש להחזקה",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ ימני",
+        holdHint: "החזק",
+        soloSection: "לחיצה בודדת",
+        soloCaption: "מה עושה לחיצה קלה כששום מקש אחר לא נלחץ.",
+        soloNothing: "כלום",
+        soloCapsLock: "הפעל וכבה אותיות גדולות",
+        soloEscape: "לחץ על Escape",
+        activeNow: "פועל עכשיו",
+        panelCaptionFormat: "%1$@ מחזיק את %2$@.",
+        manageButton: "הגדר…",
+        soloInputSource: "החלף מקור קלט; החזק ל-Caps Lock",
+        mappingForeignMapping: "מיפוי מקשים של אפליקציה אחרת משתמש במקש שנבחר. הסר אותו באותה אפליקציה: סגירתה אינה מספיקה.",
+        mappingSystemRefused: "macOS סירב למיפוי המקשים. חבר מחדש את המקלדת או הפעל מחדש את ה-Mac, ואז הפעל זאת שוב."
     )
 }

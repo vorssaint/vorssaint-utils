@@ -3,6 +3,7 @@
 
 import Combine
 import Foundation
+import SwiftUI
 
 /// Languages the interface can use. The first launch defaults to the system
 /// language; the onboarding and Settings let the user override it at any time.
@@ -20,8 +21,11 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case he = "he"
 
     var id: String { rawValue }
+
+    var isRTL: Bool { self == .he }
 
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
@@ -39,6 +43,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHans: return "简体中文"
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
+        case .he: return "עברית"
         }
     }
 
@@ -56,10 +61,29 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("de", .de), ("fr", .fr),
-            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans),
+            ("it", .it), ("ja", .ja), ("ko", .ko), ("zh", .zhHans), ("he", .he),
         ]
-        for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
+        for (prefix, language) in matches where p.hasPrefix(prefix) { return language }
         return .enUS
+    }
+}
+
+/// Mirrors the chosen `AppLanguage` into SwiftUI's layout direction. This app
+/// is AppKit-hosted (`NSHostingController`/`NSHostingView`), so nothing gives
+/// a Hebrew UI a mirrored layout on its own: `CFBundleLocalizations` only
+/// follows the *system* language, and `AppLanguage` is a user override that's
+/// decoupled from it. Every hosting root applies this explicitly instead.
+private struct LocalizedLayoutDirection: ViewModifier {
+    @ObservedObject private var l10n = L10n.shared
+
+    func body(content: Content) -> some View {
+        content.environment(\.layoutDirection, l10n.language.isRTL ? .rightToLeft : .leftToRight)
+    }
+}
+
+extension View {
+    func localizedLayoutDirection() -> some View {
+        modifier(LocalizedLayoutDirection())
     }
 }
 
@@ -87,6 +111,7 @@ final class L10n: ObservableObject {
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
+        case .he: return .he
         }
     }
 

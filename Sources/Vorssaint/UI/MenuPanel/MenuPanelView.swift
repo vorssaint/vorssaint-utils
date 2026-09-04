@@ -177,6 +177,7 @@ struct MenuPanelView: View {
                     section(for: activeSection, collapsible: false)
                 }
                 .frame(width: 308)
+                .localizedLayoutDirection()
             }
             .frame(width: 308, height: navigableScrollHeight)
 
@@ -198,6 +199,7 @@ struct MenuPanelView: View {
                 OverlayScrollView(measuredHeight: $metricContentHeight) {
                     MetricDetailView(kind: selectedMetric)
                         .frame(width: 308)
+                        .localizedLayoutDirection()
                 }
                 .frame(width: 308, height: metricScrollHeight)
             }

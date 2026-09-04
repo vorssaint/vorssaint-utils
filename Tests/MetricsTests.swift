@@ -305,6 +305,7 @@ struct MetricsTests {
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
             (.zhHK, "剪貼簿", "視窗排列", "工具", "提示"),
+            (.he, "לוח גזירים", "סידור חלונות", "כלי עזר", "התראות"),
         ]
         for (language, clipboardTitle, windowTitle, utilitiesTitle, alertsTitle) in featureTitles {
             expect(FeatureStrings.clipboard(language).title == clipboardTitle,
@@ -12133,7 +12134,8 @@ struct MetricsTests {
             (.ko, .ko),
             (.zhHans, .zhHans),
             (.zhTW, .zhTW),
-            (.zhHK, .zhHK)
+                     (.zhHK, .zhHK),
+                     (.he, .he)
         ]
         expect(localizedStrings.count == AppLanguage.allCases.count, "all app languages are covered by tests")
         for (language, strings) in localizedStrings {
@@ -14098,6 +14100,7 @@ struct MetricsTests {
                 case .zhHans: return .zhHans
                 case .zhTW: return .zhTW
                 case .zhHK: return .zhHK
+                            case .he: return .he
                 }
             }()
             expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty
@@ -22266,6 +22269,103 @@ struct MetricsTests {
         expect(privateMode(privateRoot) == 0o700,
                "a container an earlier version left world readable is tightened on the next write")
         try? FileManager.default.removeItem(at: privateRoot)
+
+        // MARK: Every SwiftUI hosting root mirrors for a right-to-left language
+        // The app is AppKit-hosted, so every `NSHostingController`/`NSHostingView`
+        // starts a fresh SwiftUI environment: a root that forgets
+        // `localizedLayoutDirection()` draws Hebrew text in an unmirrored layout,
+        // and nothing in the type system says so. This walks `Sources/` rather
+        // than one named file, because the gap opens with the *next* root
+        // somebody adds, in a file this test cannot know the name of yet.
+        let layoutModifier = ".localizedLayoutDirection()"
+        let swiftSources: [String] = {
+            guard let walker = FileManager.default.enumerator(atPath: "Sources") else { return [] }
+            return walker.compactMap { $0 as? String }
+                .filter { $0.hasSuffix(".swift") }
+                .map { "Sources/" + $0 }
+                .sorted()
+        }()
+        expect(swiftSources.count > 1, "the hosting root sweep reads Sources/ back")
+
+        // The text from `open` through the paired `close`, starting at the first
+        // `open` at or after `start`, so a root spread over several lines is read
+        // as the one expression it is.
+        func balancedSlice(_ text: String, from start: String.Index,
+                           open: Character, close: Character) -> String {
+            guard let begin = text[start...].firstIndex(of: open) else { return "" }
+            var depth = 0
+            var index = begin
+            while index < text.endIndex {
+                if text[index] == open { depth += 1 }
+                if text[index] == close {
+                    depth -= 1
+                    if depth == 0 { return String(text[begin...index]) }
+                }
+                index = text.index(after: index)
+            }
+            return String(text[begin...])
+        }
+
+        // A hosting subclass whose generic parameter is pre-declared cannot take
+        // the modifier at its construction site without breaking its own type, so
+        // the modifier lives in the hosted view's `body` instead.
+        func structBody(_ name: String) -> String {
+            for path in swiftSources {
+                let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+                guard let hit = text.range(of: "struct \(name)") else { continue }
+                return balancedSlice(text, from: hit.upperBound, open: "{", close: "}")
+            }
+            return ""
+        }
+
+        var hostingRoots = 0
+        for path in swiftSources {
+            let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            var cursor = text.startIndex
+            while let hit = text.range(of: "(rootView:", range: cursor..<text.endIndex) {
+                cursor = hit.upperBound
+                let prefix = text[..<hit.lowerBound]
+                // `init(rootView:)` and the `super` call inside it are a
+                // subclass's own plumbing: they forward what a site built.
+                if prefix.hasSuffix("init") { continue }
+                hostingRoots += 1
+                let call = balancedSlice(text, from: hit.lowerBound, open: "(", close: ")")
+                if call.contains(layoutModifier) { continue }
+                let argument = String(call.dropFirst("(rootView:".count).dropLast())
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                let head = String(argument.prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+                if argument == head, !head.isEmpty {
+                    // A local the modifier was applied to a few lines up.
+                    let binding = prefix.range(of: "let \(head) =", options: .backwards)
+                        ?? prefix.range(of: "var \(head) =", options: .backwards)
+                    if let binding, prefix[binding.lowerBound...].contains(layoutModifier) { continue }
+                } else if !head.isEmpty, structBody(head).contains(layoutModifier) {
+                    continue
+                }
+                // `HeightReportingHostingView` is generic and hands on whatever
+                // it is given, so the requirement moves out to the call sites of
+                // the `OverlayScrollView` that wraps it — all of them.
+                if prefix.hasSuffix("HeightReportingHostingView") {
+                    var wrapped = 0
+                    var mirrored = 0
+                    var scan = text.startIndex
+                    while let site = text.range(of: "OverlayScrollView(measuredHeight:",
+                                                range: scan..<text.endIndex) {
+                        scan = site.upperBound
+                        wrapped += 1
+                        if balancedSlice(text, from: site.upperBound, open: "{", close: "}")
+                            .contains(layoutModifier) { mirrored += 1 }
+                    }
+                    expect(wrapped > 0 && wrapped == mirrored,
+                           "every OverlayScrollView call site mirrors the content it hosts "
+                           + "(\(mirrored) of \(wrapped))")
+                    continue
+                }
+                expect(false, "\(path) hosts a SwiftUI root that never mirrors layout direction: "
+                       + "\(call.prefix(72).split(separator: "\n").first ?? "")")
+            }
+        }
+        expect(hostingRoots > 30, "the hosting root sweep found the roots it guards (\(hostingRoots))")
 
         // MARK: Result
 

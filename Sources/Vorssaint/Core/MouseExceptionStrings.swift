@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -201,5 +202,17 @@ extension MouseExceptionStrings {
         captionButtonShortcuts: "在這些 App 裡額外按鍵保持安靜，按下會傳給 App。",
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。"
+    )
+
+    static let he = MouseExceptionStrings(
+        listTitle: "אפליקציות להשאיר בשקט",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        captionSmoothScroll: "הגלגל שומר על הצעדים הרגילים שלו באפליקציות אלה, לאפליקציות שקוראות אותו בדרך שלהן, כמו כלי תלת-ממד ועיצוב.",
+        captionScrollDirection: "הגלגל שומר על הכיוון ש-macOS נותן לו באפליקציות אלה.",
+        captionNavigation: "הלחצנים הצדדיים ממשיכים לעשות מה שהאפליקציות האלה כבר עושות איתם.",
+        captionButtonShortcuts: "קיצורי הלחצנים שלך נשארים שקטים באפליקציות אלה, והלחיצה מגיעה אליהם במקום.",
+        captionMiddleClick: "לחיצה בשלוש אצבעות נשארת לחיצה רגילה באפליקציות אלה.",
+        captionFocusFollowsMouse: "מעבר עם הסמן לא משנה מיקוד ולא מקדים חלון באפליקציות אלה."
     )
 }

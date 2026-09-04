@@ -120,7 +120,7 @@ enum QuickToolHUD {
                                               cancelTitle: cancelTitle,
                                               onFinish: onFinish,
                                               onCancel: onCancel)
-        let host = NSHostingController(rootView: AnyView(content))
+        let host = NSHostingController(rootView: AnyView(content.localizedLayoutDirection()))
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
         let panel = ensureScrollingPanel()
@@ -156,7 +156,7 @@ enum QuickToolHUD {
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
                                 windowShadow: Bool = true) {
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.localizedLayoutDirection())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 

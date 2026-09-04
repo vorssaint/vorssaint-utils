@@ -50,6 +50,7 @@ struct WhatsAppOrganizerStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -482,5 +483,38 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "WhatsApp 整理",
         notificationFormat: "已整理 %1$d 個檔案。處理了 %2$d 個重複下載。%3$d 個失敗。",
         privacyNote: "為辨識完全相同的重複檔案，檔案內容僅在本機計算加密摘要時被讀取。內容與聊天絕不會被儲存或上傳。"
+    )
+
+    static let he = WhatsAppOrganizerStrings(
+        title: "ארגון אוטומטי",
+        experimental: "ניסיוני",
+        description: "מעביר הורדות יציבות של WhatsApp לתיקייה ייעודית ומזהה הורדות חוזרות זהות.",
+        enabled: "ארגן אוטומטית",
+        enabledCaption: "WhatsApp עשוי להוריד שוב קובץ שהועבר. Vorssaint לא יכול למנוע את ההורדה מהרשת, אבל יכול לזהות ולבטל עותק נוסף זהה.",
+        destination: "תיקיית יעד",
+        chooseFolder: "בחר…",
+        useDefault: "השתמש בהורדות/WhatsApp",
+        invalidDestination: "בחר תיקייה אחרת מאשר הורדות עצמה.",
+        organization: "מבנה תיקיות",
+        flat: "ללא תת-תיקיות",
+        byType: "לפי סוג קובץ",
+        byMonth: "לפי שנה וחודש",
+        delay: "המתן לפני העברה",
+        minutesFormat: "%d דקות",
+        duplicateAction: "כאשר אותו קובץ מורד שוב",
+        trashDuplicate: "העבר את העותק החדש לאשפה",
+        keepBoth: "שמור שני העותקים",
+        replaceExisting: "החלף את העותק המאורגן",
+        duplicateCaption: "כפילויות מאושרות עם תמצית SHA-256 פרטית. העותק המאורגן נבדק שוב לפני שעותק נוסף מבוטל.",
+        organizeNow: "ארגן קבצים זמינים עכשיו",
+        undo: "בטל ארגון אחרון",
+        waiting: "מנטר את הורדות",
+        working: "מארגן קבצי WhatsApp…",
+        resultFormat: "%1$d הועברו · %2$d כפילויות · %3$d נכשלו",
+        lastRunFormat: "ארגון אחרון %@: %d הועברו · %d כפילויות · %d נכשלו",
+        neverRun: "טרם בוצע ארגון.",
+        notificationTitle: "ארגון WhatsApp",
+        notificationFormat: "%1$d קבצים אורגנו. %2$d הורדות כפולות טופלו. %3$d נכשלו.",
+        privacyNote: "לזיהוי כפילויות מדויקות, בתים של קבצים נקראים מקומית בלבד בזמן חישוב תמצית הצפנה. תוכן וצ'אטים לעולם לא נשמרים או מועלים."
     )
 }

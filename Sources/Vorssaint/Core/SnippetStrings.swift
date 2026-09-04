@@ -86,6 +86,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -923,5 +924,69 @@ extension SnippetFeatureStrings {
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
         dateTimeConfirmUpdate: "更新"
+    )
+
+    static let he = SnippetFeatureStrings(
+        pageTitle: "קטעי טקסט",
+        hubDescription: "טריגרים קצרים מתרחבים לטקסט מלא",
+        enable: "הרחב קטעים בזמן הקלדה",
+        enableCaption: "הקלד טריגר בכל מקום והוא הופך לטקסט שלו. הכל נשאר ב-Mac הזה.",
+        addButton: "הוסף קטע",
+        newTitle: "קטע חדש",
+        editTitle: "ערוך קטע",
+        nameLabel: "שם",
+        namePlaceholder: "אימייל אישי",
+        triggerLabel: "טריגר",
+        triggerPlaceholder: ";email",
+        replacementLabel: "טקסט",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "הרחבה",
+        expansionImmediate: "מיד",
+        expansionDelimiter: "אחרי רווח, Tab או Return",
+        variablesHint: "משתנים: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "הם הופכים לתאריך, לשעה ולטקסט שהועתק ברגע ההרחבה.",
+        emptyList: "אין עדיין קטעים. הוסף את הראשון.",
+        duplicateTrigger: "קטע אחר כבר משתמש בטריגר הזה.",
+        triggerTooShort: "הטריגר צריך לפחות 2 תווים.",
+        deleteButton: "מחק",
+        saveButton: "שמור",
+        manageButton: "נהל קטעים",
+        ignoreCaseLabel: "התעלם מרישיות",
+        libraryTitle: "תפריט קטעים מהיר",
+        libraryToggle: "פתח קטעים מתפריט",
+        libraryCaption: "קיצור המקלדת פותח תפריט עם חיפוש. בחירת קטע מקלידה אותו בדיוק איפה שהסמן נמצא.",
+        librarySearchPlaceholder: "חפש קטעים",
+        libraryNoResults: "אין קטע שמתאים לחיפוש.",
+        libraryEmpty: "אין עדיין מה להציג. הוסף קטעים, או הפעל 'הצג בתפריט המהיר' לאלה שבהם אתה משתמש הכי הרבה.",
+        libraryFooterHint: "↩ מכניס · esc סוגר",
+        folderLabel: "תיקייה",
+        folderPlaceholder: "עבודה",
+        showInLibraryLabel: "הצג בתפריט המהיר",
+        variablesFormatCaption: "פורמט אחרי נקודותיים בוחר איך הם נראים, כמו {{date:yyyy-MM-dd}}. חלק -tz(...) מגדיר אזור זמן, כמו {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "פורמט אחרי נקודותיים בוחר איך הם נראים, כמו {{date:yyyy-MM-dd}}, או השתמש בכפתור התאריך/שעה למעלה. חלק -tz(...) מגדיר אזור זמן, כמו {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "הכנס תאריך/שעה",
+        dateTimeEditButton: "ערוך תאריך/שעה",
+        dateTimeTypeLabel: "סוג",
+        dateTimeKindDate: "תאריך",
+        dateTimeKindTime: "שעה",
+        dateTimeKindDateTime: "תאריך ושעה",
+        dateTimeStyleLabel: "סגנון",
+        dateTimeStyleShort: "קצר",
+        dateTimeStyleMedium: "בינוני",
+        dateTimeStyleLong: "ארוך",
+        dateTimeStyleFull: "מלא",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "מותאם אישית",
+        dateTimeStyleLocaleNote: "סגנון בעל שם שומר את הפורמט שהאזור של ה-Mac שלך משתמש בו עכשיו.",
+        dateTimeTimezoneLabel: "אזור זמן",
+        dateTimeTimezoneDeviceDefault: "ברירת מחדל של המכשיר",
+        dateTimeTimezoneValid: "אזור זמן תקין",
+        dateTimeTimezoneInvalid: "אזור זמן לא מזוהה",
+        dateTimeTimezoneClear: "נקה אזור זמן",
+        dateTimeTimezoneSearchPlaceholder: "חפש אזורי זמן",
+        dateTimePatternLabel: "תבנית",
+        dateTimePreviewLabel: "תצוגה מקדימה",
+        dateTimeConfirmInsert: "הכנס",
+        dateTimeConfirmUpdate: "עדכן"
     )
 }
