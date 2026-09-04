@@ -27,6 +27,7 @@ final class TextSnippetService {
     private var activationObserver: NSObjectProtocol?
     private let inputLock = NSLock()
     private var buffer = ""
+    private var pendingConsumedDelimiterKeyCode: Int?
     private var libraryVisible = false
     private var commandBarVisible = false
     /// Split by expansion mode at load time; the tap callback only scans.
@@ -128,7 +129,10 @@ final class TextSnippetService {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
             self.activationObserver = nil
         }
-        resetBuffer()
+        inputLock.withLock {
+            buffer = ""
+            pendingConsumedDelimiterKeyCode = nil
+        }
     }
 
     private func runEventTap() {
@@ -141,6 +145,7 @@ final class TextSnippetService {
             }
 
             let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue)
+                | (1 << CGEventType.keyUp.rawValue)
                 | (1 << CGEventType.leftMouseDown.rawValue)
                 | (1 << CGEventType.rightMouseDown.rawValue)
             guard let tap = CGEvent.tapCreate(
@@ -243,11 +248,23 @@ final class TextSnippetService {
             if !AssistiveKeyboard.ownsPoint(event.location) { resetBuffer() }
             return Unmanaged.passUnretained(event)
         }
-        guard type == .keyDown else { return Unmanaged.passUnretained(event) }
-        // Never react to our own synthetic typing.
-        guard event.getIntegerValueField(.eventSourceUserData) != Self.syntheticMarker else {
+        if type == .keyDown || type == .keyUp,
+           event.getIntegerValueField(.eventSourceUserData) == Self.syntheticMarker {
             return Unmanaged.passUnretained(event)
         }
+        if type == .keyUp {
+            let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+            let decision = inputLock.withLock {
+                let decision = TextSnippetSupport.pendingKeyUpDecision(
+                    keyCode: keyCode,
+                    pendingKeyCode: pendingConsumedDelimiterKeyCode
+                )
+                pendingConsumedDelimiterKeyCode = decision.pendingKeyCode
+                return decision
+            }
+            return decision.consume ? nil : Unmanaged.passUnretained(event)
+        }
+        guard type == .keyDown else { return Unmanaged.passUnretained(event) }
         // Password fields: the system enables secure input; typing there must
         // stay exactly as typed, and the buffer must not remember any of it.
         guard !IsSecureEventInputEnabled() else {
@@ -361,14 +378,22 @@ final class TextSnippetService {
             let keepsTriggeringDelimiter = TextSnippetSupport.keepsTriggeringDelimiter(
                 caretRetreat: insertion.caretRetreat
             )
-            return Self.postExpansion(deleteCount: deleteCount,
-                                      text: insertion.text,
-                                      caretRetreat: insertion.caretRetreat,
-                                      trailingKeyCode: keepsTriggeringDelimiter ? trailingKeyCode : nil,
-                                      trailingFlags: trailingFlags,
-                                      trailingText: keepsTriggeringDelimiter ? trailingText : "",
-                                      failureKeyCode: failureKeyCode,
-                                      failureFlags: failureFlags)
+            let accepted = Self.postExpansion(
+                deleteCount: deleteCount,
+                text: insertion.text,
+                caretRetreat: insertion.caretRetreat,
+                trailingKeyCode: keepsTriggeringDelimiter ? trailingKeyCode : nil,
+                trailingFlags: trailingFlags,
+                trailingText: keepsTriggeringDelimiter ? trailingText : "",
+                failureKeyCode: failureKeyCode,
+                failureFlags: failureFlags
+            )
+            if accepted, let trailingKeyCode, insertion.caretRetreat != nil {
+                self.inputLock.withLock {
+                    self.pendingConsumedDelimiterKeyCode = Int(trailingKeyCode)
+                }
+            }
+            return accepted
         }
         if Thread.isMainThread {
             return post()

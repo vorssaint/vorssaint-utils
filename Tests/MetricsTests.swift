@@ -15307,6 +15307,16 @@ struct MetricsTests {
                && !TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: 0)
                && !TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: 5),
                "only cursor placement suppresses the triggering delimiter")
+        let unrelatedKeyUp = TextSnippetSupport.pendingKeyUpDecision(
+            keyCode: kVK_Tab, pendingKeyCode: kVK_Return)
+        let matchingKeyUp = TextSnippetSupport.pendingKeyUpDecision(
+            keyCode: kVK_Return, pendingKeyCode: unrelatedKeyUp.pendingKeyCode)
+        let repeatedKeyUp = TextSnippetSupport.pendingKeyUpDecision(
+            keyCode: kVK_Return, pendingKeyCode: matchingKeyUp.pendingKeyCode)
+        expect(!unrelatedKeyUp.consume && unrelatedKeyUp.pendingKeyCode == kVK_Return
+               && matchingKeyUp.consume && matchingKeyUp.pendingKeyCode == nil
+               && !repeatedKeyUp.consume && repeatedKeyUp.pendingKeyCode == nil,
+               "a pending delimiter consumes exactly its matching key-up")
 
         // Only a replacement that names the clipboard pays for reading it: the
         // pasteboard can hang on content nobody renders any more, and that read

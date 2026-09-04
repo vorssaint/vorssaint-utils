@@ -125,6 +125,14 @@ enum TextSnippetSupport {
         caretRetreat == nil
     }
 
+    static func pendingKeyUpDecision(
+        keyCode: Int,
+        pendingKeyCode: Int?
+    ) -> (consume: Bool, pendingKeyCode: Int?) {
+        guard pendingKeyCode == keyCode else { return (false, pendingKeyCode) }
+        return (true, nil)
+    }
+
     /// Splits the marker before variable expansion so clipboard text that
     /// contains the same literal is never reinterpreted as cursor placement.
     static func expandedInsertion(_ replacement: String,
