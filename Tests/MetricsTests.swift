@@ -16852,8 +16852,18 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(captureSettingsSource.contains("selectedTool")
                 && captureSettingsSource.contains(".pickerStyle(.segmented)")
-                && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool"),
-               "the capture page uses a segmented picker with tool-specific shortcuts in the top section")
+                && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool")
+                && captureSettingsSource.contains("RecentCapturesShortcutRows()"),
+               "the capture page keeps tool and shared-history shortcuts in the top section")
+        let recentCaptureServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
+            encoding: .utf8)) ?? ""
+        expect(recentCaptureServiceSource.contains("QuickToolHotkey(id: 25)")
+                && recentCaptureServiceSource.contains(
+                    "hotkey.onPress = { [weak self] in self?.showHistoryWindow() }")
+                && featureRuntimeSource.components(separatedBy:
+                    "RecentCaptureService.shared.syncWithPreferences()").count == 3,
+               "the history shortcut opens its window and follows both capture producers")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])
@@ -17705,6 +17715,12 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcut] as? String
                 == "control+option+command:14",
                "the latest screenshot editor shortcut defaults to control option command E")
+        expect(Defaults.registeredDefaults[DefaultsKey.recentCapturesShortcutEnabled]
+                as? Bool == false,
+               "the recent captures shortcut ships off")
+        expect(Defaults.registeredDefaults[DefaultsKey.recentCapturesShortcut] as? String
+                == "control+option+command:4",
+               "the recent captures shortcut defaults to control option command H")
         expect(ScreenshotShareDuration.allCases.map(\.rawValue) == [3_600, 21_600, 86_400],
                "temporary links allow only one, six or twenty-four hours")
         let testShareEndpoint = ScreenshotSharingSupport.endpoint(
@@ -17765,8 +17781,10 @@ struct MetricsTests {
         expect(!GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                 .contains(.screenshot)
                 && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
-                    .contains(.screenRecorder),
-               "a recording-only install shows only the recorder's own shortcut")
+                    .contains(.screenRecorder)
+                && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
+                    .contains(.recentCaptures),
+               "a recording-only install keeps the recorder and shared capture history shortcuts")
         expect(GlobalShortcutRole.screenshotFullScreen.requiredEnableKeys
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
@@ -17775,6 +17793,11 @@ struct MetricsTests {
                 == [DefaultsKey.screenshotLastCaptureShortcutEnabled]
                 && GlobalShortcutRole.screenshotLastCapture.feature == .screenshot,
                "the latest screenshot shortcut gates on its own toggle and the screenshot feature")
+        expect(GlobalShortcutRole.recentCaptures.requiredEnableKeys
+                == [DefaultsKey.recentCapturesShortcutEnabled]
+                && GlobalShortcutRole.recentCaptures.availabilityFeatures
+                    == [.screenshot, .screenRecorder],
+               "the recent captures shortcut follows either feature that fills its history")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotClipboardShortcutEnabled]
                 as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.screenshotClipboardShortcut] as? String
@@ -19579,6 +19602,8 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcut)
+                && backupKeys.contains(DefaultsKey.recentCapturesShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.recentCapturesShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)

@@ -167,7 +167,7 @@ struct ShortcutsSettings: View {
                 return WindowLayoutService.shared.shortcutConflictTitle(shortcut, excluding: nil)
             },
             onChange: {
-                FeatureRuntime.shared.sync([role.feature])
+                FeatureRuntime.shared.sync(role.availabilityFeatures)
             }
         )
     }
