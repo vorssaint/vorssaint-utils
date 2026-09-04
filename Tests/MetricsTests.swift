@@ -13284,27 +13284,33 @@ struct MetricsTests {
         // one more worker doing it. Waiting on the child itself is immune, so
         // the pool the runner starved can no longer starve the runner.
         let poolGate = DispatchSemaphore(value: 0)
-        let poolOccupied = DispatchSemaphore(value: 0)
-        // The dispatch pool's soft limit is 64 threads blocked in synchronous
-        // work; one block per thread takes every one of them.
-        for _ in 0..<64 {
-            DispatchQueue.global(qos: .utility).async {
-                poolOccupied.signal()
-                poolGate.wait()
+        // How many threads the pool lets block in synchronous work before it
+        // stops serving anything follows the machine rather than a documented
+        // number, so the blocks ramp until a probe submitted to the pool times
+        // out. A fixed count leaves this check passing without ever reaching
+        // the starvation it needs on a Mac whose ceiling is higher.
+        var blockedWorkers = 0
+        var poolIsStarved = false
+        var starvedProbe: DispatchSemaphore?
+        while !poolIsStarved && blockedWorkers < 256 {
+            for _ in 0..<32 {
+                blockedWorkers += 1
+                DispatchQueue.global(qos: .utility).async { poolGate.wait() }
             }
+            let probe = DispatchSemaphore(value: 0)
+            DispatchQueue.global(qos: .utility).async { probe.signal() }
+            starvedProbe = probe
+            poolIsStarved = probe.wait(timeout: .now() + 0.5) == .timedOut
         }
-        var occupiedWorkers = 0
-        for _ in 0..<64 where poolOccupied.wait(timeout: .now() + 5) == .success { occupiedWorkers += 1 }
-        let starvedProbe = DispatchSemaphore(value: 0)
-        DispatchQueue.global(qos: .utility).async { starvedProbe.signal() }
-        let poolIsStarved = starvedProbe.wait(timeout: .now() + 0.5) == .timedOut
         let starvedStarted = Date()
         let starvedPoolProcess = BoundedProcessRunner.run(
             "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
         let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
-        for _ in 0..<64 { poolGate.signal() }
-        _ = starvedProbe.wait(timeout: .now() + 5)
-        expect(occupiedWorkers == 64 && poolIsStarved,
+        // One signal per block submitted, running or still queued, so the rest
+        // of this file never runs against workers parked on the gate.
+        for _ in 0..<blockedWorkers { poolGate.signal() }
+        _ = starvedProbe?.wait(timeout: .now() + 5)
+        expect(poolIsStarved,
                "the dispatch pool starvation this check needs was actually reached")
         expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
                 && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
