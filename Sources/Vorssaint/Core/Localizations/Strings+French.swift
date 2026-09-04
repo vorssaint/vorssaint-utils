@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS utilise %@ pour l’un de ses propres raccourcis.",
         shortcutTakeOverAction: "Prendre la main tant que Vorssaint est ouvert",
         shortcutTakeOverCaption: "macOS récupère la touche dès que Vorssaint n’est pas ouvert ou que cette fonction est désactivée.",
-        shortcutTakeOverDismiss: "Conserver le raccourci actuel",
+        shortcutTakeOverDismiss: "Ne pas prendre la main",
         shortcutUnavailable: "macOS a refusé ce raccourci. Choisissez-en un autre.",
         shelfShortcutToggle: "Raccourci Shelf",
         switcherUsageHintFormat: "Maintenez %@ pour naviguer\u{00A0}; relâchez pour activer la fenêtre. Maj ou ← revient en arrière\u{00A0}; W ferme la fenêtre\u{00A0}; Q quitte l’app\u{00A0}; Échap annule.",

@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS nutzt %@ für einen eigenen Kurzbefehl.",
         shortcutTakeOverAction: "Übernehmen, solange Vorssaint läuft",
         shortcutTakeOverCaption: "macOS bekommt die Taste zurück, sobald Vorssaint nicht läuft oder diese Funktion aus ist.",
-        shortcutTakeOverDismiss: "Aktuellen Kurzbefehl behalten",
+        shortcutTakeOverDismiss: "Nicht übernehmen",
         shortcutUnavailable: "macOS hat diesen Kurzbefehl abgelehnt. Wähle einen anderen.",
         shelfShortcutToggle: "Shelf-Kurzbefehl",
         switcherUsageHintFormat: "Halte %@ zum Navigieren; loslassen, um das Fenster zu aktivieren. Umschalt oder ← geht zurück; W schließt das Fenster; Q beendet die App; Esc bricht ab.",

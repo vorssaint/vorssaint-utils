@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS usa %@ per una delle sue scorciatoie.",
         shortcutTakeOverAction: "Prendi il controllo mentre Vorssaint è aperto",
         shortcutTakeOverCaption: "macOS riprende il tasto ogni volta che Vorssaint non è aperto o questa funzione è disattivata.",
-        shortcutTakeOverDismiss: "Mantieni la scorciatoia attuale",
+        shortcutTakeOverDismiss: "Non prendere il controllo",
         shortcutUnavailable: "macOS ha rifiutato questa scorciatoia. Scegline un’altra.",
         shelfShortcutToggle: "Scorciatoia Shelf",
         switcherUsageHintFormat: "Tieni premuto %@ per spostarti; rilascia per attivare la finestra. Maiuscole o ← torna indietro; W chiude la finestra; Q chiude l’app; Esc annulla.",

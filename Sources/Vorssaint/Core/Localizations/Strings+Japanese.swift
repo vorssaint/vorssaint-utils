@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS は %@ を自身のショートカットに使っています。",
         shortcutTakeOverAction: "Vorssaint の起動中はこちらで使う",
         shortcutTakeOverCaption: "Vorssaint が起動していないとき、またはこの機能がオフのときは、macOS にキーが戻ります。",
-        shortcutTakeOverDismiss: "現在のショートカットのままにする",
+        shortcutTakeOverDismiss: "引き継がない",
         shortcutUnavailable: "macOS がこのショートカットを拒否しました。別のものを選んでください。",
         shelfShortcutToggle: "Shelf ショートカット",
         switcherUsageHintFormat: "%@ を押したまま移動し、放すとウインドウがアクティブになります。Shift または ← で戻る、W でウインドウを閉じ、Q でアプリを終了、Esc でキャンセルします。",

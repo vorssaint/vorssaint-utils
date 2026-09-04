@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS, %@ kombinasyonunu kendi kısayollarından biri için kullanıyor.",
         shortcutTakeOverAction: "Vorssaint çalışırken devral",
         shortcutTakeOverCaption: "Vorssaint çalışmadığında ya da bu özellik kapalıyken tuşu macOS geri alır.",
-        shortcutTakeOverDismiss: "Mevcut kısayolu koru",
+        shortcutTakeOverDismiss: "Devralma",
         shortcutUnavailable: "macOS bu kısayolu reddetti. Başka birini seç.",
         shelfShortcutToggle: "Raf kısayolu",
         switcherUsageHintFormat: "Gezinmek için %@ tuşunu basılı tut; pencereyi etkinleştirmek için bırak. Shift veya ← geri gider; W pencereyi kapatır; Q uygulamadan çıkar; Esc iptal eder.",

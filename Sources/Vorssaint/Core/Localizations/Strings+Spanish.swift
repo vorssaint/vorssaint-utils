@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS usa %@ para uno de sus propios atajos.",
         shortcutTakeOverAction: "Tomar el control mientras Vorssaint esté abierto",
         shortcutTakeOverCaption: "macOS recupera la tecla siempre que Vorssaint no esté abierto o esta función esté desactivada.",
-        shortcutTakeOverDismiss: "Mantener el atajo actual",
+        shortcutTakeOverDismiss: "No tomar el control",
         shortcutUnavailable: "macOS rechazó este atajo. Elige otro.",
         shelfShortcutToggle: "Atajo del estante",
         switcherUsageHintFormat: "Mantén %@ para navegar; suelta para activar la ventana. Mayúsculas o ← retrocede; W cierra la ventana; Q cierra la app; Esc cancela.",

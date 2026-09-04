@@ -877,7 +877,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS 将 %@ 用于它自己的快捷键。",
         shortcutTakeOverAction: "在 Vorssaint 运行时接管",
         shortcutTakeOverCaption: "只要 Vorssaint 未运行或此功能已关闭，macOS 就会收回该按键。",
-        shortcutTakeOverDismiss: "保留当前快捷键",
+        shortcutTakeOverDismiss: "不接管",
         shortcutUnavailable: "macOS 拒绝了此快捷键。请选择另一个。",
         shelfShortcutToggle: "暂存架快捷键",
         switcherUsageHintFormat: "按住 %@ 进行浏览；松开即可激活窗口。Shift 或 ← 返回；W 关闭窗口；Q 退出 App；Esc 取消。",

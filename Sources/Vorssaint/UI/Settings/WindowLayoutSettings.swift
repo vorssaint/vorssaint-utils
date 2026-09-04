@@ -354,12 +354,13 @@ private struct WindowLayoutActionRow: View {
                 }
                 .disabled(!applyEnabled)
                 Spacer()
-                ShortcutRecorderButton(shortcut: shortcut
+                ShortcutRecorderButton(shortcut: pendingTakeOver
+                                           ?? shortcut
                                            ?? action.defaultShortcut
                                            ?? .windowLayoutLeftDefault,
                                        isEnabled: shortcutEnabled,
                                        waitingTitle: l10n.s.shortcutPressKeys,
-                                       emptyTitle: shortcut == nil ? l10n.s.shortcutNone : nil,
+                                       emptyTitle: pendingTakeOver == nil && shortcut == nil ? l10n.s.shortcutNone : nil,
                                        clearAction: clear,
                                        notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
                                        recordingChanged: { recording in
@@ -388,6 +389,8 @@ private struct WindowLayoutActionRow: View {
                     rawValue = action.defaultShortcut?.storageValue
                         ?? WindowLayoutAction.clearedShortcutStorageValue
                     errorText = nil
+                    pendingTakeOver = nil
+                    SystemShortcutTakeover.setTakeOver(action.shortcutKey, false)
                     WindowLayoutService.shared.syncWithPreferences()
                 }
                 .disabled(!shortcutEnabled || shortcut == action.defaultShortcut)
@@ -428,6 +431,8 @@ private struct WindowLayoutActionRow: View {
     private func clear() {
         rawValue = WindowLayoutAction.clearedShortcutStorageValue
         errorText = nil
+        pendingTakeOver = nil
+        SystemShortcutTakeover.setTakeOver(action.shortcutKey, false)
         WindowLayoutService.shared.syncWithPreferences()
     }
 

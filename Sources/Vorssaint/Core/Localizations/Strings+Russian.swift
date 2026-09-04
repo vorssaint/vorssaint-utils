@@ -878,7 +878,7 @@ extension Strings {
         shortcutTakeOverOffer: "macOS использует %@ для одного из своих сочетаний.",
         shortcutTakeOverAction: "Перехватить, пока Vorssaint запущен",
         shortcutTakeOverCaption: "macOS получает клавишу обратно, как только Vorssaint не запущен или эта функция выключена.",
-        shortcutTakeOverDismiss: "Оставить текущее сочетание",
+        shortcutTakeOverDismiss: "Не перехватывать",
         shortcutUnavailable: "macOS отклонила это сочетание клавиш. Выберите другое.",
         shelfShortcutToggle: "Горячая клавиша полки",
         switcherUsageHintFormat: "Удерживайте %@ для навигации; отпустите, чтобы активировать окно. Shift или ← возвращают назад; W закрывает окно; Q завершает приложение; Esc отменяет.",
