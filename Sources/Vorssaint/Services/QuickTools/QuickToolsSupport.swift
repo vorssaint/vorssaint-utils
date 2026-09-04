@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
 
 /// How a sampled color lands on the clipboard.
 enum ColorCopyFormat: String, CaseIterable, Identifiable {
@@ -28,6 +28,22 @@ enum ColorCopyFormat: String, CaseIterable, Identifiable {
 }
 
 enum QuickToolsSupport {
+    static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
+        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
+        else { return nil }
+        let bitmap = NSBitmapImageRep(cgImage: pixel)
+        guard let color = bitmap.colorAt(x: 0, y: 0) else { return nil }
+        // colorAt returns the pixel's components tagged as a generic color
+        // space. Preserve the bitmap's profile before converting to sRGB.
+        var components = [CGFloat](repeating: 0, count: color.numberOfComponents)
+        color.getComponents(&components)
+        guard components.count == bitmap.colorSpace.numberOfColorComponents + 1
+        else { return nil }
+        return NSColor(colorSpace: bitmap.colorSpace,
+                       components: components,
+                       count: components.count)
+    }
+
     /// Formats sRGB components (0...1) in the chosen copy format. Components
     /// out of range are clamped so extended-gamut samples never produce
     /// invalid strings. `bareHex` drops the leading # (issue #168: some design
