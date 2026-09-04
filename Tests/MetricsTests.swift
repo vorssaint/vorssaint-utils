@@ -13631,6 +13631,63 @@ struct MetricsTests {
         )
         expect(mouseJournal.entry(registryID: 42, identity: reusedRegistryIdentity) == nil,
                "a reused registry id can never receive another mouse's saved value")
+        expect(mouseJournal.entriesToRestore(preserving: [42: mouseIdentity]).isEmpty
+                && mouseJournal.entry(registryID: 42, identity: mouseIdentity) == mouseRecovery,
+               "hotplug retries preserve a connected mouse's original value without restoring acceleration between attempts")
+        expect(mouseJournal.entriesToRestore(preserving: [43: mouseIdentity]) == [mouseRecovery],
+               "a reconnected mouse with a new registry id still needs recovery before recapture")
+        expect(mouseJournal.entriesToRestore(preserving: [42: reusedRegistryIdentity]) == [mouseRecovery],
+               "an unrelated mouse reusing a registry id cannot hide a pending recovery")
+        expect(mouseJournal.entriesToRestore(preserving: [:]) == [mouseRecovery],
+               "stopping acceleration control still restores every saved entry")
+
+        var mouseReapplication = MouseAccelerationReapplySchedule()
+        let initialMouseConnection = mouseReapplication.restart()
+        expect(mouseReapplication.nextDelay(for: initialMouseConnection) == 0,
+               "hotplug requests the first acceleration refresh without blocking the device callback")
+        let reconnectedMouse = mouseReapplication.restart()
+        expect(!mouseReapplication.isCurrent(initialMouseConnection)
+                && mouseReapplication.nextDelay(for: initialMouseConnection) == nil,
+               "a newer hotplug event invalidates the previous retry window")
+
+        var mouseReapplyTime: TimeInterval = 0
+        var mouseReapplyAttempts = 0
+        var lateMouseValue: MouseAccelerationStoredValue?
+        var lateMouseReset = false
+        for _ in 0..<20 {
+            guard let delay = mouseReapplication.nextDelay(for: reconnectedMouse) else { break }
+            mouseReapplyTime += delay
+            mouseReapplyAttempts += 1
+            // The event-system service appears after the physical callback, then
+            // receives the system's initial acceleration setting later still.
+            if mouseReapplyTime >= 0.75, lateMouseValue == nil {
+                lateMouseValue = mouseRecovery.original
+            }
+            if mouseReapplyTime >= 2, !lateMouseReset {
+                lateMouseValue = mouseRecovery.original
+                lateMouseReset = true
+            }
+            if lateMouseValue != nil {
+                lateMouseValue = MouseAccelerationSupport.targetValue(
+                    for: mouseRecovery.key, originalIsBoolean: mouseRecovery.original.isBoolean)
+            }
+        }
+        expect(lateMouseReset && lateMouseValue?.rawValue == -1,
+               "acceleration is reapplied when a mouse service and its settings arrive after the physical callback")
+        expect(mouseReapplyAttempts > 1 && mouseReapplyAttempts < 20
+                && mouseReapplyTime > 2 && mouseReapplyTime <= 5
+                && !mouseReapplication.isCurrent(reconnectedMouse),
+               "hotplug reapplication finishes within five seconds and leaves no idle retry")
+        let cancelledMouseConnection = mouseReapplication.restart()
+        _ = mouseReapplication.nextDelay(for: cancelledMouseConnection)
+        mouseReapplication.cancel()
+        expect(!mouseReapplication.isCurrent(cancelledMouseConnection)
+                && mouseReapplication.nextDelay(for: cancelledMouseConnection) == nil,
+               "turning the feature off or pausing the session invalidates queued acceleration writes")
+        let resumedMouseConnection = mouseReapplication.restart()
+        expect(mouseReapplication.nextDelay(for: resumedMouseConnection) == 0
+                && !mouseReapplication.isCurrent(cancelledMouseConnection),
+               "resuming creates a fresh retry window without reviving cancelled callbacks")
         expect(mouseIdentity.canMatchAcrossRegistryIDs,
                "a stable physical identity can recover after a device receives a new registry id")
         let anonymousMouseIdentity = MouseAccelerationDeviceIdentity(
