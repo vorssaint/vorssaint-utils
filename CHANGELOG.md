@@ -6,12 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Vorssaint adds edge snap controls and a shortcut for recent captures, refines the radial menu, and improves color picking, readability, localization and input behavior.
+
+### Added
+- Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
+- Recent captures can open from their own assignable shortcut without returning to the menu bar panel.
+- Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
+
 ### Changed
 - The radial menu throws its actions out of the center one after another when it opens and gathers them back in when it closes.
 - The radial menu's highlight sweeps to the pointed slice, and its actions sit on the glass as raised buttons with guides between them.
 - Panel outlines answer the system's Increase Contrast, which they were ignoring while already following reduced motion and transparency.
 
 ### Fixed
+- Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
+- Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.
 - The Keep Awake option for no icon shows the crossed-out circle it promised, where the bar across it was never drawn.
 - Saving the scratchpad to a file says so when it cannot be written, where a full disk or a read-only volume ended in silence.
 - Numbers on screen use the decimal mark of your region, where the panel, the menu bar and the editors always wrote a point.
@@ -31,6 +41,8 @@ All notable changes to this project are documented here. The format follows
 - The recording editor's look presets carry one name each instead of repeating it, and sizes use a proper multiplication sign.
 - The zoom panel's button says what it does instead of borrowing the timeline's hint to click somewhere else.
 - Slider labels shrink instead of being cut where Turkish and Spanish run past the column, in the backdrop and recording panels.
+- Clicks and scrolling no longer lag in full-screen apps and games while the three-finger middle click or the reversed scroll direction is on.
+- Tapping Super key for Escape no longer carries a modifier still reported by the keyboard. Thanks to @gatzifratzi, @PathGao and @hash00.
 
 ## [3.3.3-beta.4] - 2026-09-03
 
@@ -1757,7 +1769,7 @@ Vorssaint 3.1.0 adds three optional tools: Clipboard History for saving and reus
   default, with a setting to split them into separate CPU°C, GPU°C and BAT°C
   blocks.
 
-![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaintapp/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
+![Menu bar temperature metrics](https://raw.githubusercontent.com/vorssaint/vorssaint-utils/main/Resources/Images/menu-bar-temperature-metrics.png)
 
 ## [3.0.7] - 2026-06-20
 

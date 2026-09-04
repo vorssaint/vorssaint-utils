@@ -27,7 +27,7 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    private let repository = "vorssaintapp/vorssaint-utils"
+    private let repository = "vorssaint/vorssaint-utils"
     private var downloadURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?

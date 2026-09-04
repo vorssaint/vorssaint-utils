@@ -50,6 +50,19 @@ enum MouseSpacesGestureSupport {
         case appExpose
     }
 
+    /// The same drag read the way a trackpad reads a swipe: the desk follows
+    /// the hand, so going right brings the Space on the left. Only the two
+    /// Space directions swap, because dragging up already opens Mission
+    /// Control on both devices.
+    static func resolved(_ action: Action, followsDrag: Bool) -> Action {
+        guard followsDrag else { return action }
+        switch action {
+        case .spaceLeft: return .spaceRight
+        case .spaceRight: return .spaceLeft
+        case .missionControl, .appExpose: return action
+        }
+    }
+
     /// The axis a gesture settled on at its first firing. A press stays on it
     /// for the rest of its life, so a drag that wanders diagonally cannot
     /// switch Spaces and throw up Mission Control at the same time.

@@ -3784,11 +3784,14 @@ struct MetricsTests {
                "window layout shortcuts stay off until enabled")
         expect(registeredDefaults[DefaultsKey.windowEdgeSnapEnabled] as? Bool == false,
                "dragging windows to screen edges is opt-in")
+        expect(registeredDefaults[DefaultsKey.windowEdgeSnapDisabledZones] as? String == "",
+               "every visual edge snap zone starts enabled")
         expect(registeredDefaults[DefaultsKey.windowGestureEnabled] as? Bool == false,
                "window move and resize gestures are opt-in")
         expect(registeredDefaults[DefaultsKey.mouseSpacesGestureEnabled] as? Bool == false
-                && registeredDefaults[DefaultsKey.mouseSpacesGestureButton] as? Int == 0,
-               "the Spaces and Mission Control drag ships off and with no button bound")
+                && registeredDefaults[DefaultsKey.mouseSpacesGestureButton] as? Int == 0
+                && registeredDefaults[DefaultsKey.mouseSpacesGestureFollowsDrag] as? Bool == false,
+               "the Spaces and Mission Control drag ships off, with no button bound and the plain direction")
         expect(registeredDefaults[DefaultsKey.windowGestureModifiers] as? String == "control+command",
                "window gestures start with the deliberate control-command chord")
         expect(registeredDefaults[DefaultsKey.windowGestureRaiseWindow] as? Bool == false,
@@ -5386,14 +5389,18 @@ struct MetricsTests {
         let snapScreen = WindowEdgeSnapScreen(frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                               visibleFrame: snapVisibleFrame)
         func snapTarget(_ point: CGPoint,
-                        screens: [WindowEdgeSnapScreen] = [snapScreen]) -> WindowEdgeSnapTarget? {
-            WindowEdgeSnapSupport.target(at: point, screens: screens)
+                        screens: [WindowEdgeSnapScreen] = [snapScreen],
+                        enabledZones: Set<WindowEdgeSnapZone> =
+                            WindowEdgeSnapZone.allEnabled) -> WindowEdgeSnapTarget? {
+            WindowEdgeSnapSupport.target(at: point,
+                                         screens: screens,
+                                         enabledZones: enabledZones)
         }
         let topSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
                                                      current: snapVisibleFrame,
                                                      visibleFrame: snapVisibleFrame)
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY))
-               == WindowEdgeSnapTarget(action: .maximize,
+               == WindowEdgeSnapTarget(zone: .top,
                                        frame: topSnapFrame,
                                        visibleFrame: snapVisibleFrame),
                "touching the lower edge of the menu bar previews maximize")
@@ -5412,6 +5419,45 @@ struct MetricsTests {
                "inclusive screen corners take priority over straight edges")
         expect(snapTarget(CGPoint(x: 720, y: 450)) == nil,
                "dragging inside a display never creates a snap target")
+
+        let disabledZoneStorage = WindowEdgeSnapZone.disabledZonesStorageValue([.right, .top])
+        expect(disabledZoneStorage == "top,right"
+               && WindowEdgeSnapZone.disabledZones(
+                   from: "unknown, right,top"
+               ) == Set([.top, .right]),
+               "edge snap zones serialize visibly and discard unknown saved ids")
+        let withoutTop = WindowEdgeSnapZone.enabledZones(from: disabledZoneStorage)
+        expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY),
+                          enabledZones: withoutTop) == nil
+               && snapTarget(CGPoint(x: 0, y: 450),
+                             enabledZones: withoutTop)?.zone == .left,
+               "turning off the top zone leaves the other visual snap areas active")
+        expect(WindowEdgeSnapSupport.target(
+                   at: CGPoint(x: 720, y: snapVisibleFrame.maxY),
+                   screens: [snapScreen],
+                   enabledZones: []
+               ) == nil,
+               "turning off every visual zone leaves no snap target")
+
+        let quartzScreenFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let quartzTopCenter = CGPoint(x: 720, y: 0)
+        expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
+                   quartzTopCenter,
+                   screenFrames: [quartzScreenFrame]
+               ) == CGPoint(x: 720, y: 1),
+               "an active top snap zone stays clear of the system top drag")
+        expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
+                   quartzTopCenter,
+                   screenFrames: [quartzScreenFrame],
+                   enabledZones: withoutTop
+               ) == quartzTopCenter,
+               "a disabled top zone returns the exact pointer event to the system")
+        expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
+                   CGPoint(x: 20, y: 0),
+                   screenFrames: [quartzScreenFrame],
+                   enabledZones: [.topLeft]
+               ) == CGPoint(x: 20, y: 1),
+               "an active top corner still protects its own snap gesture")
 
         let leftSnapScreen = WindowEdgeSnapScreen(
             frame: CGRect(x: -1280, y: 0, width: 1280, height: 800),
@@ -9316,8 +9362,8 @@ struct MetricsTests {
                "beta is not newer than the released final version")
 
         // Release candidate selection
-        let dummyDMG = URL(string: "https://github.com/vorssaintapp/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
-        let dummyBetaDMG = URL(string: "https://github.com/vorssaintapp/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
+        let dummyDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
+        let dummyBetaDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
 
         let candidateList = [
             UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.4-beta.1", isPrerelease: true, isDraft: false, dmgURL: dummyBetaDMG, dmgExpectedBytes: 1000, body: "Beta notes"),
@@ -10481,6 +10527,36 @@ struct MetricsTests {
         expectEqual(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .rgb, bareHex: true),
                     "rgb(51, 102, 153)",
                     "bare hex option leaves the other copy formats untouched")
+
+        // Sample known pixels, including an ICC profile, through the same
+        // path used by color confirmation and the magnifier's readout/copy.
+        for profile in [CGColorSpace.sRGB, CGColorSpace.displayP3] {
+            let space = CGColorSpace(name: profile)!
+            let bytes: [UInt8] = [0, 0, 255, 255, 153, 102, 51, 255]
+            let image = CGImage(width: 2, height: 1, bitsPerComponent: 8, bitsPerPixel: 32,
+                                bytesPerRow: 8, space: space,
+                                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
+                                    .union(.byteOrder32Little),
+                                provider: CGDataProvider(data: Data(bytes) as CFData)!,
+                                decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+            let sampled = QuickToolsSupport.sampledColor(in: image, x: 1, y: 0)?.usingColorSpace(.sRGB)
+            let expected = NSColor(cgColor: CGColor(colorSpace: space,
+                                                   components: [0.2, 0.4, 0.6, 1])!)!
+                .usingColorSpace(.sRGB)!
+            expect(sampled != nil, "color picker reads the chosen pixel in \(profile)")
+            if let sampled {
+                expectClose(sampled.redComponent, expected.redComponent, "sampled red respects \(profile)")
+                expectClose(sampled.greenComponent, expected.greenComponent, "sampled green respects \(profile)")
+                expectClose(sampled.blueComponent, expected.blueComponent, "sampled blue respects \(profile)")
+                if profile == CGColorSpace.sRGB {
+                    expectEqual(QuickToolsSupport.colorString(red: sampled.redComponent,
+                                                             green: sampled.greenComponent,
+                                                             blue: sampled.blueComponent,
+                                                             format: .hex),
+                                "#336699", "color picker preserves a known sRGB hex")
+                }
+            }
+        }
 
         let ocrLines = [
             QuickToolsSupport.RecognizedLine(text: "world", x: 0.5, y: 0.8),
@@ -14074,6 +14150,13 @@ struct MetricsTests {
                && AppFeature.focusFollowsMouse.monitorsPermissionChanges
                && AppFeature.mouseNavigation.monitorsPermissionChanges,
                "only active Window Layout hooks and live features keep the permission watcher alive")
+        expect(!AppFeature.windowLayout.monitorsPermissionChanges(
+                   edgeSnapDisabledZones: WindowEdgeSnapZone.disabledZonesStorageValue(
+                       WindowEdgeSnapZone.allEnabled
+                   ),
+                   boolFor: { $0 == DefaultsKey.windowEdgeSnapEnabled }
+               ),
+               "Window Layout does not poll permissions when every snap zone is off")
 
         expect(activeSet(.accessibility)
                 == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
@@ -14296,7 +14379,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.mouseButtons(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 30 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 32 && values.allSatisfy { !$0.isEmpty },
                    "every mouse button string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible mouse button strings (\(language.rawValue))")
@@ -14687,10 +14770,26 @@ struct MetricsTests {
         let previousWindowEdgeSnapEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowEdgeSnapEnabled
         )
+        let previousWindowEdgeSnapZones = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowEdgeSnapDisabledZones
+        )
         UserDefaults.standard.set(false, forKey: DefaultsKey.windowGestureEnabled)
         UserDefaults.standard.set(true, forKey: DefaultsKey.windowEdgeSnapEnabled)
+        UserDefaults.standard.set("", forKey: DefaultsKey.windowEdgeSnapDisabledZones)
         expect(AppFeature.windowLayout.energyProfile == .pointer,
                "edge snapping reports its trackpad and mouse listener")
+        UserDefaults.standard.set(
+            WindowEdgeSnapZone.disabledZonesStorageValue(WindowEdgeSnapZone.allEnabled),
+            forKey: DefaultsKey.windowEdgeSnapDisabledZones
+        )
+        expect(AppFeature.windowLayout.energyProfile == .idle,
+               "edge snapping keeps no pointer listener when every visual zone is off")
+        if let previousWindowEdgeSnapZones {
+            UserDefaults.standard.set(previousWindowEdgeSnapZones,
+                                      forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+        }
         if let previousWindowEdgeSnapEnergy {
             UserDefaults.standard.set(previousWindowEdgeSnapEnergy,
                                       forKey: DefaultsKey.windowEdgeSnapEnabled)
@@ -16898,8 +16997,18 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(captureSettingsSource.contains("selectedTool")
                 && captureSettingsSource.contains(".pickerStyle(.segmented)")
-                && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool"),
-               "the capture page uses a segmented picker with tool-specific shortcuts in the top section")
+                && captureSettingsSource.contains("ToolShortcutRows(tool: currentTool")
+                && captureSettingsSource.contains("RecentCapturesShortcutRows()"),
+               "the capture page keeps tool and shared-history shortcuts in the top section")
+        let recentCaptureServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
+            encoding: .utf8)) ?? ""
+        expect(recentCaptureServiceSource.contains("QuickToolHotkey(id: 21)")
+                && recentCaptureServiceSource.contains(
+                    "hotkey.onPress = { [weak self] in self?.showHistoryWindow() }")
+                && featureRuntimeSource.components(separatedBy:
+                    "RecentCaptureService.shared.syncWithPreferences()").count == 3,
+               "the history shortcut opens its window and follows both capture producers")
         expect(!ScreenshotSupport.captureAvailabilityChanged(
                     activeTools: [.screenshot, .recording],
                     availableTools: [.screenshot, .recording])
@@ -17751,6 +17860,12 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcut] as? String
                 == "control+option+command:14",
                "the latest screenshot editor shortcut defaults to control option command E")
+        expect(Defaults.registeredDefaults[DefaultsKey.recentCapturesShortcutEnabled]
+                as? Bool == false,
+               "the recent captures shortcut ships off")
+        expect(Defaults.registeredDefaults[DefaultsKey.recentCapturesShortcut] as? String
+                == "control+option+command:4",
+               "the recent captures shortcut defaults to control option command H")
         expect(ScreenshotShareDuration.allCases.map(\.rawValue) == [3_600, 21_600, 86_400],
                "temporary links allow only one, six or twenty-four hours")
         let testShareEndpoint = ScreenshotSharingSupport.endpoint(
@@ -17811,8 +17926,10 @@ struct MetricsTests {
         expect(!GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
                 .contains(.screenshot)
                 && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
-                    .contains(.screenRecorder),
-               "a recording-only install shows only the recorder's own shortcut")
+                    .contains(.screenRecorder)
+                && GlobalShortcutRole.availableRoles(isAvailable: recordingOnly.contains)
+                    .contains(.recentCaptures),
+               "a recording-only install keeps the recorder and shared capture history shortcuts")
         expect(GlobalShortcutRole.screenshotFullScreen.requiredEnableKeys
                 == [DefaultsKey.screenshotFullScreenShortcutEnabled]
                 && GlobalShortcutRole.screenshotFullScreen.feature == .screenshot,
@@ -17821,6 +17938,11 @@ struct MetricsTests {
                 == [DefaultsKey.screenshotLastCaptureShortcutEnabled]
                 && GlobalShortcutRole.screenshotLastCapture.feature == .screenshot,
                "the latest screenshot shortcut gates on its own toggle and the screenshot feature")
+        expect(GlobalShortcutRole.recentCaptures.requiredEnableKeys
+                == [DefaultsKey.recentCapturesShortcutEnabled]
+                && GlobalShortcutRole.recentCaptures.availabilityFeatures
+                    == [.screenshot, .screenRecorder],
+               "the recent captures shortcut follows either feature that fills its history")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotClipboardShortcutEnabled]
                 as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.screenshotClipboardShortcut] as? String
@@ -18451,6 +18573,14 @@ struct MetricsTests {
         var bothAxes = MouseSpacesGestureSupport.Tracker(origin: .zero)
         expect(bothAxes.advance(to: CGPoint(x: spaceStep, y: overviewStep * 2), now: 0) == .appExpose,
                "a step past both thresholds is read as the axis that went furthest past its own")
+
+        expect(MouseSpacesGestureSupport.resolved(.spaceRight, followsDrag: true) == .spaceLeft
+                && MouseSpacesGestureSupport.resolved(.spaceLeft, followsDrag: true) == .spaceRight
+                && MouseSpacesGestureSupport.resolved(.missionControl, followsDrag: true) == .missionControl
+                && MouseSpacesGestureSupport.resolved(.appExpose, followsDrag: true) == .appExpose
+                && MouseSpacesGestureSupport.resolved(.spaceRight, followsDrag: false) == .spaceRight
+                && MouseSpacesGestureSupport.resolved(.spaceLeft, followsDrag: false) == .spaceLeft,
+               "the Space can follow the hand instead of the pointer, and the overviews never swap")
 
         expect(MouseSpacesGestureSupport.canBind(3) && MouseSpacesGestureSupport.canBind(31)
                 && !MouseSpacesGestureSupport.canBind(2) && !MouseSpacesGestureSupport.canBind(32)
@@ -19603,6 +19733,7 @@ struct MetricsTests {
                "snippets travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.windowGestureEnabled)
                 && backupKeys.contains(DefaultsKey.windowEdgeSnapEnabled)
+                && backupKeys.contains(DefaultsKey.windowEdgeSnapDisabledZones)
                 && backupKeys.contains(DefaultsKey.windowGestureModifiers)
                 && backupKeys.contains(DefaultsKey.windowGestureRaiseWindow)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)
@@ -19617,6 +19748,8 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcut)
+                && backupKeys.contains(DefaultsKey.recentCapturesShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.recentCapturesShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
@@ -23070,20 +23203,28 @@ struct MetricsTests {
                    "temp dir \(variable) is empty before the sweep is installed")
         }
 
-        // MARK: An identity-less Developer build creates its stable signing identity
+        // MARK: An identity-less build that installs creates its stable signing identity
         // An ad-hoc signature changes hash on every build, so macOS orphans
         // Accessibility and Screen Recording grants on each rebuild while
         // System Settings keeps showing them as granted. build.sh therefore
-        // routes identity-less --dev builds through Tools/setup-signing.sh
-        // before signing. The needle is the invocation at the start of a
-        // command line: the ad-hoc fallback's advice string also names the
-        // script, and must not satisfy this check.
+        // routes identity-less installs through Tools/setup-signing.sh before
+        // signing. The needle is the invocation at the start of a command
+        // line: the ad-hoc fallback's advice string also names the script, and
+        // must not satisfy this check.
         let runsSigningSetup = buildScript.components(separatedBy: "\n").contains {
             $0.range(of: #"^\s*(if\s+!?\s*)?\./Tools/setup-signing\.sh"#,
                      options: .regularExpression) != nil
         }
         expect(runsSigningSetup,
-               "an identity-less Developer build invokes Tools/setup-signing.sh itself")
+               "an identity-less build that installs invokes Tools/setup-signing.sh itself")
+        // The guard is on the install, not on the variant: a plain --install
+        // replaces the bundle under the released id, so it strands the grants
+        // on the app people actually use. CI never passes --install.
+        let buildScriptCode = buildScript.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+        expect(buildScriptCode.contains { $0.contains("(( DEV || INSTALL ))")
+                                            && $0.contains("developer_id_identity") },
+               "the signing setup guard covers every install, not only the Developer variant")
         // The setup script must run against the stock /usr/bin/openssl, which
         // is LibreSSL: it rejects OpenSSL 3's -legacy flag outright, and the
         // script once died on exactly that with its stderr discarded. The
@@ -23100,8 +23241,6 @@ struct MetricsTests {
         // MARK: The stable identity is judged by whether codesign can sign with it
         // A find-identity listing names certificates codesign then rejects, and
         // -v excludes every self-signed one, so neither spelling may decide.
-        let buildScriptCode = buildScript.components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
         for (script, code, identity) in [("build.sh", buildScriptCode, "$LEGACY_IDENTITY"),
                                          ("Tools/setup-signing.sh", signingSetupCode.components(separatedBy: "\n"),
                                           "$IDENTITY")] {
@@ -23168,9 +23307,34 @@ struct MetricsTests {
                        "\(tapOwner) does not keep a modifying tap alive after Accessibility is lost")
             }
             // Switching a tap off leaves the process owning it, which is what
-            // the window server waits on; teardown must invalidate the port.
-            expect(code.contains("CFMachPortInvalidate"),
+            // the window server waits on; teardown must invalidate the port,
+            // either here or through the pointer thread that owns the source.
+            expect(code.contains("CFMachPortInvalidate")
+                    || code.contains("PointerTapRunLoop.remove("),
                    "\(tapOwner) hands its tap back rather than only disabling it")
+        }
+
+        // The taps that filter ordinary clicks and wheel events are served by
+        // a thread of their own. On the main run loop each of those events
+        // waits for whatever this app is drawing or asking Accessibility,
+        // which is felt as click lag in whatever app is in front.
+        let pointerTapSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/PointerTapRunLoop.swift",
+            encoding: .utf8)) ?? ""
+        expect(pointerTapSource.contains("CFMachPortInvalidate"),
+               "the pointer thread hands back the port of every tap it gives up")
+        expect(pointerTapSource.contains("qualityOfService = .userInteractive"),
+               "the pointer thread is scheduled as input work")
+        for pointerTapOwner in ["Sources/Vorssaint/Services/ScrollInverter.swift",
+                                "Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift"] {
+            let source = (try? String(contentsOfFile: pointerTapOwner, encoding: .utf8)) ?? ""
+            let code = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            expect(code.contains("PointerTapRunLoop.add("),
+                   "\(pointerTapOwner) serves its tap on the pointer thread")
+            expect(!code.contains("CFRunLoopGetMain()"),
+                   "\(pointerTapOwner) keeps its tap off the main run loop")
         }
 
         // Disabling a tap and dropping the last Swift reference does not hand
@@ -23200,7 +23364,11 @@ struct MetricsTests {
             let taps = code.components(separatedBy: "CGEvent.tapCreate").count - 1
             guard taps > 0 else { continue }
             tapOwners += 1
+            // A tap served by the pointer thread is handed back there, which
+            // is the same promise: `PointerTapRunLoop.remove` invalidates the
+            // port it is given, and the sweep above pins that it does.
             let invalidations = code.components(separatedBy: "CFMachPortInvalidate").count - 1
+                + (code.components(separatedBy: "PointerTapRunLoop.remove(").count - 1)
             if invalidations < taps {
                 tapOwnersWithoutInvalidate.append("\(file) (\(taps) taps, \(invalidations) invalidated)")
             }

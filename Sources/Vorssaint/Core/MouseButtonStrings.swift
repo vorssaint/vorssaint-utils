@@ -38,6 +38,8 @@ struct MouseButtonFeatureStrings {
     let spacesCaptureWaiting: String
     let spacesCaptureUnsupported: String
     let spacesCaptureExists: String
+    let spacesFollowsDragLabel: String
+    let spacesFollowsDragCaption: String
 }
 
 extension FeatureStrings {
@@ -91,7 +93,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "The Mission Control keyboard shortcuts are switched off in System Settings, so this gesture has nothing to ask for.",
         spacesCaptureWaiting: "Now press an extra button.",
         spacesCaptureUnsupported: "That input cannot be held for a drag. Use an extra button.",
-        spacesCaptureExists: "That button already has a shortcut. Pick another one."
+        spacesCaptureExists: "That button already has a shortcut. Pick another one.",
+        spacesFollowsDragLabel: "Spaces follow the drag",
+        spacesFollowsDragCaption: "Dragging right brings the Space on the left, the way a trackpad swipe carries it along with your fingers."
     )
 
     static let ptBR = MouseButtonFeatureStrings(
@@ -124,7 +128,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Os atalhos de teclado do Mission Control estão desligados nos Ajustes do Sistema, então este gesto não tem o que pedir.",
         spacesCaptureWaiting: "Agora aperte um botão extra.",
         spacesCaptureUnsupported: "Esse controle não dá para segurar e arrastar. Use um botão extra.",
-        spacesCaptureExists: "Esse botão já tem um atalho. Escolha outro."
+        spacesCaptureExists: "Esse botão já tem um atalho. Escolha outro.",
+        spacesFollowsDragLabel: "Espaços acompanham o arrasto",
+        spacesFollowsDragCaption: "Arrastar para a direita traz o Espaço da esquerda, como um deslize no trackpad leva o Espaço junto com os dedos."
     )
 
     static let tr = MouseButtonFeatureStrings(
@@ -157,7 +163,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Mission Control klavye kısayolları Sistem Ayarları’nda kapalı, bu yüzden bu hareketin isteyeceği bir şey yok.",
         spacesCaptureWaiting: "Şimdi ek bir düğmeye basın.",
         spacesCaptureUnsupported: "Bu giriş basılı tutulup sürüklenemez. Ek bir düğme kullanın.",
-        spacesCaptureExists: "Bu düğmenin zaten bir kısayolu var. Başka bir düğme seçin."
+        spacesCaptureExists: "Bu düğmenin zaten bir kısayolu var. Başka bir düğme seçin.",
+        spacesFollowsDragLabel: "Alanlar sürüklemeyi izler",
+        spacesFollowsDragCaption: "Sağa sürüklemek soldaki Alanı getirir; izleme dörtgeninde kaydırmanın Alanı parmaklarınızla birlikte taşıması gibi."
     )
 
     static let ru = MouseButtonFeatureStrings(
@@ -190,7 +198,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Сочетания клавиш Mission Control отключены в Системных настройках, поэтому этому жесту не о чем просить.",
         spacesCaptureWaiting: "Теперь нажмите дополнительную кнопку.",
         spacesCaptureUnsupported: "Этот элемент нельзя удерживать для перетаскивания. Используйте дополнительную кнопку.",
-        spacesCaptureExists: "У этой кнопки уже есть сочетание. Выберите другую."
+        spacesCaptureExists: "У этой кнопки уже есть сочетание. Выберите другую.",
+        spacesFollowsDragLabel: "Рабочие столы следуют за перетаскиванием",
+        spacesFollowsDragCaption: "Перетаскивание вправо открывает рабочий стол слева, как жест на трекпаде уводит его вместе с пальцами."
     )
 
     static let es = MouseButtonFeatureStrings(
@@ -223,7 +233,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Los atajos de teclado de Mission Control están desactivados en Ajustes del Sistema, así que este gesto no tiene nada que pedir.",
         spacesCaptureWaiting: "Ahora pulsa un botón extra.",
         spacesCaptureUnsupported: "Esa entrada no se puede mantener pulsada para arrastrar. Usa un botón extra.",
-        spacesCaptureExists: "Ese botón ya tiene un atajo. Elige otro."
+        spacesCaptureExists: "Ese botón ya tiene un atajo. Elige otro.",
+        spacesFollowsDragLabel: "Los Espacios siguen el arrastre",
+        spacesFollowsDragCaption: "Arrastrar a la derecha trae el Espacio de la izquierda, igual que un deslizamiento en el trackpad lo lleva con tus dedos."
     )
 
     static let de = MouseButtonFeatureStrings(
@@ -256,7 +268,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Die Tastaturkurzbefehle für Mission Control sind in den Systemeinstellungen ausgeschaltet, also hat diese Geste nichts, worum sie bitten könnte.",
         spacesCaptureWaiting: "Drücke jetzt eine Zusatztaste.",
         spacesCaptureUnsupported: "Diese Eingabe lässt sich nicht gedrückt halten und ziehen. Verwende eine Zusatztaste.",
-        spacesCaptureExists: "Diese Taste hat schon einen Kurzbefehl. Wähle eine andere."
+        spacesCaptureExists: "Diese Taste hat schon einen Kurzbefehl. Wähle eine andere.",
+        spacesFollowsDragLabel: "Spaces folgen der Ziehbewegung",
+        spacesFollowsDragCaption: "Nach rechts ziehen holt den Space links daneben, so wie eine Streichbewegung auf dem Trackpad ihn mit den Fingern mitnimmt."
     )
 
     static let fr = MouseButtonFeatureStrings(
@@ -289,7 +303,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Les raccourcis clavier de Mission Control sont désactivés dans Réglages Système, donc ce geste n’a rien à demander.",
         spacesCaptureWaiting: "Appuyez sur un bouton supplémentaire.",
         spacesCaptureUnsupported: "Cette commande ne peut pas être maintenue pour un glissement. Utilisez un bouton supplémentaire.",
-        spacesCaptureExists: "Ce bouton a déjà un raccourci. Choisissez-en un autre."
+        spacesCaptureExists: "Ce bouton a déjà un raccourci. Choisissez-en un autre.",
+        spacesFollowsDragLabel: "Les espaces suivent le glissement",
+        spacesFollowsDragCaption: "Glisser vers la droite amène l’espace de gauche, comme un balayage sur le trackpad qui l’emporte avec les doigts."
     )
 
     static let it = MouseButtonFeatureStrings(
@@ -322,7 +338,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Le abbreviazioni da tastiera di Mission Control sono disattivate in Impostazioni di Sistema, quindi questo gesto non ha nulla da chiedere.",
         spacesCaptureWaiting: "Ora premi un pulsante extra.",
         spacesCaptureUnsupported: "Questo comando non si può tenere premuto per trascinare. Usa un pulsante extra.",
-        spacesCaptureExists: "Quel pulsante ha già un’abbreviazione. Scegline un altro."
+        spacesCaptureExists: "Quel pulsante ha già un’abbreviazione. Scegline un altro.",
+        spacesFollowsDragLabel: "Gli Spazi seguono il trascinamento",
+        spacesFollowsDragCaption: "Trascinare a destra porta lo Spazio di sinistra, come uno scorrimento sul trackpad che lo trascina con le dita."
     )
 
     static let ja = MouseButtonFeatureStrings(
@@ -355,7 +373,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "Mission Control のキーボードショートカットがシステム設定でオフになっているため、このジェスチャは何も呼び出せません。",
         spacesCaptureWaiting: "拡張ボタンを押してください。",
         spacesCaptureUnsupported: "この入力は押したままドラッグできません。拡張ボタンを使ってください。",
-        spacesCaptureExists: "そのボタンにはすでにショートカットがあります。別のボタンを選んでください。"
+        spacesCaptureExists: "そのボタンにはすでにショートカットがあります。別のボタンを選んでください。",
+        spacesFollowsDragLabel: "スペースがドラッグに追従",
+        spacesFollowsDragCaption: "右にドラッグすると左のスペースが現れます。トラックパッドのスワイプが指と一緒にスペースを動かすのと同じ向きです。"
     )
 
     static let ko = MouseButtonFeatureStrings(
@@ -388,7 +408,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "미션 컨트롤 키보드 단축키가 시스템 설정에서 꺼져 있어 이 제스처가 요청할 것이 없습니다.",
         spacesCaptureWaiting: "이제 추가 버튼을 누르세요.",
         spacesCaptureUnsupported: "이 입력은 누른 채 드래그할 수 없습니다. 추가 버튼을 사용하세요.",
-        spacesCaptureExists: "그 버튼에는 이미 단축키가 있습니다. 다른 버튼을 고르세요."
+        spacesCaptureExists: "그 버튼에는 이미 단축키가 있습니다. 다른 버튼을 고르세요.",
+        spacesFollowsDragLabel: "스페이스가 드래그를 따라감",
+        spacesFollowsDragCaption: "오른쪽으로 드래그하면 왼쪽 스페이스가 나타납니다. 트랙패드 쓸어넘기기가 손가락과 함께 스페이스를 옮기는 방향과 같습니다."
     )
 
     static let zhHans = MouseButtonFeatureStrings(
@@ -421,7 +443,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "调度中心的键盘快捷键在系统设置中已关闭，所以这个手势无从调用。",
         spacesCaptureWaiting: "现在请按下额外按键。",
         spacesCaptureUnsupported: "该输入无法按住拖动。请使用额外按键。",
-        spacesCaptureExists: "该按键已设有快捷键。请换一个。"
+        spacesCaptureExists: "该按键已设有快捷键。请换一个。",
+        spacesFollowsDragLabel: "桌面跟着拖动走",
+        spacesFollowsDragCaption: "向右拖动会带来左边的桌面，就像在触控板上滑动时桌面跟着手指移动一样。"
     )
 
     static let zhTW = MouseButtonFeatureStrings(
@@ -454,7 +478,9 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "指揮中心的鍵盤快速鍵在系統設定中已關閉，所以這個手勢無從呼叫。",
         spacesCaptureWaiting: "現在請按下額外按鍵。",
         spacesCaptureUnsupported: "此操作無法按住拖曳。請使用額外按鍵。",
-        spacesCaptureExists: "該按鍵已設有快速鍵。請換一個。"
+        spacesCaptureExists: "該按鍵已設有快速鍵。請換一個。",
+        spacesFollowsDragLabel: "桌面跟著拖曳走",
+        spacesFollowsDragCaption: "向右拖曳會帶來左邊的桌面，就像在觸控式軌跡板上滑動時桌面跟著手指移動一樣。"
     )
 
     static let zhHK = MouseButtonFeatureStrings(
@@ -487,6 +513,8 @@ extension MouseButtonFeatureStrings {
         spacesShortcutsOffNote: "指揮中心的鍵盤快捷鍵在系統設定中已關閉，所以這個手勢無從呼叫。",
         spacesCaptureWaiting: "現在請按下額外按鍵。",
         spacesCaptureUnsupported: "此操作無法按住拖曳。請使用額外按鍵。",
-        spacesCaptureExists: "該按鍵已設有快捷鍵。請換一個。"
+        spacesCaptureExists: "該按鍵已設有快捷鍵。請換一個。",
+        spacesFollowsDragLabel: "桌面跟著拖曳走",
+        spacesFollowsDragCaption: "向右拖曳會帶來左邊的桌面，就像在觸控式軌跡板上滑動時桌面跟著手指移動一樣。"
     )
 }

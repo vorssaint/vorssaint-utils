@@ -67,12 +67,16 @@ extension AppFeature {
     /// Whether an engaged feature needs permission changes while it sits in
     /// the background. One-shot tools ask and refresh at the moment they run;
     /// polling for those just because their tile is installed wastes wakeups.
-    func monitorsPermissionChanges(boolFor: (String) -> Bool) -> Bool {
+    func monitorsPermissionChanges(edgeSnapDisabledZones: String? = nil,
+                                   boolFor: (String) -> Bool) -> Bool {
         switch self {
         case .windowLayout:
             return boolFor(DefaultsKey.windowLayoutShortcutsEnabled)
                 || boolFor(DefaultsKey.windowGestureEnabled)
-                || boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                || (boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                    && !WindowEdgeSnapZone.enabledZones(
+                        from: edgeSnapDisabledZones
+                    ).isEmpty)
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
             return false
         default:
@@ -81,7 +85,12 @@ extension AppFeature {
     }
 
     var monitorsPermissionChanges: Bool {
-        monitorsPermissionChanges(boolFor: UserDefaults.standard.bool(forKey:))
+        monitorsPermissionChanges(
+            edgeSnapDisabledZones: UserDefaults.standard.string(
+                forKey: DefaultsKey.windowEdgeSnapDisabledZones
+            ),
+            boolFor: UserDefaults.standard.bool(forKey:)
+        )
     }
 
     var group: FeatureGroup {
