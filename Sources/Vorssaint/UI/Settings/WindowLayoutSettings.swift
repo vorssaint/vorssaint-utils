@@ -12,6 +12,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowDirectionalEnabled) private var directionalEnabled = false
     @AppStorage(DefaultsKey.windowDirectionalShortcut) private var directionalShortcutRaw = GlobalShortcut.windowDirectionalDefault.storageValue
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
+    @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
@@ -53,6 +54,14 @@ struct WindowLayoutSettings: View {
                 Text(text.edgeSnapCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
+                                         text: text,
+                                         resetTitle: l10n.s.shortcutReset)
+                    .disabled(!edgeSnapEnabled)
+                    .opacity(edgeSnapEnabled ? 1 : 0.45)
+                    .onChange(of: edgeSnapDisabledZones) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
                 if systemTilingEnabled {
                     Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)

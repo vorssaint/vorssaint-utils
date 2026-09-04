@@ -107,6 +107,7 @@ final class WindowLayoutService: ObservableObject {
 
         let wantsEdgeSnap = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+            && !enabledEdgeSnapZones.isEmpty
             && !WindowEdgeSnapSupport.isSystemTilingEnabled
             && trusted
         wantsEdgeSnap ? startEdgeSnapTap() : stopEdgeSnapTap()
@@ -1080,7 +1081,8 @@ final class WindowLayoutService: ObservableObject {
                drag.protectsSystemTopEdge {
                 event.location = WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
                     originalLocation,
-                    screenFrames: drag.quartzScreenFrames
+                    screenFrames: drag.quartzScreenFrames,
+                    enabledZones: drag.enabledZones
                 )
             }
         case .leftMouseUp:
@@ -1099,6 +1101,7 @@ final class WindowLayoutService: ObservableObject {
             edgeSnapSequenceSuppressed = false
             guard AppFeature.windowLayout.isAvailable,
                   UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled),
+                  !enabledEdgeSnapZones.isEmpty,
                   !WindowEdgeSnapSupport.isSystemTilingEnabled,
                   AXIsProcessTrusted(),
                   !edgeSnapConflictsWithWindowGesture(flags: flags)
@@ -1238,6 +1241,7 @@ final class WindowLayoutService: ObservableObject {
                                   pointerStart: pointerStart,
                                   protectsSystemTopEdge: WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled,
                                   quartzScreenFrames: edgeSnapQuartzScreenFrames(),
+                                  enabledZones: enabledEdgeSnapZones,
                                   lastSampleAt: 0,
                                   mismatchCount: 0,
                                   isMoving: false,
@@ -1297,7 +1301,8 @@ final class WindowLayoutService: ObservableObject {
             WindowEdgeSnapScreen(frame: $0.frame, visibleFrame: $0.visibleFrame)
         }
         return WindowEdgeSnapSupport.target(at: appKitPoint,
-                                            screens: screens)
+                                            screens: screens,
+                                            enabledZones: enabledEdgeSnapZones)
     }
 
     private func edgeSnapQuartzScreenFrames() -> [CGRect] {
@@ -1314,6 +1319,7 @@ final class WindowLayoutService: ObservableObject {
                                target: WindowEdgeSnapTarget) {
         guard AppFeature.windowLayout.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled),
+              enabledEdgeSnapZones.contains(target.zone),
               !WindowEdgeSnapSupport.isSystemTilingEnabled,
               AXIsProcessTrusted(),
               canSetFrame(on: drag.window),
@@ -1345,6 +1351,12 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapResolveAttempts = 0
         edgeSnapDrag = nil
         hideEdgeSnapPreview(immediately: false)
+    }
+
+    private var enabledEdgeSnapZones: Set<WindowEdgeSnapZone> {
+        WindowEdgeSnapZone.enabledZones(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+        )
     }
 
     private func showEdgeSnapPreview(frame: CGRect) {
@@ -2331,6 +2343,7 @@ private struct WindowEdgeSnapDrag {
     let pointerStart: CGPoint
     let protectsSystemTopEdge: Bool
     let quartzScreenFrames: [CGRect]
+    let enabledZones: Set<WindowEdgeSnapZone>
     var lastSampleAt: TimeInterval
     var mismatchCount: Int
     var isMoving: Bool

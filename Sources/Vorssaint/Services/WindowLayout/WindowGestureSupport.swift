@@ -344,10 +344,50 @@ struct WindowEdgeSnapScreen: Equatable {
     let visibleFrame: CGRect
 }
 
+/// The eight visible drop areas around the screen. Raw values are persisted,
+/// so they stay stable even if the visual arrangement changes later.
+enum WindowEdgeSnapZone: String, CaseIterable {
+    case topLeft, top, topRight
+    case left, right
+    case bottomLeft, bottom, bottomRight
+
+    var action: WindowLayoutAction {
+        switch self {
+        case .topLeft: return .topLeft
+        case .top: return .maximize
+        case .topRight: return .topRight
+        case .left: return .leftHalf
+        case .right: return .rightHalf
+        case .bottomLeft: return .bottomLeft
+        case .bottom: return .bottomHalf
+        case .bottomRight: return .bottomRight
+        }
+    }
+
+    static let allEnabled = Set(allCases)
+
+    static func disabledZones(from storedValue: String?) -> Set<WindowEdgeSnapZone> {
+        guard let storedValue else { return [] }
+        return Set(storedValue.split(separator: ",").compactMap {
+            WindowEdgeSnapZone(rawValue: $0.trimmingCharacters(in: .whitespaces))
+        })
+    }
+
+    static func disabledZonesStorageValue(_ zones: Set<WindowEdgeSnapZone>) -> String {
+        allCases.filter(zones.contains).map(\.rawValue).joined(separator: ",")
+    }
+
+    static func enabledZones(from storedValue: String?) -> Set<WindowEdgeSnapZone> {
+        allEnabled.subtracting(disabledZones(from: storedValue))
+    }
+}
+
 struct WindowEdgeSnapTarget: Equatable {
-    let action: WindowLayoutAction
+    let zone: WindowEdgeSnapZone
     let frame: CGRect
     let visibleFrame: CGRect
+
+    var action: WindowLayoutAction { zone.action }
 }
 
 enum WindowEdgeSnapSupport {
@@ -402,11 +442,13 @@ enum WindowEdgeSnapSupport {
     /// window overview. Callers must only use this after proving that a window,
     /// rather than content inside it, is moving.
     static func locationAvoidingSystemTopDrag(_ point: CGPoint,
-                                              screenFrames: [CGRect]) -> CGPoint {
+                                              screenFrames: [CGRect],
+                                              enabledZones: Set<WindowEdgeSnapZone> =
+                                                  WindowEdgeSnapZone.allEnabled) -> CGPoint {
         guard let screen = screenFrames.first(where: {
             point.x >= $0.minX && point.x <= $0.maxX
                 && abs(point.y - $0.minY) < 0.5
-        }) else { return point }
+        }), enabledZones.contains(topZone(atX: point.x, in: screen)) else { return point }
         return CGPoint(x: point.x, y: screen.minY + 1)
     }
 
@@ -463,7 +505,9 @@ enum WindowEdgeSnapSupport {
     /// window can cross it without being caught halfway through.
     static func target(at point: CGPoint,
                        screens: [WindowEdgeSnapScreen],
-                       distance: CGFloat = activationDistance) -> WindowEdgeSnapTarget? {
+                       distance: CGFloat = activationDistance,
+                       enabledZones: Set<WindowEdgeSnapZone> =
+                           WindowEdgeSnapZone.allEnabled) -> WindowEdgeSnapTarget? {
         let ordered = screens.enumerated().sorted {
             distanceSquared(from: point, to: $0.element.frame)
                 < distanceSquared(from: point, to: $1.element.frame)
@@ -497,49 +541,51 @@ enum WindowEdgeSnapSupport {
                 && !hasNeighbor(beyond: .bottom, point: point, distance: distance, frames: otherFrames)
             guard nearLeft || nearRight || nearTop || nearBottom else { continue }
 
-            let horizontalCorner = min(max(frame.width * 0.18, 96), 180)
+            let horizontalCorner = horizontalCornerWidth(for: frame)
             let verticalCorner = min(max(frame.height * 0.18, 80), 160)
-            let action: WindowLayoutAction
+            let zone: WindowEdgeSnapZone
             if nearTop {
                 if point.x <= frame.minX + horizontalCorner {
-                    action = .topLeft
+                    zone = .topLeft
                 } else if point.x >= frame.maxX - horizontalCorner {
-                    action = .topRight
+                    zone = .topRight
                 } else {
-                    action = .maximize
+                    zone = .top
                 }
             } else if nearBottom {
                 if point.x <= frame.minX + horizontalCorner {
-                    action = .bottomLeft
+                    zone = .bottomLeft
                 } else if point.x >= frame.maxX - horizontalCorner {
-                    action = .bottomRight
+                    zone = .bottomRight
                 } else {
-                    action = .bottomHalf
+                    zone = .bottom
                 }
             } else if nearLeft {
                 if point.y >= frame.maxY - verticalCorner {
-                    action = .topLeft
+                    zone = .topLeft
                 } else if point.y <= frame.minY + verticalCorner {
-                    action = .bottomLeft
+                    zone = .bottomLeft
                 } else {
-                    action = .leftHalf
+                    zone = .left
                 }
             } else {
                 if point.y >= frame.maxY - verticalCorner {
-                    action = .topRight
+                    zone = .topRight
                 } else if point.y <= frame.minY + verticalCorner {
-                    action = .bottomRight
+                    zone = .bottomRight
                 } else {
-                    action = .rightHalf
+                    zone = .right
                 }
             }
+            guard enabledZones.contains(zone) else { return nil }
 
+            let action = zone.action
             let targetFrame = WindowLayoutGeometry.rect(for: action,
                                                         current: screen.visibleFrame,
                                                         visibleFrame: screen.visibleFrame,
                                                         windowGap: WindowLayoutGaps.windowGap,
                                                         screenGap: WindowLayoutGaps.screenGap)
-            return WindowEdgeSnapTarget(action: action,
+            return WindowEdgeSnapTarget(zone: zone,
                                         frame: targetFrame.integral,
                                         visibleFrame: screen.visibleFrame)
         }
@@ -548,6 +594,17 @@ enum WindowEdgeSnapSupport {
 
     private enum Edge {
         case left, right, top, bottom
+    }
+
+    private static func horizontalCornerWidth(for frame: CGRect) -> CGFloat {
+        min(max(frame.width * 0.18, 96), 180)
+    }
+
+    private static func topZone(atX x: CGFloat, in frame: CGRect) -> WindowEdgeSnapZone {
+        let cornerWidth = horizontalCornerWidth(for: frame)
+        if x <= frame.minX + cornerWidth { return .topLeft }
+        if x >= frame.maxX - cornerWidth { return .topRight }
+        return .top
     }
 
     private static func hasNeighbor(beyond edge: Edge,
