@@ -54,6 +54,9 @@ enum SwitcherNativeSymbolicHotKey: Int32, CaseIterable, Hashable {
     case commandShiftTab = 2
     case nextWindow = 27
     case previousWindow = 220
+
+    /// The ids the switcher ever asks the WindowServer about.
+    static let ids = Set(allCases.map(\.rawValue))
 }
 
 /// Which running apps earn an entry of their own when they have no window the

@@ -17,18 +17,6 @@ enum SystemShortcutTakeoverSupport {
                                  restore: current.subtracting(desired))
     }
 
-    /// Entries the user switched off in System Settings carry `enabled = false`
-    /// in the preferences plist. Switching one back on because we once owned it
-    /// would undo a choice made after ours, so those ids are dropped instead.
-    static func idsUserDisabled(in ids: Set<Int32>, symbolicHotKeys: [String: Any]?) -> Set<Int32> {
-        guard let symbolicHotKeys else { return [] }
-        return ids.filter { id in
-            guard let entry = symbolicHotKeys[String(id)] as? [String: Any],
-                  let enabled = entry["enabled"] as? NSNumber else { return false }
-            return !enabled.boolValue
-        }
-    }
-
     /// The switcher kept its own marker before the take-over was shared. Fold
     /// it into the shared one on first launch so a crash marker from an older
     /// build still restores; ids that do not fit Int32 are noise, not keys.

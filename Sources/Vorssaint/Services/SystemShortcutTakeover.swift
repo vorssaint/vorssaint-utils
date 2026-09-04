@@ -5,10 +5,9 @@ import Foundation
 
 /// Switches WindowServer symbolic hotkeys off for as long as a Vorssaint
 /// feature wants a key macOS would otherwise answer, and gives them back on
-/// every exit path. Only ids that are enabled right now are ever touched, the
-/// marker is written before each change so a crash can be repaired at the
-/// next launch, and a key the user has since switched off in System Settings
-/// is never switched back on by us. Callers decide which ids; this decides how.
+/// every exit path. Only ids that are enabled right now are ever touched, and
+/// the marker is written before each change so a crash can be repaired at the
+/// next launch. Callers decide which ids; this decides how.
 enum SystemShortcutTakeover {
     private static let lock = NSLock()
     private static var suppressed: Set<Int32> = SystemShortcutTakeoverSupport.migratedMarker(
@@ -36,26 +35,26 @@ enum SystemShortcutTakeover {
         // A failed enable keeps its id in the marker, so the next `apply` or
         // the next launch retries instead of dropping the key with nothing
         // left to restore it.
-        let leaveOff = SystemShortcutTakeoverSupport.idsUserDisabled(
-            in: transition.restore, symbolicHotKeys: GlobalShortcut.systemSymbolicHotKeys)
-        for id in transition.restore {
-            if leaveOff.contains(id) || setEnabled(id, true) == .success {
-                next.remove(id)
-                persist(next)
-            }
+        for id in transition.restore where setEnabled(id, true) == .success {
+            next.remove(id)
+            persist(next)
         }
         suppressed = next
     }
 
-    /// Launch: whatever the previous process still owned is given back unless
-    /// a feature claims it again in this one. Also retires the old switcher
-    /// marker, which `suppressed` has already absorbed.
-    static func recoverIfNeeded() {
-        apply(desired: [])
+    /// Launch: whatever the previous process still owned is given back, except
+    /// the ids the caller says a feature will claim again in this process, so a
+    /// clean relaunch with the take-over on makes no WindowServer writes at all.
+    /// The old switcher marker, already absorbed into `suppressed`, is written to
+    /// the shared key before it is removed, so a restore that fails here still
+    /// has a marker to retry from.
+    static func recoverIfNeeded(keeping desired: Set<Int32>) {
+        lock.lock()
+        persist(suppressed)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
+        lock.unlock()
+        apply(desired: desired)
     }
-
-    static func suspend() { apply(desired: []) }
 
     private static func persist(_ ids: Set<Int32>) {
         if ids.isEmpty {

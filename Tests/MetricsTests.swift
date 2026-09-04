@@ -2842,8 +2842,11 @@ struct MetricsTests {
                     DefaultsKey.switcherTakeOverSystemShortcuts)
                && registeredDefaults[DefaultsKey.switcherNativeHotkeysSuppressed] == nil
                && !SettingsBackupSupport.exportKeys().contains(
-                    DefaultsKey.switcherNativeHotkeysSuppressed),
-               "native shortcut takeover is opt-in while its crash marker stays on this Mac")
+                    DefaultsKey.switcherNativeHotkeysSuppressed)
+               && registeredDefaults[DefaultsKey.systemShortcutsSuppressed] == nil
+               && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.systemShortcutsSuppressed),
+               "native shortcut takeover is opt-in while both crash markers stay on this Mac")
         expect(registeredDefaults[DefaultsKey.switcherSearchPinEnabled] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherSearchPinEnabled),
                "the optional pinned search starts off and travels with the user's settings backup")
@@ -11635,6 +11638,12 @@ struct MetricsTests {
                                                windowShortcut: .switcherWindowDefault,
                                                liveEntries: liveSwitcherEntries).isEmpty,
                "without opt-in the switcher asks for nothing")
+        expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               appsShortcut: .switcherDefault,
+                                               windowShortcut: .switcherWindowDefault,
+                                               liveEntries: liveSwitcherEntries.filter { $0.id != 220 })
+               == [1, 2, 27],
+               "an id missing from the live table is never asked for")
 
         // The shared take-over works on raw WindowServer ids. Same transition
         // rule as the switcher had: suppress only what is enabled now, restore
@@ -11644,16 +11653,6 @@ struct MetricsTests {
                && SystemShortcutTakeoverSupport.transition(from: [1, 30], to: [], currentlyEnabled: [])
                == SystemShortcutTransition(suppress: [], restore: [1, 30]),
                "the shared take-over suppresses only enabled ids and restores only owned ones")
-        // The plist marks a key the user switched off in System Settings with
-        // enabled = false; a restore must not switch it back on for them.
-        let plistWith30Off: [String: Any] = ["30": ["enabled": NSNumber(value: false),
-                                                   "value": ["type": "standard",
-                                                             "parameters": [NSNumber(value: 52), NSNumber(value: 21), NSNumber(value: 1179648)]]],
-                                             "28": ["enabled": NSNumber(value: true)]]
-        expect(SystemShortcutTakeoverSupport.idsUserDisabled(in: [28, 30, 184], symbolicHotKeys: plistWith30Off) == [30],
-               "a restore skips exactly the ids the user has since switched off")
-        expect(SystemShortcutTakeoverSupport.idsUserDisabled(in: [28, 30], symbolicHotKeys: nil).isEmpty,
-               "an unreadable plist disables nothing on the user's behalf")
         expect(SystemShortcutTakeoverSupport.migratedMarker(old: [27, 28], new: [30]) == [27, 28, 30]
                && SystemShortcutTakeoverSupport.migratedMarker(old: nil, new: nil).isEmpty
                && SystemShortcutTakeoverSupport.migratedMarker(old: [99_999_999_999], new: nil).isEmpty,

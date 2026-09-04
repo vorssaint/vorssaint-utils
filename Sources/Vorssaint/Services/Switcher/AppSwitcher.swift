@@ -424,8 +424,32 @@ final class AppSwitcher: ObservableObject {
                 takeOverSystemShortcuts: takeOver,
                 appsShortcut: apps,
                 windowShortcut: windows,
-                liveEntries: SymbolicHotKeys.liveEntries() ?? [])
+                liveEntries: SymbolicHotKeys.entries(for: SwitcherNativeSymbolicHotKey.ids) ?? [])
         )
+    }
+
+    /// What the switcher will ask to keep switched off once it is running,
+    /// read from preferences alone so launch recovery can hold those ids
+    /// instead of flipping them on and back off while the tap comes up. If
+    /// the tap then never starts, `syncWithPreferences` gives them back.
+    static func launchTakeoverIDs() -> Set<Int32> {
+        // The same gate as the tap's: without Accessibility or an active
+        // session the switcher hands its keys back moments later, so launch
+        // must not hold them either or the keys flip off and on.
+        guard SessionActivitySupport.tapShouldRun(
+                  featureWanted: AppFeature.switcher.isAvailable
+                      && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+                  accessibilityGranted: AXIsProcessTrusted(),
+                  sessionIsActive: SessionActivity.shared.isActive),
+              UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
+        else { return [] }
+        return SwitcherSupport.nativeHotkeyIDs(
+            takeOverSystemShortcuts: true,
+            appsShortcut: GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
+                                               fallback: .switcherDefault),
+            windowShortcut: GlobalShortcut.saved(for: DefaultsKey.switcherWindowShortcut,
+                                                 fallback: .switcherWindowDefault),
+            liveEntries: SymbolicHotKeys.entries(for: SwitcherNativeSymbolicHotKey.ids) ?? [])
     }
 
     private func applyNativeHotkeySuppressionIfTapLive() {
