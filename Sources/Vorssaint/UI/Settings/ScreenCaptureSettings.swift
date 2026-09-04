@@ -43,6 +43,9 @@ struct ScreenCaptureSettings: View {
                     }
                     ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
                         .id(currentTool)
+                    if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+                        RecentCapturesShortcutRows()
+                    }
                 } header: {
                     Text(strings.screenCaptureTitle)
                 }
@@ -92,6 +95,30 @@ struct ScreenCaptureSettings: View {
         }
         if !availableTools.contains(selectedTool), let first = availableTools.first {
             selectedTool = first
+        }
+    }
+}
+
+/// Capture history belongs to screenshots and recordings together, so its
+/// shortcut stays visible whichever of those tools is selected.
+private struct RecentCapturesShortcutRows: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = RecentCaptureService.shared
+    @AppStorage(DefaultsKey.recentCapturesShortcutEnabled) private var enabled = false
+
+    var body: some View {
+        let role = GlobalShortcutRole.recentCaptures
+        Toggle(role.title(l10n.s), isOn: $enabled)
+            .onChange(of: enabled) { _, _ in
+                service.syncWithPreferences()
+            }
+        ShortcutPreferenceRow(role: role, isEnabled: enabled) {
+            service.syncWithPreferences()
+        }
+        if enabled, service.shortcutRegistrationFailed {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 }

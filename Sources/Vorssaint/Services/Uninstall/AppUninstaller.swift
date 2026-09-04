@@ -242,7 +242,11 @@ final class AppUninstaller: ObservableObject {
                 && targetURL.map { !fm.fileExists(atPath: $0.path) } == true
             let mayClaimSharedData = targetIsOriginal || targetWasRemovedByPackageManager
             let lookupBundleIDs = candidateBundleIDs.union(evidenceBundleIDs)
-            let knownApplications = Self.knownApplicationURLs(candidateBundleIDs: lookupBundleIDs)
+            // Only the shared-data claims below read this roster, and building
+            // it opens every installed app. Same gate `select()` already uses.
+            let knownApplications = mayClaimSharedData
+                ? Self.knownApplicationURLs(candidateBundleIDs: lookupBundleIDs)
+                : []
             let knownApplicationIDs = Self.applicationBundleIdentifiers(in: knownApplications)
             let exclusiveBundleIDs = mayClaimSharedData ? targetURL.map {
                 Self.exclusiveOwnedBundleIDs(

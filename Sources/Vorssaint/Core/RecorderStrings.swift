@@ -79,6 +79,7 @@ struct RecorderFeatureStrings {
     let shapeVertical: String
     let noPointerNote: String
     let zoomLaneEmptyHint: String
+    let addZoomButton: String
     let removeZoom: String
     let thisZoomLabel: String
     let zoomWhereLabel: String
@@ -124,6 +125,13 @@ struct RecorderFeatureStrings {
     let automaticZoomCaption: String
     let pauseButton: String
     let resumeButton: String
+    let blurLaneLabel: String
+    let addBlurButton: String
+    let blurLaneEmptyHint: String
+    let thisBlurLabel: String
+    let blurPickArea: String
+    let blurPickAreaHint: String
+    let blurCaption: String
 }
 
 extension FeatureStrings {
@@ -223,6 +231,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Tall",
         noPointerNote: "This recording has no pointer track, so there is nothing to smooth. Zooms placed by hand still work.",
         zoomLaneEmptyHint: "Click here to add a zoom",
+        addZoomButton: "Add a zoom",
         removeZoom: "Remove",
         thisZoomLabel: "This zoom",
         zoomWhereLabel: "Where it looks",
@@ -267,7 +276,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Add zooms automatically",
         automaticZoomCaption: "Turn this off to start new recordings without zooms. You can still add them in the editor.",
         pauseButton: "Pause recording",
-        resumeButton: "Resume recording"
+        resumeButton: "Resume recording",
+        blurLaneLabel: "Blur",
+        addBlurButton: "Blur an area",
+        blurLaneEmptyHint: "Click here to add a blur",
+        thisBlurLabel: "This blur",
+        blurPickArea: "Choose the area",
+        blurPickAreaHint: "Drag over what should stay hidden",
+        blurCaption: "Hidden for as long as its block lasts on the timeline."
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -345,6 +361,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Alta",
         noPointerNote: "Esta gravação não tem trilha do ponteiro, então não há o que suavizar. Zooms colocados na mão continuam funcionando.",
         zoomLaneEmptyHint: "Clique aqui para adicionar um zoom",
+        addZoomButton: "Adicionar um zoom",
         removeZoom: "Remover",
         thisZoomLabel: "Este zoom",
         zoomWhereLabel: "Para onde olha",
@@ -389,7 +406,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Adicionar zooms automaticamente",
         automaticZoomCaption: "Desative para começar novas gravações sem zooms. Você ainda pode adicioná-los no editor.",
         pauseButton: "Pausar gravação",
-        resumeButton: "Retomar gravação"
+        resumeButton: "Retomar gravação",
+        blurLaneLabel: "Desfoque",
+        addBlurButton: "Desfocar uma área",
+        blurLaneEmptyHint: "Clique aqui para adicionar um desfoque",
+        thisBlurLabel: "Este desfoque",
+        blurPickArea: "Escolher a área",
+        blurPickAreaHint: "Arraste sobre o que deve ficar escondido",
+        blurCaption: "Fica escondido enquanto o bloco durar na linha do tempo."
     )
 
     static let tr = RecorderFeatureStrings(
@@ -411,7 +435,7 @@ extension RecorderFeatureStrings {
         qualityCaption: "Dengeli, çoğu iş için yeterlidir. Yüksek her ayrıntıyı korur ve dosyaları büyütür.",
         frameRateLabel: "Kare hızı",
         frameRateFormat: "%d fps",
-        systemAudioToggle: "Mac'in sesini kaydet",
+        systemAudioToggle: "Mac’in sesini kaydet",
         systemAudioCaption: "Duyduğunuz her şey kayda ayrı bir ses parçası olarak girer, böylece sonradan susturabilirsiniz.",
         folderLabel: "Kaydetme yeri",
         folderChoose: "Seç…",
@@ -467,6 +491,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Dikey",
         noPointerNote: "Bu kayıt, imleç izlenmeye başlamadan önce yapıldı. Yumuşatılacak ya da yakınlaştırılacak bir şey yok.",
         zoomLaneEmptyHint: "Yakınlaştırma eklemek için tıklayın",
+        addZoomButton: "Yakınlaştırma ekle",
         removeZoom: "Kaldır",
         thisZoomLabel: "Bu yakınlaştırma",
         zoomWhereLabel: "Baktığı yer",
@@ -511,7 +536,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Yakınlaştırmaları otomatik ekle",
         automaticZoomCaption: "Yeni kayıtları yakınlaştırmasız başlatmak için kapatın. Düzenleyicide yine ekleyebilirsiniz.",
         pauseButton: "Kaydı duraklat",
-        resumeButton: "Kayda devam et"
+        resumeButton: "Kayda devam et",
+        blurLaneLabel: "Bulanıklık",
+        addBlurButton: "Bir alanı bulanıklaştır",
+        blurLaneEmptyHint: "Bulanıklık eklemek için buraya tıklayın",
+        thisBlurLabel: "Bu bulanıklık",
+        blurPickArea: "Alanı seç",
+        blurPickAreaHint: "Gizli kalması gerekenin üzerine sürükleyin",
+        blurCaption: "Zaman çizelgesindeki blok sürdüğü sürece gizli kalır."
     )
 
     static let ru = RecorderFeatureStrings(
@@ -589,6 +621,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Вертикальная",
         noPointerNote: "В этой записи нет указателя, поэтому сглаживать и приближать нечего.",
         zoomLaneEmptyHint: "Нажмите, чтобы добавить увеличение",
+        addZoomButton: "Добавить увеличение",
         removeZoom: "Удалить",
         thisZoomLabel: "Это увеличение",
         zoomWhereLabel: "Куда смотрит",
@@ -633,7 +666,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Добавлять масштабирование автоматически",
         automaticZoomCaption: "Отключите, чтобы новые записи начинались без масштабирования. Его можно добавить в редакторе.",
         pauseButton: "Приостановить запись",
-        resumeButton: "Продолжить запись"
+        resumeButton: "Продолжить запись",
+        blurLaneLabel: "Размытие",
+        addBlurButton: "Размыть область",
+        blurLaneEmptyHint: "Нажмите здесь, чтобы добавить размытие",
+        thisBlurLabel: "Это размытие",
+        blurPickArea: "Выбрать область",
+        blurPickAreaHint: "Проведите по тому, что нужно скрыть",
+        blurCaption: "Скрыто, пока длится блок на шкале времени."
     )
 
     static let es = RecorderFeatureStrings(
@@ -711,6 +751,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Vertical",
         noPointerNote: "Esta grabación se hizo antes de que se guardara el puntero, así que no hay nada que suavizar ni acercar.",
         zoomLaneEmptyHint: "Haz clic aquí para añadir un zoom",
+        addZoomButton: "Añadir un zoom",
         removeZoom: "Eliminar",
         thisZoomLabel: "Este zoom",
         zoomWhereLabel: "Hacia dónde mira",
@@ -755,7 +796,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Añadir zooms automáticamente",
         automaticZoomCaption: "Desactívalo para iniciar nuevas grabaciones sin zooms. Aún puedes añadirlos en el editor.",
         pauseButton: "Pausar grabación",
-        resumeButton: "Reanudar grabación"
+        resumeButton: "Reanudar grabación",
+        blurLaneLabel: "Desenfoque",
+        addBlurButton: "Desenfocar un área",
+        blurLaneEmptyHint: "Haz clic aquí para añadir un desenfoque",
+        thisBlurLabel: "Este desenfoque",
+        blurPickArea: "Elegir el área",
+        blurPickAreaHint: "Arrastra sobre lo que debe quedar oculto",
+        blurCaption: "Queda oculto mientras dure su bloque en la línea de tiempo."
     )
 
     static let de = RecorderFeatureStrings(
@@ -833,6 +881,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "Hoch",
         noPointerNote: "Bei dieser Aufnahme wurde der Zeiger noch nicht aufgezeichnet. Deshalb gibt es nichts zu glätten und nichts zum Zoomen.",
         zoomLaneEmptyHint: "Hier klicken für einen Zoom",
+        addZoomButton: "Zoom hinzufügen",
         removeZoom: "Entfernen",
         thisZoomLabel: "Dieser Zoom",
         zoomWhereLabel: "Ziel",
@@ -877,7 +926,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Zooms automatisch hinzufügen",
         automaticZoomCaption: "Deaktivieren, um neue Aufnahmen ohne Zooms zu beginnen. Im Editor kannst du sie weiterhin hinzufügen.",
         pauseButton: "Aufnahme pausieren",
-        resumeButton: "Aufnahme fortsetzen"
+        resumeButton: "Aufnahme fortsetzen",
+        blurLaneLabel: "Unschärfe",
+        addBlurButton: "Bereich unkenntlich machen",
+        blurLaneEmptyHint: "Hier klicken, um eine Unschärfe hinzuzufügen",
+        thisBlurLabel: "Diese Unschärfe",
+        blurPickArea: "Bereich wählen",
+        blurPickAreaHint: "Über das ziehen, was verborgen bleiben soll",
+        blurCaption: "Bleibt verborgen, solange der Block in der Zeitleiste dauert."
     )
 
     static let fr = RecorderFeatureStrings(
@@ -919,17 +975,17 @@ extension RecorderFeatureStrings {
         saveGIFButton: "Enregistrer en GIF",
         exportingLabel: "Enregistrement en cours…",
         cancelButton: "Annuler",
-        exportFailed: "Impossible d'enregistrer la vidéo",
-        gifTooLongFormat: "Un GIF peut durer jusqu'à %d secondes",
+        exportFailed: "Impossible d’enregistrer la vidéo",
+        gifTooLongFormat: "Un GIF peut durer jusqu’à %d secondes",
         gifSizeLabel: "Taille du GIF",
         gifSizeSmall: "Petite",
         gifSizeMedium: "Moyenne",
         gifSizeLarge: "Grande",
         gifFrameRateLabel: "Fluidité du GIF",
-        discardTitle: "Supprimer cet enregistrement ?",
-        discardMessage: "Il n'a encore été enregistré nulle part.",
-        openEditorToggle: "Ouvrir l'éditeur après l'enregistrement",
-        openEditorCaption: "La vidéo s'ouvre pour que vous puissiez la rogner, couper le son et l'enregistrer. Désactivez cette option pour obtenir le fichier tout de suite.",
+        discardTitle: "Supprimer cet enregistrement\u{00A0}?",
+        discardMessage: "Il n’a encore été enregistré nulle part.",
+        openEditorToggle: "Ouvrir l’éditeur après l’enregistrement",
+        openEditorCaption: "La vidéo s’ouvre pour que vous puissiez la rogner, couper le son et l’enregistrer. Désactivez cette option pour obtenir le fichier tout de suite.",
         lookLabel: "Style",
         lookRaw: "Original",
         lookClean: "Fluide",
@@ -953,14 +1009,15 @@ extension RecorderFeatureStrings {
         shapeWide: "Large",
         shapeSquare: "Carré",
         shapeVertical: "Vertical",
-        noPointerNote: "Cet enregistrement a été réalisé sans suivi du pointeur. Il n'y a donc rien à lisser ni à agrandir.",
+        noPointerNote: "Cet enregistrement a été réalisé sans suivi du pointeur. Il n’y a donc rien à lisser ni à agrandir.",
         zoomLaneEmptyHint: "Cliquez ici pour ajouter un zoom",
+        addZoomButton: "Ajouter un zoom",
         removeZoom: "Supprimer",
         thisZoomLabel: "Ce zoom",
-        zoomWhereLabel: "Ce qu'il vise",
+        zoomWhereLabel: "Ce qu’il vise",
         zoomFollowsPointer: "Suit le pointeur",
         zoomPickSpot: "Choisir un point",
-        zoomPickSpotHint: "Cliquez dans l'image pour placer le point",
+        zoomPickSpotHint: "Cliquez dans l’image pour placer le point",
         regenerateZooms: "Revenir à un zoom par clic",
         backToOptions: "Toutes les options",
         cutOutButton: "Couper",
@@ -999,13 +1056,20 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Ajouter les zooms automatiquement",
         automaticZoomCaption: "Désactivez cette option pour commencer sans zoom. Vous pourrez toujours en ajouter dans l’éditeur.",
         pauseButton: "Mettre l’enregistrement en pause",
-        resumeButton: "Reprendre l’enregistrement"
+        resumeButton: "Reprendre l’enregistrement",
+        blurLaneLabel: "Flou",
+        addBlurButton: "Flouter une zone",
+        blurLaneEmptyHint: "Cliquez ici pour ajouter un flou",
+        thisBlurLabel: "Ce flou",
+        blurPickArea: "Choisir la zone",
+        blurPickAreaHint: "Faites glisser sur ce qui doit rester caché",
+        blurCaption: "Reste caché tant que son bloc dure dans la chronologie."
     )
 
     static let it = RecorderFeatureStrings(
         pageTitle: "Registrazione schermo",
-        hubDescription: "Registra un'area, una finestra o lo schermo, e dopo puoi modificare il video",
-        panelCaption: "Registra un'area, una finestra o tutto lo schermo",
+        hubDescription: "Registra un’area, una finestra o lo schermo, e dopo puoi modificare il video",
+        panelCaption: "Registra un’area, una finestra o tutto lo schermo",
         startButton: "Registra ora",
         stopButton: "Interrompi registrazione",
         fileNamePrefix: "Registrazione",
@@ -1021,7 +1085,7 @@ extension RecorderFeatureStrings {
         qualityCaption: "Bilanciata va bene quasi sempre. Alta conserva ogni dettaglio e crea file più grandi.",
         frameRateLabel: "Fotogrammi al secondo",
         frameRateFormat: "%d fps",
-        systemAudioToggle: "Registra l'audio del Mac",
+        systemAudioToggle: "Registra l’audio del Mac",
         systemAudioCaption: "Tutto quello che senti finisce nella registrazione, su una traccia separata, così puoi silenziarla dopo.",
         folderLabel: "Salva in",
         folderChoose: "Scegli…",
@@ -1050,8 +1114,8 @@ extension RecorderFeatureStrings {
         gifFrameRateLabel: "Fluidità GIF",
         discardTitle: "Eliminare questa registrazione?",
         discardMessage: "Non è ancora stata salvata da nessuna parte.",
-        openEditorToggle: "Apri l'editor dopo la registrazione",
-        openEditorCaption: "La registrazione si apre nell'editor, dove puoi tagliarla, disattivare l'audio e salvarla. Disattiva questa opzione per avere subito il file.",
+        openEditorToggle: "Apri l’editor dopo la registrazione",
+        openEditorCaption: "La registrazione si apre nell’editor, dove puoi tagliarla, disattivare l’audio e salvarla. Disattiva questa opzione per avere subito il file.",
         lookLabel: "Stile",
         lookRaw: "Originale",
         lookClean: "Fluido",
@@ -1075,8 +1139,9 @@ extension RecorderFeatureStrings {
         shapeWide: "Panoramica",
         shapeSquare: "Quadrata",
         shapeVertical: "Verticale",
-        noPointerNote: "Questa registrazione è stata fatta senza seguire il puntatore, quindi non c'è nulla da rendere fluido o da ingrandire.",
+        noPointerNote: "Questa registrazione è stata fatta senza seguire il puntatore, quindi non c’è nulla da rendere fluido o da ingrandire.",
         zoomLaneEmptyHint: "Fai clic qui per aggiungere uno zoom",
+        addZoomButton: "Aggiungi uno zoom",
         removeZoom: "Rimuovi",
         thisZoomLabel: "Questo zoom",
         zoomWhereLabel: "Dove inquadra",
@@ -1121,7 +1186,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "Aggiungi zoom automaticamente",
         automaticZoomCaption: "Disattiva per iniziare le nuove registrazioni senza zoom. Puoi comunque aggiungerli nell’editor.",
         pauseButton: "Metti in pausa la registrazione",
-        resumeButton: "Riprendi la registrazione"
+        resumeButton: "Riprendi la registrazione",
+        blurLaneLabel: "Sfocatura",
+        addBlurButton: "Sfoca un’area",
+        blurLaneEmptyHint: "Fai clic qui per aggiungere una sfocatura",
+        thisBlurLabel: "Questa sfocatura",
+        blurPickArea: "Scegli l’area",
+        blurPickAreaHint: "Trascina su ciò che deve restare nascosto",
+        blurCaption: "Resta nascosto finché dura il blocco nella timeline."
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1199,6 +1271,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "縦長",
         noPointerNote: "ポインタを記録する前の録画なので、なめらかにすることもズームすることもできません。",
         zoomLaneEmptyHint: "クリックしてズームを追加",
+        addZoomButton: "ズームを追加",
         removeZoom: "削除",
         thisZoomLabel: "このズーム",
         zoomWhereLabel: "ズームの中心",
@@ -1243,7 +1316,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "ズームを自動的に追加",
         automaticZoomCaption: "オフにすると、新しい収録はズームなしで始まります。エディタで後から追加できます。",
         pauseButton: "収録を一時停止",
-        resumeButton: "収録を再開"
+        resumeButton: "収録を再開",
+        blurLaneLabel: "ぼかし",
+        addBlurButton: "範囲をぼかす",
+        blurLaneEmptyHint: "ここをクリックしてぼかしを追加",
+        thisBlurLabel: "このぼかし",
+        blurPickArea: "範囲を選ぶ",
+        blurPickAreaHint: "隠したい部分をドラッグ",
+        blurCaption: "タイムラインのブロックが続く間は隠れたままです。"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1321,6 +1401,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "세로",
         noPointerNote: "포인터를 기록하지 않고 녹화한 영상이라 부드럽게 하거나 확대할 수 없습니다.",
         zoomLaneEmptyHint: "여기를 클릭해 확대를 추가하세요",
+        addZoomButton: "확대 추가",
         removeZoom: "제거",
         thisZoomLabel: "선택한 확대",
         zoomWhereLabel: "확대 위치",
@@ -1365,7 +1446,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "확대 효과 자동 추가",
         automaticZoomCaption: "끄면 새 화면 기록이 확대 효과 없이 시작됩니다. 편집기에서 나중에 추가할 수 있습니다.",
         pauseButton: "화면 기록 일시 정지",
-        resumeButton: "화면 기록 계속"
+        resumeButton: "화면 기록 계속",
+        blurLaneLabel: "흐림",
+        addBlurButton: "영역 흐리게",
+        blurLaneEmptyHint: "여기를 클릭해 흐림을 추가하세요",
+        thisBlurLabel: "선택한 흐림",
+        blurPickArea: "영역 선택",
+        blurPickAreaHint: "숨길 부분 위로 드래그하세요",
+        blurCaption: "타임라인의 블록이 지속되는 동안 숨겨집니다."
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1443,6 +1531,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "竖屏",
         noPointerNote: "这段录制没有跟踪指针，所以没有可以平滑的内容。手动放置的缩放仍然有效。",
         zoomLaneEmptyHint: "点按此处添加缩放",
+        addZoomButton: "添加缩放",
         removeZoom: "移除",
         thisZoomLabel: "当前缩放",
         zoomWhereLabel: "对准方式",
@@ -1487,7 +1576,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自动添加缩放",
         automaticZoomCaption: "关闭后，新录制将不带缩放。你仍可在编辑器中添加缩放。",
         pauseButton: "暂停录制",
-        resumeButton: "继续录制"
+        resumeButton: "继续录制",
+        blurLaneLabel: "模糊",
+        addBlurButton: "模糊一个区域",
+        blurLaneEmptyHint: "点按此处添加模糊",
+        thisBlurLabel: "当前模糊",
+        blurPickArea: "选取区域",
+        blurPickAreaHint: "拖过需要隐藏的内容",
+        blurCaption: "在时间线上的区块持续期间保持隐藏。"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1565,6 +1661,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "直式",
         noPointerNote: "錄製這段影片時還沒有開始追蹤指標，所以沒有可以平滑或放大的內容。",
         zoomLaneEmptyHint: "按一下這裡加入縮放",
+        addZoomButton: "加入縮放",
         removeZoom: "移除",
         thisZoomLabel: "這段縮放",
         zoomWhereLabel: "對準哪裡",
@@ -1609,7 +1706,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自動加入縮放",
         automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
         pauseButton: "暫停錄製",
-        resumeButton: "繼續錄製"
+        resumeButton: "繼續錄製",
+        blurLaneLabel: "模糊",
+        addBlurButton: "模糊一個區域",
+        blurLaneEmptyHint: "按一下這裡加入模糊",
+        thisBlurLabel: "這個模糊",
+        blurPickArea: "選取區域",
+        blurPickAreaHint: "拖曳過需要隱藏的內容",
+        blurCaption: "在時間軸上的區塊持續期間保持隱藏。"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1687,6 +1791,7 @@ extension RecorderFeatureStrings {
         shapeVertical: "直向",
         noPointerNote: "這段影片錄製時並未追蹤指標，所以無法平滑或放大。",
         zoomLaneEmptyHint: "點按這裡加入縮放",
+        addZoomButton: "加入縮放",
         removeZoom: "移除",
         thisZoomLabel: "這個縮放",
         zoomWhereLabel: "對準位置",
@@ -1731,7 +1836,14 @@ extension RecorderFeatureStrings {
         automaticZoomToggle: "自動加入縮放",
         automaticZoomCaption: "關閉後，新錄影將不含縮放。你仍可在編輯器中加入縮放。",
         pauseButton: "暫停錄製",
-        resumeButton: "繼續錄製"
+        resumeButton: "繼續錄製",
+        blurLaneLabel: "模糊",
+        addBlurButton: "模糊一個區域",
+        blurLaneEmptyHint: "點按這裡加入模糊",
+        thisBlurLabel: "這個模糊",
+        blurPickArea: "選取區域",
+        blurPickAreaHint: "拖曳過需要隱藏的內容",
+        blurCaption: "在時間軸上的區塊持續期間保持隱藏。"
     )
     static let uk = RecorderFeatureStrings(
         pageTitle: "Запис екрана",

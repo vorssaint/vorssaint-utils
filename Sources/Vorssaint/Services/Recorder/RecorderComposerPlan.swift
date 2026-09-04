@@ -50,7 +50,9 @@ extension RecorderComposer {
         let needsCanvas = hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
         let hasCuts = !document.cuts.isEmpty
         let texts = RecorderTextOverlay.normalized(document.texts, duration: duration)
+        let blurs = RecorderBlurRegion.normalized(document.blurs, duration: duration)
         guard showsPointer || !segments.isEmpty || needsCanvas || hasCuts || !texts.isEmpty
+            || !blurs.isEmpty
         else { return nil }
 
         // Everything the pointer track knows is in the RECORDING's own time,
@@ -122,6 +124,9 @@ extension RecorderComposer {
             var amountTargets = [Double](repeating: 1, count: frames)
             var travelX = [Double](repeating: 0.5, count: frames)
             var travelY = [Double](repeating: 0.5, count: frames)
+            // `sourceTimes` is ascending, so each lookup walks its list once
+            // across the loop instead of once per frame.
+            var focusCursor = 0
             for index in 0..<frames {
                 let time = sourceTimes[index]
                 let state = RecorderTimeline.zoomState(at: time, segments: segments)
@@ -135,7 +140,9 @@ extension RecorderComposer {
                     travelY[index] = RecorderMotion.travelParameter(exactFocus: Double(aimed.y),
                                                                     zoom: state.amount)
                 } else {
-                    let focus = RecorderMotion.focus(at: time, clusters: clusters)
+                    let focus = RecorderMotion.focus(at: time,
+                                                     clusters: clusters,
+                                                     cursor: &focusCursor)
                     travelX[index] = RecorderMotion.travelParameter(focus: Double(focus.x))
                     travelY[index] = RecorderMotion.travelParameter(focus: Double(focus.y))
                 }
@@ -165,11 +172,17 @@ extension RecorderComposer {
         var pressScale = [Double](repeating: 1, count: frames)
         var ring = [Double](repeating: -1, count: frames)
         if showsPointer {
+            var punchCursor = 0
+            var ringCursor = 0
             for index in 0..<frames {
                 let time = sourceTimes[index]
-                pressScale[index] = RecorderMotion.pressScale(at: time, clicks: track.clicks)
+                pressScale[index] = RecorderMotion.pressScale(at: time,
+                                                              clicks: track.clicks,
+                                                              cursor: &punchCursor)
                 if document.showsClickRing,
-                   let progress = RecorderMotion.ringProgress(at: time, clicks: track.clicks) {
+                   let progress = RecorderMotion.ringProgress(at: time,
+                                                              clicks: track.clicks,
+                                                              cursor: &ringCursor) {
                     ring[index] = progress
                 }
             }
@@ -179,6 +192,13 @@ extension RecorderComposer {
         if !texts.isEmpty {
             textOpacity = texts.map { overlay in
                 (0..<frames).map { overlay.opacity(at: sourceTimes[$0]) }
+            }
+        }
+
+        var blurCovers: [[Bool]] = []
+        if !blurs.isEmpty {
+            blurCovers = blurs.map { region in
+                (0..<frames).map { region.covers(sourceTimes[$0]) }
             }
         }
 
@@ -221,7 +241,9 @@ extension RecorderComposer {
                     plate: plate,
                     mask: mask,
                     texts: texts,
-                    textOpacity: textOpacity)
+                    textOpacity: textOpacity,
+                    blurs: blurs,
+                    blurCovers: blurCovers)
     }
 
     // MARK: - Plate

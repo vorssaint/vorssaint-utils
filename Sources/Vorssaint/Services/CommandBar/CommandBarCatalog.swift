@@ -360,20 +360,31 @@ enum CommandBarCatalog {
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
-            let clipboardTitle = FeatureStrings.clipboard(language).title
+            let clipboard = FeatureStrings.clipboard(language)
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
             let canUseHistory = CommandBarClipboardAccess.canUseHistory(
                 captureEnabled: keepsHistory,
                 hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
             entries.append(CommandBarEntry(
                 id: "action.clipboardWindow",
-                title: clipboardTitle,
-                subtitle: area(.clipboardHistory, under: clipboardTitle),
+                title: clipboard.title,
+                subtitle: area(.clipboardHistory, under: clipboard.title),
                 icon: .symbol("doc.on.clipboard"),
                 shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
                 trouble: canUseHistory ? nil
-                    : .needsSetup(featureTitle: clipboardTitle, page: .clipboard),
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            entries.append(CommandBarEntry(
+                id: "action.clipboardClearRecent",
+                title: clipboard.clearRecent,
+                subtitle: area(.clipboardHistory),
+                keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
+                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                icon: .symbol("trash"),
+                trouble: canUseHistory ? nil
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
+                confirmationPrompt: clipboard.clearRecent,
+                run: { _ in ClipboardHistoryService.shared.clearRecent() }))
         }
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
@@ -717,6 +728,12 @@ enum CommandBarCatalog {
             subtitle: feedback.commandSubtitle,
             icon: .symbol("lightbulb"),
             run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .feature) } }))
+        entries.append(CommandBarEntry(
+            id: "action.restartApp",
+            title: String(format: bar.restartAppFormat, AppInfo.name),
+            subtitle: bar.sourceActions,
+            icon: .symbol("arrow.clockwise"),
+            run: { _ in FeatureRuntime.shared.relaunchApp() }))
         // What people try on day one: put the Mac to sleep, restart it, turn
         // Wi-Fi off. Everything but sleep confirms on the row first.
         for action in CommandBarExtras.PowerAction.allCases {
@@ -954,7 +971,7 @@ enum CommandBarCatalog {
             return CommandBarEntry(
                 id: "menu.\(index).\(item.title)",
                 title: item.title,
-                subtitle: path.isEmpty ? appName : "\(appName) › \(path)",
+                subtitle: CommandBarMenuPath.crumb(appName: appName, path: item.path),
                 keywords: bar.kindMenu + " " + appName + " " + path,
                 icon: .symbol("filemenu.and.selection"),
                 menuShortcut: item.shortcut,
@@ -1059,7 +1076,7 @@ enum CommandBarCatalog {
                                     bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         var entries: [CommandBarEntry] = []
 
-        if let battery = SystemInfo.batterySnapshot() {
+        if let battery = cachedBattery {
             let value = "\(battery.percent)%"
             let detail = battery.isCharging
                 ? bar.answerBatteryCharging
@@ -1075,7 +1092,7 @@ enum CommandBarCatalog {
         }
 
         if AppFeature.monitorMemory.isAvailable,
-           let memory = SystemInfo.memoryUsage(), memory.total > 0 {
+           let memory = cachedMemory, memory.total > 0 {
             let metric = Defaults.sanitizedMonitorMemoryMetric(
                 UserDefaults.standard.string(forKey: DefaultsKey.monitorMemoryMetric) ?? "")
             let selected = MetricFormat.selectedMemory(used: memory.used,
@@ -1150,6 +1167,13 @@ enum CommandBarCatalog {
     /// Filled in by the service from a background pass; nil until the first
     /// one lands, which simply means the row is not offered yet.
     static var cachedBootVolumeSpace: (free: UInt64, total: UInt64)?
+
+    /// The battery and the memory pressure are read the same way and for the
+    /// same reason: both cross into the kernel (IOKit power sources, the mach
+    /// VM statistics), and the bar opens on a keystroke.
+    static var cachedBattery: BatteryInfo?
+    static var cachedMemory: (used: UInt64, appUsed: UInt64, total: UInt64,
+                              compressed: UInt64, cached: UInt64, swapUsed: UInt64?)?
 
     static func readBootVolumeSpace() -> (free: UInt64, total: UInt64)? {
         let url = URL(fileURLWithPath: "/")

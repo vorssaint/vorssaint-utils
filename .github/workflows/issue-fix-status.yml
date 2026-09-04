@@ -18,26 +18,24 @@ name: Issue fix status
 # that comment. Nothing is closed on a silence nobody was asked to break.
 #
 #   a description that closes its issue with a    ->  one comment on the pull
-#   keyword, or mentions one and references none        request, before it merges
+#   keyword                                             request, before it merges
 #
 # The fourth one is the only part of this that runs before a merge, and it is
 # the only part that changes nothing: it comments once and never touches the
-# issue. It exists because the first step is silent when a reference is
-# missing -- the run logs `references no issue` and nobody reads a green log.
-# The reference is the whole tie to the reporter, and the moment to notice it
-# is missing is while the author is still here.
+# issue. The moment to catch a keyword that takes the report away from the
+# person who filed it is while the author is still here.
 #
-# A closing keyword is the worse of the two and the quieter one. GitHub closes
-# the issue itself on merge, and the first step above skips closed issues, so
-# the reporter is never told anything at all. Of the merged pull requests that
-# used one, that is what happened to every single issue they named.
+# A closing keyword is the quiet failure. GitHub closes the issue itself on
+# merge, and the first step above skips closed issues, so the reporter is never
+# told anything at all. Of the merged pull requests that used one, that is what
+# happened to every single issue they named.
 #
 # It never guesses which issue is meant. A mention is not a reference, and most
 # of the numbers in a description here are prose -- `since #927 merged`,
-# `landed in #919 after this branch`. Widening the parser to treat those as
-# references was measured against sixty merged pull requests: it would have
-# labelled thirteen open reports as fixed. So the comment asks the author and
-# stops there.
+# `landed in #919 after this branch`. Widening the first step's parser to treat
+# those as references was measured against sixty merged pull requests: it would
+# have labelled thirteen open reports as fixed. A description that only mentions
+# a number is left alone by every job in this file.
 #
 # Neither of the first two decides that anything is fixed. A human decided that
 # when they merged. The label only says where the change is, and the release
@@ -233,52 +231,32 @@ jobs:
           closing=$(grep -oiE '(close[sd]?|fix(es|ed)?|resolve[sd]?)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
                       | grep -oE '[0-9]+$' | sort -un) || true
 
-          plain=$(grep -oiE '(refs?|references?|related to)[[:space:]]*:?[[:space:]]*#[0-9]+' pr-body.txt \
-                    | grep -oE '[0-9]+$' | sort -un) || true
-
           # A closing keyword is wrong even with a correct reference beside it,
-          # so it is checked first and independently.
-          if [ -n "$closing" ]; then
-            form=closing
-            candidates=$closing
-          elif [ -n "$plain" ]; then
-            echo "#$PR_NUMBER references an issue and closes nothing, nothing to say"
+          # so nothing else in the description changes what this says.
+          if [ -z "$closing" ]; then
+            echo "#$PR_NUMBER closes nothing with a keyword, nothing to say"
             exit 0
-          else
-            form=missing
-            candidates=$(grep -oE '#[0-9]+' pr-body.txt | tr -d '#' | sort -un) || true
-            if [ -z "$candidates" ]; then
-              echo "#$PR_NUMBER mentions no number at all, nothing to say"
-              exit 0
-            fi
           fi
 
-          # Said once per form. An edit to the description fires this again, and
-          # a second copy of the same comment is noise on somebody else's
-          # branch. Per form, because an author who is told about a missing
-          # reference and then adds a closing keyword has earned the other one.
+          # Said once. An edit to the description fires this again, and a second
+          # copy of the same comment is noise on somebody else's branch.
           if gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" --jq '.[].body' \
-               | grep -q "vorssaint-fix-status hint=.*form=$form"; then
-            echo "#$PR_NUMBER has been told about $form already"
+               | grep -q "vorssaint-fix-status hint=.*form=closing"; then
+            echo "#$PR_NUMBER has been told already"
             exit 0
           fi
 
           # Only open reports. A pull request number, a closed issue or a number
           # that belongs to nothing costs the reporter nothing either way.
           : > hits.txt
-          for number in $candidates; do
+          for number in $closing; do
             issue=$(gh api "repos/$GH_REPO/issues/$number" 2>/dev/null) || continue
             [ "$(jq 'has("pull_request")' <<<"$issue")" = false ] || continue
             [ "$(jq -r '.state' <<<"$issue")" = open ] || continue
-            # A summary issue is never referenced -- but a closing keyword
-            # aimed at one is the worst case in this file, not an exempt one:
-            # GitHub closes a long-lived index on merge and nothing here would
-            # have said a word. The skip belongs to the `missing` form alone.
-            if [ "$form" != closing ] \
-               && jq -e --argjson skip "$SKIP_LABELS" \
-                    'any(.labels[].name; IN($skip[]))' <<<"$issue" >/dev/null; then
-              continue
-            fi
+            # A summary issue is not skipped here. A closing keyword aimed at
+            # one is the worst case in this file, not an exempt one: GitHub
+            # closes a long-lived index on merge and nothing here would have
+            # said a word.
             printf '%s\t%s\n' "$number" "$(jq -r '.title' <<<"$issue")" >> hits.txt
           done
 
@@ -303,39 +281,22 @@ jobs:
           fi
 
           # Expanded heredocs below: keep the text free of backticks and `$`.
-          if [ "$form" = closing ]; then
-            cat > head.md <<COMMENT
+          cat > head.md <<COMMENT
           This closes its issue with a keyword, and that keyword takes the report away from the person who filed it. GitHub closes the issue the moment this merges, before the fix is on anyone's Mac, and the fix-status bot then skips it, because it only speaks to open issues. Every merged pull request here that used one ended that way: the reporter was never told which release carried the fix, and never got to say whether it worked.
 
           Use the plain reference form instead — the word Refs, one line each:
 
           COMMENT
-            cat > tail.md <<COMMENT
+          cat > tail.md <<COMMENT
 
           The issue then stays open, gets labelled, and its reporter is asked to confirm on the release that actually carries the fix. It closes two weeks later if nobody says otherwise, so nothing stays open forever either.
 
-          <!-- vorssaint-fix-status hint=$numbers form=$form -->
+          <!-- vorssaint-fix-status hint=$numbers form=closing -->
           COMMENT
-          else
-            cat > head.md <<COMMENT
-          This description mentions an open report but does not reference one, so nothing here is tied to the person who filed it.
-
-          If this pull request fixes any of these, add a line for it to the description — one line each, every line starting with the word Refs:
-
-          COMMENT
-            cat > tail.md <<COMMENT
-
-          On merge that line is what puts the report on the fix track: it gets labelled, its reporter is told which release carries the fix, and it closes two weeks later if nobody says otherwise. Without it the report stays where it is and nobody finds out until the reporter asks.
-
-          If the mention was only a mention, ignore this — a maintainer decides, not this comment, and nothing about it blocks the merge.
-
-          <!-- vorssaint-fix-status hint=$numbers form=$form -->
-          COMMENT
-          fi
 
           cat head.md lines.md tail.md > comment.md
           gh pr comment "$PR_NUMBER" --body-file comment.md
-          echo "#$PR_NUMBER: $form, asked about $numbers"
+          echo "#$PR_NUMBER: closing keyword, asked about $numbers"
 
   reporter-check:
     name: Ask the reporters a stable release reached
@@ -379,7 +340,7 @@ jobs:
             || true   # already there
 
           # `gh issue list` never returns pull requests.
-          gh issue list --state open --label "$PENDING_LABEL" --limit 200 \
+          gh issue list --state open --label "$PENDING_LABEL" --limit 500 \
             --json number,author,labels \
             | jq -r --argjson skip "$SKIP_LABELS" --arg half "$HALF_LABEL" \
                 '.[] | select(any(.labels[].name; IN($skip[])) | not)
@@ -450,7 +411,7 @@ jobs:
           cutoff=$(date -u -d "$CONFIRM_DAYS days ago" +%Y-%m-%dT%H:%M:%SZ)
           echo "closing checks asked before $cutoff"
 
-          gh issue list --state open --label "$CONFIRM_LABEL" --limit 200 \
+          gh issue list --state open --label "$CONFIRM_LABEL" --limit 500 \
             --json number,author,labels \
             | jq -r --argjson skip "$SKIP_LABELS" \
                 '.[] | select(any(.labels[].name; IN($skip[])) | not) | "\(.number) \(.author.login)"' \

@@ -51,6 +51,7 @@ final class DiskProtectionService: ObservableObject {
         guard !excludedVolumes.isEmpty else { return false }
         let set = Set(excludedVolumes.map { $0.lowercased() })
         return QuickTogglesSupport.isExcluded(volumeName: disk.name,
+                                              volumeUUID: disk.volumeUUID,
                                               mountPath: disk.mountPath,
                                               excludedVolumes: set)
     }

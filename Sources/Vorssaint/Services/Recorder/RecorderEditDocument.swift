@@ -43,6 +43,8 @@ struct RecorderEditDocument: Codable, Equatable {
     var zoomsGenerated: Bool
     /// Lines of text laid over the recording, in the recording's own time.
     var texts: [RecorderTextOverlay]
+    /// Parts of the picture kept unreadable, in the recording's own time.
+    var blurs: [RecorderBlurRegion]
     var keepsMicrophone: Bool
     var systemAudioGain: Double
     var microphoneGain: Double
@@ -66,6 +68,7 @@ struct RecorderEditDocument: Codable, Equatable {
          zoomSegments: [RecorderTimeline.ZoomSegment] = [],
          zoomsGenerated: Bool = false,
          texts: [RecorderTextOverlay] = [],
+         blurs: [RecorderBlurRegion] = [],
          keepsMicrophone: Bool = true,
          systemAudioGain: Double = 1,
          microphoneGain: Double = 1) {
@@ -88,6 +91,7 @@ struct RecorderEditDocument: Codable, Equatable {
         self.zoomSegments = zoomSegments
         self.zoomsGenerated = zoomsGenerated
         self.texts = texts
+        self.blurs = blurs
         self.keepsMicrophone = keepsMicrophone
         self.systemAudioGain = systemAudioGain
         self.microphoneGain = microphoneGain
@@ -121,6 +125,7 @@ struct RecorderEditDocument: Codable, Equatable {
                                                      forKey: .zoomSegments) ?? []
         zoomsGenerated = try container.decodeIfPresent(Bool.self, forKey: .zoomsGenerated) ?? false
         texts = try container.decodeIfPresent([RecorderTextOverlay].self, forKey: .texts) ?? []
+        blurs = try container.decodeIfPresent([RecorderBlurRegion].self, forKey: .blurs) ?? []
         keepsMicrophone = try container.decodeIfPresent(Bool.self, forKey: .keepsMicrophone) ?? true
         systemAudioGain = try container.decodeIfPresent(Double.self, forKey: .systemAudioGain) ?? 1
         microphoneGain = try container.decodeIfPresent(Double.self, forKey: .microphoneGain) ?? 1
@@ -262,6 +267,7 @@ struct RecorderEditDocument: Codable, Equatable {
             || zoomSegments != other.zoomSegments
             || cuts != other.cuts
             || texts != other.texts
+            || blurs != other.blurs
     }
 
     /// Whether the finished video would run differently, which is what forces
@@ -284,7 +290,7 @@ struct RecorderEditDocument: Codable, Equatable {
         let trim = trim(duration: duration)
         return trim.start > 0.01 || trim.end < duration - 0.01 || !keepsSystemAudio
             || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
-            || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty
+            || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty || !blurs.isEmpty
     }
 
     /// A damaged or hand-edited document can never wedge the editor: every
@@ -309,6 +315,7 @@ struct RecorderEditDocument: Codable, Equatable {
         document.zoomSegments = RecorderTimeline.normalized(segments: zoomSegments,
                                                             duration: duration)
         document.texts = RecorderTextOverlay.normalized(texts, duration: duration)
+        document.blurs = RecorderBlurRegion.normalized(blurs, duration: duration)
         return document
     }
 

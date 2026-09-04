@@ -58,7 +58,10 @@ enum QuickToolsSupport {
                           Int((s * 100).rounded()),
                           Int((l * 100).rounded()))
         case .swiftui:
-            return String(format: "Color(red: %.3f, green: %.3f, blue: %.3f)", r, g, b)
+            // Source code, not prose: a comma here would paste something that
+            // does not compile, whatever region the reader is in.
+            return String(format: "Color(red: %.3f, green: %.3f, blue: %.3f)",
+                          locale: Locale(identifier: "en_US_POSIX"), r, g, b)
         }
     }
 

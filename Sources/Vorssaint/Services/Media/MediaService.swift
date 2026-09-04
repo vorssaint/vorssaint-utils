@@ -295,8 +295,11 @@ final class MediaService: ObservableObject {
             "--output", stagedOutputURL.path,
             "--replace",
             "--progress",
-            "--start", String(format: "%.3f", trim.start),
-            "--duration", String(format: "%.3f", trim.duration),
+            // Deliberately not the reader's region: these are arguments for
+            // a tool that reads a decimal point, and a comma would break the
+            // trim in every country that writes numbers that way.
+            "--start", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.start),
+            "--duration", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.duration),
         ]
         if options.quality >= 0.82 {
             process.arguments?.append("--multiPass")

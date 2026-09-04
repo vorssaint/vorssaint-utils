@@ -181,6 +181,30 @@ enum DockClickSupport {
         unminimizedCount > 0 || (minimizedCount == 0 && windowServerSeesWindows)
     }
 
+    /// Which of the app's windows a cycling click can rotate through, as
+    /// indices into `windowIDs`, front to back.
+    ///
+    /// `windowIDs` are the app's unminimized windows in Accessibility order
+    /// (nil where the id could not be resolved); `onScreenFrontToBack` is the
+    /// window server's on-screen list, which holds only the Space the user is
+    /// looking at. A window parked on another Space therefore has no place in
+    /// the result and can never be raised.
+    ///
+    /// This is the single list behind both halves of the feature: `action`
+    /// only promises `.cycleWindows` when it holds more than one window, and
+    /// the raise takes its last element. Deciding from one set of windows and
+    /// raising from another is what made a Dock click either loop over two
+    /// windows forever or jump to a different desktop (issue #1204).
+    static func cycleCandidateIndices(windowIDs: [CGWindowID?],
+                                      onScreenFrontToBack: [CGWindowID]) -> [Int] {
+        var depths: [(index: Int, depth: Int)] = []
+        for (index, id) in windowIDs.enumerated() {
+            guard let id, let depth = onScreenFrontToBack.firstIndex(of: id) else { continue }
+            depths.append((index, depth))
+        }
+        return depths.sorted { $0.depth < $1.depth }.map(\.index)
+    }
+
     static func action(appIsFrontmost: Bool,
                        hasUnminimizedWindows: Bool,
                        hasMinimizedWindows: Bool,
@@ -189,10 +213,12 @@ enum DockClickSupport {
                        minimizeEnabled: Bool = true,
                        hideEnabled: Bool = false,
                        cycleWindowsEnabled: Bool = false,
-                       unminimizedWindowCount: Int = 0,
+                       cycleCandidateCount: Int = 0,
                        ownsMinimize: Bool = false) -> DockClickAction {
         guard !hasModifiers else { return .passThrough }
-        if cycleWindowsEnabled, appIsFrontmost, !hasFullscreenWindows, unminimizedWindowCount > 1 {
+        // Counted on the current Space only: a click must not advertise a
+        // rotation the raise cannot perform without changing desktops.
+        if cycleWindowsEnabled, appIsFrontmost, !hasFullscreenWindows, cycleCandidateCount > 1 {
             return .cycleWindows
         }
         if hideEnabled, appIsFrontmost { return .hide }

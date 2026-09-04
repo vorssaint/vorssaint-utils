@@ -38,8 +38,10 @@ final class RecentCaptureService: ObservableObject {
     static let shared = RecentCaptureService()
 
     @Published private(set) var entries: [RecentCaptureEntry] = []
+    @Published private(set) var shortcutRegistrationFailed = false
 
     private let manager = FileManager.default
+    private let hotkey = QuickToolHotkey(id: 21)
     private let queue = DispatchQueue(label: "com.vorssaint.utils.recent-captures",
                                       qos: .utility)
     private let generationLock = NSLock()
@@ -54,7 +56,23 @@ final class RecentCaptureService: ObservableObject {
     private var panelDeactivateObserver: NSObjectProtocol?
 
     private init() {
+        hotkey.onPress = { [weak self] in self?.showHistoryWindow() }
         reload()
+    }
+
+    func syncWithPreferences() {
+        let available = AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable
+        let enabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.recentCapturesShortcutEnabled)
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.recentCapturesShortcut,
+                                            fallback: .recentCapturesDefault)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        if !available { hideHistoryWindow() }
+    }
+
+    func suspend() {
+        hotkey.unregister()
+        hideHistoryWindow()
     }
 
     // MARK: - History palette
@@ -62,6 +80,9 @@ final class RecentCaptureService: ObservableObject {
     func showHistoryWindow() {
         guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in self?.showHistoryWindow() }
+            return
+        }
+        guard AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable else {
             return
         }
         let anchor = NSApp.keyWindow?.isVisible == true ? NSApp.keyWindow : nil

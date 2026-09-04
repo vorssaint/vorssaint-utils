@@ -2,7 +2,7 @@
 "NSAppleEventsUsageDescription" = "Vorssaint; Finder'da dosya taşımak, öğeleri Çöp Sepeti'ne göndermek ve Homebrew işlemleri istediğinde Terminal komutları açmak için Otomasyon kullanır.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint, mikserde her uygulamanın ses düzeyini ayarlamak için yalnızca tek tek uygulama seslerine dokunur. Hiçbir şey kaydedilmez veya Mac'inden çıkmaz.";
+"NSAudioCaptureUsageDescription" = "Vorssaint, mikserde ses düzeyini ayarlamak ve başlattığın ekran kayıtlarına Mac'in sesini eklemek için her uygulamanın sesini kullanır. Hiçbir şey Mac'inden çıkmaz.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint, Bluetooth'u yalnızca bağlı çevre birimlerinin pil düzeyini okumak için kullanır. Hiçbir veri Mac'inden çıkmaz.";

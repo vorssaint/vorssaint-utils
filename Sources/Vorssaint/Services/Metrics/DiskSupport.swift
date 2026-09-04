@@ -26,6 +26,9 @@ struct DiskDeviceReading: Identifiable, Equatable {
     var id: String
     var name: String
     var mountPath: String
+    /// Stable across renames and remounts, so the eject exclusion list matches
+    /// on it as well as on the name and the mount path.
+    var volumeUUID: String?
     var bsdName: String?
     var wholeDisk: String?
     var ioCounterID: String?

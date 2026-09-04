@@ -67,12 +67,16 @@ extension AppFeature {
     /// Whether an engaged feature needs permission changes while it sits in
     /// the background. One-shot tools ask and refresh at the moment they run;
     /// polling for those just because their tile is installed wastes wakeups.
-    func monitorsPermissionChanges(boolFor: (String) -> Bool) -> Bool {
+    func monitorsPermissionChanges(edgeSnapDisabledZones: String? = nil,
+                                   boolFor: (String) -> Bool) -> Bool {
         switch self {
         case .windowLayout:
             return boolFor(DefaultsKey.windowLayoutShortcutsEnabled)
                 || boolFor(DefaultsKey.windowGestureEnabled)
-                || boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                || (boolFor(DefaultsKey.windowEdgeSnapEnabled)
+                    && !WindowEdgeSnapZone.enabledZones(
+                        from: edgeSnapDisabledZones
+                    ).isEmpty)
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
             return false
         default:
@@ -81,7 +85,12 @@ extension AppFeature {
     }
 
     var monitorsPermissionChanges: Bool {
-        monitorsPermissionChanges(boolFor: UserDefaults.standard.bool(forKey:))
+        monitorsPermissionChanges(
+            edgeSnapDisabledZones: UserDefaults.standard.string(
+                forKey: DefaultsKey.windowEdgeSnapDisabledZones
+            ),
+            boolFor: UserDefaults.standard.bool(forKey:)
+        )
     }
 
     var group: FeatureGroup {
@@ -259,9 +268,10 @@ extension AppFeature {
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
-        // The sound of the Mac rides the same grant the pixels do. Microphone
-        // access stays contextual, and Accessibility only keeps typing timing.
-        case .screenRecorder: return [.screenRecording, .accessibility, .microphone]
+        // The sound of the Mac is read through an audio grant of its own.
+        // Microphone access stays contextual, and Accessibility only keeps
+        // typing timing.
+        case .screenRecorder: return [.screenRecording, .accessibility, .audioCapture, .microphone]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
@@ -358,6 +368,8 @@ extension AppFeature {
                         || boolFor(DefaultsKey.whatsAppOrganizerEnabled))
                     && boolFor(DefaultsKey.whatsAppDownloadsNotify)
                 return cleanerNotifies || whatsAppNotifies
+            case (.screenRecorder, .audioCapture):
+                return boolFor(DefaultsKey.recorderSystemAudio)
             case (.screenRecorder, .microphone):
                 return boolFor(DefaultsKey.recorderMicrophone)
             default:

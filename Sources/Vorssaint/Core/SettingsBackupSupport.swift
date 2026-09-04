@@ -119,8 +119,12 @@ enum SettingsBackupSupport {
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
+        // Whether the audio system let a recording hear the Mac's sound is a
+        // grant this Mac gave, not a setting.
+        DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
+        DefaultsKey.switcherNativeHotkeysSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]

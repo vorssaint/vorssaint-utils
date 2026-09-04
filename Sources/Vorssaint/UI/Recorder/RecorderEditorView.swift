@@ -12,6 +12,9 @@ struct RecorderEditorView: View {
     let controller: RecorderEditorController
     @ObservedObject private var l10n = L10n.shared
     @State private var sharedRecord: RecordingShareRecord?
+    /// The area being drawn for a blur, in the stage's own points, while the
+    /// mouse is down.
+    @State private var blurDraft: CGRect?
     @AppStorage(DefaultsKey.recorderSharingEnabled) private var sharingEnabled = true
 
     private var strings: RecorderFeatureStrings {
@@ -225,6 +228,9 @@ struct RecorderEditorView: View {
                     }
                     .allowsHitTesting(false)
                 }
+                if model.isPickingBlurArea {
+                    blurPicker(in: proxy.size)
+                }
             }
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay {
@@ -236,15 +242,65 @@ struct RecorderEditorView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 14)
         .onTapGesture {
-            guard !model.isAimingZoom else { return }
-            // Clicking the picture puts a selected zoom down before it does
-            // anything else, so there is always a way out of it.
+            guard !model.isAimingZoom, !model.isPickingBlurArea else { return }
+            // Clicking the picture puts a selected zoom or blur down before it
+            // does anything else, so there is always a way out of it.
             if model.selectedZoomID != nil {
                 model.selectZoom(nil)
+            } else if model.selectedBlurID != nil {
+                model.selectLaneItem(.blur, id: nil)
             } else {
                 model.togglePlay()
             }
         }
+    }
+
+    /// Drawing the area is one drag on the picture, and the rectangle that
+    /// follows the mouse is what says so. It is drawn over the recording as
+    /// captured, so what is inside the rectangle is exactly what gets hidden.
+    private func blurPicker(in size: CGSize) -> some View {
+        ZStack(alignment: .topLeading) {
+            Color.black.opacity(0.001)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 2)
+                        .onChanged { value in
+                            blurDraft = CGRect(
+                                x: min(value.startLocation.x, value.location.x),
+                                y: min(value.startLocation.y, value.location.y),
+                                width: abs(value.location.x - value.startLocation.x),
+                                height: abs(value.location.y - value.startLocation.y))
+                        }
+                        .onEnded { value in
+                            blurDraft = nil
+                            model.pickBlurArea(from: value.startLocation,
+                                               to: value.location,
+                                               in: size)
+                        }
+                )
+            if let draft = blurDraft {
+                Rectangle()
+                    .fill(Color.teal.opacity(0.22))
+                    .overlay {
+                        Rectangle().strokeBorder(Color.teal, lineWidth: 1.5)
+                    }
+                    .frame(width: draft.width, height: draft.height)
+                    .offset(x: draft.minX, y: draft.minY)
+                    .allowsHitTesting(false)
+            }
+            VStack {
+                Text(strings.blurPickAreaHint)
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 10)
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
+        }
+        .onDisappear { blurDraft = nil }
     }
 
     private var bottomBand: some View {
@@ -265,6 +321,13 @@ struct RecorderEditorView: View {
                 timelineRow(strings.textContentLabel) {
                     RecorderZoomLane(model: model, kind: .text,
                                      emptyHint: strings.textLaneEmptyHint)
+                        .frame(height: 30)
+                }
+            }
+            if !model.document.blurs.isEmpty {
+                timelineRow(strings.blurLaneLabel) {
+                    RecorderZoomLane(model: model, kind: .blur,
+                                     emptyHint: strings.blurLaneEmptyHint)
                         .frame(height: 30)
                 }
             }
@@ -330,6 +393,15 @@ struct RecorderEditorView: View {
             .buttonStyle(.borderless)
             .foregroundStyle(Color(white: 0.8))
 
+            Button {
+                model.addBlur(at: model.sourceTime)
+            } label: {
+                Label(strings.addBlurButton, systemImage: "aqi.medium")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color(white: 0.8))
+
             if let selection = model.cutSelection {
                 Button {
                     model.cutSelectedRange()
@@ -388,7 +460,7 @@ struct RecorderEditorView: View {
     private var outputSizeLabel: String {
         let size = model.exportSize
         guard size.width > 0 else { return "" }
-        return "\(Int(size.width))x\(Int(size.height))"
+        return "\(Int(size.width)) × \(Int(size.height))"
     }
 
     private var timeLabel: String {
@@ -701,6 +773,10 @@ private struct Filmstrip: View {
 
     private let handleWidth: CGFloat = 12
     private let coordinateSpace = "recorderFilmstrip"
+    /// Whether the drag in progress is picking a stretch to cut rather than
+    /// scrubbing. Decided on its first movement and kept, so letting go of
+    /// Shift halfway through does not turn the pick into a scrub.
+    @State private var dragPicksCut: Bool?
 
     var body: some View {
         GeometryReader { proxy in
@@ -714,34 +790,49 @@ private struct Filmstrip: View {
                 // The strip itself is what scrubbing listens to. The handles
                 // sit above it with their own gestures, so a drag that starts
                 // on a handle trims and never moves the playhead too.
-                // Dragging across the film picks a stretch to remove; a plain
-                // click clears it. Scrubbing lives on the ruler above, so the
-                // two never fight over the same drag.
+                // Dragging across the film scrubs, the way every simple
+                // editor does; holding Shift while dragging picks a stretch
+                // to remove instead. The picture follows the pointer either
+                // way, so a cut can land on the exact moment.
                 thumbnails
                     .frame(width: width, height: height)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 2)
                             .onChanged { value in
-                                let from = seconds(at: value.startLocation.x, width: width)
+                                let picksCut = dragPicksCut
+                                    ?? NSEvent.modifierFlags.contains(.shift)
+                                dragPicksCut = picksCut
                                 let to = seconds(at: value.location.x, width: width)
-                                model.setCutSelection(min(from, to)...max(from, to))
+                                if picksCut {
+                                    let from = seconds(at: value.startLocation.x, width: width)
+                                    model.setCutSelection(min(from, to)...max(from, to))
+                                }
+                                model.seek(to: to)
                             }
+                            .onEnded { _ in dragPicksCut = nil }
                     )
                     .onTapGesture { location in
-                        if model.cutSelection != nil {
-                            model.setCutSelection(nil)
-                        } else {
-                            model.seek(to: seconds(at: location.x, width: width))
-                        }
+                        // A click goes to that moment and puts down any
+                        // selection, the way clicking away works everywhere.
+                        model.setCutSelection(nil)
+                        model.seek(to: seconds(at: location.x, width: width))
                     }
 
-                // What was already cut out, as a seam you can click to undo.
+                // What was already cut out goes dark like the trimmed ends,
+                // with a seam at its start you can click to put it back.
                 ForEach(Array(model.document.cuts.enumerated()), id: \.offset) { _, cut in
                     let seam = position(cut.start, width: width)
+                    let from = max(startX, seam)
+                    let to = min(endX, position(cut.end, width: width))
+                    Color.black.opacity(0.62)
+                        .frame(width: max(0, to - from), height: height)
+                        .offset(x: from)
+                        .allowsHitTesting(false)
                     Rectangle()
                         .fill(Color.orange.opacity(0.9))
                         .frame(width: 3, height: height)
+                        .contentShape(Rectangle().inset(by: -4))
                         .offset(x: max(0, seam - 1.5))
                         .onTapGesture { model.restoreCut(at: cut.start) }
                 }

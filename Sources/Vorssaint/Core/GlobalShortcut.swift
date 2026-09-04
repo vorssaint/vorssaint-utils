@@ -190,6 +190,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // E opens the latest capture in the editor, beside the capture shortcut.
     static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_E),
                                                              modifiers: [.control, .option, .command])
+    // H opens capture history, on the same free control-option-command layer.
+    static let recentCapturesDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_H),
+                                                      modifiers: [.control, .option, .command])
     // P opens a copied image in the editor, beside the other screenshot tools.
     static let screenshotClipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_P),
                                                            modifiers: [.control, .option, .command])
@@ -512,7 +515,7 @@ struct GlobalShortcut: Equatable, Hashable {
     /// Answered from the cache: deriving a label asks Text Input Services,
     /// which traps the process off the main thread, and the Switcher's tap
     /// asks for one on every key from its own (issue #578).
-    private static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
+    static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
         let cacheKey = LayoutLabelKey(keyCode: keyCode, usesCommand: usesCommand)
         if let cached = (layoutLabelLock.withLock { layoutLabels[cacheKey] }) {
             return cached
@@ -575,12 +578,31 @@ struct GlobalShortcut: Equatable, Hashable {
         return derivedLayoutKeyLabel(for: code, layoutData: layoutData, usesCommand: usesCommand)
     }
 
+    /// The layout the keycaps are read from. An input method answers the
+    /// current-layout call with the companion layout it types through, and
+    /// Pinyin's turns ; , . [ ] \ ` into ；，。【】、· — what the method produces,
+    /// not what the keyboard says, and it moves with the method rather than
+    /// with the hardware. The ASCII capable layout under a method is the
+    /// physical keyboard, so the caps stay put. A plain layout is still asked
+    /// directly, which keeps AZERTY, QWERTZ and the non-Latin layouts showing
+    /// their own keys (issue #1047).
     private static func currentLayoutData() -> Data? {
-        guard Thread.isMainThread,
-              let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+        guard Thread.isMainThread else { return nil }
+        let source = inputMethodIsActive
+            ? TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue()
+            : TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue()
+        guard let source,
               let layoutData = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData)
         else { return nil }
         return Unmanaged<CFData>.fromOpaque(layoutData).takeUnretainedValue() as Data
+    }
+
+    private static var inputMethodIsActive: Bool {
+        guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
+              let type = TISGetInputSourceProperty(source, kTISPropertyInputSourceType)
+        else { return false }
+        let value = Unmanaged<CFString>.fromOpaque(type).takeUnretainedValue() as String
+        return value != (kTISTypeKeyboardLayout as String)
     }
 
     private static func derivedLayoutKeyLabel(for code: UInt16,
@@ -638,6 +660,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenshot
     case screenshotFullScreen
     case screenshotLastCapture
+    case recentCaptures
     case screenshotClipboard
     case cameraPreview
     case radialMenu
@@ -665,6 +688,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
         case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
+        case .recentCaptures: return DefaultsKey.recentCapturesShortcut
         case .screenshotClipboard: return DefaultsKey.screenshotClipboardShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
@@ -692,6 +716,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
         case .screenshotLastCapture: return .screenshotLastCaptureDefault
+        case .recentCaptures: return .recentCapturesDefault
         case .screenshotClipboard: return .screenshotClipboardDefault
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
@@ -726,6 +751,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotLastCapture:
             return FeatureStrings.screenshot(L10n.shared.language).editLastCapture
+        case .recentCaptures:
+            return FeatureStrings.recentCaptures(L10n.shared.language).title
         case .screenshotClipboard:
             return FeatureStrings.screenshot(L10n.shared.language).editClipboardImage
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
@@ -771,6 +798,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
         case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
+        case .recentCaptures: return [DefaultsKey.recentCapturesShortcutEnabled]
         case .screenshotClipboard: return [DefaultsKey.screenshotClipboardShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
@@ -797,7 +825,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
-        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard:
+        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
+             .screenshotClipboard:
             return .screenshot
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
@@ -808,10 +837,13 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
-    /// Every capture role follows its own tool: the shortcut opens the shared
-    /// chooser on that mode, so it lives and dies with the mode itself.
+    /// Capture roles normally follow their own tool. Shared capture history
+    /// stays available while either kind of capture that fills it is installed.
     var availabilityFeatures: [AppFeature] {
-        [feature]
+        switch self {
+        case .recentCaptures: return [.screenshot, .screenRecorder]
+        default: return [feature]
+        }
     }
 
     func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
@@ -855,10 +887,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static let captureFeatures: [AppFeature] =
         [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
 
-    /// Chooser tools first, in chooser order, then the screenshot extras.
+    /// Chooser tools first, in chooser order, then shared history and screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
         .screenshot, .screenRecorder, .screenOCR, .colorPicker,
-        .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
+        .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
     ]
 
     /// The given roles narrowed to the capture group, in display order. The

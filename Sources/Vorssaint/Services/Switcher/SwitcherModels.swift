@@ -49,6 +49,14 @@ struct SwitcherItem: Identifiable, Equatable {
         isAppEntry ? noOpenWindow : displayTitle
     }
 
+    /// The line under an app's name, when there is one worth reading. A window
+    /// titled after its own app would only repeat the line above it, which is
+    /// the same rule `displaySubtitle` already applies the other way round.
+    func windowDetail(noOpenWindow: String) -> String? {
+        if isAppEntry { return noOpenWindow }
+        return displaySubtitle == nil ? nil : displayTitle
+    }
+
     /// Secondary label used when the window title does not already identify the
     /// app. This keeps crowded switcher grids readable without repeating text.
     var displaySubtitle: String? {

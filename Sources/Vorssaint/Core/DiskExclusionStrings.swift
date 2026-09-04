@@ -94,7 +94,7 @@ extension DiskExclusionStrings {
         otherDrive: "Autre nom de disque…",
         removeButton: "Retirer",
         customPlaceholder: "Nom du disque ou volume",
-        caption: "Les disques de cette liste ne sont jamais éjectés lors de l'éjection de tous les disques."
+        caption: "Les disques de cette liste ne sont jamais éjectés lors de l’éjection de tous les disques."
     )
 
     static let it = DiskExclusionStrings(

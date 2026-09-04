@@ -6,8 +6,20 @@ import AppKit
 /// Small, non-activating feedback panel. It is intentionally independent from
 /// Settings so showing a confirmation never changes the target application.
 final class QuitProtectionHUD {
-    private let size = CGSize(width: 300, height: 48)
+    private static let minimumSize = CGSize(width: 300, height: 48)
+    private static let textInset: CGFloat = 12
+    private var size = QuitProtectionHUD.minimumSize
     private var panel: NSPanel?
+
+    /// The confirmation lines are localized and formatted with the shortcut
+    /// symbol, so their rendered width is only known at show time. The widest
+    /// translations need more than the fixed 300pt panel left for text. The
+    /// labels are asked rather than the strings measured, so whatever inset
+    /// their cells add is inside the answer.
+    private static func fittingSize(_ content: ContentView) -> CGSize {
+        CGSize(width: max(minimumSize.width, (content.textWidth + textInset * 2).rounded(.up)),
+               height: minimumSize.height)
+    }
 
     func show(title: String, detail: String) {
         if panel == nil {
@@ -29,7 +41,11 @@ final class QuitProtectionHUD {
         }
 
         guard let content = panel?.contentView as? ContentView else { return }
+        // Fill the labels first: the width comes out of them, not out of a
+        // separate measurement of the same strings.
         content.update(title: title, detail: detail)
+        size = Self.fittingSize(content)
+        panel?.setContentSize(size)
         positionPanel()
         panel?.alphaValue = 1
         panel?.orderFrontRegardless()
@@ -57,6 +73,12 @@ final class QuitProtectionHUD {
         private let title = NSTextField(labelWithString: "")
         private let detail = NSTextField(labelWithString: "")
 
+        /// Width the two labels need for what they currently hold, straight
+        /// from the cells that draw them.
+        var textWidth: CGFloat {
+            max(title.fittingSize.width, detail.fittingSize.width)
+        }
+
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
             wantsLayer = true
@@ -75,8 +97,9 @@ final class QuitProtectionHUD {
 
         override func layout() {
             super.layout()
-            title.frame = CGRect(x: 12, y: 23, width: bounds.width - 24, height: 17)
-            detail.frame = CGRect(x: 12, y: 7, width: bounds.width - 24, height: 14)
+            let inset = QuitProtectionHUD.textInset
+            title.frame = CGRect(x: inset, y: 23, width: bounds.width - inset * 2, height: 17)
+            detail.frame = CGRect(x: inset, y: 7, width: bounds.width - inset * 2, height: 14)
         }
 
         func update(title: String, detail: String) {
@@ -84,6 +107,8 @@ final class QuitProtectionHUD {
             self.detail.stringValue = detail
             setAccessibilityLabel([title, detail].filter { !$0.isEmpty }.joined(separator: ". "))
             needsLayout = true
+            // The pill is drawn from bounds, so a width change has to repaint.
+            needsDisplay = true
         }
 
         override func draw(_ dirtyRect: NSRect) {
