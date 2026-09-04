@@ -798,6 +798,15 @@ final class SuperKeyService: ObservableObject {
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return false }
+        // An event built from the HID source starts with whatever modifier
+        // state that source reports, so a modifier still registered as down
+        // rides along and the Escape lands as Control-Escape. Most apps
+        // ignore the difference; Zed's vim mode does not. This Escape is
+        // meant to be unmodified, so say so: every other synthesized
+        // keystroke in the app assigns flags explicitly, whether that is a
+        // real shortcut's modifiers or none at all.
+        down.flags = []
+        up.flags = []
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
         return true
