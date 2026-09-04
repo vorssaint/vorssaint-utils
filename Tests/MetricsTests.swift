@@ -16711,21 +16711,13 @@ struct MetricsTests {
         expect(!ScreenshotSupport.canReorder(layered, moving: UUID(), .forward)
                 && !ScreenshotSupport.canReorder([], moving: layered[0].id, .backward),
                "an annotation that is not there can never be reordered")
-        let previousSelection = UUID()
-        expect(ScreenshotSupport.selectionAtStartOfAnnotationDrag(
-                    current: previousSelection,
-                    editingSelectedAnnotation: false) == nil
-                && ScreenshotSupport.selectionAtStartOfAnnotationDrag(
-                    current: previousSelection,
-                    editingSelectedAnnotation: true) == previousSelection,
-               "a new annotation drag cannot expose the previous layer selection")
         let screenshotEditorSource = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift",
             encoding: .utf8)) ?? "")
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        expect(screenshotEditorSource.contains("selectionAtStartOfAnnotationDrag"),
+        expect(screenshotEditorSource.contains("if tool != .select, tool != .crop {\n            selectedID = nil\n        }"),
                "the editor clears stale selection before creating a new annotation")
 
         let resized = ScreenshotSupport.resizedRect(CGRect(x: 10, y: 10, width: 100, height: 100),
@@ -16806,6 +16798,18 @@ struct MetricsTests {
                "selecting a thin arrow exposes its own stroke in the editor controls")
         expect(screenshotEditorSource.contains("selectionStyle(for: hit)"),
                "the editor synchronizes controls from the selected annotation")
+        let existingSelectionSource: String
+        if let start = screenshotEditorSource.range(of: "private func selectExistingAnnotation"),
+           let end = screenshotEditorSource.range(of: "private func updateDraft") {
+            existingSelectionSource = String(screenshotEditorSource[start.lowerBound..<end.lowerBound])
+        } else {
+            existingSelectionSource = ""
+        }
+        let existingStyleSync = "self.selectedID = nil\n        color = style.color\n"
+            + "        stroke = style.stroke\n        arrowStyle = style.arrowStyle"
+        expect(existingSelectionSource.contains("let style = ScreenshotSupport.selectionStyle(for: hit)")
+                && existingSelectionSource.contains(existingStyleSync),
+               "creation-tool taps synchronize controls before selecting the annotation")
         expect(abs(ScreenshotSupport.distance(from: CGPoint(x: 50, y: 10),
                                               toSegment: CGPoint(x: 0, y: 0),
                                               CGPoint(x: 100, y: 0)) - 10) < 0.001,

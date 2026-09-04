@@ -1358,14 +1358,6 @@ enum ScreenshotSupport {
         case forward, backward
     }
 
-    /// A new annotation should not inherit the previous selection while its
-    /// drag is in progress. Existing annotations remain selected only when a
-    /// creation-tool gesture is actually editing one of their handles.
-    static func selectionAtStartOfAnnotationDrag(current: UUID?,
-                                                 editingSelectedAnnotation: Bool) -> UUID? {
-        editingSelectedAnnotation ? current : nil
-    }
-
     /// Whether the annotation has somewhere to go: false at the end it is
     /// already heading for, and for an id that is not in the array.
     static func canReorder(_ annotations: [Annotation],

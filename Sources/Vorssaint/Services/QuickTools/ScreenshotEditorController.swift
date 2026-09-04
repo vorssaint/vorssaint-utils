@@ -496,9 +496,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             return
         }
         if tool != .select, tool != .crop {
-            selectedID = ScreenshotSupport.selectionAtStartOfAnnotationDrag(
-                current: selectedID,
-                editingSelectedAnnotation: false)
+            selectedID = nil
         }
         switch tool {
         case .select:
@@ -787,8 +785,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             selectedID = nil
             return false
         }
+        let style = ScreenshotSupport.selectionStyle(for: hit)
+        self.selectedID = nil
+        color = style.color
+        stroke = style.stroke
+        arrowStyle = style.arrowStyle
         if hit.tool == .sticker {
-            selectedID = nil
             sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
         }
         selectedID = hitID
