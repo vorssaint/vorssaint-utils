@@ -167,13 +167,13 @@ extension FanControlFeatureStrings {
         fanNameFormat: "Fan %d",
         rpmFormat: "%d RPM",
         allowControl: "Fan denetimine izin ver",
-        approvalCaption: "Korumalı fan denetimini kullanmak için Giriş Öğeleri'nde Vorssaint'e izin verin.",
-        openSettings: "Sistem Ayarları'nı Aç",
-        noFans: "Bu Mac'te denetlenebilir fan yok.",
-        unsupported: "Bu Mac'te fan denetimi kullanılamıyor.",
+        approvalCaption: "Korumalı fan denetimini kullanmak için Giriş Öğeleri’nde Vorssaint’e izin verin.",
+        openSettings: "Sistem Ayarları’nı Aç",
+        noFans: "Bu Mac’te denetlenebilir fan yok.",
+        unsupported: "Bu Mac’te fan denetimi kullanılamıyor.",
         alreadyControlled: "Fanları başka bir işlem denetliyor. Önce oradan sistem denetimine dönün.",
         failed: "İstenen denetim doğrulanamadığı için fanlar sistem denetimine döndü.",
-        safetyCaption: "Sistem'e dönene kadar denetim etkin kalır. Uygulama bağlantısı kesilirse, Mac uyursa, sensör okumaları başarısız olursa veya termal basınç yükselirse otomatik olarak geri verilir.",
+        safetyCaption: "Sistem’e dönene kadar denetim etkin kalır. Uygulama bağlantısı kesilirse, Mac uyursa, sensör okumaları başarısız olursa veya termal basınç yükselirse otomatik olarak geri verilir.",
         safetyStopped: "Fan denetimi kesildiği için sistem denetimine dönüldü.",
         menuBarTitle: "Fan hızı",
         systemControl: "Sistem",
@@ -186,8 +186,8 @@ extension FanControlFeatureStrings {
         applyManual: "Elle denetimi uygula",
         applyCurve: "Fan eğrisini uygula",
         returnToSystem: "Sistem denetimini kullan",
-        temperatureUnavailable: "Seçilen sıcaklık sensörü yanıt vermeyi bıraktı. Fan denetimi Sistem'e döndü.",
-        curveUnavailable: "Seçilen bir sıcaklık sensörü bu Mac'te kullanılamıyor.",
+        temperatureUnavailable: "Seçilen sıcaklık sensörü yanıt vermeyi bıraktı. Fan denetimi Sistem’e döndü.",
+        curveUnavailable: "Seçilen bir sıcaklık sensörü bu Mac’te kullanılamıyor.",
         sensor: "Sıcaklık sensörü",
         temperature: "Sıcaklık",
         fanSpeed: "Fan hızı",
@@ -201,7 +201,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Ortalama CPU",
         hottestCPU: "En sıcak CPU",
         hottestGPU: "En sıcak GPU",
-        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri'nde Vorssaint'e izin verip yeniden deneyin."
+        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin."
     )
 
     static let ru = FanControlFeatureStrings(

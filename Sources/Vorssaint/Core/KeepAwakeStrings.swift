@@ -213,10 +213,10 @@ extension KeepAwakeAutomationStrings {
 
     static let fr = KeepAwakeAutomationStrings(
         automationSection: "Automatisation",
-        automationCaption: "Démarre lorsqu'une condition sélectionnée est remplie.",
+        automationCaption: "Démarre lorsqu’une condition sélectionnée est remplie.",
         automationOff: "Désactivé",
         externalDisplayToggle: "Écran externe",
-        externalDisplayActive: "Actif tant qu'un écran externe est connecté",
+        externalDisplayActive: "Actif tant qu’un écran externe est connecté",
         powerToggle: "Secteur",
         powerActive: "Actif tant que le Mac est branché sur secteur",
         automationActive: "Actif car une condition automatique est remplie",
@@ -231,7 +231,7 @@ extension KeepAwakeAutomationStrings {
         externalDisplayToggle: "Schermo esterno",
         externalDisplayActive: "Attivo mentre è collegato uno schermo esterno",
         powerToggle: "Alimentazione",
-        powerActive: "Attivo mentre è collegato all'alimentazione",
+        powerActive: "Attivo mentre è collegato all’alimentazione",
         automationActive: "Attivo perché una condizione automatica è soddisfatta",
         pauseWhenLockedToggle: "Metti in pausa quando il Mac è bloccato",
         pauseWhenLockedCaption: "Segue le normali regole di stop quando è bloccato e riprende il tempo rimanente dopo lo sblocco."

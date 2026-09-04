@@ -15,7 +15,8 @@ enum MouseAccelerationRecovery {
         return restorePending(using: client)
     }
 
-    static func restorePending(using client: IOHIDEventSystemClient) -> Bool {
+    static func restorePending(using client: IOHIDEventSystemClient,
+                               preservingConnectedEntries: Bool = false) -> Bool {
         guard var journal = loadJournal(),
               let services = services(using: client) else { return false }
 
@@ -25,8 +26,9 @@ enum MouseAccelerationRecovery {
             servicesByID[id] = service
         }
         let reservedRegistryIDs = Set(journal.entries.map(\.registryID))
+        let connectedDevices = preservingConnectedEntries ? servicesByID.compactMapValues(identity(of:)) : [:]
 
-        for entry in journal.entries {
+        for entry in journal.entriesToRestore(preserving: connectedDevices) {
             guard let service = service(for: entry,
                                         in: services,
                                         servicesByID: servicesByID,

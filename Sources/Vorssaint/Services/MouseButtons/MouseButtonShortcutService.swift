@@ -79,6 +79,9 @@ final class MouseButtonShortcutService: ObservableObject {
     private struct SpacesGesturePress {
         let button: Int64
         let down: CGEvent
+        /// Read once, at the press: a direction flipped halfway through a drag
+        /// would send the hand back over Spaces it just left.
+        let followsDrag: Bool
         var tracker: MouseSpacesGestureSupport.Tracker
     }
 
@@ -439,9 +442,11 @@ final class MouseButtonShortcutService: ObservableObject {
     /// stale copy is dropped rather than replayed at a spot the pointer left.
     private func armSpacesGesture(_ event: CGEvent, button: Int64) -> Unmanaged<CGEvent>? {
         guard let down = event.copy() else { return Unmanaged.passUnretained(event) }
-        spacesGesture = SpacesGesturePress(button: button,
-                                           down: down,
-                                           tracker: .init(origin: event.location))
+        spacesGesture = SpacesGesturePress(
+            button: button,
+            down: down,
+            followsDrag: UserDefaults.standard.bool(forKey: DefaultsKey.mouseSpacesGestureFollowsDrag),
+            tracker: .init(origin: event.location))
         return nil
     }
 
@@ -454,7 +459,7 @@ final class MouseButtonShortcutService: ObservableObject {
         // The press has done something, so its release belongs here too and
         // the app never receives half a click.
         consumedButtons.insert(gesture.button)
-        perform(action)
+        perform(MouseSpacesGestureSupport.resolved(action, followsDrag: gesture.followsDrag))
     }
 
     /// Spaces and the overviews are asked for the way the keyboard asks for

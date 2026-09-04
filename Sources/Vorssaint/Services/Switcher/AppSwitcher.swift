@@ -912,6 +912,7 @@ final class AppSwitcher: ObservableObject {
         totalWindowCount = list.count
         searchQuery = ""
         isSearchPinned = false
+        SwitcherAppIconCache.beginSession()
         self.windows = list
         // Optional.map: a session that starts with no source clears the
         // context instead of keeping the previous session's.
@@ -1397,6 +1398,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func endSession() {
+        SwitcherAppIconCache.endSession()
         sessionActive = false
         pendingShow?.cancel()
         pendingShow = nil

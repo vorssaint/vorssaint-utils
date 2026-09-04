@@ -9,6 +9,18 @@ enum CommandBarClipboardAccess {
     }
 }
 
+enum CommandBarMenuPath {
+    /// The trail to a menu command, from the app name down. Every Mac app
+    /// carries a menu named after itself, which made those rows read
+    /// "Notes \u{203A} Notes", so a name is never repeated right after itself.
+    static func crumb(appName: String, path: [String]) -> String {
+        ([appName] + path).reduce(into: [String]()) { trail, name in
+            guard !name.isEmpty, trail.last != name else { return }
+            trail.append(name)
+        }.joined(separator: " \u{203A} ")
+    }
+}
+
 /// What an empty field shows. Pure, because the ranking, the panel and the
 /// tests all need the same answer.
 enum CommandBarHome {

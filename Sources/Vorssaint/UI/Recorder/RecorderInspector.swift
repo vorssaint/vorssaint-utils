@@ -85,25 +85,16 @@ struct RecorderInspector: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionTitle(strings.lookLabel)
             HStack(spacing: 7) {
-                lookCard(.raw,
-                         title: strings.lookRaw,
-                         subtitle: strings.shapeOriginal,
-                         icon: "rectangle")
-                lookCard(.clean,
-                         title: strings.lookClean,
-                         subtitle: strings.pointerSmoothingSmooth,
+                lookCard(.raw, title: strings.lookRaw, icon: "rectangle")
+                lookCard(.clean, title: strings.lookClean,
                          icon: "cursorarrow.motionlines")
-                lookCard(.studio,
-                         title: strings.lookStudio,
-                         subtitle: strings.backgroundSectionLabel,
-                         icon: "sparkles")
+                lookCard(.studio, title: strings.lookStudio, icon: "sparkles")
             }
         }
     }
 
     private func lookCard(_ look: RecorderEditDocument.Look,
                           title: String,
-                          subtitle: String,
                           icon: String) -> some View {
         let selected = model.document.matches(look)
         let hovered = hoveredLook == look
@@ -114,18 +105,11 @@ struct RecorderInspector: View {
         } label: {
             VStack(spacing: 6) {
                 lookPreview(look, icon: icon)
-                VStack(spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                    Text(subtitle)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 5)
@@ -262,11 +246,13 @@ struct RecorderInspector: View {
             Text(title)
                 .font(.system(size: 10.5))
                 .foregroundStyle(Color(white: 0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
                 .frame(width: 50, alignment: .leading)
             Slider(value: Binding(get: { value }, set: onChange), in: 0...1)
                 .controlSize(.mini)
                 .onTapGesture(count: 2) { onReset() }
-            Text(String(format: "%.0f%%", value * 100))
+            Text(String(format: "%.0f%%", locale: MetricFormat.locale, value * 100))
                 .font(.system(size: 10.5, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(Color(white: 0.86))
@@ -301,7 +287,7 @@ struct RecorderInspector: View {
             valueSlider(title: strings.zoomAmountLabel,
                         value: segment.amount,
                         range: RecorderSupport.zoomAmountRange,
-                        format: "%.1fx",
+                        format: "%.1f×",
                         onChange: { model.setSelectedZoomAmount($0) },
                         onCommit: { model.commitZoomEdit() },
                         onReset: {
@@ -549,7 +535,7 @@ struct RecorderInspector: View {
                 valueSlider(title: strings.pointerSizeLabel,
                             value: model.document.pointerSize,
                             range: RecorderSupport.pointerSizeRange,
-                            format: "%.2fx",
+                            format: "%.2f×",
                             onChange: { doubleBinding(\.pointerSize).wrappedValue = $0 },
                             onReset: { doubleBinding(\.pointerSize).wrappedValue = 1 })
                 Toggle(strings.clickRingToggle, isOn: boolBinding(\.showsClickRing))
@@ -590,7 +576,7 @@ struct RecorderInspector: View {
                         valueSlider(title: strings.zoomAmountLabel,
                                     value: model.document.zoomAmount,
                                     range: RecorderSupport.zoomAmountRange,
-                                    format: "%.1fx",
+                                    format: "%.1f×",
                                     onChange: { doubleBinding(\.zoomAmount).wrappedValue = $0 },
                                     onReset: { doubleBinding(\.zoomAmount).wrappedValue = 1.8 })
                         if model.hasPointerTrack {
@@ -628,7 +614,7 @@ struct RecorderInspector: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button(model.canCreateAutomaticZooms
-                   ? strings.createAutomaticZooms : strings.zoomLaneEmptyHint) {
+                   ? strings.createAutomaticZooms : strings.addZoomButton) {
                 if model.canCreateAutomaticZooms {
                     model.regenerateZooms()
                 } else {

@@ -262,8 +262,11 @@ final class DiskImageInstallerService {
 
         let stagedApp = stagingDirectory.appendingPathComponent(candidate.appURL.lastPathComponent,
                                                                  isDirectory: true)
+        // Carrying the mounted image's quarantine over leaves the installed app eligible for
+        // path randomization, so macOS runs it from a read-only random location instead of
+        // Applications. The checks below are the same assessment that flag defers to.
         let copy = Self.run("/usr/bin/ditto", arguments: [
-            "--rsrc", "--extattr", "--acl", "--qtn",
+            "--rsrc", "--extattr", "--acl", "--noqtn",
             candidate.appURL.path, stagedApp.path,
         ])
         guard copy.status == 0, Self.validBundle(at: stagedApp) else {

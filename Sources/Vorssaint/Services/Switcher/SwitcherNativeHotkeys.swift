@@ -16,7 +16,7 @@ enum SwitcherNativeHotkeys {
         UserDefaults.standard.array(
             forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int] ?? [])
     private static var suppressed: Set<SwitcherNativeSymbolicHotKey> = storedMarker.known
-    private static var orphansRepaired = false
+    private static var orphaned = Set(storedMarker.orphaned)
 
     private typealias SetEnabledFunction = @convention(c) (Int32, Bool) -> CGError
     private typealias IsEnabledFunction = @convention(c) (Int32) -> Bool
@@ -72,13 +72,10 @@ enum SwitcherNativeHotkeys {
     }
 
     private static func repairOrphans(_ setEnabled: SetEnabledFunction) {
-        guard !orphansRepaired, !storedMarker.orphaned.isEmpty else { return }
-        // Rewrite the marker only once every orphan is back on. A failed
-        // enable keeps its id in the marker, so the next `apply` or the next
-        // launch retries instead of dropping the key with nothing to restore it.
-        let stillOff = storedMarker.orphaned.filter { setEnabled($0, true) != .success }
-        guard stillOff.isEmpty else { return }
-        orphansRepaired = true
+        guard !orphaned.isEmpty else { return }
+        // Keep failed repairs in every marker write, including writes made by
+        // `apply`, so another launch can still restore them after a crash.
+        orphaned = orphaned.filter { setEnabled($0, true) != .success }
         persist(suppressed)
     }
 
@@ -109,10 +106,11 @@ enum SwitcherNativeHotkeys {
     }
 
     private static func persist(_ keys: Set<SwitcherNativeSymbolicHotKey>) {
-        if keys.isEmpty {
+        let marker = Set(keys.map(\.rawValue)).union(orphaned)
+        if marker.isEmpty {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         } else {
-            UserDefaults.standard.set(keys.map { Int($0.rawValue) }.sorted(),
+            UserDefaults.standard.set(marker.map(Int.init).sorted(),
                                       forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         }
     }

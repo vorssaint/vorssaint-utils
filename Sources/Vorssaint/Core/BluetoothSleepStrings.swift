@@ -59,12 +59,12 @@ extension BluetoothSleepStrings {
 
     static let tr = BluetoothSleepStrings(
         pageTitle: "Uykuda Bluetooth",
-        hubDescription: "Mac uyurken Bluetooth'u kapatır, böylece çantadaki kulaklıklar bağlanmayı bırakır.",
-        enable: "Mac uyuduğunda Bluetooth'u kapat",
-        enableCaption: "Uykudan önce zaten kapalı olan Bluetooth'a dokunulmaz ve uyanışta kapalı kalır.",
-        restoreToggle: "Mac uyandığında Bluetooth'u yeniden aç",
+        hubDescription: "Mac uyurken Bluetooth’u kapatır, böylece çantadaki kulaklıklar bağlanmayı bırakır.",
+        enable: "Mac uyuduğunda Bluetooth’u kapat",
+        enableCaption: "Uykudan önce zaten kapalı olan Bluetooth’a dokunulmaz ve uyanışta kapalı kalır.",
+        restoreToggle: "Mac uyandığında Bluetooth’u yeniden aç",
         restoreCaption: "Yalnızca kapatan Vorssaint olduğunda.",
-        unsupported: "Bu Mac'te Bluetooth denetleyicisi yok."
+        unsupported: "Bu Mac’te Bluetooth denetleyicisi yok."
     )
 
     static let ru = BluetoothSleepStrings(
