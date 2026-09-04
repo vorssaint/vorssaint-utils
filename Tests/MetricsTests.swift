@@ -3787,8 +3787,9 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.windowGestureEnabled] as? Bool == false,
                "window move and resize gestures are opt-in")
         expect(registeredDefaults[DefaultsKey.mouseSpacesGestureEnabled] as? Bool == false
-                && registeredDefaults[DefaultsKey.mouseSpacesGestureButton] as? Int == 0,
-               "the Spaces and Mission Control drag ships off and with no button bound")
+                && registeredDefaults[DefaultsKey.mouseSpacesGestureButton] as? Int == 0
+                && registeredDefaults[DefaultsKey.mouseSpacesGestureFollowsDrag] as? Bool == false,
+               "the Spaces and Mission Control drag ships off, with no button bound and the plain direction")
         expect(registeredDefaults[DefaultsKey.windowGestureModifiers] as? String == "control+command",
                "window gestures start with the deliberate control-command chord")
         expect(registeredDefaults[DefaultsKey.windowGestureRaiseWindow] as? Bool == false,
@@ -14296,7 +14297,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.mouseButtons(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 30 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 32 && values.allSatisfy { !$0.isEmpty },
                    "every mouse button string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible mouse button strings (\(language.rawValue))")
@@ -18404,6 +18405,14 @@ struct MetricsTests {
         var bothAxes = MouseSpacesGestureSupport.Tracker(origin: .zero)
         expect(bothAxes.advance(to: CGPoint(x: spaceStep, y: overviewStep * 2), now: 0) == .appExpose,
                "a step past both thresholds is read as the axis that went furthest past its own")
+
+        expect(MouseSpacesGestureSupport.resolved(.spaceRight, followsDrag: true) == .spaceLeft
+                && MouseSpacesGestureSupport.resolved(.spaceLeft, followsDrag: true) == .spaceRight
+                && MouseSpacesGestureSupport.resolved(.missionControl, followsDrag: true) == .missionControl
+                && MouseSpacesGestureSupport.resolved(.appExpose, followsDrag: true) == .appExpose
+                && MouseSpacesGestureSupport.resolved(.spaceRight, followsDrag: false) == .spaceRight
+                && MouseSpacesGestureSupport.resolved(.spaceLeft, followsDrag: false) == .spaceLeft,
+               "the Space can follow the hand instead of the pointer, and the overviews never swap")
 
         expect(MouseSpacesGestureSupport.canBind(3) && MouseSpacesGestureSupport.canBind(31)
                 && !MouseSpacesGestureSupport.canBind(2) && !MouseSpacesGestureSupport.canBind(32)

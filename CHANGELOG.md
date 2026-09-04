@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
+
 ### Changed
 - The radial menu throws its actions out of the center one after another when it opens and gathers them back in when it closes.
 - The radial menu's highlight sweeps to the pointed slice, and its actions sit on the glass as raised buttons with guides between them.
