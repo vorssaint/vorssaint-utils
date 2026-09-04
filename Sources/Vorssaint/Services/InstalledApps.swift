@@ -216,4 +216,52 @@ enum InstalledApps {
             $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
         }
     }
+
+    /// Applications offered by pickers whose runtime matcher accepts either a
+    /// bundle identifier or an executable-path identity. Ordinary installed
+    /// apps stay bundle based; a running program without a bundle identifier is
+    /// represented by its normalized executable path. A bundleless process
+    /// that owns the frontmost app is included even when AppKit marks its
+    /// activation policy as prohibited, because it is visibly user-facing.
+    static func identityPickerApplications(excluding excluded: Set<String>,
+                                           includeRunningApplications: Bool = true,
+                                           includeRunningExecutables: Bool = true) -> [InstalledApp] {
+        var apps = installedBundleApplications(excluding: excluded,
+                                               includeRunningApplications: includeRunningApplications)
+        guard includeRunningExecutables else { return apps }
+
+        let runningExecutables: [InstalledApp] = {
+            let collect: () -> [InstalledApp] = {
+                let workspace = NSWorkspace.shared
+                let frontmostPID = workspace.frontmostApplication?.processIdentifier
+                return workspace.runningApplications.compactMap { app in
+                    guard !app.isTerminated,
+                          app.bundleIdentifier == nil,
+                          let executableURL = app.executableURL,
+                          app.activationPolicy != .prohibited
+                            || app.processIdentifier == frontmostPID else {
+                        return nil
+                    }
+                    let url = executableURL.resolvingSymlinksInPath().standardizedFileURL
+                    guard let identity = MouseAppExceptionSupport.executablePathIdentity(url.path),
+                          !excluded.contains(identity) else { return nil }
+                    let name = app.localizedName ?? FileManager.default.displayName(atPath: url.path)
+                    return InstalledApp(id: identity,
+                                        name: name,
+                                        bundleID: nil,
+                                        url: url,
+                                        isSystem: isSystemApplication(at: url))
+                }
+            }
+            return Thread.isMainThread ? collect() : DispatchQueue.main.sync(execute: collect)
+        }()
+
+        var seen = Set(apps.compactMap(\.bundleID))
+        apps += runningExecutables.filter { seen.insert($0.id).inserted }
+        return apps.sorted {
+            let result = $0.name.localizedCaseInsensitiveCompare($1.name)
+            return result == .orderedSame ? $0.id < $1.id : result == .orderedAscending
+        }
+    }
+
 }

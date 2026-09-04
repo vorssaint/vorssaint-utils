@@ -252,6 +252,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeaturePresets.swift \
         Sources/Vorssaint/Core/FeatureHubStrings.swift \
         Sources/Vorssaint/Core/ShortcutSettingsStrings.swift \
+        Sources/Vorssaint/Core/ShortcutGuardStrings.swift \
         Sources/Vorssaint/Core/SettingsBackupSupport.swift \
         Sources/Vorssaint/Core/BackupStrings.swift \
         Sources/Vorssaint/Core/SnippetStrings.swift \
@@ -294,6 +295,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderEditDocument.swift \
         Sources/Vorssaint/Core/AppInfo.swift \
         Sources/Vorssaint/Core/GlobalShortcut.swift \
+        Sources/Vorssaint/Services/ShortcutGuard/ShortcutGuardSupport.swift \
         Sources/Vorssaint/Core/Localization.swift \
         Sources/Vorssaint/Core/Localizations/Strings+*.swift \
         Sources/Vorssaint/Core/FeatureStrings.swift \

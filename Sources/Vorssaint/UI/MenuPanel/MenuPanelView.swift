@@ -498,7 +498,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // Case order IS the default panel order (PanelLayout.itemOrder falls back
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
-    case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
+    case screenshot, quickLauncher, appUpdates, shortcutGuard, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
          commandBar, screenRecorder
 
@@ -512,6 +512,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cleaner: return .cleaner
         case .homebrew: return .homebrew
         case .appUpdates: return .appUpdates
+        case .shortcutGuard: return .shortcutGuard
         case .media: return .mediaTools
         case .clipboard: return .clipboardHistory
         case .windowLayout: return .windowLayout
@@ -538,6 +539,7 @@ struct UtilitiesSection: View {
     @State private var showURLCleaner = false
     @State private var showHomebrewPanel = false
     @State private var showAppUpdatesPanel = false
+    @State private var showShortcutGuardPanel = false
     @State private var showMediaPanel = false
     @State private var showClipboardPanel = false
     @State private var showRecentCapturesPanel = false
@@ -548,6 +550,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCleaner) private var showCleanerAction = true
     @AppStorage(DefaultsKey.panelUtilityHomebrew) private var showHomebrew = true
     @AppStorage(DefaultsKey.panelUtilityAppUpdates) private var showAppUpdates = true
+    @AppStorage(DefaultsKey.panelUtilityShortcutGuard) private var showShortcutGuard = true
     @AppStorage(DefaultsKey.panelUtilityMedia) private var showMedia = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showClipboard = true
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showWindowLayout = true
@@ -607,6 +610,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showWindowLayoutPanel = false
                 }
+            } else if showShortcutGuardPanel {
+                PanelShortcutGuardView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    showShortcutGuardPanel = false
+                }
             } else if showAppUpdatesPanel {
                 PanelAppUpdatesView {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
@@ -662,7 +670,7 @@ struct UtilitiesSection: View {
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel || showShortcutGuardPanel
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -702,6 +710,7 @@ struct UtilitiesSection: View {
         switch item {
         case .homebrew: return showHomebrew
         case .appUpdates: return showAppUpdates
+        case .shortcutGuard: return showShortcutGuard
         case .media: return showMedia
         case .clipboard: return showClipboard
         case .windowLayout: return showWindowLayout
@@ -743,6 +752,17 @@ struct UtilitiesSection: View {
                                 action: {
                                     showAppUpdatesPanel = true
                                 })
+        case .shortcutGuard:
+            UtilityActionButton(
+                title: FeatureStrings.shortcutGuard(l10n.language).title,
+                caption: FeatureStrings.shortcutGuard(l10n.language).description,
+                systemImage: AppFeature.shortcutGuard.symbolName,
+                isEditing: editing,
+                showsDragHandle: true,
+                visibility: $showShortcutGuard,
+                action: {
+                    showShortcutGuardPanel = true
+                })
         case .media:
             UtilityActionButton(title: l10n.s.mediaName,
                                 caption: l10n.s.mediaEnableCaption,
@@ -1013,6 +1033,7 @@ struct UtilitiesSection: View {
         utilityOrderRaw = ""
         showHomebrew = true
         showAppUpdates = true
+        showShortcutGuard = true
         showMedia = true
         showClipboard = true
         showWindowLayout = true

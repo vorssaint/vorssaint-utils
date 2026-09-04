@@ -122,6 +122,11 @@ enum DefaultsKey {
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
+    // Per-app shortcut guard: selected app/process identities and shortcuts.
+    static let shortcutGuardEnabled = "shortcutGuardEnabled"
+    static let shortcutGuardAppIdentities = "shortcutGuardAppIdentities"
+    static let shortcutGuardBlockedShortcuts = "shortcutGuardBlockedShortcuts"
+
     // Quit/close protection: each shortcut owns its full configuration and app list.
     static let quitProtectionQuitEnabled = "quitProtectionQuitEnabled"
     static let quitProtectionQuitMode = "quitProtectionQuitMode"
@@ -230,6 +235,7 @@ enum DefaultsKey {
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let panelUtilityAppUpdates = "panelUtilityAppUpdates"
+    static let panelUtilityShortcutGuard = "panelUtilityShortcutGuard"
     static let appUpdatesCheckFrequency = "appUpdatesCheckFrequency"  // off | daily | weekly
     static let appUpdatesIncludeHomebrewApps = "appUpdatesIncludeHomebrewApps"
     static let appUpdatesIncludeAppStore = "appUpdatesIncludeAppStore"
@@ -904,6 +910,9 @@ enum Defaults {
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,
+        DefaultsKey.shortcutGuardEnabled: true,
+        DefaultsKey.shortcutGuardAppIdentities: [String](),
+        DefaultsKey.shortcutGuardBlockedShortcuts: [String](),
         DefaultsKey.quitProtectionQuitEnabled: false,
         DefaultsKey.quitProtectionQuitMode: QuitProtectionMode.hold.rawValue,
         DefaultsKey.quitProtectionQuitHoldDurationMs: QuitProtectionSupport.defaultHoldDurationMilliseconds,
@@ -1007,6 +1016,7 @@ enum Defaults {
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.panelUtilityAppUpdates: true,
+        DefaultsKey.panelUtilityShortcutGuard: true,
         // The list itself costs nothing until it is opened; only the
         // background check keeps a timer, so it starts off.
         DefaultsKey.appUpdatesCheckFrequency: AppUpdatesSupport.CheckFrequency.off.rawValue,

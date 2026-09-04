@@ -93,7 +93,7 @@ extension AppFeature {
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
-        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey, .quitWindowProtection:
+        case .switcher, .keyboardDebounce, .finderCutPaste, .finderRename, .superKey, .quitWindowProtection, .shortcutGuard:
             return .keyboard
         case .textSnippets, .autoQuit:
             return .inputs

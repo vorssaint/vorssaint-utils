@@ -6,7 +6,7 @@ import Carbon.HIToolbox
 import SwiftUI
 
 struct ShortcutRecorderButton: NSViewRepresentable {
-    let shortcut: GlobalShortcut
+    let shortcut: GlobalShortcut?
     let isEnabled: Bool
     /// Shown inside the field while it is listening. Short on purpose: the
     /// sentence explaining what to do lives in the caption under the row, so
@@ -80,7 +80,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
 }
 
 final class RecorderButton: NSButton {
-    var shortcut = GlobalShortcut.keepAwakeDefault
+    var shortcut: GlobalShortcut?
     var waitingTitle = ""
     var emptyTitle: String?
     var clearAction: (() -> Void)?
@@ -252,7 +252,7 @@ final class RecorderButton: NSButton {
         if isRecording {
             title = waitingTitle
         } else {
-            title = emptyTitle ?? shortcut.displayString
+            title = emptyTitle ?? shortcut?.displayString ?? ""
         }
     }
 }

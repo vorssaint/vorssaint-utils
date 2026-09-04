@@ -17,7 +17,7 @@ enum AppFeature: String, CaseIterable {
     case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit
     // Mouse and keyboard
     case scrollInverter, focusFollowsMouse, smoothScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
-         mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
+         mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection, shortcutGuard
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
          diskImageInstaller
@@ -98,7 +98,7 @@ extension AppFeature {
         case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit:
             return .windowsDock
         case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
+             .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .shortcutGuard, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .diskImageInstaller:
@@ -140,6 +140,7 @@ extension AppFeature {
             ).systemImage
         case .mouseClickDebounce: return "cursorarrow.click"
         case .quitWindowProtection: return "shield.lefthalf.filled"
+        case .shortcutGuard: return "keyboard.badge.ellipsis"
         case .clipboardHistory: return "doc.on.clipboard"
         case .pastePlain: return "doc.plaintext"
         case .finderCutPaste: return "scissors"
@@ -217,6 +218,7 @@ extension AppFeature {
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
         case .quitWindowProtection:
             return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled]
+        case .shortcutGuard: return [DefaultsKey.shortcutGuardEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
         case .superKey: return [DefaultsKey.superKeyEnabled]
         case .mouseClickDebounce: return [DefaultsKey.mouseClickDebounceEnabled]
@@ -254,7 +256,7 @@ extension AppFeature {
         case .scrollInverter, .focusFollowsMouse, .smoothScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
-             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
+             .autoQuit, .quitWindowProtection, .shortcutGuard, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
              .commandBar:
@@ -314,7 +316,7 @@ extension AppFeature {
         Dictionary(uniqueKeysWithValues: allCases.map {
             ($0.availabilityKey,
              $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                && $0 != .killProcess)
+                && $0 != .killProcess && $0 != .shortcutGuard)
         })
     }
 
@@ -325,7 +327,8 @@ extension AppFeature {
                                isAvailable: (AppFeature) -> Bool,
                                boolFor: (String) -> Bool,
                                stringFor: (String) -> String?,
-                               dataFor: (String) -> Data? = { _ in nil }) -> [AppFeature] {
+                               dataFor: (String) -> Data? = { _ in nil },
+                               nonEmptyArrayFor: (String) -> Bool = { _ in false }) -> [AppFeature] {
         allCases.filter { feature in
             guard feature.permissions.contains(permission), isAvailable(feature) else { return false }
             let keys = feature.enabledKeys
@@ -345,6 +348,9 @@ extension AppFeature {
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
+            case (.shortcutGuard, .accessibility):
+                return nonEmptyArrayFor(DefaultsKey.shortcutGuardAppIdentities)
+                    && nonEmptyArrayFor(DefaultsKey.shortcutGuardBlockedShortcuts)
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)
             case (.monitorMemory, .notifications):
@@ -401,7 +407,8 @@ extension AppFeature {
                        isAvailable: { defaults.bool(forKey: $0.availabilityKey) },
                        boolFor: { defaults.bool(forKey: $0) },
                        stringFor: { defaults.string(forKey: $0) },
-                       dataFor: { defaults.data(forKey: $0) })
+                       dataFor: { defaults.data(forKey: $0) },
+                       nonEmptyArrayFor: { !(defaults.array(forKey: $0) ?? []).isEmpty })
     }
 }
 
