@@ -24,10 +24,9 @@ enum SystemShortcutTakeover {
     /// Raw-id callers (the switcher) say what they want under their own name.
     static func setWanted(_ ids: Set<Int32>, for source: String) {
         lock.lock()
+        defer { lock.unlock() }
         if ids.isEmpty { wanted.removeValue(forKey: source) } else { wanted[source] = ids }
-        let desired = SystemShortcutTakeoverSupport.union(of: wanted)
-        lock.unlock()
-        apply(desired: desired)
+        applyLocked(desired: SystemShortcutTakeoverSupport.union(of: wanted))
     }
 
     /// A feature whose hotkey just registered. Only shortcuts the user chose to
@@ -76,16 +75,30 @@ enum SystemShortcutTakeover {
         lock.lock()
         let shortcut = takeOverKeys.contains(storageKey) ? claims[storageKey] : nil
         lock.unlock()
-        guard let shortcut, let entries = SymbolicHotKeys.liveEntries() else {
+        guard let shortcut else {
             setWanted([], for: storageKey)
             return
         }
+        // A nil table means the private calls are missing on this macOS, so
+        // nothing could have been taken over and nothing needs handing back.
+        guard let entries = SymbolicHotKeys.liveEntries() else { return }
         setWanted(SystemShortcutTakeoverSupport.ids(matching: shortcut, in: entries), for: storageKey)
     }
 
-    private static func apply(desired: Set<Int32>) {
+    /// Quit: every key a feature took over goes back, whichever feature held
+    /// it. Not every claimant suspends in `applicationWillTerminate`, and the
+    /// ones that do should not each have to remember this.
+    static func restoreAll() {
         lock.lock()
         defer { lock.unlock() }
+        wanted.removeAll()
+        claims.removeAll()
+        applyLocked(desired: [])
+    }
+
+    /// The transition itself. Callers hold `lock`, so the decision about what
+    /// every source wants and the writes that follow are one critical section.
+    private static func applyLocked(desired: Set<Int32>) {
         guard let setEnabled = SymbolicHotKeys.setEnabled,
               let isEnabled = SymbolicHotKeys.isEnabled else { return }
         let candidates = desired.union(suppressed)
