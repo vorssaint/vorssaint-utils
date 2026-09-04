@@ -23,23 +23,10 @@ enum SystemShortcutTakeover {
         let currentlyEnabled = candidates.filter { isEnabled($0) }
         let transition = SystemShortcutTakeoverSupport.transition(
             from: suppressed, to: desired, currentlyEnabled: currentlyEnabled)
-        var next = suppressed
-        for id in transition.suppress {
-            let newlyOwned = next.insert(id).inserted
-            if newlyOwned { persist(next) }
-            if setEnabled(id, false) != .success, newlyOwned {
-                next.remove(id)
-                persist(next)
-            }
-        }
-        // A failed enable keeps its id in the marker, so the next `apply` or
-        // the next launch retries instead of dropping the key with nothing
-        // left to restore it.
-        for id in transition.restore where setEnabled(id, true) == .success {
-            next.remove(id)
-            persist(next)
-        }
-        suppressed = next
+        suppressed = SystemShortcutTakeoverSupport.apply(
+            transition, owned: suppressed,
+            setEnabled: { setEnabled($0, $1) == .success },
+            persist: persist)
     }
 
     /// Launch: whatever the previous process still owned is given back, except

@@ -11677,6 +11677,39 @@ struct MetricsTests {
         expect(SystemShortcutTakeoverSupport.transition(from: [], to: [], currentlyEnabled: [1, 28])
                == SystemShortcutTransition(suppress: [], restore: []),
                "an id given back successfully leaves the marker and is never switched on again")
+        // The pass itself, against a fake table: the marker must be on disk
+        // before a key is switched off, a refused disable must take the key
+        // back out, and a refused enable must leave it in for the retry.
+        var fakeEnabled: Set<Int32> = [1, 27]
+        var refused: Set<Int32> = []
+        var markers: [Set<Int32>] = []
+        var writeAheadMissing = false
+        let fakeSetEnabled: (Int32, Bool) -> Bool = { id, on in
+            if !on, !(markers.last?.contains(id) ?? false) { writeAheadMissing = true }
+            guard !refused.contains(id) else { return false }
+            if on { fakeEnabled.insert(id) } else { fakeEnabled.remove(id) }
+            return true
+        }
+        let record: (Set<Int32>) -> Void = { markers.append($0) }
+        refused = [27]
+        let afterRefusedDisable = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTransition(suppress: [1, 27], restore: []), owned: [],
+            setEnabled: fakeSetEnabled, persist: record)
+        expect(afterRefusedDisable == [1] && fakeEnabled == [27] && markers.last == [1]
+               && markers.contains(where: { $0.contains(27) }),
+               "a refused disable rolls the key back out of the marker it was written ahead into")
+        refused = [1]
+        let afterRefusedEnable = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTransition(suppress: [], restore: [1]), owned: afterRefusedDisable,
+            setEnabled: fakeSetEnabled, persist: record)
+        expect(afterRefusedEnable == [1] && !fakeEnabled.contains(1),
+               "a refused enable keeps the key in the marker for the next pass to retry")
+        refused = []
+        expect(SystemShortcutTakeoverSupport.apply(
+                   SystemShortcutTransition(suppress: [], restore: [1]), owned: afterRefusedEnable,
+                   setEnabled: fakeSetEnabled, persist: record).isEmpty && fakeEnabled == [1, 27],
+               "the retry finishes the give-back")
+        expect(!writeAheadMissing, "ownership is persisted before every disable")
 
         expect(SwitcherSupport.isCurrentActivationGeneration(12, current: 12)
                && !SwitcherSupport.isCurrentActivationGeneration(11, current: 12),
