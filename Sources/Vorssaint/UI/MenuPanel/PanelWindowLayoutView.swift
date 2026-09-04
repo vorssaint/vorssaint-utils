@@ -9,6 +9,7 @@ struct PanelWindowLayoutView: View {
     @ObservedObject private var service = WindowLayoutService.shared
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
+    @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowLayoutHiddenActions) private var hiddenActionsRaw = ""
@@ -112,6 +113,16 @@ struct PanelWindowLayoutView: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
+            if edgeSnapEnabled {
+                WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
+                                         text: text,
+                                         resetTitle: l10n.s.shortcutReset,
+                                         compact: true)
+                    .onChange(of: edgeSnapDisabledZones) { _, _ in
+                        WindowLayoutService.shared.syncWithPreferences()
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
             if systemTilingEnabled {
                 Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 9.5))

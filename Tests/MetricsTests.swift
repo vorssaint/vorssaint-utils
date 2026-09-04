@@ -3784,6 +3784,8 @@ struct MetricsTests {
                "window layout shortcuts stay off until enabled")
         expect(registeredDefaults[DefaultsKey.windowEdgeSnapEnabled] as? Bool == false,
                "dragging windows to screen edges is opt-in")
+        expect(registeredDefaults[DefaultsKey.windowEdgeSnapDisabledZones] as? String == "",
+               "every visual edge snap zone starts enabled")
         expect(registeredDefaults[DefaultsKey.windowGestureEnabled] as? Bool == false,
                "window move and resize gestures are opt-in")
         expect(registeredDefaults[DefaultsKey.mouseSpacesGestureEnabled] as? Bool == false
@@ -5387,14 +5389,18 @@ struct MetricsTests {
         let snapScreen = WindowEdgeSnapScreen(frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                               visibleFrame: snapVisibleFrame)
         func snapTarget(_ point: CGPoint,
-                        screens: [WindowEdgeSnapScreen] = [snapScreen]) -> WindowEdgeSnapTarget? {
-            WindowEdgeSnapSupport.target(at: point, screens: screens)
+                        screens: [WindowEdgeSnapScreen] = [snapScreen],
+                        enabledZones: Set<WindowEdgeSnapZone> =
+                            WindowEdgeSnapZone.allEnabled) -> WindowEdgeSnapTarget? {
+            WindowEdgeSnapSupport.target(at: point,
+                                         screens: screens,
+                                         enabledZones: enabledZones)
         }
         let topSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
                                                      current: snapVisibleFrame,
                                                      visibleFrame: snapVisibleFrame)
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY))
-               == WindowEdgeSnapTarget(action: .maximize,
+               == WindowEdgeSnapTarget(zone: .top,
                                        frame: topSnapFrame,
                                        visibleFrame: snapVisibleFrame),
                "touching the lower edge of the menu bar previews maximize")
@@ -5413,6 +5419,45 @@ struct MetricsTests {
                "inclusive screen corners take priority over straight edges")
         expect(snapTarget(CGPoint(x: 720, y: 450)) == nil,
                "dragging inside a display never creates a snap target")
+
+        let disabledZoneStorage = WindowEdgeSnapZone.disabledZonesStorageValue([.right, .top])
+        expect(disabledZoneStorage == "top,right"
+               && WindowEdgeSnapZone.disabledZones(
+                   from: "unknown, right,top"
+               ) == Set([.top, .right]),
+               "edge snap zones serialize visibly and discard unknown saved ids")
+        let withoutTop = WindowEdgeSnapZone.enabledZones(from: disabledZoneStorage)
+        expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY),
+                          enabledZones: withoutTop) == nil
+               && snapTarget(CGPoint(x: 0, y: 450),
+                             enabledZones: withoutTop)?.zone == .left,
+               "turning off the top zone leaves the other visual snap areas active")
+        expect(WindowEdgeSnapSupport.target(
+                   at: CGPoint(x: 720, y: snapVisibleFrame.maxY),
+                   screens: [snapScreen],
+                   enabledZones: []
+               ) == nil,
+               "turning off every visual zone leaves no snap target")
+
+        let quartzScreenFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let quartzTopCenter = CGPoint(x: 720, y: 0)
+        expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
+                   quartzTopCenter,
+                   screenFrames: [quartzScreenFrame]
+               ) == CGPoint(x: 720, y: 1),
+               "an active top snap zone stays clear of the system top drag")
+        expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
+                   quartzTopCenter,
+                   screenFrames: [quartzScreenFrame],
+                   enabledZones: withoutTop
+               ) == quartzTopCenter,
+               "a disabled top zone returns the exact pointer event to the system")
+        expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
+                   CGPoint(x: 20, y: 0),
+                   screenFrames: [quartzScreenFrame],
+                   enabledZones: [.topLeft]
+               ) == CGPoint(x: 20, y: 1),
+               "an active top corner still protects its own snap gesture")
 
         let leftSnapScreen = WindowEdgeSnapScreen(
             frame: CGRect(x: -1280, y: 0, width: 1280, height: 800),
@@ -14075,6 +14120,13 @@ struct MetricsTests {
                && AppFeature.focusFollowsMouse.monitorsPermissionChanges
                && AppFeature.mouseNavigation.monitorsPermissionChanges,
                "only active Window Layout hooks and live features keep the permission watcher alive")
+        expect(!AppFeature.windowLayout.monitorsPermissionChanges(
+                   edgeSnapDisabledZones: WindowEdgeSnapZone.disabledZonesStorageValue(
+                       WindowEdgeSnapZone.allEnabled
+                   ),
+                   boolFor: { $0 == DefaultsKey.windowEdgeSnapEnabled }
+               ),
+               "Window Layout does not poll permissions when every snap zone is off")
 
         expect(activeSet(.accessibility)
                 == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
@@ -14685,10 +14737,26 @@ struct MetricsTests {
         let previousWindowEdgeSnapEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowEdgeSnapEnabled
         )
+        let previousWindowEdgeSnapZones = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowEdgeSnapDisabledZones
+        )
         UserDefaults.standard.set(false, forKey: DefaultsKey.windowGestureEnabled)
         UserDefaults.standard.set(true, forKey: DefaultsKey.windowEdgeSnapEnabled)
+        UserDefaults.standard.set("", forKey: DefaultsKey.windowEdgeSnapDisabledZones)
         expect(AppFeature.windowLayout.energyProfile == .pointer,
                "edge snapping reports its trackpad and mouse listener")
+        UserDefaults.standard.set(
+            WindowEdgeSnapZone.disabledZonesStorageValue(WindowEdgeSnapZone.allEnabled),
+            forKey: DefaultsKey.windowEdgeSnapDisabledZones
+        )
+        expect(AppFeature.windowLayout.energyProfile == .idle,
+               "edge snapping keeps no pointer listener when every visual zone is off")
+        if let previousWindowEdgeSnapZones {
+            UserDefaults.standard.set(previousWindowEdgeSnapZones,
+                                      forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+        }
         if let previousWindowEdgeSnapEnergy {
             UserDefaults.standard.set(previousWindowEdgeSnapEnergy,
                                       forKey: DefaultsKey.windowEdgeSnapEnabled)
@@ -19588,6 +19656,7 @@ struct MetricsTests {
                "snippets travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.windowGestureEnabled)
                 && backupKeys.contains(DefaultsKey.windowEdgeSnapEnabled)
+                && backupKeys.contains(DefaultsKey.windowEdgeSnapDisabledZones)
                 && backupKeys.contains(DefaultsKey.windowGestureModifiers)
                 && backupKeys.contains(DefaultsKey.windowGestureRaiseWindow)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)

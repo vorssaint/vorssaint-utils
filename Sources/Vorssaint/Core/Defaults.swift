@@ -586,6 +586,7 @@ enum DefaultsKey {
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
+    static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowGestureEnabled = "windowGestureEnabled"
     static let windowGestureModifiers = "windowGestureModifiers"
     static let windowGestureRaiseWindow = "windowGestureRaiseWindow"
@@ -1302,6 +1303,7 @@ enum Defaults {
         DefaultsKey.windowDirectionalEnabled: false,
         DefaultsKey.windowDirectionalShortcut: GlobalShortcut.windowDirectionalDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
+        DefaultsKey.windowEdgeSnapDisabledZones: "",
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
         DefaultsKey.windowGestureRaiseWindow: false,
