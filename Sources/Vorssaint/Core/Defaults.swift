@@ -71,8 +71,11 @@ enum DefaultsKey {
     static let switcherEnabled = "switcherEnabled"
     static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
     // Machine state, never exported: the system shortcuts this process owns,
-    // so a launch after a crash can restore them.
+    // so a launch after a crash can restore them. The switcher-only key is
+    // what builds before the take-over was shared wrote; it is read once,
+    // folded into the shared one, and then retired.
     static let switcherNativeHotkeysSuppressed = "switcherNativeHotkeysSuppressed"
+    static let systemShortcutsSuppressed = "systemShortcutsSuppressed"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"
