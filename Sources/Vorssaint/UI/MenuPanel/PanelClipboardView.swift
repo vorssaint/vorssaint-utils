@@ -15,6 +15,10 @@ struct PanelClipboardView: View {
     /// knows which cards the inner scroll view is actually showing.
     @State private var entryFrames: [UUID: CGRect] = [:]
     @State private var listHeight: CGFloat = 0
+    /// The focus the list last reconciled against. A frame update that
+    /// arrives with a different focus belongs to a keyboard move, not to a
+    /// manual scroll, whatever order SwiftUI delivers the two in.
+    @State private var focusSeenByList: PanelFocusTarget?
     /// The card a keyboard move is still scrolling into view. Until it
     /// arrives, its frame says "hidden" without the user having scrolled
     /// anywhere, so focus must not chase the viewport in the meantime.
@@ -156,17 +160,11 @@ struct PanelClipboardView: View {
                 .onPreferenceChange(ListHeightPreferenceKey.self) { listHeight = $0 }
                 .onPreferenceChange(EntryFramePreferenceKey.self) { frames in
                     entryFrames = frames
-                    followScrollIfFocusedCardHidden()
+                    reconcileFocus(with: proxy)
                 }
                 .panelKeyboardRowList(filteredEntries.flatMap(keyboardRows))
-                .onChange(of: navigator.focus) { _, focus in
-                    // A keyboard move onto a card the list is not fully
-                    // showing scrolls to it. A move onto a card already in
-                    // view leaves the scroll alone — that is also how focus
-                    // following a manual scroll avoids undoing that scroll.
-                    guard let entryID = focusedEntryID(focus), !isFullyVisible(entryID) else { return }
-                    revealingEntryID = entryID
-                    proxy.scrollTo(entryID, anchor: .center)
+                .onChange(of: navigator.focus) { _, _ in
+                    reconcileFocus(with: proxy)
                 }
             }
             .frame(maxHeight: 260)
@@ -183,14 +181,31 @@ struct PanelClipboardView: View {
         return frame.maxY <= 0 || frame.minY >= listHeight
     }
 
-    /// Keyboard focus is only meaningful on a button the user can see.
-    /// When a manual scroll pushes the focused card entirely out of the
-    /// list's viewport, focus moves to the nearest card still on screen —
-    /// the same button when that card has it — rather than staying on a
-    /// hidden button that Return would act on sight unseen.
-    private func followScrollIfFocusedCardHidden() {
-        guard case .row(let row)? = navigator.focus,
-              let entryID = focusedEntryID(navigator.focus),
+    /// Runs on every focus change and every frame update, and works out
+    /// which of the two it is looking at.
+    ///
+    /// A keyboard move onto a card the list is not fully showing scrolls
+    /// to it; onto a card already in view it leaves the scroll alone, which
+    /// is also how focus following a manual scroll avoids undoing that
+    /// scroll.
+    ///
+    /// Keyboard focus is only meaningful on a button the user can see. When
+    /// a manual scroll pushes the focused card entirely out of the list's
+    /// viewport, focus moves to the nearest card still on screen — the same
+    /// button when that card has it — rather than staying on a hidden
+    /// button that Return would act on sight unseen.
+    private func reconcileFocus(with proxy: ScrollViewProxy) {
+        let focus = navigator.focus
+        let entryID = focusedEntryID(focus)
+        if focus != focusSeenByList {
+            focusSeenByList = focus
+            revealingEntryID = nil
+            guard let entryID, !isFullyVisible(entryID) else { return }
+            revealingEntryID = entryID
+            proxy.scrollTo(entryID, anchor: .center)
+            return
+        }
+        guard case .row(let row)? = focus, let entryID,
               let localID = row.local as? String else { return }
         if revealingEntryID == entryID {
             if isFullyVisible(entryID) { revealingEntryID = nil }
@@ -202,7 +217,9 @@ struct PanelClipboardView: View {
         let action = localID.split(separator: "-").last.map(String.init) ?? "copy"
         let rows = keyboardRows(for: target)
         let sameButton = keyboardRow(target, action)
-        navigator.focusRow(rows.contains(sameButton) ? sameButton : keyboardRow(target, "copy"))
+        let destination = rows.contains(sameButton) ? sameButton : keyboardRow(target, "copy")
+        focusSeenByList = .row(destination)
+        navigator.focusRow(destination)
     }
 
     private func emptyState(_ message: String) -> some View {
