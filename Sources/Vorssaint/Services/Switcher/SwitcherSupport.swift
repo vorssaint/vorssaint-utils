@@ -50,7 +50,13 @@ enum SwitcherNativeSymbolicHotKey: Int32, CaseIterable, Hashable {
     case commandTab = 1
     case commandShiftTab = 2
     case nextWindow = 27
-    case previousWindow = 28
+    // Previous window is 220, not 28. 28 is "Save picture of screen as a
+    // file", the ⌘⇧3 screenshot key, which sits on the 3 key rather than the
+    // grave key. Because the take-over matches each id's live combination
+    // against the switcher shortcuts and allows an extra Shift for the
+    // reverse direction, the wrong id both handed ⌘⇧3 to a switcher shortcut
+    // on the 3 key and left the real ⌘⇧` with macOS.
+    case previousWindow = 220
 }
 
 struct SwitcherNativeHotkeyTransition: Equatable {
