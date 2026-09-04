@@ -16858,7 +16858,7 @@ struct MetricsTests {
         let recentCaptureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
             encoding: .utf8)) ?? ""
-        expect(recentCaptureServiceSource.contains("QuickToolHotkey(id: 25)")
+        expect(recentCaptureServiceSource.contains("QuickToolHotkey(id: 21)")
                 && recentCaptureServiceSource.contains(
                     "hotkey.onPress = { [weak self] in self?.showHistoryWindow() }")
                 && featureRuntimeSource.components(separatedBy:

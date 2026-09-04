@@ -41,7 +41,7 @@ final class RecentCaptureService: ObservableObject {
     @Published private(set) var shortcutRegistrationFailed = false
 
     private let manager = FileManager.default
-    private let hotkey = QuickToolHotkey(id: 25)
+    private let hotkey = QuickToolHotkey(id: 21)
     private let queue = DispatchQueue(label: "com.vorssaint.utils.recent-captures",
                                       qos: .utility)
     private let generationLock = NSLock()
