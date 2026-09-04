@@ -106,6 +106,10 @@ struct PanelClipboardView: View {
                 .panelKeyboardRow(PanelRowID(.utilities, "clipboard-showWindow"),
                                   actions: PanelRowActions(activate: { history.showHistoryWindow() }), cornerRadius: 6)
             }
+            .panelKeyboardRowGroup(history.recentEntries.isEmpty
+                                   ? [PanelRowID(.utilities, "clipboard-showWindow")]
+                                   : [PanelRowID(.utilities, "clipboard-clearRecent"),
+                                      PanelRowID(.utilities, "clipboard-showWindow")])
         }
         .panelCard()
     }
@@ -125,6 +129,7 @@ struct PanelClipboardView: View {
                         }
                     }
                 }
+                .panelKeyboardRowList(filteredEntries.flatMap(keyboardRows))
                 .onChange(of: navigator.focus) { _, focus in
                     guard let entryID = focusedEntryID(focus) else { return }
                     proxy.scrollTo(entryID, anchor: .center)
@@ -141,6 +146,22 @@ struct PanelClipboardView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 72)
             .panelCard()
+    }
+
+    /// One card's buttons, left to right. Only the ids the card actually
+    /// registers: a missing neighbour would strand Left/Right inside the group.
+    private func keyboardRows(for entry: ClipboardHistoryEntry) -> [PanelRowID] {
+        var ids: [PanelRowID] = []
+        if canReorderEntries, history.canMove(entry, .up) { ids.append(keyboardRow(entry, "up")) }
+        if canReorderEntries, history.canMove(entry, .down) { ids.append(keyboardRow(entry, "down")) }
+        ids.append(keyboardRow(entry, "pin"))
+        ids.append(keyboardRow(entry, "copy"))
+        ids.append(keyboardRow(entry, "delete"))
+        return ids
+    }
+
+    private func keyboardRow(_ entry: ClipboardHistoryEntry, _ action: String) -> PanelRowID {
+        PanelRowID(.utilities, "clipboard-\(entry.id)-\(action)")
     }
 
     private func focusedEntryID(_ focus: PanelFocusTarget?) -> UUID? {
@@ -237,7 +258,7 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.moveUp)
                 .disabled(!canMoveUp)
-                .panelKeyboardRow(canMoveUp ? PanelRowID(.utilities, "clipboard-\(entry.id)-up") : nil,
+                .panelKeyboardRow(canMoveUp ? keyboardRow(entry, "up") : nil,
                                   actions: PanelRowActions(activate: { history.move(entry, .up) }), cornerRadius: 6)
                 Button {
                     history.move(entry, .down)
@@ -249,7 +270,7 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.moveDown)
                 .disabled(!canMoveDown)
-                .panelKeyboardRow(canMoveDown ? PanelRowID(.utilities, "clipboard-\(entry.id)-down") : nil,
+                .panelKeyboardRow(canMoveDown ? keyboardRow(entry, "down") : nil,
                                   actions: PanelRowActions(activate: { history.move(entry, .down) }), cornerRadius: 6)
                 Button {
                     history.togglePin(entry)
@@ -260,7 +281,7 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
-                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-\(entry.id)-pin"),
+                .panelKeyboardRow(keyboardRow(entry, "pin"),
                                   actions: PanelRowActions(activate: { history.togglePin(entry) }), cornerRadius: 6)
                 Button {
                     // The tick means "it is on the clipboard", so it waits for
@@ -276,7 +297,7 @@ struct PanelClipboardView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.mini)
-                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-\(entry.id)-copy"),
+                .panelKeyboardRow(keyboardRow(entry, "copy"),
                                   actions: PanelRowActions(activate: {
                                       history.copy(entry) { copied in
                                           if copied { copiedID = entry.id }
@@ -291,13 +312,14 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.delete)
-                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-\(entry.id)-delete"),
+                .panelKeyboardRow(keyboardRow(entry, "delete"),
                                   actions: PanelRowActions(activate: { history.remove(entry) }), cornerRadius: 6)
                 Spacer()
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
             }
+            .panelKeyboardRowGroup(keyboardRows(for: entry))
         }
         .panelCard()
     }
