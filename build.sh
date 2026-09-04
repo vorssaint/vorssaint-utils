@@ -239,6 +239,8 @@ if (( TEST )); then
     # The full app build below remains optimized and is the optimizer gate.
     # Unit assertions do not need optimization; avoiding it cuts most of the
     # test harness compile time without reducing the code the tests exercise.
+    # The test file is passed absolute so `#filePath` bakes in a real path:
+    # assertions anchored to it then work from any working directory.
     swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
         "${VM_STATISTICS_COMPAT_FLAGS[@]}" \
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
@@ -403,7 +405,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
-        Tests/MetricsTests.swift \
+        "$PWD/Tests/MetricsTests.swift" \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0

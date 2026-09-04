@@ -12614,13 +12614,48 @@ struct MetricsTests {
             "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
         let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
         for _ in 0..<64 { poolGate.signal() }
-        _ = starvedProbe.wait(timeout: .now() + 5)
-        expect(occupiedWorkers == 64 && poolIsStarved,
-               "the dispatch pool starvation this check needs was actually reached")
-        expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
-                && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
-                && starvedPoolElapsed < 0.5,
-               "a subprocess is watched off the dispatch pool, so a starved pool cannot strand it")
+        // Only when the probe never ran: its one signal was already taken above
+        // otherwise, and waiting for a second that no one sends costs the full
+        // timeout on every run of a machine whose pool cannot be starved.
+        if poolIsStarved { _ = starvedProbe.wait(timeout: .now() + 5) }
+        expect(occupiedWorkers == 64,
+               "the dispatch pool's blocking workers were all taken")
+        // 64 is where libdispatch reports the soft limit, not where it stops:
+        // on a machine with enough cores it hands out a 65th thread and the
+        // pool cannot be starved this way at all. Measured on a 15-core M5,
+        // where all 64 workers block and a further submission still runs
+        // immediately. So the scenario is checked when it can be built and
+        // skipped when it cannot, rather than failing a machine for refusing
+        // to starve. The absence rule below is what holds everywhere.
+        if poolIsStarved {
+            expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
+                    && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
+                    && starvedPoolElapsed < 0.5,
+                   "a subprocess is watched off the dispatch pool, so a starved pool cannot strand it")
+        }
+        // The invariant the fix rests on, and the one a pool that refuses to
+        // starve cannot demonstrate: the wait for a child must not be handed
+        // to the shared pool, because the runner's own spawns are what filled
+        // it (issue #971). Absence rather than the one call that was found
+        // holding it, so a new one cannot reintroduce the freeze quietly.
+        // Anchored to this file's compiled path rather than the process's
+        // working directory, so running the binary from anywhere still finds
+        // the runner instead of reading "" and blaming the pool invariant.
+        let runnerURL = URL(fileURLWithPath: #filePath)  // Tests/MetricsTests.swift
+            .deletingLastPathComponent()                 // Tests/
+            .deletingLastPathComponent()                 // repo root
+            .appendingPathComponent("Sources/Vorssaint/Services/BoundedProcessRunner.swift")
+        let runnerSource = (try? String(contentsOf: runnerURL, encoding: .utf8)) ?? ""
+        let runnerCode = runnerSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(!runnerCode.isEmpty, "the bounded runner's source was found")
+        // Matching `.global(` rather than the one spelling: a queue bound to a
+        // local first (`let q: DispatchQueue = .global(qos:)`) reaches the same
+        // pool by a name this rule would otherwise never see.
+        expect(!runnerCode.contains(".global("),
+               "a bounded subprocess is never waited on from the shared dispatch pool")
 
         var networkDelta = NetworkProcessDeltaTracker(maxGap: 10)
         let baselineNetwork = [
