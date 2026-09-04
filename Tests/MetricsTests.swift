@@ -23074,11 +23074,10 @@ struct MetricsTests {
         // The guard is on the install, not on the variant: a plain --install
         // replaces the bundle under the released id, so it strands the grants
         // on the app people actually use. CI never passes --install.
-        expect(buildScript.components(separatedBy: "\n").contains {
-                   !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#")
-                       && $0.contains("(( DEV || INSTALL ))")
-                       && $0.contains("developer_id_identity")
-               },
+        let buildScriptCode = buildScript.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
+        expect(buildScriptCode.contains { $0.contains("(( DEV || INSTALL ))")
+                                            && $0.contains("developer_id_identity") },
                "the signing setup guard covers every install, not only the Developer variant")
         // The setup script must run against the stock /usr/bin/openssl, which
         // is LibreSSL: it rejects OpenSSL 3's -legacy flag outright, and the
@@ -23096,8 +23095,6 @@ struct MetricsTests {
         // MARK: The stable identity is judged by whether codesign can sign with it
         // A find-identity listing names certificates codesign then rejects, and
         // -v excludes every self-signed one, so neither spelling may decide.
-        let buildScriptCode = buildScript.components(separatedBy: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
         for (script, code, identity) in [("build.sh", buildScriptCode, "$LEGACY_IDENTITY"),
                                          ("Tools/setup-signing.sh", signingSetupCode.components(separatedBy: "\n"),
                                           "$IDENTITY")] {
