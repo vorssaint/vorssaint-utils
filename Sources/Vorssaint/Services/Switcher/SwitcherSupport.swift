@@ -1173,6 +1173,26 @@ enum SwitcherSupport {
                                        restore: current.subtracting(desired))
     }
 
+    /// Splits a stored take-over marker into the ids this build owns and the
+    /// ids it no longer recognises. An earlier build wrote the reverse window
+    /// key as 28, which is the screenshot key; a marker left behind by a crash
+    /// of that build must still give 28 back, or the key stays switched off
+    /// with nothing left to restore it.
+    static func storedNativeHotkeys(_ stored: [Int])
+        -> (known: Set<SwitcherNativeSymbolicHotKey>, orphaned: [Int32]) {
+        var known: Set<SwitcherNativeSymbolicHotKey> = []
+        var orphaned: [Int32] = []
+        for value in stored {
+            guard let rawValue = Int32(exactly: value) else { continue }
+            if let key = SwitcherNativeSymbolicHotKey(rawValue: rawValue) {
+                known.insert(key)
+            } else {
+                orphaned.append(rawValue)
+            }
+        }
+        return (known, orphaned)
+    }
+
     /// Mirrors the event tap's `allowingExtraShift` match: Shift reverses a
     /// shortcut that does not already require it, and WindowServer registers
     /// the forward and reverse directions as separate symbolic hotkeys.

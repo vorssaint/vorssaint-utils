@@ -11342,8 +11342,9 @@ struct MetricsTests {
             appsShortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command]),
             windowShortcut: .switcherWindowDefault,
             nativeShortcuts: mappedSwitcherShortcuts)
-        expect(!threeKeyTakeover.contains { mappedSwitcherShortcuts[$0] == screenshotToFile },
-               "a switcher shortcut on the 3 key never switches the macOS screenshot key off")
+        expect(threeKeyTakeover == [.nextWindow, .previousWindow]
+               && !threeKeyTakeover.contains { mappedSwitcherShortcuts[$0] == screenshotToFile },
+               "a switcher shortcut on the 3 key takes over only the two window-cycling keys, never the screenshot key")
         expect(SwitcherSupport.nativeHotkeyTransition(
                     from: [],
                     to: Set(SwitcherNativeSymbolicHotKey.allCases),
@@ -11356,6 +11357,9 @@ struct MetricsTests {
                == SwitcherNativeHotkeyTransition(suppress: [],
                                                  restore: Set(SwitcherNativeSymbolicHotKey.allCases)),
                "native takeover leaves pre-disabled keys alone and restores only owned keys")
+        let staleMarker = SwitcherSupport.storedNativeHotkeys([27, 28, 220, 99_999_999_999])
+        expect(staleMarker.known == [.nextWindow, .previousWindow] && staleMarker.orphaned == [28],
+               "a marker written by an earlier build hands back the ids this build no longer owns")
         expect(SwitcherSupport.isCurrentActivationGeneration(12, current: 12)
                && !SwitcherSupport.isCurrentActivationGeneration(11, current: 12),
                "App Switcher ignores retries left by an older activation")

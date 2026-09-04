@@ -10,14 +10,13 @@ import Foundation
 /// write-ahead marker lets a fresh process repair state left by a crash.
 enum SwitcherNativeHotkeys {
     private static let lock = NSLock()
-    private static var suppressed: Set<SwitcherNativeSymbolicHotKey> = {
-        let stored = UserDefaults.standard.array(
-            forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int] ?? []
-        return Set(stored.compactMap { value in
-            guard let rawValue = Int32(exactly: value) else { return nil }
-            return SwitcherNativeSymbolicHotKey(rawValue: rawValue)
-        })
-    }()
+    /// The marker the previous process left behind, split once at load into
+    /// the ids this build owns and the ids it no longer recognises.
+    private static let storedMarker = SwitcherSupport.storedNativeHotkeys(
+        UserDefaults.standard.array(
+            forKey: DefaultsKey.switcherNativeHotkeysSuppressed) as? [Int] ?? [])
+    private static var suppressed: Set<SwitcherNativeSymbolicHotKey> = storedMarker.known
+    private static var orphansRepaired = false
 
     private typealias SetEnabledFunction = @convention(c) (Int32, Bool) -> CGError
     private typealias IsEnabledFunction = @convention(c) (Int32) -> Bool
@@ -60,10 +59,34 @@ enum SwitcherNativeHotkeys {
         })
     }
 
+    /// Gives back ids an earlier build owned under a meaning this one no
+    /// longer has (28 was written as the reverse window key; it is the
+    /// screenshot key), then drops them from the marker so this happens once.
+    /// Runs at launch before any feature starts, so it depends neither on the
+    /// switcher's tap coming up nor on the feature still being installed.
+    static func recoverIfNeeded() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let setEnabled else { return }
+        repairOrphans(setEnabled)
+    }
+
+    private static func repairOrphans(_ setEnabled: SetEnabledFunction) {
+        guard !orphansRepaired, !storedMarker.orphaned.isEmpty else { return }
+        // Rewrite the marker only once every orphan is back on. A failed
+        // enable keeps its id in the marker, so the next `apply` or the next
+        // launch retries instead of dropping the key with nothing to restore it.
+        let stillOff = storedMarker.orphaned.filter { setEnabled($0, true) != .success }
+        guard stillOff.isEmpty else { return }
+        orphansRepaired = true
+        persist(suppressed)
+    }
+
     static func apply(_ desired: Set<SwitcherNativeSymbolicHotKey>) {
         lock.lock()
         defer { lock.unlock() }
         guard let setEnabled, let isEnabled else { return }
+        repairOrphans(setEnabled)
         let currentlyEnabled = Set(SwitcherNativeSymbolicHotKey.allCases.filter {
             isEnabled($0.rawValue)
         })
