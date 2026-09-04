@@ -11615,18 +11615,26 @@ struct MetricsTests {
         expect(threeKeyTakeover == [.nextWindow, .previousWindow]
                && !threeKeyTakeover.contains { mappedSwitcherShortcuts[$0] == screenshotToFile },
                "a switcher shortcut on the 3 key takes over only the two window-cycling keys, never the screenshot key")
-        expect(SwitcherSupport.nativeHotkeyTransition(
-                    from: [],
-                    to: Set(SwitcherNativeSymbolicHotKey.allCases),
-                    currentlyEnabled: [.commandTab])
-               == SwitcherNativeHotkeyTransition(suppress: [.commandTab], restore: [])
-               && SwitcherSupport.nativeHotkeyTransition(
-                    from: Set(SwitcherNativeSymbolicHotKey.allCases),
-                    to: [],
-                    currentlyEnabled: [])
-               == SwitcherNativeHotkeyTransition(suppress: [],
-                                                 restore: Set(SwitcherNativeSymbolicHotKey.allCases)),
-               "native takeover leaves pre-disabled keys alone and restores only owned keys")
+        // The switcher is the take-over's caller: it resolves its own ids out
+        // of the live table and hands them over, so a wrong id can no longer
+        // reach the WindowServer through a hardcoded enum.
+        let liveSwitcherEntries: [LiveSystemShortcut] = [
+            LiveSystemShortcut(id: 1, shortcut: .switcherDefault, enabled: true),
+            LiveSystemShortcut(id: 2, shortcut: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.command, .shift]), enabled: true),
+            LiveSystemShortcut(id: 27, shortcut: .switcherWindowDefault, enabled: true),
+            LiveSystemShortcut(id: 28, shortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_3), modifiers: [.command, .shift]), enabled: true),
+            LiveSystemShortcut(id: 220, shortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_Grave), modifiers: [.command, .shift]), enabled: true),
+        ]
+        expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: true,
+                                               appsShortcut: .switcherDefault,
+                                               windowShortcut: .switcherWindowDefault,
+                                               liveEntries: liveSwitcherEntries) == [1, 2, 27, 220],
+               "the switcher asks the shared take-over for exactly its four ids, never the screenshot key")
+        expect(SwitcherSupport.nativeHotkeyIDs(takeOverSystemShortcuts: false,
+                                               appsShortcut: .switcherDefault,
+                                               windowShortcut: .switcherWindowDefault,
+                                               liveEntries: liveSwitcherEntries).isEmpty,
+               "without opt-in the switcher asks for nothing")
 
         // The shared take-over works on raw WindowServer ids. Same transition
         // rule as the switcher had: suppress only what is enabled now, restore
@@ -11650,71 +11658,26 @@ struct MetricsTests {
                && SystemShortcutTakeoverSupport.migratedMarker(old: nil, new: nil).isEmpty
                && SystemShortcutTakeoverSupport.migratedMarker(old: [99_999_999_999], new: nil).isEmpty,
                "the old switcher marker folds into the shared one once, dropping anything that is not an id")
-        let staleMarker = SwitcherSupport.storedNativeHotkeys([27, 28, 220, 99_999_999_999])
-        expect(staleMarker.known == [.nextWindow, .previousWindow] && staleMarker.orphaned == [28],
-               "a marker written by an earlier build hands back the ids this build no longer owns")
-        var nativeMarker = [28, 999]
-        var nativeEnabled: Set<Int32> = [1, 2, 27, 220]
-        var nativeRestoreFailures: Set<Int32> = [28]
-        var nativeSuppressFailures: Set<Int32> = []
-        var nativeWriteAheadMissing = false
-        var nativeCalls: [Int32] = []
-        var nativeState = SwitcherNativeHotkeyState(stored: nativeMarker)
-        func setNativeHotkey(_ id: Int32, _ enabled: Bool) -> Bool {
-            nativeCalls.append(id)
-            if enabled {
-                guard !nativeRestoreFailures.contains(id) else { return false }
-                nativeEnabled.insert(id)
-            } else {
-                if !nativeMarker.contains(Int(id)) { nativeWriteAheadMissing = true }
-                guard !nativeSuppressFailures.contains(id) else { return false }
-                nativeEnabled.remove(id)
-            }
-            return true
-        }
-        func applyNativeHotkeys(_ desired: Set<SwitcherNativeSymbolicHotKey>) {
-            nativeState.apply(desired, isEnabled: { nativeEnabled.contains($0) },
-                              setEnabled: setNativeHotkey, persist: { nativeMarker = $0 })
-        }
-        nativeState.recoverOrphans(setEnabled: setNativeHotkey, persist: { nativeMarker = $0 })
-        expect(nativeMarker == [28], "a partial legacy hotkey repair retains only failed ids")
-        applyNativeHotkeys([.commandTab])
-        expect(nativeMarker == [1, 28], "taking over a current hotkey preserves a failed legacy repair")
-        applyNativeHotkeys([])
-        expect(nativeMarker == [28], "restoring current hotkeys preserves a failed legacy repair")
-        expect(nativeCalls.filter { $0 == 999 }.count == 1,
-               "successfully recovered hotkeys are not enabled again during retries")
-        nativeState = SwitcherNativeHotkeyState(stored: nativeMarker)
-        nativeRestoreFailures = []
-        nativeState.recoverOrphans(setEnabled: setNativeHotkey, persist: { nativeMarker = $0 })
-        expect(nativeMarker.isEmpty && nativeEnabled.contains(28),
-               "a new process can finish a legacy hotkey repair from the persisted marker")
-        nativeEnabled.remove(28)
-        let nativeCallsBeforeUserDisable = nativeCalls.count
-        applyNativeHotkeys([])
-        expect(!nativeEnabled.contains(28) && nativeCalls.count == nativeCallsBeforeUserDisable,
-               "a user's later disable survives after a legacy repair completes")
-        nativeEnabled.remove(1)
-        applyNativeHotkeys([.commandTab])
-        expect(nativeMarker.isEmpty && !nativeEnabled.contains(1),
-               "a pre-disabled current hotkey never becomes owned")
-        nativeEnabled.insert(1)
-        nativeSuppressFailures = [1]
-        applyNativeHotkeys([.commandTab])
-        expect(nativeMarker.isEmpty && nativeEnabled.contains(1),
-               "a failed hotkey suppression rolls back newly recorded ownership")
-        nativeSuppressFailures = []
-        applyNativeHotkeys([.commandTab])
-        nativeRestoreFailures = [1]
-        applyNativeHotkeys([])
-        expect(nativeMarker == [1] && !nativeEnabled.contains(1),
-               "a failed current hotkey restore keeps its ownership marker")
-        nativeState = SwitcherNativeHotkeyState(stored: nativeMarker)
-        nativeRestoreFailures = []
-        applyNativeHotkeys([])
-        expect(nativeMarker.isEmpty && nativeEnabled.contains(1),
-               "a new process restores a current hotkey left owned after a failure")
-        expect(!nativeWriteAheadMissing, "hotkey ownership is persisted before every suppression")
+        // #1357's contracts, now carried by the shared rule. Launch gives back
+        // every id the marker still holds, including when the App Switcher is
+        // off: a feature that is off claims none of them, so all of them are
+        // restored without the switcher's tap or the feature being installed.
+        let legacyMarker = SystemShortcutTakeoverSupport.migratedMarker(old: [27, 28, 220], new: nil)
+        expect(SystemShortcutTakeoverSupport.transition(from: legacyMarker, to: [], currentlyEnabled: [])
+               == SystemShortcutTransition(suppress: [], restore: [27, 28, 220]),
+               "launch gives back a marker left by an earlier build even with the switcher off")
+        // Say the WindowServer refused 28: `apply` leaves it in the marker, so
+        // every later transition asks for it again and the give-back finishes
+        // at the next take-over or in the next process.
+        expect(SystemShortcutTakeoverSupport.transition(from: [28], to: [1], currentlyEnabled: [1])
+               == SystemShortcutTransition(suppress: [1], restore: [28]),
+               "an id whose give-back failed stays owned and is retried while another key is taken over")
+        expect(SystemShortcutTakeoverSupport.transition(from: [1, 28], to: [], currentlyEnabled: [])
+               == SystemShortcutTransition(suppress: [], restore: [1, 28]),
+               "a marker that survived a failed give-back is retried in full by the next process")
+        expect(SystemShortcutTakeoverSupport.transition(from: [], to: [], currentlyEnabled: [1, 28])
+               == SystemShortcutTransition(suppress: [], restore: []),
+               "an id given back successfully leaves the marker and is never switched on again")
 
         expect(SwitcherSupport.isCurrentActivationGeneration(12, current: 12)
                && !SwitcherSupport.isCurrentActivationGeneration(11, current: 12),

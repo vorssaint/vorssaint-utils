@@ -22,7 +22,7 @@ enum SymbolicHotKeys {
     typealias GetValueFunction =
         @convention(c) (Int32, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>) -> CGError
 
-    /// Writes go through `SwitcherNativeHotkeys.apply`, which owns the
+    /// Writes go through `SystemShortcutTakeover.apply`, which owns the
     /// write-ahead marker and the restore-after-crash bookkeeping. Nothing
     /// else should call this directly.
     static let setEnabled: SetEnabledFunction? = {

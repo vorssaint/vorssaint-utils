@@ -419,12 +419,12 @@ final class AppSwitcher: ObservableObject {
         let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
         let takeOver = UserDefaults.standard.bool(
             forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
-        SwitcherNativeHotkeys.apply(
-            SwitcherSupport.nativeHotkeysToSuppress(
+        SystemShortcutTakeover.apply(
+            desired: SwitcherSupport.nativeHotkeyIDs(
                 takeOverSystemShortcuts: takeOver,
                 appsShortcut: apps,
                 windowShortcut: windows,
-                nativeShortcuts: SwitcherNativeHotkeys.configuredShortcuts())
+                liveEntries: SymbolicHotKeys.liveEntries() ?? [])
         )
     }
 
@@ -435,7 +435,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func restoreNativeHotkeys() {
-        SwitcherNativeHotkeys.apply([])
+        SystemShortcutTakeover.apply(desired: [])
     }
 
     private func clearEventTapThread() -> Bool {
