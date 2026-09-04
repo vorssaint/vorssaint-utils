@@ -298,6 +298,7 @@ struct ShortcutPreferenceRow: View {
     @AppStorage private var rawValue: String
     @State private var errorText: String?
     @State private var isRecording = false
+    @State private var pendingTakeOver: GlobalShortcut?
 
     init(role: GlobalShortcutRole,
          isEnabled: Bool = true,
@@ -343,7 +344,10 @@ struct ShortcutPreferenceRow: View {
                                                notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
                                                recordingChanged: { recording in
                                                    isRecording = recording
-                                                   if recording { errorText = nil }
+                                                   if recording {
+                                                       errorText = nil
+                                                       pendingTakeOver = nil
+                                                   }
                                                },
                                                invalidAction: {
                                                    errorText = l10n.s.shortcutInvalid
@@ -377,6 +381,16 @@ struct ShortcutPreferenceRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let pendingTakeOver {
+                SystemShortcutTakeOverOffer(shortcut: pendingTakeOver,
+                                            onAccept: {
+                                                rawValue = pendingTakeOver.storageValue
+                                                SystemShortcutTakeover.setTakeOver(role.storageKey, true)
+                                                self.pendingTakeOver = nil
+                                                onChange()
+                                            },
+                                            onDismiss: { self.pendingTakeOver = nil })
+            }
         }
         .onChange(of: l10n.language) { _, _ in errorText = nil }
     }
@@ -399,16 +413,24 @@ struct ShortcutPreferenceRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if shortcut.conflictsWithSystemShortcut(for: role) {
-            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
-            return
-        }
         if let conflict = additionalConflict(shortcut) {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
+        // The offer is the last word on a combination: every other check has
+        // already passed, so accepting it writes exactly what a save writes.
+        if shortcut.conflictsWithSystemShortcut, !SystemShortcutTakeover.isTakenOver(role.storageKey) {
+            pendingTakeOver = shortcut
+            errorText = nil
+            return
+        }
         rawValue = shortcut.storageValue
         errorText = nil
+        // Re-recording the key that is already taken over keeps the choice;
+        // moving the row to a key macOS does not want drops the stale entry.
+        if !shortcut.conflictsWithSystemShortcut {
+            SystemShortcutTakeover.setTakeOver(role.storageKey, false)
+        }
         onChange()
     }
 }

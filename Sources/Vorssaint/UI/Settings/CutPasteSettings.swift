@@ -14,6 +14,7 @@ struct CutPasteSettings: View {
         GlobalShortcut.finderRenameDefault.storageValue
     @State private var renameError: String?
     @State private var recordingRename = false
+    @State private var pendingRenameTakeOver: GlobalShortcut?
 
     private var renameText: FinderRenameFeatureStrings {
         FeatureStrings.finderRename(l10n.language)
@@ -84,7 +85,10 @@ struct CutPasteSettings: View {
                             notCapturedAction: { renameError = l10n.s.shortcutNotCaptured },
                             recordingChanged: { recording in
                                 recordingRename = recording
-                                if recording { renameError = nil }
+                                if recording {
+                                    renameError = nil
+                                    pendingRenameTakeOver = nil
+                                }
                             },
                             invalidAction: { renameError = l10n.s.shortcutInvalid },
                             captureAction: saveRenameShortcut
@@ -106,6 +110,18 @@ struct CutPasteSettings: View {
                         Text(ShortcutRecordingCaption.text(l10n.s, canClear: false))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if let pendingRenameTakeOver {
+                        SystemShortcutTakeOverOffer(
+                            shortcut: pendingRenameTakeOver,
+                            onAccept: {
+                                renameShortcutRaw = pendingRenameTakeOver.storageValue
+                                SystemShortcutTakeover.setTakeOver(DefaultsKey.finderRenameShortcut, true)
+                                self.pendingRenameTakeOver = nil
+                                FinderRenameService.shared.syncWithPreferences()
+                            },
+                            onDismiss: { self.pendingRenameTakeOver = nil }
+                        )
                     }
                 } header: {
                     Text(renameText.hubTitle)
@@ -143,16 +159,25 @@ struct CutPasteSettings: View {
             renameError = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if shortcut.conflictsWithSystemShortcut {
-            renameError = String(format: l10n.s.shortcutConflictFormat, "macOS")
-            return
-        }
         if let conflict = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
             renameError = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
+        // The offer is the last word on a combination: every other check has
+        // already passed, so accepting it writes exactly what a save writes.
+        if shortcut.conflictsWithSystemShortcut,
+           !SystemShortcutTakeover.isTakenOver(DefaultsKey.finderRenameShortcut) {
+            pendingRenameTakeOver = shortcut
+            renameError = nil
+            return
+        }
         renameShortcutRaw = shortcut.storageValue
         renameError = nil
+        // Re-recording the key that is already taken over keeps the choice;
+        // moving the row to a key macOS does not want drops the stale entry.
+        if !shortcut.conflictsWithSystemShortcut {
+            SystemShortcutTakeover.setTakeOver(DefaultsKey.finderRenameShortcut, false)
+        }
         FinderRenameService.shared.syncWithPreferences()
     }
 }
