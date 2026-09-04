@@ -338,7 +338,7 @@ struct ShortcutPreferenceRow: View {
                 Spacer()
                 VStack(alignment: .trailing, spacing: 4) {
                     HStack(spacing: 8) {
-                        ShortcutRecorderButton(shortcut: shortcut,
+                        ShortcutRecorderButton(shortcut: pendingTakeOver ?? shortcut,
                                                isEnabled: isEnabled,
                                                waitingTitle: l10n.s.shortcutPressKeys,
                                                notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
@@ -358,6 +358,8 @@ struct ShortcutPreferenceRow: View {
                         Button(l10n.s.shortcutReset) {
                             rawValue = role.defaultShortcut.storageValue
                             errorText = nil
+                            pendingTakeOver = nil
+                            SystemShortcutTakeover.setTakeOver(role.storageKey, false)
                             onChange()
                         }
                         .disabled(!isEnabled || shortcut == role.defaultShortcut)
