@@ -12,14 +12,14 @@ body:
         **One problem per issue.** A second problem added to an existing thread
         tends to get lost while the first one is being discussed.
 
-        [Reporting a useful bug](https://github.com/vorssaintapp/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md#reporting-a-useful-bug)
+        [Reporting a useful bug](https://github.com/vorssaint/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md#reporting-a-useful-bug)
         lists what a report needs to be actionable.
 
   - type: checkboxes
     id: preflight
     attributes:
       label: Before you file
-      description: The [troubleshooting guide](https://github.com/vorssaintapp/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md) covers both of these.
+      description: The [troubleshooting guide](https://github.com/vorssaint/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md) covers both of these.
       options:
         - label: "If the feature does nothing at all, I checked that Vorssaint is listed and switched on for the permission it needs in System Settings, Privacy and Security, and toggled it off and back on."
           required: true

@@ -98,8 +98,13 @@ extension AppFeature {
         case .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
+            let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                && !WindowEdgeSnapZone.enabledZones(
+                    from: UserDefaults.standard.string(
+                        forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+                ).isEmpty
             return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
-                || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                || edgeSnapRuns
                 ? .pointer : .idle
         case .radialMenu:
             // With a side button configured the trigger is a mouse tap;

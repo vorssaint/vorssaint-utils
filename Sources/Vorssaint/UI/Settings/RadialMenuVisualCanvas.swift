@@ -18,7 +18,9 @@ struct RadialMenuVisualCanvas: View {
     let onOpenSubmenu: ((RadialMenuItem) -> Void)?
     let onBack: (() -> Void)?
     let onAdd: () -> Void
-    let onReset: () -> Void
+    /// Nil where there is no starter set to go back to, and the button that
+    /// promises one is not shown at all.
+    let onReset: (() -> Void)?
 
     @State private var hoveredIndex: Int?
     @State private var draggingIndex: Int?
@@ -79,22 +81,24 @@ struct RadialMenuVisualCanvas: View {
 
             Spacer()
 
-            Button(text.resetActionsButton) {
-                showingResetConfirm = true
-            }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .foregroundStyle(.white.opacity(0.7))
-            .confirmationDialog(
-                text.resetActionsConfirm,
-                isPresented: $showingResetConfirm,
-                titleVisibility: .visible
-            ) {
-                Button(text.resetActionsConfirm, role: .destructive) {
-                    onReset()
+            if let onReset {
+                Button(text.resetActionsButton) {
+                    showingResetConfirm = true
                 }
-            } message: {
-                Text(text.resetActionsConfirmMessage)
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .foregroundStyle(.white.opacity(0.7))
+                .confirmationDialog(
+                    text.resetActionsConfirm,
+                    isPresented: $showingResetConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button(text.resetActionsConfirm, role: .destructive) {
+                        onReset()
+                    }
+                } message: {
+                    Text(text.resetActionsConfirmMessage)
+                }
             }
         }
         .padding(.horizontal, 14)

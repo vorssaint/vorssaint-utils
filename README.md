@@ -23,9 +23,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/vorssaintapp/vorssaint-utils/releases"><img src="https://img.shields.io/github/v/release/vorssaintapp/vorssaint-utils?label=release&color=4c8dff" alt="Latest release"></a>
-  <a href="https://github.com/vorssaintapp/vorssaint-utils/releases"><img src="https://img.shields.io/github/downloads/vorssaintapp/vorssaint-utils/total?color=4c8dff" alt="Downloads"></a>
-  <a href="https://github.com/vorssaintapp/vorssaint-utils/actions/workflows/ci.yml"><img src="https://github.com/vorssaintapp/vorssaint-utils/actions/workflows/ci.yml/badge.svg?branch=main&event=push" alt="CI status"></a>
+  <a href="https://github.com/vorssaint/vorssaint-utils/releases"><img src="https://img.shields.io/github/v/release/vorssaint/vorssaint-utils?label=release&color=4c8dff" alt="Latest release"></a>
+  <a href="https://github.com/vorssaint/vorssaint-utils/releases"><img src="https://img.shields.io/github/downloads/vorssaint/vorssaint-utils/total?color=4c8dff" alt="Downloads"></a>
+  <a href="https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml"><img src="https://github.com/vorssaint/vorssaint-utils/actions/workflows/ci.yml/badge.svg?branch=main&event=push" alt="CI status"></a>
   <a href="#what-you-need"><img src="https://img.shields.io/badge/macOS-14%2B%20Apple%20Silicon-black" alt="macOS 14 and newer, Apple Silicon"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue" alt="License GPL 3.0 or later"></a>
 </p>
@@ -42,8 +42,8 @@
 </p>
 
 <p align="center">
-  <a href="https://trendshift.io/repositories/53716?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/53716" alt="vorssaintapp/vorssaint-utils | Trendshift" width="250" height="55"></a>
-  <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/weekly?language=Swift" alt="vorssaintapp/vorssaint-utils | Trendshift weekly ranking" width="250" height="55"></a>
+  <a href="https://trendshift.io/repositories/53716?utm_source=repository-badge&amp;utm_medium=badge&amp;utm_campaign=badge-repository-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/repositories/53716" alt="vorssaint/vorssaint-utils | Trendshift" width="250" height="55"></a>
+  <a href="https://trendshift.io/repositories/53716?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-53716" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/53716/weekly?language=Swift" alt="vorssaint/vorssaint-utils | Trendshift weekly ranking" width="250" height="55"></a>
 </p>
 
 <p align="center">
@@ -87,7 +87,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Windows and the Dock
 
 - **App switcher.** A richer take on pressing ⌘Tab, with adjustable live window thumbnails, minimized windows included, and more than one window per app. Simple mode keeps every window and its title without previews or screen capture, with optional grouping to one entry per app. Optionally press S to keep search open after releasing the switcher shortcut, or hide the shortcut hints below the large icon row. Press the window shortcut directly to move between windows of the app in front. Choose whether it opens on the screen under the pointer, the one with the menu bar or the one with the active window. Set per-app rules to include windowless apps, keep them window-only or hide them. Choose apps where Vorssaint pauses both switcher and Dock thumbnail capture while they are in front.
-- **Window layout.** Snap the active window to halves, thirds, sixths, corners or center with configurable gaps between windows and screen edges, maximize it with or without a margin, or move it to the next or previous display, each with its own optional shortcut. Using the left or right shortcut again carries the window to the display on that side, landing on the half it came in through. Restore steps back through recent placements. Turn on edge snapping in Window Layout, then drag a title bar to any screen edge or corner for a live preview. Hold chosen modifiers and drag anywhere to move it, then add Shift to resize. A mouse can also resize with the right button.
+- **Window layout.** Snap the active window to halves, thirds, sixths, corners or center with configurable gaps between windows and screen edges, maximize it with or without a margin, or move it to the next or previous display, each with its own optional shortcut. Using the left or right shortcut again carries the window to the display on that side, landing on the half it came in through. Restore steps back through recent placements. Turn on edge snapping in Window Layout, choose its active edges and corners on the visual screen map, then drag a title bar there for a live preview. Hold chosen modifiers and drag anywhere to move it, then add Shift to resize. A mouse can also resize with the right button.
 - **Dock Preview.** Hover a Dock icon to see adjustable window thumbnails with clear titles, click the one you want or drag it to move and snap the window.
 - **Dock clicks.** Click the Dock icon of the active app to minimize its windows, hide the app, or cycle through its windows.
 - **Maximize windows.** The green button fills the screen without creating another Space, and puts the window back on the next click.
@@ -163,7 +163,7 @@ With [Homebrew](https://brew.sh):
 brew install --cask vorssaint
 ```
 
-Or grab the disk image from the [releases page](https://github.com/vorssaintapp/vorssaint-utils/releases) and drag Vorssaint into Applications.
+Or grab the disk image from the [releases page](https://github.com/vorssaint/vorssaint-utils/releases) and drag Vorssaint into Applications.
 
 Builds are signed with an Apple Developer ID and notarized, so macOS opens them without a fuss and your permissions survive updates.
 
@@ -211,7 +211,7 @@ The shelf and almost every quick toggle need no permission at all. Finder cut an
 ### Build it yourself
 
 ```sh
-git clone https://github.com/vorssaintapp/vorssaint-utils.git
+git clone https://github.com/vorssaint/vorssaint-utils.git
 cd vorssaint-utils
 ./build.sh            # compile, generate the icon, assemble the signed bundle
 ./build.sh --install  # the same, then install into Applications and launch

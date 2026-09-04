@@ -87,8 +87,8 @@ extension PermissionGuideStrings {
 
     static let tr = PermissionGuideStrings(
         title: "Bir adım kaldı",
-        stepOpen: "macOS, Sistem Ayarları'nı doğru listede açtı.",
-        stepToggle: "O listede Vorssaint'i açın.",
+        stepOpen: "macOS, Sistem Ayarları’nı doğru listede açtı.",
+        stepToggle: "O listede Vorssaint’i açın.",
         stepReturn: "Buraya dönün. Bu kart kendiliğinden fark eder.",
         waiting: "İzin bekleniyor…",
         granted: "İzin verildi!",
@@ -138,27 +138,27 @@ extension PermissionGuideStrings {
     )
 
     static let fr = PermissionGuideStrings(
-        title: "Plus qu'une étape",
+        title: "Plus qu’une étape",
         stepOpen: "macOS a ouvert les Réglages Système sur la bonne liste.",
         stepToggle: "Activez Vorssaint dans cette liste.",
         stepReturn: "Revenez ici. Cette carte le remarque toute seule.",
-        waiting: "En attente de l'autorisation…",
-        granted: "Autorisation accordée !",
+        waiting: "En attente de l’autorisation…",
+        granted: "Autorisation accordée\u{00A0}!",
         closeHelp: "Fermer",
-        staleHint: "Déjà activé dans cette liste ? Cette entrée appartient à une copie précédente de l'app. Recommencez pour la remplacer.",
+        staleHint: "Déjà activé dans cette liste\u{00A0}? Cette entrée appartient à une copie précédente de l’app. Recommencez pour la remplacer.",
         startOver: "Recommencer",
         relaunch: "Relancer pour appliquer"
     )
 
     static let it = PermissionGuideStrings(
         title: "Manca un passo",
-        stepOpen: "macOS ha aperto le Impostazioni di Sistema sull'elenco giusto.",
-        stepToggle: "Attiva Vorssaint in quell'elenco.",
+        stepOpen: "macOS ha aperto le Impostazioni di Sistema sull’elenco giusto.",
+        stepToggle: "Attiva Vorssaint in quell’elenco.",
         stepReturn: "Torna qui. Questa scheda se ne accorge da sola.",
         waiting: "In attesa del permesso…",
         granted: "Permesso concesso!",
         closeHelp: "Chiudi",
-        staleHint: "Già attivo in quell'elenco? Quella voce appartiene a una copia precedente dell'app. Ricomincia per sostituirla.",
+        staleHint: "Già attivo in quell’elenco? Quella voce appartiene a una copia precedente dell’app. Ricomincia per sostituirla.",
         startOver: "Ricomincia",
         relaunch: "Riavvia per applicare"
     )

@@ -76,7 +76,7 @@ extension MouseExceptionStrings {
         addButton: "Uygulama ekle…",
         removeButton: "Kaldır",
         captionSmoothScroll: "Bu uygulamalarda tekerlek normal adımlarında kalır; tekerleği kendine göre okuyan 3B ve tasarım araçları için.",
-        captionScrollDirection: "Bu uygulamalarda tekerlek macOS'un verdiği yönde kalır.",
+        captionScrollDirection: "Bu uygulamalarda tekerlek macOS’un verdiği yönde kalır.",
         captionNavigation: "Bu uygulamalarda yan düğmeler zaten yaptıkları işi yapmayı sürdürür.",
         captionButtonShortcuts: "Bu uygulamalarda ekstra düğmeleriniz sessiz kalır ve basma uygulamaya ulaşır.",
         captionMiddleClick: "Bu uygulamalarda üç parmak tıklaması normal tıklama olarak kalır.",
@@ -125,8 +125,8 @@ extension MouseExceptionStrings {
         removeButton: "Retirer",
         captionSmoothScroll: "Dans ces apps la molette garde ses crans normaux, pour celles qui la lisent à leur façon, comme les outils 3D et de design.",
         captionScrollDirection: "Dans ces apps la molette garde le sens que macOS lui donne.",
-        captionNavigation: "Dans ces apps les boutons latéraux continuent de faire ce qu'ils y font déjà.",
-        captionButtonShortcuts: "Dans ces apps vos boutons supplémentaires se taisent et l'appui atteint l'app.",
+        captionNavigation: "Dans ces apps les boutons latéraux continuent de faire ce qu’ils y font déjà.",
+        captionButtonShortcuts: "Dans ces apps vos boutons supplémentaires se taisent et l’appui atteint l’app.",
         captionMiddleClick: "Dans ces apps un clic à trois doigts reste un clic normal.",
         captionFocusFollowsMouse: "Dans ces apps le survol ne change pas le focus et ne place pas la fenêtre au premier plan."
     )
@@ -138,7 +138,7 @@ extension MouseExceptionStrings {
         captionSmoothScroll: "In queste app la rotellina mantiene i suoi scatti normali, per quelle che la leggono a modo loro, come gli strumenti 3D e di design.",
         captionScrollDirection: "In queste app la rotellina mantiene il verso che le dà macOS.",
         captionNavigation: "In queste app i pulsanti laterali continuano a fare quello che già fanno.",
-        captionButtonShortcuts: "In queste app i tuoi pulsanti extra restano zitti e la pressione arriva all'app.",
+        captionButtonShortcuts: "In queste app i tuoi pulsanti extra restano zitti e la pressione arriva all’app.",
         captionMiddleClick: "In queste app un clic con tre dita resta un clic normale.",
         captionFocusFollowsMouse: "In queste app il passaggio del puntatore non cambia il focus né porta avanti la finestra."
     )

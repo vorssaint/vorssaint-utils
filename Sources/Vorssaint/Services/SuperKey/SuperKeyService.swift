@@ -798,6 +798,9 @@ final class SuperKeyService: ObservableObject {
         guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
               let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return false }
+        // The HID source can inherit a still-held physical modifier.
+        down.flags = []
+        up.flags = []
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
         return true

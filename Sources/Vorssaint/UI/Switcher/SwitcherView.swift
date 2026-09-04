@@ -78,7 +78,7 @@ struct SwitcherView: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
         )
     }
 
@@ -138,7 +138,10 @@ struct SwitcherView: View {
             .padding(.vertical, 6)
             .background(
                 Capsule(style: .continuous)
-                    .fill(Color.black.opacity(0.42))
+                    // The label is `.primary`, so the chip under it has to turn
+                    // over with the theme too: a fixed dark capsule left black
+                    // text on a dark fill in the light appearance.
+                    .fill(Color.primary.opacity(0.12))
             )
             .padding(12)
         }
@@ -230,7 +233,7 @@ struct SwitcherView: View {
                 shortcutHint(label: l10n.s.switcherShortcutHintApps, value: hints.apps)
                 Divider()
                     .frame(height: 16)
-                    .overlay(Color.white.opacity(0.18))
+                    .overlay(Color.primary.opacity(0.18))
                 shortcutHint(label: l10n.s.switcherShortcutHintWindows, value: hints.windows)
             }
         }
@@ -243,7 +246,7 @@ struct SwitcherView: View {
         )
         .overlay(
             Capsule(style: .continuous)
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+                .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1)
         )
     }
 
@@ -280,11 +283,14 @@ struct SwitcherView: View {
                                 .foregroundStyle(SwitcherIconStyle.text)
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-                            Text(selected.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(SwitcherIconStyle.secondaryText)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
+                            if let detail = selected.windowDetail(
+                                noOpenWindow: l10n.s.switcherNoOpenWindow) {
+                                Text(detail)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(SwitcherIconStyle.secondaryText)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
                         }
                         Spacer(minLength: 0)
                         Text("\(appWindows.count)")
@@ -374,11 +380,14 @@ struct SwitcherView: View {
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
                         .background(Capsule(style: .continuous).fill(SwitcherIconStyle.tile))
-                    Text(selected.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(SwitcherIconStyle.secondaryText)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
+                    if let detail = selected.windowDetail(
+                        noOpenWindow: l10n.s.switcherNoOpenWindow) {
+                        Text(detail)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(SwitcherIconStyle.secondaryText)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
                     Spacer(minLength: 0)
                 }
 
@@ -780,12 +789,17 @@ private struct SwitcherWindowPreviewTile: View {
             .frame(width: SwitcherIconRowLayout.previewCardWidth - 16,
                    height: SwitcherIconRowLayout.previewCardHeight - 38)
 
-            Text(window.windowLabel(noOpenWindow: l10n.s.switcherNoOpenWindow))
-                .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(maxWidth: SwitcherIconRowLayout.previewCardWidth - 20)
+            // The header above already names the app. A window with no name of
+            // its own would only say it again under its own thumbnail, and two
+            // such windows would say it twice, which tells nobody anything.
+            if let detail = window.windowDetail(noOpenWindow: l10n.s.switcherNoOpenWindow) {
+                Text(detail)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: SwitcherIconRowLayout.previewCardWidth - 20)
+            }
         }
         .padding(8)
         .frame(width: SwitcherIconRowLayout.previewCardWidth,

@@ -182,7 +182,10 @@ enum SensorDump {
             } else {
                 component = "cpu"
             }
+            // Diagnostic output, read by whoever ran the self-test and by
+            // scripts, so it stays on a decimal point wherever it runs.
             print(String(format: "%-11@  %@  %@  %6.2f",
+                         locale: Locale(identifier: "en_US_POSIX"),
                          component as NSString, key.name, key.dataType, value))
         }
         exit(0)

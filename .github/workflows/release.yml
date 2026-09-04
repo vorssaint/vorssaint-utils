@@ -17,7 +17,7 @@ jobs:
   preflight:
     name: Verify trusted release ref
     if: >-
-      github.repository == 'vorssaintapp/vorssaint-utils' &&
+      github.repository == 'vorssaint/vorssaint-utils' &&
       github.event_name == 'push' &&
       github.ref_type == 'tag' &&
       github.actor == 'vorssaint' &&
@@ -74,7 +74,7 @@ jobs:
     needs: preflight
     if: >-
       needs.preflight.result == 'success' &&
-      github.repository == 'vorssaintapp/vorssaint-utils' &&
+      github.repository == 'vorssaint/vorssaint-utils' &&
       github.event_name == 'push' &&
       github.ref_type == 'tag' &&
       github.actor == 'vorssaint' &&
@@ -170,7 +170,7 @@ jobs:
             fi
             if [[ ! -s "$TARGET" ]]; then
               echo "Missing required showcase media: $TARGET" >&2
-              echo "The app expects https://github.com/vorssaintapp/vorssaint-utils/releases/download/v3.1.4/$ASSET" >&2
+              echo "The app expects https://github.com/vorssaint/vorssaint-utils/releases/download/v3.1.4/$ASSET" >&2
               exit 1
             fi
           fi
@@ -252,7 +252,7 @@ jobs:
     needs: release
     if: >-
       needs.release.result == 'success' &&
-      github.repository == 'vorssaintapp/vorssaint-utils' &&
+      github.repository == 'vorssaint/vorssaint-utils' &&
       github.event_name == 'push' &&
       github.ref_type == 'tag' &&
       github.actor == 'vorssaint' &&

@@ -200,6 +200,14 @@ final class QuitProtectionService: ObservableObject {
             return nil
         }
 
+        // Every branch below either needs Command held or belongs to a press
+        // already in flight, and reading which key this is costs an NSEvent
+        // plus a layout lookup on a tap that sees every keystroke on the Mac.
+        // Ordinary typing stops here.
+        guard event.flags.contains(.maskCommand) || hasPressInFlight else {
+            return Unmanaged.passUnretained(event)
+        }
+
         let shortcut = matchingShortcut(for: event)
 
         if let swallowShortcut {
@@ -326,6 +334,13 @@ final class QuitProtectionService: ObservableObject {
     }
 
     private func handleKeyUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        // A release only matters to a press this service is holding. Command
+        // cannot be required here the way it is above: the release of Q may
+        // well arrive after Command was let go.
+        guard hasPressInFlight else {
+            return Unmanaged.passUnretained(event)
+        }
+
         let shortcut = matchingShortcut(for: event)
 
         if let swallow = swallowShortcut, shortcut == swallow {
@@ -496,6 +511,11 @@ final class QuitProtectionService: ObservableObject {
                                              shortcut: $0)
         }
     }
+
+    /// A press this service took over: either waiting for the confirmation
+    /// that lets it through, or waiting for the release that closes it. Both
+    /// make the keys that follow this service's business.
+    private var hasPressInFlight: Bool { pending != nil || swallowShortcut != nil }
 
     private func isSynthetic(_ event: CGEvent) -> Bool {
         event.getIntegerValueField(.eventSourceUserData) == Self.syntheticMarker

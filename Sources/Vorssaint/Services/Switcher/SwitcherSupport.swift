@@ -1353,8 +1353,11 @@ enum SwitcherSupport {
     /// away, so a letter of a Latin alphabet is never mistaken for one of the
     /// keys above.
     private static func latinLetter(in text: String?) -> Character? {
+        // No locale: in Turkish a dotted I folds to a dotless one, which is
+        // not ASCII, so the guard below would throw the keystroke away and
+        // that letter would simply stop searching.
         guard let folded = text?.folding(options: [.diacriticInsensitive, .caseInsensitive],
-                                         locale: .current),
+                                         locale: nil),
               folded.count == 1,
               let letter = folded.first,
               letter.isASCII,
@@ -1396,7 +1399,7 @@ enum SwitcherSupport {
 
     private static func normalizedSearchText(_ parts: [String]) -> String {
         parts.joined(separator: " ")
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -154,20 +154,43 @@ struct ShelfTooltipPileBreakdown: Equatable {
     var total: Int { images + files + notes + links }
 }
 
-/// The localized words the pile breakdown needs, one singular and one
-/// plural per kind (this app has no CLDR-style pluralization, so each
-/// form is its own string) plus the always-plural items count, since a
-/// pile always holds two or more leaves.
+/// The localized words the pile breakdown needs (this app has no CLDR-style
+/// pluralization, so each form is its own string): one for a count of one, one
+/// for two through four where a language asks for it, and one for the rest.
+/// The items count has no singular because a pile always holds two or more.
 struct ShelfTooltipStrings {
     let itemsFormat: String
+    let itemsFew: String
     let imageSingular: String
+    let imageFew: String
     let imagePlural: String
     let fileSingular: String
+    let fileFew: String
     let filePlural: String
     let noteSingular: String
+    let noteFew: String
     let notePlural: String
     let linkSingular: String
+    let linkFew: String
     let linkPlural: String
+    /// Set for a language whose two through four take a form of their own.
+    let usesFewForm: Bool
+
+    /// The form a count asks for. Russian agrees by the number's last digits:
+    /// one for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
+    /// through 24 but not 12 through 14; the last for everything else.
+    enum Form { case one, few, many }
+
+    func form(for count: Int) -> Form {
+        guard usesFewForm else { return count == 1 ? .one : .many }
+        let magnitude = abs(count)
+        if (11...14).contains(magnitude % 100) { return .many }
+        switch magnitude % 10 {
+        case 1: return .one
+        case 2, 3, 4: return .few
+        default: return .many
+        }
+    }
 }
 
 enum ShelfTooltipSupport {
@@ -226,23 +249,34 @@ enum ShelfTooltipSupport {
     /// leaving a dangling colon with nothing after it.
     static func text(forPile breakdown: ShelfTooltipPileBreakdown, strings: ShelfTooltipStrings) -> String {
         var parts: [String] = []
+        func worded(_ count: Int, _ one: String, _ few: String, _ many: String) -> String {
+            switch strings.form(for: count) {
+            case .one: return String(format: one, count)
+            case .few: return String(format: few, count)
+            case .many: return String(format: many, count)
+            }
+        }
         if breakdown.images > 0 {
-            parts.append(String(format: breakdown.images == 1 ? strings.imageSingular : strings.imagePlural,
-                                breakdown.images))
+            parts.append(worded(breakdown.images,
+                                strings.imageSingular, strings.imageFew, strings.imagePlural))
         }
         if breakdown.files > 0 {
-            parts.append(String(format: breakdown.files == 1 ? strings.fileSingular : strings.filePlural,
-                                breakdown.files))
+            parts.append(worded(breakdown.files,
+                                strings.fileSingular, strings.fileFew, strings.filePlural))
         }
         if breakdown.notes > 0 {
-            parts.append(String(format: breakdown.notes == 1 ? strings.noteSingular : strings.notePlural,
-                                breakdown.notes))
+            parts.append(worded(breakdown.notes,
+                                strings.noteSingular, strings.noteFew, strings.notePlural))
         }
         if breakdown.links > 0 {
-            parts.append(String(format: breakdown.links == 1 ? strings.linkSingular : strings.linkPlural,
-                                breakdown.links))
+            parts.append(worded(breakdown.links,
+                                strings.linkSingular, strings.linkFew, strings.linkPlural))
         }
-        let itemsText = String(format: strings.itemsFormat, breakdown.total)
+        // A pile always holds two or more, so the items count only ever needs
+        // the middle form or the last one.
+        let itemsText = strings.form(for: breakdown.total) == .few
+            ? String(format: strings.itemsFew, breakdown.total)
+            : String(format: strings.itemsFormat, breakdown.total)
         guard !parts.isEmpty else { return itemsText }
         return "\(itemsText): \(parts.joined(separator: ", "))"
     }

@@ -397,14 +397,20 @@ final class ShelfTileView: NSView, NSDraggingSource {
             let breakdown = ShelfTooltipSupport.breakdown(of: item.tooltipLeafKinds)
             let s = L10n.shared.s
             let strings = ShelfTooltipStrings(itemsFormat: s.shelfTooltipItemsFormat,
+                                              itemsFew: s.shelfTooltipItemsFew,
                                               imageSingular: s.shelfTooltipImageSingular,
+                                              imageFew: s.shelfTooltipImageFew,
                                               imagePlural: s.shelfTooltipImagePlural,
                                               fileSingular: s.shelfTooltipFileSingular,
+                                              fileFew: s.shelfTooltipFileFew,
                                               filePlural: s.shelfTooltipFilePlural,
                                               noteSingular: s.shelfTooltipNoteSingular,
+                                              noteFew: s.shelfTooltipNoteFew,
                                               notePlural: s.shelfTooltipNotePlural,
                                               linkSingular: s.shelfTooltipLinkSingular,
-                                              linkPlural: s.shelfTooltipLinkPlural)
+                                              linkFew: s.shelfTooltipLinkFew,
+                                              linkPlural: s.shelfTooltipLinkPlural,
+                                              usesFewForm: L10n.shared.language.usesFewCountForm)
             return ShelfTooltipSupport.text(forPile: breakdown, strings: strings)
         }
     }

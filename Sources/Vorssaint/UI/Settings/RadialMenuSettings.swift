@@ -124,7 +124,7 @@ struct RadialMenuSettings: View {
                     onOpenSubmenu: { item in openSubmenuID = item.id },
                     onBack: { openSubmenuID = nil; dragging = nil },
                     onAdd: { editing = RadialMenuItem(kind: .app) },
-                    onReset: { resetToPresetDefaults() }
+                    onReset: canResetProfile ? { resetToPresetDefaults() } : nil
                 )
                 .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
 
@@ -378,21 +378,32 @@ struct RadialMenuSettings: View {
         persist()
     }
 
-    private func resetToPresetDefaults() {
-        guard profiles.indices.contains(selectedProfileIndex) else { return }
+    /// The starter set the selected wheel came from. Wheels created since the
+    /// profiles arrived carry it; an older one is matched by its name, which
+    /// only answers while that name is still the preset's own in the language
+    /// it was created in. Nothing else is a safe guess: falling back to one
+    /// particular starter set replaced a renamed wheel's actions with another
+    /// wheel's.
+    private var resolvedPreset: RadialMenuProfilePreset? {
         let current = selectedProfile
-        let preset = RadialMenuProfilePreset.allCases.first { preset in
+        if let stored = current.preset, let preset = RadialMenuProfilePreset(rawValue: stored) {
+            return preset
+        }
+        return RadialMenuProfilePreset.allCases.first { preset in
             preset.title(text).caseInsensitiveCompare(current.name) == .orderedSame
                 || preset.id.caseInsensitiveCompare(current.name) == .orderedSame
-        } ?? .general
-
-        if let openSubmenuID {
-            if let index = profiles[selectedProfileIndex].items.firstIndex(where: { $0.id == openSubmenuID }) {
-                profiles[selectedProfileIndex].items[index].children = []
-            }
-        } else {
-            profiles[selectedProfileIndex].items = preset.makeItems()
         }
+    }
+
+    /// Restoring the actions is offered on the wheel itself, and only when the
+    /// set to restore is known. A submenu is the person's own list, so there is
+    /// nothing to put back into it.
+    private var canResetProfile: Bool { openSubmenuID == nil && resolvedPreset != nil }
+
+    private func resetToPresetDefaults() {
+        guard profiles.indices.contains(selectedProfileIndex),
+              let preset = resolvedPreset else { return }
+        profiles[selectedProfileIndex].items = preset.makeItems()
         openSubmenuID = nil
         dragging = nil
         persist()
