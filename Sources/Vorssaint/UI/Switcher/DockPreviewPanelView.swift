@@ -522,6 +522,7 @@ private struct DockPreviewCard: View {
                 ScrollingTitle(text: window.displayTitle,
                                weight: isSelected ? .semibold : .regular,
                                width: DockPreviewSupport.cardTitleTextWidth,
+                               alignment: .leading,
                                scrolls: isHovering)
                     .foregroundStyle(.primary)
                 if let subtitle = window.displaySubtitle {

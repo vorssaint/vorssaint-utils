@@ -974,6 +974,7 @@ private struct WindowCard: View {
                 ScrollingTitle(text: window.displayTitle,
                                weight: isSelected ? .semibold : .regular,
                                width: SwitcherGridCard.titleWidth,
+                               alignment: .center,
                                scrolls: isHovering)
                     .foregroundStyle(isSelected ? .primary : .secondary)
                 if let subtitle = window.displaySubtitle {
