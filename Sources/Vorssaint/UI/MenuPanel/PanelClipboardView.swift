@@ -11,6 +11,16 @@ struct PanelClipboardView: View {
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @State private var query = ""
     @State private var copiedID: UUID?
+    /// Each card's frame in the list's own coordinate space, so the view
+    /// knows which cards the inner scroll view is actually showing.
+    @State private var entryFrames: [UUID: CGRect] = [:]
+    @State private var listHeight: CGFloat = 0
+    /// The card a keyboard move is still scrolling into view. Until it
+    /// arrives, its frame says "hidden" without the user having scrolled
+    /// anywhere, so focus must not chase the viewport in the meantime.
+    @State private var revealingEntryID: UUID?
+
+    private static let listSpace = "clipboardList"
 
     var onClose: () -> Void
 
@@ -125,18 +135,74 @@ struct PanelClipboardView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 7) {
                         ForEach(filteredEntries) { entry in
-                            entryRow(entry).id(entry.id)
+                            entryRow(entry)
+                                .id(entry.id)
+                                .background(
+                                    GeometryReader { geometry in
+                                        Color.clear.preference(
+                                            key: EntryFramePreferenceKey.self,
+                                            value: [entry.id: geometry.frame(in: .named(Self.listSpace))])
+                                    }
+                                )
                         }
                     }
                 }
+                .coordinateSpace(name: Self.listSpace)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(key: ListHeightPreferenceKey.self, value: geometry.size.height)
+                    }
+                )
+                .onPreferenceChange(ListHeightPreferenceKey.self) { listHeight = $0 }
+                .onPreferenceChange(EntryFramePreferenceKey.self) { frames in
+                    entryFrames = frames
+                    followScrollIfFocusedCardHidden()
+                }
                 .panelKeyboardRowList(filteredEntries.flatMap(keyboardRows))
                 .onChange(of: navigator.focus) { _, focus in
-                    guard let entryID = focusedEntryID(focus) else { return }
+                    // A keyboard move onto a card the list is not fully
+                    // showing scrolls to it. A move onto a card already in
+                    // view leaves the scroll alone — that is also how focus
+                    // following a manual scroll avoids undoing that scroll.
+                    guard let entryID = focusedEntryID(focus), !isFullyVisible(entryID) else { return }
+                    revealingEntryID = entryID
                     proxy.scrollTo(entryID, anchor: .center)
                 }
             }
             .frame(maxHeight: 260)
         }
+    }
+
+    private func isFullyVisible(_ entryID: UUID) -> Bool {
+        guard let frame = entryFrames[entryID], listHeight > 0 else { return true }
+        return frame.minY >= -0.5 && frame.maxY <= listHeight + 0.5
+    }
+
+    private func isOffscreen(_ entryID: UUID) -> Bool {
+        guard let frame = entryFrames[entryID], listHeight > 0 else { return false }
+        return frame.maxY <= 0 || frame.minY >= listHeight
+    }
+
+    /// Keyboard focus is only meaningful on a button the user can see.
+    /// When a manual scroll pushes the focused card entirely out of the
+    /// list's viewport, focus moves to the nearest card still on screen —
+    /// the same button when that card has it — rather than staying on a
+    /// hidden button that Return would act on sight unseen.
+    private func followScrollIfFocusedCardHidden() {
+        guard case .row(let row)? = navigator.focus,
+              let entryID = focusedEntryID(navigator.focus),
+              let localID = row.local as? String else { return }
+        if revealingEntryID == entryID {
+            if isFullyVisible(entryID) { revealingEntryID = nil }
+            return
+        }
+        guard isOffscreen(entryID), let frame = entryFrames[entryID] else { return }
+        let visible = filteredEntries.filter { isFullyVisible($0.id) }
+        guard let target = frame.maxY <= 0 ? visible.first : visible.last else { return }
+        let action = localID.split(separator: "-").last.map(String.init) ?? "copy"
+        let rows = keyboardRows(for: target)
+        let sameButton = keyboardRow(target, action)
+        navigator.focusRow(rows.contains(sameButton) ? sameButton : keyboardRow(target, "copy"))
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -322,5 +388,21 @@ struct PanelClipboardView: View {
             .panelKeyboardRowGroup(keyboardRows(for: entry))
         }
         .panelCard()
+    }
+}
+
+private struct EntryFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { _, latest in latest }
+    }
+}
+
+private struct ListHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
