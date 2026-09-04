@@ -295,6 +295,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AppInfo.swift \
         Sources/Vorssaint/Core/GlobalShortcut.swift \
         Sources/Vorssaint/Core/SymbolicHotKeys.swift \
+        Sources/Vorssaint/Services/SystemShortcutTakeoverSupport.swift \
         Sources/Vorssaint/Core/Localization.swift \
         Sources/Vorssaint/Core/Localizations/Strings+*.swift \
         Sources/Vorssaint/Core/FeatureStrings.swift \

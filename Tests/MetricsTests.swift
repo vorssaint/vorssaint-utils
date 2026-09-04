@@ -11627,6 +11627,29 @@ struct MetricsTests {
                == SwitcherNativeHotkeyTransition(suppress: [],
                                                  restore: Set(SwitcherNativeSymbolicHotKey.allCases)),
                "native takeover leaves pre-disabled keys alone and restores only owned keys")
+
+        // The shared take-over works on raw WindowServer ids. Same transition
+        // rule as the switcher had: suppress only what is enabled now, restore
+        // only what we own and no longer want.
+        expect(SystemShortcutTakeoverSupport.transition(from: [], to: [1, 2, 30], currentlyEnabled: [1, 30])
+               == SystemShortcutTransition(suppress: [1, 30], restore: [])
+               && SystemShortcutTakeoverSupport.transition(from: [1, 30], to: [], currentlyEnabled: [])
+               == SystemShortcutTransition(suppress: [], restore: [1, 30]),
+               "the shared take-over suppresses only enabled ids and restores only owned ones")
+        // The plist marks a key the user switched off in System Settings with
+        // enabled = false; a restore must not switch it back on for them.
+        let plistWith30Off: [String: Any] = ["30": ["enabled": NSNumber(value: false),
+                                                   "value": ["type": "standard",
+                                                             "parameters": [NSNumber(value: 52), NSNumber(value: 21), NSNumber(value: 1179648)]]],
+                                             "28": ["enabled": NSNumber(value: true)]]
+        expect(SystemShortcutTakeoverSupport.idsUserDisabled(in: [28, 30, 184], symbolicHotKeys: plistWith30Off) == [30],
+               "a restore skips exactly the ids the user has since switched off")
+        expect(SystemShortcutTakeoverSupport.idsUserDisabled(in: [28, 30], symbolicHotKeys: nil).isEmpty,
+               "an unreadable plist disables nothing on the user's behalf")
+        expect(SystemShortcutTakeoverSupport.migratedMarker(old: [27, 28], new: [30]) == [27, 28, 30]
+               && SystemShortcutTakeoverSupport.migratedMarker(old: nil, new: nil).isEmpty
+               && SystemShortcutTakeoverSupport.migratedMarker(old: [99_999_999_999], new: nil).isEmpty,
+               "the old switcher marker folds into the shared one once, dropping anything that is not an id")
         let staleMarker = SwitcherSupport.storedNativeHotkeys([27, 28, 220, 99_999_999_999])
         expect(staleMarker.known == [.nextWindow, .previousWindow] && staleMarker.orphaned == [28],
                "a marker written by an earlier build hands back the ids this build no longer owns")
