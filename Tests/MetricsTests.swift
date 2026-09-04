@@ -23130,9 +23130,34 @@ struct MetricsTests {
                        "\(tapOwner) does not keep a modifying tap alive after Accessibility is lost")
             }
             // Switching a tap off leaves the process owning it, which is what
-            // the window server waits on; teardown must invalidate the port.
-            expect(code.contains("CFMachPortInvalidate"),
+            // the window server waits on; teardown must invalidate the port,
+            // either here or through the pointer thread that owns the source.
+            expect(code.contains("CFMachPortInvalidate")
+                    || code.contains("PointerTapRunLoop.remove("),
                    "\(tapOwner) hands its tap back rather than only disabling it")
+        }
+
+        // The taps that filter ordinary clicks and wheel events are served by
+        // a thread of their own. On the main run loop each of those events
+        // waits for whatever this app is drawing or asking Accessibility,
+        // which is felt as click lag in whatever app is in front.
+        let pointerTapSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/PointerTapRunLoop.swift",
+            encoding: .utf8)) ?? ""
+        expect(pointerTapSource.contains("CFMachPortInvalidate"),
+               "the pointer thread hands back the port of every tap it gives up")
+        expect(pointerTapSource.contains("qualityOfService = .userInteractive"),
+               "the pointer thread is scheduled as input work")
+        for pointerTapOwner in ["Sources/Vorssaint/Services/ScrollInverter.swift",
+                                "Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift"] {
+            let source = (try? String(contentsOfFile: pointerTapOwner, encoding: .utf8)) ?? ""
+            let code = source.components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            expect(code.contains("PointerTapRunLoop.add("),
+                   "\(pointerTapOwner) serves its tap on the pointer thread")
+            expect(!code.contains("CFRunLoopGetMain()"),
+                   "\(pointerTapOwner) keeps its tap off the main run loop")
         }
 
         // Disabling a tap and dropping the last Swift reference does not hand
@@ -23162,7 +23187,11 @@ struct MetricsTests {
             let taps = code.components(separatedBy: "CGEvent.tapCreate").count - 1
             guard taps > 0 else { continue }
             tapOwners += 1
+            // A tap served by the pointer thread is handed back there, which
+            // is the same promise: `PointerTapRunLoop.remove` invalidates the
+            // port it is given, and the sweep above pins that it does.
             let invalidations = code.components(separatedBy: "CFMachPortInvalidate").count - 1
+                + (code.components(separatedBy: "PointerTapRunLoop.remove(").count - 1)
             if invalidations < taps {
                 tapOwnersWithoutInvalidate.append("\(file) (\(taps) taps, \(invalidations) invalidated)")
             }
