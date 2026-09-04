@@ -861,6 +861,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         // Window layout keeps one shortcut per action instead of a role, so it
         // is the one holder of global keys the list above cannot reach.
         if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        // Shortcut Guard owns arbitrary user-recorded combinations rather than
+        // one fixed role, so it cannot appear in `allCases` above.
+        if seen.insert(.shortcutGuard).inserted { features.append(.shortcutGuard) }
         return features
     }
 

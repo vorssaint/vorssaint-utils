@@ -167,6 +167,7 @@ extension AppFeature {
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
         case .autoQuit: return FeatureSettingsDestination(.autoQuit)
         case .quitWindowProtection: return FeatureSettingsDestination(.quitProtection)
+        case .shortcutGuard: return FeatureSettingsDestination(.features)
 
         case .scrollInverter:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)

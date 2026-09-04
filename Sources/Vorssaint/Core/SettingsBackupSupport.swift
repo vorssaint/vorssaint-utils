@@ -125,6 +125,11 @@ enum SettingsBackupSupport {
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
         DefaultsKey.switcherNativeHotkeysSuppressed,
+        // Shortcut Guard is a local utility configuration: process paths and
+        // blocked combinations stay on the Mac where they were chosen.
+        DefaultsKey.shortcutGuardEnabled,
+        DefaultsKey.shortcutGuardAppIdentities,
+        DefaultsKey.shortcutGuardBlockedShortcuts,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
     ]

@@ -704,6 +704,7 @@ extension AppFeature {
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .autoQuit: return s.autoQuitName
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).name
+        case .shortcutGuard: return FeatureStrings.shortcutGuard(L10n.shared.language).title
         case .scrollInverter: return s.invertMouseScroll
         case .focusFollowsMouse: return s.focusFollowsMouseName
         case .smoothScroll: return s.smoothScrollName
@@ -768,6 +769,7 @@ extension AppFeature {
         case .windowLayout: return hub.descWindowLayout
         case .autoQuit: return hub.descAutoQuit
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
+        case .shortcutGuard: return FeatureStrings.shortcutGuard(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll

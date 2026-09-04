@@ -30,6 +30,7 @@ enum ShortcutCapture {
         ClipboardHistoryService.shared.suspendShortcut()
         SoundOutputSwitcher.shared.suspendShortcut()
         WindowLayoutService.shared.suspendShortcuts()
+        if AppFeature.shortcutGuard.isAvailable { ShortcutGuardService.shared.setCapturingShortcut(true) }
         QuickToolHotkey.unregisterAll()
     }
 
