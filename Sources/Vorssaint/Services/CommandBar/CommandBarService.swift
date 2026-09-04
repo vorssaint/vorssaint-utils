@@ -212,7 +212,8 @@ final class CommandBarService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarShortcut,
                                             fallback: .commandBarDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
         if available {
@@ -519,7 +520,12 @@ final class CommandBarService: ObservableObject {
             hotkey.onPress = { [weak self] in self?.runRow(withStableKey: key) }
             // A combination another app already holds is refused by the system.
             // Saying so beats a row that shows a key it will never answer to.
-            if !hotkey.sync(enabled: true, shortcut: shortcut) { refused.insert(key) }
+            // Row combinations live inside one dictionary, so a claim is
+            // named by the row it belongs to.
+            if !hotkey.sync(enabled: true, shortcut: shortcut,
+                            storageKey: "\(DefaultsKey.commandBarRowShortcuts).\(key)") {
+                refused.insert(key)
+            }
             rowHotkeys.append(hotkey)
             index += 1
         }

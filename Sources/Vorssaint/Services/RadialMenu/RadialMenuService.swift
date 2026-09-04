@@ -119,7 +119,11 @@ final class RadialMenuService: ObservableObject {
                   let shortcut = GlobalShortcut(storageValue: profile.shortcut) else { continue }
             let hotkey = QuickToolHotkey(id: 1700 + UInt32(index))
             hotkey.onPress = { [weak self] in self?.hotkeyPressed(for: profile) }
-            let registered = hotkey.sync(enabled: true, shortcut: shortcut)
+            // Wheels keep their combinations inside the profile list, so a
+            // claim is named by the profile it belongs to.
+            let registered = hotkey.sync(
+                enabled: true, shortcut: shortcut,
+                storageKey: "\(DefaultsKey.radialMenuProfiles).\(profile.id.uuidString)")
             if !registered { anyFailed = true }
             hotkeys[profile.id] = hotkey
         }
