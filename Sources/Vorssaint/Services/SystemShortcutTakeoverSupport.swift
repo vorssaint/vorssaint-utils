@@ -49,6 +49,17 @@ enum SystemShortcutTakeoverSupport {
         return next
     }
 
+    /// Live ids whose combination equals `shortcut` exactly. `enabled` is
+    /// ignored on purpose: `apply` decides what to touch from the live state.
+    static func ids(matching shortcut: GlobalShortcut, in entries: [LiveSystemShortcut]) -> Set<Int32> {
+        Set(entries.filter { $0.shortcut == shortcut }.map(\.id))
+    }
+
+    /// What every source wants, together.
+    static func union(of wanted: [String: Set<Int32>]) -> Set<Int32> {
+        wanted.values.reduce(into: Set<Int32>()) { $0.formUnion($1) }
+    }
+
     /// The switcher kept its own marker before the take-over was shared. Fold
     /// it into the shared one on first launch so a crash marker from an older
     /// build still restores; ids that do not fit Int32 are noise, not keys.
