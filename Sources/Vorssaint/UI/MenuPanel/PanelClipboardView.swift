@@ -419,7 +419,10 @@ private struct EntryFramePreferenceKey: PreferenceKey {
 private struct ListHeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
+    // The scroll view's content contributes the default 0 alongside the
+    // background that measured the height; the reduction order between the
+    // two is not guaranteed, so keep whichever child actually measured.
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+        value = max(value, nextValue())
     }
 }
