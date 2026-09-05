@@ -4,7 +4,8 @@
 import CoreGraphics
 import Foundation
 
-/// The mouse features that can be told to leave an app alone (issue #358).
+/// The mouse and keyboard features that can be told to leave an app alone
+/// (issues #358, #741).
 /// Each one keeps its OWN list, right under its switch in Settings: excepting
 /// an app from the wheel's glide must not also silence the side buttons there.
 enum MouseExceptionScope: String, CaseIterable {
@@ -14,6 +15,7 @@ enum MouseExceptionScope: String, CaseIterable {
     case navigation
     case buttonShortcuts
     case middleClick
+    case superKey
 
     var defaultsKey: String {
         switch self {
@@ -23,6 +25,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .navigation: return DefaultsKey.mouseNavigationExceptions
         case .buttonShortcuts: return DefaultsKey.mouseButtonExceptions
         case .middleClick: return DefaultsKey.middleClickExceptions
+        case .superKey: return DefaultsKey.superKeyExceptions
         }
     }
 
@@ -36,6 +39,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .navigation: return .mouseNavigation
         case .buttonShortcuts: return .mouseButtonShortcuts
         case .middleClick: return .middleClick
+        case .superKey: return .superKey
         }
     }
 }

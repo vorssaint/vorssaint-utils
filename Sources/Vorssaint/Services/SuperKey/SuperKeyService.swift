@@ -171,8 +171,10 @@ final class SuperKeyService: ObservableObject {
         guard AXIsProcessTrusted() else {
             clearLeftoverMapping()
             isRunning = false
+            MouseAppExceptions.shared.setSourceTracking(false, for: .superKey)
             return
         }
+        MouseAppExceptions.shared.setSourceTracking(true, for: .superKey)
         forgetHeldKey()
         let thread = lifecycleLock.withLock { () -> Thread? in
             if tapThread != nil {
@@ -218,6 +220,7 @@ final class SuperKeyService: ObservableObject {
             self.wakeObserver = nil
         }
         clearLeftoverMapping(synchronously: synchronously)
+        MouseAppExceptions.shared.setSourceTracking(false, for: .superKey)
         isRunning = false
         setMappingFailure(nil)
     }
@@ -602,6 +605,16 @@ final class SuperKeyService: ObservableObject {
             } else {
                 DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
             }
+            forgetHeldKey()
+            return Unmanaged.passUnretained(event)
+        }
+        // Stand down while an excepted app is in front (KVM / Deskflow, issue
+        // #741). Frontmost only: the pointer may still rest on another Mac's
+        // screen while Deskflow is the app that owns the keyboard.
+        if MouseAppExceptions.shared.excludesFrontmostApplication(
+            .superKey,
+            sourceProcessID: event.getIntegerValueField(.eventSourceUnixProcessID)
+        ) {
             forgetHeldKey()
             return Unmanaged.passUnretained(event)
         }

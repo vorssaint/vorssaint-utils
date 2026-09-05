@@ -78,6 +78,10 @@ struct SuperKeySettings: View {
             }
             .disabled(!enabled)
 
+            if enabled {
+                MouseExceptionsList(scope: .superKey)
+            }
+
             if enabled, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)

@@ -142,6 +142,22 @@ final class MouseAppExceptions: ObservableObject {
         return MouseAppExceptionSupport.isExcepted(frontmost, exceptions: exceptions)
     }
 
+    /// True when the app in front is on this feature's list. Keyboard features
+    /// have no meaningful pointer location, so they ask only the frontmost app
+    /// (and any posted-event source that source tracking has matched), never
+    /// the window under the pointer (issue #741).
+    func excludesFrontmostApplication(_ scope: MouseExceptionScope,
+                                      sourceProcessID: Int64 = 0) -> Bool {
+        let (exceptions, sources) = lookup(scope)
+        guard !exceptions.isEmpty else { return false }
+        if let pid = MouseAppExceptionSupport.sourceProcessID(sourceProcessID),
+           sources.contains(pid) {
+            return true
+        }
+        let frontmost = Self.onMain { Self.identity(for: NSWorkspace.shared.frontmostApplication) }
+        return MouseAppExceptionSupport.isExcepted(frontmost, exceptions: exceptions)
+    }
+
     /// Services that intercept wheel events call this with their tap lifecycle.
     /// With every such feature off, unavailable or carrying an empty list, no
     /// workspace observer or source cache remains alive.

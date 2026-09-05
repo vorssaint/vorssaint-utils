@@ -19653,6 +19653,21 @@ struct MetricsTests {
                    "mouseTapRefusals = mouseTap == nil ? self.mouseTapRefusals + 1 : 0")
                && refusalResets == 1,
                "a refused mouse tap is worth one rebuild, and the count survives it")
+        // Super Key is a keyboard feature: exceptions follow the frontmost app,
+        // never the window under the pointer (issue #741). Source tracking keeps
+        // the workspace observer alive only while the feature is on and the list
+        // is non-empty, matching the scroll taps.
+        expect(superKeyServiceCode.contains("excludesFrontmostApplication(")
+                && superKeyServiceCode.contains(".superKey,")
+                && superKeyServiceCode.contains(".eventSourceUnixProcessID")
+                && !superKeyServiceCode.contains("excludesPointerTarget(.superKey")
+                && !superKeyServiceCode.contains("excludesActionTarget(.superKey"),
+               "Super Key stands down for excepted frontmost apps, not pointer targets")
+        expect(superKeyServiceCode.contains("setSourceTracking(true, for: .superKey)")
+                && superKeyServiceCode.contains("setSourceTracking(false, for: .superKey)"),
+               "Super Key arms source tracking only while it is on")
+        expect(superKeySettingsSource.contains("MouseExceptionsList(scope: .superKey)"),
+               "the Super Key page reuses the shared exception list picker")
 
         var noRepeatHoldState = SuperKeySupport.State()
         _ = noRepeatHoldState.decide(.triggerDown(
@@ -19730,10 +19745,11 @@ struct MetricsTests {
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
                 && MouseExceptionScope.buttonShortcuts.feature == .mouseButtonShortcuts
-                && MouseExceptionScope.middleClick.feature == .middleClick,
+                && MouseExceptionScope.middleClick.feature == .middleClick
+                && MouseExceptionScope.superKey.feature == .superKey,
                "each list knows the feature that owns it, so it hides with that feature")
         expect(MouseExceptionScope.allCases.allSatisfy { $0.feature.group == .mouseKeyboard },
-               "every exception list belongs to a mouse feature")
+               "every exception list belongs to a mouse-and-keyboard feature")
         expect(Defaults.sanitizedBundleIdentifierList(["  com.example.a  ", "", "com.example.a", "com.example.b"])
                 == ["com.example.a", "com.example.b"],
                "the exception list drops blanks, spaces and repeats")
