@@ -71,10 +71,13 @@ struct QuickTogglesList: View {
     @ObservedObject private var toggles = QuickTogglesService.shared
     @ObservedObject private var micMute = MicMuteService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.panelToggleDarkMode) private var showDarkMode = true
     @AppStorage(DefaultsKey.panelToggleKeyboardLight) private var showKeyboardLight = true
     @AppStorage(DefaultsKey.panelToggleMicMute) private var showMicMute = true
+    @AppStorage(DefaultsKey.panelToggleExtraBrightness) private var showExtraBrightness = true
+    @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.panelToggleEmptyTrash) private var showEmptyTrash = true
     @AppStorage(DefaultsKey.panelToggleEjectDisks) private var showEjectDisks = true
     @AppStorage(DefaultsKey.panelToggleHiddenFiles) private var showHiddenFiles = true
@@ -112,7 +115,7 @@ struct QuickTogglesList: View {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelToggleOrder)
         let defaults = UserDefaults.standard
         for key in [DefaultsKey.panelToggleDarkMode, DefaultsKey.panelToggleKeyboardLight,
-                    DefaultsKey.panelToggleMicMute,
+                    DefaultsKey.panelToggleMicMute, DefaultsKey.panelToggleExtraBrightness,
                     DefaultsKey.panelToggleEmptyTrash,
                     DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
@@ -140,6 +143,9 @@ struct QuickTogglesList: View {
         orderedItems.filter {
             $0.feature.isAvailable
                 && ($0 != .keyboardLight || brightness.keyboardLightEnabled != nil)
+                // Only some built-in XDR panels can boost, the same gate
+                // Settings uses to hide the whole section there.
+                && ($0 != .extraBrightness || extraBrightness.supported)
                 && (editing || isVisible($0))
         }
     }
@@ -153,6 +159,7 @@ struct QuickTogglesList: View {
         case .darkMode: return $showDarkMode
         case .keyboardLight: return $showKeyboardLight
         case .micMute: return $showMicMute
+        case .extraBrightness: return $showExtraBrightness
         case .emptyTrash: return $showEmptyTrash
         case .ejectDisks: return $showEjectDisks
         case .hiddenFiles: return $showHiddenFiles
@@ -187,6 +194,20 @@ struct QuickTogglesList: View {
                            isOn: Binding(
                                get: { brightness.keyboardLightEnabled ?? false },
                                set: { brightness.setKeyboardLightEnabled($0) }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
+        case .extraBrightness:
+            PanelToggleRow(title: l10n.s.extraBrightnessName,
+                           caption: l10n.s.extraBrightnessCaption,
+                           systemImage: "sun.max.fill",
+                           isOn: Binding(
+                               get: { extraBrightnessEnabled },
+                               set: {
+                                   extraBrightnessEnabled = $0
+                                   ExtraBrightnessService.shared.syncWithPreferences()
+                               }
                            ),
                            isEditing: editing,
                            showsDragHandle: true,
