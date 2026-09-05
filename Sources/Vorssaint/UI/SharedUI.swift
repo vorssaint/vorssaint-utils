@@ -209,7 +209,10 @@ struct HUDBackdrop: View {
 /// outline just outside the rounded card, and whether it shows depends on what
 /// is behind the window, which is why it looks intermittent. Clipping the layer
 /// to the same radius as the card removes it. Pass the card's corner radius.
-private struct HUDBackdropMaterial: NSViewRepresentable {
+/// Shared with the level overlay, which lays Liquid Glass over this rather
+/// than over nothing: glass refracts what is behind it inside the window, and
+/// a borderless panel has nothing there until this material draws the screen.
+struct HUDBackdropMaterial: NSViewRepresentable {
     var cornerRadius: CGFloat = 0
     var opacity: Double = 1
 

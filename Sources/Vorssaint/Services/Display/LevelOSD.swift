@@ -19,6 +19,14 @@ enum LevelOSD {
         /// The horizontal panel macOS draws for volume: the output device
         /// named above a track between a quiet and a loud speaker.
         case volume(deviceName: String?)
+
+        /// macOS' own volume overlay is part of a screenshot; the brightness
+        /// one this replaces has always been left out of capture, and stays
+        /// that way.
+        var appearsInCaptures: Bool {
+            if case .volume = self { return true }
+            return false
+        }
     }
 
     private static var panel: NSPanel?
@@ -47,6 +55,8 @@ enum LevelOSD {
         // shows dozens of updates a second, and rebuilding the SwiftUI host
         // for each would burn CPU for no visual difference.
         let panel = ensurePanel()
+        let sharing: NSWindow.SharingType = style.appearsInCaptures ? .readOnly : .none
+        if panel.sharingType != sharing { panel.sharingType = sharing }
         let host: NSHostingController<LevelOSDView>
         if let existing = Self.host {
             existing.rootView = LevelOSDView(level: level, style: style)
@@ -100,7 +110,9 @@ enum LevelOSD {
         }
     }
 
-    private static let cornerInset: CGFloat = 10
+    /// Measured off the system overlay: ten points in from the right edge and
+    /// thirteen below the menu bar.
+    private static let cornerInset = CGSize(width: 10, height: 13)
 
     /// Releases the window entirely; the disabled feature owns no panel.
     static func teardown() {
@@ -180,47 +192,89 @@ struct LevelOSDView: View {
     /// macOS 26's volume overlay: the output device named over a track, since
     /// the level belongs to a device the user can change, and a percentage on
     /// its own would not say which one moved.
+    /// Every number here was measured off the overlay macOS 26 draws for its
+    /// own volume keys, on a 1x display, in points: the panel, where the track
+    /// and the icons sit inside it, and the sixteen step marks under the
+    /// track. The point of this surface is to be the one the user already
+    /// knows, so the measurements are the specification.
+    enum VolumeMetrics {
+        static let panel = CGSize(width: 294, height: 58)
+        static let cornerRadius: CGFloat = 19
+        /// How much of the surface is the glass filter rather than the screen
+        /// behind it. Calibrated against the system overlay, which passes
+        /// noticeably more detail than the filter alone does.
+        /// How much of the surface is the blurred material rather than the
+        /// screen behind it. The material at full strength holds back nearly
+        /// all the contrast; fading it lets the screen through unfiltered,
+        /// which is what the system overlay reads as.
+        static let materialOpacity: Double = 0.55
+        static let labelOrigin = CGPoint(x: 21, y: 7)
+        static let labelSize: CGFloat = 12
+        static let trackOrigin = CGPoint(x: 33, y: 36)
+        static let trackWidth: CGFloat = 223
+        static let trackHeight: CGFloat = 4
+        /// The step marks sit this far under the track, and there is one at
+        /// each end of the sixteen steps a volume key moves through.
+        static let markGap: CGFloat = 3
+        static let markSize: CGFloat = 2
+        static let markCount = 17
+        static let iconSize: CGFloat = 11
+        static let quietIconCenter = CGPoint(x: 21, y: 38)
+        static let loudIconCenter = CGPoint(x: 268, y: 38)
+    }
+
     private func volumeBody(deviceName: String?) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        let metrics = VolumeMetrics.self
+        let fraction = min(max(level, 0), 1)
+        return ZStack(alignment: .topLeading) {
             if let deviceName, !deviceName.isEmpty {
                 Text(deviceName)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .font(.system(size: metrics.labelSize, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.88))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                    .frame(width: metrics.panel.width - metrics.labelOrigin.x * 2,
+                           alignment: .leading)
+                    .offset(x: metrics.labelOrigin.x, y: metrics.labelOrigin.y)
             }
 
-            HStack(spacing: 10) {
-                Image(systemName: "speaker.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.75))
+            volumeIcon("speaker.fill", at: metrics.quietIconCenter)
+            volumeIcon("speaker.wave.3.fill", at: metrics.loudIconCenter)
 
-                GeometryReader { geometry in
-                    let width = geometry.size.width
-                    Capsule(style: .continuous)
-                        .fill(.white.opacity(0.20))
-                        .overlay(alignment: .leading) {
-                            Capsule(style: .continuous)
-                                .fill(.white)
-                                .frame(width: max(width * min(max(level, 0), 1), 0))
-                        }
+            ZStack(alignment: .topLeading) {
+                Capsule(style: .continuous)
+                    .fill(.white.opacity(0.20))
+                    .frame(width: metrics.trackWidth, height: metrics.trackHeight)
+                Capsule(style: .continuous)
+                    .fill(.white)
+                    .frame(width: metrics.trackWidth * fraction, height: metrics.trackHeight)
+                HStack(spacing: 0) {
+                    ForEach(0..<metrics.markCount, id: \.self) { index in
+                        Capsule(style: .continuous)
+                            .fill(.white.opacity(0.30))
+                            .frame(width: metrics.markSize, height: metrics.markSize)
+                        if index < metrics.markCount - 1 { Spacer(minLength: 0) }
+                    }
                 }
-                .frame(height: 24)
-
-                Image(systemName: "speaker.wave.3.fill")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.75))
+                .frame(width: metrics.trackWidth, height: metrics.markSize)
+                .offset(y: metrics.trackHeight + metrics.markGap)
             }
-            .frame(height: 24)
+            .offset(x: metrics.trackOrigin.x, y: metrics.trackOrigin.y)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(width: 285)
-        .background(HUDBackdrop(cornerRadius: 20))
+        .frame(width: metrics.panel.width, height: metrics.panel.height, alignment: .topLeading)
+        .background(VolumeOverlayBackdrop(cornerRadius: metrics.cornerRadius))
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(deviceName ?? "\(percentage)%")
         .accessibilityValue("\(percentage)%")
+    }
+
+    private func volumeIcon(_ symbol: String, at center: CGPoint) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: VolumeMetrics.iconSize, weight: .medium))
+            .foregroundStyle(.white.opacity(0.9))
+            .frame(width: 20, height: 20)
+            .offset(x: center.x - 10, y: center.y - 10)
     }
 
     private func glyphBody(symbol: String) -> some View {
@@ -265,5 +319,33 @@ struct LevelOSDView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(percentage)%")
         .accessibilityValue("\(percentage)%")
+    }
+}
+
+
+/// The volume overlay's surface, kept apart from the app's own panels because
+/// it stands in for a system overlay rather than matching the app.
+///
+/// A blurred material faded over the screen, not Liquid Glass: glass refracts
+/// what is behind it inside the window, a borderless panel has nothing there,
+/// and the effect flattens into frost. Measured against the system overlay,
+/// this passes the detail that reads as transparent without the effect's cost.
+private struct VolumeOverlayBackdrop: View {
+    var cornerRadius: CGFloat
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color.clear)
+            .background(
+                HUDBackdropMaterial(
+                    cornerRadius: cornerRadius,
+                    opacity: reduceTransparency ? 1 : LevelOSDView.VolumeMetrics.materialOpacity)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 0.8)
+            )
     }
 }

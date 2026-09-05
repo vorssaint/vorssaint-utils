@@ -6835,14 +6835,14 @@ struct MetricsTests {
         expect(BrightnessSupport.cornerOverlayFrame(
                 size: overlaySize,
                 in: CGRect(x: 0, y: 0, width: 1000, height: 760),
-                inset: 10)
-               == CGRect(x: 790, y: 600, width: 200, height: 150),
+                inset: CGSize(width: 10, height: 13))
+               == CGRect(x: 790, y: 597, width: 200, height: 150),
                "the volume overlay tucks under the menu bar at the right, clear of it")
         expect(BrightnessSupport.cornerOverlayFrame(
                 size: overlaySize,
                 in: CGRect(x: 1000, y: 0, width: 1000, height: 760),
-                inset: 10)
-               == CGRect(x: 1790, y: 600, width: 200, height: 150),
+                inset: CGSize(width: 10, height: 13))
+               == CGRect(x: 1790, y: 597, width: 200, height: 150),
                "the volume overlay lands on the screen it was asked for, not the first one")
         expect(MixerRoutingSupport.isSystemSoundServer("systemsoundserverd"),
                "the process macOS plays its own sounds from is recognised")

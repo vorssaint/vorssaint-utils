@@ -370,9 +370,11 @@ enum BrightnessSupport {
     /// leaves rather than from a height of its own, which differs between a
     /// notched display and every other one, and from that screen's own origin,
     /// so a second display does not pull it back to the first.
-    static func cornerOverlayFrame(size: CGSize, in visibleFrame: CGRect, inset: CGFloat) -> CGRect {
-        CGRect(x: visibleFrame.maxX - size.width - inset,
-               y: visibleFrame.maxY - size.height - inset,
+    static func cornerOverlayFrame(size: CGSize,
+                                   in visibleFrame: CGRect,
+                                   inset: CGSize) -> CGRect {
+        CGRect(x: visibleFrame.maxX - size.width - inset.width,
+               y: visibleFrame.maxY - size.height - inset.height,
                width: size.width,
                height: size.height)
     }
