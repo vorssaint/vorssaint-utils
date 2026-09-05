@@ -10020,13 +10020,26 @@ struct MetricsTests {
         }
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
-        expect(defaultSwitcherHints.apps == "⌘Tab" && defaultSwitcherHints.windows == "⌘ `",
+        // Grave and J print the cap the active keyboard layout carries, not the
+        // US one: that is what #1047 changed. Pinning "⌘ `" and "⌘J" here made
+        // the check fail on Turkish QWERTY and every other layout that moves
+        // them. Ask the layout, and keep the rule the hint depends on: a lone
+        // symbol takes a space after the modifiers, a letter does not.
+        let commandKeyHint: (String, Int64, String) -> String = { modifiers, keyCode, ansiCap in
+            let cap = GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true) ?? ansiCap
+            let needsSeparator = cap.count == 1
+                && cap.rangeOfCharacter(from: .alphanumerics) == nil
+            return modifiers + (needsSeparator ? " " : "") + cap
+        }
+        expect(defaultSwitcherHints.apps == "⌘Tab"
+                && defaultSwitcherHints.windows == commandKeyHint("⌘", Int64(kVK_ANSI_Grave), "`"),
                "App Switcher icon-row hints describe default app and window shortcuts")
         let customSwitcherHints = SwitcherSupport.shortcutHints(
             for: GlobalShortcut(keyCode: Int64(kVK_Tab), modifiers: [.option]),
             windowShortcut: GlobalShortcut(keyCode: Int64(kVK_ANSI_J), modifiers: [.command])
         )
-        expect(customSwitcherHints.apps == "⌥Tab" && customSwitcherHints.windows == "⌘J",
+        expect(customSwitcherHints.apps == "⌥Tab"
+                && customSwitcherHints.windows == commandKeyHint("⌘", Int64(kVK_ANSI_J), "J"),
                "App Switcher icon-row hints show custom app and window shortcuts independently")
         expect(SwitcherSupport.shouldNavigateBackwardOnShiftPress(shiftIsNavigationModifier: true,
                                                                   wasShiftHeld: false,
