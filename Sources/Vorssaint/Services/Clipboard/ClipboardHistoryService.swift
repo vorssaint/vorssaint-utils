@@ -1243,7 +1243,10 @@ final class ClipboardHistoryService: ObservableObject {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
+               // Every key on the Accessibility Keyboard is a click outside this
+               // panel. Dismissing on those makes the panel impossible to type into.
+               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
                 self.hideHistoryWindow()
             }
         }
@@ -1254,7 +1257,8 @@ final class ClipboardHistoryService: ObservableObject {
         ) { [weak self] notification in
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                  app.bundleIdentifier != AssistiveKeyboard.bundleID
             else { return }
             self.hideHistoryWindow()
         }
