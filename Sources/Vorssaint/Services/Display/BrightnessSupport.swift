@@ -356,6 +356,29 @@ enum BrightnessSupport {
         return min(Int((clamped * 16).rounded(.up)), 16)
     }
 
+    /// Where a level overlay sits: brightness in the middle of the display the
+    /// level belongs to, as it has always been drawn.
+    static func centeredOverlayFrame(size: CGSize, in screenFrame: CGRect) -> CGRect {
+        CGRect(x: screenFrame.midX - size.width / 2,
+               y: screenFrame.midY - size.height / 2,
+               width: size.width,
+               height: size.height)
+    }
+
+    /// The volume overlay's place since macOS 26 moved it: under the menu bar
+    /// at the right of the focused screen. Measured from the area the menu bar
+    /// leaves rather than from a height of its own, which differs between a
+    /// notched display and every other one, and from that screen's own origin,
+    /// so a second display does not pull it back to the first.
+    static func cornerOverlayFrame(size: CGSize,
+                                   in visibleFrame: CGRect,
+                                   inset: CGSize) -> CGRect {
+        CGRect(x: visibleFrame.maxX - size.width - inset.width,
+               y: visibleFrame.maxY - size.height - inset.height,
+               width: size.width,
+               height: size.height)
+    }
+
     /// Whole percentage used by the brightness overlay.
     static func wholePercent(_ brightness: Double) -> Int {
         guard brightness.isFinite else { return 0 }
