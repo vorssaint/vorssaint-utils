@@ -581,7 +581,7 @@ enum MenuBarRenderer {
                                                   fraction: MenuBarUsageBarSupport.memoryFraction(used: memoryValue,
                                                                                                   total: snapshot.memoryTotal),
                                                   style: style,
-                                                  pressure: memoryStyle.showsDot ? snapshot.memoryPressure : nil)])
+                                                  pressure: snapshot.memoryPressure)])
                 } else {
                     let value = memoryStyle.showsPercent
                         ? MetricFormat.menuBarMemoryPercent(used: memoryValue, total: snapshot.memoryTotal)
@@ -590,7 +590,7 @@ enum MenuBarRenderer {
                                                 value: value,
                                                 minimumValue: memoryStyle.showsPercent ? "100%" : "",
                                                 style: style,
-                                                pressure: memoryStyle.showsDot ? snapshot.memoryPressure : nil)])
+                                                pressure: snapshot.memoryPressure)])
                 }
             case .network:
                 if let down = snapshot.netDownBytesPerSec, let up = snapshot.netUpBytesPerSec {
@@ -983,7 +983,8 @@ enum MenuBarRenderer {
             ? MenuBarSpacingSupport.compactReserve(label: label, value: value)
             : reservedValue
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
-        let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)" as NSString
+        let showsDot = showsPressureDot(pressure: pressure, styleShowsDot: MemoryMenuBarStyle.current.showsDot)
+        let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)|\(showsDot)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let labelFont = NSFont.systemFont(ofSize: style == .readable ? 7.2 : 6.6, weight: .medium)
@@ -994,8 +995,8 @@ enum MenuBarRenderer {
         let labelSize = (label as NSString).size(withAttributes: sizingLabelAttrs)
         let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
         let minimumValueSize = (minimumValue as NSString).size(withAttributes: sizingValueAttrs)
-        let dotDiameter: CGFloat = pressure == nil ? 0 : (style == .readable ? 5.2 : 4.8)
-        let dotGap: CGFloat = pressure == nil || value.isEmpty ? 0 : 4
+        let dotDiameter: CGFloat = showsDot ? (style == .readable ? 5.2 : 4.8) : 0
+        let dotGap: CGFloat = !showsDot || value.isEmpty ? 0 : 4
         let reservedValueWidth = max(valueSize.width, minimumValueSize.width)
         let reservedGroupWidth = dotDiameter + dotGap + reservedValueWidth
         let drawnGroupWidth = dotDiameter + dotGap + valueSize.width
@@ -1004,13 +1005,14 @@ enum MenuBarRenderer {
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
             NSColor.clear.setFill()
             rect.fill()
-            let labelAttrs = dynamicTextAttributes(font: labelFont)
-            let valueAttrs = dynamicTextAttributes(font: valueFont)
+            let textColor = blockTintColor(for: pressure) ?? .labelColor
+            let labelAttrs = dynamicTextAttributes(font: labelFont, color: textColor)
+            let valueAttrs = dynamicTextAttributes(font: valueFont, color: textColor)
             (label as NSString).draw(at: NSPoint(x: (width - labelSize.width) / 2,
                                      y: style == .readable ? 12.9 : 12.0),
                                      withAttributes: labelAttrs)
             var valueX = (width - drawnGroupWidth) / 2
-            if let pressure {
+            if showsDot, let pressure {
                 let dotRect = NSRect(x: valueX,
                                      y: style == .readable ? 4.1 : 3.5,
                                      width: dotDiameter,
@@ -1038,17 +1040,19 @@ enum MenuBarRenderer {
             MenuBarUsageBarSupport.currentColorHex(for: MenuBarUsageBarSupport.currentLevel(for: $0))
         } ?? "missing"
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
+        let showsDot = showsPressureDot(pressure: pressure, styleShowsDot: MemoryMenuBarStyle.current.showsDot)
         let levelKey = fillLevel.map(String.init) ?? "missing"
-        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)" as NSString
+        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)|\(showsDot)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
-        let size = usageBarSize(style: style, showsPressure: pressure != nil)
+        let size = usageBarSize(style: style, showsPressure: showsDot)
         let labelFont = NSFont.systemFont(ofSize: style == .readable ? 6.5 : 6.1, weight: .semibold)
-        let labelAttributes = dynamicTextAttributes(font: labelFont)
+        let textColor = blockTintColor(for: pressure) ?? .labelColor
+        let labelAttributes = dynamicTextAttributes(font: labelFont, color: textColor)
         let labelWidth: CGFloat = style == .readable ? 6.5 : 6
         let labelGap: CGFloat = 2
-        let dotDiameter: CGFloat = pressure == nil ? 0 : (style == .readable ? 4.8 : 4.4)
-        let dotGap: CGFloat = pressure == nil ? 0 : 2.2
+        let dotDiameter: CGFloat = showsDot ? (style == .readable ? 4.8 : 4.4) : 0
+        let dotGap: CGFloat = showsDot ? 2.2 : 0
         let barWidth: CGFloat = style == .readable ? 10 : 9
         let barHeight: CGFloat = style == .readable ? 20 : 18
         let barX = labelWidth + labelGap + dotDiameter + dotGap
@@ -1068,7 +1072,7 @@ enum MenuBarRenderer {
                 (character as NSString).draw(at: NSPoint(x: x, y: y), withAttributes: labelAttributes)
             }
 
-            if let pressure {
+            if showsDot, let pressure {
                 let dotRect = NSRect(x: labelWidth + labelGap,
                                      y: (size.height - dotDiameter) / 2,
                                      width: dotDiameter,
@@ -1082,7 +1086,7 @@ enum MenuBarRenderer {
                                      width: barWidth - 1,
                                      height: barHeight - 1)
             let outline = NSBezierPath(roundedRect: outlineRect, xRadius: 2.2, yRadius: 2.2)
-            NSColor.labelColor.setStroke()
+            textColor.setStroke()
             outline.lineWidth = 1.15
             outline.stroke()
 
@@ -1232,8 +1236,9 @@ enum MenuBarRenderer {
         return image
     }
 
-    private static func dynamicTextAttributes(font: NSFont) -> [NSAttributedString.Key: Any] {
-        [.font: font, .foregroundColor: NSColor.labelColor]
+    private static func dynamicTextAttributes(font: NSFont,
+                                              color: NSColor = .labelColor) -> [NSAttributedString.Key: Any] {
+        [.font: font, .foregroundColor: color]
     }
 
     static func batterySymbol(for percent: Int, isCharging: Bool) -> String {
@@ -1306,6 +1311,22 @@ enum MenuBarRenderer {
         let writeValues = devices.compactMap(\.writeBytesPerSec)
         guard !readValues.isEmpty || !writeValues.isEmpty else { return nil }
         return (readValues.reduce(0, +), writeValues.reduce(0, +))
+    }
+
+    /// When non-nil, memory-block label/value text uses this instead of the
+    /// default label color so warning/critical pressure reads as a whole block.
+    static func blockTintColor(for pressure: MemoryPressure?) -> NSColor? {
+        guard let pressure else { return nil }
+        switch pressure {
+        case .warning, .critical: return nsColor(for: pressure)
+        case .normal, .unknown: return nil
+        }
+    }
+
+    /// Dot layout is independent of block tinting so percent-only memory
+    /// styles can still turn yellow/red under pressure.
+    static func showsPressureDot(pressure: MemoryPressure?, styleShowsDot: Bool) -> Bool {
+        pressure != nil && styleShowsDot
     }
 
     static func nsColor(for pressure: MemoryPressure) -> NSColor {
