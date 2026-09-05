@@ -126,6 +126,13 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         PrivateFileStore.containerURL?.appendingPathComponent("Scratchpad.txt")
     }
 
+    /// The pad holds whatever the user typed, so it belongs with the clipboard
+    /// and the shelf in the app's own container, not in the preferences people
+    /// copy between Macs and commit to dotfiles (issue #1197).
+    private static var storeURL: URL? {
+        PrivateFileStore.containerURL?.appendingPathComponent("Scratchpad.json")
+    }
+
     private func loadApplyingRetention() {
         hasLoaded = true
         if let document, document != lastSavedDocument {
@@ -137,16 +144,24 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         let retention = ScratchpadRetention.sanitized(
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
 
-        if let stored = defaults.object(forKey: DefaultsKey.scratchpadDocument) {
-            let data = stored as? Data
-            let decoded = data.flatMap { try? JSONDecoder().decode(ScratchpadDocument.self, from: $0) }
+        let storedData = Self.storeURL.flatMap { try? Data(contentsOf: $0) }
+        let preferenceData = defaults.data(forKey: DefaultsKey.scratchpadDocument)
+        if let data = storedData ?? preferenceData {
+            let decoded = try? JSONDecoder().decode(ScratchpadDocument.self, from: data)
             var loaded = decoded?.sanitized(defaultName: defaultName)
                 ?? .initial(defaultName: defaultName)
             loaded.applyRetention(retention, now: Date())
-            if loaded == decoded {
+            let alreadyOnDisk = storedData != nil && loaded == decoded
+            if alreadyOnDisk {
                 lastSavedDocument = loaded
             } else {
                 _ = persist(loaded)
+            }
+            // A pad written by an earlier version leaves the preferences only
+            // once it exists in the container, so it is never cleared from one
+            // place before it is safe in the other.
+            if preferenceData != nil, lastSavedDocument == loaded {
+                defaults.removeObject(forKey: DefaultsKey.scratchpadDocument)
             }
             apply(loaded)
             return
@@ -164,8 +179,11 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             defaultName: defaultName,
             retention: retention,
             now: Date())
-        if persist(migrated), let legacyURL {
-            try? manager.removeItem(at: legacyURL)
+        if persist(migrated) {
+            // Clears a preference holding something that never decoded, so no
+            // shape of this key is left behind in the plist.
+            defaults.removeObject(forKey: DefaultsKey.scratchpadDocument)
+            if let legacyURL { try? manager.removeItem(at: legacyURL) }
         }
         apply(migrated)
     }
@@ -187,10 +205,11 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     @discardableResult
     private func persist(_ document: ScratchpadDocument) -> Bool {
         if document == lastSavedDocument { return true }
-        guard let data = document.encoded() else { return false }
-        let defaults = UserDefaults.standard
-        defaults.set(data, forKey: DefaultsKey.scratchpadDocument)
-        guard defaults.data(forKey: DefaultsKey.scratchpadDocument) == data else { return false }
+        guard let data = document.encoded(),
+              let url = Self.storeURL,
+              PrivateFileStore.createDirectory(at: url.deletingLastPathComponent()),
+              PrivateFileStore.write(data, to: url)
+        else { return false }
         lastSavedDocument = document
         return true
     }
