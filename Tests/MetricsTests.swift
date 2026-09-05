@@ -14761,7 +14761,7 @@ struct MetricsTests {
                    "every mixer feature string is set for \(language.rawValue)")
             expect(FeatureStrings.backup(language).description.contains(
                 FeatureStrings.scratchpad(language).pageTitle),
-                   "every backup description discloses its Scratchpad note content (\(language.rawValue))")
+                   "every backup description accounts for the Scratchpad text (\(language.rawValue))")
             let guideValues = Mirror(reflecting: FeatureStrings.permissionGuide(language)).children
                 .compactMap { $0.value as? String }
             expect(!guideValues.isEmpty && guideValues.allSatisfy { !$0.isEmpty },
