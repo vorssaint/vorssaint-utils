@@ -44,13 +44,11 @@ final class FocusFollowsMouseService {
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        resetMovement()
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
-        state.reset()
         isRunning = false
     }
 
@@ -72,34 +70,47 @@ final class FocusFollowsMouseService {
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         observers.append(workspaceCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                       object: nil, queue: .main) { [weak self] _ in
-            self?.state.reset()
+            self?.resetMovement()
         })
         observers.append(workspaceCenter.addObserver(forName: NSWorkspace.didWakeNotification,
                                                       object: nil, queue: .main) { [weak self] _ in
-            self?.state.reset()
+            self?.resetMovement()
         })
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main) { [weak self] _ in self?.state.reset() })
-
-        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
-        timer.tolerance = 0.01
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+            object: nil, queue: .main) { [weak self] _ in self?.resetMovement() })
         isRunning = true
     }
 
     private func recordMovement(to point: CGPoint) {
-        if Thread.isMainThread {
-            state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
-        } else {
+        guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in
-                self?.state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
+                self?.recordMovement(to: point)
             }
+            return
         }
+        guard isRunning else { return }
+        state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
+        timer.tolerance = 0.01
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func resetMovement() {
+        state.reset()
+        timer?.invalidate()
+        timer = nil
     }
 
     private func evaluateIfSettled() {
+        defer {
+            if !state.hasPendingEvaluation {
+                timer?.invalidate()
+                timer = nil
+            }
+        }
         guard AXIsProcessTrusted(),
               NSEvent.pressedMouseButtons == 0,
               NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,

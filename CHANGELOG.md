@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds pictures over screen recordings, app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, network readings, color picking, app icons, readability, localization, mouse reconnection, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
+Vorssaint adds pictures over screen recordings, app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, resource use, network readings, color picking, app icons, readability, localization, mouse reconnection, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
 
 ### Added
 - The recording editor can put a picture over the video, in any of nine spots and at the size and transparency you choose.
@@ -22,6 +22,7 @@ Vorssaint adds pictures over screen recordings, app-based Keep Awake automation,
 - Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
 
 ### Changed
+- Focus follows mouse, window previews, clipboard history and recent captures avoid unnecessary polling, image processing, icon retention and history writes.
 - Command Bar remembers search choices across launches, tolerates short typos, and offers more emoji through its category or a colon. Thanks to @MaximilianMauroner.
 - Scratchpad notes stay in the app's private storage instead of the preferences, so a settings export no longer carries what you typed. Thanks to @CSkjolden.
 - Build checks read the keycap your keyboard layout shows, where they expected the US one. Thanks to @mugurc.
@@ -33,6 +34,7 @@ Vorssaint adds pictures over screen recordings, app-based Keep Awake automation,
 - Package installation and update logs use less processing.
 
 ### Fixed
+- Opening a recording with damaged pointer data no longer requests excessive memory.
 - Screenshot, text and color shortcuts leave active recordings alone, while the recording command still stops them.
 - Network readings recover from temporary counter failures without false spikes, and speed tests report server errors instead of misleading results.
 - Toggling Wi-Fi from the Command Bar no longer blocks clicks and scrolling while the system responds. Thanks to @mugurc.

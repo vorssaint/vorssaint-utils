@@ -24,6 +24,10 @@ struct FocusFollowsMouseState: Equatable {
     private(set) var generation: UInt64 = 0
     private var evaluatedGeneration: UInt64?
 
+    var hasPendingEvaluation: Bool {
+        point != nil && evaluatedGeneration != generation
+    }
+
     mutating func recordMovement(to point: CGPoint, at time: TimeInterval) {
         self.point = point
         movedAt = time
@@ -40,7 +44,7 @@ struct FocusFollowsMouseState: Equatable {
     mutating func nextEvaluation(at time: TimeInterval,
                                  delayMilliseconds: Int) -> FocusFollowsMouseEvaluation? {
         guard let point,
-              evaluatedGeneration != generation,
+              hasPendingEvaluation,
               time - movedAt >= Double(FocusFollowsMouseSupport.sanitizedDelay(delayMilliseconds)) / 1_000
         else { return nil }
         evaluatedGeneration = generation

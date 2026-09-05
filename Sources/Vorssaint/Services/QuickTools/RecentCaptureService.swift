@@ -47,6 +47,7 @@ final class RecentCaptureService: ObservableObject {
     private let generationLock = NSLock()
     private let thumbnailCache = NSCache<NSString, NSImage>()
     private var storedEntries: [RecentCaptureEntry] = []
+    private var persistedEntries: [RecentCaptureEntry]?
     private var loaded = false
     private var clearGeneration = 0
     private var panel: NSPanel?
@@ -437,6 +438,7 @@ final class RecentCaptureService: ObservableObject {
         if let indexURL, Self.isRegularFile(indexURL),
            let data = try? Data(contentsOf: indexURL),
            let decoded = try? JSONDecoder().decode([RecentCaptureEntry].self, from: data) {
+            persistedEntries = decoded
             storedEntries = decoded.sorted { $0.createdAt > $1.createdAt }
         } else {
             storedEntries = []
@@ -502,12 +504,13 @@ final class RecentCaptureService: ObservableObject {
     }
 
     private func persist() {
-        guard let root, let indexURL else { return }
+        guard storedEntries != persistedEntries, let root, let indexURL else { return }
         do {
             try prepareRoot(root)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
             try write(encoder.encode(storedEntries), to: indexURL)
+            persistedEntries = storedEntries
         } catch {
             return
         }
