@@ -6,10 +6,25 @@ import SwiftUI
 struct PanelClipboardView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var enabled = false
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @State private var query = ""
     @State private var copiedID: UUID?
+    /// Each card's frame in the list's own coordinate space, so the view
+    /// knows which cards the inner scroll view is actually showing.
+    @State private var entryFrames: [UUID: CGRect] = [:]
+    @State private var listHeight: CGFloat = 0
+    /// The focus the list last reconciled against. A frame update that
+    /// arrives with a different focus belongs to a keyboard move, not to a
+    /// manual scroll, whatever order SwiftUI delivers the two in.
+    @State private var focusSeenByList: PanelFocusTarget?
+    /// The card a keyboard move is still scrolling into view. Until it
+    /// arrives, its frame says "hidden" without the user having scrolled
+    /// anywhere, so focus must not chase the viewport in the meantime.
+    @State private var revealingEntryID: UUID?
+
+    private static let listSpace = "clipboardList"
 
     var onClose: () -> Void
 
@@ -59,6 +74,8 @@ struct PanelClipboardView: View {
                 .onChange(of: enabled) { _, _ in
                     ClipboardHistoryService.shared.syncWithPreferences()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-enable"),
+                                  actions: PanelRowActions(activate: { enabled.toggle() }))
             Text(enabled ? text.caption : text.disabled)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -85,6 +102,11 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.clearRecent)
                 .disabled(history.recentEntries.isEmpty)
+                .panelKeyboardRow(history.recentEntries.isEmpty ? nil : PanelRowID(.utilities, "clipboard-clearRecent"),
+                                  actions: PanelRowActions(activate: {
+                                      history.clearRecent()
+                                      copiedID = nil
+                                  }), cornerRadius: 6)
                 Button {
                     history.showHistoryWindow()
                 } label: {
@@ -95,7 +117,13 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.shortcut)
+                .panelKeyboardRow(PanelRowID(.utilities, "clipboard-showWindow"),
+                                  actions: PanelRowActions(activate: { history.showHistoryWindow() }), cornerRadius: 6)
             }
+            .panelKeyboardRowGroup(history.recentEntries.isEmpty
+                                   ? [PanelRowID(.utilities, "clipboard-showWindow")]
+                                   : [PanelRowID(.utilities, "clipboard-clearRecent"),
+                                      PanelRowID(.utilities, "clipboard-showWindow")])
         }
         .panelCard()
     }
@@ -107,17 +135,91 @@ struct PanelClipboardView: View {
         } else if filteredEntries.isEmpty {
             emptyState(text.noResults)
         } else {
-            ScrollView {
-                // Lazy: a large history would otherwise build every row, and
-                // decode every image thumbnail, each time the panel opens.
-                LazyVStack(alignment: .leading, spacing: 7) {
-                    ForEach(filteredEntries) { entry in
-                        entryRow(entry)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(filteredEntries) { entry in
+                            entryRow(entry)
+                                .id(entry.id)
+                                .background(
+                                    GeometryReader { geometry in
+                                        Color.clear.preference(
+                                            key: EntryFramePreferenceKey.self,
+                                            value: [entry.id: geometry.frame(in: .named(Self.listSpace))])
+                                    }
+                                )
+                        }
                     }
+                }
+                .coordinateSpace(name: Self.listSpace)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear.preference(key: ListHeightPreferenceKey.self, value: geometry.size.height)
+                    }
+                )
+                .onPreferenceChange(ListHeightPreferenceKey.self) { listHeight = $0 }
+                .onPreferenceChange(EntryFramePreferenceKey.self) { frames in
+                    entryFrames = frames
+                    reconcileFocus(with: proxy)
+                }
+                .panelKeyboardRowList(filteredEntries.flatMap(keyboardRows))
+                .onChange(of: navigator.focus) { _, _ in
+                    reconcileFocus(with: proxy)
                 }
             }
             .frame(maxHeight: 260)
         }
+    }
+
+    private func isFullyVisible(_ entryID: UUID) -> Bool {
+        guard let frame = entryFrames[entryID], listHeight > 0 else { return true }
+        return frame.minY >= -0.5 && frame.maxY <= listHeight + 0.5
+    }
+
+    private func isOffscreen(_ entryID: UUID) -> Bool {
+        guard let frame = entryFrames[entryID], listHeight > 0 else { return false }
+        return frame.maxY <= 0 || frame.minY >= listHeight
+    }
+
+    /// Runs on every focus change and every frame update, and works out
+    /// which of the two it is looking at.
+    ///
+    /// A keyboard move onto a card the list is not fully showing scrolls
+    /// to it; onto a card already in view it leaves the scroll alone, which
+    /// is also how focus following a manual scroll avoids undoing that
+    /// scroll.
+    ///
+    /// Keyboard focus is only meaningful on a button the user can see. When
+    /// a manual scroll pushes the focused card entirely out of the list's
+    /// viewport, focus moves to the nearest card still on screen — the same
+    /// button when that card has it — rather than staying on a hidden
+    /// button that Return would act on sight unseen.
+    private func reconcileFocus(with proxy: ScrollViewProxy) {
+        let focus = navigator.focus
+        let entryID = focusedEntryID(focus)
+        if focus != focusSeenByList {
+            focusSeenByList = focus
+            revealingEntryID = nil
+            guard let entryID, !isFullyVisible(entryID) else { return }
+            revealingEntryID = entryID
+            proxy.scrollTo(entryID, anchor: .center)
+            return
+        }
+        guard case .row(let row)? = focus, let entryID,
+              let localID = row.local as? String else { return }
+        if revealingEntryID == entryID {
+            if isFullyVisible(entryID) { revealingEntryID = nil }
+            return
+        }
+        guard isOffscreen(entryID), let frame = entryFrames[entryID] else { return }
+        let visible = filteredEntries.filter { isFullyVisible($0.id) }
+        guard let target = frame.maxY <= 0 ? visible.first : visible.last else { return }
+        let action = localID.split(separator: "-").last.map(String.init) ?? "copy"
+        let rows = keyboardRows(for: target)
+        let sameButton = keyboardRow(target, action)
+        let destination = rows.contains(sameButton) ? sameButton : keyboardRow(target, "copy")
+        focusSeenByList = .row(destination)
+        navigator.focusRow(destination)
     }
 
     private func emptyState(_ message: String) -> some View {
@@ -127,6 +229,29 @@ struct PanelClipboardView: View {
             .frame(maxWidth: .infinity)
             .frame(height: 72)
             .panelCard()
+    }
+
+    /// One card's buttons, left to right. Only the ids the card actually
+    /// registers: a missing neighbour would strand Left/Right inside the group.
+    private func keyboardRows(for entry: ClipboardHistoryEntry) -> [PanelRowID] {
+        var ids: [PanelRowID] = []
+        if canReorderEntries, history.canMove(entry, .up) { ids.append(keyboardRow(entry, "up")) }
+        if canReorderEntries, history.canMove(entry, .down) { ids.append(keyboardRow(entry, "down")) }
+        ids.append(keyboardRow(entry, "pin"))
+        ids.append(keyboardRow(entry, "copy"))
+        ids.append(keyboardRow(entry, "delete"))
+        return ids
+    }
+
+    private func keyboardRow(_ entry: ClipboardHistoryEntry, _ action: String) -> PanelRowID {
+        PanelRowID(.utilities, "clipboard-\(entry.id)-\(action)")
+    }
+
+    private func focusedEntryID(_ focus: PanelFocusTarget?) -> UUID? {
+        guard case .row(let row)? = focus,
+              row.section == .utilities,
+              let localID = row.local as? String else { return nil }
+        return filteredEntries.first { localID.hasPrefix("clipboard-\($0.id)-") }?.id
     }
 
     private var shortcut: GlobalShortcut {
@@ -204,6 +329,8 @@ struct PanelClipboardView: View {
             }
             entryPreview(entry)
             HStack(spacing: 6) {
+                let canMoveUp = canReorderEntries && history.canMove(entry, .up)
+                let canMoveDown = canReorderEntries && history.canMove(entry, .down)
                 Button {
                     history.move(entry, .up)
                 } label: {
@@ -213,7 +340,9 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.moveUp)
-                .disabled(!canReorderEntries || !history.canMove(entry, .up))
+                .disabled(!canMoveUp)
+                .panelKeyboardRow(canMoveUp ? keyboardRow(entry, "up") : nil,
+                                  actions: PanelRowActions(activate: { history.move(entry, .up) }), cornerRadius: 6)
                 Button {
                     history.move(entry, .down)
                 } label: {
@@ -223,7 +352,9 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.moveDown)
-                .disabled(!canReorderEntries || !history.canMove(entry, .down))
+                .disabled(!canMoveDown)
+                .panelKeyboardRow(canMoveDown ? keyboardRow(entry, "down") : nil,
+                                  actions: PanelRowActions(activate: { history.move(entry, .down) }), cornerRadius: 6)
                 Button {
                     history.togglePin(entry)
                 } label: {
@@ -233,6 +364,8 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
+                .panelKeyboardRow(keyboardRow(entry, "pin"),
+                                  actions: PanelRowActions(activate: { history.togglePin(entry) }), cornerRadius: 6)
                 Button {
                     // The tick means "it is on the clipboard", so it waits for
                     // the write instead of announcing one still queued behind
@@ -247,6 +380,12 @@ struct PanelClipboardView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.mini)
+                .panelKeyboardRow(keyboardRow(entry, "copy"),
+                                  actions: PanelRowActions(activate: {
+                                      history.copy(entry) { copied in
+                                          if copied { copiedID = entry.id }
+                                      }
+                                  }), cornerRadius: 6)
                 Button {
                     history.remove(entry)
                 } label: {
@@ -256,12 +395,34 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(text.delete)
+                .panelKeyboardRow(keyboardRow(entry, "delete"),
+                                  actions: PanelRowActions(activate: { history.remove(entry) }), cornerRadius: 6)
                 Spacer()
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
             }
+            .panelKeyboardRowGroup(keyboardRows(for: entry))
         }
         .panelCard()
+    }
+}
+
+private struct EntryFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { _, latest in latest }
+    }
+}
+
+private struct ListHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    // The scroll view's content contributes the default 0 alongside the
+    // background that measured the height; the reduction order between the
+    // two is not guaranteed, so keep whichever child actually measured.
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }

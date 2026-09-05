@@ -6,6 +6,7 @@ import UniformTypeIdentifiers
 
 struct AppPickerView: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @State private var apps: [InstalledApps.InstalledApp] = []
     @State private var query = ""
     @State private var isLoading = false
@@ -18,6 +19,8 @@ struct AppPickerView: View {
     /// it anywhere else would take an entry that never matches anything
     /// (issue #1009).
     var acceptsExecutables = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
     var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
@@ -25,12 +28,14 @@ struct AppPickerView: View {
     init(compact: Bool = false,
          canBrowseApplications: Bool = false,
          acceptsExecutables: Bool = false,
+         keyboardSection: PanelSectionID? = nil,
          onCancel: @escaping () -> Void,
          onSelect: @escaping (URL) -> Void,
          loadApps: @escaping () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }) {
         self.compact = compact
         self.canBrowseApplications = canBrowseApplications
         self.acceptsExecutables = acceptsExecutables
+        self.keyboardSection = keyboardSection
         self.onCancel = onCancel
         self.onSelect = onSelect
         self.loadApps = loadApps
@@ -77,9 +82,13 @@ struct AppPickerView: View {
                     Label(l10n.s.uninstallerChoose, systemImage: "folder")
                 }
                 .controlSize(compact ? .small : .regular)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-browse") },
+                                  actions: PanelRowActions(activate: { isBrowsingApplications = true }))
             }
             Button(l10n.s.uninstallerCancel, action: onCancel)
                 .controlSize(compact ? .small : .regular)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "appPicker-cancel") },
+                                  actions: PanelRowActions(activate: onCancel))
         }
     }
 
@@ -108,18 +117,28 @@ struct AppPickerView: View {
             .frame(maxWidth: .infinity)
             .frame(height: compact ? 150 : 360)
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(apps) { app in
-                        Button {
-                            onSelect(app.url)
-                        } label: {
-                            AppPickerRow(app: app, compact: compact)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(apps) { app in
+                            Button {
+                                onSelect(app.url)
+                            } label: {
+                                AppPickerRow(app: app, compact: compact)
+                            }
+                            .buttonStyle(.plain)
+                            .panelKeyboardRow(keyboardRow(for: app),
+                                              actions: PanelRowActions(activate: { onSelect(app.url) }))
+                            .id(app.url.path)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.vertical, 3)
                 }
-                .padding(.vertical, 3)
+                .panelKeyboardRowList(apps.compactMap(keyboardRow))
+                .onChange(of: navigator.focus) { _, focus in
+                    guard let path = focusedAppPath(focus, in: apps) else { return }
+                    proxy.scrollTo(path, anchor: .center)
+                }
             }
             .frame(height: compact ? 235 : nil)
         }
@@ -135,6 +154,17 @@ struct AppPickerView: View {
                 isLoading = false
             }
         }
+    }
+
+    /// The one place a picker row's identity is spelled, so the list order,
+    /// the rows themselves and the scroll-to lookup below cannot drift apart.
+    private func keyboardRow(for app: InstalledApps.InstalledApp) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, "appPicker-\(app.url.path)") }
+    }
+
+    private func focusedAppPath(_ focus: PanelFocusTarget?, in apps: [InstalledApps.InstalledApp]) -> String? {
+        guard case .row(let row)? = focus, row.section == keyboardSection else { return nil }
+        return apps.first { keyboardRow(for: $0) == row }?.url.path
     }
 }
 

@@ -809,6 +809,8 @@ struct HomebrewTrustCard: View {
     @ObservedObject private var homebrew = HomebrewManager.shared
     let tap: String
     var compact = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 6 : 8) {
@@ -832,6 +834,8 @@ struct HomebrewTrustCard: View {
             .buttonStyle(.borderedProminent)
             .controlSize(compact ? .small : .regular)
             .disabled(homebrew.isTrustingTap)
+            .panelKeyboardRow(homebrew.isTrustingTap ? nil : keyboardSection.map { PanelRowID($0, "homebrewTrust") },
+                              actions: PanelRowActions(activate: { homebrew.trustTapAndContinue() }))
         }
         .padding(compact ? 8 : 12)
         .frame(maxWidth: .infinity, alignment: .leading)

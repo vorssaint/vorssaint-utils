@@ -78,6 +78,10 @@ struct PanelWindowLayoutView: View {
             .buttonStyle(.plain)
             .help(l10n.s.menuSettings)
             .accessibilityLabel(l10n.s.menuSettings)
+            .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-edit"),
+                              actions: PanelRowActions(activate: {
+                                  withAnimation(.easeOut(duration: 0.15)) { editingActions.toggle() }
+                              }))
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 14))
@@ -87,6 +91,7 @@ struct PanelWindowLayoutView: View {
             .buttonStyle(.plain)
             .help(l10n.s.uninstallerCancel)
             .accessibilityLabel(l10n.s.menuClose)
+            .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-close"), actions: PanelRowActions(activate: onClose))
         }
     }
 
@@ -109,6 +114,8 @@ struct PanelWindowLayoutView: View {
                 .onChange(of: edgeSnapEnabled) { _, _ in
                     WindowLayoutService.shared.syncWithPreferences()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-edgeSnap"),
+                                  actions: PanelRowActions(activate: { edgeSnapEnabled.toggle() }))
             Text(text.edgeSnapCaption)
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
@@ -139,6 +146,10 @@ struct PanelWindowLayoutView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
+                .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-openTilingSettings"),
+                                  actions: PanelRowActions(activate: {
+                                      NSWorkspace.shared.open(WindowEdgeSnapSupport.desktopAndDockSettingsURL)
+                                  }), cornerRadius: 6)
             }
             Divider()
             Text(text.caption)
@@ -152,6 +163,8 @@ struct PanelWindowLayoutView: View {
                 .onChange(of: shortcutsEnabled) { _, _ in
                     WindowLayoutService.shared.syncWithPreferences()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-shortcuts"),
+                                  actions: PanelRowActions(activate: { shortcutsEnabled.toggle() }))
             if shortcutsEnabled {
                 Text(text.shortcutsCaption)
                     .font(.system(size: 9.5))
@@ -166,10 +179,13 @@ struct PanelWindowLayoutView: View {
                 .onChange(of: gestureEnabled) { _, _ in
                     WindowLayoutService.shared.syncWithPreferences()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-gesture"),
+                                  actions: PanelRowActions(activate: { gestureEnabled.toggle() }))
             if gestureEnabled {
                 WindowGestureModifierPicker(storageValue: $gestureModifiers,
                                             title: text.gestureModifiers,
-                                            compact: true)
+                                            compact: true,
+                                            keyboardSection: .utilities)
                     .onChange(of: gestureModifiers) { _, _ in
                         WindowLayoutService.shared.syncWithPreferences()
                     }
@@ -192,6 +208,11 @@ struct PanelWindowLayoutView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
+                .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-grantAccessibility"),
+                                  actions: PanelRowActions(activate: {
+                                      Permissions.shared.requestAccessibility()
+                                      Permissions.shared.openAccessibilitySettings()
+                                  }), cornerRadius: 6)
             }
         }
         .panelCard()
@@ -241,6 +262,15 @@ struct PanelWindowLayoutView: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(!permissions.accessibility && !editingActions)
+                        .panelKeyboardRow(PanelRowID(.utilities, "windowLayout-\(action.rawValue)"),
+                                          actions: (!permissions.accessibility && !editingActions) ? PanelRowActions()
+                                              : PanelRowActions(activate: {
+                                                  if editingActions {
+                                                      withAnimation(.easeOut(duration: 0.15)) { toggleHidden(action) }
+                                                  } else {
+                                                      service.apply(action)
+                                                  }
+                                              }), cornerRadius: 6)
                     }
                 }
             }

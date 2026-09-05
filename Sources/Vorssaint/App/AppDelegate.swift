@@ -936,36 +936,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
-        if popover.isShown, event.keyCode == UInt16(kVK_Escape) {
+        guard popover.isShown,
+              let window = popover.contentViewController?.view.window,
+              event.window === window || NSApp.keyWindow === window else {
+            return event
+        }
+
+        if event.keyCode == UInt16(kVK_Escape) {
+            // Let a native field editor or confirmation dialog cancel itself
+            // before Escape backs out of the hosted utility/popover.
+            if PanelInteractionState.shared.isPresentingPopoverModal
+                || isTextEditingActive(in: window) {
+                return event
+            }
+            // Metric detail and a hosted utility sub-panel each push a level;
+            // Escape backs out of those before it ever closes the popover.
+            if PanelKeyboardNavigator.shared.popTopLevel() { return nil }
             closePopover()
             return nil
         }
 
-        guard popover.isShown,
-              PanelInteractionState.shared.viewKeepsPopoverOpen,
-              isPlainPopoverHoldKey(event),
-              let window = popover.contentViewController?.view.window else {
-            return event
-        }
-
         // Text controls inside the popover, especially the Homebrew search
-        // field, need Space/Return delivered through AppKit's normal field
-        // editor path so delegates and target/actions can submit correctly.
-        if isTextEditingActive(in: window) {
+        // field, keep their own keys — the navigator never sees them.
+        guard !isTextEditingActive(in: window) else {
             return event
         }
 
-        if NSApp.keyWindow === window || event.window === window {
+        // A real AppKit control the user already clicked into keeps its own
+        // horizontal adjustment keys. Up and Down always remain panel
+        // navigation, even after a slider, picker, or stepper was clicked.
+        if isHoldOpenKeyForwardable(event, in: window) {
             window.firstResponder?.keyDown(with: event)
+            return nil
+        }
+
+        if PanelKeyboardNavigator.shared.handleKeyDown(event) {
             return nil
         }
         return event
     }
 
+    private func isHoldOpenKeyForwardable(_ event: NSEvent, in window: NSWindow) -> Bool {
+        guard PanelInteractionState.shared.viewKeepsPopoverOpen,
+              isPlainPopoverHoldKey(event),
+              NSApp.keyWindow === window || event.window === window,
+              let responder = window.firstResponder else {
+            return false
+        }
+        return responder is NSControl
+    }
+
     private func isPlainPopoverHoldKey(_ event: NSEvent) -> Bool {
         let blockedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
         guard event.modifierFlags.intersection(blockedModifiers).isEmpty else { return false }
-        return event.keyCode == 49 || event.keyCode == 36 || event.keyCode == 76
+        switch event.keyCode {
+        case 49, 36, 76, // Space, Return, keypad Enter
+             UInt16(kVK_LeftArrow), UInt16(kVK_RightArrow):
+            return true
+        default:
+            return false
+        }
     }
 
     private func isTextEditingActive(in window: NSWindow) -> Bool {
@@ -1103,6 +1133,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         endPopoverDriftCorrection()
         PanelInteractionState.shared.viewKeepsPopoverOpen = false
         PanelInteractionState.shared.isPresentingPopoverModal = false
+        PanelInteractionState.shared.hostedSettingsPage = nil
+        // The popover keeps its content view controller between showings, so
+        // the ring would otherwise still be sitting where the keyboard left
+        // it the next time the panel is opened with the mouse.
+        PanelKeyboardNavigator.shared.clearFocus()
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         runPopoverCloseCompletions()

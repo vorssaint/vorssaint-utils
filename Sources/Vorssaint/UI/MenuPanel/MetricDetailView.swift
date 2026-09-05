@@ -115,13 +115,11 @@ extension MenuBarMetric {
 struct ActivityMonitorButton: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var isHovered = false
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Button {
-            let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
-            let url = NSWorkspace.shared
-                .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
-            NSWorkspace.shared.open(url)
+            Self.open()
         } label: {
             Image(systemName: "arrow.up.forward.app")
                 .font(.system(size: 10, weight: .medium))
@@ -135,6 +133,14 @@ struct ActivityMonitorButton: View {
         .help(l10n.s.monitorOpenActivityMonitor)
         .accessibilityLabel(l10n.s.monitorOpenActivityMonitor)
         .animation(.easeOut(duration: 0.12), value: isHovered)
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: Self.open), cornerRadius: 9)
+    }
+
+    private static func open() {
+        let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
+        let url = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
+        NSWorkspace.shared.open(url)
     }
 }
 
@@ -142,6 +148,7 @@ struct MetricDetailView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var speed = SpeedTest.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
@@ -308,6 +315,8 @@ struct MetricDetailView: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .panelKeyboardRow(PanelRowID(kind.panelSection, "speedTest"),
+                                      actions: PanelRowActions(activate: { speed.start() }), cornerRadius: 6)
                 }
                 Spacer()
                 if let down = speed.downloadMbps, let up = speed.uploadMbps {
@@ -336,7 +345,7 @@ struct MetricDetailView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
-                ActivityMonitorButton()
+                ActivityMonitorButton(keyboardRow: PanelRowID(kind.panelSection, "activityMonitor"))
             }
             if processRows.isEmpty {
                 Text(processRowsLoading ? l10n.s.breakdownMeasuring : emptyProcessText)
@@ -344,7 +353,8 @@ struct MetricDetailView: View {
                     .foregroundStyle(.tertiary)
             } else {
                 ForEach(processRows) { row in
-                    ProcessUsageRow(row: row, value: processValue(row))
+                    ProcessUsageRow(row: row, value: processValue(row),
+                                    keyboardRow: PanelRowID(kind.panelSection, "process-\(row.id)"))
                 }
             }
         }
@@ -641,7 +651,7 @@ struct MetricDetailView: View {
                           self.kind.processKind == processKind else { return }
                     self.processRowsLoading = rows.isEmpty && isWarmingUp
                     if !rows.isEmpty || self.processRows.isEmpty {
-                        self.processRows = rows
+                        self.processRows = self.stabilizedProcessRows(rows)
                     }
                     if rows.isEmpty && isWarmingUp {
                         self.refreshProcessRows(force: true, delay: 1.0)
@@ -654,6 +664,24 @@ struct MetricDetailView: View {
         } else {
             run()
         }
+    }
+
+    /// Resource samples are ranked on every refresh. Replacing the list with
+    /// that new ranking while a process row has keyboard focus moves the ring
+    /// without a key press, then makes the next arrow appear to skip. Keep the
+    /// current visual order for surviving PIDs during keyboard traversal and
+    /// update only their values; newly observed processes follow afterward.
+    private func stabilizedProcessRows(_ refreshed: [ProcessUsage]) -> [ProcessUsage] {
+        ProcessUsageNavigation.stabilized(refreshed, previous: processRows,
+                                          focusedID: focusedProcessPID, id: \.pid)
+    }
+
+    private var focusedProcessPID: pid_t? {
+        guard case .row(let row)? = navigator.focus,
+              row.section == kind.panelSection,
+              let local = row.local.base as? String,
+              local.hasPrefix("process-") else { return nil }
+        return Int32(local.dropFirst("process-".count))
     }
 
     private var percentageSampleInterval: TimeInterval {

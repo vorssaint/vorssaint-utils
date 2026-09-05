@@ -63,6 +63,7 @@ struct MenuPanelView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = UpdateService.shared
     @ObservedObject private var panelFocus = MenuPanelFocus.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.monitorShowMixer) private var showMixer = true
@@ -83,7 +84,6 @@ struct MenuPanelView: View {
     @State private var updateBannerHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
-    @FocusState private var focusedSection: PanelSectionID?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
@@ -102,10 +102,13 @@ struct MenuPanelView: View {
                 navigablePanel
             }
         }
+        .markMenuPanelHost()
         .onAppear {
             applyFocus(panelFocus.request)
             KeepAwakeManager.shared.refreshPasswordlessStatus()
             syncMonitorSampling()
+            syncNavigatorTabs()
+            syncNavigatorChrome()
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuPanelWillShow)) { _ in
             syncMonitorSampling()
@@ -122,13 +125,43 @@ struct MenuPanelView: View {
             if !state.showsMenuPanelBanner {
                 updateBannerHeight = 0
             }
+            syncNavigatorChrome()
         }
         .onChange(of: panelFocus.request) { _, request in
             applyFocus(request)
         }
-        .onChange(of: focusedSection) { _, section in
-            if let section { selectedSection = section }
+        .onChange(of: visibleSections) { _, _ in
+            syncNavigatorTabs()
         }
+        .onChange(of: selectedSection) { _, _ in
+            syncNavigatorTabs()
+        }
+        .onChange(of: selectedMetric) { _, _ in
+            syncNavigatorTabs()
+            syncNavigatorChrome()
+        }
+    }
+
+    /// Keeps the navigator's tab list and active tab current, so keyboard
+    /// Tab/←/→ always cycles the tabs actually on screen and the focus ring
+    /// follows the active one whether it moved by mouse or keyboard. Metric
+    /// detail has no tab bar of its own, so it reports none — its back
+    /// button takes that spot in the sequence instead (`syncNavigatorChrome`).
+    private func syncNavigatorTabs() {
+        let tabs = selectedMetric == nil ? visibleSections : []
+        navigator.configureTabs(tabs, active: activeSection) { selectedSection = $0 }
+    }
+
+    /// Keeps the navigator's fixed chrome current: the update banner and the
+    /// beta feedback button lead (when shown), the metric-detail back button
+    /// takes the tab bar's spot while a metric is open, and the footer
+    /// always trails the content.
+    private func syncNavigatorChrome() {
+        var leading: [PanelChromeID] = []
+        if case .available = updates.state { leading.append(.updateBanner) }
+        if AppInfo.isBeta { leading.append(.headerFeedback) }
+        if selectedMetric != nil { leading.append(.metricBack) }
+        navigator.configureChrome(leading: leading, trailing: [.footerSettings, .footerQuit])
     }
 
     private var monitorNeeds: SystemMonitorPanelNeeds {
@@ -157,9 +190,9 @@ struct MenuPanelView: View {
             guard isSectionVisible(section) else { return }
             selectedMetric = nil
             selectedSection = section
-            focusedSection = section
+            navigator.focusTab(section)
         case .metric(let metric):
-            focusedSection = nil
+            navigator.clearFocus()
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
@@ -177,6 +210,7 @@ struct MenuPanelView: View {
                     section(for: activeSection, collapsible: false)
                 }
                 .frame(width: 308)
+                .trackPanelKeyboardRowOrder()
             }
             .frame(width: 308, height: navigableScrollHeight)
 
@@ -198,6 +232,7 @@ struct MenuPanelView: View {
                 OverlayScrollView(measuredHeight: $metricContentHeight) {
                     MetricDetailView(kind: selectedMetric)
                         .frame(width: 308)
+                        .trackPanelKeyboardRowOrder()
                 }
                 .frame(width: 308, height: metricScrollHeight)
             }
@@ -207,6 +242,21 @@ struct MenuPanelView: View {
         .padding(12)
         .frame(width: 332, height: metricPanelHeight)
         .panelGlassSurface()
+        .onAppear {
+            navigator.pushLevel(.metricDetail, dismiss: dismissMetricDetail)
+        }
+        .onDisappear {
+            navigator.popLevel(.metricDetail)
+        }
+    }
+
+    /// Escape and the back button both go through this: back to the section
+    /// the metric lives in, with keyboard focus cleared the same way the
+    /// back button always has.
+    private func dismissMetricDetail() {
+        if let selectedMetric { selectedSection = selectedMetric.panelSection }
+        selectedMetric = nil
+        MenuPanelFocus.shared.clearMetricFocus()
     }
 
     /// The major sections in the user's saved order. Reading `sectionOrderRaw`
@@ -323,7 +373,6 @@ struct MenuPanelView: View {
                 let isActive = activeSection == id
                 Button {
                     selectedSection = id
-                    focusedSection = id
                 } label: {
                     Image(systemName: id.symbolName)
                         .font(.system(size: 13.5, weight: .semibold))
@@ -332,13 +381,15 @@ struct MenuPanelView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .focused($focusedSection, equals: id)
                 .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isActive ? navigationActiveFill : Color.clear)
                 )
+                .panelFocusRing(navigator.focus == .tab(id))
                 .help(id.title(l10n.s))
+                .accessibilityLabel(id.title(l10n.s))
+                .accessibilityAddTraits(isActive ? .isSelected : [])
             }
         }
         .padding(4)
@@ -358,11 +409,7 @@ struct MenuPanelView: View {
 
     private func metricNavigationHeader(_ kind: MetricDetailKind) -> some View {
         HStack(spacing: 8) {
-            Button {
-                selectedMetric = nil
-                selectedSection = kind.panelSection
-                MenuPanelFocus.shared.clearMetricFocus()
-            } label: {
+            Button(action: dismissMetricDetail) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 11, weight: .semibold))
                     .frame(width: 24, height: 24)
@@ -378,6 +425,7 @@ struct MenuPanelView: View {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.7)
             )
+            .panelKeyboardChrome(.metricBack, activate: dismissMetricDetail, cornerRadius: 7)
 
             Label(kind.title(l10n.s), systemImage: kind.symbolName)
                 .font(.system(size: 12.5, weight: .semibold))
@@ -403,7 +451,8 @@ struct MenuPanelView: View {
         HStack(spacing: 8) {
             footerButton(l10n.s.panelSettings,
                          systemImage: "gearshape",
-                         horizontalPadding: 7) {
+                         horizontalPadding: 7,
+                         keyboardChrome: .footerSettings) {
                 // The hosted utility's own page, or the general one from the
                 // panel's lists: the router is sticky, so it is set every time.
                 SettingsRouter.shared.page = PanelInteractionState.shared.hostedSettingsPage ?? .general
@@ -412,7 +461,8 @@ struct MenuPanelView: View {
 
             footerButton(l10n.s.panelQuit,
                          systemImage: "power",
-                         horizontalPadding: 7) {
+                         horizontalPadding: 7,
+                         keyboardChrome: .footerQuit) {
                 NSApp.terminate(nil)
             }
         }
@@ -423,6 +473,7 @@ struct MenuPanelView: View {
 
     private func footerButton(_ title: String, systemImage: String,
                               horizontalPadding: CGFloat = 8,
+                              keyboardChrome: PanelChromeID,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
@@ -445,6 +496,7 @@ struct MenuPanelView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+        .panelKeyboardChrome(keyboardChrome, activate: action, cornerRadius: 7)
     }
 }
 
@@ -481,6 +533,7 @@ private struct MenuPanelHeader: View {
                     }
                     .buttonStyle(.plain)
                     .help(FeatureStrings.feedback(l10n.language).openButton)
+                    .panelKeyboardChrome(.headerFeedback, activate: { appDelegate()?.openFeedbackWindow() })
                 }
             }
         }
@@ -576,9 +629,9 @@ struct UtilitiesSection: View {
                     showUninstaller = false
                 }
             } else if showCleanerPanel {
-                PanelCleanerView {
+                PanelCleanerView(onClose: {
                     showCleanerPanel = false
-                }
+                }, keyboardSection: .utilities)
             } else if showURLCleaner {
                 PanelURLCleanerView {
                     showURLCleaner = false
@@ -588,10 +641,10 @@ struct UtilitiesSection: View {
                     showHomebrewPanel = false
                 }
             } else if showMediaPanel {
-                PanelMediaView {
+                PanelMediaView(onClose: {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showMediaPanel = false
-                }
+                }, keyboardSection: .utilities)
             } else if showClipboardPanel {
                 PanelClipboardView {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
@@ -628,6 +681,13 @@ struct UtilitiesSection: View {
         .onChange(of: hostedUtilityKeepsPopoverOpen) { _, keepsOpen in
             PanelInteractionState.shared.viewKeepsPopoverOpen = keepsOpen
         }
+        .onChange(of: isHostingUtility) { _, hosting in
+            if hosting {
+                PanelKeyboardNavigator.shared.pushLevel(.hostedUtility, dismiss: dismissActiveHostedUtility)
+            } else {
+                PanelKeyboardNavigator.shared.popLevel(.hostedUtility)
+            }
+        }
         .onChange(of: hostedSettingsPage) { _, page in
             PanelInteractionState.shared.hostedSettingsPage = page
         }
@@ -636,6 +696,7 @@ struct UtilitiesSection: View {
             // tool off screen with it; a closed panel does not, and keeps it.
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
             PanelInteractionState.shared.hostedSettingsPage = nil
+            PanelKeyboardNavigator.shared.popLevel(.hostedUtility)
         }
     }
 
@@ -663,6 +724,21 @@ struct UtilitiesSection: View {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel
+    }
+
+    /// Escape goes through this: closes whichever tool is currently hosted,
+    /// the same way its own close button does.
+    private func dismissActiveHostedUtility() {
+        PanelInteractionState.shared.viewKeepsPopoverOpen = false
+        if showUninstaller { showUninstaller = false }
+        else if showCleanerPanel { showCleanerPanel = false }
+        else if showURLCleaner { showURLCleaner = false }
+        else if showHomebrewPanel { showHomebrewPanel = false }
+        else if showMediaPanel { showMediaPanel = false }
+        else if showClipboardPanel { showClipboardPanel = false }
+        else if showRecentCapturesPanel { showRecentCapturesPanel = false }
+        else if showWindowLayoutPanel { showWindowLayoutPanel = false }
+        else if showAppUpdatesPanel { showAppUpdatesPanel = false }
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -724,7 +800,7 @@ struct UtilitiesSection: View {
     private func itemView(_ item: UtilityPanelItem, editing: Bool) -> some View {
         switch item {
         case .homebrew:
-            UtilityActionButton(title: l10n.s.homebrewName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.homebrewName,
                                 caption: l10n.s.homebrewEnableCaption,
                                 systemImage: "shippingbox",
                                 isEditing: editing,
@@ -734,7 +810,7 @@ struct UtilitiesSection: View {
                                     showHomebrewPanel = true
                                 })
         case .appUpdates:
-            UtilityActionButton(title: FeatureStrings.appUpdates(l10n.language).pageTitle,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.appUpdates(l10n.language).pageTitle,
                                 caption: FeatureStrings.appUpdates(l10n.language).panelCaption,
                                 systemImage: "arrow.down.app",
                                 isEditing: editing,
@@ -744,7 +820,7 @@ struct UtilitiesSection: View {
                                     showAppUpdatesPanel = true
                                 })
         case .media:
-            UtilityActionButton(title: l10n.s.mediaName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.mediaName,
                                 caption: l10n.s.mediaEnableCaption,
                                 systemImage: "photo.on.rectangle.angled",
                                 isEditing: editing,
@@ -754,7 +830,7 @@ struct UtilitiesSection: View {
                                     showMediaPanel = true
                                 })
         case .clipboard:
-            UtilityActionButton(title: FeatureStrings.clipboard(l10n.language).title,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.clipboard(l10n.language).title,
                                 caption: clipboardEnabled
                                     ? FeatureStrings.clipboard(l10n.language).caption
                                     : FeatureStrings.clipboard(l10n.language).disabled,
@@ -767,7 +843,7 @@ struct UtilitiesSection: View {
                                     showClipboardPanel = true
                                 })
         case .windowLayout:
-            UtilityActionButton(title: FeatureStrings.windowLayout(l10n.language).title,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.windowLayout(l10n.language).title,
                                 caption: FeatureStrings.windowLayout(l10n.language).caption,
                                 systemImage: "rectangle.3.group",
                                 isEditing: editing,
@@ -777,7 +853,7 @@ struct UtilitiesSection: View {
                                     showWindowLayoutPanel = true
                                 })
         case .uninstaller:
-            UtilityActionButton(title: l10n.s.uninstallerName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.uninstallerName,
                                 caption: l10n.s.uninstallerEnableCaption,
                                 systemImage: "trash",
                                 isEditing: editing,
@@ -787,7 +863,7 @@ struct UtilitiesSection: View {
                                     showUninstaller = true
                                 })
         case .cleaner:
-            UtilityActionButton(title: l10n.s.cleanerName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.cleanerName,
                                 caption: l10n.s.cleanerPanelCaption,
                                 systemImage: "sparkle",
                                 isEditing: editing,
@@ -797,7 +873,7 @@ struct UtilitiesSection: View {
                                     showCleanerPanel = true
                                 })
         case .cleanURL:
-            UtilityActionButton(title: l10n.s.urlCleanerName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.urlCleanerName,
                                 caption: l10n.s.urlCleanerEnableCaption,
                                 systemImage: "link",
                                 isEditing: editing,
@@ -807,7 +883,7 @@ struct UtilitiesSection: View {
                                     showURLCleaner = true
                                 })
         case .cleaning:
-            UtilityActionButton(title: l10n.s.cleaningMenuItem,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.cleaningMenuItem,
                                 caption: cleaningCaption,
                                 systemImage: "keyboard",
                                 isEditing: editing,
@@ -818,7 +894,7 @@ struct UtilitiesSection: View {
                                 permissionAction: cleaningNeedsAccessibility ? grantAccessibility : nil,
                                 action: startCleaning)
         case .screenOCR:
-            UtilityActionButton(title: l10n.s.ocrName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.ocrName,
                                 caption: ocrCaption,
                                 systemImage: "text.viewfinder",
                                 isEditing: editing,
@@ -835,7 +911,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .screenshot:
-            UtilityActionButton(title: FeatureStrings.screenshot(l10n.language).pageTitle,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.screenshot(l10n.language).pageTitle,
                                 caption: screenshotCaption,
                                 systemImage: "camera.viewfinder",
                                 isEditing: editing,
@@ -855,7 +931,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .screenRecorder:
-            UtilityActionButton(title: screenRecorderTitle,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: screenRecorderTitle,
                                 caption: screenRecorderCaption,
                                 systemImage: recorder.isRecording ? "stop.circle" : "record.circle",
                                 isEditing: editing,
@@ -877,7 +953,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .colorPicker:
-            UtilityActionButton(title: l10n.s.colorPickerName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.colorPickerName,
                                 caption: l10n.s.colorPickerCaption,
                                 systemImage: "eyedropper",
                                 isEditing: editing,
@@ -891,7 +967,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .cameraPreview:
-            UtilityActionButton(title: FeatureStrings.cameraPreview(l10n.language).pageTitle,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.cameraPreview(l10n.language).pageTitle,
                                 caption: cameraPreviewCaption,
                                 systemImage: "web.camera",
                                 isEditing: editing,
@@ -910,7 +986,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .scratchpad:
-            UtilityActionButton(title: FeatureStrings.scratchpad(l10n.language).pageTitle,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.scratchpad(l10n.language).pageTitle,
                                 caption: FeatureStrings.scratchpad(l10n.language).panelCaption,
                                 systemImage: "note.text",
                                 isEditing: editing,
@@ -924,7 +1000,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .quickLauncher:
-            UtilityActionButton(title: l10n.s.launcherName,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: l10n.s.launcherName,
                                 caption: l10n.s.launcherCaption,
                                 systemImage: "square.grid.2x2",
                                 isEditing: editing,
@@ -938,7 +1014,7 @@ struct UtilitiesSection: View {
                                     }
                                 })
         case .commandBar:
-            UtilityActionButton(title: FeatureStrings.commandBar(l10n.language).pageTitle,
+            UtilityActionButton(id: PanelRowID(.utilities, item), title: FeatureStrings.commandBar(l10n.language).pageTitle,
                                 caption: FeatureStrings.commandBar(l10n.language).panelCaption,
                                 systemImage: "command",
                                 isEditing: editing,
@@ -1222,6 +1298,24 @@ struct QuickControlsSection: View {
         }
         .buttonStyle(.plain)
         .disabled(editing)
+        .panelKeyboardRow(PanelRowID(.controls, category.rawValue),
+                          actions: editing ? PanelRowActions() : PanelRowActions(
+                              activate: {
+                                  withAnimation(.easeOut(duration: 0.15)) {
+                                      setExpanded(category, !isExpanded(category))
+                                  }
+                              },
+                              adjust: { direction, _ in
+                                  // Right expands, left collapses; already being
+                                  // there hands the key back instead of no-oping.
+                                  let wantsExpanded = direction == .increase
+                                  guard wantsExpanded != isExpanded(category) else { return false }
+                                  withAnimation(.easeOut(duration: 0.15)) {
+                                      setExpanded(category, wantsExpanded)
+                                  }
+                                  return true
+                              }),
+                          cornerRadius: 6)
     }
 
     private func title(for category: ControlCategory) -> String {
@@ -1354,7 +1448,7 @@ struct QuickControlsSection: View {
     private func itemView(_ item: ControlPanelItem, editing: Bool) -> some View {
         switch item {
         case .mouseScroll:
-            PanelToggleRow(title: l10n.s.invertMouseScroll,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.invertMouseScroll,
                            caption: caption(l10n.s.invertMouseScrollCaption,
                                             needsAccessibility: scrollDirectionEnabled),
                            systemImage: "computermouse",
@@ -1370,7 +1464,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .focusFollowsMouse:
-            PanelToggleRow(title: l10n.s.focusFollowsMouseName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.focusFollowsMouseName,
                            caption: caption(l10n.s.focusFollowsMouseCaption,
                                             needsAccessibility: focusFollowsMouseEnabled),
                            systemImage: "cursorarrow.and.square.on.square.dashed",
@@ -1386,7 +1480,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .mouseNavigation:
-            PanelToggleRow(title: l10n.s.mouseNavigationEnable,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.mouseNavigationEnable,
                            caption: caption(l10n.s.mouseNavigationCaption,
                                             needsAccessibility: mouseNavigationEnabled),
                            systemImage: "arrow.left.arrow.right",
@@ -1403,7 +1497,7 @@ struct QuickControlsSection: View {
                 }
         case .switcher:
             VStack(alignment: .leading, spacing: 5) {
-                PanelToggleRow(title: l10n.s.switcherSection,
+                PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.switcherSection,
                                caption: switcherCaption,
                                systemImage: "rectangle.on.rectangle",
                                isOn: $switcherEnabled,
@@ -1429,7 +1523,7 @@ struct QuickControlsSection: View {
             }
         case .keyDebounce:
             VStack(alignment: .leading, spacing: 5) {
-                PanelToggleRow(title: l10n.s.keyDebounceName,
+                PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.keyDebounceName,
                                caption: keyDebounceCaption,
                                systemImage: "keyboard",
                                isOn: $keyDebounceEnabled,
@@ -1448,7 +1542,7 @@ struct QuickControlsSection: View {
                 }
             }
         case .cutPaste:
-            PanelToggleRow(title: l10n.s.cutPasteName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.cutPasteName,
                            caption: caption(l10n.s.cutPasteEnableCaption, needsAccessibility: cutPasteEnabled),
                            systemImage: "scissors",
                            isOn: $cutPasteEnabled,
@@ -1463,7 +1557,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .autoQuit:
-            PanelToggleRow(title: l10n.s.autoQuitName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.autoQuitName,
                            caption: caption(l10n.s.autoQuitEnableCaption, needsAccessibility: autoQuitEnabled),
                            systemImage: "xmark.rectangle",
                            isOn: $autoQuitEnabled,
@@ -1478,7 +1572,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .shelf:
-            PanelToggleRow(title: l10n.s.shelfName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.shelfName,
                            caption: l10n.s.shelfEnableCaption,
                            systemImage: "tray.full",
                            isOn: $shelfEnabled,
@@ -1495,7 +1589,7 @@ struct QuickControlsSection: View {
                     ShelfService.shared.syncWithPreferences()
                 }
         case .windowMaximize:
-            PanelToggleRow(title: l10n.s.windowMaximizeName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.windowMaximizeName,
                            caption: caption(l10n.s.windowMaximizeCaption, needsAccessibility: windowMaximizeEnabled),
                            systemImage: "arrow.up.left.and.arrow.down.right",
                            isOn: $windowMaximizeEnabled,
@@ -1510,7 +1604,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .dockPreview:
-            PanelToggleRow(title: l10n.s.dockPreviewName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.dockPreviewName,
                            caption: dockPreviewCaption,
                            systemImage: "dock.rectangle",
                            isOn: $dockPreviewEnabled,
@@ -1530,7 +1624,7 @@ struct QuickControlsSection: View {
                     }
                 }
         case .dockClick:
-            PanelToggleRow(title: l10n.s.dockClickMinimize,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.dockClickMinimize,
                            caption: caption(l10n.s.dockClickMinimizeCaption, needsAccessibility: dockClickEnabled),
                            systemImage: "dock.arrow.down.rectangle",
                            isOn: $dockClickEnabled,
@@ -1546,7 +1640,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .dockClickHide:
-            PanelToggleRow(title: l10n.s.dockClickHide,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.dockClickHide,
                            caption: caption(l10n.s.dockClickHideCaption, needsAccessibility: dockClickHideEnabled),
                            systemImage: "eye.slash",
                            isOn: $dockClickHideEnabled,
@@ -1562,7 +1656,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .dockClickCycle:
-            PanelToggleRow(title: l10n.s.dockClickCycleWindows,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.dockClickCycleWindows,
                            caption: caption(l10n.s.dockClickCycleWindowsCaption, needsAccessibility: dockClickCycleEnabled),
                            systemImage: "dock.rectangle",
                            isOn: $dockClickCycleEnabled,
@@ -1577,7 +1671,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .middleClick:
-            PanelToggleRow(title: l10n.s.middleClickEnable,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.middleClickEnable,
                            caption: middleClickCaption,
                            systemImage: "cursorarrow.click.2",
                            isOn: $middleClickEnabled,
@@ -1594,7 +1688,7 @@ struct QuickControlsSection: View {
                 }
         case .textSnippets:
             let snippetStrings = FeatureStrings.snippets(l10n.language)
-            PanelToggleRow(title: snippetStrings.pageTitle,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: snippetStrings.pageTitle,
                            caption: caption(snippetStrings.enableCaption, needsAccessibility: textSnippetsEnabled),
                            systemImage: "text.append",
                            isOn: $textSnippetsEnabled,
@@ -1619,7 +1713,7 @@ struct QuickControlsSection: View {
             // slices) or watch a side button involve Accessibility.
             let needsAccessibility = RadialMenuSupport.needsAccessibility(
                 RadialMenuSupport.decodeProfiles(UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles)))
-            PanelToggleRow(title: radialStrings.pageTitle,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: radialStrings.pageTitle,
                            caption: radialMenuEnabled && needsAccessibility && !permissions.accessibility
                                ? missingPermission(l10n.s.permissionAccessibility)
                                : radialStrings.panelCaption,
@@ -1652,7 +1746,7 @@ struct QuickControlsSection: View {
             // together. Widening one and not the rest is what leaves the
             // row asking for a permission its own button cannot grant.
             let buttonsEngaged = mouseButtonShortcutsEnabled || spacesEnabled
-            PanelToggleRow(title: buttonStrings.pageTitle,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: buttonStrings.pageTitle,
                            caption: caption(buttonStrings.panelCaption,
                                             needsAccessibility: buttonsEngaged),
                            systemImage: "button.programmable",
@@ -1680,7 +1774,7 @@ struct QuickControlsSection: View {
                 superKeyStrings.sourceLabel(superKeySource),
                 SuperKeySupport.modifiers(from: superKeyModifierStorage).keyCaps.joined()
             )
-            PanelToggleRow(title: superKeyStrings.pageTitle,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: superKeyStrings.pageTitle,
                            caption: caption(modifierCaption,
                                             needsAccessibility: superKeyEnabled),
                            systemImage: superKeySource.systemImage,
@@ -1701,7 +1795,7 @@ struct QuickControlsSection: View {
                     requestAccessibilityIfNeeded(enabled)
                 }
         case .mouseAcceleration:
-            PanelToggleRow(title: l10n.s.mouseAccelerationName,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: l10n.s.mouseAccelerationName,
                            caption: l10n.s.mouseAccelerationCaption,
                            systemImage: "cursorarrow.rays",
                            isOn: $mouseAccelerationDisabled,
@@ -1713,7 +1807,7 @@ struct QuickControlsSection: View {
                 }
         case .mouseClickDebounce:
             let debounceStrings = FeatureStrings.mouseClickDebounce(l10n.language)
-            PanelToggleRow(title: debounceStrings.title,
+            PanelToggleRow(id: PanelRowID(.controls, item), title: debounceStrings.title,
                            caption: caption(debounceStrings.caption,
                                             needsAccessibility: mouseClickDebounceEnabled),
                            systemImage: "cursorarrow.click",
@@ -1803,6 +1897,17 @@ struct QuickControlsSection: View {
         }
         .controlSize(.small)
         .padding(.leading, 28)
+        .panelKeyboardRow(PanelRowID(.controls, "keyDebounceWindow"),
+                          actions: PanelRowActions(adjust: { direction, _ in
+                              let range = Defaults.allowedKeyboardDebounceWindowRange
+                              let step = 5
+                              let current = keyDebounceWindowBinding.wrappedValue
+                              let next = min(range.upperBound, max(range.lowerBound,
+                                            current + (direction == .increase ? step : -step)))
+                              guard next != current else { return false }
+                              keyDebounceWindowBinding.wrappedValue = next
+                              return true
+                          }))
     }
 
     private var keyDebounceWindowBinding: Binding<Int> {
@@ -1861,6 +1966,10 @@ struct QuickControlsSection: View {
         .padding(.leading, 31)
         .padding(.trailing, 4)
         .padding(.bottom, 2)
+        .panelKeyboardRow(switcherSimpleMode ? nil : PanelRowID(.controls, "switcherIconRowMode"),
+                          actions: PanelRowActions(activate: {
+                              switcherIconRowMode.toggle()
+                          }))
     }
 
     private var switcherPermissionAction: (() -> Void)? {
@@ -1899,6 +2008,7 @@ struct QuickControlsSection: View {
 // Internal (not private): the quick toggles tab builds its rows from the same
 // component, so every action row in the panel looks and behaves the same.
 struct UtilityActionButton: View {
+    let id: PanelRowID
     let title: String
     let caption: String
     let systemImage: String
@@ -1915,6 +2025,11 @@ struct UtilityActionButton: View {
     var accessoryTitle: String? = nil
     var accessorySystemImage: String? = nil
     var accessoryAction: (() -> Void)? = nil
+    /// True while the row's own action is unavailable for a reason the
+    /// caller already reflects with `.disabled()` (an operation already
+    /// running, say) — kept separate from `isEditing` so Return matches
+    /// exactly what the mouse can and cannot click.
+    var isDisabledForActivation = false
     let action: () -> Void
 
     var body: some View {
@@ -1941,6 +2056,18 @@ struct UtilityActionButton: View {
                 .buttonStyle(.plain)
             }
         }
+        .panelKeyboardRow(id, actions: PanelRowActions(activate: keyboardActivate), cornerRadius: 10)
+    }
+
+    /// In edit mode Return matches the row's own hide toggle, since that is
+    /// the only thing tapping the row does there; otherwise the row's usual
+    /// action, unless the caller has disabled it.
+    private var keyboardActivate: (() -> Void)? {
+        if isEditing {
+            guard let visibility else { return nil }
+            return { visibility.wrappedValue.toggle() }
+        }
+        return isDisabledForActivation ? nil : action
     }
 
     private var mainButton: some View {
@@ -2045,6 +2172,7 @@ struct UtilityActionButton: View {
 
 /// Shared switch row used by Quick Controls and Quick toggles.
 struct PanelToggleRow: View {
+    let id: PanelRowID
     let title: String
     let caption: String
     let systemImage: String
@@ -2062,10 +2190,22 @@ struct PanelToggleRow: View {
     /// shown only outside edit mode.
     var accessoryTitle: String? = nil
     var accessoryAction: (() -> Void)? = nil
+    /// True while the toggle is unavailable for a reason the caller already
+    /// reflects with `.disabled()`; see `UtilityActionButton`.
+    var isDisabledForActivation = false
 
     var body: some View {
         rowContent
             .panelCard()
+            .panelKeyboardRow(id, actions: PanelRowActions(activate: keyboardActivate), cornerRadius: 10)
+    }
+
+    private var keyboardActivate: (() -> Void)? {
+        if isEditing {
+            guard let visibility else { return nil }
+            return { visibility.wrappedValue.toggle() }
+        }
+        return isDisabledForActivation ? nil : { isOn.toggle() }
     }
 
     private var rowContent: some View {
@@ -2213,7 +2353,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
             host.widthAnchor.constraint(equalTo: clip.widthAnchor),
         ])
         context.coordinator.host = host
-        installReporter(on: host)
+        installReporter(on: host, coordinator: context.coordinator)
         return scroll
     }
 
@@ -2221,11 +2361,12 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         scroll.scrollerStyle = .overlay
         guard let host = context.coordinator.host else { return }
         host.rootView = content
-        installReporter(on: host)               // re-bind to the latest measuredHeight
+        installReporter(on: host, coordinator: context.coordinator) // re-bind to the latest measuredHeight
         let h = host.fittingSize.height          // catch content changes with no new layout pass
         if h > 1, abs(h - measuredHeight) > 0.5 {
             DispatchQueue.main.async { measuredHeight = h }
         }
+        scrollFocusedRowIntoViewIfNeeded(host, coordinator: context.coordinator)
     }
 
     /// Wire the hosting view to report its natural height into `measuredHeight`
@@ -2233,18 +2374,40 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     /// animation — so the popover tracks the real content height instead of a
     /// single stale reading taken when SwiftUI happened to re-run updateNSView.
     /// The 0.5pt guard also breaks the measure → resize → measure feedback loop.
-    private func installReporter(on host: HeightReportingHostingView<Content>) {
+    private func installReporter(on host: HeightReportingHostingView<Content>, coordinator: Coordinator) {
         let binding = $measuredHeight
-        host.onLayout = { [weak host] in
+        host.onLayout = { [weak host, weak coordinator] in
             guard let host else { return }
             let h = host.fittingSize.height
             guard h > 1, abs(h - binding.wrappedValue) > 0.5 else { return }
             DispatchQueue.main.async { binding.wrappedValue = h }
+            // Row frames only settle once a layout pass actually lands (e.g.
+            // after a collapse/expand animation), so retry the scroll here too.
+            if let coordinator { scrollFocusedRowIntoViewIfNeeded(host, coordinator: coordinator) }
         }
     }
 
+    /// Scrolls the keyboard-focused row into view the moment focus lands on
+    /// it, then leaves the scroll position alone until focus moves again —
+    /// so it never fights a manual scroll while the same row stays focused.
+    private func scrollFocusedRowIntoViewIfNeeded(_ host: HeightReportingHostingView<Content>,
+                                                  coordinator: Coordinator) {
+        guard case .row(let id)? = PanelKeyboardNavigator.shared.focus else {
+            coordinator.lastScrolledRowID = nil
+            return
+        }
+        guard id != coordinator.lastScrolledRowID else { return }
+        guard let frame = PanelKeyboardNavigator.shared.frame(for: id) else { return }
+        coordinator.lastScrolledRowID = id
+        host.scrollToVisible(frame.insetBy(dx: 0, dy: -4))
+    }
+
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+
+    final class Coordinator {
+        var host: HeightReportingHostingView<Content>?
+        var lastScrolledRowID: PanelRowID?
+    }
 }
 
 /// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The
@@ -2353,6 +2516,7 @@ struct UpdateBanner: View {
                 )
             }
             .buttonStyle(.plain)
+            .panelKeyboardChrome(.updateBanner, activate: { appDelegate()?.showUpdatePreview() }, cornerRadius: 10)
         case let .downloading(progress):
             progressRow(l10n.s.updateDownloading, fraction: progress)
         case .installing:
@@ -2422,6 +2586,8 @@ struct KeepAwakeCard: View {
                         .toggleStyle(.switch)
                         .labelsHidden()
                 }
+                .panelKeyboardRow(PanelRowID(.keepAwake, "toggle"),
+                                  actions: PanelRowActions(activate: { activeBinding.wrappedValue.toggle() }))
 
                 if awake.isActive, awake.endDate != nil {
                     HStack(spacing: 6) {
@@ -2438,7 +2604,8 @@ struct KeepAwakeCard: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                         Spacer()
-                        DurationPicker(selection: $defaultDuration)
+                        DurationPicker(selection: $defaultDuration,
+                                       keyboardRow: PanelRowID(.keepAwake, "duration"))
                     }
                 }
 
@@ -2451,6 +2618,9 @@ struct KeepAwakeCard: View {
                           isOn: $awake.clamshellPreferred,
                           disabled: awake.clamshellSetupInProgress,
                           captionIsError: awake.clamshellSetupFailed)
+                    .panelKeyboardRow(PanelRowID(.keepAwake, "clamshell"),
+                                     actions: awake.clamshellSetupInProgress ? PanelRowActions()
+                                        : PanelRowActions(activate: { awake.clamshellPreferred.toggle() }))
             }
             .panelCard()
         }
@@ -2480,24 +2650,37 @@ struct KeepAwakeCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.keepAwake, "options"),
+                              actions: PanelRowActions(
+                                  activate: { optionsExpanded.toggle() },
+                                  adjust: { direction, _ in
+                                      let wantsExpanded = direction == .increase
+                                      guard wantsExpanded != optionsExpanded else { return false }
+                                      optionsExpanded = wantsExpanded
+                                      return true
+                                  }))
 
             if optionsExpanded {
                 VStack(alignment: .leading, spacing: 8) {
                     KeepAwakeIconPicker(iconValue: $keepAwakeActiveIcon,
                                         tintValue: $keepAwakeIconTint,
-                                        compact: true)
+                                        compact: true,
+                                        keyboardSection: .keepAwake)
                     compactOptionToggle(
+                        id: "allowDisplaySleep",
                         icon: "display",
                         title: displaySleepStrings.allowDisplaySleep,
                         isOn: $keepAwakeAllowDisplaySleep
                     )
                     compactOptionToggle(
+                        id: "autoStart",
                         icon: "play.circle",
                         title: l10n.s.keepAwakeAutoStart,
                         isOn: $keepAwakeAutoStart
                     )
                     automationDisclosure
                     compactOptionToggle(
+                        id: "mouseJiggle",
                         icon: "cursorarrow.motionlines",
                         title: l10n.s.keepAwakeMouseJiggle,
                         isOn: $keepAwakeMouseJiggle,
@@ -2511,6 +2694,9 @@ struct KeepAwakeCard: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .panelKeyboardRow(PanelRowID(.keepAwake, "mouseJigglePermission"),
+                                              actions: PanelRowActions(activate: grantAccessibility),
+                                              cornerRadius: 6)
                         }
                     }
                 }
@@ -2542,11 +2728,21 @@ struct KeepAwakeCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(PanelRowID(.keepAwake, "automation"),
+                              actions: PanelRowActions(
+                                  activate: { automationExpanded.toggle() },
+                                  adjust: { direction, _ in
+                                      let wantsExpanded = direction == .increase
+                                      guard wantsExpanded != automationExpanded else { return false }
+                                      automationExpanded = wantsExpanded
+                                      return true
+                                  }))
 
             if automationExpanded {
                 VStack(alignment: .leading, spacing: 8) {
-                    KeepAwakeAutomationEditor(compact: true)
+                    KeepAwakeAutomationEditor(compact: true, keyboardSection: .keepAwake)
                     compactOptionToggle(
+                        id: "pauseWhenLocked",
                         icon: "lock.fill",
                         title: automationStrings.pauseWhenLockedToggle,
                         isOn: $keepAwakePauseWhenLocked
@@ -2588,7 +2784,8 @@ struct KeepAwakeCard: View {
             .background(Circle().fill(Color.accentColor.opacity(0.12)))
     }
 
-    private func compactOptionToggle(icon: String,
+    private func compactOptionToggle(id: String,
+                                     icon: String,
                                      title: String,
                                      isOn: Binding<Bool>,
                                      errorText: String? = nil) -> some View {
@@ -2616,6 +2813,7 @@ struct KeepAwakeCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .panelKeyboardRow(PanelRowID(.keepAwake, id), actions: PanelRowActions(activate: { isOn.wrappedValue.toggle() }))
     }
 
     private var mouseJiggleIntervalRow: some View {
@@ -2624,7 +2822,8 @@ struct KeepAwakeCard: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
-            KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval)
+            KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval,
+                                                keyboardRow: PanelRowID(.keepAwake, "mouseJiggleInterval"))
         }
     }
 
@@ -2733,6 +2932,9 @@ struct KeepAwakeCard: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .font(.system(size: 10))
+        .panelKeyboardRow(PanelRowID(.keepAwake, "extend\(minutes)"),
+                          actions: PanelRowActions(activate: { awake.extend(minutes: minutes) }),
+                          cornerRadius: 6)
     }
 
     private static func remainingText(until end: Date) -> String {
@@ -2750,6 +2952,7 @@ struct KeepAwakeCard: View {
 struct DurationPicker: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var selection: Int
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Picker("", selection: $selection) {
@@ -2765,11 +2968,24 @@ struct DurationPicker: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .fixedSize()
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(adjust: { direction, _ in
+            adjustSelection(direction)
+        }))
+    }
+
+    private func adjustSelection(_ direction: PanelAdjustDirection) -> Bool {
+        let values = [15, 30, 60, 120, 240, 480, 0]
+        guard let index = values.firstIndex(of: selection) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard values.indices.contains(next) else { return false }
+        selection = values[next]
+        return true
     }
 }
 
 struct KeepAwakeMouseJiggleIntervalPicker: View {
     @Binding var selection: Int
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Picker("", selection: $selection) {
@@ -2781,6 +2997,18 @@ struct KeepAwakeMouseJiggleIntervalPicker: View {
         .pickerStyle(.menu)
         .controlSize(.small)
         .fixedSize()
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(adjust: { direction, _ in
+            adjustSelection(direction)
+        }))
+    }
+
+    private func adjustSelection(_ direction: PanelAdjustDirection) -> Bool {
+        let values = Defaults.allowedKeepAwakeMouseJiggleIntervals
+        guard let index = values.firstIndex(of: selection) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard values.indices.contains(next) else { return false }
+        selection = values[next]
+        return true
     }
 
     static func label(for minutes: Int) -> String {

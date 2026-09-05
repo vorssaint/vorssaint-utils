@@ -19079,7 +19079,8 @@ struct MetricsTests {
         // what makes disagreeing impossible, and pinning the spelling of
         // `a || b` here would go red on a rename that broke nothing.
         let panelButtonRow = menuPanelLines.firstIndex {
-            isCodeLine($0) && $0.contains("PanelToggleRow(title: buttonStrings.pageTitle,")
+            isCodeLine($0) && $0.contains("PanelToggleRow(")
+                && $0.contains("title: buttonStrings.pageTitle,")
         }.map {
             menuPanelLines[$0...].prefix(24).filter(isCodeLine).joined().filter { !$0.isWhitespace }
         } ?? ""
@@ -24034,6 +24035,274 @@ struct MetricsTests {
                          "\(language.rawValue) quit protection double HUD format")
             expectFormat(quitProtection.extraHUDFormat, ["@"],
                          "\(language.rawValue) quit protection modifier HUD format")
+        }
+
+        // MARK: Panel keyboard navigation
+        do {
+            let navigator = PanelKeyboardNavigator.shared
+            let section: PanelSectionID = .keepAwake
+
+            func key(_ keyCode: Int, _ modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+                NSEvent.keyEvent(with: .keyDown,
+                                 location: .zero,
+                                 modifierFlags: modifiers,
+                                 timestamp: 0,
+                                 windowNumber: 0,
+                                 context: nil,
+                                 characters: "",
+                                 charactersIgnoringModifiers: "",
+                                 isARepeat: false,
+                                 keyCode: UInt16(keyCode))!
+            }
+
+            // A two-row section with chrome either side, restored before each
+            // case so they stay order-independent.
+            func reset() {
+                navigator.clearFocus()
+                navigator.configureTabs([section], active: section, select: { _ in })
+                navigator.configureChrome(leading: [.headerFeedback],
+                                          trailing: [.footerSettings, .footerQuit])
+                navigator.configureRowOrder([
+                    (PanelRowID(section, "first"), .zero),
+                    (PanelRowID(section, "second"), .zero),
+                ])
+            }
+
+            reset()
+            expect(navigator.handleKeyDown(key(kVK_Tab)), "tab starts panel navigation")
+            expect(navigator.focus == .tab(section), "tab lands on the active section")
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up from the tab bar is consumed")
+            expect(navigator.focus == .chrome(.headerFeedback), "up from the tab bar reaches leading chrome")
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down returns to the tab bar")
+            expect(navigator.focus == .tab(section), "down from leading chrome reaches the tab bar")
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down enters the rows")
+            expect(navigator.focus == .row(PanelRowID(section, "first")), "down reaches the first row")
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down walks the rows")
+            expect(navigator.focus == .row(PanelRowID(section, "second")), "down reaches the second row")
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down leaves the rows")
+            expect(navigator.focus == .chrome(.footerSettings), "down past the rows reaches the footer")
+
+            // A single-tab panel cannot tell a first press apart from a
+            // wrap-around, so this one uses two.
+            reset()
+            var selected: [PanelSectionID] = []
+            navigator.configureTabs([.system, .disk], active: .disk, select: { selected.append($0) })
+            expect(navigator.handleKeyDown(key(kVK_Tab)), "first tab press is consumed")
+            expect(navigator.focus == .tab(.disk), "first tab press lands on the active section")
+            expect(selected == [.disk], "first tab press reselects the active section")
+            expect(navigator.handleKeyDown(key(kVK_Tab)), "second tab press is consumed")
+            expect(navigator.focus == .tab(.system), "second tab press moves to the next section")
+            expect(selected == [.disk, .system], "tab selects each section it lands on")
+            expect(navigator.handleKeyDown(key(kVK_Tab, .shift)), "shift-tab is consumed")
+            expect(navigator.focus == .tab(.disk), "shift-tab walks the tab bar backwards")
+
+            // Metric detail reports no tabs, so Tab has no tab bar to cycle and
+            // walks the panel instead of being swallowed.
+            reset()
+            navigator.configureTabs([], active: section, select: { _ in })
+            expect(navigator.handleKeyDown(key(kVK_Tab)), "tab is consumed where there is no tab bar")
+            expect(navigator.focus == .chrome(.headerFeedback), "tab starts at leading chrome with no tab bar")
+            expect(navigator.handleKeyDown(key(kVK_Tab)), "tab walks on with no tab bar")
+            expect(navigator.focus == .row(PanelRowID(section, "first")), "tab reaches the rows with no tab bar")
+            expect(navigator.handleKeyDown(key(kVK_Tab, .shift)), "shift-tab is consumed with no tab bar")
+            expect(navigator.focus == .chrome(.headerFeedback), "shift-tab walks back with no tab bar")
+
+            reset()
+            expect(navigator.handleKeyDown(key(kVK_Tab)), "tab starts navigation")
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up reaches leading chrome")
+            expect(navigator.focus == .chrome(.headerFeedback), "focus rests on leading chrome")
+            expect(!navigator.handleKeyDown(key(kVK_LeftArrow)), "left on lone chrome is handed back")
+            expect(!navigator.handleKeyDown(key(kVK_RightArrow)), "right on lone chrome is handed back")
+            expect(navigator.focus == .chrome(.headerFeedback), "an unhandled horizontal key leaves focus put")
+
+            // A lazy list tears a row down as it scrolls past, but the row keeps
+            // its place in the order, so focus stays on it instead of snapping back.
+            reset()
+            let vanishing = PanelRowID(section, "second")
+            navigator.registerRow(vanishing, actions: PanelRowActions(activate: {}))
+            navigator.focusRow(vanishing)
+            navigator.unregisterRow(vanishing)
+            expect(navigator.focus == .row(vanishing), "focus survives a row leaving the view tree")
+            navigator.configureRowOrder([(PanelRowID(section, "first"), .zero)])
+            expect(navigator.focus == .tab(section), "focus falls back once the row leaves the order")
+
+            reset()
+            let duplicated = PanelRowID(section, "first")
+            navigator.configureRowOrder([
+                (duplicated, CGRect(x: 0, y: 0, width: 10, height: 10)),
+                (PanelRowID(section, "second"), CGRect(x: 0, y: 20, width: 10, height: 10)),
+                (duplicated, CGRect(x: 0, y: 40, width: 10, height: 10)),
+            ])
+            navigator.focusRow(duplicated)
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down is consumed past a duplicate row")
+            expect(navigator.focus == .row(PanelRowID(section, "second")),
+                   "a duplicated row appears once in the order")
+            expect(navigator.frame(for: duplicated)?.minY == 40, "the last frame wins for a duplicated row")
+
+            reset()
+            navigator.focusRow(PanelRowID(section, "second"))
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down leaves the last row")
+            expect(navigator.focus == .chrome(.footerSettings), "down past the last row reaches the footer")
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right is consumed in the footer")
+            expect(navigator.focus == .chrome(.footerQuit), "right moves along the footer")
+            expect(navigator.handleKeyDown(key(kVK_LeftArrow)), "left is consumed in the footer")
+            expect(navigator.focus == .chrome(.footerSettings), "left moves back along the footer")
+
+            reset()
+            navigator.focusRow(PanelRowID(.disk, "stale"))
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up recovers from stale focus")
+            expect(navigator.focus == .chrome(.footerQuit), "up from stale focus recovers at the bottom")
+
+            reset()
+            navigator.focusRow(PanelRowID(.disk, "stale"))
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down recovers from stale focus")
+            expect(navigator.focus == .chrome(.headerFeedback), "down from stale focus recovers at the top")
+
+            reset()
+            navigator.focusRow(PanelRowID(section, "second"))
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down reaches the footer")
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right reaches the last footer action")
+            expect(!navigator.handleKeyDown(key(kVK_DownArrow)), "down at the bottom is handed back")
+            expect(navigator.focus == .chrome(.footerQuit), "down at the bottom leaves focus put")
+
+            reset()
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down reaches the first stop")
+            expect(!navigator.handleKeyDown(key(kVK_UpArrow)), "up at the top is handed back")
+            expect(navigator.focus == .chrome(.headerFeedback), "up at the top leaves focus put")
+
+            reset()
+            let leftGroupRow = PanelRowID(section, "first")
+            let rightGroupRow = PanelRowID(section, "second")
+            let afterGroupRow = PanelRowID(section, "after-group")
+            navigator.configureRowOrder([
+                (leftGroupRow, .zero),
+                (rightGroupRow, .zero),
+                (afterGroupRow, .zero),
+            ], groups: [[leftGroupRow, rightGroupRow]])
+            navigator.focusRow(leftGroupRow)
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right walks within a row group")
+            expect(navigator.focus == .row(rightGroupRow), "right reaches the next control in a row group")
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down leaves a row group")
+            expect(navigator.focus == .row(afterGroupRow), "down skips the remaining horizontal controls")
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up enters a row group")
+            expect(navigator.focus == .row(leftGroupRow), "up enters at the row group's first control")
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right walks forward within a row group")
+            expect(navigator.focus == .row(rightGroupRow), "right reaches the next control in a row group")
+
+            reset()
+            var adjustments: [(PanelAdjustDirection, Bool)] = []
+            let adjustable = PanelRowID(section, "first")
+            navigator.registerRow(adjustable, actions: PanelRowActions(adjust: { direction, fine in
+                adjustments.append((direction, fine))
+                return true
+            }))
+            navigator.focusRow(adjustable)
+            expect(navigator.handleKeyDown(key(kVK_LeftArrow, .shift)), "shift-left adjusts the focused row")
+            expect(navigator.handleKeyDown(key(kVK_RightArrow)), "right adjusts the focused row")
+            expect(adjustments.count == 2, "both adjustments reach the row")
+            expect(adjustments.first?.0 == .decrease, "shift-left decreases")
+            expect(adjustments.first?.1 == true, "shift makes the adjustment fine")
+            expect(adjustments.last?.0 == .increase, "right increases")
+            expect(adjustments.last?.1 == false, "an unmodified arrow is a regular adjustment")
+            navigator.unregisterRow(adjustable)
+
+            reset()
+            let plain = PanelRowID(section, "first")
+            navigator.registerRow(plain, actions: PanelRowActions(activate: {}))
+            navigator.focusRow(plain)
+            expect(!navigator.handleKeyDown(key(kVK_LeftArrow)), "left on a row that cannot adjust is handed back")
+            expect(!navigator.handleKeyDown(key(kVK_RightArrow)), "right on a row that cannot adjust is handed back")
+            navigator.unregisterRow(plain)
+
+            reset()
+            let atLimit = PanelRowID(section, "first")
+            navigator.registerRow(atLimit, actions: PanelRowActions(adjust: { _, _ in false }))
+            navigator.focusRow(atLimit)
+            expect(!navigator.handleKeyDown(key(kVK_LeftArrow)), "a row at its limit hands left back")
+            expect(!navigator.handleKeyDown(key(kVK_RightArrow)), "a row at its limit hands right back")
+            navigator.unregisterRow(atLimit)
+
+            reset()
+            let adjustOnly = PanelRowID(section, "first")
+            navigator.registerRow(adjustOnly, actions: PanelRowActions(adjust: { _, _ in true }))
+            navigator.focusRow(adjustOnly)
+            expect(!navigator.handleKeyDown(key(kVK_Return)), "return on a row with no action is handed back")
+            expect(!navigator.handleKeyDown(key(kVK_Space)), "space on a row with no action is handed back")
+            navigator.focusRow(PanelRowID(section, "second"))
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down leaves the rows")
+            expect(navigator.focus == .chrome(.footerSettings), "down reaches the footer")
+            expect(!navigator.handleKeyDown(key(kVK_Return)), "return on unbound chrome is handed back")
+            expect(!navigator.handleKeyDown(key(kVK_Space)), "space on unbound chrome is handed back")
+            navigator.unregisterRow(adjustOnly)
+
+            // Down and Up start keyboard navigation, so the arrows answer the
+            // first time they are pressed instead of waiting for the user to find Tab.
+            reset()
+            expect(navigator.handleKeyDown(key(kVK_DownArrow)), "down starts keyboard navigation")
+            expect(navigator.focus == .chrome(.headerFeedback), "down starts at the top of the panel")
+            navigator.clearFocus()
+            expect(navigator.handleKeyDown(key(kVK_UpArrow)), "up starts keyboard navigation")
+            expect(navigator.focus == .chrome(.footerQuit), "up starts at the bottom of the panel")
+
+            // The keys that act on a stop rather than move between them have
+            // nowhere to begin, so they are still handed back until navigation starts.
+            reset()
+            for code in [kVK_LeftArrow, kVK_RightArrow, kVK_Return, kVK_Space] {
+                expect(!navigator.handleKeyDown(key(code)), "key \(code) is inert before navigation starts")
+                expect(navigator.focus == nil, "key \(code) does not start navigation")
+            }
+            navigator.clearFocus()
+        }
+
+        do {
+            let previous: [(pid_t, Int)] = [(1, 10), (2, 20), (3, 30)]
+            let refreshed: [(pid_t, Int)] = [(3, 300), (1, 100), (4, 40)]
+            let ranked = ProcessUsageNavigation.stabilized(
+                refreshed, previous: previous, focusedID: nil, id: { $0.0 })
+            expect(ranked.map(\.0) == [3, 1, 4], "process rankings refresh normally without keyboard focus")
+
+            let stable = ProcessUsageNavigation.stabilized(
+                refreshed, previous: previous, focusedID: 1, id: { $0.0 })
+            expect(stable.map(\.0) == [1, 3, 4], "focused process lists retain surviving visual order")
+            expect(stable.map(\.1) == [100, 300, 40], "stable process rows still receive fresh values")
+
+            let missing = ProcessUsageNavigation.stabilized(
+                refreshed, previous: previous, focusedID: 2, id: { $0.0 })
+            expect(missing.map(\.0) == [1, 3, 4], "a removed focused process leaves surviving rows stable")
+        }
+
+        // Layout reports rows and whole lists; the navigator's order comes
+        // from sorting those entries, never their ids one by one — a list's
+        // ids all share one frame, and a tie broken by nothing scrambles them.
+        do {
+            let above = PanelRowID(.utilities, "above")
+            let below = PanelRowID(.utilities, "below")
+            let listed = (0..<4).map { PanelRowID(.utilities, "listed-\($0)") }
+            let ordered = PanelKeyboardNavigator.orderedRows(from: [
+                PanelRowGeometry(ids: [below], frame: CGRect(x: 0, y: 300, width: 10, height: 10)),
+                PanelRowGeometry(ids: listed, frame: CGRect(x: 0, y: 100, width: 10, height: 200)),
+                PanelRowGeometry(ids: [above], frame: CGRect(x: 0, y: 0, width: 10, height: 10)),
+            ])
+            expect(ordered.map(\.id) == [above] + listed + [below],
+                   "a list's rows keep their declared order at the list's position")
+            expect(ordered.filter { listed.contains($0.id) }.allSatisfy { $0.frame.minY == 100 },
+                   "a list's rows all carry the list's frame")
+
+            let left = PanelRowID(.utilities, "left")
+            let right = PanelRowID(.utilities, "right")
+            let sameLine = PanelKeyboardNavigator.orderedRows(from: [
+                PanelRowGeometry(ids: [left], frame: CGRect(x: 0, y: 50, width: 10, height: 10)),
+                PanelRowGeometry(ids: [right], frame: CGRect(x: 20, y: 50.2, width: 10, height: 10)),
+            ])
+            expect(sameLine.map(\.id) == [left, right], "controls on one line keep their reported order")
+
+            let repeated = PanelKeyboardNavigator.orderedRows(from: [
+                PanelRowGeometry(ids: [above], frame: CGRect(x: 0, y: 0, width: 10, height: 10)),
+                PanelRowGeometry(ids: [below], frame: CGRect(x: 0, y: 20, width: 10, height: 10)),
+                PanelRowGeometry(ids: [above], frame: CGRect(x: 0, y: 40, width: 10, height: 10)),
+            ])
+            expect(repeated.map(\.id) == [above, below], "a row reported twice keeps its first place")
+            expect(repeated.first?.frame.minY == 40, "a row reported twice keeps its last frame")
         }
 
         // Loading the saved shelf keeps "nothing saved", "decoded whole",

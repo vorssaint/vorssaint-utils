@@ -23,6 +23,7 @@ enum BreakdownKind {
 struct SystemSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
     @State private var expanded: BreakdownKind?
@@ -201,10 +202,20 @@ struct SystemSection: View {
                 guard expanded == kind else { return }
                 breakdownIsLoading = false
                 if !rows.isEmpty || breakdownRows.isEmpty {
-                    breakdownRows = rows
+                    breakdownRows = ProcessUsageNavigation.stabilized(
+                        rows, previous: breakdownRows, focusedID: focusedBreakdownPID(for: kind), id: \.pid)
                 }
             }
         }
+    }
+
+    private func focusedBreakdownPID(for kind: BreakdownKind) -> pid_t? {
+        guard case .row(let row)? = navigator.focus,
+              row.section == .system,
+              let local = row.local.base as? String else { return nil }
+        let prefix = "breakdown-\(kind)-"
+        guard local.hasPrefix(prefix) else { return nil }
+        return Int32(local.dropFirst(prefix.count))
     }
 
     private var percentageSampleInterval: TimeInterval {
@@ -225,7 +236,8 @@ struct SystemSection: View {
                         ProcessUsageRow(row: row,
                                         value: breakdownValue(row, for: kind),
                                         iconSize: 14,
-                                        leadingPadding: 38)
+                                        leadingPadding: 38,
+                                        keyboardRow: PanelRowID(.system, "breakdown-\(kind)-\(row.id)"))
                     }
                 }
             }
@@ -248,14 +260,15 @@ struct SystemSection: View {
         if !sysTemps {
             PanelHiddenItemRow(title: l10n.s.temperatures,
                                systemImage: "thermometer.medium",
-                               isVisible: $sysTemps)
+                               isVisible: $sysTemps,
+                               keyboardRow: PanelRowID(.system, "hidden-temps"))
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     subsectionLabel(l10n.s.temperatures)
                     Spacer(minLength: 0)
                     if editing {
-                        PanelInlineHideButton(isVisible: $sysTemps)
+                        PanelInlineHideButton(isVisible: $sysTemps, keyboardRow: PanelRowID(.system, "hide-temps"))
                     }
                 }
                 HStack(spacing: 8) {
@@ -317,7 +330,7 @@ struct SystemSection: View {
                 subsectionLabel(l10n.s.usageSection)
                 Spacer(minLength: 0)
                 if !editing {
-                    ActivityMonitorButton()
+                    ActivityMonitorButton(keyboardRow: PanelRowID(.system, "activityMonitor"))
                 }
             }
             if sysCPU, cpuAvailable {
@@ -332,7 +345,8 @@ struct SystemSection: View {
                 }
                 breakdownList(for: .cpu)
             } else if editing, cpuAvailable {
-                PanelHiddenItemRow(title: l10n.s.cpuLabel, systemImage: "cpu", isVisible: $sysCPU)
+                PanelHiddenItemRow(title: l10n.s.cpuLabel, systemImage: "cpu", isVisible: $sysCPU,
+                                   keyboardRow: PanelRowID(.system, "hidden-cpu"))
             }
             if sysGPU, gpuAvailable {
                 usageRow(label: l10n.s.gpuLabel, fraction: monitor.snapshot.gpuUsage,
@@ -346,14 +360,16 @@ struct SystemSection: View {
                 }
                 breakdownList(for: .gpu)
             } else if editing, gpuAvailable {
-                PanelHiddenItemRow(title: l10n.s.gpuLabel, systemImage: "memorychip", isVisible: $sysGPU)
+                PanelHiddenItemRow(title: l10n.s.gpuLabel, systemImage: "memorychip", isVisible: $sysGPU,
+                                   keyboardRow: PanelRowID(.system, "hidden-gpu"))
             }
             if sysBattery, batteryAvailable {
                 batteryUsageRow(editing: editing)
             } else if editing, batteryAvailable {
                 PanelHiddenItemRow(title: l10n.s.batteryLabel,
                                    systemImage: "battery.100",
-                                   isVisible: $sysBattery)
+                                   isVisible: $sysBattery,
+                                   keyboardRow: PanelRowID(.system, "hidden-battery"))
             }
             if menuBarPeripheralBattery, powerAvailable, !monitor.snapshot.peripheralBatteries.isEmpty {
                 peripheralBatteryRows
@@ -384,7 +400,7 @@ struct SystemSection: View {
                         .monospacedDigit()
                         .frame(width: 38, alignment: .trailing)
                     if editing {
-                        PanelInlineHideButton(isVisible: $sysBattery)
+                        PanelInlineHideButton(isVisible: $sysBattery, keyboardRow: PanelRowID(.system, "hide-battery"))
                     }
                 }
                 if graphBattery, monitor.snapshot.batteryHistory.count >= 2 {
@@ -457,6 +473,7 @@ struct SystemSection: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .panelKeyboardRow(PanelRowID(.system, "usage-energy"), actions: breakdownActions(.energy))
     }
 
     private func chargeTint(_ charge: Int) -> Color {
@@ -468,7 +485,8 @@ struct SystemSection: View {
     @ViewBuilder
     private func uptimeRow(editing: Bool) -> some View {
         if !sysUptime {
-            PanelHiddenItemRow(title: l10n.s.monitorItemUptime, systemImage: "clock", isVisible: $sysUptime)
+            PanelHiddenItemRow(title: l10n.s.monitorItemUptime, systemImage: "clock", isVisible: $sysUptime,
+                               keyboardRow: PanelRowID(.system, "hidden-uptime"))
         } else {
             HStack(spacing: 6) {
                 Image(systemName: "clock")
@@ -479,7 +497,7 @@ struct SystemSection: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 if editing {
-                    PanelInlineHideButton(isVisible: $sysUptime)
+                    PanelInlineHideButton(isVisible: $sysUptime, keyboardRow: PanelRowID(.system, "hide-uptime"))
                 }
             }
         }
@@ -501,7 +519,8 @@ struct SystemSection: View {
         Group {
             if editing {
                 usageRowContent(label: label, fraction: fraction, kind: kind, isInteractive: false) {
-                    PanelInlineHideButton(isVisible: visible)
+                    PanelInlineHideButton(isVisible: visible,
+                                          keyboardRow: PanelRowID(.system, "hide-\(kind)"))
                 }
             } else {
                 Button {
@@ -513,8 +532,22 @@ struct SystemSection: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .panelKeyboardRow(PanelRowID(.system, "usage-\(kind)"), actions: breakdownActions(kind))
             }
         }
+    }
+
+    /// Right/Return expands the per-app breakdown, Left/Return collapses it —
+    /// the same disclosure the row's own chevron shows to the mouse.
+    private func breakdownActions(_ kind: BreakdownKind) -> PanelRowActions {
+        PanelRowActions(
+            activate: { toggleBreakdown(kind) },
+            adjust: { direction, _ in
+                let wantsExpanded = direction == .increase
+                guard wantsExpanded != (expanded == kind) else { return false }
+                toggleBreakdown(kind)
+                return true
+            })
     }
 
     private func usageRowContent<Trailing: View>(label: String, fraction: Double?,
@@ -548,14 +581,15 @@ struct SystemSection: View {
         if !sysMemory {
             PanelHiddenItemRow(title: l10n.s.memorySection,
                                systemImage: "memorychip.fill",
-                               isVisible: $sysMemory)
+                               isVisible: $sysMemory,
+                               keyboardRow: PanelRowID(.system, "hidden-memory"))
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     subsectionLabel(l10n.s.memorySection)
                     Spacer(minLength: 0)
                     if editing {
-                        PanelInlineHideButton(isVisible: $sysMemory)
+                        PanelInlineHideButton(isVisible: $sysMemory, keyboardRow: PanelRowID(.system, "hide-memory"))
                     }
                 }
                 if editing {
@@ -568,6 +602,7 @@ struct SystemSection: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .panelKeyboardRow(PanelRowID(.system, "usage-memory"), actions: breakdownActions(.memory))
                 }
                 memorySecondaryRow(l10n.s.memoryCompressed, monitor.snapshot.memoryCompressed)
                 memorySecondaryRow(l10n.s.memoryCachedFiles, monitor.snapshot.memoryCached)
@@ -636,7 +671,8 @@ struct SystemSection: View {
         if !sysAlerts {
             PanelHiddenItemRow(title: text.section,
                                systemImage: "bell.badge",
-                               isVisible: $sysAlerts)
+                               isVisible: $sysAlerts,
+                               keyboardRow: PanelRowID(.system, "hidden-alerts"))
         } else {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
@@ -654,12 +690,21 @@ struct SystemSection: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .panelKeyboardRow(PanelRowID(.system, "alerts"),
+                                      actions: PanelRowActions(
+                                          activate: { alertsExpanded.toggle() },
+                                          adjust: { direction, _ in
+                                              let wantsExpanded = direction == .increase
+                                              guard wantsExpanded != alertsExpanded else { return false }
+                                              alertsExpanded = wantsExpanded
+                                              return true
+                                          }))
                     if editing {
-                        PanelInlineHideButton(isVisible: $sysAlerts)
+                        PanelInlineHideButton(isVisible: $sysAlerts, keyboardRow: PanelRowID(.system, "hide-alerts"))
                     }
                 }
                 if alertsExpanded {
-                    MonitorAlertsControls(compact: true)
+                    MonitorAlertsControls(compact: true, keyboardSection: .system)
                 }
             }
         }

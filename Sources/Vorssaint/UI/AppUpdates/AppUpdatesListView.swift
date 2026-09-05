@@ -4,16 +4,26 @@
 import AppKit
 import SwiftUI
 
+/// Local ids for the per-item rows, in the one place they are spelled — see
+/// `MediaWorkspaceView` for the same arrangement.
+private enum AppUpdatesKeyboardID {
+    static func select(_ item: AppUpdatesSupport.Item) -> String { "appUpdates-\(item.id)-select" }
+    static func update(_ item: AppUpdatesSupport.Item) -> String { "appUpdates-\(item.id)-update" }
+}
+
 /// The app update list, shared by the Settings page and the menu bar panel so
 /// both look and behave the same. `compact` shrinks it for the panel.
 struct AppUpdatesListView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var updates = AppUpdatesService.shared
     @ObservedObject private var homebrew = HomebrewManager.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @AppStorage(DefaultsKey.appUpdatesIncludeOnlineCatalog)
     private var includeOnlineCatalog = true
     @State private var showOperationDetails = false
     var compact = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     private var text: AppUpdateStrings { FeatureStrings.appUpdates(l10n.language) }
     private var isBusy: Bool { updates.isChecking || homebrew.operation != nil }
@@ -45,7 +55,8 @@ struct AppUpdatesListView: View {
                                             showDetails: $showOperationDetails,
                                             onCancel: homebrew.cancelOperation,
                                             onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                                            onOpenTerminal: homebrew.openTerminalFallback,
+                                            keyboardSection: keyboardSection)
                     .padding(compact ? 0 : 4)
             }
             if let error = updates.lastError, !error.isEmpty {
@@ -86,6 +97,8 @@ struct AppUpdatesListView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(isBusy)
+            .panelKeyboardRow(isBusy ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-check") },
+                              actions: PanelRowActions(activate: { updates.check() }))
         }
     }
 
@@ -140,10 +153,16 @@ struct AppUpdatesListView: View {
 
     private var selectionBar: some View {
         HStack(spacing: 8) {
+            let allSelected = updates.selectedCount == updates.selectableCount
+            let noneSelected = updates.selectedCount == 0
             Button(text.selectAll) { updates.selectAll() }
-                .disabled(updates.selectedCount == updates.selectableCount)
+                .disabled(allSelected)
+                .panelKeyboardRow(allSelected ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-selectAll") },
+                                  actions: PanelRowActions(activate: { updates.selectAll() }))
             Button(text.clearSelection) { updates.selectNone() }
-                .disabled(updates.selectedCount == 0)
+                .disabled(noneSelected)
+                .panelKeyboardRow(noneSelected ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-selectNone") },
+                                  actions: PanelRowActions(activate: { updates.selectNone() }))
             Spacer(minLength: 0)
         }
         .buttonStyle(.link)
@@ -158,14 +177,22 @@ struct AppUpdatesListView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        let keyboardRowIDs = updates.items.flatMap(keyboardRows)
 
         if compact {
             // Height lands on whole rows, so the list never ends with half a
             // row peeking out of the panel.
-            ScrollView { rows }
-                .frame(height: Self.compactHeight(rowCount: updates.items.count))
+            ScrollViewReader { proxy in
+                ScrollView { rows }
+                    .panelKeyboardRowList(keyboardRowIDs)
+                    .onChange(of: navigator.focus) { _, focus in
+                        guard let itemID = focusedItemID(focus) else { return }
+                        proxy.scrollTo(itemID, anchor: .center)
+                    }
+            }
+            .frame(height: Self.compactHeight(rowCount: updates.items.count))
         } else {
-            rows
+            rows.panelKeyboardRowList(keyboardRowIDs)
         }
     }
 
@@ -189,6 +216,8 @@ struct AppUpdatesListView: View {
                 .labelsHidden()
                 .toggleStyle(.checkbox)
                 .accessibilityLabel(item.name)
+                .panelKeyboardRow(keyboardRow(AppUpdatesKeyboardID.select(item)),
+                                  actions: PanelRowActions(activate: { updates.toggle(item) }), cornerRadius: 6)
             } else {
                 Color.clear
                     .frame(width: 14, height: 14)
@@ -229,6 +258,8 @@ struct AppUpdatesListView: View {
             .controlSize(.small)
             .disabled(isBusy)
             .help(actionHint(for: item))
+            .panelKeyboardRow(isBusy ? nil : keyboardRow(AppUpdatesKeyboardID.update(item)),
+                              actions: PanelRowActions(activate: { updates.update(item) }), cornerRadius: 6)
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
@@ -237,6 +268,29 @@ struct AppUpdatesListView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(0.035))
         )
+        .id(item.id)
+    }
+
+    private func keyboardRow(_ localID: String) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, localID) }
+    }
+
+    /// What one item contributes to the keyboard order, under the same
+    /// conditions `row(_:)` builds it, so the arrows never stop on a control
+    /// that is not on screen.
+    private func keyboardRows(for item: AppUpdatesSupport.Item) -> [PanelRowID] {
+        var locals: [String] = []
+        if item.isSelectable { locals.append(AppUpdatesKeyboardID.select(item)) }
+        if !isBusy { locals.append(AppUpdatesKeyboardID.update(item)) }
+        return locals.compactMap(keyboardRow)
+    }
+
+    private func focusedItemID(_ focus: PanelFocusTarget?) -> String? {
+        guard case .row(let row)? = focus, row.section == keyboardSection else { return nil }
+        return updates.items.first {
+            row == keyboardRow(AppUpdatesKeyboardID.select($0))
+                || row == keyboardRow(AppUpdatesKeyboardID.update($0))
+        }?.id
     }
 
     private func icon(for item: AppUpdatesSupport.Item) -> NSImage {
@@ -285,6 +339,9 @@ struct AppUpdatesListView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(compact ? .small : .regular)
             .disabled(updates.selectedCount == 0 || isBusy)
+            .panelKeyboardRow(
+                (updates.selectedCount == 0 || isBusy) ? nil : keyboardSection.map { PanelRowID($0, "appUpdates-updateSelected") },
+                actions: PanelRowActions(activate: { updates.updateSelected() }))
             if !compact {
                 Spacer(minLength: 0)
             }

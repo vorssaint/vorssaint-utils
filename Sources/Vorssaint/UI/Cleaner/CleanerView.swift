@@ -78,6 +78,7 @@ struct CleanerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var cleaner = JunkCleaner.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @AppStorage(DefaultsKey.cleanerScheduleFrequency) private var scheduleFrequencyRaw = "off"
     @AppStorage(DefaultsKey.cleanerScheduleHour) private var scheduleHour = 9
     @AppStorage(DefaultsKey.cleanerScheduleMinute) private var scheduleMinute = 0
@@ -97,8 +98,12 @@ struct CleanerView: View {
     /// The panel hosted card starts folded; the Settings page shows it open.
     @State private var scheduleExpanded = false
     @State private var whatsAppExpanded = false
+    @State private var expandedGroups: Set<DisplayGroup> = []
     /// Tightens paddings for the panel and launcher.
     var compact = false
+    /// Non-nil only when hosted in the menu panel; Settings and the launcher
+    /// retain their native keyboard behavior.
+    var keyboardSection: PanelSectionID? = nil
 
     var body: some View {
         content
@@ -252,6 +257,8 @@ struct CleanerView: View {
             Button(l10n.s.cleanerScan) { cleaner.scan() }
                 .controlSize(.large)
                 .buttonStyle(.borderedProminent)
+                .panelKeyboardRow(keyboardRow("cleaner-scan"),
+                                  actions: PanelRowActions(activate: { cleaner.scan() }))
             scheduleCard
             if !compact, !whatsAppEnabled { whatsAppOptInCard }
             // The Settings page has its own full tool for these downloads;
@@ -259,7 +266,7 @@ struct CleanerView: View {
             // without opening Settings.
             if compact, whatsAppEnabled { whatsAppCard }
             if !permissions.fullDiskAccess {
-                FullDiskAccessNote(compact: compact).frame(maxWidth: 380)
+                FullDiskAccessNote(compact: compact, keyboardSection: keyboardSection).frame(maxWidth: 380)
             }
             if !compact { Spacer() }
         }
@@ -326,6 +333,9 @@ struct CleanerView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(keyboardRow("cleaner-whatsAppDisclosure"), actions: PanelRowActions(
+                activate: toggleWhatsAppExpanded,
+                adjust: adjustWhatsAppDisclosure))
 
             if whatsAppExpanded {
                 VStack(alignment: .leading, spacing: 8) {
@@ -356,6 +366,11 @@ struct CleanerView: View {
                         appDelegate()?.openSettingsWindow()
                     }
                     .controlSize(.small)
+                    .panelKeyboardRow(keyboardRow("cleaner-whatsAppManage"), actions: PanelRowActions(activate: {
+                        SettingsRouter.shared.cleanerTool = "whatsApp"
+                        SettingsRouter.shared.request(FeatureSettingsDestination(.cleaner))
+                        appDelegate()?.openSettingsWindow()
+                    }))
                 }
                 .padding(.horizontal, 11)
                 .padding(.top, 5)
@@ -441,6 +456,7 @@ struct CleanerView: View {
         }
         .labelsHidden()
         .fixedSize()
+        .panelKeyboardRow(keyboardRow("cleaner-scheduleFrequency"), actions: PanelRowActions(adjust: adjustFrequency))
     }
 
     /// The schedule in one small card: a frequency and, once it is on, the
@@ -477,6 +493,9 @@ struct CleanerView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .panelKeyboardRow(keyboardRow("cleaner-scheduleDisclosure"), actions: PanelRowActions(
+                    activate: toggleScheduleExpanded,
+                    adjust: adjustScheduleDisclosure))
 
                 if scheduleExpanded {
                     VStack(alignment: .leading, spacing: 8) {
@@ -544,6 +563,8 @@ struct CleanerView: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .panelKeyboardRow(keyboardRow("cleaner-scheduleWeekday"), actions: PanelRowActions(
+                            adjust: adjustWeekday))
                     }
                     if Self.uses12HourClock {
                         Picker("", selection: scheduleHour12Binding) {
@@ -553,6 +574,8 @@ struct CleanerView: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .panelKeyboardRow(keyboardRow("cleaner-scheduleHour"), actions: PanelRowActions(
+                            adjust: adjustHour12))
                     } else {
                         Picker("", selection: $scheduleHour) {
                             ForEach(0..<24, id: \.self) { hour in
@@ -561,6 +584,8 @@ struct CleanerView: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .panelKeyboardRow(keyboardRow("cleaner-scheduleHour"), actions: PanelRowActions(
+                            adjust: adjustHour24))
                     }
                     Picker("", selection: $scheduleMinute) {
                         ForEach(minuteChoices, id: \.self) { minute in
@@ -569,6 +594,8 @@ struct CleanerView: View {
                     }
                     .labelsHidden()
                     .fixedSize()
+                    .panelKeyboardRow(keyboardRow("cleaner-scheduleMinute"), actions: PanelRowActions(
+                        adjust: adjustMinute))
                     if Self.uses12HourClock {
                         Picker("", selection: schedulePMBinding) {
                             Text(Self.dayPeriodSymbols.am).tag(false)
@@ -576,12 +603,16 @@ struct CleanerView: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .panelKeyboardRow(keyboardRow("cleaner-schedulePeriod"), actions: PanelRowActions(
+                            adjust: adjustPeriod))
                     }
                     Spacer()
                 }
                 Toggle(l10n.s.cleanerScheduleNotifyToggle, isOn: $scheduleNotify)
                     .toggleStyle(.checkbox)
                     .font(.system(size: 11.5))
+                    .panelKeyboardRow(keyboardRow("cleaner-scheduleNotify"), actions: PanelRowActions(
+                        activate: { scheduleNotify.toggle() }))
                 if scheduleNotify, notificationsDenied {
                     Text(l10n.s.cleanerNotifDenied)
                         .font(.caption2)
@@ -593,6 +624,11 @@ struct CleanerView: View {
                         }
                     }
                     .controlSize(.small)
+                    .panelKeyboardRow(keyboardRow("cleaner-notificationSettings"), actions: PanelRowActions(activate: {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }))
                 }
                 if let next = scheduler.nextFire {
                     Text(String(format: l10n.s.cleanerScheduleNextFormat,
@@ -696,14 +732,21 @@ struct CleanerView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                List {
-                    section(l10n.s.cleanerSafeSection, groups: DisplayGroup.allCases.filter(\.isSafe))
-                    section(l10n.s.cleanerOptionalSection, groups: DisplayGroup.allCases.filter { !$0.isSafe })
+                ScrollViewReader { proxy in
+                    List {
+                        section(l10n.s.cleanerSafeSection, groups: DisplayGroup.allCases.filter(\.isSafe))
+                        section(l10n.s.cleanerOptionalSection, groups: DisplayGroup.allCases.filter { !$0.isSafe })
+                    }
+                    .listStyle(.inset)
+                    // Inside the floating panel the list must not paint its own
+                    // opaque backdrop over the panel's translucent material.
+                    .scrollContentBackground(compact ? .hidden : .automatic)
+                    .panelKeyboardRowList(resultRows)
+                    .onChange(of: navigator.focus) { _, focus in
+                        guard let id = focusedResultID(focus) else { return }
+                        proxy.scrollTo(id, anchor: .center)
+                    }
                 }
-                .listStyle(.inset)
-                // Inside the floating panel the list must not paint its own
-                // opaque backdrop over the panel's translucent material.
-                .scrollContentBackground(compact ? .hidden : .automatic)
                 .frame(minHeight: compact ? 280 : 0)
                 Divider()
                 resultsFooter
@@ -724,6 +767,7 @@ struct CleanerView: View {
                 Image(systemName: "xmark.circle.fill").font(.system(size: 16)).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .panelKeyboardRow(keyboardRow("cleaner-reset"), actions: PanelRowActions(activate: { cleaner.reset() }))
         }
         .padding(compact ? 12 : 16)
     }
@@ -740,7 +784,7 @@ struct CleanerView: View {
 
     private func groupRow(_ group: DisplayGroup) -> some View {
         let group_items = items(for: group)
-        return DisclosureGroup {
+        return DisclosureGroup(isExpanded: groupExpandedBinding(group)) {
             if group == .leftovers {
                 Text(l10n.s.cleanerLeftoversNote)
                     .font(.caption2)
@@ -755,6 +799,8 @@ struct CleanerView: View {
         } label: {
             HStack(spacing: 10) {
                 Toggle("", isOn: groupBinding(group)).labelsHidden().toggleStyle(.checkbox)
+                    .panelKeyboardRow(keyboardRow(KeyboardID.groupInclude(group)), actions: PanelRowActions(
+                        activate: { groupBinding(group).wrappedValue.toggle() }))
                 Image(systemName: group.icon)
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
@@ -771,11 +817,23 @@ struct CleanerView: View {
             }
             .padding(.vertical, 3)
         }
+        .panelKeyboardRow(keyboardRow(KeyboardID.groupDisclosure(group)), actions: PanelRowActions(
+            activate: { groupExpandedBinding(group).wrappedValue.toggle() },
+            adjust: { direction, _ in
+                let binding = groupExpandedBinding(group)
+                let expanded = direction == .increase
+                guard binding.wrappedValue != expanded else { return false }
+                binding.wrappedValue = expanded
+                return true
+            }))
+        .id(KeyboardID.groupAnchor(group))
     }
 
     private func itemRow(_ item: JunkCleaner.Item) -> some View {
         HStack(spacing: 10) {
             Toggle("", isOn: includeBinding(item)).labelsHidden().toggleStyle(.checkbox)
+                .panelKeyboardRow(keyboardRow(KeyboardID.itemInclude(item)), actions: PanelRowActions(
+                    activate: { includeBinding(item).wrappedValue.toggle() }))
             VStack(alignment: .leading, spacing: 1) {
                 Text(item.name).font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
                 Text(prettyPath(item.url))
@@ -794,6 +852,64 @@ struct CleanerView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([item.url])
             }
         }
+        .id(KeyboardID.itemAnchor(item))
+    }
+
+    /// Local ids for the results list's rows, and the scroll anchors they
+    /// bring into view, in the one place they are spelled — see
+    /// `MediaWorkspaceView` for the same arrangement.
+    private enum KeyboardID {
+        static func groupAnchor(_ group: DisplayGroup) -> String { "cleaner-group-\(group.rawValue)" }
+        static func groupInclude(_ group: DisplayGroup) -> String { groupAnchor(group) + "-include" }
+        static func groupDisclosure(_ group: DisplayGroup) -> String { groupAnchor(group) + "-disclosure" }
+        static func itemAnchor(_ item: JunkCleaner.Item) -> String { "cleaner-item-\(item.id)" }
+        static func itemInclude(_ item: JunkCleaner.Item) -> String { itemAnchor(item) + "-include" }
+    }
+
+    /// The groups the results list renders, in the order it renders them:
+    /// the safe section first, then the optional one, each without the groups
+    /// that found nothing.
+    private var visibleResultGroups: [DisplayGroup] {
+        let safe = DisplayGroup.allCases.filter(\.isSafe)
+        let optional = DisplayGroup.allCases.filter { !$0.isSafe }
+        return (safe + optional).filter { !items(for: $0).isEmpty }
+    }
+
+    /// The results list states its own keyboard order. A `List` is always
+    /// lazy, so the order cannot be collected from measured frames the way a
+    /// hand-laid section's is — the rows it has not built yet have none. It
+    /// also scrolls inside its own scroll view, where a row scrolled above the
+    /// inner viewport would otherwise sort ahead of the header sitting above
+    /// the list on screen.
+    private var resultRows: [PanelRowID] {
+        visibleResultGroups.flatMap(keyboardRows)
+    }
+
+    /// What one group contributes, under the same conditions `groupRow(_:)`
+    /// builds it: a collapsed group's items are not rows the arrows stop on.
+    ///
+    /// The disclosure comes before the group's own checkbox, which is the
+    /// order the measured frames used to sort into: the disclosure row is the
+    /// whole `DisclosureGroup`, so it starts at the label's top edge, while
+    /// the checkbox is a child of that label and starts below its padding.
+    private func keyboardRows(for group: DisplayGroup) -> [PanelRowID] {
+        var locals = [KeyboardID.groupDisclosure(group), KeyboardID.groupInclude(group)]
+        if expandedGroups.contains(group) {
+            locals.append(contentsOf: items(for: group).map(KeyboardID.itemInclude))
+        }
+        return locals.compactMap(keyboardRow)
+    }
+
+    private func focusedResultID(_ focus: PanelFocusTarget?) -> String? {
+        guard compact, case .row(let row)? = focus, row.section == keyboardSection else { return nil }
+        if let group = DisplayGroup.allCases.first(where: {
+            row == keyboardRow(KeyboardID.groupInclude($0))
+                || row == keyboardRow(KeyboardID.groupDisclosure($0))
+        }) {
+            return KeyboardID.groupAnchor(group)
+        }
+        return cleaner.items.first { row == keyboardRow(KeyboardID.itemInclude($0)) }
+            .map(KeyboardID.itemAnchor)
     }
 
     private var resultsFooter: some View {
@@ -804,13 +920,16 @@ struct CleanerView: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Button(l10n.s.uninstallerCancel) { cleaner.reset() }
+                .panelKeyboardRow(keyboardRow("cleaner-cancel"), actions: PanelRowActions(activate: { cleaner.reset() }))
+            // Someone is at the keyboard for either path, so both may escalate.
+            let cleanNow = { cleaner.cleanSelected(escalate: true) }
             Button(String(format: l10n.s.cleanerCleanSizeFormat,
-                          Self.byteString(cleaner.selectedSize))) {
-                cleaner.cleanSelected(escalate: true)
-            }
+                          Self.byteString(cleaner.selectedSize)), action: cleanNow)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(cleaner.selectedCount == 0)
+            .panelKeyboardRow(cleaner.selectedCount == 0 ? nil : keyboardRow("cleaner-apply"),
+                              actions: PanelRowActions(activate: cleanNow))
         }
         .padding(compact ? 12 : 16)
     }
@@ -839,6 +958,7 @@ struct CleanerView: View {
             Button(l10n.s.cleanerAgain) { cleaner.reset() }
                 .controlSize(.large)
                 .padding(.top, 6)
+                .panelKeyboardRow(keyboardRow("cleaner-again"), actions: PanelRowActions(activate: { cleaner.reset() }))
             Spacer(minLength: compact ? 20 : 0)
         }
         .padding(compact ? 14 : 28)
@@ -868,6 +988,84 @@ struct CleanerView: View {
         )
     }
 
+    private func keyboardRow(_ localID: String) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, localID) }
+    }
+
+    private func groupExpandedBinding(_ group: DisplayGroup) -> Binding<Bool> {
+        Binding(
+            get: { expandedGroups.contains(group) },
+            set: { expanded in
+                if expanded { expandedGroups.insert(group) }
+                else { expandedGroups.remove(group) }
+            }
+        )
+    }
+
+    private func toggleScheduleExpanded() {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { scheduleExpanded.toggle() }
+    }
+
+    private func adjustScheduleDisclosure(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        let expanded = direction == .increase
+        guard scheduleExpanded != expanded else { return false }
+        toggleScheduleExpanded()
+        return true
+    }
+
+    private func toggleWhatsAppExpanded() {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { whatsAppExpanded.toggle() }
+    }
+
+    private func adjustWhatsAppDisclosure(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        let expanded = direction == .increase
+        guard whatsAppExpanded != expanded else { return false }
+        toggleWhatsAppExpanded()
+        return true
+    }
+
+    private func adjustFrequency(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        adjust(&scheduleFrequencyRaw, values: CleanerSchedule.Frequency.allCases.map(\.rawValue), direction: direction)
+    }
+
+    private func adjustWeekday(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        adjust(&scheduleWeekday, values: Array(1...7), direction: direction)
+    }
+
+    private func adjustHour12(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        var hour = scheduleHour12Binding.wrappedValue
+        let adjusted = adjust(&hour, values: Array(1...12), direction: direction)
+        scheduleHour12Binding.wrappedValue = hour
+        return adjusted
+    }
+
+    private func adjustHour24(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        adjust(&scheduleHour, values: Array(0..<24), direction: direction)
+    }
+
+    private func adjustMinute(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        adjust(&scheduleMinute, values: minuteChoices, direction: direction)
+    }
+
+    private func adjustPeriod(_ direction: PanelAdjustDirection, _: Bool) -> Bool {
+        let next = direction == .increase
+        guard schedulePMBinding.wrappedValue != next else { return false }
+        schedulePMBinding.wrappedValue = next
+        return true
+    }
+
+    private func adjust<Value: Equatable>(_ value: inout Value, values: [Value], direction: PanelAdjustDirection) -> Bool {
+        guard let index = values.firstIndex(of: value) else { return false }
+        let next = direction == .increase ? index + 1 : index - 1
+        guard values.indices.contains(next) else { return false }
+        value = values[next]
+        return true
+    }
+
     private func prettyPath(_ url: URL) -> String {
         url.deletingLastPathComponent().path
             .replacingOccurrences(of: NSHomeDirectory(), with: "~")
@@ -883,6 +1081,8 @@ struct CleanerView: View {
 struct PanelCleanerView: View {
     @ObservedObject private var l10n = L10n.shared
     var onClose: () -> Void
+    /// Set only by the menu-panel host, not the quick launcher.
+    var keyboardSection: PanelSectionID? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -901,8 +1101,10 @@ struct PanelCleanerView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(l10n.s.menuClose)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "cleaner-close") },
+                                  actions: PanelRowActions(activate: onClose))
             }
-            CleanerView(compact: true)
+            CleanerView(compact: true, keyboardSection: keyboardSection)
         }
         .padding(2)
         .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }

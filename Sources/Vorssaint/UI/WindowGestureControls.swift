@@ -140,6 +140,8 @@ struct WindowGestureModifierPicker: View {
     @Binding var storageValue: String
     var title: String?
     var compact = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     private struct ModifierChoice: Identifiable {
         let modifier: GlobalShortcutModifiers
@@ -186,6 +188,8 @@ struct WindowGestureModifierPicker: View {
                 .help(choice.name)
                 .accessibilityLabel(choice.name)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "gestureModifier-\(choice.name)") },
+                                  actions: PanelRowActions(activate: { toggle(choice.modifier) }), cornerRadius: 6)
             }
         }
     }

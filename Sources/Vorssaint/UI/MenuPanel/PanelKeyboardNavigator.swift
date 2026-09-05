@@ -1,0 +1,493 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import Carbon.HIToolbox
+import Combine
+import SwiftUI
+
+/// Where keyboard focus currently rests in the menu panel. `nil` until the
+/// first navigation key press, so mouse-only use never shows a focus ring.
+enum PanelFocusTarget: Equatable {
+    /// Panel chrome outside the tab bar and the scrollable content — the
+    /// update banner, the back button in metric detail, the footer — which
+    /// has a fixed position instead of a runtime-tracked one.
+    case chrome(PanelChromeID)
+    case tab(PanelSectionID)
+    case row(PanelRowID)
+}
+
+/// Identity for one piece of panel chrome. Unlike rows, chrome is never
+/// reordered or hidden by the user, so its position is just the order
+/// `MenuPanelView` lists it in, not something measured at runtime.
+enum PanelChromeID: Hashable {
+    case updateBanner
+    case headerFeedback
+    case metricBack
+    case footerSettings
+    case footerQuit
+}
+
+/// Stable identity for a keyboard-navigable row, scoped by section so two
+/// sections can reuse the same local id (an enum case, an index...) without
+/// colliding.
+struct PanelRowID: Hashable {
+    let section: PanelSectionID
+    let local: AnyHashable
+
+    init(_ section: PanelSectionID, _ local: AnyHashable) {
+        self.section = section
+        self.local = local
+    }
+}
+
+/// One entry in the layout-derived row order, as the registration modifiers
+/// report it: a single measured row, or a whole list contributing its rows in
+/// data order at the position its container occupies. A `LazyVStack` or
+/// `List` only builds the rows it can show, so it declares the order itself
+/// instead of leaving the collector to infer one from frames the rows
+/// currently off screen do not have.
+struct PanelRowGeometry: Equatable {
+    let ids: [PanelRowID]
+    let frame: CGRect
+
+    init(ids: [PanelRowID], frame: CGRect) {
+        self.ids = ids
+        self.frame = frame
+    }
+}
+
+/// Which way an arrow-key press adjusts a row's value.
+enum PanelAdjustDirection {
+    case decrease, increase
+}
+
+/// What a row does in response to a key, wired up through `.panelKeyboardRow`.
+/// Everything but `activate` is optional — a plain action or toggle row only
+/// needs that one. `adjust`/`enter`/`exit` return whether they actually did
+/// something, so a row at its limit (or with nowhere to go) hands the key
+/// back instead of silently swallowing it.
+struct PanelRowActions {
+    var activate: (() -> Void)?
+    var adjust: ((PanelAdjustDirection, _ fine: Bool) -> Bool)?
+    var enter: (() -> Bool)?
+    var exit: (() -> Bool)?
+
+    init(activate: (() -> Void)? = nil,
+         adjust: ((PanelAdjustDirection, _ fine: Bool) -> Bool)? = nil,
+         enter: (() -> Bool)? = nil,
+         exit: (() -> Bool)? = nil) {
+        self.activate = activate
+        self.adjust = adjust
+        self.enter = enter
+        self.exit = exit
+    }
+}
+
+/// A level pushed onto the panel's keyboard navigation stack: metric detail
+/// or a hosted utility sub-panel. Escape pops the top one before it ever
+/// reaches the popover itself.
+enum PanelLevelID: Hashable {
+    case metricDetail
+    case hostedUtility
+}
+
+/// Drives keyboard navigation of the menu panel: the section tabs and the
+/// rows inside the active section's content. An `NSEvent` local key monitor
+/// in `AppDelegate` feeds it every key press (the house pattern for keyboard
+/// navigation in this app — see `CommandBarService`, `QuickLauncherService`);
+/// SwiftUI only reads `focus` back to render the highlight.
+///
+/// Row order and on-screen position are never hand-maintained: sections and
+/// items are both user-reorderable and hideable, so `configureRowOrder` is
+/// fed from real layout (see `panelKeyboardRow` and the row-order collector
+/// in `MenuPanelView`).
+final class PanelKeyboardNavigator: ObservableObject {
+    static let shared = PanelKeyboardNavigator()
+
+    /// The named coordinate space rows measure their on-screen position in,
+    /// shared between `panelKeyboardRow` and the collector that sorts them.
+    static let rowCoordinateSpace = "panelKeyboardRows"
+
+    @Published private(set) var focus: PanelFocusTarget?
+
+    // Kept current by MenuPanelView every time the visible tabs or the
+    // active section change.
+    private var tabs: [PanelSectionID] = []
+    private var activeTab: PanelSectionID?
+    private var onSelectTab: ((PanelSectionID) -> Void)?
+
+    // Kept current by the row registration modifier and its order collector.
+    private var rowOrder: [PanelRowID] = []
+    private var rowGroups: [PanelRowID: [PanelRowID]] = [:]
+    private var rowFrames: [PanelRowID: CGRect] = [:]
+    private var rowActions: [PanelRowID: PanelRowActions] = [:]
+
+    // Kept current by MenuPanelView: chrome before and after the tab-bar/row
+    // content, in the fixed order it actually appears on screen.
+    private var leadingChrome: [PanelChromeID] = []
+    private var trailingChrome: [PanelChromeID] = []
+    private var chromeActivate: [PanelChromeID: () -> Void] = [:]
+
+    private var levels: [(id: PanelLevelID, dismiss: () -> Void)] = []
+
+    private init() {}
+
+    // MARK: - Tabs
+
+    func configureTabs(_ tabs: [PanelSectionID], active: PanelSectionID,
+                       select: @escaping (PanelSectionID) -> Void) {
+        self.tabs = tabs
+        activeTab = active
+        onSelectTab = select
+        // Any tab focus snaps to wherever the active tab actually is, so a
+        // mouse click while keyboard focus is showing moves the ring instead
+        // of leaving it stranded on a tab that is no longer selected.
+        if case .tab = focus {
+            focus = tabs.contains(active) ? .tab(active) : nil
+        }
+    }
+
+    /// Programmatic focus for callers outside the keyboard-nav loop (e.g. a
+    /// menu-bar icon deep-linking into a section). The caller updates the
+    /// selection itself; this only moves the ring to match.
+    func focusTab(_ id: PanelSectionID) {
+        focus = .tab(id)
+    }
+
+    /// Moves the ring within a horizontal row group (icon/color swatches).
+    /// The caller has already checked that the destination exists.
+    func focusRow(_ id: PanelRowID) {
+        focus = .row(id)
+    }
+
+    func clearFocus() {
+        focus = nil
+    }
+
+    // MARK: - Rows
+
+    func registerRow(_ id: PanelRowID, actions: PanelRowActions) {
+        rowActions[id] = actions
+    }
+
+    /// A row leaving the screen drops its actions. A lazy list tearing down a
+    /// row it has scrolled past does not take that row out of `rowOrder`
+    /// though, so focus stays where it is and the row registers again the
+    /// moment the list scrolls it back into view.
+    func unregisterRow(_ id: PanelRowID) {
+        rowActions.removeValue(forKey: id)
+        guard !rowOrder.contains(id) else { return }
+        if case .row(let focused)? = focus, focused == id {
+            focus = fallbackFocus()
+        }
+    }
+
+    /// The rows in the section currently on screen, sorted top to bottom by
+    /// real on-screen position, with the frame each measured in
+    /// `rowCoordinateSpace` — the coordinate space of the scroll view's own
+    /// document view, so `OverlayScrollView` can scroll a row into view
+    /// without knowing anything about the panel's content.
+    func configureRowOrder(_ rows: [(id: PanelRowID, frame: CGRect)],
+                           groups: [[PanelRowID]] = []) {
+        // Layout can report the same id twice for a pass while a list
+        // rebuilds. The row keeps the first place it was reported in and the
+        // last frame it was measured at, rather than the panel trapping on a
+        // duplicate key.
+        var seen: Set<PanelRowID> = []
+        rowOrder = rows.map(\.id).filter { seen.insert($0).inserted }
+        rowGroups = groups.reduce(into: [:]) { result, group in
+            for row in group { result[row] = group }
+        }
+        rowFrames = Dictionary(rows.map { ($0.id, $0.frame) }, uniquingKeysWith: { _, latest in latest })
+        if case .row(let focused)? = focus, !rowOrder.contains(focused) {
+            focus = fallbackFocus()
+        }
+    }
+
+    func frame(for row: PanelRowID) -> CGRect? {
+        rowFrames[row]
+    }
+
+    /// Turns what layout reported into the top-to-bottom order the navigator
+    /// walks. Entries sort by their measured top edge; entries that share one
+    /// keep the order they were reported in, and a list's ids stay in the
+    /// order the list declared. Only whole entries are sorted — sorting ids
+    /// individually would leave every id of one list tied on the same frame,
+    /// and a tie broken by nothing is an arbitrary order that reads as the
+    /// arrow keys skipping around the list. An id reported more than once
+    /// keeps its first place and its last frame.
+    static func orderedRows(from entries: [PanelRowGeometry]) -> [(id: PanelRowID, frame: CGRect)] {
+        let sorted = entries.enumerated().sorted { lhs, rhs in
+            let delta = lhs.element.frame.minY - rhs.element.frame.minY
+            return abs(delta) > 0.5 ? delta < 0 : lhs.offset < rhs.offset
+        }
+        var latestFrame: [PanelRowID: CGRect] = [:]
+        for entry in entries {
+            for id in entry.ids { latestFrame[id] = entry.frame }
+        }
+        var seen: Set<PanelRowID> = []
+        return sorted.flatMap { entry in
+            entry.element.ids.compactMap { id in
+                seen.insert(id).inserted ? (id: id, frame: latestFrame[id] ?? entry.element.frame) : nil
+            }
+        }
+    }
+
+    /// Where focus lands when whatever it was on disappears out from under
+    /// it: the active tab if there is one to show, otherwise nowhere.
+    private func fallbackFocus() -> PanelFocusTarget? {
+        guard let activeTab, tabs.contains(activeTab) else { return nil }
+        return .tab(activeTab)
+    }
+
+    // MARK: - Chrome
+
+    /// The fixed chrome before and after the tab bar/content, in on-screen
+    /// order — the update banner and header feedback button lead; the
+    /// footer trails; metric detail's back button takes the tab bar's spot
+    /// at the front instead.
+    func configureChrome(leading: [PanelChromeID], trailing: [PanelChromeID]) {
+        leadingChrome = leading
+        trailingChrome = trailing
+        if case .chrome(let id)? = focus, !leading.contains(id), !trailing.contains(id) {
+            focus = fallbackFocus()
+        }
+    }
+
+    func registerChromeAction(_ id: PanelChromeID, activate: @escaping () -> Void) {
+        chromeActivate[id] = activate
+    }
+
+    func unregisterChromeAction(_ id: PanelChromeID) {
+        chromeActivate.removeValue(forKey: id)
+        if case .chrome(let focused)? = focus, focused == id {
+            focus = fallbackFocus()
+        }
+    }
+
+    // MARK: - Levels
+
+    func pushLevel(_ id: PanelLevelID, dismiss: @escaping () -> Void) {
+        levels.append((id, dismiss))
+    }
+
+    func popLevel(_ id: PanelLevelID) {
+        levels.removeAll { $0.id == id }
+    }
+
+    /// Escape: pops the top level (if any) and returns true; returns false
+    /// once the stack is empty, so the caller closes the popover only then.
+    @discardableResult
+    func popTopLevel() -> Bool {
+        guard let top = levels.last else { return false }
+        top.dismiss()
+        return true
+    }
+
+    // MARK: - Keys
+
+    /// Handles one key-down; returns true if the panel consumed it.
+    ///
+    /// Tab is the one key that engages keyboard navigation from a standing
+    /// start (focus nil): nothing else in the popover has a working native
+    /// key-view loop for it to compete with. Arrows and Return/Space defer
+    /// instead while focus is nil, so a native control the user just
+    /// click-focused (a slider, a stepper) keeps its own arrow keys until
+    /// the person actually starts navigating with the keyboard.
+    @discardableResult
+    func handleKeyDown(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return false }
+        let fine = event.modifierFlags.contains(.shift)
+        switch Int(event.keyCode) {
+        case kVK_Tab:
+            // Cycles the section tabs wherever there is a tab bar. Metric
+            // detail has none, so there Tab walks the panel the way Down and
+            // Up do rather than being a key that does nothing.
+            if moveTab(backward: fine) { return true }
+            return fine ? handleUp() : handleDown()
+        case kVK_LeftArrow:
+            guard focus != nil else { return false }
+            return handleLeft(fine: fine)
+        case kVK_RightArrow:
+            guard focus != nil else { return false }
+            return handleRight(fine: fine)
+        case kVK_DownArrow:
+            guard focus != nil else { return startNavigation(at: sequence.first) }
+            return handleDown()
+        case kVK_UpArrow:
+            guard focus != nil else { return startNavigation(at: sequence.last) }
+            return handleUp()
+        case kVK_Return, kVK_ANSI_KeypadEnter, kVK_Space:
+            guard focus != nil else { return false }
+            return activateFocused()
+        default:
+            return false
+        }
+    }
+
+    /// Down and Up also start keyboard navigation: with nothing focused they
+    /// take the panel's first or last stop rather than stepping from one, so
+    /// the arrows answer without the user having to know that Tab is what
+    /// begins it.
+    ///
+    /// Left, Right, Return and Space stay inert until then. They act on a
+    /// focused stop rather than moving between them, so there is no obvious
+    /// place for them to begin, and handing them back leaves the panel's own
+    /// controls and scroll views holding the keys they expect.
+    private func startNavigation(at target: PanelFocusTarget?) -> Bool {
+        guard let target else { return false }
+        focus = target
+        return true
+    }
+
+    /// The whole panel, top to bottom, as one line: leading chrome, the tab
+    /// bar (one stop, wherever `activeTab` is — absent in metric detail,
+    /// where the back button takes its place in `leadingChrome`), the rows
+    /// in their real order, then trailing chrome. Up/Down walk this; Left/
+    /// Right only ever act within one stop (cycling tabs, adjusting a row).
+    private var sequence: [PanelFocusTarget] {
+        var steps = leadingChrome.map { PanelFocusTarget.chrome($0) }
+        if !tabs.isEmpty, let activeTab {
+            steps.append(.tab(activeTab))
+        }
+        var includedGroups: Set<PanelRowID> = []
+        for row in rowOrder {
+            if let group = rowGroups[row], let representative = group.first(where: rowOrder.contains) {
+                guard includedGroups.insert(representative).inserted else { continue }
+                let focused = group.contains { focus == .row($0) }
+                steps.append(.row(focused ? group.first(where: { focus == .row($0) })! : representative))
+            } else {
+                steps.append(.row(row))
+            }
+        }
+        steps.append(contentsOf: trailingChrome.map { .chrome($0) })
+        return steps
+    }
+
+    private func handleLeft(fine: Bool) -> Bool {
+        switch focus {
+        case .tab:
+            return moveTab(backward: true)
+        case .chrome(.footerQuit):
+            focus = .chrome(.footerSettings)
+            return true
+        case .chrome:
+            return false
+        case .row(let id):
+            if let actions = rowActions[id] {
+                if let adjust = actions.adjust { return adjust(.decrease, fine) }
+                if let exit = actions.exit { return exit() }
+            }
+            if moveWithinRowGroup(id, forward: false) { return true }
+            return false
+        case nil:
+            return false
+        }
+    }
+
+    private func handleRight(fine: Bool) -> Bool {
+        switch focus {
+        case .tab:
+            return moveTab(backward: false)
+        case .chrome(.footerSettings):
+            focus = .chrome(.footerQuit)
+            return true
+        case .chrome:
+            return false
+        case .row(let id):
+            if let actions = rowActions[id] {
+                if let adjust = actions.adjust { return adjust(.increase, fine) }
+                if let enter = actions.enter { return enter() }
+            }
+            if moveWithinRowGroup(id, forward: true) { return true }
+            return false
+        case nil:
+            return false
+        }
+    }
+
+    private func handleDown() -> Bool {
+        let steps = sequence
+        guard !steps.isEmpty else { return false }
+        guard let focus, let index = steps.firstIndex(of: focus) else {
+            self.focus = steps.first
+            return true
+        }
+        guard index + 1 < steps.count else { return false }
+        self.focus = steps[index + 1]
+        return true
+    }
+
+    private func moveWithinRowGroup(_ id: PanelRowID, forward: Bool) -> Bool {
+        guard let group = rowGroups[id], let index = group.firstIndex(of: id) else { return false }
+        let destination = forward ? index + 1 : index - 1
+        guard group.indices.contains(destination), rowOrder.contains(group[destination]) else { return false }
+        focus = .row(group[destination])
+        return true
+    }
+
+    private func handleUp() -> Bool {
+        let steps = sequence
+        guard !steps.isEmpty else { return false }
+        guard let focus, let index = steps.firstIndex(of: focus) else {
+            self.focus = steps.last
+            return true
+        }
+        guard index > 0 else { return false }
+        self.focus = steps[index - 1]
+        return true
+    }
+
+    /// Returns false only when there is no tab bar to cycle, so the caller can
+    /// hand the key on instead of swallowing it.
+    @discardableResult
+    private func moveTab(backward: Bool) -> Bool {
+        guard !tabs.isEmpty else { return false }
+        let baseID: PanelSectionID
+        switch focus {
+        case .tab(let id): baseID = id
+        case .row(let row): baseID = row.section
+        case .chrome, nil: baseID = activeTab ?? tabs[0]
+        }
+        guard let index = tabs.firstIndex(of: baseID) else {
+            if let activeTab, tabs.contains(activeTab) { selectTab(activeTab) }
+            return true
+        }
+        // Engaging keyboard navigation only brings the ring on screen: the
+        // first press lands on the section already showing instead of moving
+        // the person off the one they opened the panel to look at.
+        guard focus != nil else {
+            selectTab(tabs[index])
+            return true
+        }
+        let count = tabs.count
+        let nextIndex = ((backward ? index - 1 : index + 1) % count + count) % count
+        selectTab(tabs[nextIndex])
+        return true
+    }
+
+    private func selectTab(_ id: PanelSectionID) {
+        focus = .tab(id)
+        activeTab = id
+        onSelectTab?(id)
+    }
+
+    private func activateFocused() -> Bool {
+        switch focus {
+        case .chrome(let id):
+            guard let activate = chromeActivate[id] else { return false }
+            activate()
+            return true
+        case .tab(let id):
+            selectTab(id)
+            return true
+        case .row(let id):
+            guard let activate = rowActions[id]?.activate else { return false }
+            activate()
+            return true
+        case nil:
+            return false
+        }
+    }
+}

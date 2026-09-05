@@ -116,6 +116,18 @@ extension View {
     func panelGlassSurface(cornerRadius: CGFloat = 18) -> some View {
         background(PanelGlassSurface(cornerRadius: cornerRadius))
     }
+
+    /// Accent-colored outline marking the keyboard-focused tab or row in the
+    /// menu panel. A zero-width overlay keeps the view structure and measured
+    /// panel height stable while focus moves; mouse-only use still shows no
+    /// ring, and the overlay never takes a click meant for the row underneath.
+    func panelFocusRing(_ isFocused: Bool, cornerRadius: CGFloat = 8) -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(Color.accentColor, lineWidth: isFocused ? 2 : 0)
+                .allowsHitTesting(false)
+        )
+    }
 }
 
 private struct PanelCardModifier: ViewModifier {

@@ -43,6 +43,10 @@ struct BrightnessSection: View {
                             if isOn { permissions.requestAccessibility() }
                             service.syncWithPreferences()
                         }
+                        .panelKeyboardRow(PanelRowID(.brightness, "osd"),
+                                          actions: PanelRowActions(activate: {
+                                              brightnessOSDEnabled.toggle()
+                                          }))
                 }
             }
             .panelCard()
@@ -71,15 +75,40 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
-                DisplayPowerButton(display: display, compact: true)
+                DisplayPowerButton(display: display,
+                                   compact: true,
+                                   keyboardRow: PanelRowID(.brightness, "power-\(display.id)"))
             }
             if display.isActive, display.method != nil {
                 Slider(value: brightnessBinding(display), in: 0...1)
                     .controlSize(.small)
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
+                    .panelKeyboardRow(PanelRowID(.brightness, display.id),
+                                      actions: rowActions(for: display))
             }
         }
+    }
+
+    private func rowActions(for display: BrightnessDisplay) -> PanelRowActions {
+        guard display.isActive, display.method != nil, !service.isDisplayPending(display.id) else {
+            return PanelRowActions()
+        }
+        return PanelRowActions(adjust: { direction, fine in
+            adjustBrightness(for: display.id, direction: direction, fine: fine)
+        })
+    }
+
+    /// 5% a press, 1% with Shift held for precise placement.
+    private func adjustBrightness(for displayID: BrightnessDisplay.ID,
+                                  direction: PanelAdjustDirection, fine: Bool) -> Bool {
+        guard let display = service.displays.first(where: { $0.id == displayID }) else { return false }
+        let step = fine ? 0.01 : 0.05
+        let delta = direction == .increase ? step : -step
+        let next = min(1, max(0, display.brightness + delta))
+        guard abs(next - display.brightness) > 0.0001 else { return false }
+        service.setBrightness(next, for: display.id, showOSD: brightnessOSDEnabled)
+        return true
     }
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
@@ -96,6 +125,9 @@ struct DisplayPowerButton: View {
     @ObservedObject private var service = BrightnessService.shared
     let display: BrightnessDisplay
     var compact = false
+    /// Set only by the menu-panel host; Settings uses this shared control
+    /// without registering it with the panel navigator.
+    var keyboardRow: PanelRowID?
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
     private var pending: Bool { service.isDisplayPending(display.id) }
@@ -128,6 +160,10 @@ struct DisplayPowerButton: View {
                 .disabled(!enabled)
                 .help(label)
                 .accessibilityLabel(label)
+                .panelKeyboardRow(enabled ? keyboardRow : nil,
+                                  actions: PanelRowActions(activate: {
+                                      service.toggleDisplay(display)
+                                  }))
             }
         }
     }
