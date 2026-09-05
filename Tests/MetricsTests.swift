@@ -5562,6 +5562,15 @@ struct MetricsTests {
                    $0 == "EnableTilingByEdgeDrag" ? true : false
                },
                "one enabled system edge gesture is enough to prevent competing previews")
+        expect(!WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in nil }, displaysSpan: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in true }, displaysSpan: true),
+               "spanning displays make system tiling inert, even when its keys are missing or on")
+        expect(WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in true }, displaysSpan: false),
+               "separate Spaces still honour a written system tiling switch")
+        expect(!WindowEdgeSnapSupport.displaysSpan(nil)
+                && !WindowEdgeSnapSupport.displaysSpan(false)
+                && WindowEdgeSnapSupport.displaysSpan(true),
+               "an unwritten spans-displays preference is separate Spaces, Apple's default")
 
         let dragFrame = CGRect(x: 100, y: 100, width: 800, height: 500)
         expect(WindowEdgeSnapSupport.classify(
