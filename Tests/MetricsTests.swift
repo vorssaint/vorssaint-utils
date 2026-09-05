@@ -14710,12 +14710,15 @@ struct MetricsTests {
                 && FeatureStrings.hub(.enUS).pageTitle == "Features",
                "hub page title reads naturally in the owner languages")
         for language in AppLanguage.allCases {
-            let snippetValues = Mirror(reflecting: FeatureStrings.snippets(language)).children
+            let snippetStrings = FeatureStrings.snippets(language)
+            let snippetValues = Mirror(reflecting: snippetStrings).children
                 .compactMap { $0.value as? String }
             expect(!snippetValues.isEmpty && snippetValues.allSatisfy { !$0.isEmpty },
                    "every snippet string is set for \(language.rawValue)")
             expect(snippetValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible snippet strings (\(language.rawValue))")
+            expect(snippetStrings.editorFormatCaption.contains("{{cursor}}"),
+                   "the snippet editor explains the cursor marker in \(language.rawValue)")
             let backupValues = Mirror(reflecting: FeatureStrings.backup(language)).children
                 .compactMap { $0.value as? String }
             expect(!backupValues.isEmpty && backupValues.allSatisfy { !$0.isEmpty },
@@ -15716,6 +15719,35 @@ struct MetricsTests {
                "unknown variables stay visible")
         expect(TextSnippetSupport.expand("plain", date: fixedDate, clipboard: nil) == "plain",
                "text without variables passes through untouched")
+        let singleLineCursor = TextSnippetSupport.expandedInsertion(
+            "Hello {{cursor}}world", date: fixedDate, clipboard: nil)
+        let emojiCursor = TextSnippetSupport.expandedInsertion(
+            "Hello {{cursor}}👩🏽‍💻!", date: fixedDate, clipboard: nil)
+        let multilineCursor = TextSnippetSupport.expandedInsertion(
+            "Hello\n{{cursor}}{{clipboard}}", date: fixedDate, clipboard: "literal {{cursor}}")
+        let singleBracedCursor = TextSnippetSupport.expandedInsertion(
+            "Hello {cursor}world", date: fixedDate, clipboard: nil)
+        expect(singleLineCursor.text == "Hello world" && singleLineCursor.caretRetreat == 5
+                && emojiCursor.text == "Hello 👩🏽‍💻!" && emojiCursor.caretRetreat == 2
+                && multilineCursor.text == "Hello\nliteral {{cursor}}"
+                && multilineCursor.caretRetreat == "literal {{cursor}}".count
+                && singleBracedCursor.text == "Hello {cursor}world"
+                && singleBracedCursor.caretRetreat == nil,
+               "one literal cursor marker sets the caret without reinterpreting clipboard text")
+        expect(TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: nil)
+               && !TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: 0)
+               && !TextSnippetSupport.keepsTriggeringDelimiter(caretRetreat: 5),
+               "only cursor placement suppresses the triggering delimiter")
+        let unrelatedKeyUp = TextSnippetSupport.pendingKeyUpDecision(
+            keyCode: kVK_Tab, pendingKeyCode: kVK_Return)
+        let matchingKeyUp = TextSnippetSupport.pendingKeyUpDecision(
+            keyCode: kVK_Return, pendingKeyCode: unrelatedKeyUp.pendingKeyCode)
+        let repeatedKeyUp = TextSnippetSupport.pendingKeyUpDecision(
+            keyCode: kVK_Return, pendingKeyCode: matchingKeyUp.pendingKeyCode)
+        expect(!unrelatedKeyUp.consume && unrelatedKeyUp.pendingKeyCode == kVK_Return
+               && matchingKeyUp.consume && matchingKeyUp.pendingKeyCode == nil
+               && !repeatedKeyUp.consume && repeatedKeyUp.pendingKeyCode == nil,
+               "a pending delimiter consumes exactly its matching key-up")
 
         // Only a replacement that names the clipboard pays for reading it: the
         // pasteboard can hang on content nobody renders any more, and that read
@@ -15737,6 +15769,21 @@ struct MetricsTests {
                && TextSnippetSupport.pastePayload(text: "first\nsecond", trailingText: " ")
                 == "first\nsecond ",
                "multi-line snippets keep their delimiter in the same ordered paste")
+        let transientPasteSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/TransientPaste.swift",
+            encoding: .utf8)) ?? ""
+        let pasteCompletionSettles: Bool
+        if let keyUp = transientPasteSource.range(of: "keyUp.post(tap: .cghidEventTap)"),
+           let settle = transientPasteSource.range(
+               of: "DispatchQueue.main.asyncAfter(deadline: .now() + postShortcutSettleDelay)"),
+           let completion = transientPasteSource.range(of: "completion(true)") {
+            pasteCompletionSettles = keyUp.upperBound <= settle.lowerBound
+                && settle.upperBound <= completion.lowerBound
+        } else {
+            pasteCompletionSettles = false
+        }
+        expect(pasteCompletionSettles,
+               "transient paste settles before posting completion events")
 
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")
