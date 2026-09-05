@@ -54,10 +54,17 @@ enum BrightnessSupport {
     }
 
     static let defaultKeyboardLightLevel: Float = 0.5
+    static let keyboardLightStep: Float = 1.0 / 16.0
 
     static func keyboardLightOnLevel(lastNonzero: Float?) -> Float {
         guard let lastNonzero, lastNonzero > 0 else { return defaultKeyboardLightLevel }
         return min(lastNonzero, 1)
+    }
+
+    static func steppedKeyboardLightLevel(current: Float, direction: Int) -> Float {
+        guard current.isFinite else { return 0 }
+        let step = direction < 0 ? -keyboardLightStep : keyboardLightStep
+        return min(max(current + step, 0), 1)
     }
 
     /// The DDC/CI standard also spaces whole commands apart: a host waits at

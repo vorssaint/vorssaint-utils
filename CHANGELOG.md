@@ -7,9 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds edge snap controls and a shortcut for recent captures, refines the radial menu, and improves color picking, app icons, readability, localization, mouse reconnection behavior, shortcut conflict detection, switcher key recovery and build checks.
+Vorssaint adds edge snap controls and shortcuts for recent captures and keyboard brightness, and refines the radial menu. It adds capture menu and magnifier zoom choices and improves color picking, app icons, readability, localization, mouse reconnection, system shortcut handling and build checks.
 
 ### Added
+- Each capture tool can hide the mode menu when opened with its keyboard shortcut. Thanks to @EugeneCarldotme.
+- The capture magnifier offers a remembered or chosen starting zoom and step-by-step wheel control. Thanks to @ruvelro.
+- Optional keyboard backlight shortcuts adjust brightness one step at a time, available in Keyboard shortcuts. Thanks to @EugeneCarldotme.
 - Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
 - Recent captures can open from their own assignable shortcut without returning to the menu bar panel.
 - Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.

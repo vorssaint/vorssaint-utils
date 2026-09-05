@@ -140,9 +140,16 @@ struct ScreenshotFeatureStrings {
     let shareEnabledToggle: String
     let editClipboardImage: String
     let clipboardImageMissing: String
+    let showCaptureMenuOnShortcut: String
     let screenCaptureTitle: String
     let dragOutHandleLabel: String
     let loupeStartsOnToggle: String
+    let loupeRememberZoomToggle: String
+    let loupeDefaultZoomLabel: String
+    let loupeWheelZoomLabel: String
+    let loupeZoomFast: String
+    let loupeZoomStepped: String
+    let loupeZoomOptionCaption: String
 }
 
 extension FeatureStrings {
@@ -302,9 +309,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Allow temporary links",
         editClipboardImage: "Edit clipboard image",
         clipboardImageMissing: "Copy an image first",
+        showCaptureMenuOnShortcut: "Show capture menu when using keyboard shortcut",
         screenCaptureTitle: "Screen capture",
         dragOutHandleLabel: "Drag and drop",
-        loupeStartsOnToggle: "Start selection with the magnifier on"
+        loupeStartsOnToggle: "Start selection with the magnifier on",
+        loupeRememberZoomToggle: "Remember the magnifier’s last zoom",
+        loupeDefaultZoomLabel: "Default magnifier zoom",
+        loupeWheelZoomLabel: "Wheel zoom",
+        loupeZoomFast: "Fast",
+        loupeZoomStepped: "Step by step",
+        loupeZoomOptionCaption: "Hold ⌥ to temporarily use the other mode."
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -443,9 +457,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir links temporários",
         editClipboardImage: "Editar imagem copiada",
         clipboardImageMissing: "Copie uma imagem primeiro",
+        showCaptureMenuOnShortcut: "Mostrar menu de captura ao usar o atalho de teclado",
         screenCaptureTitle: "Ferramentas de captura",
         dragOutHandleLabel: "Arraste e solte",
-        loupeStartsOnToggle: "Iniciar a seleção com a lupa ativada"
+        loupeStartsOnToggle: "Iniciar a seleção com a lupa ativada",
+        loupeRememberZoomToggle: "Lembrar o último zoom da lupa",
+        loupeDefaultZoomLabel: "Zoom padrão da lupa",
+        loupeWheelZoomLabel: "Zoom com a roda",
+        loupeZoomFast: "Rápido",
+        loupeZoomStepped: "Passo a passo",
+        loupeZoomOptionCaption: "Mantenha ⌥ pressionado para usar temporariamente o outro modo."
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -584,9 +605,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Geçici bağlantılara izin ver",
         editClipboardImage: "Panodaki resmi düzenle",
         clipboardImageMissing: "Önce bir resim kopyalayın",
+        showCaptureMenuOnShortcut: "Klavye kısayolu kullanıldığında yakalama menüsünü göster",
         screenCaptureTitle: "Ekran yakalama",
         dragOutHandleLabel: "Sürükle ve bırak",
-        loupeStartsOnToggle: "Seçime büyüteç açık başla"
+        loupeStartsOnToggle: "Seçime büyüteç açık başla",
+        loupeRememberZoomToggle: "Büyütecin son yakınlaştırmasını hatırla",
+        loupeDefaultZoomLabel: "Varsayılan büyüteç yakınlaştırması",
+        loupeWheelZoomLabel: "Tekerlekle yakınlaştırma",
+        loupeZoomFast: "Hızlı",
+        loupeZoomStepped: "Adım adım",
+        loupeZoomOptionCaption: "Diğer modu geçici olarak kullanmak için ⌥ tuşunu basılı tutun."
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -725,9 +753,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Разрешить временные ссылки",
         editClipboardImage: "Редактировать изображение из буфера",
         clipboardImageMissing: "Сначала скопируйте изображение",
+        showCaptureMenuOnShortcut: "Показывать меню захвата при использовании сочетания клавиш",
         screenCaptureTitle: "Захват экрана",
         dragOutHandleLabel: "Перетащить",
-        loupeStartsOnToggle: "Начинать выделение с включённой лупой"
+        loupeStartsOnToggle: "Начинать выделение с включённой лупой",
+        loupeRememberZoomToggle: "Запоминать последнее увеличение лупы",
+        loupeDefaultZoomLabel: "Увеличение лупы по умолчанию",
+        loupeWheelZoomLabel: "Масштабирование колёсиком",
+        loupeZoomFast: "Быстро",
+        loupeZoomStepped: "Пошагово",
+        loupeZoomOptionCaption: "Удерживайте ⌥, чтобы временно использовать другой режим."
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -866,9 +901,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Permitir enlaces temporales",
         editClipboardImage: "Editar imagen copiada",
         clipboardImageMissing: "Copia una imagen primero",
+        showCaptureMenuOnShortcut: "Mostrar el menú de captura al usar el atajo de teclado",
         screenCaptureTitle: "Herramientas de captura",
         dragOutHandleLabel: "Arrastrar y soltar",
-        loupeStartsOnToggle: "Empezar la selección con la lupa activada"
+        loupeStartsOnToggle: "Empezar la selección con la lupa activada",
+        loupeRememberZoomToggle: "Recordar el último zoom de la lupa",
+        loupeDefaultZoomLabel: "Zoom predeterminado de la lupa",
+        loupeWheelZoomLabel: "Zoom con la rueda",
+        loupeZoomFast: "Rápido",
+        loupeZoomStepped: "Por pasos",
+        loupeZoomOptionCaption: "Mantén pulsado ⌥ para usar temporalmente el otro modo."
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -1007,9 +1049,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Temporäre Links erlauben",
         editClipboardImage: "Kopiertes Bild bearbeiten",
         clipboardImageMissing: "Kopiere zuerst ein Bild",
+        showCaptureMenuOnShortcut: "Aufnahmemenü bei Verwendung des Tastaturkurzbefehls anzeigen",
         screenCaptureTitle: "Bildschirm erfassen",
         dragOutHandleLabel: "Ziehen und ablegen",
-        loupeStartsOnToggle: "Auswahl mit aktivierter Lupe starten"
+        loupeStartsOnToggle: "Auswahl mit aktivierter Lupe starten",
+        loupeRememberZoomToggle: "Letzten Lupenzoom merken",
+        loupeDefaultZoomLabel: "Standardzoom der Lupe",
+        loupeWheelZoomLabel: "Zoom mit dem Mausrad",
+        loupeZoomFast: "Schnell",
+        loupeZoomStepped: "Schrittweise",
+        loupeZoomOptionCaption: "Halte ⌥ gedrückt, um vorübergehend den anderen Modus zu verwenden."
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1148,9 +1197,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Autoriser les liens temporaires",
         editClipboardImage: "Modifier l’image copiée",
         clipboardImageMissing: "Copiez d’abord une image",
+        showCaptureMenuOnShortcut: "Afficher le menu de capture avec le raccourci clavier",
         screenCaptureTitle: "Outils de capture",
         dragOutHandleLabel: "Glisser-déposer",
-        loupeStartsOnToggle: "Démarrer la sélection avec la loupe activée"
+        loupeStartsOnToggle: "Démarrer la sélection avec la loupe activée",
+        loupeRememberZoomToggle: "Mémoriser le dernier zoom de la loupe",
+        loupeDefaultZoomLabel: "Zoom par défaut de la loupe",
+        loupeWheelZoomLabel: "Zoom à la molette",
+        loupeZoomFast: "Rapide",
+        loupeZoomStepped: "Pas à pas",
+        loupeZoomOptionCaption: "Maintenez ⌥ pour utiliser temporairement l’autre mode."
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1289,9 +1345,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "Consenti link temporanei",
         editClipboardImage: "Modifica immagine copiata",
         clipboardImageMissing: "Copia prima un’immagine",
+        showCaptureMenuOnShortcut: "Mostra il menu di acquisizione quando usi la scorciatoia da tastiera",
         screenCaptureTitle: "Acquisizione schermo",
         dragOutHandleLabel: "Trascina e rilascia",
-        loupeStartsOnToggle: "Avvia la selezione con la lente attiva"
+        loupeStartsOnToggle: "Avvia la selezione con la lente attiva",
+        loupeRememberZoomToggle: "Ricorda l’ultimo zoom della lente",
+        loupeDefaultZoomLabel: "Zoom predefinito della lente",
+        loupeWheelZoomLabel: "Zoom con la rotella",
+        loupeZoomFast: "Rapido",
+        loupeZoomStepped: "Passo per passo",
+        loupeZoomOptionCaption: "Tieni premuto ⌥ per usare temporaneamente l’altra modalità."
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1430,9 +1493,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "一時リンクを許可",
         editClipboardImage: "コピーした画像を編集",
         clipboardImageMissing: "先に画像をコピーしてください",
+        showCaptureMenuOnShortcut: "キーボードショートカット使用時にキャプチャメニューを表示",
         screenCaptureTitle: "画面キャプチャ",
         dragOutHandleLabel: "ドラッグ＆ドロップ",
-        loupeStartsOnToggle: "選択開始時に拡大鏡をオンにする"
+        loupeStartsOnToggle: "選択開始時に拡大鏡をオンにする",
+        loupeRememberZoomToggle: "拡大鏡の最後のズームを記憶",
+        loupeDefaultZoomLabel: "拡大鏡のデフォルトズーム",
+        loupeWheelZoomLabel: "ホイールズーム",
+        loupeZoomFast: "高速",
+        loupeZoomStepped: "段階的",
+        loupeZoomOptionCaption: "⌥を押している間は一時的にもう一方のモードを使用します。"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1571,9 +1641,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "임시 링크 허용",
         editClipboardImage: "복사한 이미지 편집",
         clipboardImageMissing: "먼저 이미지를 복사하세요",
+        showCaptureMenuOnShortcut: "키보드 단축키 사용 시 캡처 메뉴 표시",
         screenCaptureTitle: "화면 캡처",
         dragOutHandleLabel: "드래그 앤 드롭",
-        loupeStartsOnToggle: "선택 시작 시 돋보기 켜기"
+        loupeStartsOnToggle: "선택 시작 시 돋보기 켜기",
+        loupeRememberZoomToggle: "확대경의 마지막 확대 수준 기억",
+        loupeDefaultZoomLabel: "기본 확대경 확대 수준",
+        loupeWheelZoomLabel: "휠 확대",
+        loupeZoomFast: "빠르게",
+        loupeZoomStepped: "단계별",
+        loupeZoomOptionCaption: "⌥를 누르는 동안 다른 모드를 임시로 사용합니다."
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1712,9 +1789,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允许临时链接",
         editClipboardImage: "编辑已拷贝的图像",
         clipboardImageMissing: "请先拷贝一张图像",
+        showCaptureMenuOnShortcut: "使用键盘快捷键时显示捕捉菜单",
         screenCaptureTitle: "屏幕捕捉",
         dragOutHandleLabel: "拖放",
-        loupeStartsOnToggle: "开始选择时启用放大镜"
+        loupeStartsOnToggle: "开始选择时启用放大镜",
+        loupeRememberZoomToggle: "记住放大镜的上次缩放",
+        loupeDefaultZoomLabel: "放大镜默认缩放",
+        loupeWheelZoomLabel: "滚轮缩放",
+        loupeZoomFast: "快速",
+        loupeZoomStepped: "逐步",
+        loupeZoomOptionCaption: "按住 ⌥ 可暂时使用另一种模式。"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1853,9 +1937,16 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
+        showCaptureMenuOnShortcut: "使用鍵盤快捷鍵時顯示擷取選單",
         screenCaptureTitle: "螢幕擷取",
         dragOutHandleLabel: "拖放",
-        loupeStartsOnToggle: "開始選取時啟用放大鏡"
+        loupeStartsOnToggle: "開始選取時啟用放大鏡",
+        loupeRememberZoomToggle: "記住放大鏡上次的縮放",
+        loupeDefaultZoomLabel: "放大鏡預設縮放",
+        loupeWheelZoomLabel: "滾輪縮放",
+        loupeZoomFast: "快速",
+        loupeZoomStepped: "逐步",
+        loupeZoomOptionCaption: "按住 ⌥ 可暫時使用另一種模式。"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -1994,8 +2085,15 @@ extension ScreenshotFeatureStrings {
         shareEnabledToggle: "允許暫時連結",
         editClipboardImage: "編輯已複製的影像",
         clipboardImageMissing: "請先複製一張影像",
+        showCaptureMenuOnShortcut: "使用鍵盤快捷鍵時顯示擷取選單",
         screenCaptureTitle: "螢幕擷取",
         dragOutHandleLabel: "拖放",
-        loupeStartsOnToggle: "開始選取時啟用放大鏡"
+        loupeStartsOnToggle: "開始選取時啟用放大鏡",
+        loupeRememberZoomToggle: "記住放大鏡上次嘅縮放",
+        loupeDefaultZoomLabel: "放大鏡預設縮放",
+        loupeWheelZoomLabel: "滾輪縮放",
+        loupeZoomFast: "快速",
+        loupeZoomStepped: "逐步",
+        loupeZoomOptionCaption: "撳住 ⌥ 可暫時使用另一個模式。"
     )
 }

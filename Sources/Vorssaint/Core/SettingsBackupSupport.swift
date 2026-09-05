@@ -118,6 +118,9 @@ enum SettingsBackupSupport {
         DefaultsKey.orphanedCaptureShortcutMigrated,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
+        // The last magnifier level is session history; its remembered/default
+        // policy remains portable, but another Mac need not inherit the value.
+        DefaultsKey.screenshotLoupeLastZoom,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
         // Whether the audio system let a recording hear the Mac's sound is a
         // grant this Mac gave, not a setting.

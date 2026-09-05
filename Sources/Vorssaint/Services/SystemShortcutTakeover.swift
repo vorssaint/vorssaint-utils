@@ -29,18 +29,22 @@ enum SystemShortcutTakeover {
             persist: persist)
     }
 
-    /// Launch: whatever the previous process still owned is given back, except
-    /// the ids the caller says a feature will claim again in this process, so a
-    /// clean relaunch with the take-over on makes no WindowServer writes at all.
+    /// Launch only repairs previous ownership. Keep ids a feature will claim
+    /// again without toggling them; new suppression waits for its live handler.
     /// The old switcher marker, already absorbed into `suppressed`, is written to
     /// the shared key before it is removed, so a restore that fails here still
     /// has a marker to retry from.
     static func recoverIfNeeded(keeping desired: Set<Int32>) {
         lock.lock()
+        defer { lock.unlock() }
         persist(suppressed)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
-        lock.unlock()
-        apply(desired: desired)
+        guard let setEnabled = SymbolicHotKeys.setEnabled else { return }
+        suppressed = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTakeoverSupport.recoveryTransition(from: suppressed, keeping: desired),
+            owned: suppressed,
+            setEnabled: { setEnabled($0, $1) == .success },
+            persist: persist)
     }
 
     private static func persist(_ ids: Set<Int32>) {

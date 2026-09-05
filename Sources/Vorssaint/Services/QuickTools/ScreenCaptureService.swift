@@ -8,14 +8,17 @@ import Combine
 /// so changing a mode on one display updates the controls on all displays.
 final class ScreenCaptureSelectionOptions: ObservableObject {
     let availableTools: [ScreenCaptureTool]
+    let showsCaptureMenu: Bool
     let recorderAudio = RecorderSelectionAudioOptions()
     @Published private(set) var selectedTool: ScreenCaptureTool
     var onSelectionChange: (() -> Void)?
 
-    init(availableTools: [ScreenCaptureTool], selectedTool: ScreenCaptureTool) {
+    init(availableTools: [ScreenCaptureTool], selectedTool: ScreenCaptureTool,
+         showsCaptureMenu: Bool) {
         precondition(availableTools.contains(selectedTool))
         self.availableTools = availableTools
         self.selectedTool = selectedTool
+        self.showsCaptureMenu = showsCaptureMenu
     }
 
     func select(_ tool: ScreenCaptureTool) {
@@ -59,7 +62,7 @@ final class ScreenCaptureService: ObservableObject {
 
     private init() {
         for (tool, hotkey) in toolHotkeys {
-            hotkey.onPress = { [weak self] in self?.capture(initial: tool) }
+            hotkey.onPress = { [weak self] in self?.capture(initial: tool, fromShortcut: true) }
         }
     }
 
@@ -103,7 +106,7 @@ final class ScreenCaptureService: ObservableObject {
     /// Opens the same chooser from every feature surface. A feature-specific
     /// button merely picks the initial mode; the person can switch before
     /// selecting anything.
-    func capture(initial preferred: ScreenCaptureTool? = nil) {
+    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
         if AppFeature.screenRecorder.isAvailable,
            ScreenRecorderService.shared.stopOrCancelActiveCapture() {
             return
@@ -134,40 +137,44 @@ final class ScreenCaptureService: ObservableObject {
             return
         }
 
+        let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
         let delay = selected == .screenshot
             ? ScreenshotSupport.sanitizedDelay(
                 UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
             : 0
         guard delay > 0 else {
-            beginSelection(tools: tools, selected: selected)
+            beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
             return
         }
         countdownRemaining = delay
         countdownTools = tools
-        tickCountdown(tools: tools, selected: selected)
+        tickCountdown(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
     }
 
-    private func tickCountdown(tools: [ScreenCaptureTool], selected: ScreenCaptureTool) {
+    private func tickCountdown(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
+                               showsCaptureMenu: Bool) {
         guard countdownRemaining > 0 else {
             countdown = nil
             countdownTools = nil
-            beginSelection(tools: tools, selected: selected)
+            beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
             return
         }
         QuickToolHUD.showCountdown(countdownRemaining)
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.countdownRemaining -= 1
-            self.tickCountdown(tools: tools, selected: selected)
+            self.tickCountdown(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
         }
         countdown = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
-    private func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool) {
+    private func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
+                               showsCaptureMenu: Bool) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
         let options = ScreenCaptureSelectionOptions(availableTools: tools,
-                                                    selectedTool: selected)
+                                                    selectedTool: selected,
+                                                    showsCaptureMenu: showsCaptureMenu)
         self.options = options
         startSelection(options: options)
     }

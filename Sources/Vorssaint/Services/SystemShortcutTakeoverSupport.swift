@@ -11,6 +11,13 @@ struct SystemShortcutTransition: Equatable {
 /// Pure rules behind `SystemShortcutTakeover`, kept apart so the unit tests
 /// can exercise them without a WindowServer.
 enum SystemShortcutTakeoverSupport {
+    /// Recovery runs before a replacement handler exists, so it must never
+    /// disable a key, including an owned key the system has re-enabled.
+    static func recoveryTransition(from current: Set<Int32>, keeping desired: Set<Int32>)
+        -> SystemShortcutTransition {
+        SystemShortcutTransition(suppress: [], restore: current.subtracting(desired))
+    }
+
     static func transition(from current: Set<Int32>, to desired: Set<Int32>,
                            currentlyEnabled: Set<Int32>) -> SystemShortcutTransition {
         SystemShortcutTransition(suppress: desired.intersection(currentlyEnabled),

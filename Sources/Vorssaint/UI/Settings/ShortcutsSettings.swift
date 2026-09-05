@@ -10,13 +10,16 @@ struct ShortcutsSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var superKey = SuperKeyService.shared
+    @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
     @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
     private var availableRoles: [GlobalShortcutRole] {
-        GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable })
+        GlobalShortcutRole.availableRoles(isAvailable: { $0.isAvailable }).filter {
+            !$0.isKeyboardBrightness || BrightnessService.keyboardLightIsSupported
+        }
     }
 
     private var captureRoles: [GlobalShortcutRole] {
@@ -25,7 +28,7 @@ struct ShortcutsSettings: View {
 
     private var visibleGroups: [FeatureGroup] {
         FeatureGroup.allCases.filter { group in
-            availableRoles.contains { $0.feature.group == group }
+            availableRoles.contains { $0.group == group }
                 || (group == .windowsDock && AppFeature.windowLayout.isAvailable)
         }
     }
@@ -44,10 +47,10 @@ struct ShortcutsSettings: View {
                         if feature == .screenshot {
                             captureGroupRows
                         } else if feature == .soundOutputSwitcher {
-                            featureRows(feature)
+                            featureRows(feature, in: group)
                                 .settingsSectionAnchor(.soundOutputSwitcher)
                         } else {
-                            featureRows(feature)
+                            featureRows(feature, in: group)
                         }
                     }
                 }
@@ -57,13 +60,15 @@ struct ShortcutsSettings: View {
     }
 
     private func featuresWithShortcuts(in group: FeatureGroup) -> [AppFeature] {
-        AppFeature.features(in: group).filter { feature in
+        AppFeature.allCases.filter { feature in
             // The screenshot slot anchors the combined capture group; the
             // other capture tools render inside it instead of on their own.
-            if feature == .screenshot { return !captureRoles.isEmpty }
+            if feature == .screenshot { return group == .tools && !captureRoles.isEmpty }
             if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
-            return (feature.isAvailable || availableRoles.contains { $0.feature == feature })
-                && (feature == .windowLayout || availableRoles.contains { $0.feature == feature })
+            if feature == .windowLayout {
+                return group == .windowsDock && feature.isAvailable
+            }
+            return availableRoles.contains { $0.feature == feature && $0.group == group }
         }
     }
 
@@ -87,13 +92,13 @@ struct ShortcutsSettings: View {
     }
 
     @ViewBuilder
-    private func featureRows(_ feature: AppFeature) -> some View {
-        let roles = availableRoles.filter { $0.feature == feature }
+    private func featureRows(_ feature: AppFeature, in group: FeatureGroup) -> some View {
+        let roles = availableRoles.filter { $0.feature == feature && $0.group == group }
         let count = feature == .windowLayout ? WindowLayoutAction.shortcutActions.count : roles.count
         if count > 1 {
             disclosureHeader(
-                title: feature.hubTitle(l10n.s, hub: hub),
-                symbolName: feature.symbolName,
+                title: featureTitle(feature, roles: roles),
+                symbolName: featureSymbol(feature, roles: roles),
                 isActive: featureHasActiveShortcut(feature, roles: roles),
                 count: count,
                 isExpanded: expansionBinding(for: feature))
@@ -111,6 +116,10 @@ struct ShortcutsSettings: View {
                         .disclosureIndent()
                     }
                 } else {
+                    if feature == .brightness {
+                        KeyboardBrightnessShortcutToggle(isEnabled: $keyboardBrightnessShortcutsEnabled)
+                            .disclosureIndent()
+                    }
                     ForEach(roles) { role in
                         roleRow(role, showsFeatureContext: false)
                             .disclosureIndent()
@@ -120,6 +129,18 @@ struct ShortcutsSettings: View {
         } else if let role = roles.first {
             roleRow(role)
         }
+    }
+
+    private func featureTitle(_ feature: AppFeature, roles: [GlobalShortcutRole]) -> String {
+        if !roles.isEmpty, roles.allSatisfy(\.isKeyboardBrightness) {
+            return FeatureStrings.brightness(l10n.language).keyboardLight
+        }
+        return feature.hubTitle(l10n.s, hub: hub)
+    }
+
+    private func featureSymbol(_ feature: AppFeature, roles: [GlobalShortcutRole]) -> String {
+        !roles.isEmpty && roles.allSatisfy(\.isKeyboardBrightness)
+            ? "keyboard" : feature.symbolName
     }
 
     private func disclosureHeader(title: String,
@@ -154,8 +175,9 @@ struct ShortcutsSettings: View {
         }
         return ShortcutPreferenceRow(
             role: role,
+            isEnabled: !role.isKeyboardBrightness || keyboardBrightnessShortcutsEnabled,
             label: title,
-            symbolName: role.feature.symbolName,
+            symbolName: role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName,
             contextLabel: showsFeatureContext && title != featureTitle ? featureTitle : nil,
             statusText: active ? text.active : text.inactive,
             statusIsActive: active,
@@ -204,6 +226,25 @@ struct ShortcutsSettings: View {
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
         case .monitor: return hub.groupMonitor
+        }
+    }
+}
+
+private struct KeyboardBrightnessShortcutToggle: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var brightness = BrightnessService.shared
+    @Binding var isEnabled: Bool
+
+    var body: some View {
+        Toggle(FeatureStrings.brightness(l10n.language).keyboardBrightnessShortcuts,
+               isOn: $isEnabled)
+            .onChange(of: isEnabled) { _, _ in
+                brightness.syncWithPreferences()
+            }
+        if isEnabled, brightness.keyboardBrightnessShortcutRegistrationFailed {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
         }
     }
 }

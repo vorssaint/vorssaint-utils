@@ -3756,6 +3756,26 @@ struct MetricsTests {
                "pointer-following brightness keys arrive switched off")
         expect(registeredDefaults[DefaultsKey.brightnessOSDEnabled] as? Bool == false,
                "brightness adjustment overlay arrives switched off")
+        expect(registeredDefaults[DefaultsKey.keyboardBrightnessDecreaseShortcut] as? String
+                == GlobalShortcut.keyboardBrightnessDecreaseDefault.storageValue
+                && registeredDefaults[DefaultsKey.keyboardBrightnessIncreaseShortcut] as? String
+                == GlobalShortcut.keyboardBrightnessIncreaseDefault.storageValue,
+               "keyboard brightness shortcuts ship with distinct defaults")
+        expect(registeredDefaults[DefaultsKey.keyboardBrightnessShortcutsEnabled] as? Bool == false,
+               "keyboard brightness shortcuts arrive switched off")
+        let keyboardShortcutSettings: [String: Any] = [
+            DefaultsKey.keyboardBrightnessShortcutsEnabled: true,
+            DefaultsKey.keyboardBrightnessDecreaseShortcut: "control+command:27",
+            DefaultsKey.keyboardBrightnessIncreaseShortcut: "control+command:24",
+        ]
+        let keyboardShortcutBackup = SettingsBackupSupport.payload(appVersion: "test") {
+            keyboardShortcutSettings[$0]
+        }
+        let restoredKeyboardShortcuts = SettingsBackupSupport.sanitizedSettings(from: keyboardShortcutBackup)
+        expect(keyboardShortcutSettings.allSatisfy { key, value in
+            (restoredKeyboardShortcuts?[key] as? NSObject) == (value as? NSObject)
+        }, "keyboard brightness opt-in and custom shortcuts survive a settings backup")
+
         expect(registeredDefaults[DefaultsKey.screenshotOpenEditorDirectly] as? Bool == false,
                "capture keeps showing the preview unless the user opts into the editor")
         expect(registeredDefaults[DefaultsKey.screenshotDefaultAction] as? String == "",
@@ -11662,9 +11682,24 @@ struct MetricsTests {
         // off: a feature that is off claims none of them, so all of them are
         // restored without the switcher's tap or the feature being installed.
         let legacyMarker = SystemShortcutTakeoverSupport.migratedMarker(old: [27, 28, 220], new: nil)
-        expect(SystemShortcutTakeoverSupport.transition(from: legacyMarker, to: [], currentlyEnabled: [])
+        expect(SystemShortcutTakeoverSupport.recoveryTransition(from: legacyMarker, keeping: [])
                == SystemShortcutTransition(suppress: [], restore: [27, 28, 220]),
                "launch gives back a marker left by an earlier build even with the switcher off")
+        var recoveryWrites: [Int32] = []
+        let recordRecoveryWrite: (Int32, Bool) -> Bool = { id, _ in
+            recoveryWrites.append(id)
+            return true
+        }
+        let cleanLaunchOwnership = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTakeoverSupport.recoveryTransition(from: [], keeping: [1, 2, 27, 220]),
+            owned: [], setEnabled: recordRecoveryWrite, persist: { _ in })
+        expect(cleanLaunchOwnership.isEmpty && recoveryWrites.isEmpty,
+               "clean launch leaves system shortcuts working until the replacement tap is live")
+        let recoveredOwnership = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTakeoverSupport.recoveryTransition(from: legacyMarker, keeping: [1, 27, 220]),
+            owned: legacyMarker, setEnabled: recordRecoveryWrite, persist: { _ in })
+        expect(recoveredOwnership == [27, 220] && recoveryWrites == [28],
+               "crash recovery gives back stale keys without toggling retained keys or taking new ones")
         // Say the WindowServer refused 28: `apply` leaves it in the marker, so
         // every later transition asks for it again and the give-back finishes
         // at the next take-over or in the next process.
@@ -14626,6 +14661,22 @@ struct MetricsTests {
         expect(GlobalShortcutRole.availableRoles(isAvailable: { $0 != .switcher })
                 .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
                "the shortcut editor lists installed roles even without reading enable keys")
+        expect(GlobalShortcutRole.keyboardBrightnessDecrease.feature == .brightness
+                && GlobalShortcutRole.keyboardBrightnessIncrease.feature == .brightness
+                && GlobalShortcutRole.keyboardBrightnessDecrease.group == .mouseKeyboard
+                && GlobalShortcutRole.keyboardBrightnessIncrease.group == .mouseKeyboard,
+               "keyboard brightness stays owned by the brightness service but appears with keyboard controls")
+        expect(GlobalShortcutRole.keyboardBrightnessDecrease.requiredEnableKeys
+                == [DefaultsKey.keyboardBrightnessShortcutsEnabled]
+                && GlobalShortcutRole.keyboardBrightnessIncrease.requiredEnableKeys
+                == [DefaultsKey.keyboardBrightnessShortcutsEnabled],
+               "keyboard brightness shortcuts require explicit opt-in")
+        expect(!GlobalShortcutRole.activeRoles(isOn: { _ in false })
+                .contains(where: \.isKeyboardBrightness),
+               "keyboard brightness shortcuts reserve no combination before opt-in")
+        expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true }, isAvailable: { $0 != .brightness })
+                .contains(where: \.isKeyboardBrightness),
+               "removing the brightness feature releases both keyboard shortcuts")
 
         let superSpace = GlobalShortcut(keyCode: Int64(kVK_Space), modifiers: .validMask)
         let customSuperSpace = GlobalShortcut(keyCode: Int64(kVK_Space),
@@ -15300,6 +15351,16 @@ struct MetricsTests {
                 && BrightnessSupport.deviceValue(for: -0.2, maximum: 100) == 0
                 && BrightnessSupport.deviceValue(for: 1.7, maximum: 100) == 100,
                "slider values map onto the display's own scale with clamping")
+        expect(BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: -1)
+                == 0.5 - BrightnessSupport.keyboardLightStep
+                && BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: 1)
+                == 0.5 + BrightnessSupport.keyboardLightStep,
+               "keyboard brightness shortcuts move by one system-sized step")
+        expect(BrightnessSupport.steppedKeyboardLightLevel(current: 0, direction: -1) == 0
+                && BrightnessSupport.steppedKeyboardLightLevel(current: 1, direction: 1) == 1,
+               "keyboard brightness shortcut steps clamp to the supported range")
+        expect(BrightnessSupport.steppedKeyboardLightLevel(current: .nan, direction: 1) == 0,
+               "an invalid keyboard brightness reading never reaches the private setter")
 
         // EDID UUID chunks at fixed positions: vendor, product (little endian),
         // manufacture date, image size.
@@ -17241,6 +17302,31 @@ struct MetricsTests {
         expect(!ScreenshotSupport.selectionAcceptsPointerInput(sessionIsOver: true,
                                                                capturePending: true),
                "both at once still ignores the pointer")
+        let captureMenuSuite = "com.vorssaint.tests.capture-menu.\(UUID().uuidString)"
+        let captureMenuDefaults = UserDefaults(suiteName: captureMenuSuite)!
+        defer { captureMenuDefaults.removePersistentDomain(forName: captureMenuSuite) }
+        for tool in ScreenCaptureTool.allCases {
+            expect(tool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
+                   "an existing install keeps the capture menu for \(tool)")
+            expect(Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool == true
+                    && SettingsBackupSupport.exportKeys().contains(tool.showCaptureMenuOnShortcutKey),
+                   "capture menu preferences default on and travel with settings backups")
+        }
+        captureMenuDefaults.register(defaults: Defaults.registeredDefaults)
+        for hiddenTool in ScreenCaptureTool.allCases {
+            captureMenuDefaults.set(false, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
+            let reopenedDefaults = UserDefaults(suiteName: captureMenuSuite)!
+            for tool in ScreenCaptureTool.allCases {
+                expect(tool.showsCaptureMenu(fromShortcut: true, defaults: reopenedDefaults)
+                        == (tool != hiddenTool),
+                       "hiding the menu for \(hiddenTool) persists without changing \(tool)'s preference")
+                expect(tool.showsCaptureMenu(fromShortcut: false, defaults: reopenedDefaults),
+                       "buttons still open the capture menu even when a shortcut hides it")
+            }
+            captureMenuDefaults.set(true, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
+            expect(hiddenTool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
+                   "turning the setting back on restores the shortcut menu")
+        }
         let recordingOnly: Set<AppFeature> = [.screenRecorder]
         expect(ScreenCaptureTool.available(isAvailable: recordingOnly.contains) == [.recording],
                "the capture chooser hides every uninstalled mode")
@@ -17344,7 +17430,7 @@ struct MetricsTests {
             "override func mouseExited(with event: NSEvent) {\n        refreshPointerState()\n        refreshGuideVisibility()"),
                "system chrome cannot hide the capture chooser while the pointer remains on its display")
         expect(captureSelectionSource.contains(
-            "let height: CGFloat = screenCaptureOptions != nil\n            ? 146\n            : 72")
+            "screenCaptureOptions?.showsCaptureMenu == false ? 82 : 146")
                 && captureSelectionSource.contains(
                     ".opacity(options.selectedTool == .recording ? 1 : 0)"),
                "capture modes reserve the recording controls' height so the chooser never jumps")
@@ -18041,6 +18127,51 @@ struct MetricsTests {
                "an empty sample leaves the loupe highlight harmless instead of dividing by zero")
         expectClose(ScreenshotSupport.captureLoupeZoom(1, adjustedBy: 1), 1.15,
                     "scrolling up zooms the capture loupe in")
+        expectClose(ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: false, defaultZoom: 2, lastZoom: 4), 2,
+                    "the capture loupe starts at its chosen default zoom")
+        expectClose(ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: true, defaultZoom: 2, lastZoom: 4), 4,
+                    "the capture loupe can restore its last zoom")
+        expectClose(ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: false, defaultZoom: .nan, lastZoom: 4), 1,
+                    "an invalid saved magnifier zoom falls back safely")
+        expectClose(ScreenshotSupport.captureLoupeWheelDelta(
+            scrollingDelta: 0, lineDelta: 0, fixedPointDelta: 0.25), 0.25,
+                    "fractional mouse-wheel notches do not disappear when AppKit rounds to zero")
+        expectClose(ScreenshotSupport.captureLoupeWheelDelta(
+            scrollingDelta: 0, lineDelta: -1, fixedPointDelta: 0), -1,
+                    "ordinary line-based mouse-wheel notches remain available to the magnifier")
+        var steppedLoupeZoom = ScreenshotSupport.captureLoupeMinZoom
+        var steppedLoupeSides: [CGFloat] = []
+        for _ in 0..<12 {
+            steppedLoupeZoom = ScreenshotSupport.captureLoupeSteppedZoom(
+                steppedLoupeZoom, adjustedBy: 0.25)
+            steppedLoupeSides.append(
+                ScreenshotSupport.captureLoupeSampleSide(zoom: steppedLoupeZoom))
+        }
+        expect(steppedLoupeSides == [25, 23, 21, 19, 17, 15, 13, 11, 9, 7, 5, 3],
+               "every stepped wheel notch changes one visible level across the whole zoom range")
+        for _ in 0..<12 {
+            steppedLoupeZoom = ScreenshotSupport.captureLoupeSteppedZoom(
+                steppedLoupeZoom, adjustedBy: -0.25)
+        }
+        expectClose(steppedLoupeZoom, ScreenshotSupport.captureLoupeMinZoom,
+                    "all stepped magnifier levels are reversible without dead notches")
+        var fastLoupeZoom: CGFloat = 1
+        for _ in 0..<6 {
+            fastLoupeZoom = ScreenshotSupport.captureLoupeZoom(
+                fastLoupeZoom, adjustedBy: 20)
+        }
+        expect(fastLoupeZoom > 2,
+               "fast magnifier zoom preserves the original packet-by-packet behavior")
+        expect(ScreenshotSupport.captureLoupeUsesSteppedZoom(
+            steppedByDefault: true, optionPressed: false)
+                && !ScreenshotSupport.captureLoupeUsesSteppedZoom(
+                    steppedByDefault: true, optionPressed: true)
+                && ScreenshotSupport.captureLoupeUsesSteppedZoom(
+                    steppedByDefault: false, optionPressed: true),
+               "Option temporarily swaps the chosen magnifier wheel mode")
         expectClose(ScreenshotSupport.captureLoupeZoom(0.5, adjustedBy: -1), 0.5,
                     "capture loupe zoom stays above its minimum")
         expectClose(ScreenshotSupport.captureLoupeZoom(10, adjustedBy: 1),
@@ -18091,6 +18222,11 @@ struct MetricsTests {
                "the previous capture outline stays visible by default, as it always was")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeStartsOn] as? Bool == false,
                "the always-on loupe is an opt-in and ships off")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotLoupeRememberZoom] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.screenshotLoupeDefaultZoom] as? Double == 1
+                && Defaults.registeredDefaults[
+                    DefaultsKey.screenshotLoupeSteppedZoomByDefault] as? Bool == false,
+               "magnifier zoom preferences preserve the original behavior by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcutsEnabled] as? Bool == true,
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
@@ -20010,8 +20146,13 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
+                && backupKeys.contains(DefaultsKey.screenshotLoupeRememberZoom)
+                && backupKeys.contains(DefaultsKey.screenshotLoupeDefaultZoom)
+                && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        expect(!backupKeys.contains(DefaultsKey.screenshotLoupeLastZoom),
+               "the magnifier's last session zoom stays on its own Mac")
         expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsCategories)
@@ -23650,6 +23791,11 @@ struct MetricsTests {
         let smoothSchedulerCode = smoothSchedulerSource.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
+        let steppedLoupeBypass = smoothSchedulerCode
+            .components(separatedBy: "if ScreenshotSelectionController.steppedLoupeNeedsRawWheel(")
+            .dropFirst().first?.components(separatedBy: "return").first ?? ""
+        expect(steppedLoupeBypass.contains("stopGlide()"),
+               "entering stepped magnifier zoom cancels the fast glide before passing the raw notch")
         let scrollInverterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
             encoding: .utf8)) ?? ""
