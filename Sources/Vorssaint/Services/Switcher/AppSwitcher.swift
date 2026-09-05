@@ -920,8 +920,18 @@ final class AppSwitcher: ObservableObject {
         let source = SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
                                                        focusedWindowID: focusedSourceWindowID,
                                                        items: windows)
+        // Keep the original source for activation, but start at the first
+        // entry if display filtering removes the foreground window.
+        let scoped = windowsOnCurrentDisplay(windows)
+        guard !scoped.isEmpty else {
+            discardPendingSessionStart(generation: generation)
+            return
+        }
+        let listedSource = source.flatMap { item in
+            scoped.contains { $0.id == item.id } ? item : nil
+        }
 
-        let list = orderedForSession(windows, currentID: source?.id)
+        let list = orderedForSession(scoped, currentID: listedSource?.id)
         guard let pending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
@@ -971,11 +981,11 @@ final class AppSwitcher: ObservableObject {
         // the session opens on the first entry from another app.
         selectedIndex = pending.scope == .frontmostApp
             ? SwitcherSupport.initialWindowScopedSelectionIndex(itemCount: list.count,
-                                                                hasForegroundItem: source != nil,
+                                                                hasForegroundItem: listedSource != nil,
                                                                 reversed: pending.reversed)
             : initialSelectionIndex(in: list,
                                     reversed: pending.reversed,
-                                    hasForegroundItem: source != nil,
+                                    hasForegroundItem: listedSource != nil,
                                     frontmostPID: SwitcherSupport.appPID(forFrontmost: reportedFrontPID,
                                                                          items: list))
         sessionShortcut = pending.shortcut
@@ -1579,6 +1589,21 @@ final class AppSwitcher: ObservableObject {
             return nil
         }
         return screens[index]
+    }
+
+    /// Filter on the main thread because NSScreen is used to locate the pointer.
+    private func windowsOnCurrentDisplay(_ items: [SwitcherItem]) -> [SwitcherItem] {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentDisplayOnly) else {
+            return items
+        }
+        let screens = NSScreen.screens
+        guard let target = NSScreen.withMouse,
+              let targetIndex = screens.firstIndex(where: { $0.displayID == target.displayID })
+        else { return [] }
+        return SwitcherSupport.itemsOnDisplay(
+            items,
+            displayBounds: screens.map { CGDisplayBounds($0.displayID) },
+            targetIndex: targetIndex)
     }
 
     private var placementVisibleFrame: CGRect {

@@ -1002,6 +1002,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "選單列所在的螢幕",
         switcherScreenPlacementActiveWindow: "使用中視窗所在的螢幕",
         switcherScreenPlacementCaption: "連接多個螢幕時，切換器在哪個螢幕開啟。",
+        switcherCurrentDisplayOnly: "僅顯示目前的螢幕",
+        switcherCurrentDisplayOnlyCaption: "只顯示游標所在螢幕上的視窗。如果該螢幕沒有視窗，切換器不會開啟。",
         smoothScrollResponseLabel: "反應速度",
         mouseAccelerationName: "關閉滑鼠加速",
         mouseAccelerationCaption: "移除已連接滑鼠的指標加速。關閉此選項或結束 Vorssaint 後，會還原之前的設定。",

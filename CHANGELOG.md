@@ -16,6 +16,7 @@ Vorssaint adds edge snap controls and shortcuts for recent captures and keyboard
 - Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
 - Recent captures can open from their own assignable shortcut without returning to the menu bar panel.
 - Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
+- The App Switcher can list only windows on the display under the pointer. On an empty display, the shortcut shows nothing.
 
 ### Changed
 - Build checks adapt to Macs with larger thread pools. Thanks to @mugurc.

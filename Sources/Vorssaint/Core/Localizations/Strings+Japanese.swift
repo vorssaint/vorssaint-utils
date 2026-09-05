@@ -1001,6 +1001,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "メニューバーのある画面",
         switcherScreenPlacementActiveWindow: "アクティブなウインドウのある画面",
         switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。",
+        switcherCurrentDisplayOnly: "現在の画面のみ表示",
+        switcherCurrentDisplayOnlyCaption: "ポインタがある画面のウインドウだけを表示します。その画面にウインドウがない場合、スイッチャーは開きません。",
         smoothScrollResponseLabel: "反応",
         mouseAccelerationName: "マウス加速を無効にする",
         mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",

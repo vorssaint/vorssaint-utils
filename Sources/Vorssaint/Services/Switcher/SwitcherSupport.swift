@@ -659,6 +659,20 @@ enum SwitcherSupport {
         return best?.index
     }
 
+    /// Windows belong to the display containing most of their frame.
+    /// Windowless apps and off-display windows have no current display.
+    static func itemsOnDisplay(_ items: [SwitcherItem],
+                               displayBounds: [CGRect],
+                               targetIndex: Int) -> [SwitcherItem] {
+        guard displayBounds.indices.contains(targetIndex) else { return [] }
+        return items.filter { item in
+            guard !item.isAppEntry,
+                  let index = displayIndex(showingMostOf: item.frame,
+                                           displayBounds: displayBounds) else { return false }
+            return index == targetIndex
+        }
+    }
+
     static func hidesApp(bundleIdentifier: String?,
                          appRules: [String: SwitcherAppRule]) -> Bool {
         guard let bundleIdentifier else { return false }

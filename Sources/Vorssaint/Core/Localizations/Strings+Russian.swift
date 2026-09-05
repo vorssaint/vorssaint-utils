@@ -1002,6 +1002,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "Экран со строкой меню",
         switcherScreenPlacementActiveWindow: "Экран с активным окном",
         switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов.",
+        switcherCurrentDisplayOnly: "Показывать только текущий экран",
+        switcherCurrentDisplayOnlyCaption: "Показывает только окна на экране под указателем. Если на этом экране нет окон, переключатель не открывается.",
         smoothScrollResponseLabel: "Отклик",
         mouseAccelerationName: "Отключить ускорение мыши",
         mouseAccelerationCaption: "Отключает ускорение указателя для подключённых мышей. Прежняя настройка вернётся после выключения функции или выхода из Vorssaint.",

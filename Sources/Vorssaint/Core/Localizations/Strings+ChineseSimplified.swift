@@ -1001,6 +1001,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "菜单栏所在的屏幕",
         switcherScreenPlacementActiveWindow: "活跃窗口所在的屏幕",
         switcherScreenPlacementCaption: "连接多个屏幕时，切换器在哪个屏幕上打开。",
+        switcherCurrentDisplayOnly: "仅显示当前屏幕",
+        switcherCurrentDisplayOnlyCaption: "只显示指针所在屏幕上的窗口。如果该屏幕没有窗口，切换器不会打开。",
         smoothScrollResponseLabel: "响应",
         mouseAccelerationName: "关闭鼠标加速",
         mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",

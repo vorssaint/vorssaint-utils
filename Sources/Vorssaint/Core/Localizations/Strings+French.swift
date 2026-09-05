@@ -1001,6 +1001,8 @@ extension Strings {
         switcherScreenPlacementMenuBar: "Écran avec la barre des menus",
         switcherScreenPlacementActiveWindow: "Écran avec la fenêtre active",
         switcherScreenPlacementCaption: "Sur quel écran le sélecteur s’ouvre quand plusieurs sont connectés.",
+        switcherCurrentDisplayOnly: "Afficher uniquement l’écran actuel",
+        switcherCurrentDisplayOnlyCaption: "Affiche uniquement les fenêtres de l’écran sous le pointeur. Si cet écran ne contient aucune fenêtre, le sélecteur ne s’ouvre pas.",
         smoothScrollResponseLabel: "Réactivité",
         mouseAccelerationName: "Désactiver l’accélération de la souris",
         mouseAccelerationCaption: "Supprime l’accélération du pointeur pour les souris connectées. Le réglage précédent est restauré à la désactivation ou à la fermeture de Vorssaint.",
