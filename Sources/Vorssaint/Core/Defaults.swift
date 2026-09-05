@@ -453,7 +453,11 @@ enum DefaultsKey {
     static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
-    static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
+    static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview" // replaced by clipboardHistoryQuickPreviewByDefault, kept so the migration can read it
+    // Whether the quick window opens with its preview pane already up.
+    static let clipboardHistoryQuickPreviewByDefault = "clipboardHistoryQuickPreviewByDefault"
+    // Every list row the same height: one line of text, a small thumbnail; the preview shows the rest.
+    static let clipboardUniformRows = "clipboardUniformRows"
 
     // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
     // Deliberately outside the clipboardHistory family, since it clears the
@@ -1206,7 +1210,8 @@ enum Defaults {
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
-        DefaultsKey.clipboardHistoryQuickPreview: false,
+        DefaultsKey.clipboardHistoryQuickPreviewByDefault: false,
+        DefaultsKey.clipboardUniformRows: true,
         DefaultsKey.clipboardAutoClearOnDelay: false,
         DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
         DefaultsKey.clipboardAutoClearOnSleep: false,
@@ -1366,6 +1371,7 @@ enum Defaults {
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
+        migrateClipboardQuickPreview(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -1422,6 +1428,16 @@ enum Defaults {
         }
         defaults.set(defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
                      forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+    }
+
+    /// The pane used to remember its last state; now it is a setting. Whoever
+    /// had it open keeps it open.
+    static func migrateClipboardQuickPreview(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault) == nil else {
+            return
+        }
+        defaults.set(defaults.bool(forKey: DefaultsKey.clipboardHistoryQuickPreview),
+                     forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {

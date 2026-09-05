@@ -183,6 +183,21 @@ extension ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
         autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        previewByDefault: "미리보기 패널과 함께 열기",
+        previewByDefaultCaption: "클립보드 창을 열면 선택한 항목의 전체 내용이 목록 옆에 표시됩니다.",
+        textEntryLabel: "텍스트",
+        characterCountFormat: "%@자",
+        lineCountFormat: "%@줄",
+        linkEntryLabel: "링크",
+        wordCountFormat: "%@ 단어",
+        typeLabel: "유형",
+        sizeLabel: "크기",
+        copiedLabel: "복사됨",
+        sourceLabel: "출처",
+        locationLabel: "위치",
+        fileEntryLabel: "파일",
+        uniformRows: "모든 행을 같은 높이로 유지",
+        uniformRowsCaption: "행마다 텍스트 한 줄과 작은 축소판만 표시하고, 전체 항목은 미리보기 패널에 표시합니다.",
         deleteSelectedFormat: "%d개 삭제"
     )
 }
@@ -467,6 +482,21 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let previewByDefault: String
+    let previewByDefaultCaption: String
+    let textEntryLabel: String
+    let characterCountFormat: String
+    let lineCountFormat: String
+    let linkEntryLabel: String
+    let wordCountFormat: String
+    let typeLabel: String
+    let sizeLabel: String
+    let copiedLabel: String
+    let sourceLabel: String
+    let locationLabel: String
+    let fileEntryLabel: String
+    let uniformRows: String
+    let uniformRowsCaption: String
     let deleteSelectedFormat: String
 
     static let enUS = ClipboardFeatureStrings(
@@ -523,6 +553,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
         autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        previewByDefault: "Open with the preview pane",
+        previewByDefaultCaption: "The clipboard window opens with the selected item shown in full beside the list.",
+        textEntryLabel: "Text",
+        characterCountFormat: "%@ characters",
+        lineCountFormat: "%@ lines",
+        linkEntryLabel: "Link",
+        wordCountFormat: "%@ words",
+        typeLabel: "Type",
+        sizeLabel: "Size",
+        copiedLabel: "Copied",
+        sourceLabel: "Source",
+        locationLabel: "Location",
+        fileEntryLabel: "File",
+        uniformRows: "Keep every row the same height",
+        uniformRowsCaption: "One line of text and a small thumbnail per row; the preview pane shows the whole item.",
         deleteSelectedFormat: "Delete %d"
     )
 
@@ -580,6 +625,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
         autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        previewByDefault: "Abrir com o painel de prévia",
+        previewByDefaultCaption: "A janela da área de transferência abre com o item selecionado exibido por completo ao lado da lista.",
+        textEntryLabel: "Texto",
+        characterCountFormat: "%@ caracteres",
+        lineCountFormat: "%@ linhas",
+        linkEntryLabel: "Link",
+        wordCountFormat: "%@ palavras",
+        typeLabel: "Tipo",
+        sizeLabel: "Tamanho",
+        copiedLabel: "Copiado",
+        sourceLabel: "Origem",
+        locationLabel: "Local",
+        fileEntryLabel: "Arquivo",
+        uniformRows: "Manter todas as linhas com a mesma altura",
+        uniformRowsCaption: "Uma linha de texto e uma miniatura pequena por item; o painel de prévia mostra o item inteiro.",
         deleteSelectedFormat: "Apagar %d"
     )
 
@@ -637,6 +697,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
         autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        previewByDefault: "Önizleme paneliyle aç",
+        previewByDefaultCaption: "Pano penceresi, seçili öğeyi listenin yanında tam olarak göstererek açılır.",
+        textEntryLabel: "Metin",
+        characterCountFormat: "%@ karakter",
+        lineCountFormat: "%@ satır",
+        linkEntryLabel: "Bağlantı",
+        wordCountFormat: "%@ sözcük",
+        typeLabel: "Tür",
+        sizeLabel: "Boyut",
+        copiedLabel: "Kopyalandı",
+        sourceLabel: "Kaynak",
+        locationLabel: "Konum",
+        fileEntryLabel: "Dosya",
+        uniformRows: "Her satırı aynı yükseklikte tut",
+        uniformRowsCaption: "Satır başına tek satır metin ve küçük bir küçük resim; önizleme bölmesi öğenin tamamını gösterir.",
         deleteSelectedFormat: "%d öğeyi sil"
     )
 
@@ -694,6 +769,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
         autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        previewByDefault: "Открывать с панелью просмотра",
+        previewByDefaultCaption: "Окно буфера обмена открывается с полным содержимым выбранного элемента рядом со списком.",
+        textEntryLabel: "Текст",
+        characterCountFormat: "Символов: %@",
+        lineCountFormat: "Строк: %@",
+        linkEntryLabel: "Ссылка",
+        wordCountFormat: "Слов: %@",
+        typeLabel: "Тип",
+        sizeLabel: "Размер",
+        copiedLabel: "Скопировано",
+        sourceLabel: "Источник",
+        locationLabel: "Расположение",
+        fileEntryLabel: "Файл",
+        uniformRows: "Одинаковая высота всех строк",
+        uniformRowsCaption: "Одна строка текста и маленькая миниатюра в каждой строке; панель просмотра показывает элемент целиком.",
         deleteSelectedFormat: "Удалить: %d"
     )
 
@@ -751,6 +841,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
         autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        previewByDefault: "Abrir con el panel de vista previa",
+        previewByDefaultCaption: "La ventana del portapapeles se abre mostrando el elemento seleccionado completo junto a la lista.",
+        textEntryLabel: "Texto",
+        characterCountFormat: "%@ caracteres",
+        lineCountFormat: "%@ líneas",
+        linkEntryLabel: "Enlace",
+        wordCountFormat: "%@ palabras",
+        typeLabel: "Tipo",
+        sizeLabel: "Tamaño",
+        copiedLabel: "Copiado",
+        sourceLabel: "Origen",
+        locationLabel: "Ubicación",
+        fileEntryLabel: "Archivo",
+        uniformRows: "Mantener todas las filas a la misma altura",
+        uniformRowsCaption: "Una línea de texto y una miniatura pequeña por fila; el panel de vista previa muestra el elemento completo.",
         deleteSelectedFormat: "Eliminar %d"
     )
 
@@ -808,6 +913,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
         autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        previewByDefault: "Mit Vorschaubereich öffnen",
+        previewByDefaultCaption: "Das Zwischenablage-Fenster öffnet sich mit dem ausgewählten Eintrag vollständig neben der Liste.",
+        textEntryLabel: "Text",
+        characterCountFormat: "%@ Zeichen",
+        lineCountFormat: "%@ Zeilen",
+        linkEntryLabel: "Link",
+        wordCountFormat: "%@ Wörter",
+        typeLabel: "Typ",
+        sizeLabel: "Größe",
+        copiedLabel: "Kopiert",
+        sourceLabel: "Quelle",
+        locationLabel: "Ort",
+        fileEntryLabel: "Datei",
+        uniformRows: "Alle Zeilen gleich hoch halten",
+        uniformRowsCaption: "Eine Textzeile und ein kleines Vorschaubild pro Zeile; der Vorschaubereich zeigt den ganzen Eintrag.",
         deleteSelectedFormat: "%d löschen"
     )
 
@@ -865,6 +985,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Vider le presse-papiers à l’extinction de l’écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l’écran",
         autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l’historique.",
+        previewByDefault: "Ouvrir avec le volet d’aperçu",
+        previewByDefaultCaption: "La fenêtre du presse-papiers s’ouvre avec l’élément sélectionné affiché en entier à côté de la liste.",
+        textEntryLabel: "Texte",
+        characterCountFormat: "%@ caractères",
+        lineCountFormat: "%@ lignes",
+        linkEntryLabel: "Lien",
+        wordCountFormat: "%@ mots",
+        typeLabel: "Type",
+        sizeLabel: "Taille",
+        copiedLabel: "Copié",
+        sourceLabel: "Source",
+        locationLabel: "Emplacement",
+        fileEntryLabel: "Fichier",
+        uniformRows: "Garder toutes les lignes à la même hauteur",
+        uniformRowsCaption: "Une ligne de texte et une petite vignette par ligne ; le volet d’aperçu affiche l’élément entier.",
         deleteSelectedFormat: "Supprimer %d"
     )
 
@@ -922,6 +1057,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
         autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        previewByDefault: "Apri con il pannello di anteprima",
+        previewByDefaultCaption: "La finestra degli appunti si apre con l’elemento selezionato mostrato per intero accanto all’elenco.",
+        textEntryLabel: "Testo",
+        characterCountFormat: "%@ caratteri",
+        lineCountFormat: "%@ righe",
+        linkEntryLabel: "Link",
+        wordCountFormat: "%@ parole",
+        typeLabel: "Tipo",
+        sizeLabel: "Dimensione",
+        copiedLabel: "Copiato",
+        sourceLabel: "Origine",
+        locationLabel: "Posizione",
+        fileEntryLabel: "File",
+        uniformRows: "Mantieni tutte le righe della stessa altezza",
+        uniformRowsCaption: "Una riga di testo e una miniatura piccola per riga; il pannello di anteprima mostra l’elemento intero.",
         deleteSelectedFormat: "Elimina %d"
     )
 
@@ -979,6 +1129,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
         autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        previewByDefault: "プレビューを表示して開く",
+        previewByDefaultCaption: "クリップボードウインドウを開くと、選択中の項目の全文がリストの横に表示されます。",
+        textEntryLabel: "テキスト",
+        characterCountFormat: "%@文字",
+        lineCountFormat: "%@行",
+        linkEntryLabel: "リンク",
+        wordCountFormat: "%@ 語",
+        typeLabel: "種類",
+        sizeLabel: "サイズ",
+        copiedLabel: "コピー日時",
+        sourceLabel: "コピー元",
+        locationLabel: "場所",
+        fileEntryLabel: "ファイル",
+        uniformRows: "すべての行を同じ高さにする",
+        uniformRowsCaption: "各行はテキスト1行と小さなサムネイル。項目全体はプレビューに表示されます。",
         deleteSelectedFormat: "%d件を削除"
     )
 
@@ -1036,6 +1201,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
         autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        previewByDefault: "打开时显示预览面板",
+        previewByDefaultCaption: "打开剪贴板窗口时，在列表旁完整显示选中的条目。",
+        textEntryLabel: "文本",
+        characterCountFormat: "%@ 个字符",
+        lineCountFormat: "%@ 行",
+        linkEntryLabel: "链接",
+        wordCountFormat: "%@ 个词",
+        typeLabel: "类型",
+        sizeLabel: "大小",
+        copiedLabel: "复制时间",
+        sourceLabel: "来源",
+        locationLabel: "位置",
+        fileEntryLabel: "文件",
+        uniformRows: "所有行保持相同高度",
+        uniformRowsCaption: "每行只显示一行文本和一个小缩略图；完整内容在预览面板中显示。",
         deleteSelectedFormat: "删除 %d 项"
     )
 
@@ -1093,6 +1273,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        previewByDefault: "開啟時顯示預覽窗格",
+        previewByDefaultCaption: "開啟剪貼簿視窗時，在清單旁完整顯示選取的項目。",
+        textEntryLabel: "文字",
+        characterCountFormat: "%@ 個字元",
+        lineCountFormat: "%@ 行",
+        linkEntryLabel: "連結",
+        wordCountFormat: "%@ 個詞",
+        typeLabel: "類型",
+        sizeLabel: "大小",
+        copiedLabel: "複製時間",
+        sourceLabel: "來源",
+        locationLabel: "位置",
+        fileEntryLabel: "檔案",
+        uniformRows: "所有列保持相同高度",
+        uniformRowsCaption: "每列只顯示一行文字和一個小縮圖；完整內容在預覽窗格中顯示。",
         deleteSelectedFormat: "刪除 %d 個"
     )
 
@@ -1150,6 +1345,21 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        previewByDefault: "開啟時顯示預覽窗格",
+        previewByDefaultCaption: "開啟剪貼簿視窗時，在清單旁完整顯示選取的項目。",
+        textEntryLabel: "文字",
+        characterCountFormat: "%@ 個字元",
+        lineCountFormat: "%@ 行",
+        linkEntryLabel: "連結",
+        wordCountFormat: "%@ 個詞",
+        typeLabel: "類型",
+        sizeLabel: "大小",
+        copiedLabel: "複製時間",
+        sourceLabel: "來源",
+        locationLabel: "位置",
+        fileEntryLabel: "檔案",
+        uniformRows: "所有列保持相同高度",
+        uniformRowsCaption: "每列只顯示一行文字和一個小縮圖；完整內容在預覽窗格中顯示。",
         deleteSelectedFormat: "刪除 %d 個"
     )
 }

@@ -39,9 +39,12 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionIndex = 0
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
-    @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
-        forKey: DefaultsKey.clipboardHistoryQuickPreview
-    )
+    /// Decided each time the window opens, from the Settings choice; the
+    /// toolbar button and the pane's own close button change it for that one
+    /// showing. Space no longer reaches this: it marks the selected row for
+    /// batch instead, so the pane has no keyboard toggle (see
+    /// `ClipboardHistorySpaceKey`).
+    @Published private(set) var quickPreviewPresented = false
 
     private var timer: Timer?
     private var lastChangeCount = 0
@@ -527,6 +530,7 @@ final class ClipboardHistoryService: ObservableObject {
         self.timer = timer
         isRunning = true
         ClipboardIgnoredApps.shared.setHistoryRunning(true)
+        ClipboardSourceApp.shared.setHistoryRunning(true)
         baselinePasteboard()
     }
 
@@ -535,6 +539,7 @@ final class ClipboardHistoryService: ObservableObject {
         timer = nil
         isRunning = false
         ClipboardIgnoredApps.shared.setHistoryRunning(false)
+        ClipboardSourceApp.shared.setHistoryRunning(false)
         captureGeneration &+= 1
         captureInFlight = false
     }
@@ -600,15 +605,18 @@ final class ClipboardHistoryService: ObservableObject {
                 // so the window it answers for always ends here: whether a
                 // listed app could be the one that copied since the last look.
                 let excludedSource = ClipboardIgnoredApps.shared.excludedSourceSinceLastCheck()
+                // Same window, same discipline: asked once per check so the
+                // stretch it answers for ends here too.
+                let sourceApp = ClipboardSourceApp.shared.sourceSinceLastCheck()
                 // Strictly forward: never re-capture a change that
                 // ignoreNextChange() consumed while the read was running.
                 guard changeCount > self.lastChangeCount else { return }
                 self.lastChangeCount = changeCount
                 guard self.isRunning, !excludedSource, let content else { return }
                 switch content {
-                case .files(let paths): self.promoteFiles(paths)
-                case .image(let image): self.promoteImage(image)
-                case .text(let text): self.promote(text)
+                case .files(let paths): self.promoteFiles(paths, from: sourceApp)
+                case .image(let image): self.promoteImage(image, from: sourceApp)
+                case .text(let text): self.promote(text, from: sourceApp)
                 }
             }
         }
@@ -679,7 +687,8 @@ final class ClipboardHistoryService: ObservableObject {
         return (data, rep.pixelsWide, rep.pixelsHigh)
     }
 
-    private func promoteImage(_ image: (data: Data, width: Int, height: Int)) {
+    private func promoteImage(_ image: (data: Data, width: Int, height: Int),
+                              from source: ClipboardEntrySource?) {
         let hash = Self.sha256Hex(image.data)
         if let existing = entries.first(where: { $0.kind == .image && $0.imageHash == hash }) {
             entries.removeAll { $0.id == existing.id }
@@ -691,7 +700,8 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageFile: existing.imageFile,
                                                  imageHash: hash,
                                                  imageWidth: existing.imageWidth,
-                                                 imageHeight: existing.imageHeight))
+                                                 imageHeight: existing.imageHeight,
+                                                 source: source ?? existing.source))
         } else {
             guard let name = ClipboardImageStore.store(image.data) else { return }
             insertPromoted(ClipboardHistoryEntry(text: "",
@@ -699,14 +709,15 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageFile: name,
                                                  imageHash: hash,
                                                  imageWidth: image.width,
-                                                 imageHeight: image.height))
+                                                 imageHeight: image.height,
+                                                 source: source))
         }
         normalizeEntryOrder()
         trimToLimit()
         save()
     }
 
-    private func promoteFiles(_ paths: [String]) {
+    private func promoteFiles(_ paths: [String], from source: ClipboardEntrySource?) {
         let existing = entries.first(where: { $0.kind == .files && $0.filePaths == paths })
         entries.removeAll { $0.kind == .files && $0.filePaths == paths }
         if let existing {
@@ -715,9 +726,11 @@ final class ClipboardHistoryService: ObservableObject {
                                                  copiedAt: Date(),
                                                  pinnedAt: existing.pinnedAt,
                                                  kind: .files,
-                                                 filePaths: paths))
+                                                 filePaths: paths,
+                                                 source: source ?? existing.source))
         } else {
-            insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths))
+            insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths,
+                                                 source: source))
         }
         normalizeEntryOrder()
         trimToLimit()
@@ -749,7 +762,7 @@ final class ClipboardHistoryService: ObservableObject {
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
-    private func promote(_ raw: String) {
+    private func promote(_ raw: String, from source: ClipboardEntrySource?) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
         if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistorySkipSensitive),
@@ -763,9 +776,10 @@ final class ClipboardHistoryService: ObservableObject {
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: text,
                                                  copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt))
+                                                 pinnedAt: existing.pinnedAt,
+                                                 source: source ?? existing.source))
         } else {
-            insertPromoted(ClipboardHistoryEntry(text: text))
+            insertPromoted(ClipboardHistoryEntry(text: text, source: source))
         }
         normalizeEntryOrder()
         trimToLimit()
@@ -999,6 +1013,36 @@ final class ClipboardHistoryService: ObservableObject {
 
     // MARK: - Quick window
 
+    /// Icon of the app an entry came from, when that app is still installed.
+    /// Cached per app: the lookup asks Launch Services every time otherwise,
+    /// and the preview asks on every step through the list.
+    static func sourceIcon(for source: ClipboardEntrySource) -> NSImage? {
+        if let cached = sourceIcons.object(forKey: source.bundleID as NSString) { return cached }
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: source.bundleID)
+        else { return nil }
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        sourceIcons.setObject(icon, forKey: source.bundleID as NSString)
+        return icon
+    }
+
+    private static let sourceIcons = NSCache<NSString, NSImage>()
+
+    /// A string the user asked for as text (a file's path, say), through the
+    /// shared lane like any copy. The poll skips the app's own writes, so the
+    /// entry is recorded here on purpose: a path copied from the pane is a
+    /// copy like any other and belongs in the list.
+    /// `keepingSelectionOn` names the entry the selection should stay on:
+    /// the new row goes in at the top, and the selection is an index.
+    func copyPlainText(_ string: String, keepingSelectionOn keep: ClipboardHistoryEntry? = nil) {
+        writeToPasteboard([ClipboardHistoryEntry(text: string)]) { [weak self] copied in
+            guard copied, let self else { return }
+            self.promote(string, from: nil)
+            if let keep, let index = self.filteredQuickEntries.firstIndex(where: { $0.id == keep.id }) {
+                self.quickSelectionIndex = index
+            }
+        }
+    }
+
     func toggleQuickPreview() {
         setQuickPreviewPresented(!quickPreviewPresented)
     }
@@ -1006,7 +1050,6 @@ final class ClipboardHistoryService: ObservableObject {
     func setQuickPreviewPresented(_ presented: Bool) {
         guard presented != quickPreviewPresented else { return }
         quickPreviewPresented = presented
-        UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         guard let panel, panel.isVisible else { return }
         resize(panel,
                to: presented ? Self.quickPanelPreviewSize : Self.quickPanelCompactSize,
@@ -1028,6 +1071,10 @@ final class ClipboardHistoryService: ObservableObject {
         quickQuery = ""
         clearQuickBatchSelection()
         resetQuickSelection()
+        // Assigned, not set through the setter: position() below reads the
+        // flag for the size, and the panel is resized there in one go.
+        quickPreviewPresented = UserDefaults.standard
+            .bool(forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault)
         position(panel)
         installKeyMonitor(for: panel)
         installDismissMonitors(for: panel)
@@ -1164,12 +1211,14 @@ final class ClipboardHistoryService: ObservableObject {
                 }
                 return nil
             }
-            // Finder-style Quick Look without stealing ordinary spaces typed
-            // into search: the list claims Space only after arrow navigation.
+            // Space marks the row the arrow keys are on, the way ⌘Return and
+            // ⌘-click do, so a keyboard-only selection can be built and pasted
+            // together. It claims Space only after arrow navigation, so a
+            // space typed into the search field stays a space.
             if event.keyCode == UInt16(kVK_Space),
-               ClipboardHistoryPreview.handlesSpace(selectionIsVisible: self.quickSelectionIsVisible,
-                                                     hasModifiers: !modifiers.isEmpty) {
-                self.toggleQuickPreview()
+               ClipboardHistorySpaceKey.handledByList(selectionIsVisible: self.quickSelectionIsVisible,
+                                                      hasModifiers: !modifiers.isEmpty) {
+                self.toggleSelectedQuickEntryBatchSelection()
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
@@ -1359,6 +1408,13 @@ enum ClipboardImageStore {
         return name
     }
 
+    /// The stored PNG itself, for the preview's size line.
+    static func imageURL(named name: String) -> URL? {
+        guard let directory else { return nil }
+        let url = directory.appendingPathComponent(name)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     static func imageData(named name: String) -> Data? {
         guard let directory else { return nil }
         return try? Data(contentsOf: directory.appendingPathComponent(name))
@@ -1446,10 +1502,23 @@ enum ClipboardImageStore {
         return "\(dim.width)×\(dim.height)"
     }
 
-    static func fileSizeString(atPath path: String) -> String? {
+    static func fileSizeBytes(atPath path: String) -> Int? {
         guard let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.fileSizeKey]),
               let bytes = values.fileSize, bytes >= 0 else { return nil }
-        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+        return bytes
+    }
+
+    /// The size of every file that still exists, added up; nil when none do.
+    static func totalFileSizeString(paths: [String]) -> String? {
+        let sizes = paths.compactMap { fileSizeBytes(atPath: $0) }
+        guard !sizes.isEmpty else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizes.reduce(0, +)), countStyle: .file)
+    }
+
+    static func fileSizeString(atPath path: String) -> String? {
+        fileSizeBytes(atPath: path).map {
+            ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file)
+        }
     }
 
     static func cleanup(keeping names: Set<String>) {

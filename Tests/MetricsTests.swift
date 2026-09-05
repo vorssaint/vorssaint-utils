@@ -228,8 +228,21 @@ struct MetricsTests {
                "clear on screen lock is off until asked for")
         expect(Defaults.registeredDefaults[DefaultsKey.clipboardAutoClearDelay] as? Int == 20,
                "auto clear starts at twenty seconds")
-        expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreviewByDefault] as? Bool == false,
                "clipboard history quick preview is closed by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardUniformRows] as? Bool == true,
+               "clipboard rows share one height until asked otherwise")
+        let panelClipboardSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/PanelClipboardView.swift",
+            encoding: .utf8)) ?? ""
+        expect(!panelClipboardSource.contains("DefaultsKey.clipboardUniformRows")
+               && panelClipboardSource.components(
+                   separatedBy: ".frame(maxWidth: 110, maxHeight: 40)").count == 3,
+               "the uniform-row setting leaves the menu panel thumbnails at 110 by 40")
+        expect(panelClipboardSource.contains(
+            "The history window shows the full, selectable text.")
+               && !panelClipboardSource.contains("Double-clicking the row"),
+               "the menu panel comment names its real path to selectable text")
 
         // MARK: Clipboard auto clear timing
 
@@ -332,6 +345,14 @@ struct MetricsTests {
                          "\(language.rawValue) paste-selected button format")
             expectFormat(clipboardStrings.copySelectedFormat, ["d"],
                          "\(language.rawValue) copy-selected button format")
+            expectFormat(clipboardStrings.characterCountFormat, ["@"],
+                         "\(language.rawValue) clipboard character count format")
+            expectFormat(clipboardStrings.lineCountFormat, ["@"],
+                         "\(language.rawValue) clipboard line count format")
+            expect(!clipboardStrings.previewByDefault.isEmpty
+                   && !clipboardStrings.previewByDefaultCaption.isEmpty
+                   && !clipboardStrings.textEntryLabel.isEmpty,
+                   "\(language.rawValue) clipboard preview strings are localized")
             expect(!clipboardStrings.autoClearEnable.isEmpty
                    && !clipboardStrings.autoClearSecondsSuffix.isEmpty
                    && !clipboardStrings.autoClearOnSleep.isEmpty
@@ -421,12 +442,12 @@ struct MetricsTests {
                                                          resultIDs: ["b", "a"]) == 0,
                "Settings search selection follows the same result after reranking")
 
-        expect(!ClipboardHistoryPreview.handlesSpace(selectionIsVisible: false, hasModifiers: false),
-               "clipboard preview leaves spaces typed into search alone")
-        expect(ClipboardHistoryPreview.handlesSpace(selectionIsVisible: true, hasModifiers: false),
-               "clipboard preview uses Space after keyboard navigation")
-        expect(!ClipboardHistoryPreview.handlesSpace(selectionIsVisible: true, hasModifiers: true),
-               "clipboard preview never steals modified Space shortcuts")
+        expect(!ClipboardHistorySpaceKey.handledByList(selectionIsVisible: false, hasModifiers: false),
+               "the clipboard list leaves spaces typed into search alone")
+        expect(ClipboardHistorySpaceKey.handledByList(selectionIsVisible: true, hasModifiers: false),
+               "the clipboard list takes Space after keyboard navigation")
+        expect(!ClipboardHistorySpaceKey.handledByList(selectionIsVisible: true, hasModifiers: true),
+               "the clipboard list never steals modified Space shortcuts")
         expect(ClipboardHistoryEscape.action(batchCount: 0) == .hideWindow,
                "Esc closes the panel when nothing is selected")
         expect(ClipboardHistoryEscape.action(batchCount: 2) == .clearBatchSelection,
@@ -461,6 +482,58 @@ struct MetricsTests {
         expect(ClipboardHistoryEditing.storableText(
             String(repeating: "a", count: ClipboardHistoryEditing.maxCharacters + 1)) == nil,
                "clipboard editing keeps the history text size bound")
+        let linkEntry = ClipboardHistoryEntry(text: "https://example.com/a?b=c")
+        expect(linkEntry.displayKind == .link
+               && ClipboardHistoryEntry(text: "see https://example.com now").displayKind == .text
+               && ClipboardHistoryEntry(text: "ftp://example.com").displayKind == .text,
+               "a clipboard entry is a link only when it is one web address and nothing else")
+        expect(ClipboardHistoryEntry(text: "one two  three\nfour").wordCount == 4
+               && ClipboardHistoryEntry(text: "héllo").utf8ByteCount == 6,
+               "clipboard metadata counts words and UTF-8 bytes")
+        let sourceWindowStart = Date(timeIntervalSince1970: 1_000)
+        let safariSource = ClipboardEntrySource(bundleID: "com.apple.Safari", name: "Safari")
+        let notesSource = ClipboardEntrySource(bundleID: "com.apple.Notes", name: "Notes")
+        expect(ClipboardSourceSelection.longestHeld(in: [], until: sourceWindowStart) == nil,
+               "clipboard source is absent when no app was seen")
+        let pasteSwitchWindow = [
+            ClipboardSourceCandidate(source: safariSource, frontSince: sourceWindowStart),
+            ClipboardSourceCandidate(source: notesSource,
+                                     frontSince: sourceWindowStart.addingTimeInterval(0.7)),
+        ]
+        expect(ClipboardSourceSelection.longestHeld(
+            in: pasteSwitchWindow,
+            until: sourceWindowStart.addingTimeInterval(0.8)) == safariSource,
+               "clipboard source names the app that held the window, not the one switched to to paste")
+        let splitWindow = [
+            ClipboardSourceCandidate(source: safariSource, frontSince: sourceWindowStart),
+            ClipboardSourceCandidate(source: notesSource,
+                                     frontSince: sourceWindowStart.addingTimeInterval(0.2)),
+            ClipboardSourceCandidate(source: safariSource,
+                                     frontSince: sourceWindowStart.addingTimeInterval(0.5)),
+        ]
+        expect(ClipboardSourceSelection.longestHeld(
+            in: splitWindow,
+            until: sourceWindowStart.addingTimeInterval(0.8)) == safariSource,
+               "clipboard source adds up an app's separate turns at the front")
+        let tiedWindow = [
+            ClipboardSourceCandidate(source: safariSource, frontSince: sourceWindowStart),
+            ClipboardSourceCandidate(source: notesSource,
+                                     frontSince: sourceWindowStart.addingTimeInterval(0.5)),
+        ]
+        expect(ClipboardSourceSelection.longestHeld(
+            in: tiedWindow,
+            until: sourceWindowStart.addingTimeInterval(1)) == safariSource,
+               "a tied clipboard source window goes to the app that was in front first")
+        let countedEntry = ClipboardHistoryEntry(text: "one\ntwo\nthree")
+        expect(countedEntry.characterCount == 13 && countedEntry.lineCount == 3,
+               "clipboard metadata counts the characters and lines of a text entry")
+        expect(ClipboardHistoryEntry(text: "", kind: .image, imageFile: "a.png").lineCount == 0,
+               "clipboard metadata counts no lines for an entry that holds no text")
+        let legacyEntry = try? JSONDecoder().decode(
+            ClipboardHistoryEntry.self,
+            from: Data(#"{"text":"saved before sources"}"#.utf8))
+        expect(legacyEntry?.text == "saved before sources" && legacyEntry?.source == nil,
+               "a history saved before sources were recorded decodes with none")
         let budgetPinned = ClipboardHistoryEntry(text: "123456", pinnedAt: Date())
         let budgetRecentA = ClipboardHistoryEntry(text: "abcd")
         let budgetRecentB = ClipboardHistoryEntry(text: "efgh")
@@ -2142,6 +2215,15 @@ struct MetricsTests {
             Defaults.migrateScrollInverterAxes(in: migrationDefaults)
             expect(!migrationDefaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled),
                    "the direction migration preserves a newer horizontal choice")
+            migrationDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault)
+            migrationDefaults.set(true, forKey: DefaultsKey.clipboardHistoryQuickPreview)
+            Defaults.migrateClipboardQuickPreview(in: migrationDefaults)
+            expect(migrationDefaults.bool(forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault),
+                   "a clipboard preview pane left open keeps opening after updating")
+            migrationDefaults.set(false, forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault)
+            Defaults.migrateClipboardQuickPreview(in: migrationDefaults)
+            expect(!migrationDefaults.bool(forKey: DefaultsKey.clipboardHistoryQuickPreviewByDefault),
+                   "the clipboard preview migration preserves a newer choice")
             migrationDefaults.set("option:50", forKey: DefaultsKey.switcherWindowShortcut)
             Defaults.migrateLegacySwitcherWindowShortcut(in: migrationDefaults)
             expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowShortcut) == "option:50",
@@ -14724,7 +14806,7 @@ struct MetricsTests {
             let clipboard = FeatureStrings.clipboard(language)
             let values = Mirror(reflecting: clipboard).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 54 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 69 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
