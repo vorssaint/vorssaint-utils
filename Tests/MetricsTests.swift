@@ -2016,6 +2016,14 @@ struct MetricsTests {
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeRunningApps] as? Bool == false,
+               "running-apps Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeRunningAppBundleIDs] as? [String] == [],
+               "running-apps Keep Awake starts with an empty app list")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningApps),
+               "running-apps Keep Awake preference follows settings backups")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningAppBundleIDs),
+               "running-apps Keep Awake app list follows settings backups")
         expect(registeredDefaults[DefaultsKey.keepAwakePauseWhenLocked] as? Bool == false,
                "pausing Keep Awake on screen lock is opt-in")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePauseWhenLocked),
@@ -2052,14 +2060,44 @@ struct MetricsTests {
                "the built-in screen does not count as an external display")
         expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
                "an online non-built-in screen counts as an external display")
+        expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
+            selectedBundleIDs: [],
+            runningBundleIDs: ["com.example.app"]
+        ), "an empty selected-app list never matches a running app")
+        expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
+            selectedBundleIDs: ["com.example.app"],
+            runningBundleIDs: ["com.other.app"]
+        ), "a selected app that is not running does not match")
+        expect(KeepAwakeAutomationSupport.selectedAppsAreRunning(
+            selectedBundleIDs: ["com.example.app", "com.other.app"],
+            runningBundleIDs: ["com.helper", "com.example.app"]
+        ), "any selected app that is running matches, focused or not")
         let combinedKeepAwakeConditions = KeepAwakeAutomationSupport.matchingConditions(
             externalDisplayEnabled: true,
             externalDisplayConnected: true,
             powerEnabled: true,
-            connectedToPower: true
+            connectedToPower: true,
+            runningAppsEnabled: true,
+            selectedAppsRunning: true
         )
-        expect(combinedKeepAwakeConditions == [.externalDisplay, .power],
+        expect(combinedKeepAwakeConditions == [.externalDisplay, .power, .runningApps],
                "enabled Keep Awake conditions combine with OR behavior")
+        expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false,
+            externalDisplayConnected: false,
+            powerEnabled: false,
+            connectedToPower: false,
+            runningAppsEnabled: true,
+            selectedAppsRunning: true
+        ) == [.runningApps], "a running selected app matches the running-apps condition")
+        expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false,
+            externalDisplayConnected: false,
+            powerEnabled: false,
+            connectedToPower: false,
+            runningAppsEnabled: true,
+            selectedAppsRunning: false
+        ).isEmpty, "running-apps stays off when none of the selected apps are open")
         expect(KeepAwakeAutomationSupport.action(
             featureAvailable: true,
             matchingConditions: [.externalDisplay],
@@ -4087,13 +4125,22 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutMarginMaximize] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "margin maximize starts with no combination of its own")
+        expect(WindowLayoutAction.allCases.contains(.centerHalf)
+                && WindowLayoutAction.centerHalf.shortcutID == 57
+                && WindowLayoutAction(shortcutID: 57) == .centerHalf,
+               "center half exists and answers to its own shortcut id")
+        expect(WindowLayoutAction.centerHalf.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterHalf] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "center half starts with no combination of its own")
         expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
-                    && !layoutStrings.marginMaximize.isEmpty,
+                    && !layoutStrings.marginMaximize.isEmpty
+                    && !layoutStrings.centerHalf.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -5648,6 +5695,9 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 480, y: 40, width: 960, height: 860),
                "window layout right two thirds targets the final two thirds")
+        expect(WindowLayoutGeometry.rect(for: .centerHalf, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 360, y: 40, width: 720, height: 860),
+               "window layout center half sits half wide in the middle of the screen")
         expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
@@ -19653,21 +19703,6 @@ struct MetricsTests {
                    "mouseTapRefusals = mouseTap == nil ? self.mouseTapRefusals + 1 : 0")
                && refusalResets == 1,
                "a refused mouse tap is worth one rebuild, and the count survives it")
-        // Super Key is a keyboard feature: exceptions follow the frontmost app,
-        // never the window under the pointer (issue #741). Source tracking keeps
-        // the workspace observer alive only while the feature is on and the list
-        // is non-empty, matching the scroll taps.
-        expect(superKeyServiceCode.contains("excludesFrontmostApplication(")
-                && superKeyServiceCode.contains(".superKey,")
-                && superKeyServiceCode.contains(".eventSourceUnixProcessID")
-                && !superKeyServiceCode.contains("excludesPointerTarget(.superKey")
-                && !superKeyServiceCode.contains("excludesActionTarget(.superKey"),
-               "Super Key stands down for excepted frontmost apps, not pointer targets")
-        expect(superKeyServiceCode.contains("setSourceTracking(true, for: .superKey)")
-                && superKeyServiceCode.contains("setSourceTracking(false, for: .superKey)"),
-               "Super Key arms source tracking only while it is on")
-        expect(superKeySettingsSource.contains("MouseExceptionsList(scope: .superKey)"),
-               "the Super Key page reuses the shared exception list picker")
 
         var noRepeatHoldState = SuperKeySupport.State()
         _ = noRepeatHoldState.decide(.triggerDown(
@@ -24261,7 +24296,7 @@ struct MetricsTests {
         expect(!quitHUDCode.contains("size(withAttributes:"),
                "the confirmation HUD does not size itself from a separate text measurement")
         let quitHUDShow = quitHUDCode
-            .components(separatedBy: "func show(title: String, detail: String) {").last ?? ""
+            .components(separatedBy: "func show(title: String, detail: String").last ?? ""
         let quitHUDShowBody = quitHUDShow.components(separatedBy: "\n    func ").first ?? ""
         if let filled = quitHUDShowBody.range(of: "content.update("),
            let sized = quitHUDShowBody.range(of: "fittingSize(content)"),

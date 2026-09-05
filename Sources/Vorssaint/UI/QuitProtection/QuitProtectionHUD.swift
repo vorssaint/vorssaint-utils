@@ -21,7 +21,9 @@ final class QuitProtectionHUD {
                height: minimumSize.height)
     }
 
-    func show(title: String, detail: String) {
+    /// `screen` is for callers that already place a panel of their own, so the
+    /// confirmation cannot land on a different display than what it confirms.
+    func show(title: String, detail: String, on screen: NSScreen? = nil) {
         if panel == nil {
             let panel = NSPanel(contentRect: CGRect(origin: .zero, size: size),
                                 styleMask: [.borderless, .nonactivatingPanel],
@@ -46,7 +48,7 @@ final class QuitProtectionHUD {
         content.update(title: title, detail: detail)
         size = Self.fittingSize(content)
         panel?.setContentSize(size)
-        positionPanel()
+        positionPanel(on: screen)
         panel?.alphaValue = 1
         panel?.orderFrontRegardless()
         // Event taps can arrive between normal AppKit drawing passes. Draw now
@@ -58,9 +60,10 @@ final class QuitProtectionHUD {
         panel?.orderOut(nil)
     }
 
-    private func positionPanel() {
+    private func positionPanel(on preferredScreen: NSScreen?) {
         guard let panel,
-              let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+              let screen = preferredScreen
+                ?? NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
                 ?? NSScreen.main
                 ?? NSScreen.screens.first
         else { return }
