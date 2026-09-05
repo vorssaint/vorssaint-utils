@@ -6826,6 +6826,24 @@ struct MetricsTests {
                                                    masterFactor: 1,
                                                    defaultOutputDeviceUID: hdmiUID),
                "an untouched row stays untapped when no master is turned down")
+        let overlaySize = CGSize(width: 200, height: 150)
+        expect(BrightnessSupport.centeredOverlayFrame(
+                size: overlaySize,
+                in: CGRect(x: 0, y: 0, width: 1000, height: 800))
+               == CGRect(x: 400, y: 325, width: 200, height: 150),
+               "the brightness overlay sits in the middle of its display")
+        expect(BrightnessSupport.cornerOverlayFrame(
+                size: overlaySize,
+                in: CGRect(x: 0, y: 0, width: 1000, height: 760),
+                inset: 10)
+               == CGRect(x: 790, y: 600, width: 200, height: 150),
+               "the volume overlay tucks under the menu bar at the right, clear of it")
+        expect(BrightnessSupport.cornerOverlayFrame(
+                size: overlaySize,
+                in: CGRect(x: 1000, y: 0, width: 1000, height: 760),
+                inset: 10)
+               == CGRect(x: 1790, y: 600, width: 200, height: 150),
+               "the volume overlay lands on the screen it was asked for, not the first one")
         expect(MixerRoutingSupport.isSystemSoundServer("systemsoundserverd"),
                "the process macOS plays its own sounds from is recognised")
         expect(!MixerRoutingSupport.isSystemSoundServer("com.apple.Music"),

@@ -92,17 +92,11 @@ enum LevelOSD {
     private static func frame(for style: Style, size: NSSize, on screen: NSScreen) -> NSRect {
         switch style {
         case .glyph:
-            return NSRect(x: screen.frame.midX - size.width / 2,
-                          y: screen.frame.midY - size.height / 2,
-                          width: size.width, height: size.height)
+            return BrightnessSupport.centeredOverlayFrame(size: size, in: screen.frame)
         case .volume:
-            // visibleFrame, so the panel clears the menu bar (and the notch's
-            // taller one) instead of a hardcoded height that is wrong on half
-            // the Macs.
-            let area = screen.visibleFrame
-            return NSRect(x: area.maxX - size.width - cornerInset,
-                          y: area.maxY - size.height - cornerInset,
-                          width: size.width, height: size.height)
+            return BrightnessSupport.cornerOverlayFrame(size: size,
+                                                        in: screen.visibleFrame,
+                                                        inset: cornerInset)
         }
     }
 
@@ -225,7 +219,7 @@ struct LevelOSDView: View {
         .background(HUDBackdrop(cornerRadius: 20))
         .environment(\.colorScheme, .dark)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(deviceName ?? "")
+        .accessibilityLabel(deviceName ?? "\(percentage)%")
         .accessibilityValue("\(percentage)%")
     }
 
