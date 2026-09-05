@@ -6277,6 +6277,10 @@ struct MetricsTests {
                "Image converter accepts the PDF format")
         expect(MediaImageFormat.pdf.fileExtension == "pdf",
                "PDF output uses the pdf file extension")
+        expect(MediaImageFormat.webp.fileExtension == "webp"
+               && MediaImageFormat.tiff.fileExtension == "tiff"
+               && MediaImageFormat.avif.fileExtension == "avif",
+               "Image conversion exposes WebP, TIFF and AVIF output")
         expect(MediaImageFormat.sanitized("bmp") == .jpeg,
                "Unknown image format falls back to JPEG")
         expect(MediaImageResizeKind.sanitized("height") == .height,
@@ -6289,18 +6293,83 @@ struct MetricsTests {
         expect(MediaImageBackground.sanitized("black") == .black
                && MediaImageBackground.sanitized("mystery") == .transparent,
                "Image backgrounds sanitize known values and fall back to transparent")
+        expect(MediaImageResampling.sanitized("nearest") == .nearest
+               && MediaImageResampling.sanitized("unknown") == .high
+               && MediaImageResampling.medium.interpolationQuality == .medium,
+               "Image resampling selects and sanitizes all renderer quality levels")
+        let squareTransform = MediaImageTransform(rotation: .clockwise90,
+                                                  flipHorizontal: true,
+                                                  crop: .square)
+        expect(squareTransform.cropRect(for: CGSize(width: 400, height: 300))
+               == CGRect(x: 50, y: 0, width: 300, height: 300)
+               && squareTransform.outputSize(for: CGSize(width: 400, height: 300))
+               == CGSize(width: 300, height: 300),
+               "Image transforms calculate centered crop and rotated output geometry")
+        let portraitCrop = MediaImageTransform(crop: .sixteenNine)
+        expect(portraitCrop.outputSize(for: CGSize(width: 900, height: 1200))
+               == CGSize(width: 675, height: 1200),
+               "Portrait aspect-ratio crops preserve the source orientation")
+        let transformContext = CGContext(data: nil, width: 4, height: 2,
+                                         bitsPerComponent: 8, bytesPerRow: 0,
+                                         space: CGColorSpaceCreateDeviceRGB(),
+                                         bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        let transformSource = transformContext?.makeImage()
+        let transformedImage = transformSource.flatMap {
+            MediaSupport.transformedImage($0,
+                                          transform: MediaImageTransform(rotation: .clockwise90,
+                                                                         flipHorizontal: true,
+                                                                         flipVertical: true))
+        }
+        expect(transformedImage?.width == 2 && transformedImage?.height == 4,
+               "Image renderer applies rotation and both flip directions to pixel data")
+        if let transformSource {
+            let metadataProperties: [CFString: Any] = [
+                kCGImagePropertyGPSDictionary: [kCGImagePropertyGPSLatitude: 40.0],
+                kCGImagePropertyExifDictionary: [kCGImagePropertyExifDateTimeOriginal: "2024:01:01 00:00:00"],
+                kCGImagePropertyIPTCDictionary: [kCGImagePropertyIPTCObjectName: "Sample"],
+            ]
+            let filteredMetadata = MediaSupport.sanitizedImageProperties(
+                metadataProperties, image: transformSource,
+                policy: MediaImageMetadataPolicy(removeGPS: true, removeEXIF: false,
+                                                  removeIPTC: true, removeXMP: true)
+            )
+            expect(filteredMetadata[kCGImagePropertyGPSDictionary] == nil
+                   && filteredMetadata[kCGImagePropertyIPTCDictionary] == nil
+                   && filteredMetadata[kCGImagePropertyExifDictionary] != nil
+                   && filteredMetadata[kCGImageMetadataShouldExcludeGPS] as? Bool == true
+                   && filteredMetadata[kCGImageMetadataShouldExcludeXMP] as? Bool == true,
+                   "Image metadata policy independently removes GPS, IPTC and XMP while retaining EXIF")
+        }
         expect(MediaImageResizeMode.none.targetSize(for: CGSize(width: 123, height: 45))
                == CGSize(width: 123, height: 45),
                "Image resize can preserve source dimensions")
         expect(MediaImageResizeMode.maxDimension(1000).targetSize(for: CGSize(width: 1920, height: 1080))
                == CGSize(width: 1000, height: 563),
                "Image max-side resize keeps aspect ratio")
+        expect(MediaImageResizeMode(kind: .maxDimension, maxDimension: 1_000,
+                                    allowUpscaling: true)
+               .targetSize(for: CGSize(width: 640, height: 480)) == CGSize(width: 1000, height: 750)
+               && MediaImageResizeMode(kind: .maxDimension, maxDimension: 1_000,
+                                       allowUpscaling: false)
+               .targetSize(for: CGSize(width: 640, height: 480)) == CGSize(width: 640, height: 480),
+               "Image max-side resize honors its upscaling control")
         expect(MediaImageResizeMode.width(800).targetSize(for: CGSize(width: 1600, height: 1200))
                == CGSize(width: 800, height: 600),
                "Image width resize calculates proportional height")
         expect(MediaImageResizeMode.height(500).targetSize(for: CGSize(width: 1600, height: 1200))
                == CGSize(width: 667, height: 500),
                "Image height resize calculates proportional width")
+        expect(MediaImageResizeMode.percentage(50).targetSize(for: CGSize(width: 1600, height: 1200))
+               == CGSize(width: 800, height: 600),
+               "Image resize supports percentages")
+        expect(MediaImageResizeMode.shortestSide(600).targetSize(for: CGSize(width: 1600, height: 1200))
+               == CGSize(width: 800, height: 600),
+               "Image resize can target the shortest side")
+        expect(MediaImageResizeMode.percentage(200, allowUpscaling: false)
+               .targetSize(for: CGSize(width: 640, height: 480)) == CGSize(width: 640, height: 480)
+               && MediaImageResizeMode.shortestSide(1_000, allowUpscaling: false)
+               .targetSize(for: CGSize(width: 640, height: 480)) == CGSize(width: 640, height: 480),
+               "Image resize can prevent percentage and shortest-side upscaling")
         expect(MediaImageResizeMode.exact(width: 321, height: 123).targetSize(for: CGSize(width: 1600, height: 1200))
                == CGSize(width: 321, height: 123),
                "Image exact resize uses custom dimensions")
@@ -6345,6 +6414,24 @@ struct MetricsTests {
                                                                             format: .jpeg)
                == "20240101-000000-2",
                "Image rename pattern expands datetime")
+        let renameMetadata: [CFString: Any] = [
+            kCGImagePropertyTIFFDictionary: [
+                kCGImagePropertyTIFFMake: "Fujifilm",
+                kCGImagePropertyTIFFModel: "X-T5",
+            ],
+            kCGImagePropertyExifDictionary: [
+                kCGImagePropertyExifDateTimeOriginal: "2024:03:02 12:34:56",
+                kCGImagePropertyExifISOSpeedRatings: [400],
+                kCGImagePropertyExifFocalLength: 35,
+            ],
+            kCGImagePropertyExifAuxDictionary: [kCGImagePropertyExifLensModel: "XF 23mm F2"],
+        ]
+        expect(MediaImageRenamePattern("{exif:date}-{exif:make}-{exif:model}-{exif:lens}-ISO{exif:iso}-{exif:focal}mm")
+               .outputBaseName(for: URL(fileURLWithPath: "/tmp/a.jpg"), index: 1,
+                               size: CGSize(width: 1, height: 1), format: .jpeg,
+                               properties: renameMetadata)
+               == "2024-03-02 12-34-56-Fujifilm-X-T5-XF 23mm F2-ISO400-35mm",
+               "Image rename pattern expands source EXIF camera, lens and exposure variables")
         expect(MediaImageRenamePattern("../bad/name").outputBaseName(for: URL(fileURLWithPath: "/tmp/a.jpg"),
                                                                      index: 1,
                                                                      size: CGSize(width: 1, height: 1),
@@ -6364,7 +6451,15 @@ struct MetricsTests {
                                                watermark: MediaImageWatermark(kind: .text,
                                                                               text: "Sample",
                                                                               opacity: 0.5),
-                                               renamePattern: MediaImageRenamePattern("{name}-{index}"))
+                                               renamePattern: MediaImageRenamePattern("{name}-{index}"),
+                                               transform: MediaImageTransform(rotation: .clockwise270,
+                                                                              flipVertical: true,
+                                                                              crop: .fourThree),
+                                               resampling: .nearest,
+                                               metadataPolicy: MediaImageMetadataPolicy(removeGPS: false,
+                                                                                         removeEXIF: true,
+                                                                                         removeIPTC: true,
+                                                                                         removeXMP: true))
         let encodedProfile = try? JSONEncoder().encode([MediaImageProfile(id: "profile-1",
                                                                            name: "PNG web",
                                                                            options: profileOptions)])
@@ -6638,6 +6733,22 @@ struct MetricsTests {
         ])
         expect(orderedDropURLs.map(\.lastPathComponent) == ["First.png", "Second.png", "Third.png"],
                "Concurrent image drops keep the person's provider order")
+        expect(MediaSupport.imageBatchConcurrency(inputCount: 20, activeProcessorCount: 12) == 4
+               && MediaSupport.imageBatchConcurrency(inputCount: 2, activeProcessorCount: 12) == 2
+               && MediaSupport.imageBatchConcurrency(inputCount: 20, activeProcessorCount: 1) == 1,
+               "Image batches use bounded parallelism without exceeding files or available processors")
+        let imageFolder = uniqueDir.appendingPathComponent("Image folder")
+        let nestedImageFolder = imageFolder.appendingPathComponent("Nested")
+        try? FileManager.default.createDirectory(at: nestedImageFolder,
+                                                 withIntermediateDirectories: true)
+        try? Data([0]).write(to: imageFolder.appendingPathComponent("Top.png"))
+        try? Data([0]).write(to: nestedImageFolder.appendingPathComponent("Deep.jpg"))
+        try? Data([0]).write(to: nestedImageFolder.appendingPathComponent("Ignore.txt"))
+        let flatImages = MediaSupport.expandedImageInputURLs([imageFolder], includeSubfolders: false)
+        let recursiveImages = MediaSupport.expandedImageInputURLs([imageFolder], includeSubfolders: true)
+        expect(flatImages.map(\.lastPathComponent) == ["Top.png"]
+               && recursiveImages.map(\.lastPathComponent) == ["Deep.jpg", "Top.png"],
+               "Image folders import supported files and optionally recurse into subfolders")
         let corruptLogo = uniqueDir.appendingPathComponent("Corrupt logo.png")
         try? Data("not an image".utf8).write(to: corruptLogo)
         expect(MediaSupport.watermarkLogo(atPath: corruptLogo.path) == nil,
@@ -6646,7 +6757,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let strings = MediaImageConverterStrings.localized(language)
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 56 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 57 && values.allSatisfy { !$0.isEmpty },
                    "every image converter string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible image converter strings (\(language.rawValue))")
@@ -6659,6 +6770,12 @@ struct MetricsTests {
                    && strings.batchSummaryHeaderFormat.filter { $0 == "%" }.count == 2
                    && strings.batchSummaryItemFormat.filter { $0 == "%" }.count == 2,
                    "image converter formats keep their arguments in \(language.rawValue)")
+            let advancedStrings = MediaImageAdvancedStrings.localized(language)
+            let advancedValues = Mirror(reflecting: advancedStrings).children.compactMap { $0.value as? String }
+            expect(advancedValues.count == 16 && advancedValues.allSatisfy { !$0.isEmpty },
+                   "every advanced image converter string is set for \(language.rawValue)")
+            expect(advancedValues.allSatisfy { !$0.contains("—") },
+                   "no em-dash in advanced image converter strings (\(language.rawValue))")
         }
 
         let trim = MediaSupport.sanitizedTrim(start: -5, end: 3, assetDuration: 10)

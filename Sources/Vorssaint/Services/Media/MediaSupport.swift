@@ -14,7 +14,7 @@ enum MediaTool: String, CaseIterable, Identifiable {
 }
 
 enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
-    case jpeg, heic, png, pdf
+    case jpeg, heic, png, webp, tiff, avif, pdf
 
     var id: String { rawValue }
 
@@ -23,6 +23,9 @@ enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
         case .jpeg: return "jpg"
         case .heic: return "heic"
         case .png: return "png"
+        case .webp: return "webp"
+        case .tiff: return "tiff"
+        case .avif: return "avif"
         case .pdf: return "pdf"
         }
     }
@@ -33,7 +36,7 @@ enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
 }
 
 enum MediaImageResizeKind: String, CaseIterable, Codable, Identifiable {
-    case none, maxDimension, width, height, exact
+    case none, maxDimension, width, height, percentage, shortestSide, exact
 
     var id: String { rawValue }
 
@@ -57,22 +60,31 @@ struct MediaImageResizeMode: Codable, Equatable {
     var maxDimension: Int
     var width: Int
     var height: Int
+    var percentage: Int
+    var shortestSide: Int
+    var allowUpscaling: Bool
     var exactMode: MediaImageExactResizeMode
 
     init(kind: MediaImageResizeKind = .maxDimension,
          maxDimension: Int = 1600,
          width: Int = 1600,
          height: Int = 1200,
+         percentage: Int = 100,
+         shortestSide: Int = 1200,
+         allowUpscaling: Bool = true,
          exactMode: MediaImageExactResizeMode = .stretch) {
         self.kind = kind
         self.maxDimension = MediaSupport.sanitizedImageDimension(maxDimension, fallback: 1600)
         self.width = MediaSupport.sanitizedImageDimension(width, fallback: 1600)
         self.height = MediaSupport.sanitizedImageDimension(height, fallback: 1200)
+        self.percentage = min(1_000, max(1, percentage))
+        self.shortestSide = MediaSupport.sanitizedImageDimension(shortestSide, fallback: 1200)
+        self.allowUpscaling = allowUpscaling
         self.exactMode = exactMode
     }
 
     private enum CodingKeys: String, CodingKey {
-        case kind, maxDimension, width, height, exactMode
+        case kind, maxDimension, width, height, percentage, shortestSide, allowUpscaling, exactMode
     }
 
     init(from decoder: Decoder) throws {
@@ -83,6 +95,9 @@ struct MediaImageResizeMode: Codable, Equatable {
                   maxDimension: try container.decodeIfPresent(Int.self, forKey: .maxDimension) ?? 1600,
                   width: try container.decodeIfPresent(Int.self, forKey: .width) ?? 1600,
                   height: try container.decodeIfPresent(Int.self, forKey: .height) ?? 1200,
+                  percentage: try container.decodeIfPresent(Int.self, forKey: .percentage) ?? 100,
+                  shortestSide: try container.decodeIfPresent(Int.self, forKey: .shortestSide) ?? 1200,
+                  allowUpscaling: try container.decodeIfPresent(Bool.self, forKey: .allowUpscaling) ?? true,
                   exactMode: MediaImageExactResizeMode.sanitized(exactModeRaw))
     }
 
@@ -92,6 +107,9 @@ struct MediaImageResizeMode: Codable, Equatable {
         try container.encode(maxDimension, forKey: .maxDimension)
         try container.encode(width, forKey: .width)
         try container.encode(height, forKey: .height)
+        try container.encode(percentage, forKey: .percentage)
+        try container.encode(shortestSide, forKey: .shortestSide)
+        try container.encode(allowUpscaling, forKey: .allowUpscaling)
         try container.encode(exactMode, forKey: .exactMode)
     }
 
@@ -109,6 +127,14 @@ struct MediaImageResizeMode: Codable, Equatable {
         MediaImageResizeMode(kind: .height, height: value)
     }
 
+    static func percentage(_ value: Int, allowUpscaling: Bool = true) -> MediaImageResizeMode {
+        MediaImageResizeMode(kind: .percentage, percentage: value, allowUpscaling: allowUpscaling)
+    }
+
+    static func shortestSide(_ value: Int, allowUpscaling: Bool = true) -> MediaImageResizeMode {
+        MediaImageResizeMode(kind: .shortestSide, shortestSide: value, allowUpscaling: allowUpscaling)
+    }
+
     static func exact(width: Int, height: Int,
                       mode: MediaImageExactResizeMode = .stretch) -> MediaImageResizeMode {
         MediaImageResizeMode(kind: .exact, width: width, height: height, exactMode: mode)
@@ -122,18 +148,31 @@ struct MediaImageResizeMode: Codable, Equatable {
             return CGSize(width: Int(sourceWidth.rounded()), height: Int(sourceHeight.rounded()))
         case .maxDimension:
             let maxSide = CGFloat(max(1, maxDimension))
-            let scale = min(1, maxSide / max(sourceWidth, sourceHeight))
+            let requestedScale = maxSide / max(sourceWidth, sourceHeight)
+            let scale = allowUpscaling ? requestedScale : min(1, requestedScale)
             return MediaSupport.integralImageSize(width: sourceWidth * scale, height: sourceHeight * scale)
         case .width:
             let outWidth = CGFloat(max(1, width))
-            let outHeight = outWidth * sourceHeight / sourceWidth
-            return MediaSupport.integralImageSize(width: outWidth, height: outHeight)
+            let scale = allowUpscaling ? outWidth / sourceWidth : min(1, outWidth / sourceWidth)
+            return MediaSupport.integralImageSize(width: sourceWidth * scale, height: sourceHeight * scale)
         case .height:
             let outHeight = CGFloat(max(1, height))
-            let outWidth = outHeight * sourceWidth / sourceHeight
-            return MediaSupport.integralImageSize(width: outWidth, height: outHeight)
+            let scale = allowUpscaling ? outHeight / sourceHeight : min(1, outHeight / sourceHeight)
+            return MediaSupport.integralImageSize(width: sourceWidth * scale, height: sourceHeight * scale)
+        case .percentage:
+            let requestedScale = CGFloat(max(1, percentage)) / 100
+            let scale = allowUpscaling ? requestedScale : min(1, requestedScale)
+            return MediaSupport.integralImageSize(width: sourceWidth * scale, height: sourceHeight * scale)
+        case .shortestSide:
+            let requestedScale = CGFloat(max(1, shortestSide)) / min(sourceWidth, sourceHeight)
+            let scale = allowUpscaling ? requestedScale : min(1, requestedScale)
+            return MediaSupport.integralImageSize(width: sourceWidth * scale, height: sourceHeight * scale)
         case .exact:
-            return CGSize(width: max(1, width), height: max(1, height))
+            let targetWidth = CGFloat(max(1, width))
+            let targetHeight = CGFloat(max(1, height))
+            guard !allowUpscaling else { return CGSize(width: targetWidth, height: targetHeight) }
+            return MediaSupport.integralImageSize(width: min(sourceWidth, targetWidth),
+                                                  height: min(sourceHeight, targetHeight))
         }
     }
 }
@@ -165,6 +204,114 @@ enum MediaImageBackground: String, CaseIterable, Codable, Identifiable {
 
     static func sanitized(_ value: String) -> MediaImageBackground {
         MediaImageBackground(rawValue: value) ?? .transparent
+    }
+}
+
+enum MediaImageRotation: String, CaseIterable, Codable, Identifiable {
+    case none, clockwise90, clockwise180, clockwise270
+
+    var id: String { rawValue }
+
+    static func sanitized(_ value: String) -> MediaImageRotation {
+        MediaImageRotation(rawValue: value) ?? .none
+    }
+}
+
+enum MediaImageCrop: String, CaseIterable, Codable, Identifiable {
+    case none, square, fourThree, sixteenNine
+
+    var id: String { rawValue }
+
+    static func sanitized(_ value: String) -> MediaImageCrop {
+        MediaImageCrop(rawValue: value) ?? .none
+    }
+}
+
+struct MediaImageTransform: Codable, Equatable {
+    var rotation: MediaImageRotation
+    var flipHorizontal: Bool
+    var flipVertical: Bool
+    var crop: MediaImageCrop
+
+    init(rotation: MediaImageRotation = .none,
+         flipHorizontal: Bool = false,
+         flipVertical: Bool = false,
+         crop: MediaImageCrop = .none) {
+        self.rotation = rotation
+        self.flipHorizontal = flipHorizontal
+        self.flipVertical = flipVertical
+        self.crop = crop
+    }
+
+    static let none = MediaImageTransform()
+
+    func cropRect(for sourceSize: CGSize) -> CGRect {
+        let width = max(1, abs(sourceSize.width))
+        let height = max(1, abs(sourceSize.height))
+        guard crop != .none else { return CGRect(x: 0, y: 0, width: width, height: height) }
+        let landscapeRatio: CGFloat
+        switch crop {
+        case .none: return CGRect(x: 0, y: 0, width: width, height: height)
+        case .square: landscapeRatio = 1
+        case .fourThree: landscapeRatio = 4 / 3
+        case .sixteenNine: landscapeRatio = 16 / 9
+        }
+        let targetRatio = width >= height ? landscapeRatio : 1 / landscapeRatio
+        let sourceRatio = width / height
+        if sourceRatio > targetRatio {
+            let croppedWidth = height * targetRatio
+            return CGRect(x: (width - croppedWidth) / 2, y: 0,
+                          width: croppedWidth, height: height)
+        }
+        let croppedHeight = width / targetRatio
+        return CGRect(x: 0, y: (height - croppedHeight) / 2,
+                      width: width, height: croppedHeight)
+    }
+
+    func outputSize(for sourceSize: CGSize) -> CGSize {
+        let cropped = cropRect(for: sourceSize).size
+        switch rotation {
+        case .clockwise90, .clockwise270:
+            return MediaSupport.integralImageSize(width: cropped.height, height: cropped.width)
+        case .none, .clockwise180:
+            return MediaSupport.integralImageSize(width: cropped.width, height: cropped.height)
+        }
+    }
+}
+
+enum MediaImageResampling: String, CaseIterable, Codable, Identifiable {
+    case nearest, low, medium, high
+
+    var id: String { rawValue }
+
+    static func sanitized(_ value: String) -> MediaImageResampling {
+        MediaImageResampling(rawValue: value) ?? .high
+    }
+
+    var interpolationQuality: CGInterpolationQuality {
+        switch self {
+        case .nearest: return .none
+        case .low: return .low
+        case .medium: return .medium
+        case .high: return .high
+        }
+    }
+}
+
+struct MediaImageMetadataPolicy: Codable, Equatable {
+    var removeGPS: Bool
+    var removeEXIF: Bool
+    var removeIPTC: Bool
+    var removeXMP: Bool
+
+    init(removeGPS: Bool = true,
+         removeEXIF: Bool = false,
+         removeIPTC: Bool = false,
+         removeXMP: Bool = false) {
+        self.removeGPS = removeGPS
+        self.removeEXIF = removeEXIF
+        self.removeIPTC = removeIPTC
+        self.removeXMP = removeXMP
     }
 }
 
@@ -219,9 +366,13 @@ struct MediaImageRenamePattern: Codable, Equatable {
                         index: Int,
                         date: Date = Date(),
                         size: CGSize,
-                        format: MediaImageFormat) -> String {
+                        format: MediaImageFormat,
+                        properties: [CFString: Any] = [:]) -> String {
         let pattern = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "{name}" : rawValue
         let baseName = MediaSupport.visibleOutputBaseName(for: inputURL)
+        let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        let auxiliary = properties[kCGImagePropertyExifAuxDictionary] as? [CFString: Any] ?? [:]
+        let tiff = properties[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
         var output = pattern
             .replacingOccurrences(of: "{name}", with: baseName)
             .replacingOccurrences(of: "{date}", with: Self.dateFormatter.string(from: date))
@@ -233,6 +384,14 @@ struct MediaImageRenamePattern: Codable, Equatable {
             .replacingOccurrences(of: "{ext}", with: format.fileExtension)
             .replacingOccurrences(of: "{index}", with: "\(max(1, index))")
             .replacingOccurrences(of: "{counter}", with: "\(max(1, index))")
+            .replacingOccurrences(of: "{exif:date}", with: Self.metadataText(exif[kCGImagePropertyExifDateTimeOriginal]))
+            .replacingOccurrences(of: "{exif:make}", with: Self.metadataText(tiff[kCGImagePropertyTIFFMake]))
+            .replacingOccurrences(of: "{exif:model}", with: Self.metadataText(tiff[kCGImagePropertyTIFFModel]))
+            .replacingOccurrences(of: "{exif:lens}", with: Self.metadataText(auxiliary[kCGImagePropertyExifLensModel]
+                                                                            ?? exif[kCGImagePropertyExifLensModel]))
+            .replacingOccurrences(of: "{exif:iso}", with: Self.metadataText(exif[kCGImagePropertyExifISOSpeedRatings]
+                                                                             ?? exif[kCGImagePropertyExifISOSpeed]))
+            .replacingOccurrences(of: "{exif:focal}", with: Self.metadataText(exif[kCGImagePropertyExifFocalLength]))
         for digits in 2...6 {
             output = output.replacingOccurrences(of: "{index:0\(digits)}",
                                                  with: String(format: "%0\(digits)d", max(1, index)))
@@ -241,6 +400,15 @@ struct MediaImageRenamePattern: Codable, Equatable {
         }
         let clean = MediaSupport.sanitizedFileBaseName(output)
         return clean.isEmpty ? baseName : clean
+    }
+
+    private static func metadataText(_ value: Any?) -> String {
+        if let text = value as? String { return text }
+        if let number = value as? NSNumber { return number.stringValue }
+        if let values = value as? [Any] {
+            return values.map { metadataText($0) }.filter { !$0.isEmpty }.joined(separator: "-")
+        }
+        return ""
     }
 
     private static let dateFormatter: DateFormatter = {
@@ -281,6 +449,9 @@ struct MediaImageOptions: Codable, Equatable {
     var renamePattern: MediaImageRenamePattern
     var background: MediaImageBackground
     var preserveModificationDate: Bool
+    var transform: MediaImageTransform
+    var resampling: MediaImageResampling
+    var metadataPolicy: MediaImageMetadataPolicy
 
     init(quality: Double,
          maxDimension: Int,
@@ -290,7 +461,10 @@ struct MediaImageOptions: Codable, Equatable {
          watermark: MediaImageWatermark = .off,
          renamePattern: MediaImageRenamePattern = .automatic,
          background: MediaImageBackground = .transparent,
-         preserveModificationDate: Bool = false) {
+         preserveModificationDate: Bool = false,
+         transform: MediaImageTransform = .none,
+         resampling: MediaImageResampling = .high,
+         metadataPolicy: MediaImageMetadataPolicy = MediaImageMetadataPolicy()) {
         self.quality = MediaSupport.sanitizedQuality(quality)
         // Image profiles and their resize mode share one range. Keeping this
         // legacy field on the video-oriented even/7680 sanitizer let the two
@@ -303,6 +477,55 @@ struct MediaImageOptions: Codable, Equatable {
         self.renamePattern = renamePattern
         self.background = background
         self.preserveModificationDate = preserveModificationDate
+        self.transform = transform
+        self.resampling = resampling
+        self.metadataPolicy = metadataPolicy
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case quality, maxDimension, format, stripMetadata, resizeMode, watermark
+        case renamePattern, background, preserveModificationDate, transform, resampling, metadataPolicy
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let maxDimension = try container.decodeIfPresent(Int.self, forKey: .maxDimension) ?? 1600
+        self.init(
+            quality: try container.decodeIfPresent(Double.self, forKey: .quality) ?? 0.72,
+            maxDimension: maxDimension,
+            format: try container.decodeIfPresent(MediaImageFormat.self, forKey: .format) ?? .jpeg,
+            stripMetadata: try container.decodeIfPresent(Bool.self, forKey: .stripMetadata) ?? true,
+            resizeMode: try container.decodeIfPresent(MediaImageResizeMode.self, forKey: .resizeMode)
+                ?? .maxDimension(maxDimension),
+            watermark: try container.decodeIfPresent(MediaImageWatermark.self, forKey: .watermark) ?? .off,
+            renamePattern: try container.decodeIfPresent(MediaImageRenamePattern.self, forKey: .renamePattern)
+                ?? .automatic,
+            background: try container.decodeIfPresent(MediaImageBackground.self, forKey: .background)
+                ?? .transparent,
+            preserveModificationDate: try container.decodeIfPresent(Bool.self,
+                                                                      forKey: .preserveModificationDate) ?? false,
+            transform: try container.decodeIfPresent(MediaImageTransform.self, forKey: .transform) ?? .none,
+            resampling: try container.decodeIfPresent(MediaImageResampling.self, forKey: .resampling) ?? .high,
+            metadataPolicy: try container.decodeIfPresent(MediaImageMetadataPolicy.self,
+                                                            forKey: .metadataPolicy)
+                ?? MediaImageMetadataPolicy()
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(quality, forKey: .quality)
+        try container.encode(maxDimension, forKey: .maxDimension)
+        try container.encode(format, forKey: .format)
+        try container.encode(stripMetadata, forKey: .stripMetadata)
+        try container.encode(resizeMode, forKey: .resizeMode)
+        try container.encode(watermark, forKey: .watermark)
+        try container.encode(renamePattern, forKey: .renamePattern)
+        try container.encode(background, forKey: .background)
+        try container.encode(preserveModificationDate, forKey: .preserveModificationDate)
+        try container.encode(transform, forKey: .transform)
+        try container.encode(resampling, forKey: .resampling)
+        try container.encode(metadataPolicy, forKey: .metadataPolicy)
     }
 }
 
@@ -564,6 +787,77 @@ enum MediaSupport {
         return max(1, Int((max(sourceWidth, sourceHeight) * decodeScale).rounded(.up)))
     }
 
+    static func imageDecodeMaxPixel(sourceSize: CGSize,
+                                    transformedSize: CGSize,
+                                    targetSize: CGSize,
+                                    resizeMode: MediaImageResizeMode) -> Int? {
+        guard let transformedMaxPixel = imageDecodeMaxPixel(sourceSize: transformedSize,
+                                                             targetSize: targetSize,
+                                                             resizeMode: resizeMode) else { return nil }
+        let transformedMax = max(1, max(abs(transformedSize.width), abs(transformedSize.height)))
+        let sourceMax = max(1, max(abs(sourceSize.width), abs(sourceSize.height)))
+        let decodeScale = min(1, CGFloat(transformedMaxPixel) / transformedMax)
+        let decodedSize = CGSize(width: abs(sourceSize.width) * decodeScale,
+                                 height: abs(sourceSize.height) * decodeScale)
+        guard imageRenderSizeIsSafe(decodedSize) else { return nil }
+        return max(1, Int((sourceMax * decodeScale).rounded(.up)))
+    }
+
+    static func transformedImage(_ image: CGImage,
+                                 transform: MediaImageTransform) -> CGImage? {
+        let cropRect = transform.cropRect(
+            for: CGSize(width: image.width, height: image.height)
+        ).integral.intersection(CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard !cropRect.isEmpty, let cropped = image.cropping(to: cropRect) else { return nil }
+        let rotatedSize = transform.outputSize(
+            for: CGSize(width: image.width, height: image.height)
+        )
+        let width = max(1, Int(rotatedSize.width.rounded()))
+        let height = max(1, Int(rotatedSize.height.rounded()))
+        guard let rotatedContext = imageTransformContext(width: width, height: height) else { return nil }
+        let sourceRect = CGRect(x: 0, y: 0, width: cropped.width, height: cropped.height)
+        switch transform.rotation {
+        case .none:
+            rotatedContext.draw(cropped, in: sourceRect)
+        case .clockwise90:
+            rotatedContext.translateBy(x: CGFloat(width), y: 0)
+            rotatedContext.rotate(by: .pi / 2)
+            rotatedContext.draw(cropped, in: sourceRect)
+        case .clockwise180:
+            rotatedContext.translateBy(x: CGFloat(width), y: CGFloat(height))
+            rotatedContext.rotate(by: .pi)
+            rotatedContext.draw(cropped, in: sourceRect)
+        case .clockwise270:
+            rotatedContext.translateBy(x: 0, y: CGFloat(height))
+            rotatedContext.rotate(by: -.pi / 2)
+            rotatedContext.draw(cropped, in: sourceRect)
+        }
+        guard let rotated = rotatedContext.makeImage() else { return nil }
+        guard transform.flipHorizontal || transform.flipVertical else { return rotated }
+        guard let flippedContext = imageTransformContext(width: width, height: height) else { return nil }
+        if transform.flipHorizontal {
+            flippedContext.translateBy(x: CGFloat(width), y: 0)
+            flippedContext.scaleBy(x: -1, y: 1)
+        }
+        if transform.flipVertical {
+            flippedContext.translateBy(x: 0, y: CGFloat(height))
+            flippedContext.scaleBy(x: 1, y: -1)
+        }
+        flippedContext.draw(rotated, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return flippedContext.makeImage()
+    }
+
+    private static func imageTransformContext(width: Int,
+                                              height: Int) -> CGContext? {
+        CGContext(data: nil,
+                  width: width,
+                  height: height,
+                  bitsPerComponent: 8,
+                  bytesPerRow: 0,
+                  space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    }
+
     static func scaledEvenSize(source: CGSize, maxDimension: Int) -> CGSize {
         let width = max(1, abs(source.width))
         let height = max(1, abs(source.height))
@@ -619,12 +913,14 @@ enum MediaSupport {
                                options: MediaImageOptions,
                                index: Int,
                                outputSize: CGSize,
+                               properties: [CFString: Any] = [:],
                                reservedPaths: Set<String> = [],
                                fileManager: FileManager = .default) -> URL {
         let baseName = options.renamePattern.outputBaseName(for: inputURL,
                                                             index: index,
                                                             size: outputSize,
-                                                            format: options.format)
+                                                            format: options.format,
+                                                            properties: properties)
         return uniqueOutputURL(in: outputDirectory,
                                baseName: baseName,
                                fileExtension: options.format.fileExtension,
@@ -666,10 +962,13 @@ enum MediaSupport {
     }
 
     static func imageDisplaySize(at url: URL) -> CGSize? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil)
-                as? [CFString: Any] else { return nil }
+        guard let properties = imageProperties(at: url) else { return nil }
         return imageDisplaySize(properties: properties)
+    }
+
+    static func imageProperties(at url: URL) -> [CFString: Any]? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
     }
 
     static func watermarkLogo(atPath path: String, maxPixel: Int = 2_048) -> CGImage? {
@@ -706,6 +1005,30 @@ enum MediaSupport {
         guard width.isFinite, height.isFinite, width >= 1, height >= 1,
               width <= CGFloat(maxDimension), height <= CGFloat(maxDimension) else { return false }
         return width * height <= CGFloat(maxPixels)
+    }
+
+    static func sanitizedImageProperties(_ properties: [CFString: Any],
+                                         image: CGImage,
+                                         policy: MediaImageMetadataPolicy) -> [CFString: Any] {
+        var clean = properties
+        clean.removeValue(forKey: kCGImagePropertyOrientation)
+        clean[kCGImagePropertyPixelWidth] = image.width
+        clean[kCGImagePropertyPixelHeight] = image.height
+        if policy.removeGPS {
+            clean.removeValue(forKey: kCGImagePropertyGPSDictionary)
+            clean[kCGImageMetadataShouldExcludeGPS] = true
+        }
+        if policy.removeEXIF {
+            clean.removeValue(forKey: kCGImagePropertyExifDictionary)
+            clean.removeValue(forKey: kCGImagePropertyExifAuxDictionary)
+        }
+        if policy.removeIPTC {
+            clean.removeValue(forKey: kCGImagePropertyIPTCDictionary)
+        }
+        if policy.removeXMP {
+            clean[kCGImageMetadataShouldExcludeXMP] = true
+        }
+        return clean
     }
 
     static func sanitizedImageProfiles(_ profiles: [MediaImageProfile]) -> [MediaImageProfile] {
@@ -843,12 +1166,67 @@ enum MediaSupport {
         return inputTypes.contains { contentType.conforms(to: $0) }
     }
 
+    /// Expands files and folders into a stable, duplicate-free image list.
+    /// Folder contents are sorted so batch indices and rename templates stay
+    /// deterministic regardless of the file system's enumeration order.
+    static func expandedImageInputURLs(_ urls: [URL],
+                                       includeSubfolders: Bool,
+                                       fileManager: FileManager = .default) -> [URL] {
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isRegularFileKey,
+                                         .isPackageKey, .contentTypeKey]
+        var result: [URL] = []
+        var seen = Set<String>()
+
+        func appendImage(_ url: URL) {
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true,
+                  values?.contentType?.conforms(to: .image) == true else { return }
+            let path = url.standardizedFileURL.path
+            guard seen.insert(path).inserted else { return }
+            result.append(url.standardizedFileURL)
+        }
+
+        for url in urls {
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isDirectory == true else {
+                appendImage(url)
+                continue
+            }
+            let candidates: [URL]
+            if includeSubfolders {
+                let enumerator = fileManager.enumerator(
+                    at: url,
+                    includingPropertiesForKeys: Array(keys),
+                    options: [.skipsHiddenFiles, .skipsPackageDescendants]
+                )
+                candidates = enumerator?.compactMap { $0 as? URL } ?? []
+            } else {
+                candidates = (try? fileManager.contentsOfDirectory(
+                    at: url,
+                    includingPropertiesForKeys: Array(keys),
+                    options: [.skipsHiddenFiles]
+                )) ?? []
+            }
+            for candidate in candidates.sorted(by: {
+                $0.path.localizedStandardCompare($1.path) == .orderedAscending
+            }) {
+                appendImage(candidate)
+            }
+        }
+        return result
+    }
+
     /// Whether the result deserves the "came out larger" caption: growth is
     /// normal (PDF wraps the image, high quality can beat the source) but a
     /// "compressor" should say so instead of looking broken. Unknown sizes
     /// (zero) never trigger it.
     static func outputGrew(originalBytes: Int64, outputBytes: Int64) -> Bool {
         originalBytes > 0 && outputBytes > originalBytes
+    }
+
+    static func imageBatchConcurrency(inputCount: Int,
+                                      activeProcessorCount: Int = ProcessInfo.processInfo.activeProcessorCount) -> Int {
+        min(max(1, inputCount), min(4, max(1, activeProcessorCount)))
     }
 
     static func recognitionLanguages(for languageRawValue: String) -> [String] {

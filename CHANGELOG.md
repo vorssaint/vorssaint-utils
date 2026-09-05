@@ -16,6 +16,9 @@ Vorssaint adds edge snap controls and shortcuts for recent captures and keyboard
 - Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
 - Recent captures can open from their own assignable shortcut without returning to the menu bar panel.
 - Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
+- The Media image converter writes WebP, TIFF and AVIF, imports image folders recursively and processes large batches with bounded parallelism.
+- Image conversion can rotate, flip and crop, resize by percentage or shortest side without enlarging, and choose its resampling quality.
+- Image metadata can be removed by GPS, EXIF, IPTC or XMP group, while rename templates gain EXIF variables and an insertion menu.
 
 ### Changed
 - Build checks adapt to Macs with larger thread pools. Thanks to @mugurc.

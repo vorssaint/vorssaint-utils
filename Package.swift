@@ -7,6 +7,12 @@ import PackageDescription
 let package = Package(
     name: "Vorssaint",
     platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "VorssaintWebPEncoder", targets: ["VorssaintWebPEncoder"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/the-swift-collective/libwebp.git", exact: "1.4.0"),
+    ],
     targets: [
         .systemLibrary(
             name: "HIDEventSystem",
@@ -20,6 +26,11 @@ let package = Package(
             name: "Vorssaint",
             dependencies: ["VMStatisticsCompat", "HIDEventSystem"],
             path: "Sources/Vorssaint"
+        ),
+        .executableTarget(
+            name: "VorssaintWebPEncoder",
+            dependencies: [.product(name: "WebP", package: "libwebp")],
+            path: "Sources/WebPEncoder"
         )
     ]
 )

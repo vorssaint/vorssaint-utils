@@ -440,6 +440,19 @@ enum DefaultsKey {
     static let mediaImagePreserveModificationDate = "mediaImagePreserveModificationDate"
     static let mediaImageProfiles = "mediaImageProfiles"
     static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
+    static let mediaImageIncludeSubfolders = "mediaImageIncludeSubfolders"
+    static let mediaImageRotation = "mediaImageRotation"
+    static let mediaImageFlipHorizontal = "mediaImageFlipHorizontal"
+    static let mediaImageFlipVertical = "mediaImageFlipVertical"
+    static let mediaImageCrop = "mediaImageCrop"
+    static let mediaImageResizePercentage = "mediaImageResizePercentage"
+    static let mediaImageResizeShortestSide = "mediaImageResizeShortestSide"
+    static let mediaImageAllowUpscaling = "mediaImageAllowUpscaling"
+    static let mediaImageResampling = "mediaImageResampling"
+    static let mediaImageRemoveGPS = "mediaImageRemoveGPS"
+    static let mediaImageRemoveEXIF = "mediaImageRemoveEXIF"
+    static let mediaImageRemoveIPTC = "mediaImageRemoveIPTC"
+    static let mediaImageRemoveXMP = "mediaImageRemoveXMP"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
@@ -1196,6 +1209,19 @@ enum Defaults {
         DefaultsKey.mediaImagePreserveModificationDate: false,
         DefaultsKey.mediaImageProfiles: "[]",
         DefaultsKey.mediaImageSelectedProfileID: "",
+        DefaultsKey.mediaImageIncludeSubfolders: true,
+        DefaultsKey.mediaImageRotation: MediaImageRotation.none.rawValue,
+        DefaultsKey.mediaImageFlipHorizontal: false,
+        DefaultsKey.mediaImageFlipVertical: false,
+        DefaultsKey.mediaImageCrop: MediaImageCrop.none.rawValue,
+        DefaultsKey.mediaImageResizePercentage: 100,
+        DefaultsKey.mediaImageResizeShortestSide: 1200,
+        DefaultsKey.mediaImageAllowUpscaling: true,
+        DefaultsKey.mediaImageResampling: MediaImageResampling.high.rawValue,
+        DefaultsKey.mediaImageRemoveGPS: true,
+        DefaultsKey.mediaImageRemoveEXIF: false,
+        DefaultsKey.mediaImageRemoveIPTC: false,
+        DefaultsKey.mediaImageRemoveXMP: false,
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,

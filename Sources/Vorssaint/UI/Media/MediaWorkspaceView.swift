@@ -91,10 +91,24 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImagePreserveModificationDate) private var imagePreserveModificationDate = false
     @AppStorage(DefaultsKey.mediaImageProfiles) private var imageProfilesRaw = "[]"
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
+    @AppStorage(DefaultsKey.mediaImageIncludeSubfolders) private var imageIncludeSubfolders = true
+    @AppStorage(DefaultsKey.mediaImageRotation) private var imageRotationRaw = MediaImageRotation.none.rawValue
+    @AppStorage(DefaultsKey.mediaImageFlipHorizontal) private var imageFlipHorizontal = false
+    @AppStorage(DefaultsKey.mediaImageFlipVertical) private var imageFlipVertical = false
+    @AppStorage(DefaultsKey.mediaImageCrop) private var imageCropRaw = MediaImageCrop.none.rawValue
+    @AppStorage(DefaultsKey.mediaImageResizePercentage) private var imageResizePercentage = 100
+    @AppStorage(DefaultsKey.mediaImageResizeShortestSide) private var imageResizeShortestSide = 1200
+    @AppStorage(DefaultsKey.mediaImageAllowUpscaling) private var imageAllowUpscaling = true
+    @AppStorage(DefaultsKey.mediaImageResampling) private var imageResamplingRaw = MediaImageResampling.high.rawValue
+    @AppStorage(DefaultsKey.mediaImageRemoveGPS) private var imageRemoveGPS = true
+    @AppStorage(DefaultsKey.mediaImageRemoveEXIF) private var imageRemoveEXIF = false
+    @AppStorage(DefaultsKey.mediaImageRemoveIPTC) private var imageRemoveIPTC = false
+    @AppStorage(DefaultsKey.mediaImageRemoveXMP) private var imageRemoveXMP = false
 
     @AppStorage(DefaultsKey.mediaTextAccurate) private var textAccurate = true
 
     @State private var inputURLs: [URL] = []
+    @State private var inputSourceURLs: [URL] = []
     @State private var inputImageSize: CGSize?
     @State private var outputURL: URL?
     @State private var outputWasChosenManually = false
@@ -117,6 +131,10 @@ struct MediaWorkspaceView: View {
     private var inputURL: URL? { inputURLs.first }
     private var imageText: MediaImageConverterStrings {
         MediaImageConverterStrings.localized(l10n.language)
+    }
+
+    private var advancedImageText: MediaImageAdvancedStrings {
+        MediaImageAdvancedStrings.localized(l10n.language)
     }
 
     private var screenshotText: ScreenshotFeatureStrings {
@@ -283,6 +301,15 @@ struct MediaWorkspaceView: View {
                 acceptDrop(providers)
             }
 
+            if selectedTool == .imageCompressor {
+                Toggle(imageText.includeSubfolders, isOn: $imageIncludeSubfolders)
+                    .toggleStyle(.checkbox)
+                    .onChange(of: imageIncludeSubfolders) { _, _ in
+                        guard !inputSourceURLs.isEmpty else { return }
+                        setInputs(inputSourceURLs)
+                    }
+            }
+
             HStack(spacing: 7) {
                 Text(l10n.s.mediaOutput)
                     .font(.system(size: compact ? 9.5 : 10.5, weight: .semibold))
@@ -343,11 +370,21 @@ struct MediaWorkspaceView: View {
                     Text("JPEG").tag(MediaImageFormat.jpeg.rawValue)
                     Text("PNG").tag(MediaImageFormat.png.rawValue)
                     Text("HEIC").tag(MediaImageFormat.heic.rawValue)
+                    Text("WebP").tag(MediaImageFormat.webp.rawValue)
+                    Text("TIFF").tag(MediaImageFormat.tiff.rawValue)
+                    Text("AVIF").tag(MediaImageFormat.avif.rawValue)
                     Text("PDF").tag(MediaImageFormat.pdf.rawValue)
                 }
-                .pickerStyle(.segmented)
+                .pickerStyle(.menu)
                 compressionRow(value: $imageQuality)
                 imageResizeSection
+                Picker(advancedImageText.resampling, selection: $imageResamplingRaw) {
+                    Text(advancedImageText.nearest).tag(MediaImageResampling.nearest.rawValue)
+                    Text(l10n.s.mediaCompressionLow).tag(MediaImageResampling.low.rawValue)
+                    Text(l10n.s.mediaCompressionMedium).tag(MediaImageResampling.medium.rawValue)
+                    Text(l10n.s.mediaCompressionHigh).tag(MediaImageResampling.high.rawValue)
+                }
+                .pickerStyle(.menu)
                 DisclosureHeaderRow(isExpanded: $imageMoreOptionsExpanded) {
                     Text(imageText.moreOptions)
                     Spacer()
@@ -355,13 +392,24 @@ struct MediaWorkspaceView: View {
                 if imageMoreOptionsExpanded {
                     VStack(alignment: .leading, spacing: 10) {
                         imageProfileRow
-                        // PDF output never carries EXIF (the image is re-encoded
-                        // into the document), so the toggle would be a dead control.
-                        if MediaImageFormat.sanitized(imageFormatRaw) != .pdf {
+                        // PDF and WebP are rebuilt from pixels and do not carry
+                        // source metadata, so controls there would be misleading.
+                        if ![MediaImageFormat.pdf, .webp].contains(MediaImageFormat.sanitized(imageFormatRaw)) {
                             Toggle(l10n.s.mediaStripMetadata, isOn: $imageStripMetadata)
                                 .toggleStyle(.checkbox)
+                            if !imageStripMetadata {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Toggle(advancedImageText.removeGPS, isOn: $imageRemoveGPS)
+                                    Toggle(advancedImageText.removeEXIF, isOn: $imageRemoveEXIF)
+                                    Toggle(advancedImageText.removeIPTC, isOn: $imageRemoveIPTC)
+                                    Toggle(advancedImageText.removeXMP, isOn: $imageRemoveXMP)
+                                }
+                                .toggleStyle(.checkbox)
+                                .disclosureIndent()
+                            }
                         }
                         imageBackgroundSection
+                        imageTransformSection
                         imageWatermarkSection
                         imageRenameSection
                         Toggle(imageText.preserveDate, isOn: $imagePreserveModificationDate)
@@ -652,7 +700,7 @@ struct MediaWorkspaceView: View {
             ZStack(alignment: previewAlignment) {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(previewBackgroundColor)
-                if let thumbnail = inputURL.flatMap({ ImageThumbnailer.thumbnail(for: $0, pointSize: compact ? 96 : 128) }) {
+                if let thumbnail = transformedPreviewThumbnail {
                     previewImage(thumbnail)
                         .padding(4)
                 } else {
@@ -735,6 +783,8 @@ struct MediaWorkspaceView: View {
                 Text(imageText.resizeMax).tag(MediaImageResizeKind.maxDimension.rawValue)
                 Text(imageText.resizeWidth).tag(MediaImageResizeKind.width.rawValue)
                 Text(imageText.resizeHeight).tag(MediaImageResizeKind.height.rawValue)
+                Text(advancedImageText.percentage).tag(MediaImageResizeKind.percentage.rawValue)
+                Text(advancedImageText.shortestSide).tag(MediaImageResizeKind.shortestSide.rawValue)
                 Text(imageText.resizeExact).tag(MediaImageResizeKind.exact.rawValue)
             }
             .pickerStyle(.menu)
@@ -747,6 +797,12 @@ struct MediaWorkspaceView: View {
                 stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64, suffix: "px")
             case .height:
                 stepperInt(imageText.height, value: $imageResizeHeight, range: 1...20_000, step: 64, suffix: "px")
+            case .percentage:
+                stepperInt(advancedImageText.percentage, value: $imageResizePercentage,
+                           range: 1...1_000, step: 5, suffix: "%")
+            case .shortestSide:
+                stepperInt(advancedImageText.shortestSide, value: $imageResizeShortestSide,
+                           range: 1...20_000, step: 64, suffix: "px")
             case .exact:
                 HStack(spacing: 10) {
                     stepperInt(l10n.s.mediaWidth, value: $imageResizeWidth, range: 1...20_000, step: 64, suffix: "px")
@@ -760,6 +816,37 @@ struct MediaWorkspaceView: View {
                 .labelsHidden()
                 .pickerStyle(.segmented)
             }
+            if MediaImageResizeKind.sanitized(imageResizeKindRaw) != .none {
+                Toggle(advancedImageText.allowUpscaling, isOn: $imageAllowUpscaling)
+                    .toggleStyle(.checkbox)
+            }
+        }
+    }
+
+    private var imageTransformSection: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(advancedImageText.transform)
+                .font(.system(size: compact ? 10 : 11, weight: .semibold))
+            Picker(advancedImageText.rotation, selection: $imageRotationRaw) {
+                Text(advancedImageText.noChange).tag(MediaImageRotation.none.rawValue)
+                Text("90°").tag(MediaImageRotation.clockwise90.rawValue)
+                Text("180°").tag(MediaImageRotation.clockwise180.rawValue)
+                Text("270°").tag(MediaImageRotation.clockwise270.rawValue)
+            }
+            .pickerStyle(.menu)
+            HStack(spacing: 12) {
+                Toggle(advancedImageText.flipHorizontal, isOn: $imageFlipHorizontal)
+                    .toggleStyle(.checkbox)
+                Toggle(advancedImageText.flipVertical, isOn: $imageFlipVertical)
+                    .toggleStyle(.checkbox)
+            }
+            Picker(advancedImageText.crop, selection: $imageCropRaw) {
+                Text(advancedImageText.noChange).tag(MediaImageCrop.none.rawValue)
+                Text("1:1").tag(MediaImageCrop.square.rawValue)
+                Text("4:3").tag(MediaImageCrop.fourThree.rawValue)
+                Text("16:9").tag(MediaImageCrop.sixteenNine.rawValue)
+            }
+            .pickerStyle(.menu)
         }
     }
 
@@ -832,12 +919,19 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(imageText.rename)
                 .font(.system(size: compact ? 10 : 11, weight: .semibold))
-            TextField("{name}-{index:03}", text: $imageRenamePattern)
-                .textFieldStyle(.roundedBorder)
-            Text("{name} {index} {index:03} {counter} {date} {time} {datetime} {width} {height} {format}")
-                .font(.system(size: compact ? 8.5 : 9.5, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                TextField("{name}-{index:03}", text: $imageRenamePattern)
+                    .textFieldStyle(.roundedBorder)
+                Menu {
+                    ForEach(Self.renameTokens, id: \.self) { token in
+                        Button(token) { insertRenameToken(token) }
+                    }
+                } label: {
+                    Label(advancedImageText.insertVariable, systemImage: "curlybraces")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
         }
     }
 
@@ -1019,11 +1113,21 @@ struct MediaWorkspaceView: View {
                              maxDimension: imageMaxDimension,
                              width: imageResizeWidth,
                              height: imageResizeHeight,
+                             percentage: imageResizePercentage,
+                             shortestSide: imageResizeShortestSide,
+                             allowUpscaling: imageAllowUpscaling,
                              exactMode: MediaImageExactResizeMode.sanitized(imageExactResizeModeRaw))
     }
 
     private var currentWatermarkKind: MediaImageWatermarkKind {
         MediaImageWatermarkKind.sanitized(imageWatermarkKindRaw)
+    }
+
+    private var currentTransform: MediaImageTransform {
+        MediaImageTransform(rotation: MediaImageRotation.sanitized(imageRotationRaw),
+                            flipHorizontal: imageFlipHorizontal,
+                            flipVertical: imageFlipVertical,
+                            crop: MediaImageCrop.sanitized(imageCropRaw))
     }
 
     private var currentWatermark: MediaImageWatermark {
@@ -1045,7 +1149,13 @@ struct MediaWorkspaceView: View {
                           watermark: currentWatermark,
                           renamePattern: MediaImageRenamePattern(imageRenamePattern),
                           background: MediaImageBackground.sanitized(imageBackgroundRaw),
-                          preserveModificationDate: imagePreserveModificationDate)
+                          preserveModificationDate: imagePreserveModificationDate,
+                          transform: currentTransform,
+                          resampling: MediaImageResampling.sanitized(imageResamplingRaw),
+                          metadataPolicy: MediaImageMetadataPolicy(removeGPS: imageRemoveGPS,
+                                                                    removeEXIF: imageRemoveEXIF,
+                                                                    removeIPTC: imageRemoveIPTC,
+                                                                    removeXMP: imageRemoveXMP))
     }
 
     private var imageProfiles: [MediaImageProfile] {
@@ -1075,9 +1185,22 @@ struct MediaWorkspaceView: View {
 
     private var previewOutputSize: CGSize {
         guard inputURL != nil, let sourceSize = inputImageSize else {
-            return currentResizeMode.targetSize(for: CGSize(width: 1600, height: 1200))
+            return currentResizeMode.targetSize(
+                for: currentTransform.outputSize(for: CGSize(width: 1600, height: 1200))
+            )
         }
-        return currentResizeMode.targetSize(for: sourceSize)
+        return currentResizeMode.targetSize(for: currentTransform.outputSize(for: sourceSize))
+    }
+
+    private var transformedPreviewThumbnail: NSImage? {
+        guard let inputURL,
+              let thumbnail = ImageThumbnailer.thumbnail(for: inputURL, pointSize: compact ? 96 : 128),
+              let source = thumbnail.cgImage(forProposedRect: nil, context: nil, hints: nil),
+              let transformed = MediaSupport.transformedImage(source, transform: currentTransform) else {
+            return nil
+        }
+        return NSImage(cgImage: transformed,
+                       size: NSSize(width: transformed.width, height: transformed.height))
     }
 
     private var previewFrameSize: CGSize {
@@ -1158,7 +1281,7 @@ struct MediaWorkspaceView: View {
 
     private func chooseInput() {
         let panel = NSOpenPanel()
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = selectedTool == .imageCompressor
         panel.allowsMultipleSelection = selectedTool == .imageCompressor
         panel.allowedContentTypes = inputTypes
         Self.runPanelModal(panel) { response in
@@ -1249,6 +1372,17 @@ struct MediaWorkspaceView: View {
         }
         group.notify(queue: .main) {
             let urls = MediaSupport.urlsInProviderOrder(indexedURLs)
+            if selectedTool == .imageCompressor {
+                let accepted = MediaSupport.expandedImageInputURLs(
+                    urls, includeSubfolders: imageIncludeSubfolders
+                )
+                if accepted.isEmpty {
+                    media.rejectUnsupportedInput()
+                } else {
+                    setInputs(urls)
+                }
+                return
+            }
             let accepted = urls.filter { url in
                 let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
                 return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
@@ -1268,7 +1402,10 @@ struct MediaWorkspaceView: View {
 
     private func setInputs(_ urls: [URL]) {
         cancelVideoImport()
-        inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
+        inputSourceURLs = urls
+        inputURLs = selectedTool == .imageCompressor
+            ? MediaSupport.expandedImageInputURLs(urls, includeSubfolders: imageIncludeSubfolders)
+            : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor
             ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
             : nil
@@ -1283,6 +1420,7 @@ struct MediaWorkspaceView: View {
         mediaDefaultsTask?.cancel()
         cancelVideoImport()
         inputURLs = []
+        inputSourceURLs = []
         inputImageSize = nil
         outputURL = nil
         outputWasChosenManually = false
@@ -1440,6 +1578,9 @@ struct MediaWorkspaceView: View {
             case .jpeg: return .jpeg
             case .heic: return .heic
             case .png: return .png
+            case .webp: return .webP
+            case .tiff: return .tiff
+            case .avif: return UTType(importedAs: "public.avif")
             case .pdf: return .pdf
             }
         case .textExtractor: return .plainText
@@ -1462,7 +1603,10 @@ struct MediaWorkspaceView: View {
                                                outputDirectory: inputURL.deletingLastPathComponent(),
                                                options: currentImageOptions,
                                                index: 1,
-                                               outputSize: currentResizeMode.targetSize(for: sourceSize))
+                                               outputSize: currentResizeMode.targetSize(
+                                                for: currentTransform.outputSize(for: sourceSize)
+                                               ),
+                                               properties: MediaSupport.imageProperties(at: inputURL) ?? [:])
         case .textExtractor:
             return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-text", fileExtension: "txt")
         }
@@ -1545,6 +1689,9 @@ struct MediaWorkspaceView: View {
         imageResizeWidth = options.resizeMode.width
         imageResizeHeight = options.resizeMode.height
         imageExactResizeModeRaw = options.resizeMode.exactMode.rawValue
+        imageResizePercentage = options.resizeMode.percentage
+        imageResizeShortestSide = options.resizeMode.shortestSide
+        imageAllowUpscaling = options.resizeMode.allowUpscaling
         imageWatermarkKindRaw = options.watermark.kind.rawValue
         imageWatermarkText = options.watermark.text
         imageWatermarkLogoPath = options.watermark.logoPath
@@ -1555,6 +1702,15 @@ struct MediaWorkspaceView: View {
         imageRenamePattern = options.renamePattern.rawValue
         imageBackgroundRaw = options.background.rawValue
         imagePreserveModificationDate = options.preserveModificationDate
+        imageRotationRaw = options.transform.rotation.rawValue
+        imageFlipHorizontal = options.transform.flipHorizontal
+        imageFlipVertical = options.transform.flipVertical
+        imageCropRaw = options.transform.crop.rawValue
+        imageResamplingRaw = options.resampling.rawValue
+        imageRemoveGPS = options.metadataPolicy.removeGPS
+        imageRemoveEXIF = options.metadataPolicy.removeEXIF
+        imageRemoveIPTC = options.metadataPolicy.removeIPTC
+        imageRemoveXMP = options.metadataPolicy.removeXMP
     }
 
     private func copy(_ text: String) {
@@ -1562,6 +1718,16 @@ struct MediaWorkspaceView: View {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
     }
+
+    private func insertRenameToken(_ token: String) {
+        imageRenamePattern.append(token)
+    }
+
+    private static let renameTokens = [
+        "{name}", "{index}", "{index:03}", "{counter}", "{date}", "{time}",
+        "{datetime}", "{width}", "{height}", "{format}", "{exif:date}",
+        "{exif:make}", "{exif:model}", "{exif:lens}", "{exif:iso}", "{exif:focal}",
+    ]
 
     /// A size target is typed rather than stepped, so the formatter is what
     /// keeps it a whole number the planner can work with.
