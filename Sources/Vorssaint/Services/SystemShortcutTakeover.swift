@@ -61,6 +61,21 @@ enum SystemShortcutTakeover {
         return takeOverKeys.contains(storageKey)
     }
 
+    /// What a shortcut field must ask before it decides. A key this service is
+    /// holding is missing from the live table's answer, so asking the table
+    /// alone tells the row that the combination it took over is free — and the
+    /// row saves it as an ordinary key, dropping the opt-in that was keeping it.
+    static func conflictsWithMacOS(_ shortcut: GlobalShortcut) -> Bool {
+        lock.lock()
+        let held = suppressed
+        lock.unlock()
+        return SystemShortcutTakeoverSupport.conflictsWithMacOS(
+            shortcut,
+            liveEntries: SymbolicHotKeys.liveEntries(),
+            symbolicHotKeys: GlobalShortcut.systemSymbolicHotKeys,
+            held: held)
+    }
+
     /// The live table can change under us (System Settings, another app, wake).
     /// Re-resolve every claim; `apply` only writes what actually differs.
     static func reconcile() {
@@ -117,17 +132,18 @@ enum SystemShortcutTakeover {
     /// the shared key before it is removed, so a restore that fails here still
     /// has a marker to retry from.
     static func recoverIfNeeded(keeping desired: Set<Int32>) {
+        lock.lock()
+        defer { lock.unlock() }
         // Wake can leave the live table changed under a claim that is still
         // ours; the switcher's own three seconds keep the two reconciles from
-        // racing the WindowServer right after wake.
+        // racing the WindowServer right after wake. Launch is the only caller,
+        // so the observer is installed once and kept for the life of the app.
         if wakeObserver == nil {
             wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
                 forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { _ in
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) { reconcile() }
                 }
         }
-        lock.lock()
-        defer { lock.unlock() }
         persist(suppressed)
         UserDefaults.standard.removeObject(forKey: DefaultsKey.switcherNativeHotkeysSuppressed)
         guard let setEnabled = SymbolicHotKeys.setEnabled else { return }
@@ -140,6 +156,17 @@ enum SystemShortcutTakeover {
             owned: suppressed,
             setEnabled: { setEnabled($0, $1) == .success },
             persist: persist)
+        // What stayed off for the switcher is held on its behalf until its tap
+        // comes up and says so itself. Recorded as its source, or the first
+        // claim of the launch resolves what every source wants without those
+        // ids and hands them straight back — the flip the keeping exists to
+        // avoid. Only ids the marker already owned and that are still off are
+        // recorded, so this still takes nothing new — an owned id macOS has
+        // since re-enabled is left to the tap; if the tap never starts,
+        // `syncWithPreferences` clears the entry and the keys go back as before.
+        let isEnabled = SymbolicHotKeys.isEnabled
+        let held = desired.intersection(suppressed).filter { isEnabled?($0) != true }
+        if !held.isEmpty { wanted[switcherSource] = held }
     }
 
     private static func persist(_ ids: Set<Int32>) {

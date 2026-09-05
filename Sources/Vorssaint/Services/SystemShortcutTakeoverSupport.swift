@@ -80,6 +80,25 @@ enum RecorderTakeOverDecision: Equatable {
 }
 
 extension SystemShortcutTakeoverSupport {
+    /// Whether macOS would answer this combination if Vorssaint were not
+    /// holding it. The live rule only counts entries that are enabled, so a
+    /// key already taken over reads as free; the ids the service suppresses
+    /// are macOS's too, and count here.
+    static func conflictsWithMacOS(_ shortcut: GlobalShortcut,
+                                   liveEntries: [LiveSystemShortcut]?,
+                                   symbolicHotKeys: @autoclosure () -> [String: Any]?,
+                                   held: Set<Int32>) -> Bool {
+        if GlobalShortcut.conflictsWithSystemShortcut(shortcut,
+                                                      liveEntries: liveEntries,
+                                                      symbolicHotKeys: symbolicHotKeys()) {
+            return true
+        }
+        // Nothing can be held without a live table, so the fallback above is
+        // the whole answer when the private calls are missing.
+        guard let liveEntries else { return false }
+        return !ids(matching: shortcut, in: liveEntries).isDisjoint(with: held)
+    }
+
     static func recorderDecision(shortcut: GlobalShortcut,
                                  conflictsWithMacOS: Bool,
                                  takenOver: Bool,
