@@ -18,6 +18,7 @@ final class QuitProtectionService: ObservableObject {
         let event: CGEvent
         let mode: QuitProtectionMode
         let targetProcessIdentifier: pid_t?
+        let switcherSessionGeneration: UInt64
     }
 
     private static let syntheticMarker: Int64 = 0x5652535341494E54
@@ -180,6 +181,13 @@ final class QuitProtectionService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // Ordinary typing still avoids consulting another service. A
+        // switcher-owned press must reach its tap, regardless of tap order.
+        if (hasPressInFlight || event.flags.contains(.maskCommand)),
+           deferToSwitcherIfNeeded() {
+            return Unmanaged.passUnretained(event)
+        }
+
         switch type {
         case .keyDown: return handleKeyDown(event)
         case .keyUp: return handleKeyUp(event)
@@ -285,9 +293,11 @@ final class QuitProtectionService: ObservableObject {
                     intervalMilliseconds: configuration.doublePressIntervalMilliseconds
                 ) {
                     let targetPid = pending.targetProcessIdentifier
+                    let generation = pending.switcherSessionGeneration
                     cancelPending()
                     swallowShortcut = shortcut
-                    confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid)
+                    confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid,
+                            switcherSessionGeneration: generation)
                     return nil
                 }
             }
@@ -381,6 +391,23 @@ final class QuitProtectionService: ObservableObject {
 
     // MARK: Confirmation state
 
+    /// A session may begin and end without this tap seeing a key: the
+    /// switcher can swallow it first. Invalidate old confirmations by the
+    /// existing session generation, not by panel visibility or notifications.
+    private func deferToSwitcherIfNeeded() -> Bool {
+        let ownership = AppSwitcher.shared.keyboardInputOwnership
+        let stalePending = pending.map {
+            $0.switcherSessionGeneration != ownership.generation
+        } ?? false
+        if ownership.isOwned || stalePending {
+            if hasPressInFlight {
+                cancelPending()
+                swallowShortcut = nil
+            }
+        }
+        return ownership.isOwned
+    }
+
     private func beginPending(shortcut: QuitProtectionShortcut,
                               mode: QuitProtectionMode,
                               event: CGEvent) {
@@ -391,7 +418,8 @@ final class QuitProtectionService: ObservableObject {
         pending = Pending(shortcut: shortcut,
                           event: event,
                           mode: mode,
-                          targetProcessIdentifier: frontmostProcessIdentifier)
+                          targetProcessIdentifier: frontmostProcessIdentifier,
+                          switcherSessionGeneration: AppSwitcher.shared.keyboardInputOwnership.generation)
 
         let configuration = configuration(for: shortcut)
         switch mode {
@@ -422,15 +450,18 @@ final class QuitProtectionService: ObservableObject {
     }
 
     private func completeHold() {
-        guard let pending, pending.mode == .hold else { return }
+        guard !deferToSwitcherIfNeeded(),
+              let pending, pending.mode == .hold else { return }
         let shortcut = pending.shortcut
         let event = pending.event
         let targetPid = pending.targetProcessIdentifier
+        let generation = pending.switcherSessionGeneration
 
         swallowShortcut = shortcut
         cancelPending()
 
-        confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid)
+        confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid,
+                switcherSessionGeneration: generation)
     }
 
     private func cancelPending() {
@@ -524,7 +555,15 @@ final class QuitProtectionService: ObservableObject {
     private func confirm(shortcut: QuitProtectionShortcut,
                          event: CGEvent,
                          targetProcessIdentifier: pid_t?,
-                         removing modifier: QuitProtectionExtraModifier? = nil) {
+                         removing modifier: QuitProtectionExtraModifier? = nil,
+                         switcherSessionGeneration: UInt64? = nil) {
+        let ownership = AppSwitcher.shared.keyboardInputOwnership
+        guard !ownership.isOwned,
+              switcherSessionGeneration.map({ $0 == ownership.generation }) ?? true else {
+            cancelPending()
+            swallowShortcut = nil
+            return
+        }
         if QuitProtectionSupport.usesNativeQuitRequest(for: shortcut),
            requestQuit(targetProcessIdentifier: targetProcessIdentifier) {
             return

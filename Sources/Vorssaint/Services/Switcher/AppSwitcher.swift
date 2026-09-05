@@ -74,6 +74,18 @@ final class AppSwitcher: ObservableObject {
         get { routeLock.withLock { routeSessionActive } }
         set { routeLock.withLock { routeSessionActive = newValue } }
     }
+
+    /// Other keyboard filters must yield during enumeration as well as an
+    /// open session. Read the generation with the ownership flag so a pending
+    /// confirmation cannot survive a switcher session that has already ended.
+    var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) {
+        routeLock.withLock {
+            (!routeCapturing && (routeSessionActive
+                || (routeCanStartSession && routePendingSessionStart != nil)),
+             sessionStartGeneration)
+        }
+    }
+
     private var panel: NSPanel?
     private var sessionItems: [SwitcherItem] = []
 
