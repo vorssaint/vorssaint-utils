@@ -29,6 +29,10 @@ final class TextSnippetService {
     private var buffer = ""
     private var libraryVisible = false
     private var commandBarVisible = false
+    /// One retained instance so back-to-back expansions can stop and
+    /// restart it, and so no expansion pays for the first lookup's disk
+    /// read. nil means no sound plays.
+    private var expansionSound: NSSound?
     /// Split by expansion mode at load time; the tap callback only scans.
     private var immediateSnippets: [TextSnippet] = []
     private var delimiterSnippets: [TextSnippet] = []
@@ -46,6 +50,7 @@ final class TextSnippetService {
         let hasWork = inputLock.withLock {
             !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
         }
+        syncExpansionSound(featureEnabled: enabled)
         if SessionActivitySupport.tapShouldRun(featureWanted: enabled && hasWork,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -60,6 +65,39 @@ final class TextSnippetService {
         } else {
             stop()
         }
+    }
+
+    /// Plays the sound an expansion would play, for the picker's preview.
+    /// Plays the retained one, so the preview cannot demonstrate a sound
+    /// other than the one that will fire; it resolves for itself only
+    /// when nothing is retained, which is when the feature is off.
+    func previewExpansionSound() {
+        let retained = inputLock.withLock { expansionSound }
+        let stored = UserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName)
+        guard let sound = retained
+                ?? TextSnippetSupport.resolvedSoundName(stored: stored).flatMap({ NSSound(named: $0) })
+        else { return }
+        sound.stop()
+        sound.play()
+    }
+
+    /// Picks up a change to the sound preferences on their own. The picker
+    /// fires on every arrow-key move through the list, and going through
+    /// syncWithPreferences would reload every snippet and tear down and
+    /// rebuild the event tap each time.
+    ///
+    /// `featureEnabled` is whether text snippets are on at all. Passed in
+    /// by syncWithPreferences, which has already worked it out, so the two
+    /// cannot answer that question differently.
+    func syncExpansionSound(featureEnabled: Bool? = nil) {
+        let featureOn = featureEnabled ?? (AppFeature.textSnippets.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled))
+        let soundEnabled = featureOn
+            && UserDefaults.standard.bool(forKey: DefaultsKey.snippetSoundEnabled)
+        let stored = UserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName)
+        let name = TextSnippetSupport.resolvedSoundName(stored: stored)
+        let sound = soundEnabled ? name.flatMap { NSSound(named: $0) } : nil
+        inputLock.withLock { expansionSound = sound }
     }
 
     func suspend() { stop() }
@@ -345,6 +383,7 @@ final class TextSnippetService {
                         trailingText: String,
                         failureKeyCode: CGKeyCode?,
                         failureFlags: CGEventFlags = []) -> Bool {
+        let didExpand = expansionSoundCue()
         let post = { () -> Bool in
             // Variable expansion is decided while the triggering event still
             // belongs to this callback. Only an explicit clipboard variable
@@ -364,12 +403,35 @@ final class TextSnippetService {
                                       trailingFlags: trailingFlags,
                                       trailingText: trailingText,
                                       failureKeyCode: failureKeyCode,
-                                      failureFlags: failureFlags)
+                                      failureFlags: failureFlags,
+                                      didExpand: didExpand)
         }
-        if Thread.isMainThread {
-            return post()
+        return Thread.isMainThread ? post() : DispatchQueue.main.sync(execute: post)
+    }
+
+    /// Hung off the replacement going out rather than off `postExpansion`'s
+    /// return value: a transient paste reports success as soon as it reaches
+    /// the pasteboard lane, so its return cannot tell a paste that went out
+    /// from one that failed open to typing. It also keeps the sound behind
+    /// the paste instead of ahead of it, since the shortcut waits for the
+    /// modifiers to come up.
+    ///
+    /// Nil when no sound is retained, which is when the feature is off.
+    private func expansionSoundCue() -> (() -> Void)? {
+        guard let sound = inputLock.withLock({ expansionSound }) else { return nil }
+        return {
+            // Async because the typed path calls this while the tap callback
+            // may still be blocked on the main queue, and starting playback
+            // can take long enough to push that callback past the timeout
+            // macOS disables the tap for.
+            DispatchQueue.main.async {
+                // play() is a no-op while this instance is still playing:
+                // stop it first so back-to-back expansions inside one
+                // sound's duration are still audible.
+                sound.stop()
+                sound.play()
+            }
         }
-        return DispatchQueue.main.sync(execute: post)
     }
 
     /// Also the snippet library's insertion path (deleteCount 0): one typing
@@ -381,7 +443,8 @@ final class TextSnippetService {
                               trailingFlags: CGEventFlags,
                               trailingText: String = "",
                               failureKeyCode: CGKeyCode? = nil,
-                              failureFlags: CGEventFlags = []) -> Bool {
+                              failureFlags: CGEventFlags = [],
+                              didExpand: (() -> Void)? = nil) -> Bool {
         let source = CGEventSource(stateID: .hidSystemState)
         source?.userData = syntheticMarker
 
@@ -403,6 +466,7 @@ final class TextSnippetService {
                 willPostShortcut: {
                     for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
                 },
+                didPostShortcut: { didExpand?() },
                 didFail: {
                     if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
                 }
@@ -434,6 +498,7 @@ final class TextSnippetService {
         if let trailingKeyCode {
             postKey(trailingKeyCode, flags: trailingFlags)
         }
+        didExpand?()
         return true
     }
 }

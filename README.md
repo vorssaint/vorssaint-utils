@@ -100,7 +100,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 
 ### Keyboard and mouse
 
-- **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with clipboard variables plus date and time in any format you like. A searchable quick menu, organized into folders, types any snippet right at your cursor.
+- **Text snippets.** Type a short trigger anywhere and it becomes your text, expanded instantly or after a space, with clipboard variables plus date and time in any format you like, and an optional sound when a typed trigger expands. A searchable quick menu, organized into folders, types any snippet right at your cursor.
 - **Smooth scrolling.** Gives a mouse wheel a fluid glide with adjustable speed and response.
 - **Pointer acceleration.** Optionally disable acceleration for connected mice while preserving the previous system setting for restoration.
 - **Focus follows mouse.** Install it from Features to bring the window under the

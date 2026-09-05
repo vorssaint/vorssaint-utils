@@ -68,6 +68,10 @@ struct SnippetFeatureStrings {
     let dateTimePreviewLabel: String
     let dateTimeConfirmInsert: String
     let dateTimeConfirmUpdate: String
+    let soundToggle: String
+    let soundCaption: String
+    let soundPickerLabel: String
+    let soundUnavailable: String
 }
 
 extension FeatureStrings {
@@ -152,7 +156,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "패턴",
         dateTimePreviewLabel: "미리보기",
         dateTimeConfirmInsert: "삽입",
-        dateTimeConfirmUpdate: "업데이트"
+        dateTimeConfirmUpdate: "업데이트",
+        soundToggle: "입력한 트리거가 확장될 때 소리 재생",
+        soundCaption: "입력한 트리거가 확장될 때마다 짧은 시스템 소리가 재생됩니다.",
+        soundPickerLabel: "소리",
+        soundUnavailable: "사용할 수 없는 소리"
     )
 }
 
@@ -218,7 +226,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Pattern",
         dateTimePreviewLabel: "Preview",
         dateTimeConfirmInsert: "Insert",
-        dateTimeConfirmUpdate: "Update"
+        dateTimeConfirmUpdate: "Update",
+        soundToggle: "Play a sound when a typed trigger expands",
+        soundCaption: "A short system sound plays each time a typed trigger expands.",
+        soundPickerLabel: "Sound",
+        soundUnavailable: "Sound unavailable"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -282,7 +294,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Padrão",
         dateTimePreviewLabel: "Pré-visualização",
         dateTimeConfirmInsert: "Inserir",
-        dateTimeConfirmUpdate: "Atualizar"
+        dateTimeConfirmUpdate: "Atualizar",
+        soundToggle: "Tocar um som quando um gatilho digitado expandir",
+        soundCaption: "Um som curto do sistema toca sempre que um gatilho digitado se expande.",
+        soundPickerLabel: "Som",
+        soundUnavailable: "Som indisponível"
     )
 
     static let tr = SnippetFeatureStrings(
@@ -346,7 +362,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Desen",
         dateTimePreviewLabel: "Önizleme",
         dateTimeConfirmInsert: "Ekle",
-        dateTimeConfirmUpdate: "Güncelle"
+        dateTimeConfirmUpdate: "Güncelle",
+        soundToggle: "Yazılan bir tetikleyici genişlediğinde ses çal",
+        soundCaption: "Yazılan bir tetikleyici genişlediğinde kısa bir sistem sesi çalar.",
+        soundPickerLabel: "Ses",
+        soundUnavailable: "Ses kullanılamıyor"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -410,7 +430,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Шаблон",
         dateTimePreviewLabel: "Предпросмотр",
         dateTimeConfirmInsert: "Вставить",
-        dateTimeConfirmUpdate: "Обновить"
+        dateTimeConfirmUpdate: "Обновить",
+        soundToggle: "Воспроизводить звук при развёртывании введённого триггера",
+        soundCaption: "Короткий системный звук воспроизводится каждый раз, когда введённый триггер разворачивается.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступен"
     )
 
     static let es = SnippetFeatureStrings(
@@ -474,7 +498,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Patrón",
         dateTimePreviewLabel: "Vista previa",
         dateTimeConfirmInsert: "Insertar",
-        dateTimeConfirmUpdate: "Actualizar"
+        dateTimeConfirmUpdate: "Actualizar",
+        soundToggle: "Reproducir un sonido al expandir un disparador escrito",
+        soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
+        soundPickerLabel: "Sonido",
+        soundUnavailable: "Sonido no disponible"
     )
 
     static let de = SnippetFeatureStrings(
@@ -538,7 +566,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Muster",
         dateTimePreviewLabel: "Vorschau",
         dateTimeConfirmInsert: "Einfügen",
-        dateTimeConfirmUpdate: "Aktualisieren"
+        dateTimeConfirmUpdate: "Aktualisieren",
+        soundToggle: "Ton abspielen, wenn ein getipptes Kürzel ausgeschrieben wird",
+        soundCaption: "Ein kurzer Systemton wird jedes Mal abgespielt, wenn ein getipptes Kürzel ausgeschrieben wird.",
+        soundPickerLabel: "Ton",
+        soundUnavailable: "Ton nicht verfügbar"
     )
 
     static let fr = SnippetFeatureStrings(
@@ -602,7 +634,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Motif",
         dateTimePreviewLabel: "Aperçu",
         dateTimeConfirmInsert: "Insérer",
-        dateTimeConfirmUpdate: "Mettre à jour"
+        dateTimeConfirmUpdate: "Mettre à jour",
+        soundToggle: "Jouer un son au développement d’un déclencheur tapé",
+        soundCaption: "Un court son système est joué chaque fois qu’un déclencheur tapé se développe.",
+        soundPickerLabel: "Son",
+        soundUnavailable: "Son indisponible"
     )
 
     static let it = SnippetFeatureStrings(
@@ -666,7 +702,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Modello",
         dateTimePreviewLabel: "Anteprima",
         dateTimeConfirmInsert: "Inserisci",
-        dateTimeConfirmUpdate: "Aggiorna"
+        dateTimeConfirmUpdate: "Aggiorna",
+        soundToggle: "Riproduci un suono quando un trigger digitato si espande",
+        soundCaption: "Un breve suono di sistema viene riprodotto ogni volta che un trigger digitato si espande.",
+        soundPickerLabel: "Suono",
+        soundUnavailable: "Suono non disponibile"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -730,7 +770,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "パターン",
         dateTimePreviewLabel: "プレビュー",
         dateTimeConfirmInsert: "挿入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "入力したトリガーが展開されたときに音を再生",
+        soundCaption: "入力したトリガーが展開されるたびに、短いシステム音が再生されます。",
+        soundPickerLabel: "サウンド",
+        soundUnavailable: "利用できないサウンド"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -794,7 +838,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "预览",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "输入的触发词展开时播放声音",
+        soundCaption: "每次输入的触发词展开时都会播放一个简短的系统声音。",
+        soundPickerLabel: "声音",
+        soundUnavailable: "声音不可用"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -858,7 +906,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "輸入的觸發詞展開時播放聲音",
+        soundCaption: "每次輸入的觸發詞展開時都會播放一個簡短的系統聲音。",
+        soundPickerLabel: "聲音",
+        soundUnavailable: "聲音無法使用"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -922,6 +974,10 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "輸入嘅觸發詞展開時播放聲音",
+        soundCaption: "每次輸入嘅觸發詞展開時都會播放一個簡短嘅系統聲音。",
+        soundPickerLabel: "聲音",
+        soundUnavailable: "聲音無法使用"
     )
 }
