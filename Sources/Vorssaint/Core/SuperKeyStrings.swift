@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -358,5 +359,27 @@ extension SuperKeyStrings {
         soloInputSource: "切換輸入法；長撳切換大寫鎖定",
         mappingForeignMapping: "另一個 App 嘅按鍵對應用咗所選按鍵。請喺嗰個 App 度移除對應：淨係結束佢唔夠。",
         mappingSystemRefused: "macOS 拒絕咗按鍵對應。請重新接駁鍵盤或者重新啟動 Mac，然後重新開啟呢個功能。"
+    )
+    static let uk = SuperKeyStrings(
+        pageTitle: "Супер-клавіша",
+        hubDescription: "Перетворює одну клавішу на обране вами поєднання модифікаторів.",
+        enableToggle: "Використовувати цю клавішу як супер-клавішу",
+        enableCaption: "Утримуйте її та натисніть будь-яку клавішу. Виберіть один або кілька модифікаторів нижче.",
+        modifierKeysNote: "Залиште цю клавішу на її типову дію в Системних налаштуваннях › Клавіатура › Клавіші-модифікатори.",
+        sourceKey: "Клавіша для утримання",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Правий %@",
+        holdHint: "Утримати",
+        soloSection: "Окреме натискання",
+        soloCaption: "Що робить коротке натискання, коли не натиснуто інших клавіш.",
+        soloNothing: "Нічого",
+        soloCapsLock: "Вмикати й вимикати Caps Lock",
+        soloEscape: "Натисніть Escape",
+        activeNow: "Зараз працює",
+        panelCaptionFormat: "%1$@ утримує %2$@.",
+        manageButton: "Налаштувати…",
+        soloInputSource: "Перемикати мовне джерело; утримувати для Caps Lock",
+        mappingForeignMapping: "Прив'язка клавіш іншої програми використовує обрану клавішу. Видаліть її у тій програмі: просто закрити її недостатньо.",
+        mappingSystemRefused: "macOS відхилила прив'язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову."
     )
 }

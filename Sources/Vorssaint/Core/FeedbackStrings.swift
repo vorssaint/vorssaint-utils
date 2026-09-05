@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -470,5 +471,36 @@ extension FeedbackStrings {
         commandFeature: "建議功能",
         commandSubtitle: "傳送意見",
         diagnosticsChannelLabel: "更新頻道"
+    )
+    static let uk = FeedbackStrings(
+        sectionTitle: "Відгук",
+        sectionCaption: "Надішліть звіт про помилку або ідею функції безпосередньо розробнику Vorssaint.",
+        openButton: "Надіслати відгук",
+        windowTitle: "Надіслати відгук",
+        bugTitle: "Помилка",
+        featureTitle: "Ідея функції",
+        messageLabel: "Чим би ви хотіли поділитися?",
+        bugPlaceholder: "Розкажіть, що сталося та що ви очікували.",
+        featurePlaceholder: "Опишіть ідею та як вона допоможе.",
+        charactersFormat: "%d з 2000 символів",
+        includeDiagnostics: "Включити технічні деталі",
+        includeDiagnosticsCaption: "Додає лише технічні деталі, показані нижче. Вони не включають журнали.",
+        whatSentTitle: "Що буде надіслано",
+        whatSentBasic: "Ваша обрана категорія та текст вище.",
+        whatSentDiagnostics: "Технічні деталі, перелічені нижче.",
+        privacyNote: "Не включає ім'я, обліковий запис, email, ідентифікатор пристрою, журнали, знімки екрана, файли чи вміст буфера обміну. Ваша публічна IP-адреса нетривало обробляється для захисту від зловживань і не прив'язується до відгуку.",
+        retentionNote: "Після доставки текст залишається в приватних каналах підтримки, поки власник сервісу не видалить його. Недоставлена копія безповоротно видаляється через 7 днів.",
+        sendButton: "Надіслати відгук",
+        sending: "Надсилання…",
+        sentTitle: "Відгук надіслано",
+        sentCaption: "Дякуємо. Контактна інформація не надсилалася, тому ви не отримаєте прямої відповіді.",
+        unavailableError: "Не вдалося з'єднатися. Перевірте інтернет-з'єднання та спробуйте знову.",
+        rateLimitError: "Забагато надсилань з цієї мережі. Спробуйте пізніше.",
+        genericError: "Не вдалося надіслати відгук зараз.",
+        done: "Готово",
+        commandBug: "Повідомити про помилку",
+        commandFeature: "Запропонувати функцію",
+        commandSubtitle: "Надіслати відгук",
+        diagnosticsChannelLabel: "Канал оновлення"
     )
 }

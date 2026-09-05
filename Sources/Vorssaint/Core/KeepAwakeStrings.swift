@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 
@@ -61,6 +62,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -129,6 +131,10 @@ extension KeepAwakeDisplaySleepStrings {
     static let zhHK = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
         allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+    )
+    static let uk = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Дозволити дисплею засинати",
+        allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
     )
 }
 
@@ -300,5 +306,15 @@ extension KeepAwakeAutomationStrings {
         automationActive: "因符合自動條件而保持喚醒",
         pauseWhenLockedToggle: "Mac 鎖定時暫停",
         pauseWhenLockedCaption: "鎖定期間會按正常睡眠設定運作，解鎖後繼續餘下時段。"
+    )
+    static let uk = KeepAwakeAutomationStrings(
+        automationSection: "Автоматизація",
+        automationCaption: "Запускається, коли будь-яка обрана умова активна.",
+        automationOff: "Вимкнено",
+        externalDisplayToggle: "Зовнішній дисплей",
+        externalDisplayActive: "Активно при підключеному зовнішньому дисплеї",
+        powerToggle: "Живлення",
+        powerActive: "Активно при підключеному живленні",
+        automationActive: "Активно, оскільки виконано автоматичну умову"
     )
 }

@@ -86,6 +86,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -153,6 +154,69 @@ extension SnippetFeatureStrings {
         dateTimePreviewLabel: "미리보기",
         dateTimeConfirmInsert: "삽입",
         dateTimeConfirmUpdate: "업데이트"
+    )
+    static let uk = SnippetFeatureStrings(
+        pageTitle: "Текстові сніпети",
+        hubDescription: "Короткі тригери розгортаються в повний текст",
+        enable: "Розгортати сніпети під час набору",
+        enableCaption: "Введіть тригер будь-де, і він стане своїм текстом. Все залишається на цьому Mac.",
+        addButton: "Додати сніпет",
+        newTitle: "Новий сніпет",
+        editTitle: "Редагувати сніпет",
+        nameLabel: "Назва",
+        namePlaceholder: "Особистий email",
+        triggerLabel: "Тригер",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Текст",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Розгорнути",
+        expansionImmediate: "Одразу",
+        expansionDelimiter: "Після пробілу, Tab або Return",
+        variablesHint: "Змінні: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Вони стають датою, часом та скопійованим текстом у момент розгортання.",
+        emptyList: "Ще немає сніпетів. Додайте перший.",
+        duplicateTrigger: "Інший сніпет уже використовує цей тригер.",
+        triggerTooShort: "Тригер має містити щонайменше 2 символи.",
+        deleteButton: "Видалити",
+        saveButton: "Зберегти",
+        manageButton: "Керувати сніпетами",
+        ignoreCaseLabel: "Ігнорувати регістр",
+        libraryTitle: "Швидке меню сніпетів",
+        libraryToggle: "Відкривати сніпети з меню",
+        libraryCaption: "Клавіатурне скорочення відкриває меню з пошуком. Вибір сніпета друкує його прямо там, де ваш курсор.",
+        librarySearchPlaceholder: "Шукати сніпети",
+        libraryNoResults: "Жоден сніпет не відповідає пошуку.",
+        libraryEmpty: "Поки нічого показувати. Додайте сніпети або увімкніть «Показувати в швидкому меню» для тих, що використовуєте найчастіше.",
+        libraryFooterHint: "↩ вставляє · esc закриває",
+        folderLabel: "Папка",
+        folderPlaceholder: "Робота",
+        showInLibraryLabel: "Показувати в швидкому меню",
+        variablesFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}, або використовуйте кнопку дати/часу вище. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Вставити дату/час",
+        dateTimeEditButton: "Редагувати дату/час",
+        dateTimeTypeLabel: "Тип",
+        dateTimeKindDate: "Дата",
+        dateTimeKindTime: "Час",
+        dateTimeKindDateTime: "Дата та час",
+        dateTimeStyleLabel: "Стиль",
+        dateTimeStyleShort: "Короткий",
+        dateTimeStyleMedium: "Середній",
+        dateTimeStyleLong: "Довгий",
+        dateTimeStyleFull: "Повний",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Власний",
+        dateTimeStyleLocaleNote: "Іменований стиль зберігає формат, який зараз використовує регіон вашого Mac.",
+        dateTimeTimezoneLabel: "Часовий пояс",
+        dateTimeTimezoneDeviceDefault: "Типове для пристрою",
+        dateTimeTimezoneValid: "Дійсний часовий пояс",
+        dateTimeTimezoneInvalid: "Невідомий часовий пояс",
+        dateTimeTimezoneClear: "Очистити часовий пояс",
+        dateTimeTimezoneSearchPlaceholder: "Шукати часові пояси",
+        dateTimePatternLabel: "Шаблон",
+        dateTimePreviewLabel: "Попередній перегляд",
+        dateTimeConfirmInsert: "Вставити",
+        dateTimeConfirmUpdate: "Оновити"
     )
 }
 
