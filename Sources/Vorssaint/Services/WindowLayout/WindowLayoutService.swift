@@ -586,7 +586,7 @@ final class WindowLayoutService: ObservableObject {
     private func shouldUseMaximizeFallback(for action: WindowLayoutAction) -> Bool {
         switch action {
         case .leftHalf, .rightHalf, .topHalf, .bottomHalf,
-                .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+                .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
                 .topLeft, .topRight, .bottomLeft, .bottomRight, .marginMaximize:

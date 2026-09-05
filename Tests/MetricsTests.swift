@@ -4087,13 +4087,22 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutMarginMaximize] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "margin maximize starts with no combination of its own")
+        expect(WindowLayoutAction.allCases.contains(.centerTwoThirds)
+                && WindowLayoutAction.centerTwoThirds.shortcutID == 56
+                && WindowLayoutAction(shortcutID: 56) == .centerTwoThirds,
+               "center two thirds exists and answers to its own shortcut id")
+        expect(WindowLayoutAction.centerTwoThirds.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "center two thirds starts with no combination of its own")
         expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
-                    && !layoutStrings.marginMaximize.isEmpty,
+                    && !layoutStrings.marginMaximize.isEmpty
+                    && !layoutStrings.centerTwoThirds.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -5648,6 +5657,9 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 480, y: 40, width: 960, height: 860),
                "window layout right two thirds targets the final two thirds")
+        expect(WindowLayoutGeometry.rect(for: .centerTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 240, y: 40, width: 960, height: 860),
+               "window layout center two thirds sits two thirds wide in the middle of the screen")
         expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
