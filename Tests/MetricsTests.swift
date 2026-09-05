@@ -6097,6 +6097,150 @@ struct MetricsTests {
                                             anchorTolerance: 36) == false,
                "window layout margin maximize rejects a merely centered small window")
 
+        // MARK: Snap Layouts
+
+        let slScreen = WindowEdgeSnapScreen(frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                            visibleFrame: CGRect(x: 0, y: 40, width: 1440, height: 835))
+        func slTrigger(_ point: CGPoint,
+                       screens: [WindowEdgeSnapScreen] = [slScreen]) -> WindowEdgeSnapScreen? {
+            WindowEdgeSnapSupport.snapLayoutsTriggerScreen(at: point, screens: screens)
+        }
+        expect(slTrigger(CGPoint(x: 720, y: slScreen.visibleFrame.maxY)) == slScreen,
+               "the top hot zone triggers Snap Layouts exactly where the classic top-edge target activates")
+        expect(WindowEdgeSnapSupport.target(at: CGPoint(x: 720, y: slScreen.visibleFrame.maxY),
+                                            screens: [slScreen])?.action == .maximize,
+               "sanity: this same point is the classic top-edge (maximize) activation point")
+        expect(slTrigger(CGPoint(x: 0, y: slScreen.visibleFrame.maxY)) == slScreen,
+               "Snap Layouts also triggers over the corner sub-zone, so the panel spans the whole top edge")
+        expect(WindowEdgeSnapSupport.target(at: CGPoint(x: 0, y: slScreen.visibleFrame.maxY),
+                                            screens: [slScreen])?.action == .topLeft,
+               "sanity: the same corner point is a classic topLeft activation, kept as the panel's fallback")
+        expect(slTrigger(CGPoint(x: 0, y: 450)) == nil,
+               "a side edge never triggers Snap Layouts even though it is a classic left-half target")
+        expect(WindowEdgeSnapSupport.target(at: CGPoint(x: 0, y: 450), screens: [slScreen])?.action == .leftHalf,
+               "sanity: the same point is a classic left-half activation")
+        expect(slTrigger(CGPoint(x: 720, y: 450)) == nil,
+               "dragging inside a display never triggers Snap Layouts")
+        expect(slTrigger(CGPoint(x: 720, y: slScreen.visibleFrame.maxY - 13)) == nil,
+               "Snap Layouts does not reach below its activation band, matching the classic top target")
+        let slUpperScreen = WindowEdgeSnapScreen(frame: CGRect(x: 0, y: 900, width: 1280, height: 800),
+                                                 visibleFrame: CGRect(x: 0, y: 900, width: 1280, height: 775))
+        expect(slTrigger(CGPoint(x: 720, y: slScreen.visibleFrame.maxY),
+                         screens: [slScreen, slUpperScreen]) == nil,
+               "a menu bar boundary shared with another display stays an open seam for Snap Layouts too")
+
+        expect(SnapLayoutPresets.availablePresets(for: CGRect(x: 0, y: 0, width: 500, height: 800))
+               == [SnapLayoutPresets.halves],
+               "a narrow display only offers halves")
+        expect(SnapLayoutPresets.availablePresets(for: CGRect(x: 0, y: 0, width: 800, height: 800))
+               == [SnapLayoutPresets.halves, SnapLayoutPresets.thirdsEven, SnapLayoutPresets.thirdsWideLeft, SnapLayoutPresets.thirdsWideRight],
+               "a mid-width display adds thirds but withholds quarters")
+        expect(SnapLayoutPresets.availablePresets(for: CGRect(x: 0, y: 0, width: 1440, height: 900))
+               == [SnapLayoutPresets.halves, SnapLayoutPresets.thirdsEven, SnapLayoutPresets.thirdsWideLeft, SnapLayoutPresets.thirdsWideRight, SnapLayoutPresets.quarters],
+               "a full-size display offers every preset")
+        expect(SnapLayoutPresets.availablePresets(for: CGRect(x: 0, y: 0, width: 1440, height: 400))
+               == [SnapLayoutPresets.halves, SnapLayoutPresets.thirdsEven, SnapLayoutPresets.thirdsWideLeft, SnapLayoutPresets.thirdsWideRight],
+               "a short display withholds quarters even when it is wide enough")
+
+        let slLayout = SnapLayoutsPanelLayout(cardSize: CGSize(width: 100, height: 60), spacing: 0, padding: 14)
+        expect(SnapLayoutPresets.panelSize(for: [SnapLayoutPresets.halves, SnapLayoutPresets.quarters], layout: slLayout)
+               == CGSize(width: 14 * 2 + 100 * 2, height: 14 * 2 + 60),
+               "panel size grows with the number of cards and never adds spacing past the last one")
+        expect(SnapLayoutPresets.panelSize(for: [], layout: slLayout) == .zero,
+               "an empty preset list collapses the panel instead of drawing an empty frame")
+
+        let slHalvesCard = CGRect(x: 0, y: 0, width: 100, height: 60)
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 20, y: 30), in: SnapLayoutPresets.halves, cardFrame: slHalvesCard) == .leftHalf,
+               "the left cell of the halves card resolves to leftHalf")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 80, y: 30), in: SnapLayoutPresets.halves, cardFrame: slHalvesCard) == .rightHalf,
+               "the right cell of the halves card resolves to rightHalf")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 120, y: 30), in: SnapLayoutPresets.halves, cardFrame: slHalvesCard) == nil,
+               "a point outside the card resolves to no zone")
+
+        let slQuartersCard = CGRect(x: 0, y: 0, width: 100, height: 60)
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 10, y: 50), in: SnapLayoutPresets.quarters, cardFrame: slQuartersCard) == .topLeft,
+               "the top-left cell of the quarters card resolves to topLeft, even though AppKit y grows upward")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 90, y: 50), in: SnapLayoutPresets.quarters, cardFrame: slQuartersCard) == .topRight,
+               "the top-right cell of the quarters card resolves to topRight")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 10, y: 10), in: SnapLayoutPresets.quarters, cardFrame: slQuartersCard) == .bottomLeft,
+               "the bottom-left cell of the quarters card resolves to bottomLeft")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 90, y: 10), in: SnapLayoutPresets.quarters, cardFrame: slQuartersCard) == .bottomRight,
+               "the bottom-right cell of the quarters card resolves to bottomRight")
+
+        let slThirdsCard = CGRect(x: 0, y: 0, width: 90, height: 60)
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 5, y: 30), in: SnapLayoutPresets.thirdsEven, cardFrame: slThirdsCard) == .leftThird,
+               "the leftmost cell of the even-thirds card resolves to leftThird")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 45, y: 30), in: SnapLayoutPresets.thirdsEven, cardFrame: slThirdsCard) == .centerThird,
+               "the middle cell of the even-thirds card resolves to centerThird")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 85, y: 30), in: SnapLayoutPresets.thirdsEven, cardFrame: slThirdsCard) == .rightThird,
+               "the rightmost cell of the even-thirds card resolves to rightThird")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 20, y: 30), in: SnapLayoutPresets.thirdsWideLeft, cardFrame: CGRect(x: 0, y: 0, width: 90, height: 60)) == .leftTwoThirds,
+               "the wide cell of the left-weighted thirds card resolves to leftTwoThirds")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: 70, y: 30), in: SnapLayoutPresets.thirdsWideRight, cardFrame: CGRect(x: 0, y: 0, width: 90, height: 60)) == .rightTwoThirds,
+               "the wide cell of the right-weighted thirds card resolves to rightTwoThirds")
+
+        let slTwoCards = [SnapLayoutPresets.halves, SnapLayoutPresets.quarters]
+        let slFullPanel = CGRect(x: 100, y: 700, width: SnapLayoutPresets.panelSize(for: slTwoCards).width,
+                                 height: SnapLayoutPresets.panelSize(for: slTwoCards).height)
+        let slCardFrames = SnapLayoutPresets.cardFrames(for: slTwoCards, panelFrame: slFullPanel)
+        expect(slCardFrames.count == 2 && slCardFrames[0].preset == SnapLayoutPresets.halves && slCardFrames[1].preset == SnapLayoutPresets.quarters,
+               "cards lay out left to right in the order the presets are given")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: slCardFrames[0].frame.minX + 2,
+                                                   y: slCardFrames[0].frame.midY),
+                                      presets: slTwoCards, panelFrame: slFullPanel) == .leftHalf,
+               "hit-testing across the whole panel finds the first card's left cell")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: slCardFrames[1].frame.maxX - 2,
+                                                   y: slCardFrames[1].frame.maxY - 2),
+                                      presets: slTwoCards, panelFrame: slFullPanel) == .topRight,
+               "hit-testing across the whole panel finds the second card's top-right cell")
+        expect(SnapLayoutPresets.zone(at: CGPoint(x: slFullPanel.maxX + 40, y: slFullPanel.midY),
+                                      presets: slTwoCards, panelFrame: slFullPanel) == nil,
+               "a point past every card resolves to no zone")
+
+        expect(SnapLayoutPresets.hit(at: CGPoint(x: 85, y: 30), in: SnapLayoutPresets.thirdsEven,
+                                     cardFrame: slThirdsCard)?.cell
+               != SnapLayoutPresets.hit(at: CGPoint(x: 70, y: 30), in: SnapLayoutPresets.thirdsWideRight,
+                                        cardFrame: CGRect(x: 0, y: 0, width: 90, height: 60))?.cell,
+               "even-thirds' rightThird cell and wide-right-thirds' rightThird cell are different cells despite sharing an action")
+        expect(SnapLayoutPresets.hit(at: CGPoint(x: 85, y: 30), in: SnapLayoutPresets.thirdsEven,
+                                     cardFrame: slThirdsCard)?.action == .rightThird,
+               "sanity: the two cells above really do share the rightThird action")
+
+        let slSyntheticVisible = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let slSyntheticPanel = CGRect(x: 600, y: 700, width: 240, height: 80)
+        func slShouldShow(_ point: CGPoint, shown: Bool, panelFrame: CGRect? = slSyntheticPanel) -> Bool {
+            SnapLayoutPresets.shouldShowPanel(at: point, panelFrame: panelFrame,
+                                              visibleFrame: slSyntheticVisible, isCurrentlyShown: shown)
+        }
+        expect(slShouldShow(CGPoint(x: 720, y: 894), shown: false),
+               "a pointer in the top strip triggers the panel to show")
+        expect(!slShouldShow(CGPoint(x: 720, y: 500), shown: false),
+               "a pointer far from the top edge never triggers the panel")
+        expect(slShouldShow(CGPoint(x: 700, y: 740), shown: true),
+               "once shown, hovering the cards keeps the panel open")
+        expect(slShouldShow(CGPoint(x: 700, y: 850), shown: true),
+               "once shown, the corridor between the panel and the physical top edge keeps it open")
+        expect(!slShouldShow(CGPoint(x: 700, y: 600), shown: true),
+               "once shown, a pointer 100pt below the panel closes it")
+        expect(!slShouldShow(CGPoint(x: 1000, y: 850), shown: true),
+               "the corridor does not extend sideways past the panel's own width")
+        expect(!slShouldShow(CGPoint(x: 700, y: 850), shown: true, panelFrame: nil),
+               "with no panel frame to reach from, a shown state without a panel never keeps itself open")
+
+        func slFallback(_ point: CGPoint, screen: WindowEdgeSnapScreen = slScreen) -> WindowLayoutAction {
+            WindowEdgeSnapSupport.openPanelFallbackAction(at: point, screen: screen)
+        }
+        expect(slFallback(CGPoint(x: 50, y: slScreen.visibleFrame.maxY)) == .topLeft,
+               "the open panel's fallback keeps the left corner sub-zone")
+        expect(slFallback(CGPoint(x: 1400, y: slScreen.visibleFrame.maxY)) == .topRight,
+               "the open panel's fallback keeps the right corner sub-zone")
+        expect(slFallback(CGPoint(x: 720, y: slScreen.visibleFrame.maxY)) == .maximize,
+               "away from both corners, the open panel's fallback is maximize rather than a plain top half")
+        expect(WindowEdgeSnapSupport.target(at: CGPoint(x: 50, y: slScreen.visibleFrame.maxY),
+                                            screens: [slScreen])?.action
+               == slFallback(CGPoint(x: 50, y: slScreen.visibleFrame.maxY)),
+               "the fallback and the classic corner/half snap agree at the left corner boundary")
+
         // MARK: Window move and resize gestures
 
         expect(WindowGestureSupport.modifiers(from: nil) == [.control, .command],

@@ -399,6 +399,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift \
+        Sources/Vorssaint/Services/WindowLayout/SnapLayoutsSupport.swift \
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift \
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift \
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift \

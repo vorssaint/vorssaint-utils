@@ -383,11 +383,29 @@ enum WindowEdgeSnapZone: String, CaseIterable {
 }
 
 struct WindowEdgeSnapTarget: Equatable {
-    let zone: WindowEdgeSnapZone
+    // `zone` is nil for a target produced by the Snap Layouts panel: its
+    // cells (thirds, two-thirds, quarters, …) don't all correspond to a
+    // `WindowEdgeSnapZone`, so `applyEdgeSnap`'s enabled-zones gate only
+    // applies when a target actually came from the classic edge/corner
+    // zones — the panel has its own on/off switch instead.
+    let zone: WindowEdgeSnapZone?
+    let action: WindowLayoutAction
     let frame: CGRect
     let visibleFrame: CGRect
 
-    var action: WindowLayoutAction { zone.action }
+    init(zone: WindowEdgeSnapZone, frame: CGRect, visibleFrame: CGRect) {
+        self.zone = zone
+        self.action = zone.action
+        self.frame = frame
+        self.visibleFrame = visibleFrame
+    }
+
+    init(action: WindowLayoutAction, frame: CGRect, visibleFrame: CGRect) {
+        self.zone = nil
+        self.action = action
+        self.frame = frame
+        self.visibleFrame = visibleFrame
+    }
 }
 
 enum WindowEdgeSnapSupport {
@@ -508,35 +526,13 @@ enum WindowEdgeSnapSupport {
                        distance: CGFloat = activationDistance,
                        enabledZones: Set<WindowEdgeSnapZone> =
                            WindowEdgeSnapZone.allEnabled) -> WindowEdgeSnapTarget? {
-        let ordered = screens.enumerated().sorted {
-            distanceSquared(from: point, to: $0.element.frame)
-                < distanceSquared(from: point, to: $1.element.frame)
-        }
-        for (index, screen) in ordered {
+        for (screen, otherFrames) in reachableScreens(from: point, screens: screens, distance: distance) {
             let frame = screen.frame
-            guard frame.width > 0, frame.height > 0,
-                  screen.visibleFrame.width > 0, screen.visibleFrame.height > 0,
-                  point.x >= frame.minX - distance,
-                  point.x <= frame.maxX + distance,
-                  point.y >= frame.minY - distance,
-                  point.y <= frame.maxY + distance
-            else { continue }
-
-            let otherFrames = screens.enumerated().compactMap { offset, value in
-                offset == index ? nil : value.frame
-            }
             let nearLeft = abs(point.x - frame.minX) <= distance
                 && !hasNeighbor(beyond: .left, point: point, distance: distance, frames: otherFrames)
             let nearRight = abs(point.x - frame.maxX) <= distance
                 && !hasNeighbor(beyond: .right, point: point, distance: distance, frames: otherFrames)
-            let visibleTop = min(max(screen.visibleFrame.maxY, frame.minY), frame.maxY)
-            let physicalTop = CGPoint(x: point.x, y: frame.maxY)
-            let nearTop = point.y >= visibleTop - distance
-                && point.y <= frame.maxY + distance
-                && !hasNeighbor(beyond: .top,
-                                point: physicalTop,
-                                distance: distance,
-                                frames: otherFrames)
+            let nearTop = isNearTop(point: point, screen: screen, otherFrames: otherFrames, distance: distance)
             let nearBottom = abs(point.y - frame.minY) <= distance
                 && !hasNeighbor(beyond: .bottom, point: point, distance: distance, frames: otherFrames)
             guard nearLeft || nearRight || nearTop || nearBottom else { continue }
@@ -592,12 +588,100 @@ enum WindowEdgeSnapSupport {
         return nil
     }
 
-    private enum Edge {
-        case left, right, top, bottom
+    /// The screen whose top edge a point counts as "near", using the exact
+    /// same `nearTop` test `target(at:)` uses — factored out so Snap
+    /// Layouts' panel and the classic corner/half snap can never disagree
+    /// about what the top hot zone is. Unlike `target(at:)` this does not
+    /// distinguish the corner sub-zones: Snap Layouts opens across the
+    /// whole top edge, and a release outside the panel's own width still
+    /// falls back to `target(at:)` for the existing top-left/top-right
+    /// behavior.
+    static func snapLayoutsTriggerScreen(at point: CGPoint,
+                                         screens: [WindowEdgeSnapScreen],
+                                         distance: CGFloat = activationDistance) -> WindowEdgeSnapScreen? {
+        for (screen, otherFrames) in reachableScreens(from: point, screens: screens, distance: distance) {
+            guard isNearTop(point: point, screen: screen, otherFrames: otherFrames, distance: distance) else { continue }
+            return screen
+        }
+        return nil
     }
 
+    /// While Snap Layouts' panel is open and the pointer is not over one of
+    /// its cells, dragging to the top no longer previews a plain top half:
+    /// the corners still resolve to their quadrant exactly as `target(at:)`
+    /// would (using the same `horizontalCornerWidth`, so the two can never
+    /// pick different corner boundaries), but the broad center of the top
+    /// edge maximizes instead — the Windows Snap Layouts behavior upstream
+    /// issue #894 asks for, now that the panel itself offers every halved
+    /// or thirded choice as an explicit cell. Unlike `target(at:)` this
+    /// does not require the pointer to be within `activationDistance` of
+    /// the edge, since it only ever runs while the panel is already open.
+    static func openPanelFallbackAction(at point: CGPoint, screen: WindowEdgeSnapScreen) -> WindowLayoutAction {
+        let frame = screen.frame
+        let horizontalCorner = horizontalCornerWidth(for: frame)
+        if point.x <= frame.minX + horizontalCorner {
+            return .topLeft
+        } else if point.x >= frame.maxX - horizontalCorner {
+            return .topRight
+        } else {
+            return .maximize
+        }
+    }
+
+    /// The corner sub-zone width `target(at:)` and `openPanelFallbackAction`
+    /// both use, so Snap Layouts' fallback and the classic corner snap
+    /// agree pixel-for-pixel on where a corner ends and the center begins.
     private static func horizontalCornerWidth(for frame: CGRect) -> CGFloat {
         min(max(frame.width * 0.18, 96), 180)
+    }
+
+    /// The screens `point` is within `distance` of, nearest first, each
+    /// paired with every other screen's frame — the setup `target(at:)` and
+    /// `snapLayoutsTriggerScreen(at:)` both start from, so a change to how
+    /// screens are ordered or filtered can only ever land in one place.
+    private static func reachableScreens(
+        from point: CGPoint,
+        screens: [WindowEdgeSnapScreen],
+        distance: CGFloat
+    ) -> [(screen: WindowEdgeSnapScreen, otherFrames: [CGRect])] {
+        let ordered = screens.enumerated().sorted {
+            distanceSquared(from: point, to: $0.element.frame)
+                < distanceSquared(from: point, to: $1.element.frame)
+        }
+        return ordered.compactMap { index, screen in
+            let frame = screen.frame
+            guard frame.width > 0, frame.height > 0,
+                  screen.visibleFrame.width > 0, screen.visibleFrame.height > 0,
+                  point.x >= frame.minX - distance,
+                  point.x <= frame.maxX + distance,
+                  point.y >= frame.minY - distance,
+                  point.y <= frame.maxY + distance
+            else { return nil }
+            let otherFrames = screens.enumerated().compactMap { offset, value in
+                offset == index ? nil : value.frame
+            }
+            return (screen, otherFrames)
+        }
+    }
+
+    /// Whether `point` counts as "near the top" of `screen` — the one
+    /// `nearTop` test `target(at:)` and `snapLayoutsTriggerScreen(at:)`
+    /// both use, so Snap Layouts' panel and the classic corner/half snap
+    /// can never disagree about what the top hot zone is.
+    private static func isNearTop(point: CGPoint,
+                                  screen: WindowEdgeSnapScreen,
+                                  otherFrames: [CGRect],
+                                  distance: CGFloat) -> Bool {
+        let frame = screen.frame
+        let visibleTop = min(max(screen.visibleFrame.maxY, frame.minY), frame.maxY)
+        let physicalTop = CGPoint(x: point.x, y: frame.maxY)
+        return point.y >= visibleTop - distance
+            && point.y <= frame.maxY + distance
+            && !hasNeighbor(beyond: .top, point: physicalTop, distance: distance, frames: otherFrames)
+    }
+
+    private enum Edge {
+        case left, right, top, bottom
     }
 
     private static func topZone(atX x: CGFloat, in frame: CGRect) -> WindowEdgeSnapZone {
