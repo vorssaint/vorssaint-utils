@@ -6761,6 +6761,102 @@ struct MetricsTests {
         expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        expectClose(Defaults.sanitizedSoftwareOutputVolume(0.5), 0.5,
+                    "valid software output volume is preserved")
+        expectClose(Defaults.sanitizedSoftwareOutputVolume(1.8), 1,
+                    "software output volume stops at unity instead of boosting the device")
+        expectClose(Defaults.sanitizedSoftwareOutputVolume(-1), 0,
+                    "negative software output volume clamps to silence")
+        expectClose(Defaults.sanitizedSoftwareOutputVolume(.nan), 1,
+                    "non-finite software output volume falls back to unity")
+        let hdmiUID = "AppleHDMIEngineOutputDP:0,1,0,0"
+        let speakersUID = "BuiltInSpeakerDevice"
+        expectClose(MixerRoutingSupport.softwareMasterFactor(masterVolume: 0.5,
+                                                             masterDeviceUID: hdmiUID,
+                                                             targetOutputDeviceUID: hdmiUID),
+                    0.5,
+                    "software master applies to a row playing through its device")
+        expectClose(MixerRoutingSupport.softwareMasterFactor(masterVolume: 0.5,
+                                                             masterDeviceUID: hdmiUID,
+                                                             targetOutputDeviceUID: speakersUID),
+                    1,
+                    "software master leaves a row routed to another device alone")
+        expectClose(MixerRoutingSupport.softwareMasterFactor(masterVolume: 0.5,
+                                                             masterDeviceUID: nil,
+                                                             targetOutputDeviceUID: hdmiUID),
+                    1,
+                    "no software master means no attenuation")
+        // The boost ceiling, taken from the clamp that stores it rather than
+        // written out again here.
+        let boostMaximum = Defaults.sanitizedAppVolume(.greatestFiniteMagnitude)
+        expectClose(MixerRoutingSupport.effectiveGain(appVolume: 0.5,
+                                                      masterFactor: 0.5,
+                                                      maximum: boostMaximum),
+                    0.25,
+                    "an app at 50% under a master at 50% renders at 25%")
+        expectClose(MixerRoutingSupport.effectiveGain(appVolume: 2,
+                                                      masterFactor: 0.5,
+                                                      maximum: boostMaximum),
+                    1,
+                    "the software master scales a boosted row like any other")
+        expectClose(MixerRoutingSupport.effectiveGain(appVolume: .infinity,
+                                                      masterFactor: 0.5,
+                                                      maximum: boostMaximum),
+                    0,
+                    "a non-finite gain never reaches the render thread")
+        expect(MixerRoutingSupport.requiresEngine(volume: 1,
+                                                  masterFactor: 0.5,
+                                                  selectedOutputDeviceUID: nil,
+                                                  targetOutputDeviceUID: hdmiUID,
+                                                  defaultOutputDeviceUID: hdmiUID),
+               "a row at 100% still needs a tap while the software master is down")
+        expect(!MixerRoutingSupport.requiresEngine(volume: 1,
+                                                   masterFactor: 1,
+                                                   selectedOutputDeviceUID: nil,
+                                                   targetOutputDeviceUID: hdmiUID,
+                                                   defaultOutputDeviceUID: hdmiUID),
+               "a master back at 100% returns the row to passthrough")
+        expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                  savedRouteUID: nil,
+                                                  masterFactor: 0.5,
+                                                  defaultOutputDeviceUID: hdmiUID),
+               "the software master may tap a row the user never adjusted")
+        expect(!MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                   savedRouteUID: nil,
+                                                   masterFactor: 1,
+                                                   defaultOutputDeviceUID: hdmiUID),
+               "an untouched row stays untapped when no master is turned down")
+        expect(MixerRoutingSupport.isSystemSoundServer("systemsoundserverd"),
+               "the process macOS plays its own sounds from is recognised")
+        expect(!MixerRoutingSupport.isSystemSoundServer("com.apple.Music"),
+               "an ordinary app is not mistaken for the system sound server")
+        expect(!MixerRoutingSupport.isSystemSoundServer(nil),
+               "a process with no reported bundle is not the system sound server")
+        let masterStep = MixerRoutingSupport.masterVolumeStep
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 0.5, up: true, fine: false),
+                    0.5 + masterStep,
+                    "a volume key raises the software master by one macOS step")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 0.5, up: false, fine: false),
+                    0.5 - masterStep,
+                    "a volume key lowers the software master by one macOS step")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 0.5, up: true, fine: true),
+                    0.5 + MixerRoutingSupport.fineMasterVolumeStep,
+                    "Option-Shift takes the software master a quarter step")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 1, up: true, fine: false),
+                    1,
+                    "the software master stops at 100%")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 0, up: false, fine: false),
+                    0,
+                    "the software master stops at silence")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 0.53, up: true, fine: false),
+                    0.5 + masterStep,
+                    "a level left off the grid by the slider snaps up onto it")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: 0.53, up: false, fine: false),
+                    0.5,
+                    "a level left off the grid by the slider snaps down onto it")
+        expectClose(MixerRoutingSupport.steppedMasterVolume(current: .nan, up: false, fine: false),
+                    0,
+                    "a non-finite master never steps into a louder value")
         expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
                                                        maximumPercent: 200) ?? -1,
                     0.4,

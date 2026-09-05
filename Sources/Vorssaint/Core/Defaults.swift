@@ -106,6 +106,7 @@ enum DefaultsKey {
     static let mixerShowFinder = "mixerShowFinder"
     static let mixerHideInactiveApps = "mixerHideInactiveApps"
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
+    static let mixerSoftwareOutputVolumes = "mixerSoftwareOutputVolumes" // [audio device UID: 0...1] master for outputs macOS cannot set
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
@@ -1780,6 +1781,15 @@ enum Defaults {
     static func sanitizedAppVolume(_ volume: Double) -> Double {
         guard volume.isFinite else { return 1 }
         return min(max(volume, 0), 2)
+    }
+
+    /// The software master of an output device runs 0...1. It stands in for a
+    /// hardware volume control, and standing in for one is not a reason to
+    /// send the device more than the app already produces: the boost above
+    /// 100% stays where it belongs, on the per app rows.
+    static func sanitizedSoftwareOutputVolume(_ volume: Double) -> Double {
+        guard volume.isFinite else { return 1 }
+        return min(max(volume, 0), 1)
     }
 
     /// The volume the speakers are set to when headphones disconnect. It is a

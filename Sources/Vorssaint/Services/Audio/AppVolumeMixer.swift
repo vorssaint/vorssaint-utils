@@ -133,6 +133,14 @@ final class AppVolumeMixer: ObservableObject {
     /// refresh and reconciliation verifies every engine is still rendering.
     private var wakeObserver: NSObjectProtocol?
     private var lastAutomaticLoweredOutputUID: String?
+    /// The output device whose volume macOS cannot set, so the master slider
+    /// standing in for it is carried by the taps instead of the hardware. Nil
+    /// whenever the current output has a real volume control of its own.
+    @Published private(set) var softwareMasterDeviceUID: String?
+    /// That device's master, held in memory because every engine decision
+    /// reads it: the gates run once per row on each HAL notification, and a
+    /// defaults read per row per notification is not what this is worth.
+    private var softwareMasterVolume: Double = 1
     /// The output volume as it was before the headphone disconnect protection
     /// lowered it, so the speakers can be handed back the way they were found.
     private var loweredOutput: LoweredOutput?
@@ -240,8 +248,7 @@ final class AppVolumeMixer: ObservableObject {
         if !outputDevices.isEmpty { outputDevices = [] }
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
         if currentSystemSoundOutputDeviceUID != nil { currentSystemSoundOutputDeviceUID = nil }
-        if systemOutputVolume != nil { systemOutputVolume = nil }
-        if systemOutputMuted != nil { systemOutputMuted = nil }
+        publishSystemOutput(hardwareVolume: nil, muted: nil, deviceUID: nil)
         if outputSwitchError != nil { outputSwitchError = nil }
         if needsPermission { needsPermission = false }
     }
@@ -364,8 +371,9 @@ final class AppVolumeMixer: ObservableObject {
                           self.listenerInstalled,
                           self.outputControlListenerDevice == device,
                           self.outputControlRefreshGeneration == generation else { return }
-                    if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
-                    if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
+                    self.publishSystemOutput(hardwareVolume: volume,
+                                             muted: muted,
+                                             deviceUID: self.currentOutputDeviceUID)
                 }
             }
         }
@@ -430,12 +438,86 @@ final class AppVolumeMixer: ObservableObject {
 
     func setCurrentOutputVolume(_ volume: Double) {
         let clamped = min(max(volume, 0), 1)
+        if let deviceUID = softwareMasterDeviceUID {
+            softwareMasterVolume = clamped
+            persistSoftwareMasterVolume(clamped, for: deviceUID)
+            if systemOutputVolume != clamped { systemOutputVolume = clamped }
+            applySoftwareMasterToEveryRow()
+            return
+        }
         guard Self.setSystemOutputVolume(clamped) else {
             scheduleListenerRefresh()
             return
         }
         if systemOutputVolume != clamped { systemOutputVolume = clamped }
         if clamped > 0, systemOutputMuted == true { systemOutputMuted = false }
+    }
+
+    /// Whether the current output is one macOS cannot set the volume of, so
+    /// the volume keys have the software master to move instead of nothing.
+    var hasSoftwareMasterOutput: Bool { softwareMasterDeviceUID != nil }
+
+    /// What the current output calls itself, for the overlay that names the
+    /// device the level belongs to.
+    var currentOutputDeviceName: String? {
+        outputDevices.first { $0.uid == currentOutputDeviceUID }?.name
+    }
+
+    /// One press of a volume key on an output that has no volume control of
+    /// its own. False when the current output has one, so the caller leaves
+    /// the key to macOS.
+    func stepSoftwareMasterVolume(up: Bool, fine: Bool) -> Double? {
+        guard softwareMasterDeviceUID != nil else { return nil }
+        let stepped = MixerRoutingSupport.steppedMasterVolume(current: softwareMasterVolume,
+                                                             up: up,
+                                                             fine: fine)
+        setCurrentOutputVolume(stepped)
+        return stepped
+    }
+
+    /// Publishes what the panel's output slider shows. A device macOS cannot
+    /// set the volume of has no hardware value to read, and the software
+    /// master stands in for it there, so the row stays a live control instead
+    /// of disappearing.
+    private func publishSystemOutput(hardwareVolume: Double?, muted: Bool?, deviceUID: String?) {
+        let softwareUID = hardwareVolume == nil ? deviceUID : nil
+        if softwareMasterDeviceUID != softwareUID {
+            softwareMasterDeviceUID = softwareUID
+            softwareMasterVolume = softwareUID.map { storedSoftwareMasterVolume(for: $0) } ?? 1
+            // The volume keys are only worth taking over while there is a
+            // master to move, so the tap follows this state rather than
+            // staying armed for every output.
+            PreciseVolumeRollerService.shared.syncWithPreferences()
+        }
+        let volume = hardwareVolume ?? (softwareUID == nil ? nil : softwareMasterVolume)
+        if systemOutputVolume != volume { systemOutputVolume = volume }
+        if systemOutputMuted != muted { systemOutputMuted = muted }
+    }
+
+    /// A row already tapped only takes the new gain; a row that was passing
+    /// through gets an engine, and hands it back when the master returns to
+    /// 100%. Dragging the slider lands here per step, and the build tokens
+    /// swallow the duplicates exactly as they do for an app's own slider.
+    private func applySoftwareMasterToEveryRow() {
+        for app in apps { applyRouting(for: app) }
+        clearPermissionIfNoActiveAdjustments()
+    }
+
+    /// How far this row is turned down by the software master. The master
+    /// belongs to one device: a row routed elsewhere is left alone.
+    private func masterFactor(for app: MixerApp) -> Double {
+        MixerRoutingSupport.softwareMasterFactor(
+            masterVolume: softwareMasterVolume,
+            masterDeviceUID: softwareMasterDeviceUID,
+            targetOutputDeviceUID: app.effectiveOutputDeviceUID)
+    }
+
+    /// What the row's tap renders at. The row's own slider never moves with
+    /// the master; the product of the two is what reaches the device.
+    private func effectiveGain(for app: MixerApp) -> Double {
+        MixerRoutingSupport.effectiveGain(appVolume: app.volume,
+                                          masterFactor: masterFactor(for: app),
+                                          maximum: Self.maxVolume)
     }
 
     /// 100% means bit-perfect passthrough (no tap). A value the UI would round to
@@ -606,7 +688,7 @@ final class AppVolumeMixer: ObservableObject {
         if let engine = engines[app.id],
            engine.tappedObjects == app.audioObjects,
            engine.outputDeviceUID == targetOutputDeviceUID {
-            engine.gain = Float(app.volume)
+            engine.gain = Float(effectiveGain(for: app))
             return
         }
         // Nothing is ever tapped on behalf of an app the user never adjusted.
@@ -621,9 +703,12 @@ final class AppVolumeMixer: ObservableObject {
         guard engineRecovery.allowsBuild(app.id, configuration: configuration) else { return }
         guard #available(macOS 14.4, *), let token = builds.begin(app.id) else { return }
 
+        // Read off the main thread's state here: the build itself runs on
+        // another queue and the master belongs to this one.
+        let gain = Float(effectiveGain(for: app))
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects,
-                                       gain: Float(app.volume),
+                                       gain: gain,
                                        outputDeviceUID: targetOutputDeviceUID)
             DispatchQueue.main.async {
                 guard let self else {
@@ -678,7 +763,7 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: latestApp)
             return
         }
-        engine.gain = Float(latestApp.volume)
+        engine.gain = Float(effectiveGain(for: latestApp))
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
         // The fresh engine starts its render count over.
@@ -704,12 +789,14 @@ final class AppVolumeMixer: ObservableObject {
         MixerRoutingSupport.rowMayBeTapped(
             savedVolume: storedVolume(for: app.identity, saved: savedVolumes()),
             savedRouteUID: storedRoute(for: app.identity, saved: savedOutputDeviceUIDs()),
+            masterFactor: masterFactor(for: app),
             defaultOutputDeviceUID: currentOutputDeviceUID)
     }
 
     private func appNeedsEngine(_ app: MixerApp) -> Bool {
         MixerRoutingSupport.requiresEngine(hasAudioObjects: !app.audioObjects.isEmpty,
                                            volume: app.volume,
+                                           masterFactor: masterFactor(for: app),
                                            selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
                                            defaultOutputDeviceUID: currentOutputDeviceUID)
@@ -851,12 +938,9 @@ final class AppVolumeMixer: ObservableObject {
             outputDevices = snapshot.outputDevices
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
-        if systemOutputVolume != snapshot.systemOutputVolume {
-            systemOutputVolume = snapshot.systemOutputVolume
-        }
-        if systemOutputMuted != snapshot.systemOutputMuted {
-            systemOutputMuted = snapshot.systemOutputMuted
-        }
+        publishSystemOutput(hardwareVolume: snapshot.systemOutputVolume,
+                            muted: snapshot.systemOutputMuted,
+                            deviceUID: snapshot.defaultUID)
 
         guard let next = snapshot.apps else {
             if !apps.isEmpty {
@@ -924,6 +1008,9 @@ final class AppVolumeMixer: ObservableObject {
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
         var bundleHints: [pid_t: String] = [:]
+        var systemSoundObjects: [AudioObjectID] = []
+        var systemSoundPid: pid_t = 0
+        var systemSoundPlaying = false
         let processObjects = audioProcessObjects()
         for object in processObjects {
             var pid: pid_t = -1
@@ -932,7 +1019,21 @@ final class AppVolumeMixer: ObservableObject {
             // Show every regular app that holds an audio connection, not only
             // the ones making sound this instant, so apps are adjustable before
             // they play and stay put between sounds.
-            guard let app = ResponsibleProcess.regularAppOwner(of: pid) else { continue }
+            guard let app = ResponsibleProcess.regularAppOwner(of: pid) else {
+                // The system sound server owns no application, so the lookup
+                // above drops it and the master never reached the sounds
+                // macOS itself plays. It gets no row — there is nothing for
+                // the user to adjust on it — but its audio is part of what
+                // the output carries, so the master has to reach it.
+                guard MixerRoutingSupport.isSystemSoundServer(
+                    Self.processBundleIdentifier(of: object)) else { continue }
+                systemSoundObjects.append(object)
+                systemSoundPid = pid
+                var running: UInt32 = 0
+                _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)
+                if running != 0 { systemSoundPlaying = true }
+                continue
+            }
             let owner = app.processIdentifier
             let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
             // Bypassed apps (Zoom, DAWs) still get a row — hiding them read
@@ -1017,6 +1118,22 @@ final class AppVolumeMixer: ObservableObject {
                                     selectedUID: savedOutputs[id],
                                     availableUIDs: availableUIDs),
                                  volume: saved[id] ?? 1))
+        }
+        // Rendered to the device the system sounds actually play on, which
+        // the user picks apart from the main output: sending them to the
+        // default one instead would move sound the mixer was only meant to
+        // turn down.
+        if !systemSoundObjects.isEmpty, let systemSoundUID {
+            next.append(MixerApp(id: MixerRoutingSupport.systemSoundsRowID,
+                                 persistenceID: nil,
+                                 ownerPid: systemSoundPid,
+                                 name: MixerRoutingSupport.systemSoundsRowID,
+                                 audioObjects: systemSoundObjects.sorted(),
+                                 isPlaying: systemSoundPlaying,
+                                 selectedOutputDeviceUID: nil,
+                                 effectiveOutputDeviceUID: systemSoundUID,
+                                 outputDeviceUnavailable: false,
+                                 volume: 1))
         }
         next.sort {
             MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
@@ -1302,6 +1419,34 @@ final class AppVolumeMixer: ObservableObject {
             sanitized[id] = Defaults.sanitizedAppVolume(number)
         }
         return sanitized
+    }
+
+    /// The software master of each output device that has one, by device UID:
+    /// plugging the monitor back in brings its level back with it.
+    private func softwareMasterVolumes() -> [String: Double] {
+        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareOutputVolumes) ?? [:]
+        var sanitized: [String: Double] = [:]
+        for (uid, value) in raw {
+            guard let number = (value as? NSNumber)?.doubleValue else { continue }
+            sanitized[uid] = Defaults.sanitizedSoftwareOutputVolume(number)
+        }
+        return sanitized
+    }
+
+    /// 100% until the user moves it: an output that gains a slider must never
+    /// also become quieter on its own.
+    private func storedSoftwareMasterVolume(for uid: String) -> Double {
+        softwareMasterVolumes()[uid] ?? 1
+    }
+
+    private func persistSoftwareMasterVolume(_ volume: Double, for uid: String) {
+        var volumes = softwareMasterVolumes()
+        if isUnity(volume) {
+            volumes.removeValue(forKey: uid)
+        } else {
+            volumes[uid] = volume
+        }
+        UserDefaults.standard.set(volumes, forKey: DefaultsKey.mixerSoftwareOutputVolumes)
     }
 
     private func savedOutputDeviceUIDs() -> [String: String] {

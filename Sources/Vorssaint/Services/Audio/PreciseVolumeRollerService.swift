@@ -4,8 +4,11 @@
 import AppKit
 import Combine
 
-/// Turns coarse hardware volume wheel bursts into macOS' fine volume step.
-/// Active only while enabled and Accessibility is granted.
+/// Owns the volume keys. It turns coarse hardware volume wheel bursts into
+/// macOS' fine volume step, and on an output macOS refuses to set the volume
+/// of, moves the mixer's software master instead — the keys are dead there
+/// otherwise. Active only while one of the two applies and Accessibility is
+/// granted.
 final class PreciseVolumeRollerService: ObservableObject {
     static let shared = PreciseVolumeRollerService()
 
@@ -14,14 +17,18 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var gate = PreciseVolumeRollerGate()
+    /// The finer-steps preference, read where it is set rather than in the
+    /// tap: the callback runs on every press of a held key.
+    private var prefersFineSteps = false
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
     }
 
     func syncWithPreferences() {
+        prefersFineSteps = UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
         let wanted = AppFeature.mixer.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+            && (prefersFineSteps || AppVolumeMixer.shared.hasSoftwareMasterOutput)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -107,7 +114,30 @@ final class PreciseVolumeRollerService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        if event.flags.contains(.maskAlternate), event.flags.contains(.maskShift) {
+        let fine = event.flags.contains(.maskAlternate) && event.flags.contains(.maskShift)
+
+        // Nothing in the system moves for these keys on an output with no
+        // volume control, so the press is spent here: the master the mixer
+        // renders takes the step, and macOS never gets to draw the overlay
+        // that says the key did nothing.
+        if AppVolumeMixer.shared.hasSoftwareMasterOutput {
+            guard volumePress.isDown else { return nil }
+            // The finer-steps option asks for the smaller step everywhere it
+            // can reach, and on this output it is the only thing that can
+            // honour it: re-posting the key with the modifier reaches a
+            // volume macOS still refuses to set.
+            let fineStep = fine || prefersFineSteps
+            if let level = AppVolumeMixer.shared.stepSoftwareMasterVolume(
+                up: volumePress.direction == .up,
+                fine: fineStep) {
+                LevelOSD.show(displayID: nil,
+                              level: level,
+                              style: .volume(deviceName: AppVolumeMixer.shared.currentOutputDeviceName))
+            }
+            return nil
+        }
+
+        if fine {
             return Unmanaged.passUnretained(event)
         }
 
