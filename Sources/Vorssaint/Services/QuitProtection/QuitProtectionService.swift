@@ -519,6 +519,43 @@ final class QuitProtectionService: ObservableObject {
 
     private func hideHUD() { hud.hide() }
 
+    // MARK: Selection confirmation
+
+    /// What the switcher needs to confirm a protected Q or W on its own. It
+    /// acts on the item it has selected rather than on the frontmost app, so
+    /// the tap above deliberately yields and cannot answer for it.
+    struct SelectionConfirmation {
+        let intervalMilliseconds: Double
+        let showsFeedback: Bool
+    }
+
+    /// Nil when this shortcut is unprotected for that app, which leaves the
+    /// switcher's immediate behavior exactly as it was.
+    func selectionConfirmation(for shortcut: QuitProtectionShortcut,
+                               bundleIdentifier: String?) -> SelectionConfirmation? {
+        guard AppFeature.quitWindowProtection.isAvailable else { return nil }
+        let configuration = configuration(for: shortcut)
+        guard configuration.enabled,
+              QuitProtectionSupport.scopeAllows(configuration.scope,
+                                                bundleIdentifier: bundleIdentifier,
+                                                exceptions: configuration.exceptions)
+        else { return nil }
+        return SelectionConfirmation(
+            intervalMilliseconds: QuitProtectionSupport.sanitizedDoublePressInterval(
+                configuration.doublePressIntervalMilliseconds),
+            showsFeedback: configuration.showFeedback)
+    }
+
+    /// The same panel the tap uses, so both places ask for the second press
+    /// in the same words and the same place.
+    func showSelectionHUD(for shortcut: QuitProtectionShortcut) {
+        let strings = FeatureStrings.quitProtection(L10n.shared.language)
+        hud.show(title: String(format: strings.doubleHUDFormat, shortcut.character.uppercased()),
+                 detail: strings.cancelHint)
+    }
+
+    func hideSelectionHUD() { hud.hide() }
+
     private func modifierSymbol(_ modifier: QuitProtectionExtraModifier) -> String {
         switch modifier {
         case .shift: return "⇧"
