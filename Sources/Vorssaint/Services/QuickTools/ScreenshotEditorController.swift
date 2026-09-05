@@ -1122,13 +1122,16 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             return true
         default:
-            guard let character = event.characters?.first,
-                  let number = Int(String(character)),
-                  let tool = ScreenshotSupport.Tool.shortcutTool(
-                    number: number,
+            let style = ScreenshotSupport.ShortcutStyle(
+                rawValue: UserDefaults.standard.string(
+                    forKey: DefaultsKey.screenshotToolShortcutStyle) ?? "") ?? .number
+            guard let tool = ScreenshotSupport.Tool.shortcutTool(
+                    character: event.characters?.first,
+                    keyCode: key,
                     orderRaw: UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder),
                     enabled: UserDefaults.standard.bool(
-                        forKey: DefaultsKey.screenshotToolShortcutsEnabled))
+                        forKey: DefaultsKey.screenshotToolShortcutsEnabled),
+                    style: style)
             else { return false }
             model.tool = tool
             return true

@@ -566,7 +566,12 @@ enum DefaultsKey {
     static let screenshotLastSticker = "screenshotLastSticker"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
+    // Kept as two separate keys rather than one combined value: merging them
+    // would mean an existing install's on/off preference gets silently reset
+    // the moment this second key is introduced, since the old value could no
+    // longer parse as whichever combined type replaced it.
     static let screenshotToolShortcutsEnabled = "screenshotToolShortcutsEnabled"
+    static let screenshotToolShortcutStyle = "screenshotToolShortcutStyle"
     static let screenshotBackdropStyle = "screenshotBackdropStyle"
     static let screenshotBackdropPresets = "screenshotBackdropPresets"
     static let screenshotOpenEditorDirectly = "screenshotOpenEditorDirectly"
@@ -1325,6 +1330,7 @@ enum Defaults {
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
         DefaultsKey.screenshotToolShortcutsEnabled: true,
+        DefaultsKey.screenshotToolShortcutStyle: ScreenshotSupport.ShortcutStyle.number.rawValue,
         DefaultsKey.screenshotBackdropStyle: "",
         DefaultsKey.screenshotBackdropPresets: "[]",
         DefaultsKey.screenshotOpenEditorDirectly: false,
