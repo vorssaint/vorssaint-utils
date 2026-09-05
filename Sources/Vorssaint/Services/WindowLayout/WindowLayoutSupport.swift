@@ -12,7 +12,7 @@ enum WindowLayoutTargetCapability: Equatable {
 
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf
-    case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds
+    case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds, centerTwoThirds
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
@@ -23,7 +23,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 
     static let shortcutActions: [WindowLayoutAction] = [
         .leftHalf, .rightHalf, .topHalf, .bottomHalf,
-        .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+        .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
@@ -74,6 +74,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .fullScreen: return 53
         case .previousDisplay: return 54
         case .marginMaximize: return 55
+        case .centerTwoThirds: return 56
         }
     }
 
@@ -102,6 +103,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return DefaultsKey.windowLayoutShortcutRightThird
         case .leftTwoThirds: return DefaultsKey.windowLayoutShortcutLeftTwoThirds
         case .rightTwoThirds: return DefaultsKey.windowLayoutShortcutRightTwoThirds
+        case .centerTwoThirds: return DefaultsKey.windowLayoutShortcutCenterTwoThirds
         case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
@@ -137,7 +139,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                .marginMaximize, .fullScreen, .previousDisplay:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerTwoThirds:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -199,6 +201,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return text.rightThird
         case .leftTwoThirds: return text.leftTwoThirds
         case .rightTwoThirds: return text.rightTwoThirds
+        case .centerTwoThirds: return text.centerTwoThirds
         case .topLeftSixth: return text.topLeftSixth
         case .topCenterSixth: return text.topCenterSixth
         case .topRightSixth: return text.topRightSixth
@@ -222,6 +225,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .centerThird: return "rectangle.center.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .centerTwoThirds: return "rectangle.center.inset.filled"
         case .topLeftSixth, .topLeft: return "arrow.up.left"
         case .topCenterSixth: return "arrow.up"
         case .topRightSixth, .topRight: return "arrow.up.right"
@@ -414,6 +418,9 @@ enum WindowLayoutGeometry {
         case .rightTwoThirds:
             return CGRect(x: visibleFrame.maxX - twoThirdsWidth, y: visibleFrame.minY,
                           width: twoThirdsWidth, height: visibleFrame.height).integral
+        case .centerTwoThirds:
+            return CGRect(x: visibleFrame.midX - twoThirdsWidth / 2, y: visibleFrame.minY,
+                          width: twoThirdsWidth, height: visibleFrame.height).integral
         case .topLeftSixth:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
                           width: thirdWidth, height: halfHeight).integral
@@ -494,7 +501,7 @@ enum WindowLayoutGeometry {
         case .leftThird, .leftTwoThirds:
             origin.x = targetRect.minX
             origin.y = targetRect.minY
-        case .centerThird:
+        case .centerThird, .centerTwoThirds:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.minY
         case .rightThird, .rightTwoThirds:
@@ -585,7 +592,7 @@ enum WindowLayoutGeometry {
             return abs(actualRect.minX - targetRect.minX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45
-        case .centerThird:
+        case .centerThird, .centerTwoThirds:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && fullHeight
                 && overlap > 0.45

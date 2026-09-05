@@ -166,6 +166,7 @@ struct WindowLayoutSettings: View {
                 actionRow(.rightThird)
                 actionRow(.leftTwoThirds)
                 actionRow(.rightTwoThirds)
+                actionRow(.centerTwoThirds)
             }
 
             Section(text.sixths) {
@@ -273,6 +274,7 @@ struct WindowLayoutSettings: View {
         case .rightThird: return "rectangle.rightthird.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
+        case .centerTwoThirds: return "rectangle.center.inset.filled"
         case .topLeftSixth: return "arrow.up.left"
         case .topCenterSixth: return "arrow.up"
         case .topRightSixth: return "arrow.up.right"
