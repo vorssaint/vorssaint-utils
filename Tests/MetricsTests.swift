@@ -4125,13 +4125,22 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutMarginMaximize] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "margin maximize starts with no combination of its own")
+        expect(WindowLayoutAction.allCases.contains(.centerHalf)
+                && WindowLayoutAction.centerHalf.shortcutID == 57
+                && WindowLayoutAction(shortcutID: 57) == .centerHalf,
+               "center half exists and answers to its own shortcut id")
+        expect(WindowLayoutAction.centerHalf.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterHalf] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "center half starts with no combination of its own")
         expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
         for language in AppLanguage.allCases {
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
-                    && !layoutStrings.marginMaximize.isEmpty,
+                    && !layoutStrings.marginMaximize.isEmpty
+                    && !layoutStrings.centerHalf.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -5686,6 +5695,9 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .rightTwoThirds, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 480, y: 40, width: 960, height: 860),
                "window layout right two thirds targets the final two thirds")
+        expect(WindowLayoutGeometry.rect(for: .centerHalf, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 360, y: 40, width: 720, height: 860),
+               "window layout center half sits half wide in the middle of the screen")
         expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
@@ -24283,7 +24295,7 @@ struct MetricsTests {
         expect(!quitHUDCode.contains("size(withAttributes:"),
                "the confirmation HUD does not size itself from a separate text measurement")
         let quitHUDShow = quitHUDCode
-            .components(separatedBy: "func show(title: String, detail: String) {").last ?? ""
+            .components(separatedBy: "func show(title: String, detail: String").last ?? ""
         let quitHUDShowBody = quitHUDShow.components(separatedBy: "\n    func ").first ?? ""
         if let filled = quitHUDShowBody.range(of: "content.update("),
            let sized = quitHUDShowBody.range(of: "fittingSize(content)"),

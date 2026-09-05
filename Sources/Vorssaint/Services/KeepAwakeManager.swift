@@ -18,6 +18,7 @@ final class KeepAwakeManager: ObservableObject {
     @Published private(set) var isActive = false
     @Published private(set) var endDate: Date? // nil = indefinite
     @Published private(set) var sessionTrigger: SessionTrigger?
+    @Published private(set) var runningAppBundleIDs: [String] = []
     @Published private(set) var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()
     @Published private(set) var clamshellActive = false
     @Published private(set) var passwordlessClamshell = false
@@ -215,6 +216,9 @@ final class KeepAwakeManager: ObservableObject {
 
     private func syncAutomationMonitoring() {
         let available = AppFeature.keepAwake.isAvailable
+        let selectedApps = Defaults.sanitizedBundleIdentifierList(
+            UserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
+        if runningAppBundleIDs != selectedApps { runningAppBundleIDs = selectedApps }
         syncScreenLockMonitoring()
         let observeScreens = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
@@ -222,6 +226,7 @@ final class KeepAwakeManager: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
         let observeRunningApps = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
+            && !runningAppBundleIDs.isEmpty
 
         setScreenMonitoringEnabled(observeScreens)
         setPowerMonitoringEnabled(observePower)
@@ -440,12 +445,10 @@ final class KeepAwakeManager: ObservableObject {
 
         let runningAppsEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
         let selectedAppsRunning: Bool
-        if runningAppsEnabled {
-            let selected = Defaults.sanitizedBundleIdentifierList(
-                UserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
+        if runningAppsEnabled, !runningAppBundleIDs.isEmpty {
             let running = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
             selectedAppsRunning = KeepAwakeAutomationSupport.selectedAppsAreRunning(
-                selectedBundleIDs: selected,
+                selectedBundleIDs: runningAppBundleIDs,
                 runningBundleIDs: running
             )
         } else {

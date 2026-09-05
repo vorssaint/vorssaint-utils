@@ -762,9 +762,7 @@ enum CommandBarCatalog {
                 keywords: "wifi wi-fi",
                 icon: .symbol(wifiOn ? "wifi.slash" : "wifi"),
                 isActive: wifiOn,
-                run: { _ in
-                    if !CommandBarExtras.setWiFiPower(!wifiOn) { NSSound.beep() }
-                }))
+                run: { _ in CommandBarExtras.setWiFiPower(!wifiOn) }))
         }
 
         // The folders every Mac has. A fixed set of destinations, never a

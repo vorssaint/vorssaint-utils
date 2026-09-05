@@ -104,14 +104,20 @@ enum CommandBarExtras {
         return interface.powerOn()
     }
 
-    @discardableResult
-    static func setWiFiPower(_ on: Bool) -> Bool {
-        guard let interface = CWWiFiClient.shared().interface() else { return false }
-        do {
-            try interface.setPower(on)
-            return true
-        } catch {
-            return false
+    /// Turns the radio on or off. The same crossing to the Wi-Fi daemon the read
+    /// above pays for and the heavier half of it, so it never runs on the
+    /// keystroke that ran the row; a failure reports itself with a beep.
+    static func setWiFiPower(_ on: Bool) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let interface = CWWiFiClient.shared().interface() else {
+                DispatchQueue.main.async { NSSound.beep() }
+                return
+            }
+            do {
+                try interface.setPower(on)
+            } catch {
+                DispatchQueue.main.async { NSSound.beep() }
+            }
         }
     }
 

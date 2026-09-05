@@ -9,7 +9,6 @@ struct KeepAwakeAutomationEditor: View {
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var externalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var connectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
-    @State private var runningAppBundleIDs: [String] = Self.savedRunningAppBundleIDs
 
     var compact = false
 
@@ -46,9 +45,9 @@ struct KeepAwakeAutomationEditor: View {
                               caption: strings.runningAppsListCaption,
                               addTitle: strings.runningAppsAddButton,
                               removeLabel: strings.runningAppsRemoveButton,
-                              bundleIDs: runningAppBundleIDs,
-                              onAdd: { saveRunningApps(runningAppBundleIDs + [$0]) },
-                              onRemove: { id in saveRunningApps(runningAppBundleIDs.filter { $0 != id }) })
+                              bundleIDs: awake.runningAppBundleIDs,
+                              onAdd: { saveRunningApps(awake.runningAppBundleIDs + [$0]) },
+                              onRemove: { id in saveRunningApps(awake.runningAppBundleIDs.filter { $0 != id }) })
             }
         }
     }
@@ -57,15 +56,9 @@ struct KeepAwakeAutomationEditor: View {
         FeatureStrings.keepAwakeAutomation(l10n.language)
     }
 
-    private static var savedRunningAppBundleIDs: [String] {
-        Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
-    }
-
     private func saveRunningApps(_ bundleIDs: [String]) {
         let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
         UserDefaults.standard.set(sanitized, forKey: DefaultsKey.keepAwakeRunningAppBundleIDs)
-        runningAppBundleIDs = sanitized
         awake.automationPreferencesDidChange()
     }
 
