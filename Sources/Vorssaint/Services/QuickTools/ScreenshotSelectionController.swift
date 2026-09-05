@@ -502,8 +502,7 @@ final class ScreenshotSelectionController {
     /// anchored to it. The point rectangle is derived from the SNAPPED pixels,
     /// so what gets recorded and what the person was shown never disagree.
     private func region(fromView viewRect: CGRect,
-                        on panel: ScreenshotOverlayPanel,
-                        windowID: CGWindowID?) -> RecorderSupport.Region {
+                        on panel: ScreenshotOverlayPanel) -> RecorderSupport.Region {
         let displayPixels = CGRect(origin: .zero, size: panel.pixelSize)
         let raw = ScreenshotSupport.imagePixelRect(fromView: viewRect,
                                                    viewSize: panel.screenFrame.size,
@@ -516,7 +515,6 @@ final class ScreenshotSelectionController {
                                  height: snapped.height / scale)
         return RecorderSupport.Region(
             displayID: panel.displayID,
-            windowID: windowID,
             pixelRect: snapped,
             anchorRect: ScreenshotSupport.cocoaRect(fromFlippedView: snappedView,
                                                     screenFrame: panel.screenFrame),
@@ -529,11 +527,11 @@ final class ScreenshotSelectionController {
         markCapturePending()
         Self.lastRegion = (panel.displayID, viewRect)
         if activeMode == .geometry {
-            finish(.region(region(fromView: viewRect, on: panel, windowID: nil)))
+            finish(.region(region(fromView: viewRect, on: panel)))
             return
         }
         if scrollingCaptureEnabled {
-            finish(.scrollingRegion(region(fromView: viewRect, on: panel, windowID: nil)))
+            finish(.scrollingRegion(region(fromView: viewRect, on: panel)))
             return
         }
         let pixelRect = ScreenshotSupport.imagePixelRect(
@@ -567,11 +565,11 @@ final class ScreenshotSelectionController {
         guard activeMode != .color else { return }
         markCapturePending()
         if activeMode == .geometry {
-            finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
+            finish(.region(region(fromView: frame, on: panel)))
             return
         }
         if scrollingCaptureEnabled {
-            finish(.scrollingRegion(region(fromView: frame, on: panel, windowID: windowID)))
+            finish(.scrollingRegion(region(fromView: frame, on: panel)))
             return
         }
         Task { @MainActor [weak self] in
@@ -596,7 +594,7 @@ final class ScreenshotSelectionController {
         markCapturePending()
         if activeMode == .geometry {
             let whole = CGRect(origin: .zero, size: panel.screenFrame.size)
-            finish(.region(region(fromView: whole, on: panel, windowID: nil)))
+            finish(.region(region(fromView: whole, on: panel)))
             return
         }
         if let frozen = panel.frozenImage {

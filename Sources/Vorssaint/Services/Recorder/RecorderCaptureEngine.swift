@@ -95,10 +95,9 @@ final class RecorderCaptureEngine: NSObject {
                                                     timescale: CMTimeScale(frameRate))
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.colorSpaceName = CGColorSpace.sRGB
-        // An independent window keeps the output dimensions chosen when the
-        // recording starts. Scaling it into that output makes later window
-        // resizes follow the recording instead of leaving an empty frame.
-        configuration.scalesToFit = region.windowID != nil
+        // The recorded rectangle is fixed and the source rect matches the
+        // output size, so there is nothing to scale into the frame.
+        configuration.scalesToFit = false
         configuration.preservesAspectRatio = true
         configuration.captureResolution = .best
         // The pointer is drawn by us afterwards, from the track the sampler
@@ -110,9 +109,7 @@ final class RecorderCaptureEngine: NSObject {
         // they would be baked into the frame the background is drawn behind.
         configuration.ignoreShadowsDisplay = true
         configuration.ignoreShadowsSingleWindow = true
-        if region.windowID == nil {
-            configuration.sourceRect = Self.sourceRect(for: region)
-        }
+        configuration.sourceRect = Self.sourceRect(for: region)
         if capturesSystemAudio {
             configuration.capturesAudio = true
             configuration.sampleRate = 48_000
@@ -195,12 +192,12 @@ final class RecorderCaptureEngine: NSObject {
     private static func filter(for region: RecorderSupport.Region,
                                in content: SCShareableContent,
                                excluding windowNumbers: [Int]) -> SCContentFilter? {
-        if let windowID = region.windowID,
-           let window = content.windows.first(where: { $0.windowID == windowID }) {
-            return SCContentFilter(desktopIndependentWindow: window)
-        }
         guard let display = content.displays.first(where: { $0.displayID == region.displayID })
         else { return nil }
+        // Every recording is a fixed rectangle of its display, so what the app
+        // stacks inside it is captured without anything to track. The rectangle
+        // records the current Space, so a Space switch records what replaces
+        // the window there.
         let excluded = Set(windowNumbers.map { CGWindowID($0) })
         let ownPID = NSRunningApplication.current.processIdentifier
         let ownWindows = content.windows.filter { $0.owningApplication?.processID == ownPID }
