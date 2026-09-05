@@ -89,6 +89,7 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImageRenamePattern) private var imageRenamePattern = ""
     @AppStorage(DefaultsKey.mediaImageBackground) private var imageBackgroundRaw = MediaImageBackground.transparent.rawValue
     @AppStorage(DefaultsKey.mediaImagePreserveModificationDate) private var imagePreserveModificationDate = false
+    @AppStorage(DefaultsKey.mediaImageSaveInSubfolder) private var imageSaveInSubfolder = false
     @AppStorage(DefaultsKey.mediaImageProfiles) private var imageProfilesRaw = "[]"
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
 
@@ -115,6 +116,11 @@ struct MediaWorkspaceView: View {
     var onClose: (() -> Void)? = nil
 
     private var inputURL: URL? { inputURLs.first }
+    private static let imageOutputSubfolderName = "Converted"
+    private static let imageRenameTokens = [
+        "{name}", "{index}", "{index:03}", "{counter}", "{date}",
+        "{time}", "{datetime}", "{width}", "{height}", "{format}",
+    ]
     private var imageText: MediaImageConverterStrings {
         MediaImageConverterStrings.localized(l10n.language)
     }
@@ -299,6 +305,11 @@ struct MediaWorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
+            }
+            if selectedTool == .imageCompressor, inputURLs.count > 1 {
+                Toggle(imageText.saveInSubfolder, isOn: $imageSaveInSubfolder)
+                    .toggleStyle(.checkbox)
+                    .disabled(isRunning)
             }
         }
         .panelCard()
@@ -649,20 +660,20 @@ struct MediaWorkspaceView: View {
 
     private var imagePreviewSection: some View {
         HStack(spacing: 10) {
-            ZStack(alignment: previewAlignment) {
+            ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(previewBackgroundColor)
                 if let thumbnail = inputURL.flatMap({ ImageThumbnailer.thumbnail(for: $0, pointSize: compact ? 96 : 128) }) {
                     previewImage(thumbnail)
-                        .padding(4)
+                        .frame(width: previewFrameSize.width,
+                               height: previewFrameSize.height,
+                               alignment: .center)
+                        .clipped()
                 } else {
                     Image(systemName: "photo")
                         .font(.system(size: compact ? 26 : 32))
                         .foregroundStyle(.secondary)
                 }
-                previewWatermarkOverlay
-                    .padding(previewWatermarkMargin)
-                    .opacity(imageWatermarkOpacity)
             }
             .task(id: currentWatermark.usesLogo ? imageWatermarkLogoPath : "") {
                 watermarkLogo = currentWatermark.usesLogo
@@ -670,6 +681,12 @@ struct MediaWorkspaceView: View {
                     : nil
             }
             .frame(width: previewFrameSize.width, height: previewFrameSize.height)
+            .overlay(alignment: previewAlignment) {
+                previewWatermarkOverlay
+                    .padding(previewWatermarkMargin)
+                    .opacity(currentWatermark.opacity)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
@@ -832,12 +849,24 @@ struct MediaWorkspaceView: View {
         VStack(alignment: .leading, spacing: 5) {
             Text(imageText.rename)
                 .font(.system(size: compact ? 10 : 11, weight: .semibold))
-            TextField("{name}-{index:03}", text: $imageRenamePattern)
-                .textFieldStyle(.roundedBorder)
-            Text("{name} {index} {index:03} {counter} {date} {time} {datetime} {width} {height} {format}")
-                .font(.system(size: compact ? 8.5 : 9.5, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            HStack(spacing: 6) {
+                TextField("{name}-{index:03}", text: $imageRenamePattern)
+                    .textFieldStyle(.roundedBorder)
+                Menu {
+                    ForEach(Self.imageRenameTokens, id: \.self) { token in
+                        Button(token) {
+                            imageRenamePattern.append(token)
+                        }
+                    }
+                } label: {
+                    Text("{…}")
+                        .font(.system(size: compact ? 10 : 11, design: .monospaced))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help(imageText.rename)
+                .accessibilityLabel(imageText.rename)
+            }
         }
     }
 
@@ -1175,7 +1204,7 @@ struct MediaWorkspaceView: View {
             panel.canChooseFiles = false
             panel.canChooseDirectories = true
             panel.allowsMultipleSelection = false
-            panel.directoryURL = (outputURL ?? inputURL.deletingLastPathComponent())
+            panel.directoryURL = outputURL ?? inputURL.deletingLastPathComponent()
             Self.runPanelModal(panel) { response in
                 if response == .OK, let url = panel.url {
                     outputURL = url
@@ -1406,8 +1435,12 @@ struct MediaWorkspaceView: View {
                                                        megabytes: gifTargetMegabytes)))
         case .imageCompressor:
             if inputURLs.count > 1 {
+                let outputDirectory = imageSaveInSubfolder
+                    ? outputURL.appendingPathComponent(Self.imageOutputSubfolderName,
+                                                       isDirectory: true)
+                    : outputURL
                 media.processImages(inputURLs: inputURLs,
-                                    outputDirectory: outputURL,
+                                    outputDirectory: outputDirectory,
                                     options: currentImageOptions)
             } else {
                 media.compressImage(inputURL: inputURL,
