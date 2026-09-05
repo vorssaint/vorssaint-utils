@@ -599,6 +599,29 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
 
+    // Calendar — local EventKit agenda and meeting shortcuts.
+    static let calendarEnabled = "calendarEnabled"
+    static let calendarIconStyle = "calendarIconStyle" // icon | date | nextEvent
+    static let calendarMenuBarComponents = "calendarMenuBarComponents" // comma-joined CalendarMenuBarComponent raw values
+    static let calendarTextScale = "calendarTextScale"
+    static let calendarAlertEnabled = "calendarAlertEnabled"
+    static let calendarAlertMinutesBefore = "calendarAlertMinutesBefore"
+    static let calendarSelectedCalendars = "calendarSelectedCalendars" // Data: calendar identifiers
+    static let calendarDateDisplayFormat = "calendarDateDisplayFormat"
+    static let calendarCustomDateFormat = "calendarCustomDateFormat"
+    static let calendarShowMonthOutline = "calendarShowMonthOutline"
+    static let calendarShowAdjacentMonthDays = "calendarShowAdjacentMonthDays"
+    static let calendarShowLunarDate = "calendarShowLunarDate"
+    static let calendarShowWeekNumbers = "calendarShowWeekNumbers"
+    static let calendarShowWeekends = "calendarShowWeekends"
+    static let calendarShowDeclinedEvents = "calendarShowDeclinedEvents"
+    static let calendarEventDots = "calendarEventDots"
+    static let calendarPreserveSelectedDate = "calendarPreserveSelectedDate"
+    static let calendarLastSelectedDate = "calendarLastSelectedDate"
+    static let calendarShowPastEvents = "calendarShowPastEvents"
+    static let calendarAlertSound = "calendarAlertSound"
+    static let calendarAlertFlash = "calendarAlertFlash"
+
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
@@ -928,6 +951,26 @@ enum Defaults {
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,
         DefaultsKey.quitProtectionQuitEnabled: false,
         DefaultsKey.quitProtectionQuitMode: QuitProtectionMode.hold.rawValue,
+        DefaultsKey.calendarEnabled: false,
+        DefaultsKey.calendarIconStyle: "icon",
+        DefaultsKey.calendarMenuBarComponents: "icon",
+        DefaultsKey.calendarTextScale: 1.0,
+        DefaultsKey.calendarAlertEnabled: true,
+        DefaultsKey.calendarAlertMinutesBefore: 5,
+        DefaultsKey.calendarDateDisplayFormat: CalendarDateDisplayFormat.dayMonth.rawValue,
+        DefaultsKey.calendarCustomDateFormat: "dd/MM",
+        DefaultsKey.calendarShowMonthOutline: true,
+        DefaultsKey.calendarShowAdjacentMonthDays: false,
+        DefaultsKey.calendarShowLunarDate: false,
+        DefaultsKey.calendarShowWeekNumbers: false,
+        DefaultsKey.calendarShowWeekends: true,
+        DefaultsKey.calendarShowDeclinedEvents: false,
+        DefaultsKey.calendarEventDots: CalendarEventDots.multiple.rawValue,
+        DefaultsKey.calendarPreserveSelectedDate: true,
+        DefaultsKey.calendarLastSelectedDate: 0.0,
+        DefaultsKey.calendarShowPastEvents: true,
+        DefaultsKey.calendarAlertSound: true,
+        DefaultsKey.calendarAlertFlash: false,
         DefaultsKey.quitProtectionQuitHoldDurationMs: QuitProtectionSupport.defaultHoldDurationMilliseconds,
         DefaultsKey.quitProtectionQuitDoubleIntervalMs: QuitProtectionSupport.defaultDoublePressIntervalMilliseconds,
         DefaultsKey.quitProtectionQuitExtraModifier: QuitProtectionExtraModifier.shift.rawValue,

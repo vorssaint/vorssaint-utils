@@ -1,0 +1,42 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+import Foundation
+
+struct CalendarStrings {
+    let title: String; let description: String; let showInMenuBar: String; let accessRequired: String
+    let openPreferences: String; let appearance: String; let menuBarStyle: String; let textScale: String
+    let meetingAlerts: String; let alerts: String; let notifyBefore: String; let calendars: String
+    let noEvents: String; let join: String; let openInCalendar: String; let allDay: String
+    let agenda: String; let showMonthOutline: String; let showDeclinedEvents: String; let eventDots: String
+    let eventDotsNone: String; let eventDotsSingleNeutral: String; let eventDotsSingleHighlighted: String
+    let eventDotsMultiple: String; let menuBarComponents: String; let showAdjacentDays: String
+    let componentIcon: String; let componentDate: String; let componentNextEvent: String
+    let menuBarDateFormat: String; let customDatePattern: String
+    let moveUp: String; let moveDown: String
+    let newEvent: String; let start: String; let end: String; let cancel: String; let save: String
+    let calendarLabel: String; let quickAddPlaceholder: String
+    let durationZero: String; let durationMinute: String; let durationMinutes: String
+    let durationHour: String; let durationHours: String; let durationDay: String; let durationDays: String
+
+    func duration(from interval: TimeInterval) -> String {
+        let minutes = max(0, Int(interval / 60))
+        if minutes == 0 { return durationZero }
+        let days = minutes / 1_440
+        let hours = (minutes % 1_440) / 60
+        let remaining = minutes % 60
+        var parts: [String] = []
+        if days > 0 { parts.append("\(days) \(days == 1 ? durationDay : durationDays)") }
+        if hours > 0 { parts.append("\(hours) \(hours == 1 ? durationHour : durationHours)") }
+        if remaining > 0 { parts.append("\(remaining) \(remaining == 1 ? durationMinute : durationMinutes)") }
+        return parts.joined(separator: " ")
+    }
+
+    static func current(_ language: AppLanguage) -> Self {
+        switch language {
+        case .ptBR: return .init(title: "Calendário", description: "Sua agenda local e links de reunião na barra de menus.", showInMenuBar: "Mostrar Calendário na barra de menus", accessRequired: "O acesso ao Calendário é necessário.", openPreferences: "Abrir Preferências", appearance: "Aparência", menuBarStyle: "Estilo da barra de menus", textScale: "Escala do texto", meetingAlerts: "Alertas de reunião", alerts: "Alertas de reunião", notifyBefore: "Avisar antes", calendars: "Calendários", noEvents: "Nenhum evento", join: "Entrar", openInCalendar: "Abrir no Calendário", allDay: "Dia todo", agenda: "Agenda", showMonthOutline: "Mostrar contorno do mês", showDeclinedEvents: "Mostrar eventos recusados", eventDots: "Indicadores de eventos", eventDotsNone: "Sem indicadores", eventDotsSingleNeutral: "Um ponto discreto", eventDotsSingleHighlighted: "Um ponto destacado", eventDotsMultiple: "Vários pontos", menuBarComponents: "Componentes da barra de menus", showAdjacentDays: "Mostrar dias adjacentes", componentIcon: "Ícone", componentDate: "Data", componentNextEvent: "Próximo evento", menuBarDateFormat: "Formato da data", customDatePattern: "Padrão Unicode (ex.: dd/MM)", moveUp: "Mover para cima", moveDown: "Mover para baixo", newEvent: "Novo evento", start: "Início", end: "Fim", cancel: "Cancelar", save: "Salvar", calendarLabel: "Calendário", quickAddPlaceholder: "Ex.: Reunião amanhã às 15:00 por 1 hora /Trabalho", durationZero: "0 minutos", durationMinute: "minuto", durationMinutes: "minutos", durationHour: "hora", durationHours: "horas", durationDay: "dia", durationDays: "dias")
+        case .es: return .init(title: "Calendario", description: "Tu agenda local y enlaces de reuniones en la barra de menús.", showInMenuBar: "Mostrar Calendario en la barra de menús", accessRequired: "Se requiere acceso al Calendario.", openPreferences: "Abrir Preferencias", appearance: "Apariencia", menuBarStyle: "Estilo de la barra de menús", textScale: "Escala del texto", meetingAlerts: "Alertas de reuniones", alerts: "Alertas de reuniones", notifyBefore: "Avisar antes", calendars: "Calendarios", noEvents: "Sin eventos", join: "Unirse", openInCalendar: "Abrir en Calendario", allDay: "Todo el día", agenda: "Agenda", showMonthOutline: "Mostrar contorno del mes", showDeclinedEvents: "Mostrar eventos rechazados", eventDots: "Indicadores de eventos", eventDotsNone: "Sin indicadores", eventDotsSingleNeutral: "Un punto discreto", eventDotsSingleHighlighted: "Un punto destacado", eventDotsMultiple: "Varios puntos", menuBarComponents: "Componentes de la barra de menús", showAdjacentDays: "Mostrar días adyacentes", componentIcon: "Ícono", componentDate: "Fecha", componentNextEvent: "Próximo evento", menuBarDateFormat: "Formato de la fecha", customDatePattern: "Patrón Unicode (p. ej. dd/MM)", moveUp: "Mover arriba", moveDown: "Mover abajo", newEvent: "Nuevo evento", start: "Inicio", end: "Fin", cancel: "Cancelar", save: "Guardar", calendarLabel: "Calendario", quickAddPlaceholder: "Ej.: Reunión mañana a las 15:00 por 1 hora /Trabajo", durationZero: "0 minutos", durationMinute: "minuto", durationMinutes: "minutos", durationHour: "hora", durationHours: "horas", durationDay: "día", durationDays: "días")
+        case .fr: return .init(title: "Calendrier", description: "Votre agenda local et vos liens de réunion dans la barre des menus.", showInMenuBar: "Afficher le calendrier dans la barre des menus", accessRequired: "L’accès au calendrier est requis.", openPreferences: "Ouvrir les réglages", appearance: "Apparence", menuBarStyle: "Style de la barre des menus", textScale: "Échelle du texte", meetingAlerts: "Alertes de réunion", alerts: "Alertes de réunion", notifyBefore: "Prévenir avant", calendars: "Calendriers", noEvents: "Aucun événement", join: "Rejoindre", openInCalendar: "Ouvrir dans Calendrier", allDay: "Toute la journée", agenda: "Agenda", showMonthOutline: "Afficher le contour du mois", showDeclinedEvents: "Afficher les événements refusés", eventDots: "Indicateurs d’événements", eventDotsNone: "Aucun indicateur", eventDotsSingleNeutral: "Un point discret", eventDotsSingleHighlighted: "Un point mis en avant", eventDotsMultiple: "Plusieurs points", menuBarComponents: "Composants de la barre des menus", showAdjacentDays: "Afficher les jours adjacents", componentIcon: "Icône", componentDate: "Date", componentNextEvent: "Prochain événement", menuBarDateFormat: "Format de la date", customDatePattern: "Modèle Unicode (ex. dd/MM)", moveUp: "Monter", moveDown: "Descendre", newEvent: "Nouvel événement", start: "Début", end: "Fin", cancel: "Annuler", save: "Enregistrer", calendarLabel: "Calendrier", quickAddPlaceholder: "Ex. Réunion demain à 15 h pendant 1 heure /Travail", durationZero: "0 minute", durationMinute: "minute", durationMinutes: "minutes", durationHour: "heure", durationHours: "heures", durationDay: "jour", durationDays: "jours")
+        default: return .init(title: "Calendar", description: "Your local agenda and meeting links in the menu bar.", showInMenuBar: "Show Calendar in menu bar", accessRequired: "Calendar access is required.", openPreferences: "Open Preferences", appearance: "Appearance", menuBarStyle: "Menu bar style", textScale: "Text scale", meetingAlerts: "Meeting alerts", alerts: "Meeting alerts", notifyBefore: "Notify before", calendars: "Calendars", noEvents: "No events", join: "Join", openInCalendar: "Open in Calendar", allDay: "All day", agenda: "Agenda", showMonthOutline: "Show month outline", showDeclinedEvents: "Show declined events", eventDots: "Event dots", eventDotsNone: "No dots", eventDotsSingleNeutral: "Single neutral dot", eventDotsSingleHighlighted: "Single highlighted dot", eventDotsMultiple: "Multiple dots", menuBarComponents: "Menu bar components", showAdjacentDays: "Show adjacent days", componentIcon: "Icon", componentDate: "Date", componentNextEvent: "Next event", menuBarDateFormat: "Date format", customDatePattern: "Unicode pattern (e.g. dd/MM)", moveUp: "Move up", moveDown: "Move down", newEvent: "New event", start: "Start", end: "End", cancel: "Cancel", save: "Save", calendarLabel: "Calendar", quickAddPlaceholder: "e.g. Team meeting tomorrow at 3 PM for 1 hour /Work", durationZero: "0 minutes", durationMinute: "minute", durationMinutes: "minutes", durationHour: "hour", durationHours: "hours", durationDay: "day", durationDays: "days")
+        }
+    }
+}

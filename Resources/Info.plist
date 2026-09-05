@@ -62,6 +62,8 @@
 	<string>Vorssaint records your microphone only when you turn it on for a screen recording. The audio stays on your Mac unless you choose to create a temporary link.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Vorssaint reads your local calendar to show events, meeting links and alerts, and can create events when you ask it to. Your calendar data never leaves your Mac.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>Vorssaint checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose.</string>
 	<key>NSDesktopFolderUsageDescription</key>

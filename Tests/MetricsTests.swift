@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import EventKit
 import VMStatisticsCompat
 
 // Standalone unit tests for pure helpers. Compiled without IOKit or UI by
@@ -13866,7 +13867,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -13879,7 +13880,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "calendar",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -14004,9 +14005,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.calendar.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .calendar
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -24326,6 +24328,149 @@ struct MetricsTests {
             expect(false,
                    "the confirmation HUD's show() fills the labels, measures them and resizes")
         }
+        // MARK: Calendar
+        expect(Defaults.registeredDefaults[DefaultsKey.calendarEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.calendarIconStyle] as? String == "icon"
+                && Defaults.registeredDefaults[DefaultsKey.calendarMenuBarComponents] as? String == "icon"
+                && Defaults.registeredDefaults[DefaultsKey.calendarTextScale] as? Double == 1.0
+                && Defaults.registeredDefaults[DefaultsKey.calendarAlertEnabled] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.calendarAlertMinutesBefore] as? Int == 5,
+               "Calendar ships with stable, opt-in defaults")
+        let calendarPopoverSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/CalendarPopoverView.swift", encoding: .utf8)) ?? ""
+        let calendarServiceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Calendar/CalendarService.swift", encoding: .utf8)) ?? ""
+        let calendarInfoPrompt = (NSDictionary(contentsOfFile: "Resources/Info.plist") as? [String: Any])?["NSCalendarsFullAccessUsageDescription"] as? String ?? ""
+        expect(calendarPopoverSource.contains("strings.noEvents")
+                && calendarPopoverSource.contains("strings.allDay")
+                && calendarPopoverSource.contains("strings.join")
+                && calendarPopoverSource.contains("strings.duration")
+                && calendarServiceSource.contains("autosaveName")
+                && calendarInfoPrompt.localizedCaseInsensitiveContains("create events"),
+               "Calendar routes popover copy, preserves status-item placement, and declares write access")
+        expect(AppFeature.calendar.group == .tools && AppFeature.calendar.symbolName == "calendar"
+                && AppFeature.calendar.monitorsPermissionChanges,
+               "Calendar is a Tools feature that observes permission changes")
+        expect(AppFeature.availabilityDefaults[AppFeature.calendar.availabilityKey] as? Bool == false,
+               "Calendar starts uninstalled until the user opts in")
+        let january = CalendarSupport.calendarDays(for: ISO8601DateFormatter().date(from: "2026-01-15T12:00:00Z")!)
+        let leapFebruary = CalendarSupport.calendarDays(for: ISO8601DateFormatter().date(from: "2024-02-15T12:00:00Z")!)
+        expect(january.allSatisfy { $0.count == 7 } && january.flatMap { $0 }.compactMap { $0 }.count == 31
+                && leapFebruary.flatMap { $0 }.compactMap { $0 }.count == 29,
+               "Calendar month grids keep seven columns and leap-year February")
+        let september = ISO8601DateFormatter().date(from: "2026-09-15T12:00:00Z")!
+        let septemberWithoutAdjacent = CalendarSupport.calendarDays(for: september, showAdjacentMonthDays: false, calendar: utcCalendar)
+        let septemberWithAdjacent = CalendarSupport.calendarDays(for: september, showAdjacentMonthDays: true, calendar: utcCalendar)
+        let septemberWithoutAdjacentFirstWeek = septemberWithoutAdjacent.first ?? []
+        let septemberWithAdjacentFirstWeek = septemberWithAdjacent.first ?? []
+        let septemberFirstVisible = septemberWithAdjacent.flatMap { $0 }.compactMap { $0 }.first
+        let septemberLastVisible = septemberWithAdjacent.flatMap { $0 }.compactMap { $0 }.last
+        expect(septemberWithoutAdjacentFirstWeek.count == 7
+                && septemberWithoutAdjacentFirstWeek[0] == nil
+                && septemberWithoutAdjacentFirstWeek[1] == nil
+                && septemberWithAdjacentFirstWeek[0] != nil
+                && septemberWithAdjacentFirstWeek[1] != nil
+                && septemberFirstVisible.map { utcCalendar.component(.month, from: $0) } == 8
+                && septemberLastVisible.map { utcCalendar.component(.month, from: $0) } == 10,
+               "Calendar month grids can reveal adjacent month days when enabled")
+        expect(CalendarSupport.menuBarComponents(from: "date,nextEvent,icon,date", fallbackStyle: .icon) == [.date, .nextEvent, .icon]
+                && CalendarSupport.menuBarComponents(from: nil, fallbackStyle: .nextEvent) == [.nextEvent]
+                && CalendarSupport.encodedMenuBarComponents([.nextEvent, .date, .nextEvent]) == "nextEvent,date",
+               "Calendar menu bar components preserve inclusion and ordering")
+        expect(CalendarSupport.duration(from: 0) == "0 minutes"
+                && CalendarSupport.duration(from: 45 * 60) == "45 minutes"
+                && CalendarSupport.duration(from: 90 * 60) == "1 hour 30 minutes"
+                && CalendarStrings.current(.ptBR).duration(from: 90 * 60) == "1 hora 30 minutos",
+               "Calendar duration helper formats common meeting lengths")
+        let calendarDraftNow = ISO8601DateFormatter().date(from: "2026-09-02T09:00:00Z")!
+        var calendarDraft = CalendarQuickEventParser.parse("Reunião amanhã às 15:30 por 2 horas /Trabalho", now: calendarDraftNow, calendar: utcCalendar)
+        expect(calendarDraft.title == "Reunião"
+                && utcCalendar.component(.day, from: calendarDraft.startDate) == 3
+                && utcCalendar.component(.hour, from: calendarDraft.startDate) == 15
+                && utcCalendar.component(.minute, from: calendarDraft.startDate) == 30
+                && calendarDraft.endDate.timeIntervalSince(calendarDraft.startDate) == 7_200
+                && calendarDraft.calendarName == "Trabalho",
+               "Calendar quick add parses Portuguese date, time, duration and calendar instructions")
+        calendarDraft = CalendarQuickEventParser.parse("Planning tomorrow at 9 for 30 minutes /Work", now: calendarDraftNow, calendar: utcCalendar)
+        expect(calendarDraft.title == "Planning"
+                && utcCalendar.component(.day, from: calendarDraft.startDate) == 3
+                && utcCalendar.component(.hour, from: calendarDraft.startDate) == 9
+                && calendarDraft.endDate.timeIntervalSince(calendarDraft.startDate) == 1_800,
+               "Calendar quick add parses English instructions without changing the title")
+        expect(CalendarDateDisplayFormat.dayMonth.string(from: calendarDraftNow, customPattern: "", locale: Locale(identifier: "en_US")) == "09/02"
+                && CalendarDateDisplayFormat.custom.string(from: calendarDraftNow, customPattern: "yyyy-MM-dd", locale: Locale(identifier: "en_US")) == "2026-09-02",
+               "Calendar date formats are deterministic and support a custom pattern")
+        let calendarDateImage = CalendarStatusItemRenderer.render(style: .date,
+                                                                  date: calendarDraftNow,
+                                                                  nextEvent: nil,
+                                                                  scale: 1,
+                                                                  dateFormat: .custom,
+                                                                  customPattern: "dd/MM")
+        let calendarLongDateImage = CalendarStatusItemRenderer.render(style: .date,
+                                                                      date: calendarDraftNow,
+                                                                      nextEvent: nil,
+                                                                      scale: 1,
+                                                                      dateFormat: .custom,
+                                                                      customPattern: "EEEE dd/MM")
+        let calendarEventStore = EKEventStore()
+        let calendarEvent = EKEvent(eventStore: calendarEventStore)
+        calendarEvent.title = "Daily standup"
+        calendarEvent.startDate = calendarDraftNow
+        calendarEvent.endDate = calendarDraftNow.addingTimeInterval(3600)
+        let calendarEventImage = CalendarStatusItemRenderer.render(style: .nextEvent,
+                                                                   date: calendarDraftNow,
+                                                                   nextEvent: calendarEvent,
+                                                                   scale: 1)
+        expect(calendarDateImage.size.width >= 30
+                && calendarDateImage.size.height >= 20
+                && calendarLongDateImage.size.width > calendarDateImage.size.width
+                && calendarLongDateImage.size.height >= calendarDateImage.size.height
+                && calendarEventImage.size.width >= calendarDateImage.size.width,
+               "Calendar status item allocates enough width for custom dates and next events")
+        let calendarFocus = ISO8601DateFormatter().date(from: "2026-09-15T12:00:00Z")!
+        let calendarWindow = CalendarSupport.eventWindow(around: calendarFocus, calendar: utcCalendar)
+        expect(calendarWindow.start <= ISO8601DateFormatter().date(from: "2026-09-01T00:00:00Z")!
+                && calendarWindow.end >= ISO8601DateFormatter().date(from: "2026-10-31T23:59:59Z")!,
+               "Calendar fetches the complete visible month plus future alert horizon")
+        let selectedDay = ISO8601DateFormatter().date(from: "2026-09-02T12:00:00Z")!
+        let previousNight = ISO8601DateFormatter().date(from: "2026-09-01T23:00:00Z")!
+        let morning = ISO8601DateFormatter().date(from: "2026-09-02T09:00:00Z")!
+        expect(CalendarSupport.overlapsDay(start: previousNight, end: morning, day: selectedDay, calendar: utcCalendar)
+                && CalendarSupport.overlapsDay(start: ISO8601DateFormatter().date(from: "2026-09-02T08:00:00Z")!, end: morning, day: selectedDay, calendar: utcCalendar)
+                && !CalendarSupport.overlapsDay(start: ISO8601DateFormatter().date(from: "2026-09-03T08:00:00Z")!, end: ISO8601DateFormatter().date(from: "2026-09-03T09:00:00Z")!, day: selectedDay, calendar: utcCalendar),
+               "Calendar day lists include past and spanning events only for the selected day")
+        let pastEvent = EKEvent(eventStore: calendarEventStore)
+        pastEvent.startDate = ISO8601DateFormatter().date(from: "2026-09-01T08:00:00Z")!
+        pastEvent.endDate = ISO8601DateFormatter().date(from: "2026-09-01T09:00:00Z")!
+        let futureEvent = EKEvent(eventStore: calendarEventStore)
+        futureEvent.startDate = ISO8601DateFormatter().date(from: "2026-09-03T08:00:00Z")!
+        futureEvent.endDate = ISO8601DateFormatter().date(from: "2026-09-03T09:00:00Z")!
+        expect(CalendarSupport.visibleEvents([pastEvent, futureEvent], showPastEvents: false, showDeclinedEvents: true, now: selectedDay).count == 1,
+               "Calendar can hide past events without dropping future ones")
+        let dotSingle = CalendarSupport.dayEventDotMode(for: selectedDay, in: [calendarEvent], showDeclinedEvents: true, calendar: utcCalendar)
+        let secondEvent = EKEvent(eventStore: calendarEventStore)
+        secondEvent.startDate = ISO8601DateFormatter().date(from: "2026-09-02T10:00:00Z")!
+        secondEvent.endDate = ISO8601DateFormatter().date(from: "2026-09-02T11:00:00Z")!
+        let dotMultiple = CalendarSupport.dayEventDotMode(for: selectedDay, in: [calendarEvent, secondEvent], showDeclinedEvents: true, calendar: utcCalendar)
+        expect(dotSingle == .singleHighlighted && dotMultiple == .multiple,
+               "Calendar month dots distinguish single and multiple event days")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.calendarShowMonthOutline)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.calendarShowDeclinedEvents)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.calendarEventDots),
+               "Calendar visual preferences travel in backups")
+        expect(CalendarSupport.eventListHeight(for: 0) == 60
+                && CalendarSupport.eventListHeight(for: 1) == 60
+                && CalendarSupport.eventListHeight(for: 5) == 220
+                && CalendarSupport.eventListHeight(for: 6) == 220,
+               "Calendar event list grows up to five visible rows before scrolling")
+        expect(CalendarSupport.eventDetailHeight() == 132,
+               "Calendar event detail stays capped so selection does not resize the popover")
+        expect(MeetingLinkDetector.detect(location: "https://zoom.us/j/123", url: nil, notes: nil) != nil
+                && MeetingLinkDetector.detect(location: nil, url: URL(string: "https://meet.google.com/abc-defg-hij"), notes: nil) != nil
+                && MeetingLinkDetector.detect(location: nil, url: nil, notes: "https://teams.microsoft.com/l/meetup-join/foo") != nil
+                && MeetingLinkDetector.detect(location: nil, url: nil, notes: "https://example.com/meeting") == nil,
+               "Calendar detects only supported meeting URLs")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.calendarSelectedCalendars),
+               "Calendar selection travels in settings backups")
+
         // MARK: A dropped identifier
         expect(QuickTogglesSupport.isExcluded(volumeName: "SD Card",
                                               volumeUUID: "1234-5678-ABCD",

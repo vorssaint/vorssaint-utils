@@ -11,6 +11,12 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusController: StatusItemController!
     private let popover = NSPopover()
+    private let calendarPopover = NSPopover()
+    private var calendarStatusObserver: NSObjectProtocol?
+    private var calendarPopoverDidCloseObserver: NSObjectProtocol?
+    private var calendarPopoverDismissMonitor: Any?
+    private var calendarPopoverLocalDismissMonitor: Any?
+    private var calendarPopoverPositioningPanel: NSPanel?
     private var popoverClosedAt = Date.distantPast
     private var popoverDismissMonitor: Any?
     private var popoverLocalDismissMonitor: Any?
@@ -108,6 +114,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
 
         setUpPopover()
+        calendarPopover.behavior = .transient
+        calendarPopover.contentViewController = NSHostingController(rootView: CalendarPopoverView())
+        calendarPopoverDidCloseObserver = NotificationCenter.default.addObserver(
+            forName: NSPopover.didCloseNotification,
+            object: calendarPopover,
+            queue: .main
+        ) { [weak self] _ in
+            self?.cleanupCalendarPopoverAnchoring()
+        }
+        calendarStatusObserver = NotificationCenter.default.addObserver(forName: .calendarStatusItemClicked, object: nil, queue: .main) { [weak self] note in
+            guard let self, let button = note.object as? NSStatusBarButton else { return }
+            if self.calendarPopover.isShown {
+                self.calendarPopover.performClose(nil)
+            } else {
+                NotificationCenter.default.post(name: .calendarPopoverWillShow, object: nil)
+                self.showCalendarPopover(anchoredTo: button)
+            }
+        }
         bindManagers()
 
         HotkeyManager.shared.onActivate = { KeepAwakeManager.shared.toggle() }
@@ -803,6 +827,108 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if let panel = window as? NSPanel {
             panel.hidesOnDeactivate = false
         }
+    }
+
+    private func showCalendarPopover(anchoredTo button: NSStatusBarButton) {
+        guard !calendarPopover.isShown else { return }
+        let screen = screenForCalendarPopover(anchoredTo: button)
+        let visibleFrame = screen?.visibleFrame ?? NSScreen.pointerVisibleFrame
+        let anchorMidX = statusButtonMidX(button) ?? visibleFrame.midX
+        let anchorRect = CGRect(x: anchorMidX - 0.5,
+                                y: visibleFrame.maxY - 1,
+                                width: 1,
+                                height: 1)
+        let positioningPanel: NSPanel
+        let positioningView: NSView
+        if let panel = calendarPopoverPositioningPanel {
+            positioningPanel = panel
+            positioningPanel.setFrame(anchorRect, display: false)
+            positioningView = panel.contentView ?? NSView(frame: CGRect(origin: .zero, size: anchorRect.size))
+            positioningView.frame = CGRect(origin: .zero, size: anchorRect.size)
+            positioningPanel.contentView = positioningView
+        } else {
+            let panel = NSPanel(contentRect: anchorRect,
+                                styleMask: [.borderless, .nonactivatingPanel],
+                                backing: .buffered,
+                                defer: false)
+            panel.isReleasedWhenClosed = false
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.hasShadow = false
+            panel.ignoresMouseEvents = true
+            panel.hidesOnDeactivate = false
+            panel.level = .statusBar
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+            let view = NSView(frame: CGRect(origin: .zero, size: anchorRect.size))
+            panel.contentView = view
+            calendarPopoverPositioningPanel = panel
+            positioningPanel = panel
+            positioningView = view
+        }
+        positioningPanel.orderFrontRegardless()
+        calendarPopover.show(relativeTo: positioningView.bounds, of: positioningView, preferredEdge: .minY)
+        guard calendarPopover.isShown,
+              let window = calendarPopover.contentViewController?.view.window else {
+            cleanupCalendarPopoverAnchoring()
+            return
+        }
+        configurePopoverWindow(window)
+        window.makeKey()
+        clampCalendarPopover(window, visibleFrame: visibleFrame, anchorMidX: anchorMidX)
+        installCalendarPopoverDismissMonitors()
+    }
+
+    private func screenForCalendarPopover(anchoredTo button: NSStatusBarButton) -> NSScreen? {
+        if let mouseScreen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) {
+            return mouseScreen
+        }
+        return statusScreen(for: button)
+    }
+
+    private func clampCalendarPopover(_ window: NSWindow, visibleFrame: CGRect, anchorMidX: CGFloat) {
+        let target = StatusItemAnchorSupport.pinnedPanelFrame(
+            size: window.frame.size,
+            anchorMidX: anchorMidX,
+            anchorTop: visibleFrame.maxY,
+            visibleFrame: visibleFrame
+        )
+        guard abs(window.frame.midX - target.midX) > 2 || abs(window.frame.maxY - target.maxY) > 2 else { return }
+        window.setFrame(target, display: true)
+    }
+
+    private func installCalendarPopoverDismissMonitors() {
+        removeCalendarPopoverDismissMonitors()
+        calendarPopoverDismissMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            guard let self, self.calendarPopover.isShown else { return }
+            guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
+            self.calendarPopover.performClose(nil)
+        }
+        calendarPopoverLocalDismissMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self, self.calendarPopover.isShown else { return event }
+            guard !PanelInteractionState.shared.preventsPopoverDismissal else { return event }
+            guard let window = self.calendarPopover.contentViewController?.view.window else { return event }
+            if event.window !== window {
+                self.calendarPopover.performClose(nil)
+            }
+            return event
+        }
+    }
+
+    private func removeCalendarPopoverDismissMonitors() {
+        if let monitor = calendarPopoverDismissMonitor {
+            NSEvent.removeMonitor(monitor)
+            calendarPopoverDismissMonitor = nil
+        }
+        if let monitor = calendarPopoverLocalDismissMonitor {
+            NSEvent.removeMonitor(monitor)
+            calendarPopoverLocalDismissMonitor = nil
+        }
+    }
+
+    private func cleanupCalendarPopoverAnchoring() {
+        removeCalendarPopoverDismissMonitors()
+        calendarPopoverPositioningPanel?.close()
+        calendarPopoverPositioningPanel = nil
     }
 
     private func switchMetricPopover(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
@@ -1886,8 +2012,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
 extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        if notification.request.content.categoryIdentifier == "calendarAlert" {
+            CalendarService.shared.flashStatusItemForAlert()
+        }
+        completionHandler([.banner, .sound])
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        if let eventIdentifier = response.notification.request.content.userInfo["eventIdentifier"] as? String {
+            switch response.actionIdentifier {
+            case "calendarJoin": CalendarService.shared.openMeeting(eventIdentifier: eventIdentifier)
+            case "calendarSnooze": CalendarService.shared.snooze(eventIdentifier: eventIdentifier)
+            default: break
+            }
+        }
         if let transactionID = Notifier.whatsAppOrganizerTransactionID(from: response) {
             DispatchQueue.main.async {
                 WhatsAppDownloadOrganizer.shared.undoLastRun(transactionID: transactionID)
