@@ -44,6 +44,17 @@
 	<array>
 		<string>MacOSX</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.vorssaint.utils</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vorssaint</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>83</string>
 	<key>LSApplicationCategoryType</key>

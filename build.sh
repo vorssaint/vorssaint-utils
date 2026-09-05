@@ -360,6 +360,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarFileSearchSupport.swift \
         Sources/Vorssaint/Services/CommandBar/CommandBarQueryMemory.swift \
         Sources/Vorssaint/Services/SpotlightNamesSupport.swift \
+        Sources/Vorssaint/Services/DeepLinkSupport.swift \
         Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift \
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift \

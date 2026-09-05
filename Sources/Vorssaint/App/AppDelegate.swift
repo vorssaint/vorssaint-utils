@@ -309,6 +309,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return true
     }
 
+    // MARK: - Deep links
+
+    /// Handles `vorssaint://` URLs from external callers.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        // Defer handling until startup has finished arranging the app.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            for url in urls { self.handleDeepLink(url) }
+        }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard let request = DeepLinkSupport.parse(url) else {
+            Self.deepLinkLog.error("rejected deep link \(url.absoluteString, privacy: .private)")
+            NSSound.beep()
+            return
+        }
+        CommandBarService.shared.runExternalRow(withStableKey: request.stableKey,
+                                                argument: request.argument)
+    }
+
+    private static let deepLinkLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                            category: "deeplink")
+
     /// Whether the menu bar icon is actually visible on a screen, rather than
     /// present in the status bar but clipped or dropped by a crowded/notched menu
     /// bar (in which case the button still has a window, just not an on-screen one).

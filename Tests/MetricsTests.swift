@@ -23483,6 +23483,146 @@ struct MetricsTests {
                "a container an earlier version left world readable is tightened on the next write")
         try? FileManager.default.removeItem(at: privateRoot)
 
+        // MARK: Deep links
+
+        // The vorssaint:// scheme is how things outside the app ask it to
+        // run one of its own tools. The parser is the only gate on that
+        // door, so every rule about what gets in and what stays out is
+        // pinned here.
+        func deepLink(_ string: String) -> DeepLinkSupport.Request? {
+            guard let url = URL(string: string) else {
+                failures.append("deep link test URL failed to parse itself: \(string)")
+                checks += 1
+                return nil
+            }
+            return DeepLinkSupport.parse(url)
+        }
+
+        expect(deepLink("vorssaint://run/action.screenshot")?.stableKey == "action.screenshot",
+               "a plain run link carries its action id")
+        expect(deepLink("VORSSAINT://Run/action.screenshot")?.stableKey == "action.screenshot",
+               "the scheme and the verb are case insensitive")
+        expect(deepLink("vorssaint://run/action.soundOutput.ABC-012")?.stableKey == "action.soundOutput.ABC-012",
+               "an action id keeps its case, so device uid keys survive")
+        expect(deepLink("vorssaint://run/action.brightness?v=40") ==
+               DeepLinkSupport.Request(stableKey: "action.brightness", argument: 40),
+               "v arrives as the numeric argument")
+        expect(deepLink("vorssaint://run/action.brightness?v=-30")?.argument == -30,
+               "a negative v parses")
+        expect(deepLink("vorssaint://run/action.keepAwake?other=1") ==
+               DeepLinkSupport.Request(stableKey: "action.keepAwake", argument: nil),
+               "a query key other than v is not an argument")
+        expect(deepLink("vorssaint://run/action.brightness?v=abc") ==
+               DeepLinkSupport.Request(stableKey: "action.brightness", argument: nil),
+               "garbage v counts as absent, so the row can still ask for a number itself")
+        expect(deepLink("https://run/action.screenshot") == nil,
+               "another scheme is not ours")
+        expect(deepLink("vorssaint://settings/page") == nil,
+               "only the run verb is served")
+        expect(deepLink("vorssaint://run") == nil,
+               "a run link without an action id is rejected")
+        expect(deepLink("vorssaint://run/action/screenshot") == nil,
+               "a run link with extra path parts is rejected")
+
+        // MARK: Settings pages resolve without a bar row
+
+        // The bar omits Settings pages an action row already opens, but the
+        // docs promise every page ID, so a settings.<page> link resolves
+        // against the page list itself. Only exact case names count: an
+        // unknown page stays an unknown ID, and beeps like one.
+        expect(DeepLinkSupport.settingsPage(from: "settings.general") == .general,
+               "the general page resolves even though the bar has no settings.general row")
+        expect(DeepLinkSupport.settingsPage(from: "settings.keyDebounce") == .keyDebounce,
+               "a page case name keeps its exact spelling")
+        expect(DeepLinkSupport.settingsPage(from: "settings.noSuchPage") == nil,
+               "an unknown settings page is an unknown ID")
+        expect(DeepLinkSupport.settingsPage(from: "settings.feature.shelf") == nil,
+               "a feature row is not a settings page")
+        expect(DeepLinkSupport.settingsPage(from: "settings.general.extra") == nil,
+               "a settings key with extra parts is not a page")
+        expect(DeepLinkSupport.settingsPage(from: "macsettings.com.apple.x") == nil,
+               "a System Settings pane is not a Vorssaint settings page")
+        expect(DeepLinkSupport.settingsPage(from: "action.screenshot") == nil,
+               "an action key is not a settings page")
+        expect(DeepLinkSupport.settingsPage(from: "settings") == nil,
+               "the bare settings prefix is not a page")
+
+        // MARK: Deep link reference stays true
+
+        // docs/DEEP_LINKS.md promises which IDs a vorssaint://run link
+        // accepts. This check reads the catalog's own literals and the
+        // Settings page list at their sources, then fails when either ships
+        // without appearing on that page, so the reference cannot quietly
+        // fall behind the app.
+        let catalogSource = (try? String(contentsOfFile:
+                "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                encoding: .utf8)) ?? ""
+        let settingsSource = (try? String(contentsOfFile:
+                "Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift",
+                encoding: .utf8)) ?? ""
+        let deepLinkDoc = (try? String(contentsOfFile:
+                "docs/DEEP_LINKS.md", encoding: .utf8)) ?? ""
+        expect(!catalogSource.isEmpty && !settingsSource.isEmpty && !deepLinkDoc.isEmpty,
+               "the deep link reference files are readable from the repo root")
+        if !catalogSource.isEmpty && !deepLinkDoc.isEmpty {
+            // The pattern is a fixed literal; it cannot fail to compile.
+            let idPattern = try! NSRegularExpression(pattern: #""((?:action|toggle)\.[A-Za-z0-9.]*)""#)
+            let range = NSRange(catalogSource.startIndex..., in: catalogSource)
+            var catalogIDs = Set<String>()
+            idPattern.enumerateMatches(in: catalogSource, range: range) { match, _, _ in
+                guard let match, let full = Range(match.range(at: 1), in: catalogSource) else { return }
+                catalogIDs.insert(String(catalogSource[full]))
+            }
+            // An ID ending in a dot is the head of an interpolated family
+            // ("action.layout.\(direction)"); the page names such a family
+            // with its prefix followed by a placeholder.
+            for id in catalogIDs.sorted() {
+                if id.hasSuffix(".") {
+                    expect(deepLinkDoc.contains(id),
+                           "docs/DEEP_LINKS.md names the \(id)<…> family")
+                } else {
+                    // Concatenation on purpose: an interpolation here stalls the type checker.
+                    let quoted = "`" + id + "`"
+                    expect(deepLinkDoc.contains(quoted),
+                           "docs/DEEP_LINKS.md lists \(id)")
+                }
+            }
+            expect(catalogIDs.count > 40,
+                   "the catalog still yields its fixed IDs to the reference check (\(catalogIDs.count) found)")
+        }
+
+        func settingsPageNames(from source: String) -> [String] {
+            guard let header = source.range(of: "enum SettingsPage") else { return [] }
+            var depth = 0
+            var inside = false
+            var body = ""
+            for character in source[header.upperBound...] {
+                if character == "{" {
+                    depth += 1
+                    inside = true
+                    continue
+                }
+                if character == "}" {
+                    depth -= 1
+                    if inside && depth == 0 { break }
+                }
+                if inside { body.append(character) }
+            }
+            return body.components(separatedBy: "\n")
+                .filter { $0.trimmingCharacters(in: .whitespaces).hasPrefix("case ") }
+                .flatMap { $0.replacingOccurrences(of: "case ", with: "")
+                    .components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) } }
+                .filter { !$0.isEmpty && $0.allSatisfy { $0.isLetter || $0.isNumber } }
+        }
+        for name in settingsPageNames(from: settingsSource) {
+            let quoted = "`settings." + name + "`"
+            expect(deepLinkDoc.contains(quoted),
+                   "docs/DEEP_LINKS.md lists settings.\(name)")
+        }
+        expect(settingsPageNames(from: settingsSource).count > 20,
+               "the Settings page list still yields its pages to the reference check")
+
         // MARK: Result
 
         // MARK: Every defaults suite stays inside a namespace build.sh sweeps

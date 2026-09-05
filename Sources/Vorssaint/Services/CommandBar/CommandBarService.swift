@@ -472,10 +472,48 @@ final class CommandBarService: ObservableObject {
             NSSound.beep()
             return
         }
-        // A row that would confirm, ask for input, or keep the field visible
-        // needs a real presentation just as it does when chosen from the bar.
-        // Emptying the Trash on one keypress with nothing asked is not a
-        // shortcut, it is an accident with a name.
+        dispatch(entry, argument: nil, key: key)
+    }
+
+    /// Runs a row requested by an external `vorssaint://` deep link.
+    /// Uses the same execution path as row shortcuts, including any required
+    /// confirmation or setup steps.
+    func runExternalRow(withStableKey key: String, argument: Int?) {
+        guard let entry = freshFullEntry(forStableKey: key) else {
+            runExternalSettingsPage(key)
+            return
+        }
+        dispatch(entry, argument: argument, key: key)
+    }
+
+    /// A `settings.<page>` link needs no bar row: the bar deliberately omits
+    /// pages an action row already opens, but the docs promise every page ID.
+    /// A page hidden because its feature is off beeps, like any row whose
+    /// feature is missing.
+    private func runExternalSettingsPage(_ key: String) {
+        guard let page = DeepLinkSupport.settingsPage(from: key),
+              FeatureVisibilitySupport.isPageVisible(page, isAvailable: { $0.isAvailable })
+        else {
+            NSSound.beep()
+            return
+        }
+        SettingsRouter.shared.request(FeatureSettingsDestination(page))
+        appDelegate()?.openSettingsWindow()
+    }
+
+    /// A row that would confirm, ask for input, or keep the field visible
+    /// needs a real presentation just as it does when chosen from the bar.
+    /// Emptying the Trash on one keypress with nothing asked is not a
+    /// shortcut, it is an accident with a name.
+    private func dispatch(_ entry: CommandBarEntry, argument: Int?, key: String) {
+        // An argument answers only the numeric prompt. A row that also
+        // confirms, or whose switch is off, still gets the bar, whose run(_)
+        // asks in the bar's own order.
+        if let range = entry.numericRange, let argument,
+           entry.confirmationPrompt == nil, entry.trouble == nil {
+            finish(entry, value: min(max(argument, range.lowerBound), range.upperBound))
+            return
+        }
         guard !entry.needsPrompt, !entry.keepsBarOpen else {
             show(promptingFor: key)
             return
