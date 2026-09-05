@@ -222,6 +222,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightThird: return "rectangle.rightthird.inset.filled"
         case .topHalf: return "rectangle.topthird.inset.filled"
         case .bottomHalf: return "rectangle.bottomthird.inset.filled"
+        case .centerHalf: return "rectangle.center.inset.filled"
         case .centerThird: return "rectangle.center.inset.filled"
         case .leftTwoThirds: return "rectangle.leadinghalf.filled"
         case .rightTwoThirds: return "rectangle.trailinghalf.filled"
