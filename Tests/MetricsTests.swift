@@ -13437,6 +13437,44 @@ struct MetricsTests {
         expect(fallbackProcessIndex == 2,
                "network sampler invokes the process reader only for suspect interface samples")
 
+        let intermittentCounters: [NetworkCounters?] = [
+            nil,
+            NetworkCounters(received: 1_000_000, sent: 500_000),
+            NetworkCounters(received: 1_000_200, sent: 500_100),
+            nil, nil,
+            NetworkCounters(received: 1_000_800, sent: 500_400),
+            nil,
+            NetworkCounters(received: 2_000_000, sent: 900_000),
+            NetworkCounters(received: 2_000_200, sent: 900_100),
+            NetworkCounters(),
+            NetworkCounters(received: 200, sent: 100),
+        ]
+        var intermittentCounterIndex = 0
+        var unexpectedProcessReads = 0
+        let intermittentSampler = NetworkSampler(counterReader: {
+            defer { intermittentCounterIndex += 1 }
+            return intermittentCounters[intermittentCounterIndex]
+        }, processReader: {
+            unexpectedProcessReads += 1
+            return nil
+        })
+        let intermittentTimes: [TimeInterval] = [0, 1, 2, 3, 4, 5, 6, 20, 21, 22, 23]
+        let expectedDownRates: [Double?] = [nil, nil, 200, nil, nil, 200, nil, nil, 200, 0, 200]
+        let expectedDownTotals: [UInt64] = [0, 0, 200, 200, 200, 800, 800, 800, 1_000, 1_000, 1_200]
+        for index in intermittentTimes.indices {
+            let reading = intermittentSampler.sample(now: intermittentTimes[index])
+            expect(reading.downBytesPerSec == expectedDownRates[index]
+                    && reading.upBytesPerSec == expectedDownRates[index].map { $0 / 2 },
+                   "network reading \(index) distinguishes unavailable counters from zero and averages short gaps")
+            expect(reading.totalDown == expectedDownTotals[index]
+                    && reading.totalUp == expectedDownTotals[index] / 2,
+                   "network reading \(index) preserves totals through failures, long gaps and valid counter resets")
+        }
+        expect(unexpectedProcessReads == 0,
+               "unavailable interface counters never trigger process sampling")
+
+        SpeedTestTests.run { expect($0, $1) }
+
         let nettopCSV = """
         time,,bytes_in,bytes_out,
         08:31:45.865507,Codex (Service).78844,78288,477660,

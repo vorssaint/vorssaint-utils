@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves color picking, app icons, readability, localization, mouse reconnection, Command Bar responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
+Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, network readings, color picking, app icons, readability, localization, mouse reconnection, Command Bar responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
 
 ### Added
 - Keep Awake can start automatically while selected apps are open, including in the background. Thanks to @Borisserz.
@@ -28,8 +28,11 @@ Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, ce
 - The radial menu throws its actions out of the center one after another when it opens and gathers them back in when it closes.
 - The radial menu's highlight sweeps to the pointed slice, and its actions sit on the glass as raised buttons with guides between them.
 - Panel outlines answer the system's Increase Contrast, which they were ignoring while already following reduced motion and transparency.
+- Package installation and update logs use less processing.
 
 ### Fixed
+- Screenshot, text and color shortcuts leave active recordings alone, while the recording command still stops them.
+- Network readings recover from temporary counter failures without false spikes, and speed tests report server errors instead of misleading results.
 - Toggling Wi-Fi from the Command Bar no longer blocks clicks and scrolling while the system responds. Thanks to @mugurc.
 - App Switcher restores native shortcuts after crashes even when disabled, and its reverse window shortcut leaves screenshots available. Thanks to @owendaw.
 - Shortcut recording detects system shortcuts even when they have never been customized. Thanks to @owendaw.

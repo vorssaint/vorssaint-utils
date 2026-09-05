@@ -391,6 +391,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ShellSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift \
+        Sources/Vorssaint/Services/Metrics/SpeedTest.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift \
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift \
@@ -409,6 +410,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
+        Tests/SpeedTestTests.swift \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
