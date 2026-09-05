@@ -1289,7 +1289,7 @@ final class AppSwitcher: ObservableObject {
                                                              itemID: item.id,
                                                              expiry: expiry)
         if confirmation.showsFeedback {
-            QuitProtectionService.shared.showSelectionHUD(for: shortcut)
+            QuitProtectionService.shared.showSelectionHUD(for: shortcut, on: placementScreen)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + confirmation.intervalMilliseconds / 1_000,
                                       execute: expiry)

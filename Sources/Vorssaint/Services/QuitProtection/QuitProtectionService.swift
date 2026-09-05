@@ -548,10 +548,11 @@ final class QuitProtectionService: ObservableObject {
 
     /// The same panel the tap uses, so both places ask for the second press
     /// in the same words and the same place.
-    func showSelectionHUD(for shortcut: QuitProtectionShortcut) {
+    func showSelectionHUD(for shortcut: QuitProtectionShortcut, on screen: NSScreen?) {
         let strings = FeatureStrings.quitProtection(L10n.shared.language)
         hud.show(title: String(format: strings.doubleHUDFormat, shortcut.character.uppercased()),
-                 detail: strings.cancelHint)
+                 detail: strings.cancelHint,
+                 on: screen)
     }
 
     func hideSelectionHUD() { hud.hide() }

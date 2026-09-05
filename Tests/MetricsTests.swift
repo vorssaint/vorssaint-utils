@@ -24245,7 +24245,7 @@ struct MetricsTests {
         expect(!quitHUDCode.contains("size(withAttributes:"),
                "the confirmation HUD does not size itself from a separate text measurement")
         let quitHUDShow = quitHUDCode
-            .components(separatedBy: "func show(title: String, detail: String) {").last ?? ""
+            .components(separatedBy: "func show(title: String, detail: String").last ?? ""
         let quitHUDShowBody = quitHUDShow.components(separatedBy: "\n    func ").first ?? ""
         if let filled = quitHUDShowBody.range(of: "content.update("),
            let sized = quitHUDShowBody.range(of: "fittingSize(content)"),
