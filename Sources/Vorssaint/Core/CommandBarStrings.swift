@@ -158,6 +158,8 @@ struct CommandBarFeatureStrings {
     let filesIgnoreAdd: String
     let compactModeToggle: String
     let compactModeCaption: String
+    let asciiLayoutToggle: String
+    let asciiLayoutCaption: String
 }
 
 extension FeatureStrings {
@@ -332,7 +334,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "A folder or file name",
         filesIgnoreAdd: "Add",
         compactModeToggle: "Compact mode",
-        compactModeCaption: "Bar opens without suggestions. Results appear as you type.")
+        compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
+        asciiLayoutToggle: "Switch to an ABC layout while the bar is open",
+        asciiLayoutCaption: "The field types Latin characters whatever layout was active, and the previous layout comes back when the bar closes.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -485,7 +489,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
         filesIgnoreAdd: "Adicionar",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.")
+        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
+        asciiLayoutToggle: "Mudar para um layout ABC enquanto a barra está aberta",
+        asciiLayoutCaption: "O campo digita caracteres latinos independente do layout ativo, e o layout anterior volta quando a barra fecha.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -638,7 +644,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Klasör veya dosya adı",
         filesIgnoreAdd: "Ekle",
         compactModeToggle: "Kompakt mod",
-        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.")
+        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
+        asciiLayoutToggle: "Çubuk açıkken ABC düzene geç",
+        asciiLayoutCaption: "Alan, etkin düzen ne olursa olsun Latin karakterler yazar; çubuk kapandığında önceki düzen geri gelir.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -791,7 +799,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Имя папки или файла",
         filesIgnoreAdd: "Добавить",
         compactModeToggle: "Компактный режим",
-        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.")
+        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
+        asciiLayoutToggle: "Переключаться на ABC-раскладку, пока открыта строка",
+        asciiLayoutCaption: "Поле набирает латиницу, какая бы раскладка ни была активна; при закрытии строки прежняя раскладка возвращается.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -944,7 +954,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
         filesIgnoreAdd: "Añadir",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.")
+        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
+        asciiLayoutToggle: "Cambiar a una disposición ABC mientras la barra esté abierta",
+        asciiLayoutCaption: "El campo escribe caracteres latinos aunque haya otra disposición activa, y la anterior vuelve al cerrar la barra.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1097,7 +1109,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
         filesIgnoreAdd: "Hinzufügen",
         compactModeToggle: "Kompaktmodus",
-        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.")
+        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
+        asciiLayoutToggle: "Bei geöffneter Leiste zum ABC-Layout wechseln",
+        asciiLayoutCaption: "Das Feld tippt lateinische Zeichen, egal welches Layout aktiv ist; beim Schließen kehrt das vorherige Layout zurück.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1250,7 +1264,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
         filesIgnoreAdd: "Ajouter",
         compactModeToggle: "Mode compact",
-        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.")
+        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
+        asciiLayoutToggle: "Passer en disposition ABC quand la barre est ouverte",
+        asciiLayoutCaption: "Le champ saisit des caractères latins quelle que soit la disposition active, et la précédente revient à la fermeture de la barre.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1403,7 +1419,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome di cartella o file",
         filesIgnoreAdd: "Aggiungi",
         compactModeToggle: "Modalità compatta",
-        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.")
+        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
+        asciiLayoutToggle: "Passa a un layout ABC mentre la barra è aperta",
+        asciiLayoutCaption: "Il campo digita caratteri latini indipendentemente dal layout attivo; alla chiusura torna il layout precedente.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1556,7 +1574,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
         filesIgnoreAdd: "追加",
         compactModeToggle: "コンパクトモード",
-        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。")
+        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
+        asciiLayoutToggle: "バーを開いている間はABCレイアウトに切り替える",
+        asciiLayoutCaption: "アクティブなレイアウトに関係なく、フィールドにはラテン文字が入力されます。バーを閉じると元のレイアウトに戻ります。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1709,7 +1729,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
         filesIgnoreAdd: "추가",
         compactModeToggle: "컴팩트 모드",
-        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.")
+        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
+        asciiLayoutToggle: "막대가 열려 있는 동안 ABC 자판으로 전환",
+        asciiLayoutCaption: "활성 자판과 관계없이 입력 필드에는 라틴 문자가 입력되고, 막대를 닫으면 이전 자판으로 돌아갑니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1862,7 +1884,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "文件夹或文件名",
         filesIgnoreAdd: "添加",
         compactModeToggle: "紧凑模式",
-        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。")
+        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
+        asciiLayoutToggle: "命令栏打开时切换到 ABC 布局",
+        asciiLayoutCaption: "无论当前布局为何，输入栏都会键入拉丁字符；命令栏关闭后恢复原布局。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2015,7 +2039,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
+        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2168,5 +2194,7 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        asciiLayoutToggle: "指令列開啟時切換到 ABC 配置",
+        asciiLayoutCaption: "無論目前配置為何，輸入欄都會鍵入拉丁字元；指令列關閉後恢復原配置。")
 }
