@@ -15738,6 +15738,23 @@ struct MetricsTests {
                 == "first\nsecond ",
                "multi-line snippets keep their delimiter in the same ordered paste")
 
+        // An inline completion the app in front added is selected text, and a
+        // backspace eats the selection instead of a character, so the counted
+        // deletes clear one short and strand the trigger's first character.
+        let snippetServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
+            encoding: .utf8)) ?? ""
+        let snippetServiceCode = snippetServiceSource
+            .replacingOccurrences(of: "(?m)^\\s*//.*$", with: "", options: .regularExpression)
+        expect(snippetServiceCode.contains("kAXSelectedTextAttribute"),
+               "the deletes ask the focused field whether a selection would absorb one")
+        expect(snippetServiceCode.contains("AXUIElementSetMessagingTimeout"),
+               "an app that never answers the selection query cannot stall the tap")
+        expect(!snippetServiceCode.contains("for _ in 0..<deleteCount"),
+               "no delete loop bypasses the selection-aware helper")
+        expect(snippetServiceCode.components(separatedBy: "postDeletes(deleteCount)").count - 1 == 2,
+               "the typed and pasted expansions both clear the trigger the same way")
+
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")
         expect(TextSnippetSupport.expand("{{date:yyyy-MM-dd}}", date: fixedDate, clipboard: nil,
