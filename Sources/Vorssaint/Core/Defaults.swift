@@ -339,6 +339,37 @@ enum DefaultsKey {
     static let fanControlMode = "fanControlMode"
     static let fanControlCoolingLevel = "fanControlCoolingLevel"
     static let fanControlCurves = "fanControlCurves"
+    // The user's currently selected manual-session length (a
+    // FanControlManualDuration raw value), independent of whether that
+    // session is actually running.
+    static let fanControlManualDuration = "fanControlManualDuration"
+    // Machine-only. The absolute deadline (seconds since 1970) of the manual
+    // session in progress, or absent when none is running. The helper enforces
+    // the deadline on its own; this key only lets the app notice, on launch,
+    // a deadline that already elapsed while it was not running, and gate
+    // resumePreviousCurveAfterManualExpiry so it only reaches for the other
+    // two keys below during a real, live-tracked expiry.
+    static let fanControlManualUntil = "fanControlManualUntil"
+    // Machine-only. Which mode (system or curve) a timed manual override
+    // should hand control back to once it expires; set once when the
+    // override is confirmed active, cleared together with fanControlManualUntil.
+    static let fanControlModeBeforeManual = "fanControlModeBeforeManual"
+    // Machine-only. The curve configuration that was actually applied and
+    // running right before a timed manual override began, encoded the same
+    // way as fanControlCurves. Captured separately because the curve editor
+    // writes fanControlCurves live as the user drags points, without an
+    // Apply step, so it can no longer be trusted to describe what the
+    // hardware was actually running by the time the override expires.
+    static let fanControlManualPreviousCurves = "fanControlManualPreviousCurves"
+    // Named fan profiles (an encoded [FanProfile], see FanControlSupport.swift),
+    // seeded once with the three built-ins by migrateFanControlProfiles.
+    static let fanControlProfiles = "fanControlProfiles"
+    // Which stored profile the panel last applied ("" means none). The panel
+    // recomputes its highlighted chip from matching the live controls against
+    // fanControlProfiles rather than trusting this blindly (hand-edited
+    // controls should deselect immediately), so this key is only a
+    // convenience cache of the last explicit selection.
+    static let fanControlActiveProfileID = "fanControlActiveProfileID"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
     // Machine-only recovery state. A true value means the helper must confirm
@@ -1125,8 +1156,15 @@ enum Defaults {
         DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
         DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
+        // Untouched manual sessions never expire, matching manual mode's
+        // behavior before this preference existed.
+        DefaultsKey.fanControlManualDuration: FanControlManualDuration.untilChanged.rawValue,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
+        // The real seeding happens in migrateFanControlProfiles (it needs the
+        // user's language); this is only the fallback if that somehow never ran.
+        DefaultsKey.fanControlProfiles: "[]",
+        DefaultsKey.fanControlActiveProfileID: "",
         DefaultsKey.panelNavigationEnabled: true,
         DefaultsKey.monitorGraphCPU: true,
         DefaultsKey.monitorGraphGPU: true,
@@ -1389,6 +1427,24 @@ enum Defaults {
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+        migrateFanControlProfiles(in: defaults)
+    }
+
+    /// Seeds `fanControlProfiles` with the three built-in presets the first
+    /// time this runs (nothing stored yet, so `object(forKey:)` is still
+    /// nil — this must run before `register(defaults:)` below establishes
+    /// the "[]" fallback, or that fallback would already answer this check).
+    /// Uses whatever language is already selected (or the system default, if
+    /// none was chosen yet) so the presets read naturally from first launch.
+    static func migrateFanControlProfiles(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.fanControlProfiles) == nil else { return }
+        let language = defaults.string(forKey: DefaultsKey.language)
+            .flatMap(AppLanguage.init(rawValue:)) ?? .systemDefault
+        let strings = FeatureStrings.fanControl(language)
+        let profiles = FanProfile.migratedProfiles(storedValue: nil, strings: strings)
+        if let encoded = FanProfile.encodeArray(profiles) {
+            defaults.set(encoded, forKey: DefaultsKey.fanControlProfiles)
+        }
     }
 
     /// When the user installs or runs a beta pre-release, activate the beta

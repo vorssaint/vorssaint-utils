@@ -143,9 +143,11 @@ private final class FanControlController {
                                                     snapshot: self.currentSnapshot())))
                 return
             }
-            let response = self.applyConfiguration(session: id,
-                                                   configuration: configuration,
-                                                   duration: nil)
+            let response = self.applyConfiguration(
+                session: id,
+                configuration: configuration,
+                duration: FanControlPolicy.sessionDuration(for: configuration)
+            )
             reply(FanControlIPC.encode(response))
         }
     }
