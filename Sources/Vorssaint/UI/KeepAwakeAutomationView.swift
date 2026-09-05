@@ -8,6 +8,8 @@ struct KeepAwakeAutomationEditor: View {
     @ObservedObject private var awake = KeepAwakeManager.shared
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var externalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var connectedToPower = false
+    @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
+    @State private var runningAppBundleIDs: [String] = Self.savedRunningAppBundleIDs
 
     var compact = false
 
@@ -30,12 +32,41 @@ struct KeepAwakeAutomationEditor: View {
                     connectedToPower.toggle()
                     awake.automationPreferencesDidChange()
                 }
+                conditionTile(
+                    title: strings.runningAppsToggle,
+                    icon: "app.fill",
+                    selected: runningApps
+                ) {
+                    runningApps.toggle()
+                    awake.automationPreferencesDidChange()
+                }
+            }
+            if runningApps {
+                AppBundleList(title: strings.runningAppsListTitle,
+                              caption: strings.runningAppsListCaption,
+                              addTitle: strings.runningAppsAddButton,
+                              removeLabel: strings.runningAppsRemoveButton,
+                              bundleIDs: runningAppBundleIDs,
+                              onAdd: { saveRunningApps(runningAppBundleIDs + [$0]) },
+                              onRemove: { id in saveRunningApps(runningAppBundleIDs.filter { $0 != id }) })
             }
         }
     }
 
     private var strings: KeepAwakeAutomationStrings {
         FeatureStrings.keepAwakeAutomation(l10n.language)
+    }
+
+    private static var savedRunningAppBundleIDs: [String] {
+        Defaults.sanitizedBundleIdentifierList(
+            UserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
+    }
+
+    private func saveRunningApps(_ bundleIDs: [String]) {
+        let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
+        UserDefaults.standard.set(sanitized, forKey: DefaultsKey.keepAwakeRunningAppBundleIDs)
+        runningAppBundleIDs = sanitized
+        awake.automationPreferencesDidChange()
     }
 
     private func conditionTile(title: String,

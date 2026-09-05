@@ -2016,6 +2016,14 @@ struct MetricsTests {
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeRunningApps] as? Bool == false,
+               "running-apps Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.keepAwakeRunningAppBundleIDs] as? [String] == [],
+               "running-apps Keep Awake starts with an empty app list")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningApps),
+               "running-apps Keep Awake preference follows settings backups")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeRunningAppBundleIDs),
+               "running-apps Keep Awake app list follows settings backups")
         expect(registeredDefaults[DefaultsKey.keepAwakePauseWhenLocked] as? Bool == false,
                "pausing Keep Awake on screen lock is opt-in")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePauseWhenLocked),
@@ -2052,14 +2060,44 @@ struct MetricsTests {
                "the built-in screen does not count as an external display")
         expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
                "an online non-built-in screen counts as an external display")
+        expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
+            selectedBundleIDs: [],
+            runningBundleIDs: ["com.example.app"]
+        ), "an empty selected-app list never matches a running app")
+        expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
+            selectedBundleIDs: ["com.example.app"],
+            runningBundleIDs: ["com.other.app"]
+        ), "a selected app that is not running does not match")
+        expect(KeepAwakeAutomationSupport.selectedAppsAreRunning(
+            selectedBundleIDs: ["com.example.app", "com.other.app"],
+            runningBundleIDs: ["com.helper", "com.example.app"]
+        ), "any selected app that is running matches, focused or not")
         let combinedKeepAwakeConditions = KeepAwakeAutomationSupport.matchingConditions(
             externalDisplayEnabled: true,
             externalDisplayConnected: true,
             powerEnabled: true,
-            connectedToPower: true
+            connectedToPower: true,
+            runningAppsEnabled: true,
+            selectedAppsRunning: true
         )
-        expect(combinedKeepAwakeConditions == [.externalDisplay, .power],
+        expect(combinedKeepAwakeConditions == [.externalDisplay, .power, .runningApps],
                "enabled Keep Awake conditions combine with OR behavior")
+        expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false,
+            externalDisplayConnected: false,
+            powerEnabled: false,
+            connectedToPower: false,
+            runningAppsEnabled: true,
+            selectedAppsRunning: true
+        ) == [.runningApps], "a running selected app matches the running-apps condition")
+        expect(KeepAwakeAutomationSupport.matchingConditions(
+            externalDisplayEnabled: false,
+            externalDisplayConnected: false,
+            powerEnabled: false,
+            connectedToPower: false,
+            runningAppsEnabled: true,
+            selectedAppsRunning: false
+        ).isEmpty, "running-apps stays off when none of the selected apps are open")
         expect(KeepAwakeAutomationSupport.action(
             featureAvailable: true,
             matchingConditions: [.externalDisplay],

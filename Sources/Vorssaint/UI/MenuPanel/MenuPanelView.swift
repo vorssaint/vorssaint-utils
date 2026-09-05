@@ -2401,6 +2401,7 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
+    @AppStorage(DefaultsKey.keepAwakeRunningApps) private var keepAwakeRunningApps = false
     @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -2561,6 +2562,7 @@ struct KeepAwakeCard: View {
     private var automationSummaryBadges: some View {
         if !keepAwakeExternalDisplay,
            !keepAwakeConnectedToPower,
+           !keepAwakeRunningApps,
            !keepAwakePauseWhenLocked {
             Text(automationStrings.automationOff)
                 .font(.system(size: 9.5, weight: .medium))
@@ -2572,6 +2574,9 @@ struct KeepAwakeCard: View {
                 }
                 if keepAwakeConnectedToPower {
                     automationSystemBadge("powerplug.fill")
+                }
+                if keepAwakeRunningApps {
+                    automationSystemBadge("app.fill")
                 }
                 if keepAwakePauseWhenLocked {
                     automationSystemBadge("lock.fill")
