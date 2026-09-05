@@ -49,6 +49,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             applyStyleToSelection()
         }
     }
+    @Published var arrowStyle: ScreenshotSupport.ArrowStyleID {
+        didSet {
+            UserDefaults.standard.set(arrowStyle.rawValue,
+                                      forKey: DefaultsKey.screenshotLastArrowStyle)
+            applyStyleToSelection()
+        }
+    }
     @Published var sticker: ScreenshotSupport.StickerID {
         didSet {
             UserDefaults.standard.set(sticker.rawValue,
@@ -144,6 +151,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             defaults.string(forKey: DefaultsKey.screenshotLastColor))
         stroke = ScreenshotSupport.StrokeID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastStroke))
+        arrowStyle = ScreenshotSupport.ArrowStyleID.sanitized(
+            defaults.string(forKey: DefaultsKey.screenshotLastArrowStyle))
         sticker = ScreenshotSupport.StickerID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastSticker))
         annotationShadowsEnabled = defaults.bool(
@@ -436,15 +445,26 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Selection styling
 
-    /// Applies color or thickness changes to the selected annotation.
+    /// Applies color, thickness, or arrow style changes to the selected annotation.
     private func applyStyleToSelection() {
         guard let selectedID,
               let index = annotations.firstIndex(where: { $0.id == selectedID })
         else { return }
-        guard annotations[index].color != color || annotations[index].stroke != stroke else { return }
+        let arrowStyleChanged = annotations[index].tool == .arrow
+            && annotations[index].arrowStyle != arrowStyle
+        guard annotations[index].color != color
+                || annotations[index].stroke != stroke
+                || arrowStyleChanged
+        else { return }
         registerUndo()
         annotations[index].color = color
         annotations[index].stroke = stroke
+        if annotations[index].tool == .arrow {
+            if arrowStyleChanged, arrowStyle == .scribbly {
+                annotations[index].scribbleSeed = ScreenshotSupport.randomScribbleSeed()
+            }
+            annotations[index].arrowStyle = arrowStyle
+        }
         if annotations[index].tool == .text {
             annotations[index].rect = ScreenshotRenderer.textBounds(
                 annotations[index].text,
@@ -475,6 +495,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             beginSelectDrag(at: point)
             return
         }
+        if tool != .select, tool != .crop {
+            selectedID = nil
+        }
         switch tool {
         case .select:
             beginSelectDrag(at: point)
@@ -497,8 +520,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             registerUndo()
             dragRegistered = true
             let annotation = ScreenshotSupport.Annotation(
-                tool: tool, points: [point, point], color: color, stroke: stroke)
+                tool: tool, points: [point, point], color: color, stroke: stroke,
+                arrowStyle: arrowStyle)
             annotations.append(annotation)
+            selectedID = annotation.id
             draftID = annotation.id
         case .freehand:
             registerUndo()
@@ -506,6 +531,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, points: [point], color: color, stroke: stroke)
             annotations.append(annotation)
+            selectedID = annotation.id
             draftID = annotation.id
         case .rect, .ellipse, .highlight, .pixelate, .redact:
             if tool == .pixelate { ensurePixelated() }
@@ -515,6 +541,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 tool: tool, rect: CGRect(origin: point, size: .zero),
                 color: color, stroke: stroke)
             annotations.append(annotation)
+            selectedID = annotation.id
             draftID = annotation.id
         case .text, .sticker, .counter:
             break
@@ -547,11 +574,15 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         }
         selectedID = hitTest(point)
         if let selectedID, let hit = annotations.first(where: { $0.id == selectedID }) {
+            let selectionStyle = ScreenshotSupport.selectionStyle(for: hit)
+            self.selectedID = nil
+            color = selectionStyle.color
+            stroke = selectionStyle.stroke
+            arrowStyle = selectionStyle.arrowStyle
             if hit.tool == .sticker {
-                self.selectedID = nil
                 sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
-                self.selectedID = selectedID
             }
+            self.selectedID = selectedID
             moveOrigin = hit.rect
             movePoints = hit.points
             clearTextSelection()
@@ -757,8 +788,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             selectedID = nil
             return false
         }
+        let style = ScreenshotSupport.selectionStyle(for: hit)
+        self.selectedID = nil
+        color = style.color
+        stroke = style.stroke
+        arrowStyle = style.arrowStyle
         if hit.tool == .sticker {
-            selectedID = nil
             sticker = ScreenshotSupport.StickerID.sanitized(hit.text)
         }
         selectedID = hitID

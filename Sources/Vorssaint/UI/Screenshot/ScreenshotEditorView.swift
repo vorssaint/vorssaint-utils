@@ -19,6 +19,7 @@ struct ScreenshotEditorView: View {
     @State private var backdropPopoverShown = false
     @State private var hoveredTool: ScreenshotSupport.Tool?
     @State private var toolOptionsShown = false
+    @State private var arrowStylePopoverShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
@@ -824,6 +825,15 @@ struct ScreenshotEditorView: View {
         }
     }
 
+    private var showsArrowStyleControls: Bool {
+        if model.tool == .arrow { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .arrow
+    }
+
     /// Depth only means something once a shape is picked, and only when there
     /// is something else for it to pass.
     private var showsLayerControls: Bool {
@@ -880,6 +890,10 @@ struct ScreenshotEditorView: View {
 
     private var styleBar: some View {
         HStack(spacing: 10) {
+            if showsArrowStyleControls {
+                arrowStyleMenu
+                Divider().frame(height: 16)
+            }
             if showsStickerControls {
                 stickerMenu
                 Divider().frame(height: 16)
@@ -917,6 +931,52 @@ struct ScreenshotEditorView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
+    }
+
+    private var arrowStyleMenu: some View {
+        Button {
+            arrowStylePopoverShown.toggle()
+        } label: {
+            HStack(spacing: 4) {
+                ScreenshotArrowStylePreview(style: model.arrowStyle)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+        }
+        .buttonStyle(.borderless)
+        .fixedSize()
+        .screenshotSafeHelp(strings.arrowStyleLabel)
+        .accessibilityLabel(strings.arrowStyleLabel)
+        .popover(isPresented: $arrowStylePopoverShown, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(ScreenshotSupport.ArrowStyleID.allCases, id: \.self) { style in
+                    Button {
+                        model.arrowStyle = style
+                        arrowStylePopoverShown = false
+                    } label: {
+                        HStack(spacing: 10) {
+                            ScreenshotArrowStylePreview(style: style)
+                            Text(strings.arrowStyleTitle(style))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if model.arrowStyle == style {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .padding(.horizontal, 8)
+                        .frame(height: 34)
+                        .contentShape(RoundedRectangle(cornerRadius: 7,
+                                                       style: .continuous))
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+            .padding(8)
+            .frame(width: 190)
+        }
     }
 
     private var stickerMenu: some View {
@@ -1320,6 +1380,119 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return strings.toolPixelate
         case .redact: return strings.toolRedact
         case .crop: return strings.toolCrop
+        }
+    }
+}
+
+private struct ScreenshotArrowStylePreview: View {
+    let style: ScreenshotSupport.ArrowStyleID
+
+    private static let size = CGSize(width: 48, height: 28)
+    private static let start = CGPoint(x: 5, y: size.height / 2)
+    private static let end = CGPoint(x: 43, y: size.height / 2)
+    // Keep the selector sample lighter than the full-size annotation.
+    private static let strokeWidth: CGFloat = 2
+
+    private var head: (left: CGPoint, right: CGPoint) {
+        ScreenshotSupport.arrowHead(from: Self.start,
+                                    to: Self.end,
+                                    strokeWidth: Self.strokeWidth)
+    }
+
+    private var tailHead: (left: CGPoint, right: CGPoint) {
+        ScreenshotSupport.arrowHead(from: Self.end,
+                                    to: Self.start,
+                                    strokeWidth: Self.strokeWidth)
+    }
+
+    private var scribblyGeometry: ScreenshotSupport.ScribblyArrowGeometry {
+        ScreenshotSupport.scribblyArrowGeometry(from: Self.start,
+                                                to: Self.end,
+                                                strokeWidth: Self.strokeWidth,
+                                                seed: 0x5343524942424C59)
+    }
+
+    private var arrowColor: Color { .primary }
+
+    var body: some View {
+        ZStack {
+            switch style {
+            case .filled:
+                Path(ScreenshotSupport.arrowSilhouette(from: Self.start,
+                                                       to: Self.end,
+                                                       strokeWidth: Self.strokeWidth))
+                    .fill(arrowColor)
+            case .outline:
+                shaftPath(to: arrowBase(head))
+                    .stroke(arrowColor, style: strokeStyle)
+                outlineHeadPath(head)
+                    .stroke(arrowColor, style: strokeStyle)
+            case .open:
+                shaftPath(to: Self.end)
+                    .stroke(arrowColor, style: strokeStyle)
+                openHeadPath(tip: Self.end, head: head)
+                    .stroke(arrowColor, style: strokeStyle)
+            case .doubleEnded:
+                shaftPath(to: Self.end)
+                    .stroke(arrowColor, style: strokeStyle)
+                openHeadPath(tip: Self.end, head: head)
+                    .stroke(arrowColor, style: strokeStyle)
+                openHeadPath(tip: Self.start, head: tailHead)
+                    .stroke(arrowColor, style: strokeStyle)
+            case .scribbly:
+                polylinePath(scribblyGeometry.shaft)
+                    .stroke(arrowColor, style: strokeStyle)
+                polylinePath(scribblyGeometry.leftWing)
+                    .stroke(arrowColor, style: strokeStyle)
+                polylinePath(scribblyGeometry.rightWing)
+                    .stroke(arrowColor, style: strokeStyle)
+            }
+        }
+        .frame(width: Self.size.width, height: Self.size.height)
+        .accessibilityHidden(true)
+    }
+
+    private var strokeStyle: StrokeStyle {
+        StrokeStyle(lineWidth: Self.strokeWidth, lineCap: .round, lineJoin: .round)
+    }
+
+    private func arrowBase(_ head: (left: CGPoint, right: CGPoint)) -> CGPoint {
+        CGPoint(x: (head.left.x + head.right.x) / 2,
+                y: (head.left.y + head.right.y) / 2)
+    }
+
+    private func shaftPath(to endpoint: CGPoint) -> Path {
+        Path { path in
+            path.move(to: Self.start)
+            path.addLine(to: endpoint)
+        }
+    }
+
+    private func outlineHeadPath(_ head: (left: CGPoint, right: CGPoint)) -> Path {
+        Path { path in
+            path.move(to: head.left)
+            path.addLine(to: Self.end)
+            path.addLine(to: head.right)
+            path.closeSubpath()
+        }
+    }
+
+    private func openHeadPath(tip: CGPoint,
+                              head: (left: CGPoint, right: CGPoint)) -> Path {
+        Path { path in
+            path.move(to: head.left)
+            path.addLine(to: tip)
+            path.addLine(to: head.right)
+        }
+    }
+
+    private func polylinePath(_ points: [CGPoint]) -> Path {
+        Path { path in
+            guard let first = points.first else { return }
+            path.move(to: first)
+            for point in points.dropFirst() {
+                path.addLine(to: point)
+            }
         }
     }
 }
