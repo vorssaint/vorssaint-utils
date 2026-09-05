@@ -271,10 +271,33 @@ struct SystemSection: View {
                         temperatureCell(icon: "battery.100", label: l10n.s.batteryLabel,
                                         value: monitor.snapshot.batteryTemperature)
                     }
+                    if monitor.snapshot.ssdTemperature != nil {
+                        temperatureCell(icon: "internaldrive", label: l10n.s.ssdLabel,
+                                        value: monitor.snapshot.ssdTemperature)
+                    }
+                }
+                if !monitor.snapshot.allTemperatures.isEmpty {
+                    DisclosureGroup(l10n.s.allSensorsLabel) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            ForEach(monitor.snapshot.allTemperatures.sorted(by: { $0.value > $1.value }), id: \.name) { sensor in
+                                HStack {
+                                    Text(sensor.name)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                    Spacer()
+                                    Text(MetricFormat.temperature(sensor.value, unit: displayTemperatureUnit))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .font(.system(size: 10))
                 }
                 if monitor.snapshot.cpuTemperature == nil,
                    monitor.snapshot.gpuTemperature == nil,
-                   monitor.snapshot.batteryTemperature == nil {
+                   monitor.snapshot.batteryTemperature == nil,
+                   monitor.snapshot.ssdTemperature == nil {
                     Text(l10n.s.monitorUnavailable)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)

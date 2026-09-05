@@ -84,6 +84,8 @@ extension Strings {
         cpuLabel: "CPU",
         gpuLabel: "GPU",
         batteryLabel: "Batteria",
+        ssdLabel: "SSD",
+        allSensorsLabel: "Tutti i sensori",
         usageSection: "Utilizzo hardware",
         memorySection: "Memoria",
         memoryPressure: "Pressione",

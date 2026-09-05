@@ -196,6 +196,8 @@ struct Strings {
     let cpuLabel: String
     let gpuLabel: String
     let batteryLabel: String
+    let ssdLabel: String
+    let allSensorsLabel: String
     let usageSection: String
     let memorySection: String
     let memoryPressure: String
@@ -1246,6 +1248,8 @@ extension Strings {
         cpuLabel: "CPU",
         gpuLabel: "GPU",
         batteryLabel: "Bateria",
+        ssdLabel: "SSD",
+        allSensorsLabel: "Todos os sensores",
         usageSection: "Uso de hardware",
         memorySection: "Memória",
         memoryPressure: "Pressão",
@@ -2254,6 +2258,8 @@ extension Strings {
         cpuLabel: "CPU",
         gpuLabel: "GPU",
         batteryLabel: "Battery",
+        ssdLabel: "SSD",
+        allSensorsLabel: "All sensors",
         usageSection: "Hardware usage",
         memorySection: "Memory",
         memoryPressure: "Pressure",

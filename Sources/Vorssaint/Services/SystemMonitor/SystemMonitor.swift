@@ -36,6 +36,10 @@ struct SystemSnapshot {
     /// The uptime timestamp of the last real battery sensor read. Cached values
     /// keep their original timestamp so they cannot age into a sustained alert.
     var batteryTemperatureReadAt: TimeInterval?
+    var ssdTemperature: Double?
+    /// All discovered temperature sensors (name + value), refreshed alongside
+    /// the other temperature readings. Empty when the full-sensor view is off.
+    var allTemperatures: [(name: String, value: Double)] = []
     var cpuUsage: Double?          // 0...1
     /// When `cpuUsage` was last really read, on the system uptime clock; the
     /// value is carried over failed reads, and the hot CPU alert has to tell
@@ -93,13 +97,16 @@ struct SystemMonitorPanelNeeds: Equatable {
     var cpuTemperature = false
     var gpuTemperature = false
     var batteryTemperature = false
+    var ssdTemperature = false
+    var allTemperatures = false
     var fanSpeed = false
 
     static let none = SystemMonitorPanelNeeds()
 
     var any: Bool {
         system || network || disk || power || cpu || gpu || memory || battery ||
-            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed
+            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature ||
+            ssdTemperature || allTemperatures || fanSpeed
     }
 }
 
@@ -136,6 +143,8 @@ final class SystemMonitor: ObservableObject {
     private var fallbackCPUKeys: [SMCClient.Key] = []
     private var gpuKeys: [SMCClient.Key] = []
     private var batteryKeys: [SMCClient.Key] = []
+    private var ssdKeys: [SMCClient.Key] = []
+    private var otherTempKeys: [SMCClient.Key] = []
     private var fanKeys: [SMCClient.Key] = []
     private var tempKeysPrepared = false
     private var fanKeysPrepared = false
@@ -409,12 +418,15 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
+        var needSSDTemperature = false
+        var needAllTemperatures = false
         var needFanSpeed = false
 
         var needSMC: Bool { needPower || needTemperature || needFanSpeed }
 
         var needTemperature: Bool {
             needCPUTemperature || needGPUTemperature || needBatteryTemperature
+                || needSSDTemperature || needAllTemperatures
         }
 
         var any: Bool {
@@ -478,6 +490,8 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
         plan.needBatteryTemperature = hasInternalBattery && (panelTemps || menuPanelNeeds.batteryTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
+        plan.needSSDTemperature = panelTemps || menuPanelNeeds.ssdTemperature
+        plan.needAllTemperatures = panelTemps || menuPanelNeeds.allTemperatures
         if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
            Self.fanTelemetryAvailable {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
@@ -772,6 +786,20 @@ final class SystemMonitor: ObservableObject {
                 }
                 next.batteryTemperatureReadAt = self.batteryTemperatureCache?.updatedAt
             }
+            if plan.needSSDTemperature || plan.needAllTemperatures {
+                if take(.temperature) {
+                    next.ssdTemperature = self.maxTemperature(of: self.ssdKeys)
+                }
+            }
+            if plan.needAllTemperatures {
+                if take(.temperature) {
+                    let allKeys = self.cpuKeys + self.gpuKeys + self.batteryKeys
+                        + self.ssdKeys + self.otherTempKeys
+                    next.allTemperatures = self.temperatureReadings(of: allKeys)
+                        .filter { $0.value > 1 && $0.value < 125 }
+                        .map { (name: $0.key, value: $0.value) }
+                }
+            }
             if plan.needFanSpeed {
                 if take(.fanSpeed) {
                     if let speeds = self.readFanSpeeds() {
@@ -902,6 +930,8 @@ final class SystemMonitor: ObservableObject {
             TemperatureSensorSelector.isCPUTemperatureKey(name, platform: cpuTemperaturePlatform)
                 || name.hasPrefix("Tg")
                 || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+                || name.hasPrefix("Ts")
+                || name.hasPrefix("TN")
         }
         cpuKeys = all.filter {
             TemperatureSensorSelector.isCPUTemperatureKey($0.name,
@@ -916,6 +946,9 @@ final class SystemMonitor: ObservableObject {
             : cpuKeys.filter { !preferredNames.contains($0.name) }
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+        ssdKeys = all.filter { $0.name.hasPrefix("Ts") || $0.name.hasPrefix("TN") }
+        let knownNames = Set(cpuKeys.map(\.name) + gpuKeys.map(\.name) + batteryKeys.map(\.name) + ssdKeys.map(\.name))
+        otherTempKeys = all.filter { !knownNames.contains($0.name) }
     }
 
     static let fanTelemetryCount: Int = {

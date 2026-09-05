@@ -84,6 +84,8 @@ extension Strings {
         cpuLabel: "CPU",
         gpuLabel: "GPU",
         batteryLabel: "Pil",
+        ssdLabel: "SSD",
+        allSensorsLabel: "Tüm sensörler",
         usageSection: "Donanım kullanımı",
         memorySection: "Bellek",
         memoryPressure: "Basınç",
