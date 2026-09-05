@@ -449,7 +449,7 @@ private struct WindowLayoutActionRow: View {
         // already passed, so accepting it writes exactly what a save writes.
         switch SystemShortcutTakeoverSupport.recorderDecision(
             shortcut: shortcut,
-            conflictsWithMacOS: shortcut.conflictsWithSystemShortcut,
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut),
             takenOver: SystemShortcutTakeover.isTakenOver(action.shortcutKey),
             current: GlobalShortcut(storageValue: rawValue)) {
         case .offer:

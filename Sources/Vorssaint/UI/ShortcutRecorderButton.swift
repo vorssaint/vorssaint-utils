@@ -422,11 +422,22 @@ struct ShortcutPreferenceRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict)
             return
         }
+        // Nothing claims this row's key, so accepting an offer would write an
+        // opt-in no feature ever resolves: refuse the combination the way the
+        // row did before the take-over existed. The live table alone is the
+        // right question here, and its blindness to a key already switched off
+        // is what still lets the switcher's rows record the ids its own
+        // take-over toggle is holding.
+        if !role.supportsTakeOver, shortcut.conflictsWithSystemShortcut {
+            errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
+            return
+        }
         // The offer is the last word on a combination: every other check has
         // already passed, so accepting it writes exactly what a save writes.
         switch SystemShortcutTakeoverSupport.recorderDecision(
             shortcut: shortcut,
-            conflictsWithMacOS: shortcut.conflictsWithSystemShortcut,
+            conflictsWithMacOS: role.supportsTakeOver
+                && SystemShortcutTakeover.conflictsWithMacOS(shortcut),
             takenOver: SystemShortcutTakeover.isTakenOver(role.storageKey),
             current: GlobalShortcut(storageValue: rawValue)) {
         case .offer:
