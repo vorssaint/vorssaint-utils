@@ -15087,7 +15087,7 @@ struct MetricsTests {
                    "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
             let recorderValues = Mirror(reflecting: FeatureStrings.recorder(language)).children
                 .compactMap { $0.value as? String }
-            expect(recorderValues.count == 127 && recorderValues.allSatisfy { !$0.isEmpty },
+            expect(recorderValues.count == 134 && recorderValues.allSatisfy { !$0.isEmpty },
                    "every screen recorder string is set for \(language.rawValue)")
             expect(recorderValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible screen recorder strings (\(language.rawValue))")
@@ -22657,6 +22657,67 @@ struct MetricsTests {
         expect(RecorderTextOverlay.Anchor.bottom.unitPoint.y == 1
                 && RecorderTextOverlay.Anchor.topLeading.unitPoint == CGPoint(x: 0, y: 0),
                "the nine places mean what they say, counting down from the top")
+
+        // MARK: Screen recorder pictures
+
+        let mark = RecorderImageOverlay(path: "/tmp/logo.png", start: 2, end: 6)
+        expect(mark.opacity(at: 1.9) == 0 && mark.opacity(at: 6.1) == 0,
+               "a picture is not there before it starts or after it ends")
+        expect(mark.opacity(at: 4) == 1,
+               "a picture is at full strength in the middle of its own time")
+        expect(mark.opacity(at: 2.1) > 0 && mark.opacity(at: 2.1) < 1,
+               "a picture eases in like a caption instead of appearing on one frame")
+        expectClose(RecorderImageOverlay(path: "/tmp/logo.png", start: 0, end: 10, opacity: 0.5)
+                        .opacity(at: 5),
+                    0.5,
+                    "a picture never goes past the strength it was given")
+        expect(RecorderImageOverlay(path: "   ", start: 1, end: 5).sanitized(duration: 10) == nil,
+               "a picture with no file behind it is dropped rather than drawn")
+        expect(RecorderImageOverlay(path: "/tmp/logo.png", start: 9, end: 30)
+                .sanitized(duration: 10)?.end == 10,
+               "a picture that runs past the recording is brought back inside it")
+        expect(RecorderImageOverlay(path: "/tmp/logo.png", start: 5, end: 5.05)
+                .sanitized(duration: 10) == nil,
+               "a picture too brief to see is not kept")
+        expect(RecorderImageOverlay(path: "/tmp/logo.png", start: 1, end: 5, size: 9)
+                .sanitized(duration: 10)?.size == RecorderImageOverlay.sizeRange.upperBound,
+               "an impossible picture size is clamped instead of filling the frame")
+        expect(RecorderImageOverlay(path: "/tmp/logo.png", start: 1, end: 5, opacity: 0)
+                .sanitized(duration: 10)?.opacity == RecorderImageOverlay.opacityRange.lowerBound,
+               "a picture turned invisible keeps the least strength that can still be seen")
+        expect(RecorderImageOverlay.drawnSize(source: CGSize(width: 200, height: 100),
+                                              size: 0.5,
+                                              canvas: CGSize(width: 1000, height: 500))
+                == CGSize(width: 500, height: 250),
+               "a picture is drawn at its share of the frame's width, in its own proportions")
+        expect(RecorderImageOverlay.drawnSize(source: CGSize(width: 100, height: 1000),
+                                              size: 0.6,
+                                              canvas: CGSize(width: 1000, height: 500))
+                == CGSize(width: 50, height: 500),
+               "a picture taller than the frame is brought down instead of hanging off it")
+        expect(RecorderImageOverlay.drawnSize(source: .zero,
+                                              size: 0.2,
+                                              canvas: CGSize(width: 1000, height: 500)) == nil,
+               "a picture with no size of its own is not drawn")
+        expect(RecorderTextOverlay.Anchor.topLeading
+                .origin(of: CGSize(width: 100, height: 50),
+                        in: CGSize(width: 1000, height: 500)) == CGPoint(x: 25, y: 425),
+               "a place keeps its margin off both edges it touches, counting down from the top")
+        expect(RecorderTextOverlay.Anchor.bottomTrailing
+                .origin(of: CGSize(width: 100, height: 50),
+                        in: CGSize(width: 1000, height: 500)) == CGPoint(x: 875, y: 25),
+               "the opposite corner keeps the same margin, handed over from the bottom")
+        let markedDocument = RecorderEditDocument.decoded(
+            RecorderEditDocument(images: [mark]).encoded())
+        expect(markedDocument.images == [mark],
+               "a picture written next to the recording comes back exactly as it was")
+        expect(RecorderEditDocument().affectsPicture(markedDocument)
+                && !RecorderEditDocument().affectsTiming(markedDocument)
+                && markedDocument.isEdited(duration: 10),
+               "adding a picture redraws the preview without rebuilding the timeline, and counts as an edit")
+        expect(RecorderEditDocument(images: [RecorderImageOverlay(path: "", start: 1, end: 5)])
+                .sanitized(duration: 10).images.isEmpty,
+               "a damaged picture is dropped by the same repair that fixes every other field")
 
         // MARK: Screen recorder blur
 

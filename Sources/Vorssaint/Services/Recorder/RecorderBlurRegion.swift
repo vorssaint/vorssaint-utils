@@ -11,7 +11,7 @@ import Foundation
 /// origin, like a zoom's focus, so it stays on the same pixels whatever
 /// shape, quality or zoom the finished video ends up with. Unlike a caption
 /// it never fades: a blur that eases in shows what it is hiding.
-struct RecorderBlurRegion: Codable, Equatable, Identifiable {
+struct RecorderBlurRegion: Codable, Equatable, Identifiable, RecorderTimelineBlock {
     var id: UUID
     /// In the recording's own time, like everything else on the timeline.
     var start: Double

@@ -56,6 +56,11 @@ final class RecorderComposer {
         /// once like everything else, so a frame is a lookup.
         let texts: [RecorderTextOverlay]
         let textOpacity: [[Double]]
+        /// Pictures laid over the recording, each already resized to the
+        /// pixels it is drawn at, with the same per-frame solidity.
+        let images: [RecorderImageOverlay]
+        let imageSprites: [CGImage?]
+        let imageOpacity: [[Double]]
         /// Areas kept unreadable and, for each frame, whether each one is on.
         let blurs: [RecorderBlurRegion]
         let blurCovers: [[Bool]]
@@ -106,8 +111,30 @@ final class RecorderComposer {
         } else if let plate = plan.plate {
             content = content.composited(over: plate)
         }
+        content = drawImages(on: content, index: index)
         content = drawTexts(on: content, index: index)
         return content.cropped(to: CGRect(origin: .zero, size: plan.canvasSize))
+    }
+
+    /// Pictures share the captions' place above the zoom, and go under them:
+    /// a mark of your own belongs behind what the recording is saying.
+    private func drawImages(on content: CIImage, index: Int) -> CIImage {
+        guard !plan.images.isEmpty else { return content }
+        var result = content
+        for (order, overlay) in plan.images.enumerated() {
+            guard plan.imageOpacity.indices.contains(order),
+                  plan.imageOpacity[order].indices.contains(index),
+                  plan.imageSprites.indices.contains(order),
+                  let sprite = plan.imageSprites[order] else { continue }
+            let opacity = plan.imageOpacity[order][index]
+            guard opacity > 0.01 else { continue }
+            let size = CGSize(width: sprite.width, height: sprite.height)
+            let origin = overlay.anchor.origin(of: size, in: plan.canvasSize)
+            result = faded(CIImage(cgImage: sprite), opacity: opacity)
+                .transformed(by: CGAffineTransform(translationX: origin.x, y: origin.y))
+                .composited(over: result)
+        }
+        return result
     }
 
     /// Text sits on top of everything, including the background and the zoom:
@@ -125,9 +152,7 @@ final class RecorderComposer {
                                                          canvasHeight: plan.canvasSize.height)
             else { continue }
             let size = CGSize(width: image.width, height: image.height)
-            let origin = RecorderTextRenderer.origin(for: overlay,
-                                                     textSize: size,
-                                                     canvas: plan.canvasSize)
+            let origin = overlay.anchor.origin(of: size, in: plan.canvasSize)
             result = faded(CIImage(cgImage: image), opacity: opacity)
                 .transformed(by: CGAffineTransform(translationX: origin.x, y: origin.y))
                 .composited(over: result)

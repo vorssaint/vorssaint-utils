@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, network readings, color picking, app icons, readability, localization, mouse reconnection, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
+Vorssaint adds pictures over screen recordings, app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, network readings, color picking, app icons, readability, localization, mouse reconnection, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
 
 ### Added
+- The recording editor can put a picture over the video, in any of nine spots and at the size and transparency you choose.
 - Keep Awake can start automatically while selected apps are open, including in the background. Thanks to @Borisserz.
 - Super key can pause while selected apps are open, restoring the chosen key’s normal behavior until they quit. Thanks to @Borisserz.
 - Window Layout can center a window at half the screen’s width, with an optional shortcut. Thanks to @Borisserz.
