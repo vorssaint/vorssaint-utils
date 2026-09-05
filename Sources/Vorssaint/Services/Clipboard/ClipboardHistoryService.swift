@@ -663,7 +663,7 @@ final class ClipboardHistoryService: ObservableObject {
         -> (data: Data, width: Int, height: Int)? {
         let png = pasteboard.data(forType: .png)
         guard let source = png ?? pasteboard.data(forType: .tiff),
-              source.count <= maxRawImageBytes,
+              source.count <= (png == nil ? maxRawImageBytes : maxImageBytes),
               let rep = NSBitmapImageRep(data: source),
               rep.pixelsWide > 0, rep.pixelsHigh > 0
         else { return nil }
@@ -865,7 +865,8 @@ final class ClipboardHistoryService: ObservableObject {
         normalizeEntryOrder()
         trimToLimit()
         // Sweep image files that lost their entry (crash between write and save).
-        ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)))
+        ClipboardImageStore.cleanup(keeping: Set(entries.compactMap(\.imageFile)),
+                                    filePaths: Set(entries.flatMap(\.filePaths)))
         // A history read from the legacy blob migrates right away instead of
         // waiting for the next copy: launching once is enough to leave
         // UserDefaults behind.
@@ -906,7 +907,8 @@ final class ClipboardHistoryService: ObservableObject {
                        encoded.entries != snapshot {
                         self.entries = encoded.entries
                     }
-                    ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)))
+                    ClipboardImageStore.cleanup(keeping: Set(self.entries.compactMap(\.imageFile)),
+                                                filePaths: Set(self.entries.flatMap(\.filePaths)))
                 }
             }
             guard let url = Self.storeURL else {
@@ -1392,10 +1394,17 @@ enum ClipboardImageStore {
         if let cached = fileIcons.object(forKey: path as NSString) { return cached }
         let icon = NSWorkspace.shared.icon(forFile: path)
         fileIcons.setObject(icon, forKey: path as NSString)
+        fileIconPaths = fileIconPaths.filter { fileIcons.object(forKey: $0 as NSString) != nil }
+        fileIconPaths.insert(path)
         return icon
     }
 
-    private static let fileIcons = NSCache<NSString, NSImage>()
+    private static var fileIconPaths: Set<String> = []
+    private static let fileIcons: NSCache<NSString, NSImage> = {
+        let cache = NSCache<NSString, NSImage>()
+        cache.countLimit = 120
+        return cache
+    }()
 
     static func isImageFile(atPath path: String) -> Bool {
         ClipboardHistoryImageSupport.isImageFilePath(path)
@@ -1452,7 +1461,11 @@ enum ClipboardImageStore {
         return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 
-    static func cleanup(keeping names: Set<String>) {
+    static func cleanup(keeping names: Set<String>, filePaths: Set<String>) {
+        for path in fileIconPaths where !filePaths.contains(path) {
+            fileIcons.removeObject(forKey: path as NSString)
+        }
+        fileIconPaths.formIntersection(filePaths)
         guard let directory,
               let files = try? FileManager.default.contentsOfDirectory(at: directory,
                                                                        includingPropertiesForKeys: nil)

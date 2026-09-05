@@ -1524,8 +1524,11 @@ struct MetricsTests {
                 == FocusFollowsMouseSupport.delayRange.upperBound,
                "focus follows mouse clamps a damaged delay preference")
         var focusFollowsMouseState = FocusFollowsMouseState()
+        expect(!focusFollowsMouseState.hasPendingEvaluation,
+               "focus follows mouse starts without work to poll")
         focusFollowsMouseState.recordMovement(to: CGPoint(x: 40, y: 70), at: 10)
-        expect(focusFollowsMouseState.nextEvaluation(at: 10.20, delayMilliseconds: 250) == nil,
+        expect(focusFollowsMouseState.nextEvaluation(at: 10.20, delayMilliseconds: 250) == nil
+                && focusFollowsMouseState.hasPendingEvaluation,
                "focus follows mouse waits for the pointer to settle")
         let settledFocus = focusFollowsMouseState.nextEvaluation(at: 10.25, delayMilliseconds: 250)
         expect(settledFocus?.point == CGPoint(x: 40, y: 70)
@@ -1533,11 +1536,22 @@ struct MetricsTests {
                "focus follows mouse evaluates the settled pointer once")
         expect(focusFollowsMouseState.nextEvaluation(at: 11, delayMilliseconds: 250) == nil,
                "focus follows mouse does not refocus without new movement")
+        expect(!focusFollowsMouseState.hasPendingEvaluation,
+               "a consumed focus evaluation leaves no work to poll while its lookup finishes")
         focusFollowsMouseState.recordMovement(to: CGPoint(x: 90, y: 20), at: 12)
-        expect(settledFocus.map(focusFollowsMouseState.isCurrent) == false,
+        expect(settledFocus.map(focusFollowsMouseState.isCurrent) == false
+                && focusFollowsMouseState.hasPendingEvaluation,
                "a stale window lookup cannot focus after the pointer moves")
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 100, y: 20), at: 12.2)
+        expect(focusFollowsMouseState.nextEvaluation(at: 12.25, delayMilliseconds: 250) == nil
+                && focusFollowsMouseState.hasPendingEvaluation,
+               "new movement restarts the settling delay without dropping pending work")
+        expect(focusFollowsMouseState.nextEvaluation(at: 13, delayMilliseconds: 250)?.point
+                == CGPoint(x: 100, y: 20),
+               "a deferred focus check can consume the settled target after input protections lift")
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 110, y: 20), at: 14)
         focusFollowsMouseState.reset()
-        expect(focusFollowsMouseState.point == nil,
+        expect(focusFollowsMouseState.point == nil && !focusFollowsMouseState.hasPendingEvaluation,
                "space and wake resets discard the old pointer target")
         expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
@@ -22745,6 +22759,31 @@ struct MetricsTests {
                "an unrelated file is not mistaken for a pointer track")
         expect(RecorderPointerTrack.decoded(nil).isEmpty,
                "a recording with no track at all reads as no track")
+
+        let pointerShape = RecorderPointerTrack.CursorShape(
+            png: Data([1, 2, 3]), hotSpot: CGPoint(x: 2, y: 3),
+            pointSize: CGSize(width: 16, height: 24))
+        let shapedTrack = RecorderPointerTrack(
+            samples: trackRoundTrip.samples, clicks: trackRoundTrip.clicks,
+            shapes: [pointerShape, pointerShape], systemScale: 2)
+        expect(RecorderPointerTrack.decoded(shapedTrack.encoded()) == shapedTrack,
+               "bounding shape allocation preserves complete pointer tracks")
+        let partialShapes = RecorderPointerTrack.decoded(shapedTrack.encoded().dropLast())
+        expect(partialShapes.shapes == [pointerShape]
+                && partialShapes.samples == shapedTrack.samples
+                && partialShapes.clicks == shapedTrack.clicks,
+               "a truncated pointer image preserves earlier complete shapes, samples and clicks")
+        var oversizedShapeCount = RecorderPointerTrack().encoded()
+        oversizedShapeCount.replaceSubrange(24..<28, with: [0, 0, 1, 0])
+        let emptyShapeTrack = RecorderPointerTrack.decoded(oversizedShapeCount)
+        expect(emptyShapeTrack.shapes.isEmpty && emptyShapeTrack.shapes.capacity == 0,
+               "a header declaring many absent pointer images reserves no shape storage")
+        var overstatedShapes = shapedTrack.encoded()
+        overstatedShapes.replaceSubrange(24..<28, with: [0, 0, 1, 0])
+        let boundedShapeTrack = RecorderPointerTrack.decoded(overstatedShapes)
+        expect(boundedShapeTrack == shapedTrack
+                && boundedShapeTrack.shapes.capacity <= overstatedShapes.count / 20,
+               "an overstated image count keeps complete records without reserving the claimed capacity")
 
         // MARK: Screen recorder canvas
 
