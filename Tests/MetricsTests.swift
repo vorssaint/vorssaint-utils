@@ -21526,26 +21526,37 @@ struct MetricsTests {
                 .map { abs($0.value - 150) < 0.001 } == true,
                "a comma decimal converts where that is the custom")
 
-        expect(units("180 cm to ft") == "5 ft 10.87 in",
+        // MeasurementFormatter words the unit from the localization data of the
+        // macOS it runs on, not from the locale it is handed, so pinning
+        // "5 ft 10.87 in" here failed on macOS 15.x with nothing changed
+        // (issue #1344). What this file decides is the split into whole feet
+        // and leftover inches, and the number format; the words are the
+        // system's to choose.
+        let unitNumbers: (String?) -> [String] = { text in
+            (text ?? "").split(whereSeparator: { !"0123456789.,-".contains($0) })
+                .filter { $0.rangeOfCharacter(from: .decimalDigits) != nil }
+                .map(String.init)
+        }
+        expect(unitNumbers(units("180 cm to ft")) == ["5", "10.87"],
                "a length converting to feet keeps precise feet and inches")
-        expect(units("1.75 m to ft") == "5 ft 8.9 in",
+        expect(unitNumbers(units("1.75 m to ft")) == ["5", "8.9"],
                "a decimal length keeps its fractional inches")
-        expect(units("6 ft to ft") == "6 ft",
+        expect(unitNumbers(units("6 ft to ft")) == ["6"],
                "a whole number of feet has no leftover inches shown")
-        expect(units("5.9999 ft to ft") == "6 ft",
+        expect(unitNumbers(units("5.9999 ft to ft")) == ["6"],
                "inches that round up to twelve carry into the next whole foot")
-        expect(units("2 cm to ft") == "0.0656 ft",
+        expect(unitNumbers(units("2 cm to ft")) == ["0.0656"],
                "a length below one foot stays precise instead of rounding to inches")
-        expect(units("-180 cm to ft") == "-5.91 ft",
+        expect(unitNumbers(units("-180 cm to ft")) == ["-5.91"],
                "a negative length keeps the existing decimal format")
-        expect(units("180 cm to in") == "70.87 in",
+        expect(unitNumbers(units("180 cm to in")) == ["70.87"],
                "converting to inches specifically stays a plain decimal, unaffected by the feet formatting")
-        expect(CommandBarUnits.convert("180 cm para pes",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))?.formatted
-                == "5 ft 10,87 pol.",
-               "feet and inches follow the person's number and unit language")
+        expect(unitNumbers(CommandBarUnits.convert("180 cm para pes",
+                                                   decimalSeparator: ",",
+                                                   groupingSeparator: ".",
+                                                   locale: Locale(identifier: "pt_BR"))?.formatted)
+                == ["5", "10,87"],
+               "feet and inches follow the person's number format")
 
         // MARK: Command bar emoji
 
