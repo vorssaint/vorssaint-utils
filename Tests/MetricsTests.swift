@@ -8744,6 +8744,37 @@ struct MetricsTests {
         expect(CutPasteProgressSupport.displayPosition(completed: 5, total: 5) == 5,
                "the counter never runs past the batch size")
 
+        expect(CutPastePrivilegeSupport.needsPrivileges(
+            NSError(domain: NSCocoaErrorDomain, code: NSFileWriteNoPermissionError)),
+               "a destination the account cannot write is worth handing to Finder")
+        expect(CutPastePrivilegeSupport.needsPrivileges(
+            NSError(domain: NSPOSIXErrorDomain, code: Int(EACCES))),
+               "a POSIX permission refusal reaches the same retry")
+        expect(CutPastePrivilegeSupport.needsPrivileges(
+            NSError(domain: NSCocoaErrorDomain, code: NSFileWriteFileExistsError,
+                    userInfo: [NSUnderlyingErrorKey: NSError(domain: NSPOSIXErrorDomain,
+                                                             code: Int(EPERM))])),
+               "the refusal is found in the underlying error too")
+        expect(!CutPastePrivilegeSupport.needsPrivileges(
+            NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError)),
+               "a full disk fails the same way for Finder, so it never asks")
+        expect(!CutPastePrivilegeSupport.needsPrivileges(
+            NSError(domain: NSCocoaErrorDomain, code: NSFileWriteVolumeReadOnlyError)),
+               "a read-only volume never raises a dialog it cannot use")
+        expect(!CutPastePrivilegeSupport.needsPrivileges(
+            NSError(domain: NSURLErrorDomain, code: NSURLErrorCannotWriteToFile)),
+               "an unrelated error domain stays a plain failure")
+        let cutPasteSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift",
+            encoding: .utf8)) ?? ""
+        expect(cutPasteSource.contains("CutPastePrivilegeSupport.needsPrivileges(error)"),
+               "only a refused permission sends the paste through Finder")
+        expect(cutPasteSource.contains("FinderBridge.move(urls, into: dir).canceled"),
+               "the refused move is handed to Finder, which owns the elevation")
+        expect(cutPasteSource.contains("case .declined:")
+                && cutPasteSource.contains("stillCut = refused"),
+               "a dismissed authentication dialog keeps those items cut for the next ⌘V")
+
         // MARK: Paste copied image as file (issue #429)
 
         expect(FinderPasteImageSupport.preferredImageType(in: ["public.utf8-plain-text"]) == nil,
