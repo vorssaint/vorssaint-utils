@@ -136,8 +136,11 @@ final class FocusFollowsMouseService {
                       self.state.isCurrent(evaluation),
                       let app = NSRunningApplication(processIdentifier: target.processID),
                       app.activationPolicy == .regular, !app.isTerminated,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier != target.processID
-                          || !target.isFocused
+                      FocusFollowsMouseSupport.shouldActivate(
+                          targetWindowID: target.windowID,
+                          focusedWindowID: target.focusedWindowID,
+                          targetAppIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier
+                              == target.processID)
                 else { return }
                 WindowActivator.activate(pid: target.processID,
                                          windowID: target.windowID,
@@ -165,7 +168,7 @@ final class FocusFollowsMouseService {
         else { return nil }
         return Target(processID: processID,
                       windowID: windowID,
-                      isFocused: boolAttribute(window, kAXFocusedAttribute as String))
+                      focusedWindowID: WindowActivator.focusedWindowID(for: processID))
     }
 
     private func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
@@ -185,12 +188,6 @@ final class FocusFollowsMouseService {
         return value as? String
     }
 
-    private func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return false }
-        return (value as? Bool) ?? false
-    }
-
     private static func savedDelay() -> Int {
         FocusFollowsMouseSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.focusFollowsMouseDelay))
@@ -199,6 +196,6 @@ final class FocusFollowsMouseService {
     private struct Target {
         let processID: pid_t
         let windowID: CGWindowID
-        let isFocused: Bool
+        let focusedWindowID: CGWindowID?
     }
 }

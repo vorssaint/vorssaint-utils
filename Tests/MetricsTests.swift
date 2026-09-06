@@ -1523,6 +1523,20 @@ struct MetricsTests {
                 && FocusFollowsMouseSupport.sanitizedDelay(2_000)
                 == FocusFollowsMouseSupport.delayRange.upperBound,
                "focus follows mouse clamps a damaged delay preference")
+        expect(!FocusFollowsMouseSupport.shouldActivate(
+            targetWindowID: 42, focusedWindowID: nil, targetAppIsFrontmost: true),
+               "hover leaves the active app alone when its focused window cannot be read")
+        expect(!FocusFollowsMouseSupport.shouldActivate(
+            targetWindowID: 42, focusedWindowID: 42, targetAppIsFrontmost: true),
+               "hover does not reactivate the app's focused window")
+        expect(FocusFollowsMouseSupport.shouldActivate(
+            targetWindowID: 42, focusedWindowID: 43, targetAppIsFrontmost: true),
+               "hover can still switch to another window within the active app")
+        for focusedWindowID: CGWindowID? in [nil, 42, 43] {
+            expect(FocusFollowsMouseSupport.shouldActivate(
+                targetWindowID: 42, focusedWindowID: focusedWindowID, targetAppIsFrontmost: false),
+                   "hover can activate a background app regardless of its last focused window")
+        }
         var focusFollowsMouseState = FocusFollowsMouseState()
         expect(!focusFollowsMouseState.hasPendingEvaluation,
                "focus follows mouse starts without work to poll")

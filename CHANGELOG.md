@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds pictures over screen recordings, app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, resource use, network readings, color picking, app icons, readability, localization, mouse reconnection, window focus, app restarts, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
+Vorssaint adds pictures over screen recordings, app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, resource use, network readings, color picking, app icons, readability, localization, mouse reconnection, game and window focus, app restarts, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
 
 ### Added
 - The recording editor can put a picture over the video, in any of nine spots and at the size and transparency you choose.
@@ -42,7 +42,7 @@ Vorssaint adds pictures over screen recordings, app-based Keep Awake automation,
 - App Switcher restores native shortcuts after crashes even when disabled, and its reverse window shortcut leaves screenshots available. Thanks to @owendaw.
 - Shortcut recording detects system shortcuts even when they have never been customized. Thanks to @owendaw.
 - Mouse acceleration stays disabled after disconnecting and reconnecting a mouse.
-- Focus follows mouse no longer changes windows when you have just pressed a modifier key or a mouse button.
+- Focus follows mouse avoids reactivating the current game window and changing focus while a modifier key or mouse button is held.
 - The App Switcher shows supported alternate app icons without flickering during navigation. Thanks to @EugeneCarldotme and @hash00.
 - Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
 - Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.

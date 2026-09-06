@@ -11,6 +11,16 @@ enum FocusFollowsMouseSupport {
     static func sanitizedDelay(_ milliseconds: Int) -> Int {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)
     }
+
+    static func shouldActivate(targetWindowID: CGWindowID,
+                               focusedWindowID: CGWindowID?,
+                               targetAppIsFrontmost: Bool) -> Bool {
+        guard targetAppIsFrontmost else { return true }
+        // Games may not expose focus through Accessibility. Reasserting it can
+        // release their captured pointer, so require a known different window.
+        guard let focusedWindowID else { return false }
+        return focusedWindowID != targetWindowID
+    }
 }
 
 struct FocusFollowsMouseEvaluation: Equatable {
