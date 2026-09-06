@@ -12390,6 +12390,42 @@ struct MetricsTests {
                     "https://www.reddit.com/r/swift/comments/abc/?sort=new",
                     "URL cleaner strips Reddit's deep-link tracking in either spelling")
 
+        // Automatic rewrite may clear the pasteboard. Plain string/URL flavors
+        // stay safe as before. Share sheets often add HTML/RTF next to a lone
+        // http(s) link; those rich companions must not block cleaning (#1422).
+        let automaticRewriteAllowedTypes: Set<String> = [
+            "public.utf8-plain-text",
+            "public.url",
+            "public.url-name",
+            "NSStringPboardType",
+            "NSURLPboardType",
+        ]
+        expect(URLCleaning.shouldAutomaticallyRewrite(
+                string: "https://youtu.be/TImSMeurR84?si=Xq1",
+                types: ["public.utf8-plain-text", "public.url"],
+                allowedTypes: automaticRewriteAllowedTypes),
+               "string and URL pasteboard flavors still rewrite automatically")
+        expect(URLCleaning.shouldAutomaticallyRewrite(
+                string: "https://www.youtube.com/watch?v=1&si=x",
+                types: ["public.utf8-plain-text", "public.html", "public.rtf"],
+                allowedTypes: automaticRewriteAllowedTypes),
+               "a lone YouTube share URL rewrites even when HTML/RTF ride along")
+        expect(!URLCleaning.shouldAutomaticallyRewrite(
+                string: "Watch https://youtu.be/TImSMeurR84?si=Xq1 tonight",
+                types: ["public.utf8-plain-text", "public.html"],
+                allowedTypes: automaticRewriteAllowedTypes),
+               "rich pasteboard types still block rewrite when the string is not a lone URL")
+        expect(!URLCleaning.shouldAutomaticallyRewrite(
+                string: "https://youtu.be/TImSMeurR84?si=Xq1",
+                types: [],
+                allowedTypes: automaticRewriteAllowedTypes),
+               "an empty type list never rewrites automatically")
+        expect(!URLCleaning.shouldAutomaticallyRewrite(
+                string: "not a url",
+                types: ["public.utf8-plain-text", "public.html"],
+                allowedTypes: automaticRewriteAllowedTypes),
+               "rich types with non-URL text never rewrite automatically")
+
         // MARK: Homebrew command building and parsing
 
         let homebrewManagerSource = (try? String(
