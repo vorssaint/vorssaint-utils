@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds app shortcuts, recording overlays, Keep Awake automation, minimalist window previews and Dock middle-click closing, and brings battery details together in Power. It expands capture, window and keyboard controls and improves recording and note safety, resource use, app updates, network readings, readability, localization, mouse exceptions, responsiveness and reconnection, focus, search, shortcut recovery, file moves and privacy disclosures.
+Vorssaint adds app shortcuts, recording overlays, Keep Awake automation, minimalist window previews and Dock middle-click closing, and brings battery details together in Power. It expands capture, window and keyboard controls and improves recording and note safety, resource use, app updates, network readings, readability, localization, mouse exceptions, responsiveness and reconnection, focus stability, search, shortcut recovery, file moves and privacy disclosures.
 
 ### Added
 - Optional minimal previews hide window titles, controls and decoration in the Dock and App Switcher while keeping selection visible.
@@ -41,6 +41,7 @@ Vorssaint adds app shortcuts, recording overlays, Keep Awake automation, minimal
 - Package installation and update logs use less processing.
 
 ### Fixed
+- Focus follows mouse avoids freezes over Vorssaint panels, reactivating current game windows, and changing focus while modifiers or mouse buttons are held.
 - Cut files can move into protected folders with system authentication, and canceling keeps unfinished items ready to paste again. Thanks to @aesophor.
 - App updates detect universal store apps using their Mac versions and warn when store checks cannot be completed.
 - Opening a recording with damaged pointer data no longer requests excessive memory.
@@ -52,7 +53,6 @@ Vorssaint adds app shortcuts, recording overlays, Keep Awake automation, minimal
 - Shortcut recording detects system shortcuts even when they have never been customized. Thanks to @owendaw.
 - Mouse acceleration stays disabled after disconnecting and reconnecting a mouse.
 - Mouse exception lists now offer running programs that are not packaged as apps. Thanks to @iltonandrew.
-- Focus follows mouse avoids reactivating the current game window and changing focus while a modifier key or mouse button is held.
 - The App Switcher shows supported alternate app icons without flickering during navigation. Thanks to @EugeneCarldotme and @hash00.
 - Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
 - Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.

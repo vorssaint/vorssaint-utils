@@ -8,9 +8,6 @@ import CoreGraphics
 final class FocusFollowsMouseService {
     static let shared = FocusFollowsMouseService()
 
-    /// No cap on this one: on the system-wide element a timeout is the default
-    /// for every question this process asks, whoever asks it (#938).
-    private let systemElement = AXUIElementCreateSystemWide()
     private let queryQueue = DispatchQueue(label: "com.vorssaint.focus-follows-mouse")
     private var timer: Timer?
     private var mouseMonitor: Any?
@@ -129,8 +126,19 @@ final class FocusFollowsMouseService {
                   .focusFollowsMouse, at: evaluation.point)
         else { return }
 
+        // WindowServer cannot report ignoresMouseEvents. Read our windows on
+        // main so full-screen brightness overlays do not block focus everywhere.
+        let clickThroughWindowIDs = Set(NSApp.windows.filter(\.ignoresMouseEvents).compactMap {
+            CGWindowID(exactly: $0.windowNumber)
+        })
         queryQueue.async { [weak self] in
-            guard let self, let target = self.target(at: evaluation.point) else { return }
+            guard let self else { return }
+            let target = FocusFollowsMouseSupport.queryWindow(
+                in: WindowServerSupport.onScreenWindowInfo(), at: evaluation.point,
+                ownProcessID: ProcessInfo.processInfo.processIdentifier,
+                clickThroughWindowIDs: clickThroughWindowIDs
+            ) { self.target(at: evaluation.point, processID: $0) }
+            guard let target else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.isRunning, self.nothingIsHeldDown,
                       self.state.isCurrent(evaluation),
@@ -150,22 +158,25 @@ final class FocusFollowsMouseService {
         }
     }
 
-    private func target(at point: CGPoint) -> Target? {
+    private func target(at point: CGPoint, processID: pid_t) -> Target? {
+        guard processID > 0, processID != ProcessInfo.processInfo.processIdentifier else { return nil }
+        // An app-scoped hit test cannot enter our tree if window stacking
+        // changes after the ownership lookup. Never fall back to a global query.
+        let application = AXUIElementCreateApplication(processID)
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(systemElement, Float(point.x), Float(point.y), &rawElement) == .success,
+        guard AXUIElementCopyElementAtPosition(application, Float(point.x), Float(point.y), &rawElement) == .success,
               let rawElement
         else { return nil }
         AXUIElementSetMessagingTimeout(rawElement, 0.25)
         guard let window = topLevelWindow(from: rawElement) else { return nil }
         AXUIElementSetMessagingTimeout(window, 0.25)
-        guard stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String),
+        var windowProcessID: pid_t = 0
+        guard AXUIElementGetPid(window, &windowProcessID) == .success,
+              windowProcessID == processID,
+              stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String),
               let windowID = AXWindowResolver.windowID(for: window)
         else { return nil }
 
-        var processID: pid_t = 0
-        guard AXUIElementGetPid(window, &processID) == .success,
-              processID != ProcessInfo.processInfo.processIdentifier
-        else { return nil }
         return Target(processID: processID,
                       windowID: windowID,
                       focusedWindowID: WindowActivator.focusedWindowID(for: processID))

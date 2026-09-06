@@ -1590,6 +1590,9 @@ struct MetricsTests {
                     "sessionIsActive: SessionActivity.shared.isActive")
                 && focusFollowsMouseServiceSource.contains("AXIsProcessTrusted()"),
                "focus follows mouse owns no monitor or timer in a switched-away or untrusted session")
+        expect(!focusFollowsMouseServiceSource.isEmpty
+                && !focusFollowsMouseServiceSource.contains("AXUIElementCreateSystemWide"),
+               "focus follows mouse cannot re-enter its own Accessibility tree through a global hit test")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a
@@ -10806,6 +10809,93 @@ struct MetricsTests {
                                                    ownProcessID: 501,
                                                    pidIsEligible: { $0 != 1001 })?.pid == 1002,
                "the click lookup carries on behind a window it was told to leave alone")
+
+        // Unlike the click scan, hover must stop at our interactive surfaces
+        // before making any Accessibility call, even for a tiny raised panel.
+        let focusHitPoint = CGPoint(x: -200, y: -100)
+        let focusHitFrame = CGRect(x: -300, y: -200, width: 400, height: 400)
+        let foreignFocusWindow = windowServerEntry(focusHitFrame, pid: 1001, number: 11)
+        let ownFocusWindow = windowServerEntry(focusHitFrame, pid: 501, number: 12)
+        var focusQueryPIDs: [pid_t] = []
+        func queryFocusWindow(_ windows: [[String: Any]],
+                              clickThroughWindowIDs: Set<CGWindowID> = [],
+                              querySucceeds: Bool = true) -> pid_t? {
+            focusQueryPIDs.removeAll()
+            return FocusFollowsMouseSupport.queryWindow(
+                in: windows, at: focusHitPoint, ownProcessID: 501,
+                clickThroughWindowIDs: clickThroughWindowIDs
+            ) { pid in
+                focusQueryPIDs.append(pid)
+                return querySucceeds ? pid : nil
+            }
+        }
+        for layer in [0, 3, 25, 1_000] {
+            var panel = windowServerEntry(
+                CGRect(x: -210, y: -110, width: 20, height: 20), pid: 501, number: 12)
+            panel[kCGWindowLayer as String] = NSNumber(value: layer)
+            expect(queryFocusWindow([panel, foreignFocusWindow]) == nil && focusQueryPIDs.isEmpty,
+                   "hover issues no Accessibility query through an own panel at layer \(layer)")
+        }
+        expect(queryFocusWindow([ownFocusWindow, foreignFocusWindow]) == nil && focusQueryPIDs.isEmpty,
+               "hover leaves both its own ordinary window and the app behind it untouched")
+        expect(queryFocusWindow([foreignFocusWindow, ownFocusWindow]) == 1001 && focusQueryPIDs == [1001],
+               "a foreign window covering our panel receives exactly one scoped query on an offset display")
+        expect(queryFocusWindow([]) == nil && focusQueryPIDs.isEmpty,
+               "an empty or unavailable window list never falls back to a global Accessibility query")
+        var unknownOwner = foreignFocusWindow
+        unknownOwner.removeValue(forKey: kCGWindowOwnerPID as String)
+        expect(queryFocusWindow([unknownOwner, foreignFocusWindow]) == nil && focusQueryPIDs.isEmpty,
+               "an unknown surface owner blocks hover without querying an app behind it")
+        for invalidPID: Int32 in [0, -1] {
+            let invalidWindow = windowServerEntry(focusHitFrame, pid: invalidPID, number: 13)
+            expect(queryFocusWindow([invalidWindow, foreignFocusWindow]) == nil && focusQueryPIDs.isEmpty,
+                   "hover never queries an invalid process identifier")
+        }
+        var transparentPanel = ownFocusWindow
+        transparentPanel[kCGWindowAlpha as String] = NSNumber(value: 0.0)
+        expect(queryFocusWindow([transparentPanel, foreignFocusWindow]) == 1001 && focusQueryPIDs == [1001],
+               "a fully invisible own surface does not block the app under the pointer")
+        transparentPanel[kCGWindowAlpha as String] = NSNumber(value: 0.1)
+        expect(queryFocusWindow([transparentPanel, foreignFocusWindow]) == nil && focusQueryPIDs.isEmpty,
+               "a translucent own panel still blocks hover before Accessibility")
+        let distantPanel = windowServerEntry(CGRect(x: 0, y: 0, width: 400, height: 400), pid: 501, number: 14)
+        expect(queryFocusWindow([distantPanel, foreignFocusWindow]) == 1001 && focusQueryPIDs == [1001],
+               "our panel elsewhere on the displays does not disable hover")
+        expect(queryFocusWindow([ownFocusWindow, foreignFocusWindow], clickThroughWindowIDs: [12]) == 1001
+                && focusQueryPIDs == [1001],
+               "a known own click-through overlay passes hover to the foreign app without querying itself")
+        expect(queryFocusWindow([ownFocusWindow, foreignFocusWindow], clickThroughWindowIDs: [14]) == nil
+                && focusQueryPIDs.isEmpty,
+               "only the exact own window marked click-through may be skipped")
+        var ownPanelWithoutID = ownFocusWindow
+        ownPanelWithoutID.removeValue(forKey: kCGWindowNumber as String)
+        expect(queryFocusWindow([ownPanelWithoutID, foreignFocusWindow], clickThroughWindowIDs: [12]) == nil
+                && focusQueryPIDs.isEmpty,
+               "an unidentified own panel is never assumed to be click-through")
+        let brightnessOverlay = windowServerEntry(focusHitFrame, pid: 501, number: 15)
+        expect(queryFocusWindow([brightnessOverlay, ownFocusWindow, foreignFocusWindow],
+                                clickThroughWindowIDs: [15]) == nil && focusQueryPIDs.isEmpty,
+               "a click-through overlay does not hide an interactive own panel from the guard")
+        expect(queryFocusWindow([brightnessOverlay, ownFocusWindow, foreignFocusWindow],
+                                clickThroughWindowIDs: [12, 15]) == 1001 && focusQueryPIDs == [1001],
+               "stacked own click-through overlays still allow normal hover focus")
+        expect(queryFocusWindow([foreignFocusWindow, ownFocusWindow], clickThroughWindowIDs: [11]) == 1001
+                && focusQueryPIDs == [1001],
+               "the click-through allowlist never skips another app's surface")
+        let secondForeignWindow = windowServerEntry(focusHitFrame, pid: 1002, number: 16)
+        expect(queryFocusWindow([foreignFocusWindow, secondForeignWindow], querySucceeds: false) == nil
+                && focusQueryPIDs == [1001],
+               "an unanswered scoped query never falls through to another app")
+        for foreignLayer in [-2_147_483_623, 4, 20, 24, 25] {
+            var furniture = foreignFocusWindow
+            furniture[kCGWindowLayer as String] = NSNumber(value: foreignLayer)
+            expect(queryFocusWindow([furniture, secondForeignWindow]) == nil && focusQueryPIDs.isEmpty,
+                   "hover stops at a surface outside the app window layers, at layer \(foreignLayer)")
+        }
+        var unknownDepth = foreignFocusWindow
+        unknownDepth.removeValue(forKey: kCGWindowLayer as String)
+        expect(queryFocusWindow([unknownDepth, secondForeignWindow]) == nil && focusQueryPIDs.isEmpty,
+               "a surface of unknown depth is never taken for an app window")
 
         expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
                                                  sinceLastTransformEnd: nil,

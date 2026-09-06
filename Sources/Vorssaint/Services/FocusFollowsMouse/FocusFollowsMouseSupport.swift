@@ -12,6 +12,38 @@ enum FocusFollowsMouseSupport {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)
     }
 
+    /// Stop at the first visible surface, including our small and raised
+    /// panels. Only our known click-through overlays may be skipped: querying
+    /// our Accessibility tree from a worker can deadlock against the main thread.
+    static func queryWindow<Result>(in windows: [[String: Any]],
+                                    at point: CGPoint,
+                                    ownProcessID: pid_t,
+                                    clickThroughWindowIDs: Set<CGWindowID>,
+                                    query: (pid_t) -> Result?) -> Result? {
+        for window in windows {
+            guard let bounds = WindowServerSupport.bounds(from: window),
+                  bounds.contains(point),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0
+            else { continue }
+
+            guard let processID = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  processID > 0 else { return nil }
+            if processID == ownProcessID {
+                guard let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                      clickThroughWindowIDs.contains(windowID) else { return nil }
+                continue
+            }
+            // The Dock, the menu bar, a banner and the desktop are not what
+            // hover follows, and neither is the app behind them, since the
+            // pointer is on them and not on it.
+            guard let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  MouseAppExceptionSupport.appWindowLayers.contains(layer)
+            else { return nil }
+            return query(processID)
+        }
+        return nil
+    }
+
     static func shouldActivate(targetWindowID: CGWindowID,
                                focusedWindowID: CGWindowID?,
                                targetAppIsFrontmost: Bool) -> Bool {
