@@ -4,6 +4,27 @@
 import Foundation
 
 enum CutPastePrivilegeSupport {
+    /// Cancellation can follow a partial move. Only retain items that have not
+    /// landed; lack of permission to inspect a source is not proof it moved.
+    static func reconcile(_ urls: [URL], into directory: URL, canceled: Bool,
+                          fm: FileManager) -> (moved: Int, failed: Int, stillCut: [URL]) {
+        let remaining = urls.filter { source in
+            do {
+                _ = try fm.attributesOfItem(atPath: source.path)
+                return true
+            } catch {
+                let error = error as NSError
+                let missing = (error.domain == NSCocoaErrorDomain
+                    && error.code == NSFileReadNoSuchFileError)
+                    || (error.domain == NSPOSIXErrorDomain && error.code == Int(ENOENT))
+                let destination = directory.appendingPathComponent(source.lastPathComponent)
+                return !missing || !fm.fileExists(atPath: destination.path)
+            }
+        }
+        return (urls.count - remaining.count, canceled ? 0 : remaining.count,
+                canceled ? remaining : [])
+    }
+
     static func needsPrivileges(_ error: Error) -> Bool {
         let error = error as NSError
         var candidates = [error]

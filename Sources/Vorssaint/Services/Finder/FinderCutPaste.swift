@@ -533,13 +533,12 @@ final class FinderCutPaste: ObservableObject {
             }
             var stillCut: [URL] = []
             if !refused.isEmpty {
-                switch Self.moveThroughFinder(refused, into: dir, fm: fm) {
-                case .declined:
-                    stillCut = refused
-                case .attempted(let landed):
-                    moved += landed
-                    failed += refused.count - landed
-                }
+                let canceled = FinderBridge.move(refused, into: dir).canceled
+                let result = CutPastePrivilegeSupport.reconcile(
+                    refused, into: dir, canceled: canceled, fm: fm)
+                moved += result.moved
+                failed += result.failed
+                stillCut = result.stillCut
             }
             DispatchQueue.main.async {
                 self?.finishPaste(generation: generation, moved: moved, failed: failed,
@@ -664,17 +663,6 @@ final class FinderCutPaste: ObservableObject {
         } catch {
             return CutPastePrivilegeSupport.needsPrivileges(error) ? .needsPrivileges : .failed
         }
-    }
-
-    private enum ElevatedMove {
-        case declined
-        case attempted(landed: Int)
-    }
-
-    private static func moveThroughFinder(_ urls: [URL], into dir: URL,
-                                          fm: FileManager) -> ElevatedMove {
-        if FinderBridge.move(urls, into: dir).canceled { return .declined }
-        return .attempted(landed: urls.filter { !fm.fileExists(atPath: $0.path) }.count)
     }
 
     /// Appends " 2", " 3"… before the extension when a name already exists,
@@ -827,7 +815,7 @@ private enum FinderBridge {
             tell application "Finder"
                 set targets to {}
                 \(targets)
-                move targets to folder (POSIX file \(AppleScriptRunner.literal(dir.path)) as alias)
+                move targets to folder (POSIX file \(AppleScriptRunner.literal(dir.path)) as alias) without replacing
             end tell
         end timeout
         """
