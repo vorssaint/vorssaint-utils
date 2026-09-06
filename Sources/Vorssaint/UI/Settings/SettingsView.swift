@@ -1278,6 +1278,9 @@ struct SwitcherSettings: View {
                                 GlobalShortcutRole.switcher.savedShortcut.displayString))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if switcherEnabled {
+                        MouseExceptionsList(scope: .switcher)
+                    }
 
                     HStack {
                         Text(l10n.s.switcherAppearanceDelay)

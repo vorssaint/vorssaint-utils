@@ -590,6 +590,13 @@ final class AppSwitcher: ObservableObject {
             case .routeShortcut:
                 guard matchesShortcut else { return Unmanaged.passUnretained(event) }
 
+                // Hand the shortcut to the frontmost app when it is on the
+                // switcher exception list (issue #1181). An already-open
+                // session keeps routing above; only a fresh claim is skipped.
+                if MouseAppExceptions.shared.excludesFrontmost(.switcher) {
+                    return Unmanaged.passUnretained(event)
+                }
+
                 let requestedShortcut = matchesWindows ? windowShortcut : shortcut
                 let requestedScope: SwitcherSessionScope = matchesWindows ? .frontmostApp : .allApps
                 let reversed: Bool

@@ -436,6 +436,13 @@ enum SwitcherSupport {
         return excludedBundleIdentifiers.contains(frontmostBundleIdentifier)
     }
 
+    /// True when App Switcher should leave its hotkey alone so the frontmost
+    /// app receives it (issue #1181). Separate from thumbnail pause capture.
+    static func shouldPassHotkeyToFrontmost(frontmostBundleID: String?,
+                                            exceptions: Set<String>) -> Bool {
+        MouseAppExceptionSupport.isExcepted(frontmostBundleID, exceptions: exceptions)
+    }
+
     static func needsScreenRecording(switcherEnabled: Bool,
                                      simpleMode: Bool,
                                      dockPreviewEnabled: Bool) -> Bool {
