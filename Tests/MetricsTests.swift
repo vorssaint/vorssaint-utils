@@ -4277,6 +4277,26 @@ struct MetricsTests {
                "a standalone function key records, displays and survives storage")
         expect(!GlobalShortcut(keyCode: Int64(kVK_ANSI_F), modifiers: []).isValid,
                "a bare letter still cannot become a shortcut")
+        // Mouse-button shortcuts may bind an ordinary key with no modifier
+        // (issue #1363). Global hotkeys stay strict; only the opt-in path
+        // accepts a bare Return or letter. Escape alone still cancels
+        // recording and never becomes a binding.
+        let bareReturn = GlobalShortcut(keyCode: Int64(kVK_Return), modifiers: [])
+        let bareLetter = GlobalShortcut(keyCode: Int64(kVK_ANSI_F), modifiers: [])
+        let bareEscape = GlobalShortcut(keyCode: Int64(kVK_Escape), modifiers: [])
+        expect(!bareReturn.isValid && bareReturn.isValidForMouseButtonShortcut,
+               "Return alone is not a global hotkey but is valid for a mouse button")
+        expect(!bareLetter.isValid && bareLetter.isValidForMouseButtonShortcut,
+               "a bare letter stays invalid globally and valid for a mouse button")
+        expect(!bareEscape.isValid && !bareEscape.isValidForMouseButtonShortcut,
+               "Escape alone never becomes a mouse-button shortcut")
+        expect(GlobalShortcut(keyCode: Int64(kVK_Return), modifiers: [.command])
+                .isValidForMouseButtonShortcut,
+               "a modified combination remains valid for mouse buttons through the normal path")
+        expect(!GlobalShortcut(keyCode: -1, modifiers: []).isValidForMouseButtonShortcut,
+               "an unusable key code is never valid for a mouse button either")
+        expect(bareReturn.syntheticEventFlags.isEmpty,
+               "an unmodified mouse-button key posts with empty flags, not leftover modifiers")
         expect(GlobalShortcut.finderRenameDefault.matches(keyCode: Int64(kVK_F2), modifiers: [])
                 && !GlobalShortcut.finderRenameDefault.matches(
                     keyCode: Int64(kVK_F2), modifiers: [.command]),
@@ -19183,7 +19203,7 @@ struct MetricsTests {
             "40": "command:11",
             "junk": "command:11",
             "5": "garbage",
-            "6": ":48",
+            "6": ":53",
         ])
         expect(decodedButtons.count == 3 && decodedButtons[3] == buttonCombo && decodedButtons[4] != nil
                 && decodedButtons[MouseButtonShortcutSupport.sideWheelLeftInput] != nil,
@@ -19191,6 +19211,11 @@ struct MetricsTests {
         expect(MouseButtonShortcutSupport.decode(MouseButtonShortcutSupport.encode(decodedButtons))
                 == decodedButtons,
                "mappings round-trip through their stored form")
+        let bareReturnStored = GlobalShortcut(keyCode: Int64(kVK_Return), modifiers: [])
+        expect(MouseButtonShortcutSupport.decode(["5": bareReturnStored.storageValue])[5]
+                == bareReturnStored
+                && GlobalShortcut(storageValue: bareReturnStored.storageValue) == nil,
+               "mouse-button storage keeps an unmodified key that global hotkey loading still rejects")
         expect(MouseButtonShortcutSupport.decode(nil).isEmpty,
                "no stored mappings decode to none")
         expect(MouseButtonShortcutSupport.sortedButtons([
@@ -19657,6 +19682,25 @@ struct MetricsTests {
                 && GlobalShortcut(keyCode: Int64(kVK_Return), modifiers: [.control, .option])
                 .syntheticEventFlags == [.maskControl, .maskAlternate],
                "the keys beside them are ordinary and stay ordinary")
+        expect(GlobalShortcut(keyCode: Int64(kVK_Return), modifiers: []).syntheticEventFlags.isEmpty,
+               "an unmodified Return for a mouse button posts with flags cleared to empty")
+
+        let recorderSource = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/ShortcutRecorderButton.swift",
+            encoding: .utf8)) ?? "")
+        expect(recorderSource.contains("var acceptsUnmodifiedKeys: Bool = false")
+                && recorderSource.contains("captured.isValidForMouseButtonShortcut"),
+               "the recorder keeps unmodified keys opt-in and validates them on that path")
+        expect(mouseSettingsLines.contains {
+            $0.contains("acceptsUnmodifiedKeys: true")
+        }, "mouse-button shortcut rows opt into unmodified key capture")
+        let mousePostSource = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutService.swift",
+            encoding: .utf8)) ?? "")
+        expect(mousePostSource.contains("let flags = shortcut.syntheticEventFlags")
+                && mousePostSource.contains("down.flags = flags")
+                && mousePostSource.contains("up.flags = flags"),
+               "mouse-button posting always assigns synthetic flags, including empty for unmodified keys")
 
         // MARK: Super key (issue #330)
 

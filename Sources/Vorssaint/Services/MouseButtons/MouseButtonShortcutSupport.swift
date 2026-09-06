@@ -112,7 +112,8 @@ enum MouseButtonShortcutSupport {
         var mappings: [Int64: GlobalShortcut] = [:]
         for (key, value) in raw {
             guard let button = Int64(key), canMap(button),
-                  let shortcut = GlobalShortcut(storageValue: value) else { continue }
+                  let shortcut = GlobalShortcut(storageValue: value,
+                                                allowingUnmodifiedKeys: true) else { continue }
             mappings[button] = shortcut
         }
         return mappings
@@ -173,7 +174,7 @@ enum MouseButtonShortcutSupport {
         guard defaults.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled) else { return false }
         let raw = defaults.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String]
         guard let stored = raw?[String(button)] else { return false }
-        return GlobalShortcut(storageValue: stored) != nil
+        return GlobalShortcut(storageValue: stored, allowingUnmodifiedKeys: true) != nil
     }
 
     /// The rows in Settings sort by button number so the list never reorders

@@ -122,6 +122,7 @@ struct MouseButtonShortcutsSection: View {
                                            recordingButton = recording ? button : nil
                                            if recording { setRecordError(nil, button) }
                                        },
+                                       acceptsUnmodifiedKeys: true,
                                        invalidAction: { setRecordError(l10n.s.shortcutInvalid, button) },
                                        captureAction: { save(button: button, shortcut: $0) })
                     .frame(width: 108)
