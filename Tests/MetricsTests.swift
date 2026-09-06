@@ -1776,6 +1776,17 @@ struct MetricsTests {
 
         // MARK: Temperature sensor selection
 
+        var sensorRetry = SensorDiscoveryRetry()
+        expect(sensorRetry.beginAttempt(now: 100), "sensor discovery starts on the first demand")
+        expect(!sensorRetry.beginAttempt(now: 100) && !sensorRetry.beginAttempt(now: 104.9)
+               && sensorRetry.attempts == 1,
+               "repeated sample requests cannot spin on a failed sensor connection")
+        expect(sensorRetry.beginAttempt(now: 105), "a failed sensor discovery can recover on a later sample")
+        expect(!sensorRetry.beginAttempt(now: 109.9) && sensorRetry.beginAttempt(now: 110),
+               "sensor discovery spaces out its final retry")
+        expect(!sensorRetry.beginAttempt(now: 115) && !sensorRetry.beginAttempt(now: 10_000),
+               "unavailable hardware does not cause endless discovery scans")
+
         expect(TemperatureSensorSelector.platform(brandString: "Apple M1") == .appleM1Family,
                "Apple M1 uses the mapped CPU core sensor set")
         expect(TemperatureSensorSelector.platform(brandString: "Apple M2 Pro") == .appleM2Family,
@@ -1840,6 +1851,46 @@ struct MetricsTests {
             platform: .appleM1Family
         )
         expectClose(m1CPU ?? -1, 49.0, "M1 family uses hottest mapped CPU core")
+        // Alternate M1 layout reported in #1353; no key matches the core map.
+        let alternateM1Readings: [(key: String, value: Double)] = [
+            ("Te0a", 36.31), ("Te0z", 38.08), ("Te3b", 46.65), ("Te3z", 60.02),
+            ("Tp2a", 38.94), ("Tp2z", 60.98), ("Tp4z", 64.61), ("Tp9z", 61.97),
+        ]
+        expect(TemperatureSensorSelector.allowsDisplayFallback(
+            platform: .appleM1Family, hasMappedKeys: false),
+               "M1 discovery retains the compatibility sensors when its core map is absent")
+        expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: alternateM1Readings, platform: .appleM1Family
+        ) ?? -1, 64.61, "alternate M1 layout preserves the pre-3.3.3 CPU-family reading")
+        expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: alternateM1Readings + [("Tp01", 49)], platform: .appleM1Family
+        ) ?? -1, 49, "an available mapped M1 core outranks hotter auxiliary readings")
+        expect(!TemperatureSensorSelector.allowsDisplayFallback(
+            platform: .appleM1Family, hasMappedKeys: true),
+               "a failed mapped M1 sensor does not cause discovery to read auxiliary sensors")
+        expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: alternateM1Readings + [("Tp01", 0)], platform: .appleM1Family
+        ) == nil, "M1 never replaces a broken mapped reading with an auxiliary hotspot")
+        for platform: CPUTemperaturePlatform in [.appleM2Family, .appleM3Family, .appleM4Family,
+                                                 .appleM5Family, .unmappedAppleSilicon] {
+            expect(!TemperatureSensorSelector.allowsDisplayFallback(platform: platform, hasMappedKeys: false)
+                   && TemperatureSensorSelector.displayedCPUTemperature(
+                    readings: alternateM1Readings, platform: platform) == nil,
+                   "M1 compatibility never guesses a sensor map for another chip")
+        }
+        expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Te0a", .nan), ("Tp2z", .infinity), ("Tp4z", 7), ("Tp9z", 125)],
+            platform: .appleM1Family
+        ) == nil, "M1 compatibility rejects invalid and implausible readings")
+        expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tg0D", 80), ("TB0T", 30), ("TG0D", 90)], platform: .appleM1Family
+        ) == nil, "M1 compatibility cannot report GPU or battery readings as CPU temperature")
+        expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [], platform: .appleM1Family
+        ) == nil, "an M1 with no readable CPU sensors stays unavailable")
+        expect(FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: alternateM1Readings, gpuReadings: [], platform: .appleM1Family
+        ).isEmpty, "M1 display compatibility never supplies auxiliary readings to fan control")
         let m2CPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Tp1h", 7.0), ("Tp0j", 52.0), ("Tp0k", 75.0)],
             platform: .appleM2Family
@@ -3866,6 +3917,16 @@ struct MetricsTests {
                                                                   hasEndDate: false),
                "idle, hidden and indefinite Keep Awake titles need no timer")
         let statusPlacementSuite = "com.vorssaint.tests.statusItemPlacement"
+        expect(!MenuBarSpacingSupport.needsVariableStatusItemLength(renderedTitleLength: 0,
+                                                                    micBadgeActive: false),
+               "an icon alone keeps a square slot before and after the first refresh")
+        expect(MenuBarSpacingSupport.needsVariableStatusItemLength(renderedTitleLength: 5,
+                                                                   micBadgeActive: false)
+               && MenuBarSpacingSupport.needsVariableStatusItemLength(renderedTitleLength: 0,
+                                                                       micBadgeActive: true)
+               && MenuBarSpacingSupport.needsVariableStatusItemLength(renderedTitleLength: 5,
+                                                                       micBadgeActive: true),
+               "metrics, countdowns and microphone badges retain room for their content")
         if let statusDefaults = UserDefaults(suiteName: statusPlacementSuite) {
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
             expect(StatusItemPlacementSupport.placementGeneration(in: statusDefaults) == 0,
@@ -3884,12 +3945,23 @@ struct MetricsTests {
             expect(statusDefaults.double(forKey: legacyKey) == 320.5,
                    "sanitizeStalePlacement preserves legitimate user-arranged coordinates")
 
+            for name in ["VorssaintMenuBarItem", "VorssaintMenuBarItem.1"] {
+                statusDefaults.set(false, forKey: "NSStatusItem Visible \(name)")
+                statusDefaults.set(false, forKey: "NSStatusItem VisibleCC \(name)")
+                statusDefaults.set(64, forKey: "NSStatusItem Preferred Position \(name)")
+            }
             StatusItemPlacementSupport.bumpPlacementGeneration(in: statusDefaults)
             let gen1Name = StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults)
             expect(gen1Name == "VorssaintMenuBarItem.1",
                    "bumped generation produces numbered autosave name")
             expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.1") == nil,
                    "bumpPlacementGeneration does not seed any hardcoded preferred position")
+            for name in ["VorssaintMenuBarItem", gen1Name] {
+                expect(statusDefaults.object(forKey: "NSStatusItem Visible \(name)") == nil
+                       && statusDefaults.object(forKey: "NSStatusItem VisibleCC \(name)") == nil
+                       && statusDefaults.object(forKey: "NSStatusItem Preferred Position \(name)") == nil,
+                       "explicit recovery clears hidden state for both discarded and reused identities")
+            }
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
         }
         expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,

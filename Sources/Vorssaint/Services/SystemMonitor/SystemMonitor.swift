@@ -126,14 +126,11 @@ final class SystemMonitor: ObservableObject {
 
     // SMC sensors
     private var smc: SMCClient?
-    private var smcTried = false
+    private var smcDiscoveryRetry = SensorDiscoveryRetry()
+    private var temperatureDiscoveryRetry = SensorDiscoveryRetry()
+    /// Select once at discovery: mapped cores, or a supported compatibility
+    /// layout when no mapped keys exist. Each SMC read is a kernel call.
     private var cpuKeys: [SMCClient.Key] = []
-    /// The platform's known CPU core sensors (what the displayed value is
-    /// actually computed from) and everything else, split once at discovery:
-    /// each SMC read is a kernel call, so the per-tick read sticks to the
-    /// core set and only sweeps the rest when the core set goes silent.
-    private var preferredCPUKeys: [SMCClient.Key] = []
-    private var fallbackCPUKeys: [SMCClient.Key] = []
     private var gpuKeys: [SMCClient.Key] = []
     private var batteryKeys: [SMCClient.Key] = []
     private var fanKeys: [SMCClient.Key] = []
@@ -604,7 +601,8 @@ final class SystemMonitor: ObservableObject {
             guard let self else { return }
             self.prepareIfNeeded(needSMC: plan.needSMC,
                                  needTemperature: plan.needTemperature,
-                                 needFanSpeed: plan.needFanSpeed)
+                                 needFanSpeed: plan.needFanSpeed,
+                                 now: ProcessInfo.processInfo.systemUptime)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -879,9 +877,9 @@ final class SystemMonitor: ObservableObject {
     /// actually needs it.
     private func prepareIfNeeded(needSMC: Bool,
                                  needTemperature: Bool,
-                                 needFanSpeed: Bool) {
-        if needSMC, !smcTried {
-            smcTried = true
+                                 needFanSpeed: Bool,
+                                 now: TimeInterval) {
+        if needSMC, smc == nil, smcDiscoveryRetry.beginAttempt(now: now) {
             smc = SMCClient()
             cpuTemperaturePlatform = TemperatureSensorSelector.currentPlatform()
             powerSampler = PowerSampler(smc: smc)
@@ -897,25 +895,29 @@ final class SystemMonitor: ObservableObject {
             }
         }
 
-        guard needTemperature, !tempKeysPrepared else { return }
-        tempKeysPrepared = true
+        guard needTemperature, !tempKeysPrepared,
+              temperatureDiscoveryRetry.beginAttempt(now: now) else { return }
 
-        let all = client.keys { name in
+        let discovery = client.discoverKeys { name in
             TemperatureSensorSelector.isCPUTemperatureKey(name, platform: cpuTemperaturePlatform)
                 || name.hasPrefix("Tg")
                 || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
         }
-        cpuKeys = all.filter {
+        tempKeysPrepared = discovery.isComplete
+        // A second partial scan must not discard sensors already found by the
+        // first one. New metadata replaces old metadata for the same key.
+        let all = Dictionary((cpuKeys + gpuKeys + batteryKeys + discovery.keys).map { ($0.name, $0) },
+                             uniquingKeysWith: { _, new in new }).values
+        let candidates = all.filter {
             TemperatureSensorSelector.isCPUTemperatureKey($0.name,
                                                           platform: cpuTemperaturePlatform)
         }
-        preferredCPUKeys = cpuKeys.filter {
+        let mappedKeys = candidates.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
         }
-        let preferredNames = Set(preferredCPUKeys.map(\.name))
-        fallbackCPUKeys = TemperatureSensorSelector.hasCPUCoreSet(platform: cpuTemperaturePlatform)
-            ? []
-            : cpuKeys.filter { !preferredNames.contains($0.name) }
+        cpuKeys = discovery.isComplete && TemperatureSensorSelector.allowsDisplayFallback(
+            platform: cpuTemperaturePlatform, hasMappedKeys: !mappedKeys.isEmpty)
+            ? candidates : mappedKeys
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
     }
@@ -944,17 +946,10 @@ final class SystemMonitor: ObservableObject {
 
     private func cpuTemperature() -> Double? {
         guard smc != nil else { return nil }
-        // Mapped chips read only their verified core keys. The generic
-        // compatibility path reads the remaining Tp/Te keys when there is
-        // no mapped core set.
-        var readings = temperatureReadings(of: preferredCPUKeys)
-        if let value = TemperatureSensorSelector.displayedCPUTemperature(readings: readings,
-                                                                         platform: cpuTemperaturePlatform) {
-            return value
-        }
-        readings += temperatureReadings(of: fallbackCPUKeys)
-        return TemperatureSensorSelector.displayedCPUTemperature(readings: readings,
-                                                                 platform: cpuTemperaturePlatform)
+        // Discovery permits a compatibility reading only for supported layouts
+        // without mapped keys. An unreadable mapped key cannot enable it.
+        return TemperatureSensorSelector.displayedCPUTemperature(
+            readings: temperatureReadings(of: cpuKeys), platform: cpuTemperaturePlatform)
     }
 
     private func temperatureReadings(of keys: [SMCClient.Key]) -> [(key: String, value: Double)] {

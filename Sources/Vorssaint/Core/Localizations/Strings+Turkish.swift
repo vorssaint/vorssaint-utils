@@ -862,7 +862,7 @@ extension Strings {
         showMenuBarIcon: "Menü çubuğu simgesini göster",
         showMenuBarIconCaption: "Vorssaint simgesi kaybolursa (macOS, çubukta yer kalmadığında menü çubuğu simgelerini gizleyebilir; çentikli Mac’lerde yaygındır), Vorssaint’i Uygulamalar’dan veya Spotlight’tan yeniden aç: bu simgeyi yeniden oluşturur ve hâlâ gizliyse bu pencereyi açar.",
         menuBarIconStillHiddenTitle: "Simge hâlâ gizli",
-        menuBarIconStillHiddenBody: "Simge yeniden oluşturuldu ancak macOS ona görünür bir yer vermedi. Menü çubuğunda büyük olasılıkla yer kalmadı: bazı menü çubuğu simgelerini kaldırın (veya menüleri uzun uygulamaları kapatın) ve yeniden deneyin.",
+        menuBarIconStillHiddenBody: "macOS simgeyi hâlâ göstermiyor. Sistem Ayarları’nda Vorssaint’ın menü çubuğunda görünmesine izin verildiğini kontrol edin. Kaydedilen konumla ilgili bir sorun veya alan yetersizliği de simgenin görünmesini engelleyebilir. Vorssaint ayarlarına erişmeye devam edebilirsiniz.",
         menuBarIconManagerHintFormat: "%@ açık ve simgeyi gizli bölümünde tutuyor olabilir. Vorssaint’i orada arayın veya %@ uygulamasını Vorssaint’i her zaman gösterecek şekilde ayarlayın.",
         shortcutRecording: "Yeni kısayola bas",
         shortcutReset: "Sıfırla",

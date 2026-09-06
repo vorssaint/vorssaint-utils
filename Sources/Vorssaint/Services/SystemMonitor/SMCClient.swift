@@ -21,6 +21,11 @@ final class SMCClient {
         let dataType: String
     }
 
+    struct KeyDiscovery {
+        let keys: [Key]
+        let isComplete: Bool
+    }
+
     private var connection: io_connect_t = 0
 
     // Selector and command bytes of the SMC user client.
@@ -46,12 +51,25 @@ final class SMCClient {
     /// Enumerates every SMC key whose name passes `filter`. Done once at startup;
     /// the resulting keys are then read directly on each refresh.
     func keys(where filter: (String) -> Bool) -> [Key] {
+        discoverKeys(where: filter).keys
+    }
+
+    /// Keep transport failures distinct from a complete scan with no matching
+    /// sensors, so the monitor can retry a partial startup scan.
+    func discoverKeys(where filter: (String) -> Bool) -> KeyDiscovery {
         var result: [Key] = []
-        for index in 0..<keyCount() {
+        guard let count = keyCount(), count > 0 else {
+            return KeyDiscovery(keys: [], isComplete: false)
+        }
+        var isComplete = true
+        for index in 0..<count {
             var probe = SMCParamStruct()
             probe.data8 = Self.cmdKeyFromIndex
             probe.data32 = UInt32(index)
-            guard let out = call(&probe), out.result == 0 else { continue }
+            guard let out = call(&probe), out.result == 0 else {
+                isComplete = false
+                continue
+            }
 
             let name = Self.fourCCString(out.key)
             guard filter(name) else { continue }
@@ -59,14 +77,17 @@ final class SMCClient {
             var infoIn = SMCParamStruct()
             infoIn.key = out.key
             infoIn.data8 = Self.cmdKeyInfo
-            guard let info = call(&infoIn), info.result == 0 else { continue }
+            guard let info = call(&infoIn), info.result == 0 else {
+                isComplete = false
+                continue
+            }
 
             result.append(Key(code: out.key,
                               name: name,
                               dataSize: info.keyInfo.dataSize,
                               dataType: Self.fourCCString(info.keyInfo.dataType)))
         }
-        return result
+        return KeyDiscovery(keys: result, isComplete: isComplete)
     }
 
     /// Reads a temperature-style value in the key's native encoding.
@@ -128,12 +149,12 @@ final class SMCClient {
 
     // MARK: - Plumbing
 
-    private func keyCount() -> Int {
+    private func keyCount() -> Int? {
         var input = SMCParamStruct()
         input.key = Self.fourCC("#KEY")
         input.keyInfo.dataSize = 4
         input.data8 = Self.cmdReadKey
-        guard let out = call(&input), out.result == 0 else { return 0 }
+        guard let out = call(&input), out.result == 0 else { return nil }
         let b = withUnsafeBytes(of: out.bytes) { Array($0.prefix(4)) }
         return Int(UInt32(b[0]) << 24 | UInt32(b[1]) << 16 | UInt32(b[2]) << 8 | UInt32(b[3]))
     }

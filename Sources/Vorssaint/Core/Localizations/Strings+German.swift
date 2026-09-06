@@ -862,7 +862,7 @@ extension Strings {
         showMenuBarIcon: "Menüleistensymbol anzeigen",
         showMenuBarIconCaption: "Falls das Symbol von Vorssaint verschwindet (macOS kann Menüleistensymbole ausblenden, wenn der Platz in der Leiste knapp wird, häufig bei Macs mit Notch), öffne Vorssaint erneut über „Programme“ oder Spotlight: Das stellt das Symbol wieder her und öffnet, falls es weiterhin ausgeblendet ist, dieses Fenster.",
         menuBarIconStillHiddenTitle: "Das Symbol ist weiterhin verborgen",
-        menuBarIconStillHiddenBody: "Das Symbol wurde neu aufgebaut, aber macOS hat ihm keinen sichtbaren Platz gegeben. In der Menüleiste ist vermutlich kein Platz mehr: Entferne einige Menüleisten-Symbole (oder schließe Apps mit langen Menüs) und versuche es erneut.",
+        menuBarIconStillHiddenBody: "macOS zeigt das Symbol weiterhin nicht an. Prüfe in den Systemeinstellungen, ob Vorssaint in der Menüleiste erlaubt ist. Auch eine fehlerhafte gespeicherte Position oder zu wenig Platz kann die Anzeige verhindern. Die Einstellungen von Vorssaint bleiben verfügbar.",
         menuBarIconManagerHintFormat: "%@ läuft und hält das Symbol womöglich in seinem verborgenen Bereich. Suche Vorssaint dort, oder stelle %@ so ein, dass Vorssaint immer angezeigt wird.",
         shortcutRecording: "Neuen Kurzbefehl drücken",
         shortcutReset: "Zurücksetzen",

@@ -431,6 +431,7 @@ if (( TEST )); then
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
     ./build/metrics-tests || test_status=$?
+    python3 Tests/SensorDiscoveryTests.py "$SDK" || test_status=1
     ./Tests/PreferenceCleanupTests.sh || test_status=1
     discard_test_preferences || test_status=1
     exit $test_status

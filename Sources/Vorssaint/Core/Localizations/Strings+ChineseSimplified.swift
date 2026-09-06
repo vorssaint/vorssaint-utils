@@ -862,7 +862,7 @@ extension Strings {
         showMenuBarIcon: "显示菜单栏图标",
         showMenuBarIconCaption: "如果 Vorssaint 的图标消失了（当菜单栏空间不足时，macOS 可能会隐藏图标，这在带刘海的 Mac 上很常见），请从“应用程序”或 Spotlight 重新打开 Vorssaint：这会重建图标，如果它仍被隐藏，则会打开此窗口。",
         menuBarIconStillHiddenTitle: "图标仍然被隐藏",
-        menuBarIconStillHiddenBody: "图标已重建，但 macOS 没有给它可见的位置。菜单栏可能已经没有空间：请移除一些菜单栏图标（或关闭菜单很长的 App）后再试一次。",
+        menuBarIconStillHiddenBody: "macOS 仍未显示图标。请在系统设置中检查是否允许 Vorssaint 在菜单栏中显示。保存的位置有误或空间不足也可能导致图标无法显示。您仍可使用 Vorssaint 设置。",
         menuBarIconManagerHintFormat: "%@ 正在运行，可能把图标收进了它的隐藏区域。请在那里找找 Vorssaint，或将 %@ 设置为始终显示 Vorssaint。",
         shortcutRecording: "按下新的快捷键",
         shortcutReset: "重置",

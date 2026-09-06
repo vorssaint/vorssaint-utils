@@ -863,7 +863,7 @@ extension Strings {
         showMenuBarIcon: "顯示選單列圖示",
         showMenuBarIconCaption: "如果 Vorssaint 的圖示消失了（選單列空間不足時，macOS 可能會隱藏圖示；有瀏海的 Mac 較常見），請從「應用程式」或 Spotlight 重新開啟 Vorssaint。這會重新建立圖示；如果圖示仍被隱藏，則會開啟此視窗。",
         menuBarIconStillHiddenTitle: "圖示仍然被隱藏",
-        menuBarIconStillHiddenBody: "圖示已重建，但 macOS 沒有給它可見的位置。選單列可能已經沒有空間：請移除一些選單列圖示（或關閉選單很長的 App）後再試一次。",
+        menuBarIconStillHiddenBody: "macOS 仍未顯示圖示。請在系統設定中檢查是否允許 Vorssaint 顯示於選單列。儲存的位置有誤或空間不足也可能導致圖示無法顯示。你仍可使用 Vorssaint 設定。",
         menuBarIconManagerHintFormat: "%@ 正在執行，可能把圖示收進了它的隱藏區域。請在那裡找找 Vorssaint，或將 %@ 設定為一律顯示 Vorssaint。",
         shortcutRecording: "按下新的快捷鍵",
         shortcutReset: "重設",

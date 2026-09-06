@@ -862,7 +862,7 @@ extension Strings {
         showMenuBarIcon: "Mostra l’icona nella barra dei menu",
         showMenuBarIconCaption: "Se l’icona di Vorssaint scompare (macOS può nascondere le icone della barra dei menu quando lo spazio finisce, cosa comune sui Mac con notch), riapri Vorssaint da Applicazioni o da Spotlight: questo ricrea l’icona e, se è ancora nascosta, apre questa finestra.",
         menuBarIconStillHiddenTitle: "L’icona è ancora nascosta",
-        menuBarIconStillHiddenBody: "L’icona è stata ricreata, ma macOS non le ha dato un posto visibile. Probabilmente la barra dei menu è senza spazio: rimuovi alcune icone dalla barra (o chiudi le app con menu lunghi) e riprova.",
+        menuBarIconStillHiddenBody: "macOS non ha ancora mostrato l’icona. Verifica in Impostazioni di Sistema che Vorssaint sia consentito nella barra dei menu. Anche un problema con la posizione salvata o lo spazio insufficiente può impedirne la visualizzazione. Le impostazioni di Vorssaint restano accessibili.",
         menuBarIconManagerHintFormat: "%@ è aperto e potrebbe tenere l’icona nella sua sezione nascosta. Cerca Vorssaint lì, oppure imposta %@ per mostrare sempre Vorssaint.",
         shortcutRecording: "Premi la nuova scorciatoia",
         shortcutReset: "Ripristina",

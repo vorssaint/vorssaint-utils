@@ -7,10 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Restores CPU temperature readings on A18 Pro.
+Restores CPU temperature readings on A18 Pro and affected M1 Macs, recovers from temporary sensor startup failures, and improves menu bar icon recovery.
 
 ### Fixed
 - CPU temperature: restored readings on A18 Pro that disappeared after updating to 3.3.3.
+- CPU temperature: restored readings on M1 Macs with alternate sensors after updating to 3.3.3.
+- Temperatures: retry temporary startup sensor failures while preserving readings that are already available.
+- Menu bar: more reliable icon recovery, with clearer guidance when macOS still cannot show it.
 
 ## [3.3.3] - 2026-09-06
 

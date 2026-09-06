@@ -140,6 +140,11 @@ enum MenuBarUsageBarSupport {
 }
 
 enum MenuBarSpacingSupport {
+    static func needsVariableStatusItemLength(renderedTitleLength: Int,
+                                              micBadgeActive: Bool) -> Bool {
+        renderedTitleLength > 0 || micBadgeActive
+    }
+
     /// Idle CPU/GPU readings live right at the one-to-two digit boundary
     /// (4% one tick, 10% the next); reserving the bare current digit count
     /// made the whole bar wobble on every crossing. Two digits cover 0-99

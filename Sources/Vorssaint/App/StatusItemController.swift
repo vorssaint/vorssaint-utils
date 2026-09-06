@@ -35,9 +35,7 @@ final class StatusItemController {
     /// is answered once afterwards rather than on top of it.
     private var isRefreshing = false
     private var refreshRequestedWhileRunning = false
-    private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
-    private static let maxPlacementGeneration = 10_000
     private static let emptyStatusImage = NSImage()
 
     private struct MetricStatusGroup {
@@ -86,7 +84,8 @@ final class StatusItemController {
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Reserve a real slot before AppKit has an image or title to measure.
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         // A stable identity so macOS remembers the item's position across launches
         // and across rebuilds, instead of re-placing it at the crowded default spot.
         statusItem.autosaveName = StatusItemPlacementSupport.mainAutosaveName(in: .standard)
@@ -111,10 +110,14 @@ final class StatusItemController {
     /// reset the saved placement too; otherwise macOS can restore the new item to
     /// the same hidden/crowded position that made it unreachable.
     func recreateStatusItem(resetPlacement: Bool = false) {
+        if let statusItem {
+            // AppKit can persist placement while removing the item. Clear it
+            // afterwards so the discarded identity cannot be saved again.
+            NSStatusBar.system.removeStatusItem(statusItem)
+        }
         if resetPlacement {
             StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
         }
-        if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         installStatusItem()
     }
 
@@ -279,6 +282,11 @@ final class StatusItemController {
             mustShowForSignal: signal)
         let keepAwakeActive = KeepAwakeManager.shared.isActive
 
+        let length = MenuBarSpacingSupport.needsVariableStatusItemLength(
+            renderedTitleLength: button.attributedTitle.length, micBadgeActive: micBadgeActive)
+            ? NSStatusItem.variableLength : NSStatusItem.squareLength
+        if statusItem.length != length { statusItem.length = length }
+
         // refresh() runs on every monitor tick and lands here; re-rendering
         // the same image every 2 seconds would be wasted composition, so the
         // image is only touched when some ingredient actually changed.
@@ -387,10 +395,6 @@ final class StatusItemController {
         // status window even when the value is identical — and this runs on
         // every monitor tick and defaults change. Rounded metric strings
         // repeat most ticks, so skipping no-op writes skips that churn.
-        if statusItem.length != NSStatusItem.variableLength {
-            statusItem.length = NSStatusItem.variableLength
-        }
-
         if title.length == 0 {
             if button.attributedTitle.length != 0 {
                 button.attributedTitle = NSAttributedString(string: "")

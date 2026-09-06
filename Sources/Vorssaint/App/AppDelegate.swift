@@ -318,9 +318,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                                            category: "menubar")
 
     private func iconIsOnScreen() -> Bool {
-        guard let frame = statusController?.statusItem.button?.window?.frame,
-              frame.width > 0, frame.height > 0 else { return false }
-        return NSScreen.screens.contains { $0.frame.intersects(frame) }
+        guard let frame = statusController?.statusItem.button?.window?.frame else { return false }
+        return StatusItemAnchorSupport.isTrustworthyStatusFrame(frame)
     }
 
     /// What the recovery saw, in the app's own log. Whether macOS gave the

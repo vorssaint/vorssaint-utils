@@ -20,6 +20,19 @@ struct CachedSensorReading {
     var missedSamples: Int
 }
 
+/// Driven by existing sampling requests; no timer runs just to retry discovery.
+struct SensorDiscoveryRetry {
+    private(set) var attempts = 0
+    private var nextAttemptAt: TimeInterval = 0
+
+    mutating func beginAttempt(now: TimeInterval) -> Bool {
+        guard attempts < 3, now >= nextAttemptAt else { return false }
+        attempts += 1
+        nextAttemptAt = now + 5
+        return true
+    }
+}
+
 enum TemperatureSensorSelector {
     static let minimumChipTemperature = 10.0
 
@@ -92,13 +105,18 @@ enum TemperatureSensorSelector {
         if let value = core.map({ $0.value }).max() {
             return value
         }
-        switch platform {
-        case .generic:
-            return valid.map { $0.value }.max()
-        case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family,
-             .appleM5Family, .unmappedAppleSilicon:
-            return nil
-        }
+        guard allowsDisplayFallback(platform: platform,
+                                    hasMappedKeys: readings.contains { isCPUCoreKey($0.key, platform: platform) })
+        else { return nil }
+        return valid.filter { isCPUTemperatureKey($0.key, platform: platform) }.map(\.value).max()
+    }
+
+    /// Some M1 sensor layouts expose only auxiliary Tp/Te keys. Preserve their
+    /// pre-3.3.3 display reading, but never replace a mapped sensor that failed
+    /// this sample. Fan control continues to require its mapped core readings.
+    static func allowsDisplayFallback(platform: CPUTemperaturePlatform,
+                                      hasMappedKeys: Bool) -> Bool {
+        platform == .generic || (platform == .appleM1Family && !hasMappedKeys)
     }
 
     static func hasCPUCoreSet(platform: CPUTemperaturePlatform) -> Bool {
