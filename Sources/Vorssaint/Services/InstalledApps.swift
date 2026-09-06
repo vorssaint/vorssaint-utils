@@ -17,6 +17,14 @@ enum InstalledApps {
         /// search wants them; every other picker leaves them empty rather than
         /// paying Spotlight for a list nobody is going to type into.
         var alternateNames: [String] = []
+        /// What the running process answers to when the row was built from a
+        /// process rather than a bundle on disk, so the picker stores exactly
+        /// what the taps will compare against.
+        var explicitIdentity: String? = nil
+
+        var identity: String? {
+            explicitIdentity ?? bundleID
+        }
 
         var icon: NSImage {
             NSWorkspace.shared.icon(forFile: url.path)
@@ -185,35 +193,86 @@ enum InstalledApps {
                             isSystem: isSystemApplication(at: url))
     }
 
+    /// A program with no .app bundle (the Java a game launcher starts, issue #865)
+    /// is listed only for lists that store path identities, because a list that
+    /// takes only apps would drop the pick silently and show a row that does nothing.
+    static func runningApplication(activationPolicy: NSApplication.ActivationPolicy,
+                                   bundleID: String?,
+                                   bundleURL: URL?,
+                                   executableURL: URL?,
+                                   localizedName: String?,
+                                   acceptsExecutables: Bool) -> InstalledApp? {
+        guard activationPolicy == .regular else { return nil }
+
+        if let bundleID, bundleID.isEmpty { return nil }
+        let isAppBundle = bundleURL?.pathExtension.caseInsensitiveCompare("app") == .orderedSame
+
+        if let bundleID, let bundleURL, isAppBundle {
+            let name = localizedName ?? FileManager.default.displayName(atPath: bundleURL.path)
+            return InstalledApp(id: bundleURL.standardizedFileURL.path,
+                                name: name,
+                                bundleID: bundleID,
+                                url: bundleURL,
+                                isSystem: isSystemApplication(at: bundleURL),
+                                explicitIdentity: nil)
+        }
+
+        guard acceptsExecutables, let executableURL else { return nil }
+        guard let identity = MouseAppExceptionSupport.identity(
+            bundleID: bundleID,
+            executablePath: executableURL.path
+        ) else { return nil }
+
+        let isPathIdentity = MouseAppExceptionSupport.isExecutablePathIdentity(identity)
+        let url = isPathIdentity ? URL(fileURLWithPath: identity) : executableURL
+        let name = localizedName ?? FileManager.default.displayName(atPath: url.path)
+
+        return InstalledApp(id: identity,
+                            name: name,
+                            bundleID: isPathIdentity ? nil : identity,
+                            url: url,
+                            isSystem: isSystemApplication(at: url),
+                            explicitIdentity: identity)
+    }
+
+    static func runningApplication(_ app: NSRunningApplication,
+                                   acceptsExecutables: Bool) -> InstalledApp? {
+        runningApplication(activationPolicy: app.activationPolicy,
+                           bundleID: app.bundleIdentifier,
+                           bundleURL: app.bundleURL,
+                           executableURL: app.executableURL,
+                           localizedName: app.localizedName,
+                           acceptsExecutables: acceptsExecutables)
+    }
+
+    static func deduplicatedAndFiltered(_ apps: [InstalledApp],
+                                        excluding excludedIdentities: Set<String>) -> [InstalledApp] {
+        var seen = Set<String>()
+        return apps.filter { app in
+            guard let identity = app.identity,
+                  !excludedIdentities.contains(identity),
+                  seen.insert(identity).inserted else { return false }
+            return true
+        }.sorted {
+            let byName = $0.name.localizedCaseInsensitiveCompare($1.name)
+            // Equal display names — three runtimes all named "java" — fall
+            // back to the identity so the rows hold one order between renders.
+            return byName == .orderedSame
+                ? ($0.identity ?? "") < ($1.identity ?? "")
+                : byName == .orderedAscending
+        }
+    }
+
     static func installedBundleApplications(excluding excludedBundleIDs: Set<String>,
-                                            includeRunningApplications: Bool = false) -> [InstalledApp] {
+                                            includeRunningApplications: Bool = false,
+                                            acceptsExecutables: Bool = false) -> [InstalledApp] {
         var apps = installedApplications(includeSystemApplications: true)
         if includeRunningApplications {
             apps += NSWorkspace.shared.runningApplications.compactMap { runningApp in
-                guard runningApp.activationPolicy == .regular,
-                      let bundleID = runningApp.bundleIdentifier,
-                      !bundleID.isEmpty,
-                      let url = runningApp.bundleURL,
-                      url.pathExtension.caseInsensitiveCompare("app") == .orderedSame else {
-                    return nil
-                }
-                let name = runningApp.localizedName ?? FileManager.default.displayName(atPath: url.path)
-                return InstalledApp(id: url.standardizedFileURL.path,
-                                    name: name,
-                                    bundleID: bundleID,
-                                    url: url,
-                                    isSystem: isSystemApplication(at: url))
+                runningApplication(runningApp, acceptsExecutables: acceptsExecutables)
             }
         }
 
-        var seen = Set<String>()
-        return apps.filter { app in
-            guard let bundleID = app.bundleID,
-                  !excludedBundleIDs.contains(bundleID),
-                  seen.insert(bundleID).inserted else { return false }
-            return true
-        }.sorted {
-            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
-        }
+        return deduplicatedAndFiltered(apps, excluding: excludedBundleIDs)
     }
 }

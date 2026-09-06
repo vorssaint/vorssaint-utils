@@ -20105,6 +20105,183 @@ struct MetricsTests {
         expect(InstalledApps.location(for: "/opt/game/bin/java") == "/opt/game/bin",
                "a path outside home keeps its absolute directory")
 
+        // Running programs that are not packaged as apps (issue #865): a bare
+        // executable run under .regular activation policy (e.g. a Minecraft
+        // launcher's Java process) answers to its resolved file path when it
+        // has no bundle identifier, while an ordinary .app bundle keeps its
+        // bundle row and background/accessory processes stay excluded.
+        let runningTestRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-running-\(getpid())", isDirectory: true)
+        let runningTargetBinary = runningTestRoot.appendingPathComponent("bin/java")
+        let runningSymlinkBinary = runningTestRoot.appendingPathComponent("bin/java_link")
+        try? FileManager.default.createDirectory(at: runningTargetBinary.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: runningTargetBinary.path, contents: Data())
+        try? FileManager.default.createSymbolicLink(at: runningSymlinkBinary, withDestinationURL: runningTargetBinary)
+        let resolvedRunningPath = MouseAppExceptionSupport.executablePathIdentity(runningTargetBinary.path)
+
+        let regularBareApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: nil,
+            bundleURL: runningSymlinkBinary,
+            executableURL: runningSymlinkBinary,
+            localizedName: "java",
+            acceptsExecutables: true
+        )
+        if let regularBareApp, let resolvedRunningPath {
+            expect(regularBareApp.identity == resolvedRunningPath
+                    && regularBareApp.bundleID == nil
+                    && regularBareApp.name == "java"
+                    && regularBareApp.url.path == resolvedRunningPath,
+                   "a running regular bare executable produces a path row with its resolved path identity")
+        } else {
+            expect(false, "a running regular bare executable resolves its path row setup")
+        }
+
+        let runningWrapper = runningTestRoot.appendingPathComponent("zulu-8.jre", isDirectory: true)
+        let runningWrapperBinary = runningWrapper.appendingPathComponent("bin/java")
+        try? FileManager.default.createDirectory(at: runningWrapperBinary.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: runningWrapperBinary.path, contents: Data())
+        let wrapperBareApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: nil,
+            bundleURL: runningWrapper,
+            executableURL: runningWrapperBinary,
+            localizedName: "java",
+            acceptsExecutables: true
+        )
+        let resolvedWrapperPath = MouseAppExceptionSupport.executablePathIdentity(runningWrapperBinary.path)
+        if let wrapperBareApp, let resolvedWrapperPath {
+            expect(wrapperBareApp.identity == resolvedWrapperPath
+                    && wrapperBareApp.bundleID == nil
+                    && wrapperBareApp.url.path == resolvedWrapperPath,
+                   "a running executable inside a non-app wrapper produces a path row")
+        } else {
+            expect(false, "a non-app wrapper executable resolves its path row setup")
+        }
+
+        let appBundleURL = URL(fileURLWithPath: "/Applications/TextEdit.app")
+        let regularBundleApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: "com.apple.TextEdit",
+            bundleURL: appBundleURL,
+            executableURL: appBundleURL.appendingPathComponent("Contents/MacOS/TextEdit"),
+            localizedName: "TextEdit",
+            acceptsExecutables: true
+        )
+        expect(regularBundleApp != nil
+                && regularBundleApp?.identity == "com.apple.TextEdit"
+                && regularBundleApp?.bundleID == "com.apple.TextEdit"
+                && regularBundleApp?.url == appBundleURL
+                && regularBundleApp?.name == "TextEdit",
+               "a running regular app bundle produces an unchanged bundle row")
+
+        let accessoryBareApp = InstalledApps.runningApplication(
+            activationPolicy: .accessory,
+            bundleID: nil,
+            bundleURL: nil,
+            executableURL: runningTargetBinary,
+            localizedName: "java",
+            acceptsExecutables: true
+        )
+        let prohibitedBareApp = InstalledApps.runningApplication(
+            activationPolicy: .prohibited,
+            bundleID: nil,
+            bundleURL: nil,
+            executableURL: runningTargetBinary,
+            localizedName: "java",
+            acceptsExecutables: true
+        )
+        expect(accessoryBareApp == nil && prohibitedBareApp == nil,
+               "an accessory or prohibited bare executable is ignored")
+
+        let embeddedBundleBareApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: "com.example.embedded",
+            bundleURL: nil,
+            executableURL: runningTargetBinary,
+            localizedName: "embedded_tool",
+            acceptsExecutables: true
+        )
+        expect(embeddedBundleBareApp != nil
+                && embeddedBundleBareApp?.identity == "com.example.embedded"
+                && embeddedBundleBareApp?.bundleID == "com.example.embedded"
+                && embeddedBundleBareApp?.identity != runningTargetBinary.path,
+               "a bare executable that reports a bundle identifier uses that identifier and not its path")
+
+        let duplicateProcessApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: nil,
+            bundleURL: nil,
+            executableURL: runningTargetBinary,
+            localizedName: "java",
+            acceptsExecutables: true
+        )
+        if let regularBareApp, let duplicateProcessApp, let resolvedRunningPath {
+            let deduplicated = InstalledApps.deduplicatedAndFiltered(
+                [regularBareApp, duplicateProcessApp],
+                excluding: []
+            )
+            expect(deduplicated.count == 1
+                    && deduplicated.first?.identity == resolvedRunningPath,
+                   "duplicate processes with the same path identity collapse to one entry")
+
+            let excludedPathApps = InstalledApps.deduplicatedAndFiltered(
+                [regularBareApp],
+                excluding: [resolvedRunningPath]
+            )
+            let unexcludedPathApps = InstalledApps.deduplicatedAndFiltered(
+                [regularBareApp],
+                excluding: ["/other/path/java"]
+            )
+            expect(excludedPathApps.isEmpty && unexcludedPathApps.count == 1,
+                   "an exclusion set containing a path identity drops that program")
+        } else {
+            expect(false, "running path identities resolve before they are deduplicated or excluded")
+        }
+
+        let reverseJavaApps = InstalledApps.deduplicatedAndFiltered([
+            InstalledApps.InstalledApp(id: "/runtimes/zulu/bin/java",
+                                       name: "java",
+                                       bundleID: nil,
+                                       url: URL(fileURLWithPath: "/runtimes/zulu/bin/java"),
+                                       isSystem: false,
+                                       explicitIdentity: "/runtimes/zulu/bin/java"),
+            InstalledApps.InstalledApp(id: "/runtimes/temurin/bin/java",
+                                       name: "java",
+                                       bundleID: nil,
+                                       url: URL(fileURLWithPath: "/runtimes/temurin/bin/java"),
+                                       isSystem: false,
+                                       explicitIdentity: "/runtimes/temurin/bin/java")
+        ], excluding: [])
+        expect(reverseJavaApps.compactMap(\.identity) == ["/runtimes/temurin/bin/java", "/runtimes/zulu/bin/java"],
+               "same-named executable rows sort by identity")
+
+        let unacceptedBareApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: nil,
+            bundleURL: nil,
+            executableURL: runningTargetBinary,
+            localizedName: "java",
+            acceptsExecutables: false
+        )
+        expect(unacceptedBareApp == nil,
+               "a bare executable is omitted when the caller does not accept executables")
+
+        let emptyIdentifierBareApp = InstalledApps.runningApplication(
+            activationPolicy: .regular,
+            bundleID: "",
+            bundleURL: runningSymlinkBinary,
+            executableURL: runningSymlinkBinary,
+            localizedName: "java",
+            acceptsExecutables: true
+        )
+        expect(emptyIdentifierBareApp == nil,
+               "an empty bundle identifier is dropped, as the taps would never match it")
+
+        try? FileManager.default.removeItem(at: runningTestRoot)
+
         // Both ends of that agreement live outside this binary: the picker
         // stores from AppBundleList and the taps match from MouseAppExceptions.
         // An identity resolved at one end and taken raw at the other silently
@@ -20115,19 +20292,16 @@ struct MetricsTests {
         let pickerLines = ((try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/AppBundleList.swift",
             encoding: .utf8)) ?? "").components(separatedBy: "\n")
-        var resolvedNames: Set<String> = []
-        for line in pickerLines where line.contains("= MouseAppExceptionSupport.") {
-            guard let bound = line.components(separatedBy: "let ").last?
-                    .components(separatedBy: " =").first else { continue }
-            resolvedNames.insert(bound.trimmingCharacters(in: .whitespaces))
-        }
         var resolvedAddSites: [String] = []
         var rawAddSites: [String] = []
         for (index, line) in pickerLines.enumerated()
         where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") && line.contains("onAdd(") {
             let added = (line.components(separatedBy: "onAdd(").last?
                 .components(separatedBy: ")").first ?? "").trimmingCharacters(in: .whitespaces)
-            if resolvedNames.contains(added) {
+            let nearbyLines = pickerLines[..<index].suffix(4)
+            if nearbyLines.contains(where: {
+                $0.contains("let \(added) =") && $0.contains("MouseAppExceptionSupport.")
+            }) {
                 resolvedAddSites.append("AppBundleList.swift:\(index + 1)")
             } else {
                 rawAddSites.append("AppBundleList.swift:\(index + 1) adds \(added)")
@@ -20140,18 +20314,24 @@ struct MetricsTests {
         // every bundled runtime displays as "java" (issue #1009) — and sibling
         // runtimes differ only after a long shared directory prefix, so the
         // caption must truncate from the HEAD: cutting the middle or tail
-        // would hide the one component that differs. AppBundleList is not
-        // compiled into this binary, so the shape is pinned here.
-        var locationSites: [Int] = []
-        var headTruncationSites: [Int] = []
-        for (index, line) in pickerLines.enumerated()
-        where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//") {
-            if line.contains("InstalledApps.location(for:") { locationSites.append(index + 1) }
-            if line.contains(".truncationMode(.head)") { headTruncationSites.append(index + 1) }
+        // would hide the one component that differs. Neither picker is
+        // compiled into this binary, so their shapes are pinned here.
+        let appPickerLines = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Uninstall/AppPickerView.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+        let captionPickerLines = ["AppBundleList.swift": pickerLines,
+                                  "AppPickerView.swift": appPickerLines]
+        var captionFiles: [String] = []
+        for (file, lines) in captionPickerLines {
+            let sourceLines = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            if sourceLines.contains(where: { $0.contains("InstalledApps.location(for:") })
+                && sourceLines.contains(where: { $0.contains(".truncationMode(") && $0.contains(".head") }) {
+                captionFiles.append(file)
+            }
         }
-        expect(!locationSites.isEmpty && !headTruncationSites.isEmpty,
-               "a path identity row shows where its file sits and truncates from the head: "
-                   + "\(locationSites) \(headTruncationSites)")
+        expect(captionFiles.count == captionPickerLines.count,
+               "each path identity picker shows where its file sits and truncates from the head: "
+                   + "\(captionFiles)")
 
         var resolvedMatchSites: [String] = []
         var rawMatchSites: [String] = []
