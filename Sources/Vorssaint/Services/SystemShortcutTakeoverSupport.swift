@@ -87,16 +87,20 @@ extension SystemShortcutTakeoverSupport {
     static func conflictsWithMacOS(_ shortcut: GlobalShortcut,
                                    liveEntries: [LiveSystemShortcut]?,
                                    symbolicHotKeys: @autoclosure () -> [String: Any]?,
-                                   held: Set<Int32>) -> Bool {
+                                   held: Set<Int32>,
+                                   role: GlobalShortcutRole? = nil) -> Bool {
         if GlobalShortcut.conflictsWithSystemShortcut(shortcut,
                                                       liveEntries: liveEntries,
-                                                      symbolicHotKeys: symbolicHotKeys()) {
+                                                      symbolicHotKeys: symbolicHotKeys(),
+                                                      role: role) {
             return true
         }
         // Nothing can be held without a live table, so the fallback above is
-        // the whole answer when the private calls are missing.
+        // the whole answer when the private calls are missing. A role's own
+        // permitted ids are not in its way even while held, as in the live rule.
         guard let liveEntries else { return false }
-        return !ids(matching: shortcut, in: liveEntries).isDisjoint(with: held)
+        let permitted = role?.permittedSystemShortcutIDs ?? []
+        return !ids(matching: shortcut, in: liveEntries).subtracting(permitted).isDisjoint(with: held)
     }
 
     static func recorderDecision(shortcut: GlobalShortcut,

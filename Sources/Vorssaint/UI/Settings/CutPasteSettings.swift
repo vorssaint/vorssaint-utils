@@ -172,7 +172,7 @@ struct CutPasteSettings: View {
         // already passed, so accepting it writes exactly what a save writes.
         switch SystemShortcutTakeoverSupport.recorderDecision(
             shortcut: shortcut,
-            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut),
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut, for: .finderRename),
             takenOver: SystemShortcutTakeover.isTakenOver(DefaultsKey.finderRenameShortcut),
             current: GlobalShortcut(storageValue: renameShortcutRaw)) {
         case .offer:

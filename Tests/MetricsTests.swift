@@ -12927,6 +12927,15 @@ struct MetricsTests {
                    GlobalShortcut(keyCode: 20, modifiers: [.command, .shift]),
                    liveEntries: liveWhileHeld, symbolicHotKeys: nil, held: []),
                "a key this app is holding still counts as macOS's, and one it is not holding follows the live table")
+        // The switcher's rows may record the native keys the switcher itself holds
+        // (main permits them per role); every other row sees them as macOS's.
+        let commandTab = GlobalShortcut(keyCode: 48, modifiers: [.command])
+        let liveWithSwitcherKey = [LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: false)]
+        expect(!SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                   commandTab, liveEntries: liveWithSwitcherKey, symbolicHotKeys: nil, held: [1], role: .switcher)
+               && SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                   commandTab, liveEntries: liveWithSwitcherKey, symbolicHotKeys: nil, held: [1], role: nil),
+               "the switcher's own row may record the native key it is holding; any other row sees it as macOS's")
         // The recorder's one rule for a combination macOS answers: ask unless the
         // user already agreed to exactly this key on this row; tidy the entry
         // once the row moves to a key macOS does not want.
