@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "Appliqué dès que «\u{00A0}Garder éveillé\u{00A0}» est actif",
         clamshellReady: "Prêt. Bascule sans mot de passe",
         clamshellNeedsPassword: "Demandera le mot de passe administrateur une fois",
+        clamshellExternalDisplayToggle: "Uniquement avec un écran externe",
+        clamshellExternalDisplayCaption: "Applique le mode écran rabattu seulement tant qu’un moniteur est connecté. « Garder éveillé » reste tel que vous l’avez laissé.",
 
         systemSection: "Système",
         temperatures: "Températures",

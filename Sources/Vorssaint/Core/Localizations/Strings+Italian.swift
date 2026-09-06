@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "Si applica ogni volta che “Mantieni attivo” è attivo",
         clamshellReady: "Pronto. Si attiva e disattiva senza password",
         clamshellNeedsPassword: "Richiede la password di amministratore una volta",
+        clamshellExternalDisplayToggle: "Solo con schermo esterno",
+        clamshellExternalDisplayCaption: "Applica la modalità a coperchio chiuso solo mentre è collegato un monitor. “Mantieni attivo” resta come l’hai lasciato.",
 
         systemSection: "Sistema",
         temperatures: "Temperature",

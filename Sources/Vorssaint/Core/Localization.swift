@@ -189,6 +189,8 @@ struct Strings {
     let clamshellNeedsSession: String
     let clamshellReady: String
     let clamshellNeedsPassword: String
+    let clamshellExternalDisplayToggle: String
+    let clamshellExternalDisplayCaption: String
 
     // MARK: Panel — system monitor
     let systemSection: String
@@ -1244,6 +1246,8 @@ extension Strings {
         clamshellNeedsSession: "Será aplicada sempre que “Manter acordado” estiver ativo",
         clamshellReady: "Pronto. Liga e desliga sem senha",
         clamshellNeedsPassword: "Pedirá a senha de administrador uma vez",
+        clamshellExternalDisplayToggle: "Somente com monitor externo",
+        clamshellExternalDisplayCaption: "Aplica o modo com a tampa fechada só enquanto houver um monitor conectado. “Manter acordado” permanece como você deixou.",
 
         systemSection: "Sistema",
         temperatures: "Temperaturas",
@@ -2256,6 +2260,8 @@ extension Strings {
         clamshellNeedsSession: "Applied whenever “Keep awake” is active",
         clamshellReady: "Ready. Toggles without a password",
         clamshellNeedsPassword: "Will ask for the administrator password once",
+        clamshellExternalDisplayToggle: "Only with an external display",
+        clamshellExternalDisplayCaption: "Applies lid-closed mode only while a monitor is connected. Keep Awake stays as you left it.",
 
         systemSection: "System",
         temperatures: "Temperatures",

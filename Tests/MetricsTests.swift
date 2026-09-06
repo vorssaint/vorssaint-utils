@@ -2149,6 +2149,10 @@ struct MetricsTests {
                "display sleep preference follows settings backups")
         expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
                "external-display Keep Awake is opt-in")
+        expect(registeredDefaults[DefaultsKey.clamshellExternalDisplay] as? Bool == false,
+               "external-display clamshell gate is opt-in")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clamshellExternalDisplay),
+               "external-display clamshell gate follows settings backups")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeRunningApps] as? Bool == false,
@@ -2195,6 +2199,48 @@ struct MetricsTests {
                "the built-in screen does not count as an external display")
         expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
                "an online non-built-in screen counts as an external display")
+        expect(KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: true,
+            keepAwakeActive: true,
+            sessionPaused: false,
+            externalDisplayGateEnabled: false,
+            externalDisplayConnected: false
+        ), "without the display gate, preferred clamshell applies during an active Keep Awake session")
+        expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: true,
+            keepAwakeActive: true,
+            sessionPaused: false,
+            externalDisplayGateEnabled: true,
+            externalDisplayConnected: false
+        ), "with the display gate on, clamshell stays off until a monitor is connected")
+        expect(KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: true,
+            keepAwakeActive: true,
+            sessionPaused: false,
+            externalDisplayGateEnabled: true,
+            externalDisplayConnected: true
+        ), "with the display gate on, clamshell applies while a monitor is connected")
+        expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: true,
+            keepAwakeActive: true,
+            sessionPaused: true,
+            externalDisplayGateEnabled: true,
+            externalDisplayConnected: true
+        ), "a paused Keep Awake session does not apply clamshell")
+        expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: false,
+            keepAwakeActive: true,
+            sessionPaused: false,
+            externalDisplayGateEnabled: true,
+            externalDisplayConnected: true
+        ), "clamshell stays off when the preference is off")
+        expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: true,
+            keepAwakeActive: false,
+            sessionPaused: false,
+            externalDisplayGateEnabled: false,
+            externalDisplayConnected: true
+        ), "clamshell stays off when Keep Awake is inactive")
         expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
             selectedBundleIDs: [],
             runningBundleIDs: ["com.example.app"]

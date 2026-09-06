@@ -11,6 +11,7 @@ enum DefaultsKey {
     static let appearance = "appAppearance"               // AppAppearance.rawValue
     static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass visual styling on macOS 26+
     static let clamshellPreferred = "clamshellPreferred"  // apply closed-lid mode to every session
+    static let clamshellExternalDisplay = "clamshellExternalDisplay" // lid-closed only while a monitor is connected
     static let onboardingStep = "onboardingStep"          // resume point if onboarding is interrupted
     static let featuresOnboardingVersion = "featuresOnboardingVersion" // last feature-tour marker handled
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
@@ -854,6 +855,7 @@ enum Defaults {
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
         DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,
+        DefaultsKey.clamshellExternalDisplay: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,

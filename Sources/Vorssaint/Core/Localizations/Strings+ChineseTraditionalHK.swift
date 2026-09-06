@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "每當「保持喚醒」啟用時生效",
         clamshellReady: "準備就緒，切換時無需輸入密碼",
         clamshellNeedsPassword: "只需要輸入一次管理員密碼",
+        clamshellExternalDisplayToggle: "僅在連接外置顯示器時",
+        clamshellExternalDisplayCaption: "僅在外置顯示器連接時啟用合蓋模式。「保持喚醒」維持你原本的設定。",
 
         systemSection: "系統",
         temperatures: "溫度",

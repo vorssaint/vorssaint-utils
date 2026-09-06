@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "“Uyanık tut” etkinken uygulanır",
         clamshellReady: "Hazır. Parola istemeden açılıp kapanır",
         clamshellNeedsPassword: "Yönetici parolasını bir kez isteyecek",
+        clamshellExternalDisplayToggle: "Yalnızca harici ekranla",
+        clamshellExternalDisplayCaption: "Kapak kapalı modunu yalnızca bir monitör bağlıyken uygular. “Uyanık tut” bıraktığınız gibi kalır.",
 
         systemSection: "Sistem",
         temperatures: "Sıcaklıklar",

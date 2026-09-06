@@ -63,4 +63,17 @@ enum KeepAwakeAutomationSupport {
         }
         return sessionActive ? .none : .activate
     }
+
+    /// Whether closed-lid mode should be active right now.
+    /// When `externalDisplayGateEnabled` is on, a connected monitor is also required;
+    /// Keep Awake itself is left alone either way.
+    static func shouldApplyClamshell(preferred: Bool,
+                                     keepAwakeActive: Bool,
+                                     sessionPaused: Bool,
+                                     externalDisplayGateEnabled: Bool,
+                                     externalDisplayConnected: Bool) -> Bool {
+        guard preferred, keepAwakeActive, !sessionPaused else { return false }
+        if externalDisplayGateEnabled { return externalDisplayConnected }
+        return true
+    }
 }

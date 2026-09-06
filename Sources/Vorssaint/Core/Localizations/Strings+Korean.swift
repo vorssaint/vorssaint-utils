@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "절전 방지가 켜져 있는 동안 항상 적용됩니다",
         clamshellReady: "준비되었습니다. 암호 없이 전환할 수 있습니다",
         clamshellNeedsPassword: "관리자 암호는 한 번만 요청됩니다",
+        clamshellExternalDisplayToggle: "외장 디스플레이 연결 시에만",
+        clamshellExternalDisplayCaption: "모니터가 연결된 동안에만 덮개 닫힘 모드를 적용합니다. 절전 방지는 그대로 유지됩니다.",
 
         systemSection: "시스템",
         temperatures: "온도",

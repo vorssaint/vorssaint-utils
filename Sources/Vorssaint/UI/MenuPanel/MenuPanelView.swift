@@ -2407,6 +2407,7 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @AppStorage(DefaultsKey.clamshellExternalDisplay) private var clamshellExternalDisplay = false
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
     var collapsible = true
@@ -2452,6 +2453,16 @@ struct KeepAwakeCard: View {
                           isOn: $awake.clamshellPreferred,
                           disabled: awake.clamshellSetupInProgress,
                           captionIsError: awake.clamshellSetupFailed)
+                optionRow(title: l10n.s.clamshellExternalDisplayToggle,
+                          caption: l10n.s.clamshellExternalDisplayCaption,
+                          isOn: Binding(
+                            get: { clamshellExternalDisplay },
+                            set: { newValue in
+                                clamshellExternalDisplay = newValue
+                                awake.automationPreferencesDidChange()
+                            }
+                          ),
+                          disabled: !awake.clamshellPreferred || awake.clamshellSetupInProgress)
             }
             .panelCard()
         }

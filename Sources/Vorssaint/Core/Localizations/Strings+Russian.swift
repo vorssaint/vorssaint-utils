@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "Применяется, когда активен режим «Не давать уснуть»",
         clamshellReady: "Готово. Переключается без пароля",
         clamshellNeedsPassword: "Один раз попросит пароль администратора",
+        clamshellExternalDisplayToggle: "Только с внешним дисплеем",
+        clamshellExternalDisplayCaption: "Режим с закрытой крышкой включается только пока подключён монитор. «Не давать уснуть» остаётся как вы оставили.",
 
         systemSection: "Система",
         temperatures: "Температуры",

@@ -653,6 +653,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @AppStorage(DefaultsKey.clamshellExternalDisplay) private var clamshellExternalDisplay = false
 
     var body: some View {
         Form {
@@ -732,6 +733,13 @@ struct EnergySettings: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
+                    SettingsToggleWithCaption(title: l10n.s.clamshellExternalDisplayToggle,
+                                              caption: l10n.s.clamshellExternalDisplayCaption,
+                                              isOn: $clamshellExternalDisplay)
+                        .disabled(!awake.clamshellPreferred || awake.clamshellSetupInProgress)
+                        .onChange(of: clamshellExternalDisplay) { _, _ in
+                            awake.automationPreferencesDidChange()
+                        }
                     SettingsCaptionText(l10n.s.clamshellExplanation)
                 }
             }

@@ -78,6 +78,8 @@ extension Strings {
         clamshellNeedsSession: "Gilt immer, wenn „Wachhalten“ aktiv ist",
         clamshellReady: "Bereit. Schaltet ohne Passwort um",
         clamshellNeedsPassword: "Fragt einmalig nach dem Administratorpasswort",
+        clamshellExternalDisplayToggle: "Nur mit externem Display",
+        clamshellExternalDisplayCaption: "Aktiviert den zugeklappten Modus nur, solange ein Monitor verbunden ist. „Wachhalten“ bleibt unverändert.",
 
         systemSection: "System",
         temperatures: "Temperaturen",
