@@ -12,6 +12,7 @@ struct ShortcutsSettings: View {
     @ObservedObject private var superKey = SuperKeyService.shared
     @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private var keyboardBrightnessShortcutsEnabled = false
     @State private var expandedFeatures: Set<AppFeature> = [.screenshot]
+    @State private var showsAppShortcuts = false
 
     private var text: ShortcutSettingsStrings { FeatureStrings.shortcuts(l10n.language) }
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
@@ -55,8 +56,25 @@ struct ShortcutsSettings: View {
                     }
                 }
             }
+
+            if AppFeature.commandBar.isAvailable {
+                Section {
+                    Button {
+                        showsAppShortcuts = true
+                    } label: {
+                        Label(FeatureStrings.commandBar(l10n.language).appCenterTitle,
+                              systemImage: "app.badge")
+                    }
+                    Text(FeatureStrings.commandBar(l10n.language).appCenterCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: $showsAppShortcuts) {
+            CommandBarAppShortcutsView()
+        }
     }
 
     private func featuresWithShortcuts(in group: FeatureGroup) -> [AppFeature] {

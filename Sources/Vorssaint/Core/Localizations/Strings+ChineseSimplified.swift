@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "关于",
         tabReleaseNotes: "新功能",
         releaseNotesOnUpdateToggle: "更新后显示新功能",
+        minimalWindowPreviews: "简洁预览",
+        minimalWindowPreviewsCaption: "隐藏程序坞和应用切换器预览中的标题、按钮和装饰，保留选中标记。",
         previewSizeLabel: "预览大小",
         previewSizeNormal: "正常",
         previewSizeLarge: "大",

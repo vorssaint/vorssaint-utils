@@ -216,7 +216,9 @@ enum SettingsDirectory {
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",
                                       keywords: [FeatureStrings.commandBar(language).openButton,
-                                                 FeatureStrings.commandBar(language).searchPlaceholder]),
+                                                 FeatureStrings.commandBar(language).searchPlaceholder,
+                                                 FeatureStrings.commandBar(language).appCenterTitle,
+                                                 FeatureStrings.commandBar(language).appAliasLabel]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),

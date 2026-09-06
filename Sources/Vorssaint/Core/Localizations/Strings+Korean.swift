@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "정보",
         tabReleaseNotes: "새로운 기능",
         releaseNotesOnUpdateToggle: "업데이트 후 새로운 기능 보기",
+        minimalWindowPreviews: "간결한 미리보기",
+        minimalWindowPreviewsCaption: "Dock 및 앱 전환기 미리보기에서 제목, 버튼, 장식을 숨깁니다. 선택 표시는 유지됩니다.",
         previewSizeLabel: "미리보기 크기",
         previewSizeNormal: "보통",
         previewSizeLarge: "크게",

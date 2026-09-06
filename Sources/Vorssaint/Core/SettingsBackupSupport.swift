@@ -30,7 +30,6 @@ enum SettingsBackupSupport {
         DefaultsKey.shelfEnabled,
         DefaultsKey.finderCutPasteEnabled,
         DefaultsKey.textSnippets,
-        DefaultsKey.scratchpadDocument,
         DefaultsKey.radialMenuItems,
         DefaultsKey.radialMenuProfiles,
         DefaultsKey.commandBarLinks,
@@ -104,6 +103,7 @@ enum SettingsBackupSupport {
         DefaultsKey.whatsAppOrganizerLastFailed,
         // What one person runs most is habit, not configuration.
         DefaultsKey.commandBarUsage,
+        DefaultsKey.commandBarQueryHabits,
         // A chosen folder is authority on one Mac, not portable configuration.
         // Restoring it elsewhere could search a different volume or trigger a
         // protected-folder prompt without a fresh choice.
@@ -263,9 +263,6 @@ enum SettingsBackupSupport {
     /// switch belongs, or text where a number belongs, would otherwise reach
     /// code that trusts its own settings.
     static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
-        if key == DefaultsKey.scratchpadDocument {
-            return ScratchpadDocument.decoded(value as? Data, defaultName: "Scratchpad") != nil
-        }
         guard let expected = Defaults.registeredDefaults[key] else {
             // Not a registered setting, so there is nothing to compare
             // against; the allowed list is the only gate for these.

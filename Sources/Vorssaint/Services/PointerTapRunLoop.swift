@@ -27,10 +27,9 @@ enum PointerTapRunLoop {
     /// Gives the source and its port back on the thread that owns them, once
     /// the callback that may be running there has returned.
     ///
-    /// Never waits for that thread: a callback in flight may be asking the main
-    /// thread for the app under the pointer, and the caller is usually the main
-    /// thread itself. The port is only invalidated after the tap has been
-    /// switched off, so nothing arrives once the block has run.
+    /// Never waits for that thread or a callback still in flight. The port is
+    /// only invalidated after the tap has been switched off, so nothing arrives
+    /// once the block has run.
     static func remove(_ source: CFRunLoopSource, invalidating port: CFMachPort?) {
         CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)

@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "À propos",
         tabReleaseNotes: "Nouveautés",
         releaseNotesOnUpdateToggle: "Afficher les nouveautés après mise à jour",
+        minimalWindowPreviews: "Aperçus minimalistes",
+        minimalWindowPreviewsCaption: "Masque les titres, les boutons et les ornements des aperçus du Dock et du sélecteur d’apps. La sélection reste visible.",
         previewSizeLabel: "Taille des aperçus",
         previewSizeNormal: "Normale",
         previewSizeLarge: "Grande",

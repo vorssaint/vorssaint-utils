@@ -11,13 +11,13 @@ enum MetricDetailKind: String, Equatable, Identifiable {
 
     var panelSection: PanelSectionID {
         switch self {
-        case .cpu, .gpu, .memory, .battery:
+        case .cpu, .gpu, .memory:
             return .system
         case .network:
             return .network
         case .disk:
             return .disk
-        case .power:
+        case .battery, .power:
             return .power
         case .fan:
             return .fanControl

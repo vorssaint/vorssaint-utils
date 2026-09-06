@@ -337,9 +337,10 @@ struct CommandBarView: View {
                 .padding(.horizontal, 17)
                 .padding(.top, 12)
             }
-            Text(text.shortcutCaptureHint)
+            Text(service.aliasWarning ?? text.shortcutCaptureHint)
                 .font(.system(size: 10.5))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(service.aliasWarning == nil
+                                 ? AnyShapeStyle(.tertiary) : AnyShapeStyle(Color.orange))
                 .padding(.horizontal, 17)
                 .padding(.bottom, 12)
         }

@@ -8,9 +8,6 @@ import CoreGraphics
 final class FocusFollowsMouseService {
     static let shared = FocusFollowsMouseService()
 
-    /// No cap on this one: on the system-wide element a timeout is the default
-    /// for every question this process asks, whoever asks it (#938).
-    private let systemElement = AXUIElementCreateSystemWide()
     private let queryQueue = DispatchQueue(label: "com.vorssaint.focus-follows-mouse")
     private var timer: Timer?
     private var mouseMonitor: Any?
@@ -44,13 +41,11 @@ final class FocusFollowsMouseService {
     }
 
     func stop() {
-        timer?.invalidate()
-        timer = nil
+        resetMovement()
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
-        state.reset()
         isRunning = false
     }
 
@@ -72,37 +67,58 @@ final class FocusFollowsMouseService {
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         observers.append(workspaceCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
                                                       object: nil, queue: .main) { [weak self] _ in
-            self?.state.reset()
+            self?.resetMovement()
         })
         observers.append(workspaceCenter.addObserver(forName: NSWorkspace.didWakeNotification,
                                                       object: nil, queue: .main) { [weak self] _ in
-            self?.state.reset()
+            self?.resetMovement()
         })
         observers.append(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main) { [weak self] _ in self?.state.reset() })
-
-        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
-        timer.tolerance = 0.01
-        RunLoop.main.add(timer, forMode: .common)
-        self.timer = timer
+            object: nil, queue: .main) { [weak self] _ in self?.resetMovement() })
         isRunning = true
     }
 
     private func recordMovement(to point: CGPoint) {
-        if Thread.isMainThread {
-            state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
-        } else {
+        guard Thread.isMainThread else {
             DispatchQueue.main.async { [weak self] in
-                self?.state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
+                self?.recordMovement(to: point)
             }
+            return
         }
+        guard isRunning else { return }
+        state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
+        guard timer == nil else { return }
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
+        timer.tolerance = 0.01
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    private func resetMovement() {
+        state.reset()
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// Nothing held down: no mouse button pressed and no modifier. Asked
+    /// again when the window query answers, because the query takes long
+    /// enough for a click or a shortcut to begin while it runs, and a pointer
+    /// that never moved keeps the answer looking current.
+    private var nothingIsHeldDown: Bool {
+        NSEvent.pressedMouseButtons == 0
+            && NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
     }
 
     private func evaluateIfSettled() {
+        defer {
+            if !state.hasPendingEvaluation {
+                timer?.invalidate()
+                timer = nil
+            }
+        }
         guard AXIsProcessTrusted(),
-              NSEvent.pressedMouseButtons == 0,
-              NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+              nothingIsHeldDown,
               let evaluation = state.nextEvaluation(
                   at: ProcessInfo.processInfo.systemUptime,
                   delayMilliseconds: delayMilliseconds),
@@ -110,14 +126,29 @@ final class FocusFollowsMouseService {
                   .focusFollowsMouse, at: evaluation.point)
         else { return }
 
+        // WindowServer cannot report ignoresMouseEvents. Read our windows on
+        // main so full-screen brightness overlays do not block focus everywhere.
+        let clickThroughWindowIDs = Set(NSApp.windows.filter(\.ignoresMouseEvents).compactMap {
+            CGWindowID(exactly: $0.windowNumber)
+        })
         queryQueue.async { [weak self] in
-            guard let self, let target = self.target(at: evaluation.point) else { return }
+            guard let self else { return }
+            let target = FocusFollowsMouseSupport.queryWindow(
+                in: WindowServerSupport.onScreenWindowInfo(), at: evaluation.point,
+                ownProcessID: ProcessInfo.processInfo.processIdentifier,
+                clickThroughWindowIDs: clickThroughWindowIDs
+            ) { self.target(at: evaluation.point, processID: $0) }
+            guard let target else { return }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.isRunning, self.state.isCurrent(evaluation),
+                guard let self, self.isRunning, self.nothingIsHeldDown,
+                      self.state.isCurrent(evaluation),
                       let app = NSRunningApplication(processIdentifier: target.processID),
                       app.activationPolicy == .regular, !app.isTerminated,
-                      NSWorkspace.shared.frontmostApplication?.processIdentifier != target.processID
-                          || !target.isFocused
+                      FocusFollowsMouseSupport.shouldActivate(
+                          targetWindowID: target.windowID,
+                          focusedWindowID: target.focusedWindowID,
+                          targetAppIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier
+                              == target.processID)
                 else { return }
                 WindowActivator.activate(pid: target.processID,
                                          windowID: target.windowID,
@@ -127,25 +158,28 @@ final class FocusFollowsMouseService {
         }
     }
 
-    private func target(at point: CGPoint) -> Target? {
+    private func target(at point: CGPoint, processID: pid_t) -> Target? {
+        guard processID > 0, processID != ProcessInfo.processInfo.processIdentifier else { return nil }
+        // An app-scoped hit test cannot enter our tree if window stacking
+        // changes after the ownership lookup. Never fall back to a global query.
+        let application = AXUIElementCreateApplication(processID)
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(systemElement, Float(point.x), Float(point.y), &rawElement) == .success,
+        guard AXUIElementCopyElementAtPosition(application, Float(point.x), Float(point.y), &rawElement) == .success,
               let rawElement
         else { return nil }
         AXUIElementSetMessagingTimeout(rawElement, 0.25)
         guard let window = topLevelWindow(from: rawElement) else { return nil }
         AXUIElementSetMessagingTimeout(window, 0.25)
-        guard stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String),
+        var windowProcessID: pid_t = 0
+        guard AXUIElementGetPid(window, &windowProcessID) == .success,
+              windowProcessID == processID,
+              stringAttribute(window, kAXRoleAttribute as String) == (kAXWindowRole as String),
               let windowID = AXWindowResolver.windowID(for: window)
         else { return nil }
 
-        var processID: pid_t = 0
-        guard AXUIElementGetPid(window, &processID) == .success,
-              processID != ProcessInfo.processInfo.processIdentifier
-        else { return nil }
         return Target(processID: processID,
                       windowID: windowID,
-                      isFocused: boolAttribute(window, kAXFocusedAttribute as String))
+                      focusedWindowID: WindowActivator.focusedWindowID(for: processID))
     }
 
     private func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
@@ -165,12 +199,6 @@ final class FocusFollowsMouseService {
         return value as? String
     }
 
-    private func boolAttribute(_ element: AXUIElement, _ name: String) -> Bool {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return false }
-        return (value as? Bool) ?? false
-    }
-
     private static func savedDelay() -> Int {
         FocusFollowsMouseSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.focusFollowsMouseDelay))
@@ -179,6 +207,6 @@ final class FocusFollowsMouseService {
     private struct Target {
         let processID: pid_t
         let windowID: CGWindowID
-        let isFocused: Bool
+        let focusedWindowID: CGWindowID?
     }
 }

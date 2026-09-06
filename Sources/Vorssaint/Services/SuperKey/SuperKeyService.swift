@@ -23,6 +23,7 @@ final class SuperKeyService: ObservableObject {
 
     /// True while the key is actually working: tap up and mapping applied.
     @Published private(set) var isRunning = false
+    @Published private(set) var isPausedForApplication = false
     /// What stopped the mapping, while it is stopped. The feature has several
     /// reasons to refuse, and none of them is visible in the key itself.
     @Published private(set) var mappingFailure: SuperKeyMappingFailure?
@@ -78,6 +79,7 @@ final class SuperKeyService: ObservableObject {
     private var eventModifiers = SuperKeySupport.defaultModifiers
     private var eventSource = SuperKeySource.capsLock
     private var wakeObserver: NSObjectProtocol?
+    private var exceptionObservation: AnyCancellable?
     /// The mapping is written off the main thread, and in the order it was
     /// asked for: a queue of one keeps an apply and a clear from crossing.
     private let mappingQueue = DispatchQueue(label: "com.vorssaint.utils.superkey-mapping")
@@ -135,7 +137,8 @@ final class SuperKeyService: ObservableObject {
         let enabled = AppFeature.superKey.isAvailable
             && defaults.bool(forKey: DefaultsKey.superKeyEnabled)
             && SessionActivity.shared.isActive
-        guard enabled else {
+        syncExceptionMonitoring(enabled: enabled && AXIsProcessTrusted())
+        guard enabled, !isPausedForApplication else {
             stop()
             return
         }
@@ -158,7 +161,28 @@ final class SuperKeyService: ObservableObject {
     /// Quitting takes the mapping out on the spot: the process is about to go
     /// away, and a mapping left behind would leave its source doing nothing.
     func suspend() {
+        syncExceptionMonitoring(enabled: false)
         stop(synchronously: true)
+    }
+
+    private func syncExceptionMonitoring(enabled: Bool) {
+        let exceptions = MouseAppExceptions.shared
+        if enabled {
+            if exceptionObservation == nil {
+                exceptionObservation = exceptions.$runningScopes
+                    .map { $0.contains(.superKey) }
+                    .removeDuplicates()
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] _ in self?.syncWithPreferences() }
+            }
+        } else {
+            exceptionObservation = nil
+        }
+        // Tracking outlives a pause: the final app exit must restart the key.
+        // An empty list leaves the shared workspace observer stopped.
+        exceptions.setSourceTracking(enabled, for: .superKey)
+        let paused = enabled && exceptions.runningScopes.contains(.superKey)
+        if isPausedForApplication != paused { isPausedForApplication = paused }
     }
 
     private func start() {
@@ -342,7 +366,7 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func startOnMain() {
-        DispatchQueue.main.async { [weak self] in self?.start() }
+        DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
     }
 
     private func tapDidStart(_ startedTap: CFMachPort) {

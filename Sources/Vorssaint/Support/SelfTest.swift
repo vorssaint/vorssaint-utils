@@ -64,10 +64,12 @@ enum SelfTest {
         // Network counters should be readable and never run backwards.
         let net1 = NetworkSampler.readCounters()
         let net2 = NetworkSampler.readCounters()
-        if net1 == NetworkCounters(), net2 == NetworkCounters() {
+        if let net1, let net2 {
+            if net2.received < net1.received || net2.sent < net1.sent {
+                failures.append("network counters decreased")
+            }
+        } else {
             warnings.append("network counters unavailable")
-        } else if net2.received < net1.received || net2.sent < net1.sent {
-            failures.append("network counters decreased")
         }
 
         let diskCounters = DiskSampler.readCounters()

@@ -14,11 +14,12 @@ import SwiftUI
 /// the only way the wrong one never fires. It is also what makes the pointer
 /// change shape over an edge, and without that the handles are invisible.
 struct RecorderZoomLane: NSViewRepresentable {
-    /// Which of the two lanes this is. They behave identically on purpose:
-    /// one set of gestures to learn, whatever kind of thing is on the rail.
+    /// Which lane this is. They behave identically on purpose: one set of
+    /// gestures to learn, whatever kind of thing is on the rail.
     enum Kind {
         case zoom
         case text
+        case image
         case blur
     }
 
@@ -277,6 +278,7 @@ struct RecorderZoomLane: NSViewRepresentable {
             switch kind {
             case .zoom: accent = NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue
             case .text: accent = .systemPurple
+            case .image: accent = .systemOrange
             case .blur: accent = .systemTeal
             }
             for segment in segments {
@@ -294,6 +296,7 @@ struct RecorderZoomLane: NSViewRepresentable {
                 switch kind {
                 case .zoom: ramp = RecorderMotion.zoomRampIn
                 case .text: ramp = RecorderTextOverlay.fade
+                case .image: ramp = RecorderImageOverlay.fade
                 case .blur: ramp = 0
                 }
                 let rampIn = min(ramp, (segment.end - segment.start) / 2)

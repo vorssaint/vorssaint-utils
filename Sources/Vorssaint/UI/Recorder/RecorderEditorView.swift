@@ -324,6 +324,13 @@ struct RecorderEditorView: View {
                         .frame(height: 30)
                 }
             }
+            if !model.document.images.isEmpty {
+                timelineRow(strings.imageLaneLabel) {
+                    RecorderZoomLane(model: model, kind: .image,
+                                     emptyHint: strings.imageLaneEmptyHint)
+                        .frame(height: 30)
+                }
+            }
             if !model.document.blurs.isEmpty {
                 timelineRow(strings.blurLaneLabel) {
                     RecorderZoomLane(model: model, kind: .blur,
@@ -388,6 +395,15 @@ struct RecorderEditorView: View {
                 model.addText(at: model.sourceTime)
             } label: {
                 Label(strings.addTextButton, systemImage: "textformat")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color(white: 0.8))
+
+            Button {
+                model.addImage(at: model.sourceTime)
+            } label: {
+                Label(strings.addImageButton, systemImage: "photo")
                     .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.borderless)

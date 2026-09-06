@@ -19,6 +19,7 @@ struct DockPreviewPanelView: View {
             onEndPreview: service.endPreview,
             onCommit: service.commit,
             onCloseWindow: service.close,
+            onMiddleClick: service.closeWindow,
             onToggleMinimized: service.toggleMinimized,
             onTogglePinned: service.togglePinned,
             onClosePanel: service.closePreviewPanel,
@@ -46,6 +47,7 @@ struct DockPreviewPinnedPanelView: View {
             onEndPreview: panel.endPreview,
             onCommit: panel.commit,
             onCloseWindow: panel.close,
+            onMiddleClick: panel.closeWindow,
             onToggleMinimized: panel.toggleMinimized,
             onTogglePinned: panel.closePreviewPanel,
             onClosePanel: panel.closePreviewPanel,
@@ -71,6 +73,7 @@ private struct DockPreviewPanelContent: View {
     let onEndPreview: (SwitcherItem) -> Void
     let onCommit: (SwitcherItem) -> Void
     let onCloseWindow: (SwitcherItem) -> Void
+    let onMiddleClick: (SwitcherItem) -> Void
     let onToggleMinimized: (SwitcherItem) -> Void
     let onTogglePinned: () -> Void
     let onClosePanel: () -> Void
@@ -82,6 +85,7 @@ private struct DockPreviewPanelContent: View {
 
     @ObservedObject private var l10n = L10n.shared
     @State private var draggingWindowID: CGWindowID?
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var quitAppOnClose = false
 
@@ -113,6 +117,7 @@ private struct DockPreviewPanelContent: View {
                                 onClose: {
                                     onCloseWindow(window)
                                 },
+                                onMiddleClick: { onMiddleClick(window) },
                                 onToggleMinimized: {
                                     onToggleMinimized(window)
                                 }
@@ -172,7 +177,7 @@ private struct DockPreviewPanelContent: View {
         // still draws the panel's shape once the frost stops doing it.
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(minimalPreviews ? Color.clear : Color.white.opacity(0.12), lineWidth: 1)
         )
     }
 
@@ -366,16 +371,18 @@ private struct DockPreviewCard: View {
     let closeActionTitle: String
     let onCommit: () -> Void
     let onClose: () -> Void
+    let onMiddleClick: () -> Void
     let onToggleMinimized: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
     @State private var isCloseHovering = false
     @State private var isMinimizeHovering = false
     @State private var suppressNextCommit = false
 
     private var showsPreviewControls: Bool {
-        DockPreviewSupport.showsCardControls(isHovering: isHovering, isSelected: isSelected)
+        !minimalPreviews && DockPreviewSupport.showsCardControls(isHovering: isHovering, isSelected: isSelected)
     }
 
     private var hasStatusBadges: Bool {
@@ -390,7 +397,7 @@ private struct DockPreviewCard: View {
         VStack(spacing: DockPreviewSupport.cardTitleSpacing) {
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(minimalPreviews ? Color.clear : Color.white.opacity(0.06))
 
                 if let preview {
                     Image(decorative: preview, scale: 2)
@@ -418,35 +425,37 @@ private struct DockPreviewCard: View {
                 // left, the window's state on the right, sharing a baseline --
                 // the App Switcher's card, which shows the same two things
                 // about the same kind of thing.
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    HStack(alignment: .bottom, spacing: 8) {
-                        if let icon = window.appIcon {
-                            Image(nsImage: icon)
-                                .resizable()
-                                .frame(width: DockPreviewSupport.cardAppBadgeSize,
-                                       height: DockPreviewSupport.cardAppBadgeSize)
-                                .shadow(radius: 3)
-                                .padding(.leading, -DockPreviewSupport.cardAppBadgeArtworkInset)
-                                .padding(.bottom, -DockPreviewSupport.cardAppBadgeArtworkInset)
-                                .opacity(showsAppBadge ? 1 : 0)
-                                .accessibilityHidden(true)
-                        }
+                if !minimalPreviews {
+                    VStack(spacing: 0) {
                         Spacer(minLength: 0)
-                        if hasStatusBadges {
-                            HStack(spacing: 5) {
-                                statusBadges
+                        HStack(alignment: .bottom, spacing: 8) {
+                            if let icon = window.appIcon {
+                                Image(nsImage: icon)
+                                    .resizable()
+                                    .frame(width: DockPreviewSupport.cardAppBadgeSize,
+                                           height: DockPreviewSupport.cardAppBadgeSize)
+                                    .shadow(radius: 3)
+                                    .padding(.leading, -DockPreviewSupport.cardAppBadgeArtworkInset)
+                                    .padding(.bottom, -DockPreviewSupport.cardAppBadgeArtworkInset)
+                                    .opacity(showsAppBadge ? 1 : 0)
+                                    .accessibilityHidden(true)
+                            }
+                            Spacer(minLength: 0)
+                            if hasStatusBadges {
+                                HStack(spacing: 5) {
+                                    statusBadges
+                                }
                             }
                         }
+                        .padding(7)
                     }
-                    .padding(7)
                 }
-
             }
             .frame(width: DockPreviewSupport.cardThumbnailWidth,
-                   height: DockPreviewSupport.cardThumbnailHeight)
+                   height: DockPreviewSupport.cardThumbnailHeight
+                       + (minimalPreviews ? DockPreviewSupport.cardTitleHeight + DockPreviewSupport.cardTitleSpacing : 0))
 
-            titleBand
+            if !minimalPreviews { titleBand }
         }
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
@@ -464,6 +473,12 @@ private struct DockPreviewCard: View {
                 .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isSelected)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            if window.windowID != nil {
+                DockPreviewMiddleClick(onClose: onMiddleClick)
+                    .accessibilityHidden(true)
+            }
+        }
         .contextMenu {
             cardContextMenu
         }
@@ -615,5 +630,40 @@ private struct DockPreviewCard: View {
         .onHover { isMinimizeHovering = $0 }
         .help(window.isMinimized ? l10n.s.dockPreviewRestoreWindow : l10n.s.dockPreviewMinimizeWindow)
         .accessibilityLabel(window.isMinimized ? l10n.s.dockPreviewRestoreWindow : l10n.s.dockPreviewMinimizeWindow)
+    }
+}
+
+/// Only middle clicks belong to this view; ordinary clicks and drags keep
+/// reaching the SwiftUI card underneath, including its context menu.
+private struct DockPreviewMiddleClick: NSViewRepresentable {
+    let onClose: () -> Void
+
+    func makeNSView(context: Context) -> ClickView { ClickView() }
+
+    func updateNSView(_ view: ClickView, context: Context) {
+        view.onClose = onClose
+    }
+
+    final class ClickView: NSView {
+        var onClose: (() -> Void)?
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard let event = NSApp.currentEvent,
+                  DockPreviewSupport.handlesMiddleClick(
+                    eventType: event.type, buttonNumber: event.buttonNumber,
+                    point: convert(point, from: superview), visibleRect: visibleRect,
+                    isHidden: isHiddenOrHasHiddenAncestor)
+            else { return nil }
+            return self
+        }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func otherMouseDown(with event: NSEvent) {
+            guard event.buttonNumber == 2 else { return }
+            onClose?()
+        }
+
+        override func otherMouseUp(with event: NSEvent) {}
     }
 }

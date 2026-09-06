@@ -334,6 +334,10 @@ final class ScreenRecorderService: ObservableObject {
         ScreenCaptureService.shared.capture(initial: .recording)
     }
 
+    var hasActiveCapture: Bool {
+        isRecording || session != nil || countdown != nil || isAwaitingMicrophone || isFinishing
+    }
+
     func stopOrCancelActiveCapture() -> Bool {
         if isRecording || session != nil {
             stop()

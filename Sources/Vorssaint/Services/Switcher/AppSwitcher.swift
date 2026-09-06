@@ -46,6 +46,7 @@ final class AppSwitcher: ObservableObject {
     @Published private(set) var selectedIndex = 0 {
         didSet {
             guard oldValue != selectedIndex else { return }
+            cancelLetterConfirmation()
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
             if sessionActive, usesIconRowLayout {
@@ -74,6 +75,18 @@ final class AppSwitcher: ObservableObject {
         get { routeLock.withLock { routeSessionActive } }
         set { routeLock.withLock { routeSessionActive = newValue } }
     }
+
+    /// Other keyboard filters must yield during enumeration as well as an
+    /// open session. Read the generation with the ownership flag so a pending
+    /// confirmation cannot survive a switcher session that has already ended.
+    var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) {
+        routeLock.withLock {
+            (!routeCapturing && (routeSessionActive
+                || (routeCanStartSession && routePendingSessionStart != nil)),
+             sessionStartGeneration)
+        }
+    }
+
     private var panel: NSPanel?
     private var sessionItems: [SwitcherItem] = []
 
@@ -118,6 +131,14 @@ final class AppSwitcher: ObservableObject {
     /// The card currently under the pointer. Kept separate from selection so
     /// a middle click on panel chrome can never close an unrelated window.
     private var hoveredWindowIndex: Int?
+    /// A protected Q or W waiting for its second press. Tied to the item that
+    /// was selected when it started, so moving on never confirms by surprise.
+    private struct PendingLetterConfirmation {
+        let action: SwitcherLetterAction
+        let itemID: String
+        let expiry: DispatchWorkItem
+    }
+    private var pendingLetterConfirmation: PendingLetterConfirmation?
     private var swallowingMiddleMouseUp = false
     /// Fires while the pointer stays on the last visible overflow icon.
     private var iconRowEdgeHoverWork: DispatchWorkItem?
@@ -789,8 +810,7 @@ final class AppSwitcher: ObservableObject {
                 // through the list closing or quitting everything on the way.
                 if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
                     switch action {
-                    case .closeWindow: closeSelectedWindow()
-                    case .quitApp: quitSelectedApp()
+                    case .closeWindow, .quitApp: runProtectedLetterAction(action)
                     case .pinSearch: isSearchPinned = true
                     }
                 }
@@ -1241,6 +1261,55 @@ final class AppSwitcher: ObservableObject {
                                                                           delta: delta)
     }
 
+    /// W and Q act on the selected item, which quit protection's own tap cannot
+    /// see: it yields the keyboard for the whole session. Ask for the second
+    /// press here instead, so turning the protection on still means something
+    /// where a single letter closes a window the user is not looking at.
+    private func runProtectedLetterAction(_ action: SwitcherLetterAction) {
+        guard windows.indices.contains(selectedIndex) else { return }
+        let item = windows[selectedIndex]
+        let shortcut: QuitProtectionShortcut = action == .quitApp ? .quit : .close
+        guard let confirmation = QuitProtectionService.shared.selectionConfirmation(
+            for: shortcut,
+            bundleIdentifier: NSRunningApplication(processIdentifier: item.pid)?.bundleIdentifier
+        ) else {
+            performLetterAction(action)
+            return
+        }
+
+        let pending = pendingLetterConfirmation
+        cancelLetterConfirmation()
+        if let pending, pending.action == action, pending.itemID == item.id {
+            performLetterAction(action)
+            return
+        }
+
+        let expiry = DispatchWorkItem { [weak self] in self?.cancelLetterConfirmation() }
+        pendingLetterConfirmation = PendingLetterConfirmation(action: action,
+                                                             itemID: item.id,
+                                                             expiry: expiry)
+        if confirmation.showsFeedback {
+            QuitProtectionService.shared.showSelectionHUD(for: shortcut, on: placementScreen)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + confirmation.intervalMilliseconds / 1_000,
+                                      execute: expiry)
+    }
+
+    private func performLetterAction(_ action: SwitcherLetterAction) {
+        switch action {
+        case .closeWindow: closeSelectedWindow()
+        case .quitApp: quitSelectedApp()
+        case .pinSearch: break
+        }
+    }
+
+    private func cancelLetterConfirmation() {
+        guard let pending = pendingLetterConfirmation else { return }
+        pending.expiry.cancel()
+        pendingLetterConfirmation = nil
+        QuitProtectionService.shared.hideSelectionHUD()
+    }
+
     /// Closes the highlighted window (⌘Tab → W) and keeps the session open, so
     /// the app stays running and the panel moves on to the next window. Same
     /// path as the card's close button.
@@ -1422,6 +1491,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func endSession() {
+        cancelLetterConfirmation()
         SwitcherAppIconCache.endSession()
         sessionActive = false
         pendingShow?.cancel()

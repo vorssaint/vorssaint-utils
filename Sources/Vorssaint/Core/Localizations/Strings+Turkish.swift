@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "Hakkında",
         tabReleaseNotes: "Yenilikler",
         releaseNotesOnUpdateToggle: "Güncellemeden sonra yenilikleri göster",
+        minimalWindowPreviews: "Sade önizlemeler",
+        minimalWindowPreviewsCaption: "Dock ve uygulama değiştirici önizlemelerinde başlıkları, düğmeleri ve süslemeleri gizler. Seçim görünür kalır.",
         previewSizeLabel: "Önizleme boyutu",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Büyük",
