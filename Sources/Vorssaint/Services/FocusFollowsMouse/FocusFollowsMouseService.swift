@@ -104,6 +104,15 @@ final class FocusFollowsMouseService {
         timer = nil
     }
 
+    /// Nothing held down: no mouse button pressed and no modifier. Asked
+    /// again when the window query answers, because the query takes long
+    /// enough for a click or a shortcut to begin while it runs, and a pointer
+    /// that never moved keeps the answer looking current.
+    private var nothingIsHeldDown: Bool {
+        NSEvent.pressedMouseButtons == 0
+            && NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+    }
+
     private func evaluateIfSettled() {
         defer {
             if !state.hasPendingEvaluation {
@@ -112,8 +121,7 @@ final class FocusFollowsMouseService {
             }
         }
         guard AXIsProcessTrusted(),
-              NSEvent.pressedMouseButtons == 0,
-              NSEvent.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+              nothingIsHeldDown,
               let evaluation = state.nextEvaluation(
                   at: ProcessInfo.processInfo.systemUptime,
                   delayMilliseconds: delayMilliseconds),
@@ -124,7 +132,8 @@ final class FocusFollowsMouseService {
         queryQueue.async { [weak self] in
             guard let self, let target = self.target(at: evaluation.point) else { return }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.isRunning, self.state.isCurrent(evaluation),
+                guard let self, self.isRunning, self.nothingIsHeldDown,
+                      self.state.isCurrent(evaluation),
                       let app = NSRunningApplication(processIdentifier: target.processID),
                       app.activationPolicy == .regular, !app.isTerminated,
                       NSWorkspace.shared.frontmostApplication?.processIdentifier != target.processID

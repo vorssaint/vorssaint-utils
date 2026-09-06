@@ -1518,13 +1518,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Quits and reopens the app. Full Disk Access only applies to a fresh
     /// process, so this is how the uninstaller picks up a just-granted grant.
     func relaunchApp() {
-        let path = Bundle.main.bundlePath
-        // Its own session: the reopen fires after we terminate, so the child
-        // has to outlive the session it was started from.
-        _ = try? DetachedProcess.spawn(
-            "/bin/sh",
-            ["-c", "sleep 0.3; /usr/bin/open \"$1\"", "vorssaint-relaunch", path])
-        NSApp.terminate(nil)
+        FeatureRuntime.shared.relaunchApp()
     }
 
     func showOnboarding(mode: OnboardingMode = .full) {

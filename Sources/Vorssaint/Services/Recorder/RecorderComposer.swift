@@ -289,13 +289,19 @@ final class RecorderComposer {
     /// The master is written at a variable rate on purpose, so a still screen
     /// costs nothing while recording; the steady rate is imposed here instead,
     /// in the single decode pass the export already needs.
+    ///
+    /// Nil when a recording that carries an edit cannot be composed. The plain
+    /// path below draws the recording untouched, which is only ever right when
+    /// there is nothing drawn on it: answering with it after a failure would
+    /// hand back a file missing the areas kept unreadable, and everything else
+    /// the person put on the picture.
     static func videoComposition(track: AVAssetTrack,
                                  asset: AVAsset,
                                  duration: CMTime,
                                  frameRate: Int,
                                  composer: RecorderComposer?,
                                  sourceSize: CGSize,
-                                 outputSize: CGSize) async -> AVMutableVideoComposition {
+                                 outputSize: CGSize) async -> AVMutableVideoComposition? {
         if let composer {
             // The handler may run concurrently; this composer only reads
             // immutable state while rendering each frame.
@@ -307,13 +313,12 @@ final class RecorderComposer {
                         at: CMTimeGetSeconds(request.compositionTime))
                     request.finish(with: rendered, context: nil)
                 }
-            if let composition {
-                composition.frameDuration = CMTime(value: 1,
-                                                   timescale: CMTimeScale(max(1, frameRate)))
-                composition.renderSize = composer.canvasSize
-                composition.sourceTrackIDForFrameTiming = kCMPersistentTrackID_Invalid
-                return composition
-            }
+            guard let composition else { return nil }
+            composition.frameDuration = CMTime(value: 1,
+                                               timescale: CMTimeScale(max(1, frameRate)))
+            composition.renderSize = composer.canvasSize
+            composition.sourceTrackIDForFrameTiming = kCMPersistentTrackID_Invalid
+            return composition
         }
         let naturalSize = (try? await track.load(.naturalSize)) ?? sourceSize
         let preferredTransform = (try? await track.load(.preferredTransform)) ?? .identity

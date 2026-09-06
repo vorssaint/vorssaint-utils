@@ -32,13 +32,34 @@ final class FeatureRuntime: ObservableObject {
         loadedThisSession.contains { !$0.isAvailable }
     }
 
-    /// Relaunches the app in place: a detached `open` fires after the process
-    /// exits, so the fresh instance starts without the uninstalled features.
+    /// Relaunches the app in place: a detached helper waits for this process
+    /// to be gone and only then reopens it, so the fresh instance starts
+    /// without the uninstalled features.
+    ///
+    /// It waits for the process rather than for a fixed moment because
+    /// quitting flushes the clipboard history and every other pending write
+    /// first: a reopen that arrives while the app is still here does nothing,
+    /// and the restart ends as a plain quit.
     func relaunchApp() {
-        guard let bundleID = Bundle.main.bundleIdentifier else { return }
+        let path = Bundle.main.bundlePath
         // Its own session: the reopen fires after we terminate, so the child
-        // has to outlive the session it was started from.
-        _ = try? DetachedProcess.spawn("/bin/sh", ["-c", "sleep 0.6; /usr/bin/open -b '\(bundleID)'"])
+        // has to outlive the session it was started from. It gives up if we
+        // are somehow still here after twenty seconds, so a quit that never
+        // happens cannot reopen the app long afterwards.
+        let script = """
+            waited=0
+            while kill -0 "$1" 2>/dev/null && [ "$waited" -lt 100 ]; do
+                sleep 0.2
+                waited=$((waited + 1))
+            done
+            kill -0 "$1" 2>/dev/null || /usr/bin/open "$2"
+            """
+        let pid = String(ProcessInfo.processInfo.processIdentifier)
+        // Nothing is quit until the helper is running: without it, terminating
+        // would close the app instead of restarting it.
+        guard (try? DetachedProcess.spawn(
+            "/bin/sh", ["-c", script, "vorssaint-relaunch", pid, path])) != nil
+        else { return }
         NSApp.terminate(nil)
     }
 

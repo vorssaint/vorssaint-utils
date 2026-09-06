@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, resource use, network readings, color picking, app icons, readability, localization, mouse reconnection, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
+Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, resource use, network readings, color picking, app icons, readability, localization, mouse reconnection, window focus, app restarts, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
 
 ### Added
 - Keep Awake can start automatically while selected apps are open, including in the background. Thanks to @Borisserz.
@@ -34,15 +34,18 @@ Vorssaint adds app-based Keep Awake automation, app exceptions for Super key, ce
 
 ### Fixed
 - Opening a recording with damaged pointer data no longer requests excessive memory.
+- Saving a recording keeps the file already there when an export fails or is cancelled, and never writes a video missing your edits.
 - Screenshot, text and color shortcuts leave active recordings alone, while the recording command still stops them.
 - Network readings recover from temporary counter failures without false spikes, and speed tests report server errors instead of misleading results.
 - Toggling Wi-Fi from the Command Bar no longer blocks clicks and scrolling while the system responds. Thanks to @mugurc.
 - App Switcher restores native shortcuts after crashes even when disabled, and its reverse window shortcut leaves screenshots available. Thanks to @owendaw.
 - Shortcut recording detects system shortcuts even when they have never been customized. Thanks to @owendaw.
 - Mouse acceleration stays disabled after disconnecting and reconnecting a mouse.
+- Focus follows mouse no longer changes windows when you have just pressed a modifier key or a mouse button.
 - The App Switcher shows supported alternate app icons without flickering during navigation. Thanks to @EugeneCarldotme and @hash00.
 - Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
 - Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.
+- Restarting the app reopens it once it has finished closing, where a slow quit could leave it closed.
 - The Keep Awake option for no icon shows the crossed-out circle it promised, where the bar across it was never drawn.
 - Saving the scratchpad to a file says so when it cannot be written, where a full disk or a read-only volume ended in silence.
 - Numbers on screen use the decimal mark of your region, where the panel, the menu bar and the editors always wrote a point.

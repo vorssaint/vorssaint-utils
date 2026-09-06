@@ -22109,6 +22109,66 @@ struct MetricsTests {
         expect((try? Data(contentsOf: importSource)) == changedSourceBytes,
                "discarding an imported take never changes the original video")
 
+        // Save as can be pointed at a recording that already exists. What is
+        // there survives an export that is cancelled or fails: the new file is
+        // written beside it and only takes its place once it is whole.
+        let exportDestination = directSaveRoot.appendingPathComponent("export.mp4")
+        let alreadySavedBytes = Data("the recording already saved here".utf8)
+        try? alreadySavedBytes.write(to: exportDestination)
+        let abandonedStaging = RecorderSupport.stagingURL(for: exportDestination)
+        expect(abandonedStaging.deletingLastPathComponent().path == directSaveRoot.path
+                && abandonedStaging.lastPathComponent.hasPrefix(".")
+                && abandonedStaging.pathExtension == exportDestination.pathExtension
+                && abandonedStaging != RecorderSupport.stagingURL(for: exportDestination),
+               "an export is written beside its destination, out of sight and under its own name")
+        try? Data("half an export".utf8).write(to: abandonedStaging)
+        try? FileManager.default.removeItem(at: abandonedStaging)
+        expect((try? Data(contentsOf: exportDestination)) == alreadySavedBytes,
+               "a cancelled or failed export leaves the recording already saved there untouched")
+        let exportedBytes = Data("the recording that finished exporting".utf8)
+        let finishedStaging = RecorderSupport.stagingURL(for: exportDestination)
+        try? exportedBytes.write(to: finishedStaging)
+        expect(RecorderSupport.commitExport(from: finishedStaging, to: exportDestination)
+                && (try? Data(contentsOf: exportDestination)) == exportedBytes
+                && !FileManager.default.fileExists(atPath: finishedStaging.path),
+               "a finished export replaces what was there and leaves nothing beside it")
+        let freshDestination = directSaveRoot.appendingPathComponent("fresh.mp4")
+        let freshStaging = RecorderSupport.stagingURL(for: freshDestination)
+        try? exportedBytes.write(to: freshStaging)
+        expect(RecorderSupport.commitExport(from: freshStaging, to: freshDestination)
+                && (try? Data(contentsOf: freshDestination)) == exportedBytes,
+               "an export to a name nothing uses yet lands under that name")
+        expect(!RecorderSupport.commitExport(
+                    from: RecorderSupport.stagingURL(for: exportDestination),
+                    to: exportDestination)
+                && (try? Data(contentsOf: exportDestination)) == exportedBytes,
+               "an export that wrote no file at all leaves the saved recording as it is")
+
+        // An edit that cannot be composed stops the export. The plain path
+        // draws the recording untouched, so answering with it would hand back
+        // a file with the areas kept unreadable, and everything else drawn on
+        // the picture, missing.
+        let recorderComposerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderComposer.swift",
+            encoding: .utf8)) ?? ""
+        expect(!recorderComposerSource.isEmpty,
+               "the recorder composer source reads back for its shape check")
+        expect(recorderComposerSource.contains(
+                    "outputSize: CGSize) async -> AVMutableVideoComposition?"),
+               "a composition that cannot be built answers with nothing, never with the plain one")
+        let recorderExporterSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderExporter.swift",
+            encoding: .utf8)) ?? ""
+        expect(!recorderExporterSource.isEmpty,
+               "the recorder exporter source reads back for its shape check")
+        let compositionsAsked = recorderExporterSource
+            .components(separatedBy: "RecorderComposer.videoComposition(").count - 1
+        let compositionsGuarded = recorderExporterSource
+            .components(separatedBy: "guard let composition = await RecorderComposer.videoComposition(")
+            .count - 1
+        expect(compositionsAsked > 0 && compositionsAsked == compositionsGuarded,
+               "an export stops when the edit cannot be composed, instead of saving the recording bare")
+
         expect(RecorderSupport.canStart(freeBytes: 10_000_000_000)
                 && !RecorderSupport.canStart(freeBytes: 100_000_000),
                "a recording refuses to start when the disk is nearly full")
