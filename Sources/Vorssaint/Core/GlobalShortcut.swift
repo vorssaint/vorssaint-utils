@@ -24,6 +24,12 @@ struct GlobalShortcutModifiers: OptionSet, Hashable {
         contains(.control) || contains(.option) || contains(.command)
     }
 
+    /// How many of the four real modifiers are held. Read to tell a broad
+    /// layer from one narrowed so far that a digit on it becomes a system key.
+    var count: Int {
+        intersection(.validMask).rawValue.nonzeroBitCount
+    }
+
     var cgFlags: CGEventFlags {
         var flags: CGEventFlags = []
         if contains(.control) { flags.insert(.maskControl) }

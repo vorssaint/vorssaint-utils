@@ -1221,9 +1221,18 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.dockNumberSwitchEnabled) private var dockNumberSwitchEnabled = false
+    @AppStorage(DefaultsKey.superKeyModifiers) private var superKeyModifiers =
+        SuperKeySupport.defaultModifierStorageValue
     @ObservedObject private var dockNumberSwitch = DockNumberSwitchService.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
+
+    /// A super key narrowed to a single modifier can't carry the digit keys
+    /// (they would become ⌘1…⌘9 / ⌃1…⌃9); the Dock-number toggle then shows off
+    /// and disabled. Read reactively so widening the super key restores it.
+    private var superKeyIsNarrow: Bool {
+        SuperKeySupport.modifiers(from: superKeyModifiers).count < 2
+    }
 
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
@@ -1467,7 +1476,15 @@ struct SwitcherSettings: View {
             if AppFeature.dockNumberSwitch.isAvailable {
                 let dockNumberText = FeatureStrings.dockNumberSwitch(l10n.language)
                 Section {
-                    Toggle(dockNumberText.enableToggle, isOn: $dockNumberSwitchEnabled)
+                    // The toggle shows the saved preference, except while the
+                    // super key is narrowed — then it reads off and disabled to
+                    // show the feature can't run. The preference itself is never
+                    // written here, so widening the super key restores it.
+                    Toggle(dockNumberText.enableToggle, isOn: Binding(
+                        get: { superKeyIsNarrow ? false : dockNumberSwitchEnabled },
+                        set: { dockNumberSwitchEnabled = $0 }
+                    ))
+                        .disabled(superKeyIsNarrow)
                         .onChange(of: dockNumberSwitchEnabled) { _, enabled in
                             DockNumberSwitchService.shared.syncWithPreferences()
                             guard enabled, !permissions.accessibility else { return }
@@ -1477,12 +1494,19 @@ struct SwitcherSettings: View {
                     Text(dockNumberText.enableCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if dockNumberSwitchEnabled, !permissions.accessibility {
+                    if superKeyIsNarrow {
+                        Label(dockNumberText.narrowSuperKey,
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else if dockNumberSwitchEnabled, !permissions.accessibility {
                         Label(dockNumberText.needsAccessibility, systemImage: "info.circle")
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    } else if dockNumberSwitchEnabled, dockNumberSwitch.registrationFailed {
-                        Label(dockNumberText.unavailableShortcuts,
+                    } else if dockNumberSwitchEnabled,
+                              case let .someUnavailable(digits) = dockNumberSwitch.status {
+                        Label(String(format: dockNumberText.unavailableShortcuts,
+                                     DockNumberSwitchSupport.unavailableDigitsList(digits)),
                               systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)

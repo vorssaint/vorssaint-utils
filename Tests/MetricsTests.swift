@@ -25625,6 +25625,47 @@ struct MetricsTests {
             expect(DockNumberSwitchSupport.action(appIsFrontmost: false) == .activateOrLaunch,
                    "pressing the digit for another app switches to (or launches) it")
 
+            // A Super key narrowed to one modifier turns the digits into ⌘1…⌘9
+            // or ⌃1…⌃9 (browser tabs, Mission Control): register nothing then.
+            expect(!DockNumberSwitchSupport.registersDigits(forModifierCount: 0)
+                    && !DockNumberSwitchSupport.registersDigits(forModifierCount: 1),
+                   "a one-modifier Super-key layer registers no Dock digit")
+            expect(DockNumberSwitchSupport.registersDigits(forModifierCount: 2)
+                    && DockNumberSwitchSupport.registersDigits(forModifierCount: 4),
+                   "a two-or-more-modifier layer registers the Dock digits")
+            expect(GlobalShortcutModifiers.validMask.count == 4
+                    && ([.command] as GlobalShortcutModifiers).count == 1
+                    && ([.control, .option] as GlobalShortcutModifiers).count == 2,
+                   "modifier count reads the four real modifiers held")
+
+            // A digit whose combination is a live system hotkey (⌘⇧3 = save
+            // screenshot) is skipped so it never fires alongside the system's.
+            let cmdShift = UInt32(cmdKey | shiftKey)
+            let systemHotkeys = [
+                DockNumberSwitchSupport.SystemHotkey(keyCode: Int64(kVK_ANSI_3),
+                                                     carbonModifiers: cmdShift),
+            ]
+            expect(DockNumberSwitchSupport.conflictsWithSystemHotkey(
+                        keyCode: Int64(kVK_ANSI_3), carbonModifiers: cmdShift,
+                        systemHotkeys: systemHotkeys),
+                   "a digit on a system hotkey's combination is a conflict")
+            expect(!DockNumberSwitchSupport.conflictsWithSystemHotkey(
+                        keyCode: Int64(kVK_ANSI_3),
+                        carbonModifiers: UInt32(cmdKey | shiftKey | controlKey),
+                        systemHotkeys: systemHotkeys),
+                   "a wider layer (⌃⌘⇧3) is not the same system hotkey (⌘⇧3)")
+            expect(!DockNumberSwitchSupport.conflictsWithSystemHotkey(
+                        keyCode: Int64(kVK_ANSI_4), carbonModifiers: cmdShift,
+                        systemHotkeys: systemHotkeys),
+                   "a different digit (⌘⇧4) does not match ⌘⇧3")
+            expect(!DockNumberSwitchSupport.conflictsWithSystemHotkey(
+                        keyCode: Int64(kVK_ANSI_3), carbonModifiers: cmdShift,
+                        systemHotkeys: []),
+                   "no system hotkeys means no conflict")
+            expect(DockNumberSwitchSupport.unavailableDigitsList([3, 4, 5, 6]) == "3, 4, 5, 6"
+                    && DockNumberSwitchSupport.unavailableDigitsList([3]) == "3",
+                   "the badge names the conflicting digits as a comma list")
+
             // Contract the rest of the app relies on (a rename should break these).
             expect(AppFeature(rawValue: "dockNumberSwitch") == .dockNumberSwitch,
                    "the dockNumberSwitch feature identity is stable")

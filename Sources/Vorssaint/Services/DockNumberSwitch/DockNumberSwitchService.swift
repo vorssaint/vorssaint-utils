@@ -17,9 +17,10 @@ import Carbon.HIToolbox
 final class DockNumberSwitchService: ObservableObject {
     static let shared = DockNumberSwitchService()
 
-    /// True when macOS refused one of the digit combinations (already taken by
-    /// another app). Surfaced so the settings screen can say so.
-    @Published private(set) var registrationFailed = false
+    /// Why the digits are not all bound (a narrowed Super key, or a combination
+    /// already taken), so the settings screen can say why instead of the keys
+    /// silently doing nothing.
+    @Published private(set) var status: DockNumberSwitchSupport.RegistrationStatus = .ok
 
     /// An id block of its own so the shared hotkey handler never collides with
     /// another feature's keys (single tools 10–24, CommandBar 200+, RadialMenu
@@ -40,7 +41,7 @@ final class DockNumberSwitchService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.dockNumberSwitchEnabled)
         guard enabled else {
             suspend()
-            registrationFailed = false
+            status = .ok
             return
         }
 
@@ -54,16 +55,47 @@ final class DockNumberSwitchService: ObservableObject {
         let superKeyModifiers = SuperKeySupport.modifiers(
             from: UserDefaults.standard.string(forKey: DefaultsKey.superKeyModifiers))
 
-        var anyFailed = false
+        // A Super key narrowed to a single modifier makes these ⌘1…⌘9 or
+        // ⌃1…⌃9 — combinations this app owns nowhere but the system and every
+        // browser route to tab and desktop switching; registering them would
+        // break that everywhere while the toggle is on. Register nothing then.
+        guard DockNumberSwitchSupport.registersDigits(forModifierCount: superKeyModifiers.count)
+        else {
+            // Nothing bound; the settings toggle shows this as inactive from the
+            // Super key modifiers directly, so no per-digit status is needed.
+            status = .ok
+            return
+        }
+
+        // The enabled system hotkeys, read once from Carbon's authoritative
+        // list rather than the com.apple.symbolichotkeys plist, which omits the
+        // defaults the user never customized — the screenshot keys (⌘⇧3…6)
+        // among them, right where a digit layer lands.
+        let systemHotkeys = Self.systemHotkeys()
+
+        // The 1-based digits that could not be claimed, so the badge can name
+        // exactly which numbers may not work.
+        var unavailableDigits: [Int] = []
         for (index, keyCode) in Self.digitKeyCodes.enumerated() {
             let shortcut = GlobalShortcut(keyCode: Int64(keyCode), modifiers: superKeyModifiers)
-            let hotkey = QuickToolHotkey(id: Self.hotkeyIDBase + UInt32(index))
             let slot = index + 1
+            // Even on a wider layer a single digit can land on a live system
+            // shortcut (⌘⇧3 is a screenshot under a ⌘⇧ Super key). RegisterEventHotKey
+            // would preempt it silently, so a conflicting digit is left unclaimed
+            // — the same class the recorder refuses.
+            if DockNumberSwitchSupport.conflictsWithSystemHotkey(
+                keyCode: shortcut.keyCode,
+                carbonModifiers: shortcut.carbonModifiers,
+                systemHotkeys: systemHotkeys) {
+                unavailableDigits.append(slot)
+                continue
+            }
+            let hotkey = QuickToolHotkey(id: Self.hotkeyIDBase + UInt32(index))
             hotkey.onPress = { [weak self] in self?.activate(slot: slot) }
-            if !hotkey.sync(enabled: true, shortcut: shortcut) { anyFailed = true }
+            if !hotkey.sync(enabled: true, shortcut: shortcut) { unavailableDigits.append(slot) }
             hotkeys.append(hotkey)
         }
-        registrationFailed = anyFailed
+        status = unavailableDigits.isEmpty ? .ok : .someUnavailable(digits: unavailableDigits)
     }
 
     /// Unregisters every digit hotkey regardless of the preference. Used before
@@ -146,6 +178,26 @@ final class DockNumberSwitchService: ObservableObject {
             })
         }
         return DockNumberSwitchSupport.applicationURLs(from: tiles)
+    }
+
+    /// The enabled system symbolic hotkeys, from Carbon's `CopySymbolicHotKeys`
+    /// — the effective set including the defaults the plist never lists. The
+    /// modifiers are masked to the four real ones so they compare against a
+    /// shortcut's own `carbonModifiers`.
+    private static func systemHotkeys() -> [DockNumberSwitchSupport.SystemHotkey] {
+        var array: Unmanaged<CFArray>?
+        guard CopySymbolicHotKeys(&array) == noErr,
+              let entries = array?.takeRetainedValue() as? [[String: Any]]
+        else { return [] }
+        let mask = UInt32(cmdKey | shiftKey | optionKey | controlKey)
+        return entries.compactMap { entry in
+            guard (entry[kHISymbolicHotKeyEnabled as String] as? NSNumber)?.boolValue == true,
+                  let keyCode = (entry[kHISymbolicHotKeyCode as String] as? NSNumber)?.int64Value,
+                  let modifiers = (entry[kHISymbolicHotKeyModifiers as String] as? NSNumber)?.uint32Value
+            else { return nil }
+            return DockNumberSwitchSupport.SystemHotkey(keyCode: keyCode,
+                                                        carbonModifiers: modifiers & mask)
+        }
     }
 
     // MARK: - Dock Accessibility helpers
