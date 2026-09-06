@@ -329,9 +329,9 @@ final class ScreenRecorderService: ObservableObject {
 
     /// The one control the shortcut, the panel tile and the command bar all
     /// use: it starts when nothing is running and stops when something is.
-    func toggle() {
+    func toggle(fromShortcut: Bool = false) {
         if stopOrCancelActiveCapture() { return }
-        ScreenCaptureService.shared.capture(initial: .recording)
+        ScreenCaptureService.shared.capture(initial: .recording, fromShortcut: fromShortcut)
     }
 
     var hasActiveCapture: Bool {

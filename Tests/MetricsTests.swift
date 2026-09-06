@@ -17837,6 +17837,25 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         expect(!captureServiceSource.contains("replaceSelection"),
                "the capture service does not cancel and recreate selection controllers when changing modes")
+        // Screenshot, screen text, color and the capture palette all enter
+        // through capture(initial:). Stopping an active recording belongs only
+        // on the recorder's own toggle; a capture shortcut must leave the take
+        // running (and refuse to open over it).
+        expect(!captureServiceSource.contains("stopOrCancelActiveCapture"),
+               "capture shortcuts must not stop an active recording; only the recorder toggle may")
+        expect(captureServiceSource.contains("guard !recorder.hasActiveCapture else { return }"),
+               "capture entry refuses to open while a recording is already active")
+        expect(captureServiceSource.contains(
+            "ScreenRecorderService.shared.toggle(fromShortcut: true)"),
+               "the recorder shortcut stops and starts through toggle, not capture abort")
+        let recorderToggleSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift",
+            encoding: .utf8)) ?? ""
+        expect(recorderToggleSource.contains("func toggle(fromShortcut: Bool = false)")
+                && recorderToggleSource.contains("if stopOrCancelActiveCapture() { return }")
+                && recorderToggleSource.contains(
+                    "ScreenCaptureService.shared.capture(initial: .recording, fromShortcut: fromShortcut)"),
+               "recorder toggle remains the stop path and still opens capture when idle")
         // The preview appears unasked for, so presenting it must not take the
         // keyboard away from whatever the person is typing into. Its shortcuts
         // read a local monitor, which is delivered nothing until the panel is

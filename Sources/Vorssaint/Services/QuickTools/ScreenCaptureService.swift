@@ -62,7 +62,16 @@ final class ScreenCaptureService: ObservableObject {
 
     private init() {
         for (tool, hotkey) in toolHotkeys {
-            hotkey.onPress = { [weak self] in self?.capture(initial: tool, fromShortcut: true) }
+            hotkey.onPress = { [weak self] in
+                // Recording's dedicated shortcut is a start/stop control; route
+                // it through the recorder toggle so other capture shortcuts
+                // never inherit that abort.
+                if tool == .recording {
+                    ScreenRecorderService.shared.toggle(fromShortcut: true)
+                } else {
+                    self?.capture(initial: tool, fromShortcut: true)
+                }
+            }
         }
     }
 
@@ -108,10 +117,8 @@ final class ScreenCaptureService: ObservableObject {
     /// selecting anything.
     func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
         let recorder = ScreenRecorderService.shared
-        if preferred == .recording, AppFeature.screenRecorder.isAvailable,
-           recorder.stopOrCancelActiveCapture() {
-            return
-        }
+        // Do not stop an active recording here. Only ScreenRecorderService.toggle
+        // is the stop path; capture shortcuts refuse to open over a take.
         guard !recorder.hasActiveCapture else { return }
         if countdown != nil {
             cancelSelection()
