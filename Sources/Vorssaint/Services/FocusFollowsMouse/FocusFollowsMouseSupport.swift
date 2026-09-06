@@ -8,6 +8,23 @@ enum FocusFollowsMouseSupport {
     static let defaultDelayMilliseconds = 250
     static let delayRange = 100...1_000
 
+    /// The process to put the Accessibility hit test to, read from the window
+    /// server's description of the window a click at that point would land
+    /// on. Asking one application instead of the system keeps this process
+    /// out of the answer, and a hit test that lands in this process is what
+    /// deadlocks it against its own main thread (#1420).
+    ///
+    /// Nil for one of this app's own windows, which focuses nothing, the same
+    /// answer the process check after the hit test already produced; nil too
+    /// for an empty list, which is how a point over no window is described.
+    static func hitTestOwner(of descriptions: [[String: Any]],
+                             ownProcessID: pid_t) -> pid_t? {
+        guard let pid = (descriptions.first?[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+              pid != ownProcessID
+        else { return nil }
+        return pid
+    }
+
     static func sanitizedDelay(_ milliseconds: Int) -> Int {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)
     }

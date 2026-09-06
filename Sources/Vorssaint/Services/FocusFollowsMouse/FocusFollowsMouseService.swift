@@ -8,9 +8,6 @@ import CoreGraphics
 final class FocusFollowsMouseService {
     static let shared = FocusFollowsMouseService()
 
-    /// No cap on this one: on the system-wide element a timeout is the default
-    /// for every question this process asks, whoever asks it (#938).
-    private let systemElement = AXUIElementCreateSystemWide()
     private let queryQueue = DispatchQueue(label: "com.vorssaint.focus-follows-mouse")
     private var timer: Timer?
     private var mouseMonitor: Any?
@@ -129,8 +126,21 @@ final class FocusFollowsMouseService {
                   .focusFollowsMouse, at: evaluation.point)
         else { return }
 
+        // The window server's own answer to "what would a click here hit",
+        // which the on-screen window list cannot express: it honours other
+        // applications' click-through windows and the transparent parts of
+        // shaped ones. It is AppKit, so it is asked here on the main thread.
+        // The evaluation point is CoreGraphics (top-left origin) and this
+        // wants Cocoa global coordinates, flipped against the primary screen
+        // the way ``AssistiveKeyboard/ownsCocoaPoint(_:)`` flips them back.
+        let cocoaPoint = NSPoint(x: evaluation.point.x,
+                                 y: (NSScreen.screens.first?.frame.maxY ?? 0) - evaluation.point.y)
+        let hitWindowNumber = NSWindow.windowNumber(at: cocoaPoint, belowWindowWithWindowNumber: 0)
         queryQueue.async { [weak self] in
-            guard let self, let target = self.target(at: evaluation.point) else { return }
+            guard let self,
+                  let target = self.target(at: evaluation.point,
+                                           hitWindowNumber: hitWindowNumber)
+            else { return }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.isRunning, self.nothingIsHeldDown,
                       self.state.isCurrent(evaluation),
@@ -150,9 +160,30 @@ final class FocusFollowsMouseService {
         }
     }
 
-    private func target(at point: CGPoint) -> Target? {
+    private func target(at point: CGPoint, hitWindowNumber: Int) -> Target? {
+        // A system-wide hit test is served inside this process whenever the
+        // pointer rests on one of its own windows, and that re-entry is the
+        // deadlock (#1420). Only the application owning the window a click
+        // would hit is asked, so this process never is. Turning the number
+        // into its owner is a window server read: no main thread, no
+        // Accessibility lock, so it belongs on this queue. The process check
+        // further down stays as the invariant it now documents.
+        //
+        // The number is clamped because `CGWindowID` is unsigned; 0, which is
+        // what the click target reads as over no window, describes nothing.
+        let hitWindow = CGWindowListCopyWindowInfo(
+            [.optionIncludingWindow], CGWindowID(max(hitWindowNumber, 0))) as? [[String: Any]] ?? []
+        guard let ownerProcessID = FocusFollowsMouseSupport.hitTestOwner(
+            of: hitWindow,
+            ownProcessID: ProcessInfo.processInfo.processIdentifier)
+        else { return nil }
+
+        // No cap here: the application element inherits the wait this process
+        // installs for every element it asks (#938), as the system-wide one
+        // this replaced did.
+        let applicationElement = AXUIElementCreateApplication(ownerProcessID)
         var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(systemElement, Float(point.x), Float(point.y), &rawElement) == .success,
+        guard AXUIElementCopyElementAtPosition(applicationElement, Float(point.x), Float(point.y), &rawElement) == .success,
               let rawElement
         else { return nil }
         AXUIElementSetMessagingTimeout(rawElement, 0.25)

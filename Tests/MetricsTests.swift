@@ -1537,6 +1537,28 @@ struct MetricsTests {
                 targetWindowID: 42, focusedWindowID: focusedWindowID, targetAppIsFrontmost: false),
                    "hover can activate a background app regardless of its last focused window")
         }
+        // The window server names the window a click would hit; all that is
+        // left to decide is which process to put the question to, and that
+        // this app is never it.
+        func focusHitDescription(pid: Int32) -> [String: Any] {
+            [kCGWindowOwnerPID as String: NSNumber(value: pid),
+             kCGWindowNumber as String: NSNumber(value: 11)]
+        }
+        let focusOwnProcessID: pid_t = 9
+        expect(FocusFollowsMouseSupport.hitTestOwner(
+            of: [focusHitDescription(pid: 5)], ownProcessID: focusOwnProcessID) == 5,
+               "focus follows mouse asks the application owning the window a click would hit")
+        expect(FocusFollowsMouseSupport.hitTestOwner(
+            of: [focusHitDescription(pid: focusOwnProcessID)],
+            ownProcessID: focusOwnProcessID) == nil,
+               "focus follows mouse asks no application when the click would land on its own window")
+        expect(FocusFollowsMouseSupport.hitTestOwner(
+            of: [], ownProcessID: focusOwnProcessID) == nil,
+               "focus follows mouse asks no application when a click would hit no window")
+        expect(FocusFollowsMouseSupport.hitTestOwner(
+            of: [[kCGWindowNumber as String: NSNumber(value: 11)]],
+            ownProcessID: focusOwnProcessID) == nil,
+               "focus follows mouse asks no application for a window with no owner")
         var focusFollowsMouseState = FocusFollowsMouseState()
         expect(!focusFollowsMouseState.hasPendingEvaluation,
                "focus follows mouse starts without work to poll")
@@ -1576,6 +1598,66 @@ struct MetricsTests {
         let focusFollowsMouseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
             encoding: .utf8)) ?? ""
+        let focusFollowsMouseServiceCode = focusFollowsMouseServiceSource
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let focusOwnerBinding = focusFollowsMouseServiceCode
+            .components(separatedBy: "\n")
+            .first { $0.contains("= FocusFollowsMouseSupport.hitTestOwner(") }
+            .flatMap {
+                $0.components(separatedBy: "= FocusFollowsMouseSupport.hitTestOwner(")[0]
+                    .split(separator: " ").last.map(String.init)
+            }
+        expect(focusOwnerBinding.map {
+            focusFollowsMouseServiceCode.contains("AXUIElementCreateApplication(\($0))")
+        } ?? false,
+               "focus follows mouse hit tests the application the window server named")
+        expect(!focusFollowsMouseServiceCode.contains("AXUIElementCreateSystemWide"),
+               "focus follows mouse never hit tests the whole system")
+        let focusApplicationElement = focusFollowsMouseServiceCode
+            .components(separatedBy: "\n")
+            .first { $0.contains("= AXUIElementCreateApplication(") }
+            .flatMap {
+                $0.components(separatedBy: "= AXUIElementCreateApplication(")[0]
+                    .split(separator: " ").last.map(String.init)
+            }
+        expect(focusApplicationElement.map {
+            !focusFollowsMouseServiceCode.contains("AXUIElementSetMessagingTimeout(\($0)")
+        } ?? false,
+               "focus follows mouse lets the application element keep the wait this process installs")
+        expect(focusApplicationElement.map {
+            focusFollowsMouseServiceCode.contains("AXUIElementCopyElementAtPosition(\($0),")
+        } ?? false,
+               "focus follows mouse puts the position question to that application's element")
+        let focusHitNumberAt = focusFollowsMouseServiceCode.range(
+            of: "NSWindow.windowNumber(at:")?.lowerBound
+        expect(focusHitNumberAt.map { number in
+            focusFollowsMouseServiceCode.range(of: "queryQueue.async")
+                .map { number < $0.lowerBound } ?? false
+        } ?? false,
+               "focus follows mouse reads the click target on the main thread before querying")
+        let focusHitNumberName = focusFollowsMouseServiceCode
+            .components(separatedBy: "\n")
+            .first { $0.contains("= NSWindow.windowNumber(at:") }
+            .flatMap {
+                $0.components(separatedBy: "= NSWindow.windowNumber(at:")[0]
+                    .split(separator: " ").last.map(String.init)
+            }
+        expect(focusHitNumberName.map {
+            focusFollowsMouseServiceCode.contains("hitWindowNumber: \($0)")
+        } ?? false,
+               "focus follows mouse hands the query the click target it read")
+        let focusWindowInfoArguments = focusFollowsMouseServiceCode
+            .range(of: "CGWindowListCopyWindowInfo(")
+            .flatMap { call in
+                focusFollowsMouseServiceCode[call.upperBound...].range(of: ") as?")
+                    .map { String(focusFollowsMouseServiceCode[call.upperBound..<$0.lowerBound]) }
+            }
+        expect(focusWindowInfoArguments.map {
+            $0.components(separatedBy: ",").dropFirst().joined().contains("hitWindowNumber")
+        } ?? false,
+               "focus follows mouse describes the window the click target named")
         expect(focusFollowsMouseServiceSource.contains(".leftMouseDragged")
                 && focusFollowsMouseServiceSource.contains(".rightMouseDragged")
                 && focusFollowsMouseServiceSource.contains(".otherMouseDragged")
