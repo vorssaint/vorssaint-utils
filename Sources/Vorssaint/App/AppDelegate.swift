@@ -291,7 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // user's arranged spot, and that mismatch strands the panel against the
         // screen edge and survives relaunches.
         if !iconIsOnScreen() {
-            statusController?.recreateStatusItem(resetPlacement: true)
+            statusController?.recreateStatusItem()
         }
         // Decide on the next run-loop turn: a freshly rebuilt status item has no
         // laid-out on-screen frame yet this turn, so iconIsOnScreen() would read a
@@ -1457,7 +1457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // metrics option must not immediately re-hide what the user just
         // asked to see (and then trip the "still hidden" alert).
         UserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
-        statusController?.recreateStatusItem(resetPlacement: true)
+        statusController?.recreateStatusItem()
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
 
@@ -1469,7 +1469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private static let reshowVerifyAttempts = 4
     private static let reshowVerifyInterval: TimeInterval = 0.8
 
-    private func verifyIconReappeared(attemptsLeft: Int) {
+    private func verifyIconReappeared(attemptsLeft: Int, placementWasReset: Bool = false) {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.reshowVerifyInterval) { [weak self] in
             guard let self else { return }
             if self.iconIsOnScreen() {
@@ -1477,7 +1477,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 return
             }
             guard attemptsLeft <= 1 else {
-                self.verifyIconReappeared(attemptsLeft: attemptsLeft - 1)
+                self.verifyIconReappeared(attemptsLeft: attemptsLeft - 1,
+                                          placementWasReset: placementWasReset)
+                return
+            }
+            // Keeping the arranged spot did not bring the icon back, so the
+            // saved position is itself part of what macOS will not show. Start
+            // the item over completely and look again before telling anyone
+            // there is nothing left to try.
+            guard placementWasReset else {
+                self.logStatusItemPlacement("resetting placement")
+                self.statusController?.resetStatusItemPlacementIdentity()
+                self.verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts,
+                                          placementWasReset: true)
                 return
             }
             self.logStatusItemPlacement("still hidden")

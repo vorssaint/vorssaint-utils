@@ -680,16 +680,26 @@ enum OnboardingInfo {
 /// update. Each row deep links to the exact Settings page or opens the tool
 /// itself, so a new feature is one click from being tried instead of buried.
 enum UpdateHighlightsInfo {
-    /// The single release whose first launch shows the tour; any other
-    /// version never shows it. Bump deliberately for releases with headline
-    /// features worth a tour.
+    /// The release whose first launch shows the tour. A patch of that release
+    /// shows the same tour to whoever skipped it and to nobody who already saw
+    /// it; any other version never shows it. Bump deliberately for releases
+    /// with headline features worth a tour.
     static let releaseVersion = "3.3.3"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         let matches = appVersion == releaseVersion
             || appVersion.hasPrefix("\(releaseVersion)-")
             || (AppInfo.isDeveloperBuild && appVersion.hasPrefix(releaseVersion))
+            || isPatch(appVersion, of: releaseVersion)
         return matches && lastSeenVersion != releaseVersion
+    }
+
+    /// Same major and minor with a later patch: 3.3.4 patches 3.3.3, 3.4.0 does not.
+    private static func isPatch(_ version: String, of release: String) -> Bool {
+        guard let version = UpdateServiceSupport.SemanticVersion(raw: version),
+              let release = UpdateServiceSupport.SemanticVersion(raw: release) else { return false }
+        return (version.major, version.minor) == (release.major, release.minor)
+            && version.patch > release.patch
     }
 }
 
