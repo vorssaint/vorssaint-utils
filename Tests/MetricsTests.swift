@@ -12072,6 +12072,8 @@ struct MetricsTests {
         expect(afterSecondSwitch == [1, 2],
                "App Switcher use history toggles back after two consecutive switcher uses")
 
+        WindowFocusHistoryTests.run { condition, message in expect(condition, message) }
+
         // Issue #388: the switcher put the app the user had just used far down
         // the list. The order used to come from a history that only the
         // switcher's own commits ever wrote to, so windows picked with the

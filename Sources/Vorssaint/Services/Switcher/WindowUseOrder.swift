@@ -4,6 +4,95 @@
 import CoreGraphics
 import Foundation
 
+/// Activation is useful evidence even before Accessibility can name a window.
+/// Keep it in the same timeline as focus, rather than filing a missed window
+/// behind every window seen earlier. Access is serialized by the tracker lock.
+struct WindowFocusHistory {
+    struct Request: Equatable {
+        let pid: pid_t
+        let id = UUID()
+    }
+
+    private enum Use: Equatable {
+        case app(pid_t)
+        case window(CGWindowID)
+    }
+
+    private var recent: [Use] = []
+    private(set) var current: Request?
+    private(set) var revision = UUID()
+
+    mutating func activate(_ pid: pid_t, recording: Bool = true) -> Request? {
+        current = recording ? Request(pid: pid) : nil
+        if recording { promote(.app(pid)) }
+        return current
+    }
+
+    @discardableResult
+    mutating func focus(_ window: CGWindowID, for request: Request) -> Bool {
+        guard current == request else { return false }
+        recent.removeAll { $0 == .app(request.pid) }
+        promote(.window(window))
+        return true
+    }
+
+    mutating func switched(to window: CGWindowID?, pid: pid_t, previous: CGWindowID?) {
+        if let current, previous != nil {
+            recent.removeAll { $0 == .app(current.pid) }
+        }
+        // Invalidate an AX read already in flight before the explicit switch.
+        current = Request(pid: pid)
+        if let previous { promote(.window(previous)) }
+        recent.removeAll { $0 == .app(pid) }
+        if let window { promote(.window(window)) }
+        else { promote(.app(pid)) }
+    }
+
+    mutating func reconcile(windows: Set<CGWindowID>, revision capturedRevision: UUID) {
+        // A WindowServer query must not erase focus recorded while it ran.
+        guard revision == capturedRevision else { return }
+        recent.removeAll {
+            switch $0 {
+            case .window(let id): return !windows.contains(id)
+            // The running-app snapshot can predate a launch notification.
+            // Only an actual termination removes activation evidence.
+            case .app: return false
+            }
+        }
+    }
+
+    mutating func terminated(_ pid: pid_t) {
+        recent.removeAll { $0 == .app(pid) }
+        if current?.pid == pid { current = nil }
+        revision = UUID()
+    }
+
+    /// Resolve an unresolved activation to that app's best available entry.
+    /// This does not promote its other windows or replace confirmed focus.
+    func order(_ entries: [WindowUseOrder.Entry], baseline: [Int]) -> [Int] {
+        var result: [Int] = []
+        var seen = Set<Int>()
+        for use in recent {
+            let index = baseline.first { index in
+                switch use {
+                case .window(let id): return entries[index].windowID == id
+                case .app(let pid): return entries[index].pid == pid
+                }
+            }
+            if let index, seen.insert(index).inserted { result.append(index) }
+        }
+        result += baseline.filter { seen.insert($0).inserted }
+        return result
+    }
+
+    private mutating func promote(_ use: Use) {
+        revision = UUID()
+        recent.removeAll { $0 == use }
+        recent.insert(use, at: 0)
+        if recent.count > WindowUseOrder.limit { recent.removeLast() }
+    }
+}
+
 /// The rules that turn "what the user used, and when" into the order the
 /// switcher shows. Kept free of AppKit so the ordering can be tested on its
 /// own: getting this wrong is invisible in a build and obvious in daily use.
