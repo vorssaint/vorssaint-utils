@@ -92,13 +92,13 @@ enum TemperatureSensorSelector {
         if let value = core.map({ $0.value }).max() {
             return value
         }
-        switch platform {
-        case .generic:
-            return valid.map { $0.value }.max()
-        case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family,
-             .appleM5Family, .unmappedAppleSilicon:
-            return nil
-        }
+        // Not every Mac carries the sensors its chip generation is mapped to.
+        // One that does not showed the hottest reading of its CPU families
+        // instead, for as long as the app has had this panel, until 3.3.3
+        // restricted the answer to the mapped sensors and left those Macs with
+        // nothing. This is that reading, restored exactly. Fan control is a
+        // separate decision and keeps requiring its own mapped readings.
+        return valid.map { $0.value }.max()
     }
 
     static func hasCPUCoreSet(platform: CPUTemperaturePlatform) -> Bool {
@@ -128,7 +128,6 @@ enum TemperatureSensorSelector {
 
     static func isCPUTemperatureKey(_ key: String,
                                     platform: CPUTemperaturePlatform) -> Bool {
-        if platform == .unmappedAppleSilicon { return false }
         if key.hasPrefix("Tp") || key.hasPrefix("Te") { return true }
         return platform == .appleM3Family && key.hasPrefix("Tf")
     }
