@@ -18,6 +18,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarBatteryHideIcon) private var batteryHideIcon = false
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
@@ -97,6 +98,7 @@ struct MenuBarMetricsPreview: View {
         let _ = diskUsage
         let _ = diskActivity
         let _ = battery
+        let _ = batteryHideIcon
         let _ = batteryTime
         let _ = peripheralBattery
         let _ = power
@@ -164,11 +166,13 @@ struct MenuBarMetricsPreview: View {
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
                    alignment: .center)
-        case let .batteryBlock(percent, isCharging, style):
-            HStack(spacing: style == .readable ? 5 : 4) {
-                Image(systemName: MenuBarRenderer.batterySymbol(for: percent, isCharging: isCharging))
-                    .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
-                Text("\(max(0, min(100, percent)))%")
+        case let .batteryBlock(percent, isCharging, style, hideIcon):
+            HStack(spacing: hideIcon ? 0 : (style == .readable ? 5 : 4)) {
+                if !hideIcon {
+                    Image(systemName: MenuBarRenderer.batterySymbol(for: percent, isCharging: isCharging))
+                        .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
+                }
+                Text(MenuBarBatteryPresentation.percentText(percent: percent))
                     .font(.system(size: style == .readable ? 13 : 12,
                                   weight: .semibold,
                                   design: .monospaced))

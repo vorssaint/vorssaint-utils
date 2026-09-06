@@ -3744,6 +3744,26 @@ struct MetricsTests {
                "a screen too short for the panel still shows its top")
         expect(registeredDefaults[DefaultsKey.menuBarHideIconWithMetrics] as? Bool == false,
                "the menu bar icon stays visible by default")
+        expect(registeredDefaults[DefaultsKey.menuBarBatteryHideIcon] as? Bool == false,
+               "menu bar battery keeps its icon by default")
+        expect(MenuBarBatteryPresentation.resolve(hideIcon: false) == .iconAndPercent,
+               "battery presentation keeps the glyph when hide-icon is off")
+        expect(MenuBarBatteryPresentation.resolve(hideIcon: true) == .percentOnly,
+               "battery presentation drops the glyph when hide-icon is on")
+        expect(MenuBarBatteryPresentation.resolve(hideIcon: false).showsIcon
+                && !MenuBarBatteryPresentation.resolve(hideIcon: true).showsIcon,
+               "showsIcon mirrors the resolved presentation")
+        expect(MenuBarBatteryPresentation.percentText(percent: 7) == "7%"
+                && MenuBarBatteryPresentation.percentText(percent: 100) == "100%"
+                && MenuBarBatteryPresentation.percentText(percent: -3) == "0%"
+                && MenuBarBatteryPresentation.percentText(percent: 140) == "100%",
+               "battery percent text clamps to 0...100")
+        expect(MenuBarBatteryPresentation.resolve(hideIcon: false).denseBodyText(percent: 85) == "BAT 85%"
+                && MenuBarBatteryPresentation.resolve(hideIcon: true).denseBodyText(percent: 85) == "85%",
+               "dense body keeps the BAT label with the icon and drops it for percent-only")
+        expect(MenuBarBatteryPresentation.resolve(hideIcon: false).denseWidthUnits == 11
+                && MenuBarBatteryPresentation.resolve(hideIcon: true).denseWidthUnits < 11,
+               "percent-only battery reserves a narrower dense width")
         expect(MenuBarSpacingSupport.shouldHideStatusIcon(optionEnabled: true, separateMetrics: false,
                                                           metricsEnabled: true, renderedTitleLength: 12,
                                                           mustShowForSignal: false),

@@ -900,6 +900,7 @@ struct Strings {
     let menuBarSpacingCompact: String
     let menuBarHideIconToggle: String
     let menuBarHideIconCaption: String
+    let menuBarBatteryHideIconToggle: String
     let monitorLabelStyleLabel: String
     let menuBarLabelStyleCompact: String
     let menuBarLabelStyleClassic: String
@@ -1919,6 +1920,7 @@ extension Strings {
         menuBarSpacingCompact: "Compacto",
         menuBarHideIconToggle: "Ocultar o ícone do app enquanto houver métricas",
         menuBarHideIconCaption: "O ícone volta sozinho quando as métricas saem da barra e quando há algo a avisar (atualização pronta ou microfone silenciado).",
+        menuBarBatteryHideIconToggle: "Só a porcentagem",
         monitorLabelStyleLabel: "Rótulos",
         menuBarLabelStyleCompact: "Compactos",
         menuBarLabelStyleClassic: "Clássicos",
@@ -2929,6 +2931,7 @@ extension Strings {
         menuBarSpacingCompact: "Compact",
         menuBarHideIconToggle: "Hide the app icon while metrics are shown",
         menuBarHideIconCaption: "The icon returns by itself when metrics leave the bar and when there is something to signal (an update ready or the microphone muted).",
+        menuBarBatteryHideIconToggle: "Percent only",
         monitorLabelStyleLabel: "Labels",
         menuBarLabelStyleCompact: "Compact",
         menuBarLabelStyleClassic: "Classic",

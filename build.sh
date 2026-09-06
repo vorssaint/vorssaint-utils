@@ -333,6 +333,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift \
         Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift \
         Sources/Vorssaint/App/MenuBarSpacingSupport.swift \
+        Sources/Vorssaint/App/MenuBarBatteryPresentation.swift \
         Sources/Vorssaint/App/StatusItemAnchorSupport.swift \
         Sources/Vorssaint/Services/DockClick/DockClickSupport.swift \
         Sources/Vorssaint/Services/Finder/CutPasteProgressSupport.swift \

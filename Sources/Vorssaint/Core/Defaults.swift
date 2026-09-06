@@ -308,6 +308,7 @@ enum DefaultsKey {
     static let menuBarDiskUsage = "menuBarDiskUsage"
     static let menuBarDiskActivity = "menuBarDiskActivity"
     static let menuBarBattery = "menuBarBattery"
+    static let menuBarBatteryHideIcon = "menuBarBatteryHideIcon" // charge percent without the battery glyph
     static let menuBarBatteryTime = "menuBarBatteryTime"
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
     static let menuBarPower = "menuBarPower"
@@ -1095,6 +1096,7 @@ enum Defaults {
         DefaultsKey.menuBarCPUTemperature: false,
         DefaultsKey.menuBarGPUTemperature: false,
         DefaultsKey.menuBarBatteryTemperature: false,
+        DefaultsKey.menuBarBatteryHideIcon: false,
         DefaultsKey.menuBarBatteryTime: false,
         DefaultsKey.menuBarDiskUsage: false,
         DefaultsKey.menuBarDiskActivity: false,

@@ -754,6 +754,7 @@ extension Strings {
         menuBarSpacingCompact: "Sıkışık",
         menuBarHideIconToggle: "Metrikler gösterilirken uygulama simgesini gizle",
         menuBarHideIconCaption: "Metrikler çubuktan kalktığında ve bildirilecek bir şey olduğunda (güncelleme hazır veya mikrofon sessizde) simge kendiliğinden geri döner.",
+        menuBarBatteryHideIconToggle: "Yalnızca yüzde",
         monitorLabelStyleLabel: "Etiketler",
         menuBarLabelStyleCompact: "Kompakt",
         menuBarLabelStyleClassic: "Klasik",

@@ -755,6 +755,7 @@ extension Strings {
         menuBarSpacingCompact: "Компактный",
         menuBarHideIconToggle: "Скрывать значок приложения, пока показаны метрики",
         menuBarHideIconCaption: "Значок возвращается сам, когда метрики исчезают из строки меню, а также когда есть что сообщить (готово обновление или выключен микрофон).",
+        menuBarBatteryHideIconToggle: "Только проценты",
         monitorLabelStyleLabel: "Подписи",
         menuBarLabelStyleCompact: "Компактные",
         menuBarLabelStyleClassic: "Классические",
