@@ -15101,7 +15101,7 @@ struct MetricsTests {
                    "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
             let recorderValues = Mirror(reflecting: FeatureStrings.recorder(language)).children
                 .compactMap { $0.value as? String }
-            expect(recorderValues.count == 134 && recorderValues.allSatisfy { !$0.isEmpty },
+            expect(recorderValues.count == 135 && recorderValues.allSatisfy { !$0.isEmpty },
                    "every screen recorder string is set for \(language.rawValue)")
             expect(recorderValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible screen recorder strings (\(language.rawValue))")
@@ -22707,8 +22707,32 @@ struct MetricsTests {
         expect(RecorderImageOverlay.drawnSize(source: CGSize(width: 100, height: 1000),
                                               size: 0.6,
                                               canvas: CGSize(width: 1000, height: 500))
-                == CGSize(width: 50, height: 500),
+                == CGSize(width: 45, height: 450),
                "a picture taller than the frame is brought down instead of hanging off it")
+        for canvas in [CGSize(width: 1000, height: 500), CGSize(width: 500, height: 1000)] {
+            for source in [CGSize(width: 100, height: 1000), CGSize(width: 1000, height: 100)] {
+                for anchor in RecorderImageOverlay.Anchor.allCases {
+                    let drawn = RecorderImageOverlay.drawnSize(source: source, size: 0.6,
+                                                                canvas: canvas) ?? .zero
+                    let origin = anchor.origin(of: drawn, in: canvas)
+                    let margin = min(canvas.width, canvas.height) * 0.05
+                    expect(drawn.width > 0 && drawn.height > 0
+                            && origin.x >= margin && origin.y >= margin
+                            && origin.x + drawn.width <= canvas.width - margin
+                            && origin.y + drawn.height <= canvas.height - margin,
+                           "the entire picture fits inside its margins at every anchor and aspect")
+                }
+            }
+        }
+        expect(RecorderImageOverlay.drawnSize(source: CGSize(width: 10, height: 10),
+                                              size: .nan, canvas: CGSize(width: 500, height: 500)) == nil,
+               "nonfinite picture geometry cannot reach the renderer")
+        expect(RecorderImageOverlay(path: "relative.png", start: 0, end: 2)
+                .sanitized(duration: 3) == nil,
+               "a damaged picture path never resolves against the app's working directory")
+        expect(RecorderImageOverlay(path: "/tmp/picture.png ", start: 0, end: 2)
+                .sanitized(duration: 3)?.path == "/tmp/picture.png ",
+               "a picked filename keeps its actual whitespace")
         expect(RecorderImageOverlay.drawnSize(source: .zero,
                                               size: 0.2,
                                               canvas: CGSize(width: 1000, height: 500)) == nil,
@@ -22732,6 +22756,59 @@ struct MetricsTests {
         expect(RecorderEditDocument(images: [RecorderImageOverlay(path: "", start: 1, end: 5)])
                 .sanitized(duration: 10).images.isEmpty,
                "a damaged picture is dropped by the same repair that fixes every other field")
+
+        let pictureRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("recorder-image-test-" + UUID().uuidString, isDirectory: true)
+        let pictureTake = RecorderTakeStore.Take(id: UUID(),
+                                                  folder: pictureRoot.appendingPathComponent("take"))
+        try? FileManager.default.createDirectory(at: pictureTake.folder,
+                                                 withIntermediateDirectories: true)
+        let pictureSource = pictureRoot.appendingPathComponent("picture.png ")
+        let pictureContext = CGContext(data: nil, width: 2, height: 2, bitsPerComponent: 8,
+                                       bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        if let picture = pictureContext?.makeImage(),
+           let destination = CGImageDestinationCreateWithURL(pictureSource as CFURL,
+                                                              "public.png" as CFString, 1, nil) {
+            CGImageDestinationAddImage(destination, picture, nil)
+            expect(CGImageDestinationFinalize(destination), "the image import fixture is written")
+        } else {
+            expect(false, "the image import fixture can be created")
+        }
+        let originalPictureBytes = try? Data(contentsOf: pictureSource)
+        let storedPicture = RecorderTakeStore.shared.importImage(at: pictureSource, into: pictureTake)
+        let secondPicture = RecorderTakeStore.shared.importImage(at: pictureSource, into: pictureTake)
+        expect(storedPicture != nil && secondPicture != nil && storedPicture != secondPicture,
+               "images with the same filename get independent copies inside the recording")
+        if let storedPicture {
+            expect(MediaSupport.imageThumbnail(at: storedPicture, maxPixel: 2) != nil,
+                   "the picked filename is decoded without trimming away meaningful whitespace")
+            let attributes = try? FileManager.default.attributesOfItem(atPath: storedPicture.path)
+            let permissions = attributes?[.posixPermissions] as? NSNumber
+            expect(permissions?.intValue == 0o600,
+                   "the private picture copy is readable only by its owner")
+            try? Data("replacement".utf8).write(to: pictureSource)
+            expect((try? Data(contentsOf: storedPicture)) == originalPictureBytes,
+                   "replacing the original leaves the edit's picture unchanged")
+            try? FileManager.default.removeItem(at: pictureSource)
+            expect((try? Data(contentsOf: storedPicture)) == originalPictureBytes,
+                   "removing the original leaves the edit's picture available for export and undo")
+        }
+        let badPicture = pictureRoot.appendingPathComponent("broken.png")
+        try? Data("not an image".utf8).write(to: badPicture)
+        let beforeBadImport = try? FileManager.default.contentsOfDirectory(atPath: pictureTake.folder.path)
+        expect(RecorderTakeStore.shared.importImage(at: badPicture, into: pictureTake) == nil,
+               "an unreadable picture never becomes an invisible timeline block")
+        expect((try? FileManager.default.contentsOfDirectory(atPath: pictureTake.folder.path))?
+                .sorted() == beforeBadImport?.sorted(),
+               "a failed image import leaves no partial file or folder")
+        RecorderTakeStore.shared.delete(pictureTake)
+        expect(RecorderTakeStore.shared.importImage(at: badPicture, into: pictureTake) == nil
+                && !FileManager.default.fileExists(atPath: pictureTake.folder.path),
+               "a queued image import cannot recreate a recording after its editor closes")
+        expect(FileManager.default.fileExists(atPath: badPicture.path),
+               "closing the recording never removes the original picture")
+        try? FileManager.default.removeItem(at: pictureRoot)
 
         // MARK: Screen recorder blur
 

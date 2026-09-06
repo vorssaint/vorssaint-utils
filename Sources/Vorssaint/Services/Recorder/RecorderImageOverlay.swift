@@ -7,11 +7,8 @@ import Foundation
 /// A picture laid over the recording for a while: a logo, a badge, a mark of
 /// your own.
 ///
-/// It names the file instead of carrying it. Undo keeps a copy of the whole
-/// document for every step, and a logo copied into each of those would cost
-/// megabytes for every drag of a slider. The file is read again whenever the
-/// picture has to be drawn at a new size, and an overlay whose file went away
-/// simply draws nothing rather than wedging the export.
+/// It names a private copy beside the recording instead of carrying pixels
+/// through undo. Moving or replacing the original cannot change the edit.
 struct RecorderImageOverlay: Codable, Equatable, Identifiable, RecorderTimelineBlock {
     /// The same nine places a caption can take: one grid to learn, and a
     /// corner mark stays in its corner whatever shape the video ends up.
@@ -65,8 +62,7 @@ struct RecorderImageOverlay: Codable, Equatable, Identifiable, RecorderTimelineB
     func sanitized(duration recordingDuration: Double) -> RecorderImageOverlay? {
         guard recordingDuration > 0, start.isFinite, end.isFinite else { return nil }
         var copy = self
-        copy.path = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !copy.path.isEmpty else { return nil }
+        guard path.hasPrefix("/"), !path.contains("\0") else { return nil }
         copy.start = max(0, min(start, recordingDuration))
         copy.end = max(0, min(end, recordingDuration))
         copy.size = size.isFinite
@@ -88,14 +84,18 @@ struct RecorderImageOverlay: Codable, Equatable, Identifiable, RecorderTimelineB
     /// The size the picture is drawn at, from its own proportions, never
     /// larger than the frame it sits on.
     static func drawnSize(source: CGSize, size: Double, canvas: CGSize) -> CGSize? {
-        guard source.width > 0, source.height > 0,
-              canvas.width > 0, canvas.height > 0 else { return nil }
+        guard source.width.isFinite, source.height.isFinite,
+              canvas.width.isFinite, canvas.height.isFinite, size.isFinite,
+              source.width > 0, source.height > 0,
+              canvas.width > 0, canvas.height > 0, size > 0 else { return nil }
+        let margin = min(canvas.width, canvas.height) * 0.05
+        let available = CGSize(width: canvas.width - 2 * margin,
+                               height: canvas.height - 2 * margin)
         var width = canvas.width * CGFloat(size)
         var height = width * source.height / source.width
-        if height > canvas.height {
-            width *= canvas.height / height
-            height = canvas.height
-        }
+        let scale = min(1, min(available.width / width, available.height / height))
+        width *= scale
+        height *= scale
         let drawn = CGSize(width: width.rounded(), height: height.rounded())
         guard drawn.width >= 1, drawn.height >= 1 else { return nil }
         return drawn

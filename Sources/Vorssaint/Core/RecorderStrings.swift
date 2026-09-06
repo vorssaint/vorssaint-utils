@@ -139,6 +139,7 @@ struct RecorderFeatureStrings {
     let imageSizeLabel: String
     let imageOpacityLabel: String
     let imagePositionLabel: String
+    let imageImportFailed: String
 }
 
 extension FeatureStrings {
@@ -296,7 +297,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "This image",
         imageSizeLabel: "Size",
         imageOpacityLabel: "Opacity",
-        imagePositionLabel: "Position"
+        imagePositionLabel: "Position",
+        imageImportFailed: "Couldn’t add this image."
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -433,7 +435,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Esta imagem",
         imageSizeLabel: "Tamanho",
         imageOpacityLabel: "Opacidade",
-        imagePositionLabel: "Posição"
+        imagePositionLabel: "Posição",
+        imageImportFailed: "Não foi possível adicionar esta imagem."
     )
 
     static let tr = RecorderFeatureStrings(
@@ -570,7 +573,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Bu görsel",
         imageSizeLabel: "Boyut",
         imageOpacityLabel: "Matlık",
-        imagePositionLabel: "Konum"
+        imagePositionLabel: "Konum",
+        imageImportFailed: "Bu görsel eklenemedi."
     )
 
     static let ru = RecorderFeatureStrings(
@@ -707,7 +711,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Это изображение",
         imageSizeLabel: "Размер",
         imageOpacityLabel: "Непрозрачность",
-        imagePositionLabel: "Положение"
+        imagePositionLabel: "Положение",
+        imageImportFailed: "Не удалось добавить это изображение."
     )
 
     static let es = RecorderFeatureStrings(
@@ -844,7 +849,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Esta imagen",
         imageSizeLabel: "Tamaño",
         imageOpacityLabel: "Opacidad",
-        imagePositionLabel: "Posición"
+        imagePositionLabel: "Posición",
+        imageImportFailed: "No se pudo añadir esta imagen."
     )
 
     static let de = RecorderFeatureStrings(
@@ -981,7 +987,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Dieses Bild",
         imageSizeLabel: "Größe",
         imageOpacityLabel: "Deckkraft",
-        imagePositionLabel: "Position"
+        imagePositionLabel: "Position",
+        imageImportFailed: "Dieses Bild konnte nicht hinzugefügt werden."
     )
 
     static let fr = RecorderFeatureStrings(
@@ -1118,7 +1125,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Cette image",
         imageSizeLabel: "Taille",
         imageOpacityLabel: "Opacité",
-        imagePositionLabel: "Position"
+        imagePositionLabel: "Position",
+        imageImportFailed: "Impossible d’ajouter cette image."
     )
 
     static let it = RecorderFeatureStrings(
@@ -1255,7 +1263,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "Questa immagine",
         imageSizeLabel: "Dimensione",
         imageOpacityLabel: "Opacità",
-        imagePositionLabel: "Posizione"
+        imagePositionLabel: "Posizione",
+        imageImportFailed: "Impossibile aggiungere questa immagine."
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1392,7 +1401,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "この画像",
         imageSizeLabel: "サイズ",
         imageOpacityLabel: "不透明度",
-        imagePositionLabel: "位置"
+        imagePositionLabel: "位置",
+        imageImportFailed: "この画像を追加できませんでした。"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1529,7 +1539,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "선택한 이미지",
         imageSizeLabel: "크기",
         imageOpacityLabel: "불투명도",
-        imagePositionLabel: "위치"
+        imagePositionLabel: "위치",
+        imageImportFailed: "이 이미지를 추가할 수 없습니다."
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1666,7 +1677,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "当前图片",
         imageSizeLabel: "大小",
         imageOpacityLabel: "不透明度",
-        imagePositionLabel: "位置"
+        imagePositionLabel: "位置",
+        imageImportFailed: "无法添加此图片。"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1803,7 +1815,8 @@ extension RecorderFeatureStrings {
         thisImageLabel: "這張圖片",
         imageSizeLabel: "大小",
         imageOpacityLabel: "不透明度",
-        imagePositionLabel: "位置"
+        imagePositionLabel: "位置",
+        imageImportFailed: "無法加入這張圖片。"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1940,6 +1953,7 @@ extension RecorderFeatureStrings {
         thisImageLabel: "這張圖片",
         imageSizeLabel: "大小",
         imageOpacityLabel: "不透明度",
-        imagePositionLabel: "位置"
+        imagePositionLabel: "位置",
+        imageImportFailed: "無法加入這張圖片。"
     )
 }

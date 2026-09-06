@@ -865,6 +865,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             selectedBlurID = id
         }
         if id != nil {
+            cutSelection = nil
             if kind != .zoom { selectedZoomID = nil }
             if kind != .text { selectedTextID = nil }
             if kind != .image { selectedImageID = nil }
@@ -1006,26 +1007,41 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// of your own is normally meant to stay on the whole video.
     func addImage(at time: Double) {
         guard duration > 0, let url = Self.chooseImage() else { return }
-        beginInteraction()
-        let start = max(0, min(time, max(0, duration - 0.4)))
-        let overlay = RecorderImageOverlay(path: url.path, start: start, end: duration)
-        var next = document
-        next.images.append(overlay)
-        applyDuringInteraction(next)
-        selectLaneItem(.image, id: overlay.id)
-        commitZoomEdit()
+        let take = take
+        Task { @MainActor [weak self] in
+            let imported = await Task.detached(priority: .userInitiated) {
+                RecorderTakeStore.shared.importImage(at: url, into: take)
+            }.value
+            guard let self else {
+                if let imported {
+                    try? FileManager.default.removeItem(at: imported.deletingLastPathComponent())
+                }
+                return
+            }
+            guard let imported else {
+                QuickToolHUD.show(icon: "photo",
+                                 message: FeatureStrings.recorder(L10n.shared.language).imageImportFailed)
+                return
+            }
+            self.beginInteraction()
+            let start = max(0, min(time, max(0, self.duration - 0.4)))
+            let overlay = RecorderImageOverlay(path: imported.path, start: start, end: self.duration)
+            var next = self.document
+            next.images.append(overlay)
+            self.applyDuringInteraction(next)
+            self.selectLaneItem(.image, id: overlay.id)
+            self.commitZoomEdit()
+        }
     }
 
     /// Only a file the person picked themselves, and only one the system can
-    /// really read as a picture: the document keeps the path and reads it
-    /// again whenever the picture has to be drawn at a new size.
+    /// copy into the recording. Decoding happens with the import off the UI thread.
     private static func chooseImage() -> URL? {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
-        guard panel.runModal() == .OK, let url = panel.url,
-              MediaSupport.imageDisplaySize(at: url) != nil
+        guard panel.runModal() == .OK, let url = panel.url
         else { return nil }
         return url
     }
@@ -1630,6 +1646,14 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     self.model.removeSelectedZoom()
                     return nil
                 }
+                if self.model.selectedTextID != nil {
+                    self.model.removeSelectedText()
+                    return nil
+                }
+                if self.model.selectedImageID != nil {
+                    self.model.removeSelectedImage()
+                    return nil
+                }
                 if self.model.selectedBlurID != nil {
                     self.model.removeSelectedBlur()
                     return nil
@@ -1651,6 +1675,14 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 }
                 if self.model.selectedZoomID != nil {
                     self.model.selectZoom(nil)
+                    return nil
+                }
+                if self.model.selectedTextID != nil {
+                    self.model.selectLaneItem(.text, id: nil)
+                    return nil
+                }
+                if self.model.selectedImageID != nil {
+                    self.model.selectLaneItem(.image, id: nil)
                     return nil
                 }
                 if self.model.selectedBlurID != nil {

@@ -64,8 +64,8 @@ enum RecorderImageRenderer {
     private static func render(_ path: String, drawn: CGSize) -> CGImage? {
         let width = Int(drawn.width)
         let height = Int(drawn.height)
-        guard let picture = MediaSupport.watermarkLogo(atPath: path,
-                                                       maxPixel: max(width, height)),
+        guard let picture = MediaSupport.imageThumbnail(at: URL(fileURLWithPath: path),
+                                                        maxPixel: max(width, height)),
               let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil,
                                       width: width,
