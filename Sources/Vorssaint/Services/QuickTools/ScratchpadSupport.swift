@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import Foundation
 
 /// How long each scratchpad keeps text that nobody edits. The check runs only
@@ -155,6 +156,31 @@ struct ScratchpadDocument: Codable, Equatable {
         ) {
             pads[index].text = ""
             pads[index].modifiedAt = nil
+        }
+    }
+}
+
+/// Focused-pad tab shortcuts mirror the browser: Command-T opens a tab and
+/// Command-W closes one, or hides the pad when only the last tab remains.
+enum ScratchpadFocusedTabShortcut {
+    enum Action: Equatable {
+        case createPad
+        case closeSelectedPad
+        case hidePad
+    }
+
+    static func action(keyCode: UInt16,
+                       commandOnly: Bool,
+                       canCreatePad: Bool,
+                       canClosePad: Bool) -> Action? {
+        guard commandOnly else { return nil }
+        switch Int(keyCode) {
+        case kVK_ANSI_T:
+            return canCreatePad ? .createPad : nil
+        case kVK_ANSI_W:
+            return canClosePad ? .closeSelectedPad : .hidePad
+        default:
+            return nil
         }
     }
 }
