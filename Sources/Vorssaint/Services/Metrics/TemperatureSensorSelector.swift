@@ -92,13 +92,12 @@ enum TemperatureSensorSelector {
         if let value = core.map({ $0.value }).max() {
             return value
         }
-        // Not every Mac carries the sensors its chip generation is mapped to,
-        // and one that does not showed a reading anyway until 3.3.3. It gets
-        // that reading back. A mapped sensor that is present but unreadable
-        // this sample is a different matter and is never replaced by another
-        // one; fan control keeps requiring its own mapped readings either way.
-        guard !readings.contains(where: { isCPUCoreKey($0.key, platform: platform) })
-        else { return nil }
+        // Not every Mac carries the sensors its chip generation is mapped to.
+        // One that does not showed the hottest reading of its CPU families
+        // instead, for as long as the app has had this panel, until 3.3.3
+        // restricted the answer to the mapped sensors and left those Macs with
+        // nothing. This is that reading, restored exactly. Fan control is a
+        // separate decision and keeps requiring its own mapped readings.
         return valid.map { $0.value }.max()
     }
 
