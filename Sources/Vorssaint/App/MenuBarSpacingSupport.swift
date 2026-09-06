@@ -312,25 +312,4 @@ enum StatusItemPlacementSupport {
         defaults.removeObject(forKey: "NSStatusItem Preferred Position \(nextName)")
         clearRememberedVisibility(of: nextName, in: defaults)
     }
-
-    /// Cleans up any legacy hardcoded placement offset (e.g. 64pt from screen's right edge)
-    /// which placed the item directly under macOS system items like the battery icon.
-    static func sanitizeStalePlacement(in defaults: UserDefaults) {
-        let currentName = mainAutosaveName(in: defaults)
-        let key = "NSStatusItem Preferred Position \(currentName)"
-        if let value = defaults.object(forKey: key) as? NSNumber,
-           abs(value.doubleValue - 64.0) < 0.1 {
-            defaults.removeObject(forKey: key)
-        }
-    }
-
-    /// Retiring that legacy offset is a migration, so it happens once. Run on
-    /// every launch it also deleted the coordinate macOS had just saved for an
-    /// icon sitting there quite happily, and the item came back at the default
-    /// spot against the notch with the bar's first hidden zone waiting for it.
-    static func retireLegacyPlacementSeedIfNeeded(in defaults: UserDefaults) {
-        guard !defaults.bool(forKey: DefaultsKey.statusItemLegacySeedRetired) else { return }
-        defaults.set(true, forKey: DefaultsKey.statusItemLegacySeedRetired)
-        sanitizeStalePlacement(in: defaults)
-    }
 }

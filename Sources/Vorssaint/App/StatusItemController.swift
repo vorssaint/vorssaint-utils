@@ -82,7 +82,10 @@ final class StatusItemController {
     /// recovers access (see applicationShouldHandleReopen) and the "Show menu bar
     /// icon" button in Settings rebuilds it.
     private func installStatusItem() {
-        StatusItemPlacementSupport.retireLegacyPlacementSeedIfNeeded(in: .standard)
+        // Nothing here may touch the saved placement. 3.3.3 retired a legacy
+        // 64pt offset on every launch and took working coordinates with it;
+        // giving up a spot is now something only an explicit recovery does.
+        //
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
