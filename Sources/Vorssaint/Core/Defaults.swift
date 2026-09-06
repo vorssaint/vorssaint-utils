@@ -318,6 +318,7 @@ enum DefaultsKey {
     static let menuBarUsageBarNormalColor = "menuBarUsageBarNormalColor" // #RRGGBB
     static let menuBarUsageBarElevatedColor = "menuBarUsageBarElevatedColor" // #RRGGBB
     static let menuBarUsageBarCriticalColor = "menuBarUsageBarCriticalColor" // #RRGGBB
+    static let menuBarUsageBarUseSystemColor = "menuBarUsageBarUseSystemColor" // ignore threshold hex; use label color
     static let menuBarUsageBarMediumThreshold = "menuBarUsageBarMediumThreshold" // percent
     static let menuBarUsageBarHighThreshold = "menuBarUsageBarHighThreshold" // percent
     static let menuBarHideIconWithMetrics = "menuBarHideIconWithMetrics" // glyph hides while metrics render in the main item
@@ -1106,6 +1107,7 @@ enum Defaults {
         DefaultsKey.menuBarUsageBarNormalColor: "#64D2FF",
         DefaultsKey.menuBarUsageBarElevatedColor: "#FFD60A",
         DefaultsKey.menuBarUsageBarCriticalColor: "#FF453A",
+        DefaultsKey.menuBarUsageBarUseSystemColor: false,
         DefaultsKey.menuBarUsageBarMediumThreshold: 70,
         DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,

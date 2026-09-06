@@ -1034,12 +1034,20 @@ enum MenuBarRenderer {
                                            pressure: MemoryPressure?) -> NSImage {
         let innerSteps = style == .readable ? 17 : 15
         let fillLevel = fraction.map { MenuBarUsageBarSupport.fillLevel(for: $0, steps: innerSteps) }
-        let fillColorHex = fraction.map {
-            MenuBarUsageBarSupport.currentColorHex(for: MenuBarUsageBarSupport.currentLevel(for: $0))
-        } ?? "missing"
+        let fillColorKey: String = {
+            guard let fraction else { return "missing" }
+            switch MenuBarUsageBarSupport.resolvedFillColorMode(
+                for: MenuBarUsageBarSupport.currentLevel(for: fraction)
+            ) {
+            case .system:
+                return "system"
+            case .custom(let hex):
+                return hex
+            }
+        }()
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
         let levelKey = fillLevel.map(String.init) ?? "missing"
-        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorHex)|\(style)|\(pressureKey)" as NSString
+        let cacheKey = "usageBar|\(label)|\(levelKey)|\(fillColorKey)|\(style)|\(pressureKey)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let size = usageBarSize(style: style, showsPressure: pressure != nil)
@@ -1094,7 +1102,7 @@ enum MenuBarRenderer {
                                       y: innerRect.minY,
                                       width: innerRect.width,
                                       height: fillHeight)
-                usageBarColor(hex: fillColorHex).setFill()
+                usageBarFillColor(for: fillColorKey).setFill()
                 NSBezierPath(roundedRect: fillRect, xRadius: 1.2, yRadius: 1.2).fill()
             } else if fillLevel == nil {
                 NSColor.secondaryLabelColor.setStroke()
@@ -1109,6 +1117,13 @@ enum MenuBarRenderer {
         image.isTemplate = false
         blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
         return image
+    }
+
+    private static func usageBarFillColor(for fillColorKey: String) -> NSColor {
+        if fillColorKey == "system" {
+            return .labelColor
+        }
+        return usageBarColor(hex: fillColorKey)
     }
 
     private static func usageBarColor(hex: String) -> NSColor {
