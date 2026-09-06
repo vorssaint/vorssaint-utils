@@ -7,10 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Restores CPU temperature readings on A18 Pro.
+Restores CPU temperature readings on A18 Pro and brings back menu bar icons that vanished on 3.3.3.
 
 ### Fixed
 - CPU temperature: restored readings on A18 Pro that disappeared after updating to 3.3.3.
+- Menu bar: the icon no longer disappears after updating to 3.3.3, and Show menu bar icon keeps the spot you arranged before starting the item over.
 
 ## [3.3.3] - 2026-09-06
 

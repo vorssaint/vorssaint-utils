@@ -3890,6 +3890,35 @@ struct MetricsTests {
                    "bumped generation produces numbered autosave name")
             expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.1") == nil,
                    "bumpPlacementGeneration does not seed any hardcoded preferred position")
+
+            // Recovery keeps the spot the person arranged and only drops the
+            // hidden state macOS remembered: an item that starts over with no
+            // saved position is born against the notch, the first place a
+            // crowded bar hides.
+            let gen1Position = "NSStatusItem Preferred Position VorssaintMenuBarItem.1"
+            statusDefaults.set(280.0, forKey: gen1Position)
+            statusDefaults.set(false, forKey: "NSStatusItem Visible VorssaintMenuBarItem.1")
+            statusDefaults.set(false, forKey: "NSStatusItem VisibleCC VorssaintMenuBarItem.1")
+            StatusItemPlacementSupport.clearRememberedVisibility(in: statusDefaults)
+            expect(statusDefaults.double(forKey: gen1Position) == 280.0,
+                   "clearing the remembered visibility keeps the arranged position")
+            expect(statusDefaults.object(forKey: "NSStatusItem Visible VorssaintMenuBarItem.1") == nil
+                    && statusDefaults.object(forKey: "NSStatusItem VisibleCC VorssaintMenuBarItem.1") == nil,
+                   "clearing the remembered visibility drops both spellings macOS has used")
+
+            statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
+
+            // Retiring the legacy 64pt offset is a migration. Repeated on every
+            // launch it also deleted the coordinate macOS saves for an icon the
+            // person is looking at, which sent the item back to the default spot.
+            statusDefaults.set(64.0, forKey: legacyKey)
+            StatusItemPlacementSupport.retireLegacyPlacementSeedIfNeeded(in: statusDefaults)
+            expect(statusDefaults.object(forKey: legacyKey) == nil,
+                   "the legacy 64.0 offset is retired the first time it is looked for")
+            statusDefaults.set(64.0, forKey: legacyKey)
+            StatusItemPlacementSupport.retireLegacyPlacementSeedIfNeeded(in: statusDefaults)
+            expect(statusDefaults.double(forKey: legacyKey) == 64.0,
+                   "a position saved after the migration is never deleted again")
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
         }
         expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,
@@ -20943,6 +20972,7 @@ struct MetricsTests {
                 && !backupKeys.contains(DefaultsKey.micMuteMutedDevices)
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
+                && !backupKeys.contains(DefaultsKey.statusItemLegacySeedRetired)
                 && !backupKeys.contains(DefaultsKey.displaysSwitchedOff)
                 && !backupKeys.contains(DefaultsKey.screenshotSharingDeveloperEndpoint),
                "backup never carries private content, live state or machine markers")
