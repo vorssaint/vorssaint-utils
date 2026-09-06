@@ -122,6 +122,7 @@ enum DefaultsKey {
     static let preferredInputDevice = "preferredInputDevice" // audio input device UID
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
     static let finderCutPasteShowHUD = "finderCutPasteShowHUD"
+    static let finderCutPastePlaySound = "finderCutPastePlaySound"
     static let finderRenameEnabled = "finderRenameEnabled"
     static let finderRenameShortcut = "finderRenameShortcut"
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
@@ -1225,6 +1226,8 @@ enum Defaults {
         DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
         DefaultsKey.clipboardAutoClearOnScreenLock: false,
         DefaultsKey.finderCutPasteShowHUD: true,
+        // Opt-in: quieter for existing installs (issue #962).
+        DefaultsKey.finderCutPastePlaySound: false,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.diskEjectExcludedVolumes: [String](),

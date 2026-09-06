@@ -74,6 +74,7 @@ final class FinderCutPaste: ObservableObject {
     private var moveInProgress = false
     private var cutPasteEnabled = false
     private var showHUD = true
+    private var playSound = false
     private var pasteImageAsFileEnabled = false
     private var imagePasteInProgress = false
     private var appObserver: NSObjectProtocol?
@@ -105,6 +106,8 @@ final class FinderCutPaste: ObservableObject {
         cutPasteEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
         showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
+        playSound = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPastePlaySound) as? Bool
+            ?? FinderCutPasteSoundSupport.defaultEnabled
         pasteImageAsFileEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
         if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
@@ -478,6 +481,9 @@ final class FinderCutPaste: ObservableObject {
         markedChangeCount = pb.changeCount
         lastResult = nil
         refreshPanel()
+        FinderCutPasteSoundSupport.playIfNeeded(
+            FinderCutPasteSoundSupport.shouldPlayOnCut(preferenceEnabled: playSound,
+                                                       markedCount: marked.count))
     }
 
     // MARK: - Paste (move)
@@ -637,6 +643,9 @@ final class FinderCutPaste: ObservableObject {
         lastResult = MoveResult(moved: moved, failed: failed)
         refreshPanel()
         scheduleResultDismiss()
+        FinderCutPasteSoundSupport.playIfNeeded(
+            FinderCutPasteSoundSupport.shouldPlayOnPaste(preferenceEnabled: playSound,
+                                                         movedCount: moved))
     }
 
     private enum MoveOutcome {

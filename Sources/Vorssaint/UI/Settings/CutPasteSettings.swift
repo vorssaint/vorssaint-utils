@@ -9,6 +9,7 @@ struct CutPasteSettings: View {
     @ObservedObject private var service = FinderCutPaste.shared
     @AppStorage(DefaultsKey.finderCutPasteEnabled) private var enabled = false
     @AppStorage(DefaultsKey.finderCutPasteShowHUD) private var showHUD = true
+    @AppStorage(DefaultsKey.finderCutPastePlaySound) private var playSound = false
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
     @AppStorage(DefaultsKey.finderRenameShortcut) private var renameShortcutRaw =
         GlobalShortcut.finderRenameDefault.storageValue
@@ -45,6 +46,13 @@ struct CutPasteSettings: View {
                                 FinderCutPaste.shared.syncWithPreferences()
                             }
                         Text(l10n.s.cutPasteShowHUDCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(l10n.s.cutPastePlaySound, isOn: $playSound)
+                            .onChange(of: playSound) { _, _ in
+                                FinderCutPaste.shared.syncWithPreferences()
+                            }
+                        Text(l10n.s.cutPastePlaySoundCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

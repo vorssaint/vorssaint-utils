@@ -265,6 +265,8 @@ extension Strings {
         cutPasteEnableCaption: "Используйте ⌘X для вырезания и ⌘V для перемещения файлов и папок в Finder.",
         cutPasteShowHUD: "Показывать плавающую панель",
         cutPasteShowHUDCaption: "Отображать плавающий индикатор с вырезанными файлами, пока активен Finder.",
+        cutPastePlaySound: "Звуковая обратная связь",
+        cutPastePlaySoundCaption: "Проигрывать системный звук Pop macOS при вырезании и успешном перемещении файлов.",
         cutPasteHowTitle: "Как использовать",
         cutPasteStep1: "Выберите элементы в Finder и нажмите ⌘X, чтобы вырезать их.",
         cutPasteStep2: "Откройте папку назначения и нажмите ⌘V, чтобы переместить их туда.",

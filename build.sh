@@ -346,6 +346,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DockClick/DockClickSupport.swift \
         Sources/Vorssaint/Services/Finder/CutPasteProgressSupport.swift \
         Sources/Vorssaint/Services/Finder/CutPastePrivilegeSupport.swift \
+        Sources/Vorssaint/Services/Finder/FinderCutPasteSoundSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift \
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift \
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \

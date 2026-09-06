@@ -264,6 +264,8 @@ extension Strings {
         cutPasteEnableCaption: "Finder’da dosya ve klasörleri kesmek için ⌘X, taşımak için ⌘V kullan.",
         cutPasteShowHUD: "Kayan paneli göster",
         cutPasteShowHUDCaption: "Finder etkinken kesilen dosyaları içeren kayan bir gösterge görüntüler.",
+        cutPastePlaySound: "Ses geri bildirimi çal",
+        cutPastePlaySoundCaption: "Dosyalar kesildiğinde veya başarıyla taşındığında macOS Pop sistem sesini çalar.",
         cutPasteHowTitle: "Nasıl kullanılır",
         cutPasteStep1: "Finder’da öğeleri seç ve kesmek için ⌘X’e bas.",
         cutPasteStep2: "Hedef klasörü aç ve oraya taşımak için ⌘V’ye bas.",
