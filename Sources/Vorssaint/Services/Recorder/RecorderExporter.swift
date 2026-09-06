@@ -77,6 +77,7 @@ final class RecorderExporter {
         // exists, and a cancel or a failure halfway through must leave that
         // recording where it is instead of taking it down with the attempt.
         let staged = RecorderSupport.stagingURL(for: destination)
+        defer { try? FileManager.default.removeItem(at: staged) }
         let failure: Failure?
         switch output {
         case .video:
@@ -98,12 +99,11 @@ final class RecorderExporter {
                                       to: staged,
                                       progress: progress)
         }
-        if let failure {
-            try? FileManager.default.removeItem(at: staged)
-            return failure
-        }
+        if let failure { return failure }
+        // Finalizing the video or GIF can finish after a cancellation arrives.
+        // The destination must still be kept until that last chance to cancel.
+        guard !cancelled.isCancelled else { return .cancelled }
         guard RecorderSupport.commitExport(from: staged, to: destination) else {
-            try? FileManager.default.removeItem(at: staged)
             return .writeFailed
         }
         return nil

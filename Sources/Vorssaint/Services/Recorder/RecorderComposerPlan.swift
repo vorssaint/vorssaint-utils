@@ -50,9 +50,10 @@ extension RecorderComposer {
         let needsCanvas = hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
         let hasCuts = !document.cuts.isEmpty
         let texts = RecorderTextOverlay.normalized(document.texts, duration: duration)
+        let images = RecorderImageOverlay.normalized(document.images, duration: duration)
         let blurs = RecorderBlurRegion.normalized(document.blurs, duration: duration)
         guard showsPointer || !segments.isEmpty || needsCanvas || hasCuts || !texts.isEmpty
-            || !blurs.isEmpty
+            || !images.isEmpty || !blurs.isEmpty
         else { return nil }
 
         // Everything the pointer track knows is in the RECORDING's own time,
@@ -195,6 +196,16 @@ extension RecorderComposer {
             }
         }
 
+        var imageOpacity: [[Double]] = []
+        var imageSprites: [CGImage?] = []
+        if !images.isEmpty {
+            imageOpacity = images.map { overlay in
+                (0..<frames).map { overlay.opacity(at: sourceTimes[$0]) }
+            }
+            // Read and resized here, once, at the canvas this plan draws on.
+            imageSprites = images.map { RecorderImageRenderer.image(for: $0, canvas: canvas) }
+        }
+
         var blurCovers: [[Bool]] = []
         if !blurs.isEmpty {
             blurCovers = blurs.map { region in
@@ -242,6 +253,9 @@ extension RecorderComposer {
                     mask: mask,
                     texts: texts,
                     textOpacity: textOpacity,
+                    images: images,
+                    imageSprites: imageSprites,
+                    imageOpacity: imageOpacity,
                     blurs: blurs,
                     blurCovers: blurCovers)
     }
