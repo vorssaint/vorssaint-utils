@@ -3092,6 +3092,53 @@ struct MetricsTests {
                "committing to an app with no window leaves the window behind as the most recent one")
         expect(WindowUseOrder.promoting(target: nil, previous: nil, in: [5, 3]) == [5, 3],
                "committing to an app with no window and coming from none changes no history")
+        expect(registeredDefaults[DefaultsKey.minimalWindowPreviews] as? Bool == false,
+               "minimal previews preserve the existing appearance until enabled")
+        expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.minimalWindowPreviews,
+                                                                  DefaultsKey.monitorPwrTemperature,
+                                                                  DefaultsKey.monitorSysBattery]),
+               "preview appearance and moved battery visibility travel in settings backups")
+        let batteryVisibilitySuite = "com.vorssaint.tests.batteryVisibility.\(UUID().uuidString)"
+        if let batteryVisibilityDefaults = UserDefaults(suiteName: batteryVisibilitySuite) {
+            batteryVisibilityDefaults.removePersistentDomain(forName: batteryVisibilitySuite)
+            batteryVisibilityDefaults.set(false, forKey: DefaultsKey.monitorSysTemps)
+            Defaults.migrateBatteryTemperatureVisibility(in: batteryVisibilityDefaults)
+            expect(!batteryVisibilityDefaults.bool(forKey: DefaultsKey.monitorPwrTemperature),
+                   "moving battery temperature preserves a hidden temperature section")
+            batteryVisibilityDefaults.set(true, forKey: DefaultsKey.monitorSysTemps)
+            Defaults.migrateBatteryTemperatureVisibility(in: batteryVisibilityDefaults)
+            expect(!batteryVisibilityDefaults.bool(forKey: DefaultsKey.monitorPwrTemperature),
+                   "subsequent System visibility changes cannot overwrite the Power choice")
+            batteryVisibilityDefaults.removePersistentDomain(forName: batteryVisibilitySuite)
+            Defaults.migrateBatteryTemperatureVisibility(in: batteryVisibilityDefaults)
+            expect(batteryVisibilityDefaults.bool(forKey: DefaultsKey.monitorPwrTemperature),
+                   "a fresh installation keeps battery temperature visible in Power")
+            batteryVisibilityDefaults.set(false, forKey: DefaultsKey.monitorSysTemps)
+            Defaults.migrateBatteryTemperatureVisibility(in: batteryVisibilityDefaults)
+            expect(batteryVisibilityDefaults.bool(forKey: DefaultsKey.monitorPwrTemperature),
+                   "a restored Power preference wins over the previous temperature section")
+            batteryVisibilityDefaults.removePersistentDomain(forName: batteryVisibilitySuite)
+        } else {
+            expect(false, "battery visibility migration has isolated preferences")
+        }
+        let visibleDockCard = CGRect(x: 0, y: 25, width: 120, height: 80)
+        for eventType: NSEvent.EventType in [.leftMouseDown, .rightMouseDown, .otherMouseDown, .otherMouseUp, .mouseMoved] {
+            for button in [0, 1, 2, 3, 4] {
+                let handles = DockPreviewSupport.handlesMiddleClick(eventType: eventType,
+                    buttonNumber: button, point: CGPoint(x: 60, y: 50),
+                    visibleRect: visibleDockCard, isHidden: false)
+                expect(handles == (button == 2 && (eventType == .otherMouseDown || eventType == .otherMouseUp)),
+                       "Dock preview reserves only middle-button presses and releases")
+            }
+        }
+        for point in [CGPoint(x: 60, y: 10), CGPoint(x: 130, y: 50), CGPoint(x: 60, y: 110)] {
+            expect(!DockPreviewSupport.handlesMiddleClick(eventType: .otherMouseDown,
+                buttonNumber: 2, point: point, visibleRect: visibleDockCard, isHidden: false),
+                   "clipped and off-card preview areas cannot close a window")
+        }
+        expect(!DockPreviewSupport.handlesMiddleClick(eventType: .otherMouseDown,
+            buttonNumber: 2, point: CGPoint(x: 60, y: 50), visibleRect: visibleDockCard, isHidden: true),
+               "hidden preview cards cannot close a window")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
         expect(registeredDefaults[DefaultsKey.dockPreviewBackgroundOpacity] as? Double == 1.0,
@@ -12940,6 +12987,9 @@ struct MetricsTests {
             expect(!strings.dockPreviewOpenDelayCaption.isEmpty
                    && !strings.dockPreviewOpenDelayCaption.contains("—"),
                    "\(prefix) Dock Preview open delay caption is present without em dash")
+            expect(!strings.minimalWindowPreviews.isEmpty && !strings.minimalWindowPreviewsCaption.isEmpty
+                   && !strings.minimalWindowPreviews.contains("—") && !strings.minimalWindowPreviewsCaption.contains("—"),
+                   "\(prefix) minimal previews have a localized title and explanation")
             expect(!strings.dockPreviewQuitAppOnClose.isEmpty
                    && !strings.dockPreviewQuitAppOnClose.contains("—")
                    && !strings.dockPreviewQuitAppOnCloseCaption.isEmpty

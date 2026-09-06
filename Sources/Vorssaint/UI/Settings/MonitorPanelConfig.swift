@@ -16,6 +16,7 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
+    @AppStorage(DefaultsKey.monitorPwrTemperature) private var pwrTemperature = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
@@ -45,8 +46,7 @@ struct MonitorPanelConfig: View {
     var body: some View {
         if PanelSectionID.system.isAvailable {
             block(.system, title: l10n.s.systemSection, master: $showSystem) {
-                if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable
-                    || (AppFeature.monitorPower.isAvailable && PowerSampler.hasInternalBattery) {
+                if AppFeature.monitorCPU.isAvailable || AppFeature.monitorGPU.isAvailable {
                     Toggle(l10n.s.temperatures, isOn: $sysTemps)
                 }
                 if AppFeature.monitorCPU.isAvailable {
@@ -54,9 +54,6 @@ struct MonitorPanelConfig: View {
                 }
                 if AppFeature.monitorGPU.isAvailable {
                     Toggle(l10n.s.gpuLabel, isOn: $sysGPU)
-                }
-                if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
-                    Toggle(l10n.s.batteryLabel, isOn: $sysBattery)
                 }
                 if AppFeature.monitorMemory.isAvailable {
                     Toggle(l10n.s.memorySection, isOn: $sysMemory)
@@ -86,9 +83,13 @@ struct MonitorPanelConfig: View {
                 Toggle(l10n.s.powerSystem, isOn: $pwrSystem)
                 Toggle(l10n.s.powerAdapter, isOn: $pwrAdapter)
                 if PowerSampler.hasInternalBattery {
+                    Toggle(l10n.s.batteryCharge, isOn: $sysBattery)
                     Toggle(l10n.s.powerBattery, isOn: $pwrBattery)
                     Toggle(FeatureStrings.batteryTime(l10n.language).title, isOn: $pwrTimeRemaining)
-                    Toggle(l10n.s.powerHealth, isOn: $pwrHealth)
+                    DisclosureGroup(FeatureStrings.mouseClickDebounce(l10n.language).moreOptions) {
+                        Toggle(l10n.s.monitorShowBatteryTemperature, isOn: $pwrTemperature)
+                        Toggle(l10n.s.powerHealth, isOn: $pwrHealth)
+                    }
                 }
             }
         }

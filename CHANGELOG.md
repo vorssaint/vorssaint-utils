@@ -7,9 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Vorssaint adds app shortcuts, recording overlays, app-based Keep Awake automation, app exceptions for Super key, centered half-width windows, edge snap controls and shortcuts for recent captures and keyboard brightness. It refines the radial menu, adds capture menu and magnifier zoom choices, and improves recording safety, resource use, network readings, app update checks, color picking, readability, localization, mouse reconnection, game and window focus, app restarts, Command Bar search and responsiveness, system shortcut recovery, Scratchpad privacy and build checks.
+Vorssaint adds app shortcuts, recording overlays, Keep Awake automation, minimalist window previews and Dock middle-click closing, and brings battery details together in Power. It expands capture, window and keyboard controls and improves recording safety, resource use, app updates, network readings, readability, localization, mouse reconnection, focus, search, shortcut recovery and privacy.
 
 ### Added
+- Optional minimal previews hide window titles, controls and decoration in the Dock and App Switcher while keeping selection visible.
+- Middle-click a Dock preview to close that window, including pinned previews, regardless of the close button’s app-quit setting.
 - Manage app shortcuts, aliases and pinned favorites in a searchable list from Keyboard shortcuts or Command Bar settings.
 - App updates check supported update feeds published by developers, including feeds hosted with their releases.
 - The recording editor can put a picture over the video, in any of nine spots and at the size and transparency you choose.
@@ -24,6 +26,7 @@ Vorssaint adds app shortcuts, recording overlays, app-based Keep Awake automatio
 - Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
 
 ### Changed
+- Battery charge, history, temperature, accessory levels and energy-consuming apps move from System to Power, alongside charging, health and remaining time.
 - App updates recognize installer-based and renamed apps, refresh manual searches, and use store identifiers to improve detection.
 - Focus follows mouse, window previews, clipboard history and recent captures avoid unnecessary polling, image processing, icon retention and history writes.
 - Command Bar remembers search choices across launches, tolerates short typos, and offers more emoji through its category or a colon. Thanks to @MaximilianMauroner.
