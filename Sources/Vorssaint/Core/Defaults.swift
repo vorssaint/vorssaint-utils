@@ -71,6 +71,7 @@ enum DefaultsKey {
     static let mouseButtonExceptions = "mouseButtonExceptions"
     static let middleClickExceptions = "middleClickExceptions"
     static let superKeyExceptions = "superKeyExceptions"
+    static let switcherExceptions = "switcherExceptions"
     static let switcherEnabled = "switcherEnabled"
     static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
     // Machine state, never exported: the system shortcuts this process owns,
@@ -887,6 +888,7 @@ enum Defaults {
         DefaultsKey.mouseButtonExceptions: [String](),
         DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.superKeyExceptions: [String](),
+        DefaultsKey.switcherExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherTakeOverSystemShortcuts: false,
         DefaultsKey.switcherShortcut: "command:48",

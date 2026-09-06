@@ -14,6 +14,7 @@ struct MouseExceptionStrings {
     let captionMiddleClick: String
     let captionFocusFollowsMouse: String
     let captionSuperKey: String
+    let captionSwitcher: String
     let pausedSuperKey: String
 
     func caption(for scope: MouseExceptionScope) -> String {
@@ -25,6 +26,7 @@ struct MouseExceptionStrings {
         case .buttonShortcuts: return captionButtonShortcuts
         case .middleClick: return captionMiddleClick
         case .superKey: return captionSuperKey
+        case .switcher: return captionSwitcher
         }
     }
 }
@@ -61,6 +63,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "A three finger click stays a normal click in these apps.",
         captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps.",
         captionSuperKey: "While any of these apps is open, even in the background, Super Key pauses and the chosen key works normally.",
+        captionSwitcher: "While any of these apps is in front, App Switcher leaves its shortcuts alone so they reach that app instead.",
         pausedSuperKey: "Paused while a selected app is open"
     )
 
@@ -75,6 +78,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Nestes apps o clique de três dedos continua um clique normal.",
         captionFocusFollowsMouse: "Nestes apps passar o mouse não muda o foco nem traz a janela para frente.",
         captionSuperKey: "Enquanto algum destes apps estiver aberto, mesmo em segundo plano, a Super Key pausa e a tecla escolhida funciona normalmente.",
+        captionSwitcher: "Enquanto algum destes apps estiver na frente, o App Switcher deixa os atalhos em paz para que cheguem a esse app.",
         pausedSuperKey: "Pausada enquanto um app selecionado está aberto"
     )
 
@@ -89,6 +93,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Bu uygulamalarda üç parmak tıklaması normal tıklama olarak kalır.",
         captionFocusFollowsMouse: "Bu uygulamalarda imleci bekletmek odağı değiştirmez veya pencereyi öne getirmez.",
         captionSuperKey: "Bu uygulamalardan biri arka planda bile açıkken Super Key duraklatılır ve seçilen tuş normal çalışır.",
+        captionSwitcher: "Bu uygulamalardan biri öndeyken App Switcher kısayollarına dokunmaz; kısayollar o uygulamaya ulaşır.",
         pausedSuperKey: "Seçili bir uygulama açıkken duraklatıldı"
     )
 
@@ -103,6 +108,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "В этих приложениях щелчок тремя пальцами остаётся обычным щелчком.",
         captionFocusFollowsMouse: "В этих приложениях наведение не меняет фокус и не выводит окно на передний план.",
         captionSuperKey: "Пока любое из этих приложений открыто, даже в фоне, Super Key приостановлена, а выбранная клавиша работает как обычно.",
+        captionSwitcher: "Пока любое из этих приложений на переднем плане, App Switcher не перехватывает свои сочетания - они доходят до этого приложения.",
         pausedSuperKey: "Приостановлено, пока открыто выбранное приложение"
     )
 
@@ -117,6 +123,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "En estas apps el clic con tres dedos sigue siendo un clic normal.",
         captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente.",
         captionSuperKey: "Mientras alguna de estas apps esté abierta, incluso en segundo plano, Super Key se pausa y la tecla elegida funciona normalmente.",
+        captionSwitcher: "Mientras alguna de estas apps esté al frente, App Switcher deja sus atajos en paz para que lleguen a esa app.",
         pausedSuperKey: "En pausa mientras una app seleccionada esté abierta"
     )
 
@@ -131,6 +138,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "In diesen Apps bleibt ein Klick mit drei Fingern ein normaler Klick.",
         captionFocusFollowsMouse: "In diesen Apps ändert ein Verweilen des Zeigers weder den Fokus noch die Fensterreihenfolge.",
         captionSuperKey: "Solange eine dieser Apps geöffnet ist, auch im Hintergrund, pausiert Super Key und die gewählte Taste funktioniert normal.",
+        captionSwitcher: "Solange eine dieser Apps im Vordergrund ist, lässt App Switcher seine Tastenkürzel durch, damit sie diese App erreichen.",
         pausedSuperKey: "Pausiert, solange eine ausgewählte App geöffnet ist"
     )
 
@@ -145,6 +153,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "Dans ces apps un clic à trois doigts reste un clic normal.",
         captionFocusFollowsMouse: "Dans ces apps le survol ne change pas le focus et ne place pas la fenêtre au premier plan.",
         captionSuperKey: "Tant qu’une de ces apps est ouverte, même en arrière-plan, Super Key est en pause et la touche choisie fonctionne normalement.",
+        captionSwitcher: "Tant qu’une de ces apps est au premier plan, App Switcher laisse ses raccourcis passer pour qu’ils atteignent cette app.",
         pausedSuperKey: "En pause tant qu’une app sélectionnée est ouverte"
     )
 
@@ -159,6 +168,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "In queste app un clic con tre dita resta un clic normale.",
         captionFocusFollowsMouse: "In queste app il passaggio del puntatore non cambia il focus né porta avanti la finestra.",
         captionSuperKey: "Finché una di queste app è aperta, anche in background, Super Key è in pausa e il tasto scelto funziona normalmente.",
+        captionSwitcher: "Finché una di queste app è in primo piano, App Switcher lascia passare le scorciatoie affinché raggiungano quell’app.",
         pausedSuperKey: "In pausa mentre un’app selezionata è aperta"
     )
 
@@ -173,6 +183,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "これらのAppでは3本指のクリックが普通のクリックのままです。",
         captionFocusFollowsMouse: "これらのAppではポインタを止めてもフォーカスやウインドウの前後関係は変わりません。",
         captionSuperKey: "これらのAppのいずれかが開いている間は、バックグラウンドでもSuper Keyが一時停止し、選択したキーは通常どおり動作します。",
+        captionSwitcher: "これらのAppが最前面の間は、App Switcherがショートカットをそのまま通し、そのAppに届きます。",
         pausedSuperKey: "選択したAppが開いている間は一時停止中"
     )
 
@@ -187,6 +198,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "이 앱들에서는 세 손가락 클릭이 보통 클릭으로 남습니다.",
         captionFocusFollowsMouse: "이 앱들에서는 포인터를 올려 두어도 포커스나 윈도우 순서가 바뀌지 않습니다.",
         captionSuperKey: "이 앱 중 하나라도 열려 있으면 백그라운드에서도 Super Key가 일시 정지되고 선택한 키가 정상적으로 작동합니다.",
+        captionSwitcher: "이 앱이 앞에 있을 때 App Switcher는 단축키를 그대로 두어 그 앱에 전달합니다.",
         pausedSuperKey: "선택한 앱이 열려 있는 동안 일시 정지됨"
     )
 
@@ -201,6 +213,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "在这些 App 里三指点按仍是普通点按。",
         captionFocusFollowsMouse: "在这些 App 里悬停不会改变焦点，也不会将窗口置于前方。",
         captionSuperKey: "这些 App 中任意一个打开时，即使在后台，Super Key 也会暂停，所选按键恢复正常功能。",
+        captionSwitcher: "这些 App 位于前台时，App Switcher 不会拦截快捷键，让它们直接送达该 App。",
         pausedSuperKey: "所选 App 打开期间已暂停"
     )
 
@@ -215,6 +228,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
+        captionSwitcher: "這些 App 位於前景時，App Switcher 不會攔截快捷鍵，讓它們直接送到該 App。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
     )
 
@@ -229,6 +243,7 @@ extension MouseExceptionStrings {
         captionMiddleClick: "在這些 App 裡三指點按仍是普通點按。",
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任何一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
+        captionSwitcher: "這些 App 位於前景時，App Switcher 不會攔截快捷鍵，讓它們直接送到該 App。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
     )
 }

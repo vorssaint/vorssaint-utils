@@ -2436,6 +2436,14 @@ struct MetricsTests {
         expect(scopeAssign != nil && startLayout != nil
                && scopeAssign!.lowerBound < startLayout!.lowerBound,
                "the App Switcher session scope is assigned before the session-start layout pass")
+        expect(switcherSource.contains("excludesFrontmost(.switcher)")
+               && switcherSource.contains("Unmanaged.passUnretained(event)"),
+               "App Switcher passes its hotkey through while a listed frontmost app holds focus")
+        let switcherSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SettingsView.swift",
+            encoding: .utf8)) ?? ""
+        expect(switcherSettingsSource.contains("MouseExceptionsList(scope: .switcher)"),
+               "Switcher settings expose the frontmost-app hotkey exception list")
         expect(!SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
                                                               windowRow: true)
                && SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
@@ -2478,6 +2486,20 @@ struct MetricsTests {
                    frontmostBundleIdentifier: nil,
                    excludedBundleIdentifiers: ["com.example.focused"]),
                "window preview capture continues away from chosen apps or without a foreground app")
+        expect(SwitcherSupport.shouldPassHotkeyToFrontmost(
+            frontmostBundleID: "com.example.remote",
+            exceptions: ["com.example.remote"]),
+               "App Switcher passes its hotkey through while a chosen app is in front")
+        expect(!SwitcherSupport.shouldPassHotkeyToFrontmost(
+            frontmostBundleID: "com.example.other",
+            exceptions: ["com.example.remote"])
+               && !SwitcherSupport.shouldPassHotkeyToFrontmost(
+                   frontmostBundleID: nil,
+                   exceptions: ["com.example.remote"])
+               && !SwitcherSupport.shouldPassHotkeyToFrontmost(
+                   frontmostBundleID: "com.example.remote",
+                   exceptions: []),
+               "App Switcher keeps its hotkey away from chosen apps or with an empty list")
         expect(SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: [3]),
                "a window whose only Space is not visible is parked on a hidden Space")
         expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3], visibleSpaces: [3]),
@@ -20121,10 +20143,13 @@ struct MetricsTests {
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
                 && MouseExceptionScope.buttonShortcuts.feature == .mouseButtonShortcuts
                 && MouseExceptionScope.middleClick.feature == .middleClick
-                && MouseExceptionScope.superKey.feature == .superKey,
+                && MouseExceptionScope.superKey.feature == .superKey
+                && MouseExceptionScope.switcher.feature == .switcher,
                "each list knows the feature that owns it, so it hides with that feature")
-        expect(MouseExceptionScope.allCases.allSatisfy { $0.feature.group == .mouseKeyboard },
-               "every exception list belongs to a mouse-and-keyboard feature")
+        expect(MouseExceptionScope.allCases.filter { $0 != .switcher }
+                    .allSatisfy { $0.feature.group == .mouseKeyboard }
+                && MouseExceptionScope.switcher.feature.group == .windowsDock,
+               "mouse exception lists stay with mouse-and-keyboard features; switcher keeps its own")
         expect(Defaults.sanitizedBundleIdentifierList(["  com.example.a  ", "", "com.example.a", "com.example.b"])
                 == ["com.example.a", "com.example.b"],
                "the exception list drops blanks, spaces and repeats")

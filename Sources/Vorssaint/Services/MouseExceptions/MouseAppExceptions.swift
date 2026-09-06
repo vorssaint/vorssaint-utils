@@ -151,6 +151,16 @@ final class MouseAppExceptions: ObservableObject {
         return MouseAppExceptionSupport.isExcepted(frontmost, exceptions: exceptions)
     }
 
+    /// True when the app in front is on this feature's list. App Switcher asks
+    /// here before claiming ⌘Tab so a remote desktop session can keep it
+    /// (issue #1181).
+    func excludesFrontmost(_ scope: MouseExceptionScope) -> Bool {
+        let (exceptions, _) = lookup(scope)
+        guard !exceptions.isEmpty else { return false }
+        let frontmost = Self.onMain { Self.identity(for: NSWorkspace.shared.frontmostApplication) }
+        return MouseAppExceptionSupport.isExcepted(frontmost, exceptions: exceptions)
+    }
+
     /// Services that intercept wheel events call this with their tap lifecycle.
     /// With every such feature off, unavailable or carrying an empty list, no
     /// workspace observer or source cache remains alive.
