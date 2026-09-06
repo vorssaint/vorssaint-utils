@@ -492,6 +492,9 @@ enum DefaultsKey {
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
     static let commandBarCompactMode = "commandBarCompactMode"
+    /// While the bar is open, switch to the first ASCII-capable keyboard layout.
+    /// Off by default; restores the previous input source on close.
+    static let commandBarSwitchToASCIILayout = "commandBarSwitchToASCIILayout"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → app row ids
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
@@ -1250,6 +1253,7 @@ enum Defaults {
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
+        DefaultsKey.commandBarSwitchToASCIILayout: false,
         DefaultsKey.commandBarDisabledSources: "",
         DefaultsKey.commandBarAliases: "",
         DefaultsKey.commandBarPins: "",

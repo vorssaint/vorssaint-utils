@@ -291,6 +291,8 @@ final class CommandBarService: ObservableObject {
             }
         }
         present(panel)
+        CommandBarASCIILayout.applyOnShow(
+            enabled: UserDefaults.standard.bool(forKey: DefaultsKey.commandBarSwitchToASCIILayout))
         // Ordering the prepared panel is the keystroke path. Home is filled on
         // the next main-loop turn, when a close or newer opening can supersede it.
         DispatchQueue.main.async { [weak self] in
@@ -408,6 +410,7 @@ final class CommandBarService: ObservableObject {
         query = ""
         presentationLifecycle.hide()
         clearIndex()
+        CommandBarASCIILayout.restoreOnHide()
     }
 
     /// Re-fits the panel to its content as the result list grows and

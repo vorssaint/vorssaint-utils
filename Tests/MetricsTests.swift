@@ -21979,6 +21979,60 @@ struct MetricsTests {
                 && !SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarCompactMode, "yes"),
                "a restored compact mode has to be a switch, not text that looks like one")
 
+        // Optional Latin layout while the bar is open: pick the first
+        // ASCII-capable keyboard layout from an injected list, without talking
+        // to Text Input Services. Off by default; restores only after a switch.
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarSwitchToASCIILayout] as? Bool == false,
+               "ASCII layout switching ships off so existing layouts stay put")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarSwitchToASCIILayout),
+               "ASCII layout switching is configuration and travels with a backup")
+        expect(SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarSwitchToASCIILayout, true)
+                && !SettingsBackupSupport.valueLooksRight(DefaultsKey.commandBarSwitchToASCIILayout, "yes"),
+               "a restored ASCII layout switch has to be a bool")
+        let russian = CommandBarASCIILayoutSupport.Source(
+            id: "com.apple.keylayout.Russian",
+            isASCIICapable: false, isSelectCapable: true, isKeyboardLayout: true)
+        let us = CommandBarASCIILayoutSupport.Source(
+            id: "com.apple.keylayout.US",
+            isASCIICapable: true, isSelectCapable: true, isKeyboardLayout: true)
+        let abc = CommandBarASCIILayoutSupport.Source(
+            id: "com.apple.keylayout.ABC",
+            isASCIICapable: true, isSelectCapable: true, isKeyboardLayout: true)
+        let pinyin = CommandBarASCIILayoutSupport.Source(
+            id: "com.apple.inputmethod.SCIM.ITABC",
+            isASCIICapable: false, isSelectCapable: true, isKeyboardLayout: false)
+        let palette = CommandBarASCIILayoutSupport.Source(
+            id: "com.apple.CharacterPaletteIM",
+            isASCIICapable: true, isSelectCapable: false, isKeyboardLayout: false)
+        expect(!CommandBarASCIILayoutSupport.isEligible(russian)
+                && CommandBarASCIILayoutSupport.isEligible(us)
+                && !CommandBarASCIILayoutSupport.isEligible(pinyin)
+                && !CommandBarASCIILayoutSupport.isEligible(palette),
+               "only a select-capable ASCII keyboard layout counts")
+        expect(CommandBarASCIILayoutSupport.firstEligibleID(in: [russian, pinyin, us, abc])
+                == "com.apple.keylayout.US",
+               "the first eligible layout in the enabled list wins")
+        expect(CommandBarASCIILayoutSupport.firstEligibleID(in: [russian, pinyin]) == nil,
+               "no eligible layout means the bar leaves the input source alone")
+        expect(CommandBarASCIILayoutSupport.openSelection(currentID: "com.apple.keylayout.Russian",
+                                                         sources: [russian, us])
+                == "com.apple.keylayout.US"
+                && CommandBarASCIILayoutSupport.openSelection(currentID: "com.apple.keylayout.US",
+                                                             sources: [russian, us]) == nil
+                && CommandBarASCIILayoutSupport.openSelection(currentID: nil,
+                                                             sources: [us]) == nil,
+               "opening switches only when the current source is not already the first Latin layout")
+        expect(CommandBarASCIILayoutSupport.closeSelection(
+                    previousID: "com.apple.keylayout.Russian",
+                    currentID: "com.apple.keylayout.US")
+                == "com.apple.keylayout.Russian"
+                && CommandBarASCIILayoutSupport.closeSelection(
+                    previousID: "com.apple.keylayout.Russian",
+                    currentID: "com.apple.keylayout.Russian") == nil
+                && CommandBarASCIILayoutSupport.closeSelection(
+                    previousID: nil, currentID: "com.apple.keylayout.US") == nil,
+               "closing restores the remembered source only when it still differs")
+
         // MARK: What the bar noticed about this session
         expect(CommandBarQueryMemory.prefixes(of: "wha") == ["w", "wh", "wha"],
                "choosing a row for what was typed also answers every shorter piece of it")
@@ -23829,7 +23883,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 158 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 160 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
@@ -23930,6 +23984,21 @@ struct MetricsTests {
         expect(commandBarSettingsSource.contains("Toggle(text.shortcutToggle,")
                 && !commandBarSettingsSource.contains("l10n.s.quickToolShortcutToggle"),
                "the command bar shortcut toggle says what the shortcut opens")
+        expect(commandBarSettingsSource.contains("Toggle(text.asciiLayoutToggle,")
+                && commandBarSettingsSource.contains("DefaultsKey.commandBarSwitchToASCIILayout")
+                && commandBarSettingsSource.contains("text.asciiLayoutCaption"),
+               "Command Bar settings expose the optional ASCII layout switch")
+        let commandBarServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? ""
+        let commandBarServiceCode = commandBarServiceSource
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(commandBarServiceCode.contains("CommandBarASCIILayout.applyOnShow")
+                && commandBarServiceCode.contains("CommandBarASCIILayout.restoreOnHide")
+                && commandBarServiceCode.contains("DefaultsKey.commandBarSwitchToASCIILayout"),
+               "the Command Bar switches and restores the input source around show and hide")
         for language in AppLanguage.allCases {
             let recordingShareValues = Mirror(
                 reflecting: FeatureStrings.recorderShare(language)).children

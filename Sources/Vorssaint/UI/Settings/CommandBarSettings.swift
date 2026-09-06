@@ -9,6 +9,7 @@ struct CommandBarSettings: View {
     @ObservedObject private var service = CommandBarService.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
+    @AppStorage(DefaultsKey.commandBarSwitchToASCIILayout) private var switchToASCIILayout = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -78,6 +79,10 @@ struct CommandBarSettings: View {
                 // screen with a stale value between them.
                 Toggle(text.compactModeToggle, isOn: $compactMode)
                 Text(text.compactModeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(text.asciiLayoutToggle, isOn: $switchToASCIILayout)
+                Text(text.asciiLayoutCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 // Not the shared "Global shortcut" label the other feature
