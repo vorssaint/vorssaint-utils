@@ -20876,6 +20876,151 @@ struct MetricsTests {
         expect(AppUpdatesSupport.parseStoreLookup(Data("not json".utf8)).isEmpty,
                "a broken store answer yields nothing instead of throwing")
 
+        let completeLookup = AppUpdatesSupport.storeLookupResponse(
+            lookupBody, statusCode: 200)
+        expect(AppUpdatesSupport.hasStoreCoverage(bundleIDs: ["a.b"], entries: completeLookup)
+                && completeLookup["a.b"]?.version == "2.0",
+               "a successful Mac listing covers its requested app")
+        let partialLookup = AppUpdatesSupport.storeLookupResponse(
+            lookupBody, statusCode: 200)
+        expect(!AppUpdatesSupport.hasStoreCoverage(bundleIDs: ["a.b", "c.d"], entries: partialLookup)
+                && partialLookup["a.b"]?.version == "2.0",
+               "another platform's listing leaves coverage incomplete without losing valid results")
+        expect(!AppUpdatesSupport.hasStoreCoverage(bundleIDs: ["a.b", "missing.app"], entries: partialLookup),
+               "a catalog omission cannot mean the missing app is up to date")
+        let storeFailures: [(Data?, Int?)] = [
+            (nil, 200), (lookupBody, nil), (lookupBody, 429), (lookupBody, 500),
+            (Data("not json".utf8), 200), (Data("{}".utf8), 200),
+            (Data(#"{"resultCount":0,"results":[]}"#.utf8), 200),
+            (Data(#"{"results":[{"kind":"mac-software","bundleId":"a.b","version":""}]}"#.utf8), 200),
+        ]
+        for (body, status) in storeFailures {
+            let result = AppUpdatesSupport.storeLookupResponse(body, statusCode: status)
+            expect(!AppUpdatesSupport.hasStoreCoverage(bundleIDs: ["a.b"], entries: result) && result.isEmpty,
+                   "failed, malformed and empty store responses never certify an app as checked")
+        }
+        let partiallyCheckedApps = [AppUpdatesSupport.InstalledApp(
+            name: "Editor", bundleID: "a.b", path: "/Applications/Editor.app",
+            version: "1.0", isFromAppStore: true)]
+        let partialStoreRows = AppUpdatesSupport.appStoreUpdates(
+            apps: partiallyCheckedApps, storeVersions: partialLookup,
+            operatingSystemVersion: "26.0")
+        expect(partialStoreRows.count == 1 && partialStoreRows[0].latestVersion == "2.0",
+               "a partial store check still offers the updates it could verify")
+
+        expect(AppUpdatesSupport.storeIDLookupURL(ids: ["123", "456"], country: "BR")?
+            .absoluteString.contains("id=123,456") == true
+                && AppUpdatesSupport.storeIDLookupURL(ids: ["123"], country: "BR")?
+                    .absoluteString.contains("platform=macappstore") == true,
+               "store lookups use the product identity and explicitly request Mac metadata")
+        expect(AppUpdatesSupport.storeIDLookupURL(ids: [], country: nil) == nil
+                && AppUpdatesSupport.storeIDLookupURL(ids: ["12&country=US"], country: nil) == nil,
+               "store identifiers cannot add query parameters or create an empty request")
+        let universalStoreBody = Data(#"""
+        {"results":{
+          "123":{"bundleId":"com.example.universal","kind":"iosSoftware","deviceFamilies":["mac","iphone"],"minimumOSVersion":"14.0","url":"https://apps.apple.com/app/id123","offers":[{"version":{"display":"2.0"},"assets":[{"flavor":"macSoftware"}]},{"version":{"display":"9.0"},"assets":[{"flavor":"iosSoftware"}]}]},
+          "456":{"bundleId":"com.example.mobile","deviceFamilies":["iphone"],"minimumOSVersion":"18.0","offers":[{"version":{"display":"9.0"},"assets":[{"flavor":"iosSoftware"}]}]},
+          "789":{"bundleId":"com.example.no-mac-offer","deviceFamilies":["mac","iphone"],"minimumOSVersion":"14.0","offers":[{"version":{"display":"9.0"},"assets":[{"flavor":"iosSoftware"}]}]}
+        }}
+        """#.utf8)
+        let universalEntries = AppUpdatesSupport.storeMetadataResponse(universalStoreBody, statusCode: 200)
+        expect(universalEntries.count == 1 && universalEntries["com.example.universal"]?.version == "2.0"
+                && universalEntries["com.example.universal"]?.minimumOSVersion == "14.0",
+               "universal store apps use the Mac offer and Mac OS requirement, not the mobile version")
+        let universalApp = AppUpdatesSupport.InstalledApp(name: "Universal", bundleID: "com.example.universal",
+            path: "/Applications/Universal.app", version: "1.0", isFromAppStore: true)
+        expect(AppUpdatesSupport.appStoreUpdates(apps: [universalApp], storeVersions: universalEntries,
+                                                operatingSystemVersion: "15.0").count == 1
+                && AppUpdatesSupport.appStoreUpdates(apps: [universalApp], storeVersions: universalEntries,
+                                                    operatingSystemVersion: "13.0").isEmpty,
+               "a universal app update is detected only on a compatible Mac")
+        expect(AppUpdatesSupport.storeMetadataResponse(universalStoreBody, statusCode: 500).isEmpty
+                && AppUpdatesSupport.storeMetadataResponse(Data("{}".utf8), statusCode: 200).isEmpty,
+               "failed platform-specific lookups cannot create updates")
+        let renamedStoreApp = AppUpdatesSupport.InstalledApp(
+            name: "Editor", bundleID: "com.vendor.editor", path: "/Applications/Editor.app",
+            version: "1.0", isFromAppStore: true)
+        expect(AppUpdatesSupport.packageUpdates(
+            outdated: [caskUpdate("editor", installed: "1.0", current: "2.0")],
+            installed: caskRecords, apps: [renamedStoreApp]).isEmpty,
+               "an old package receipt cannot claim the store edition of an app")
+
+        let publisherFeed = AppUpdateFeedSupport.feed(
+            info: ["SUFeedURL": "https://updates.example.com/feed.xml"], configuration: nil)
+        expect(publisherFeed?.format == .appcast, "the app's declared feed is a supported source")
+        let packagedFeed = AppUpdateFeedSupport.feed(info: [:], configuration:
+            "provider: generic\nurl: 'https://updates.example.com/stable'\n")
+        expect(packagedFeed?.url.absoluteString == "https://updates.example.com/stable/latest-mac.yml",
+               "packaged update configuration selects the Mac release manifest")
+        let hostedFeed = AppUpdateFeedSupport.feed(info: [:], configuration:
+            "provider: github\nowner: example\nrepo: editor\n")
+        expect(hostedFeed?.url.absoluteString == "https://github.com/example/editor/releases/latest/download/latest-mac.yml",
+               "an explicitly declared release repository supplies its Mac metadata")
+        for invalid in ["file:///tmp/feed.xml", "http://example.com/feed.xml",
+                        "https://user:password@example.com/feed.xml", "https://localhost/feed.xml",
+                        "https://127.0.0.1/feed.xml", "https://192.168.1.1/feed.xml"] {
+            expect(AppUpdateFeedSupport.publicURL(invalid) == nil,
+                   "feed discovery rejects local, insecure and credential-bearing URLs")
+        }
+        for invalid in ["provider: github\nowner: ../user\nrepo: editor",
+                        "provider: github\nowner: user\nrepo: editor\nprivate: true",
+                        "provider: generic\nurl: https://example.com\nchannel: beta",
+                        "provider: generic\nurl: https://example.com\nrequestHeaders:\n  Authorization: secret",
+                        "provider: custom\nurl: https://example.com",
+                        "provider: generic\nurl: https://example.com\nurl: https://other.example.com"] {
+            expect(AppUpdateFeedSupport.feed(info: [:], configuration: invalid) == nil,
+                   "private, ambiguous and unsupported update configuration is not guessed")
+        }
+        let appcast = Data(#"""
+        <rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"><channel>
+          <item><sparkle:version>110</sparkle:version><sparkle:shortVersionString>1.1</sparkle:shortVersionString><sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion><enclosure url="https://example.com/app.zip" /></item>
+          <item><sparkle:version>200</sparkle:version><sparkle:shortVersionString>2.0</sparkle:shortVersionString><sparkle:minimumSystemVersion>27.0</sparkle:minimumSystemVersion><enclosure url="https://example.com/new.zip" /></item>
+          <item><sparkle:channel>beta</sparkle:channel><enclosure sparkle:version="300" sparkle:shortVersionString="3.0" url="https://example.com/beta.zip" /></item>
+          <item><enclosure sparkle:version="400" sparkle:shortVersionString="4.0" sparkle:os="windows" url="https://example.com/app.exe" /></item>
+          <item><sparkle:deltas><enclosure sparkle:version="500" sparkle:deltaFrom="100" url="https://example.com/app.delta" /></sparkle:deltas></item>
+        </channel></rss>
+        """#.utf8)
+        let feedApp = AppUpdatesSupport.InstalledApp(
+            name: "Editor", bundleID: "com.example.editor", path: "/Applications/Editor.app",
+            version: "1.0", isFromAppStore: false, buildVersion: "100")
+        let releases = AppUpdateFeedSupport.releases(data: appcast, format: .appcast) ?? []
+        func feedUpdate(_ releases: [AppUpdateFeedSupport.Release],
+                        format: AppUpdateFeedSupport.Format = .appcast) -> AppUpdatesSupport.Item? {
+            AppUpdateFeedSupport.update(app: feedApp, releases: releases, format: format,
+                                        operatingSystemVersion: "15.7", kernelVersion: "24.6.0",
+                                        architecture: "arm64")
+        }
+        expect(feedUpdate(releases)?.latestVersion == "1.1",
+               "feeds choose the newest compatible stable Mac release, not the first or largest entry")
+        expect(feedUpdate(releases)?.isSelectable == false && feedUpdate(releases)?.token == nil,
+               "publisher findings leave installation with the app's own updater")
+        expect(feedUpdate([.init(version: "101", displayVersion: "1.0", hasDownload: true)])?
+            .latestVersion == "1.0 (101)",
+               "new builds with the same visible version are detected and distinguished")
+        for excluded in [
+            AppUpdateFeedSupport.Release(version: "99", displayVersion: "2.0", hasDownload: true),
+            .init(version: "110", displayVersion: "1.1beta", hasDownload: true),
+            .init(version: "110", displayVersion: "1.1", maximumOS: "14.0", hasDownload: true),
+            .init(version: "110", displayVersion: "1.1", minimumInstalledVersion: "105", hasDownload: true),
+            .init(version: "110", displayVersion: "1.1", hardware: "x86_64", hasDownload: true),
+        ] {
+            expect(feedUpdate([excluded]) == nil,
+                   "older builds, preview releases and incompatible update paths are excluded")
+        }
+        for invalid in [Data("<rss><channel><item>".utf8), Data("<html/>".utf8),
+                        Data(#"<!DOCTYPE rss [<!ENTITY x "110">]><rss><channel><item><version>&x;</version></item></channel></rss>"#.utf8),
+                        Data(repeating: 32, count: AppUpdateFeedSupport.byteLimit + 1)] {
+            expect(AppUpdateFeedSupport.releases(data: invalid, format: .appcast) == nil,
+                   "malformed, non-feed, entity-bearing and oversized responses are rejected")
+        }
+        let manifest = Data("version: 1.2\nfiles:\n  - url: app.zip\nminimumSystemVersion: 24.0.0\n".utf8)
+        let manifestReleases = AppUpdateFeedSupport.releases(data: manifest, format: .manifest) ?? []
+        expect(feedUpdate(manifestReleases, format: .manifest)?.latestVersion == "1.2",
+               "Mac manifests compare visible app versions and use the kernel version for their OS requirement")
+        expect(feedUpdate([.init(version: "1.2", displayVersion: "1.2", minimumOS: "25.0.0", hasDownload: true)],
+                          format: .manifest) == nil,
+               "a manifest requiring a newer kernel cannot be offered")
+
         let onlineCatalogBody = Data(#"""
         [
           {"token":"notes-stable","version":"2.0,revision","artifacts":[{"uninstall":[{"quit":"com.example.notes"}]},{"app":["Notes.app"],"target":"/Applications/Notes.app"}],"depends_on":{"macos":{">=":["14"]}}},
@@ -20938,6 +21083,35 @@ struct MetricsTests {
         expect(Set(onlineRows.map(\.name)) == ["Notes", "Writer", "Exact"]
                 && onlineRows.allSatisfy { $0.source == .onlineCatalog && !$0.isSelectable },
                "online matching requires an exact unique bundle name, uses an explicit ID to resolve ambiguity and keeps rows action-only")
+        let expandedCatalogBody = Data(#"""
+        [
+          {"token":"installer","version":"2.0","artifacts":[{"pkg":["installer.pkg"]},{"uninstall":[{"quit":["com.example.installer","com.example.installer.helper"],"delete":["/Applications/Installed.app","/Applications/Wild*.app","/tmp/Other.app"]}]}]},
+          {"token":"renamed","version":"2.0","artifacts":[{"app":["Original.app"]},{"uninstall":[{"quit":"com.example.renamed"}]}]},
+          {"token":"unrelated","version":"9.0","artifacts":[{"app":["Unrelated.app"]},{"uninstall":[{"quit":"com.example.other"}]}]},
+          {"token":"companion","version":"99.0","artifacts":[{"app":["Companion.app"]},{"uninstall":[{"quit":["com.example.companion","com.example.renamed"]}]}]}
+        ]
+        """#.utf8)
+        let expandedCatalog = AppUpdatesSupport.parseOnlineCatalog(expandedCatalogBody) ?? []
+        expect(expandedCatalog.first?.appNames == ["Installed.app"],
+               "installer removal metadata supplies exact app names without treating globs or temporary paths as installed apps")
+        let expandedApps = [
+            AppUpdatesSupport.InstalledApp(name: "Installer", bundleID: "com.example.installer",
+                path: "/Applications/Installed.app", version: "1.0", isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Renamed", bundleID: "com.example.renamed",
+                path: "/Applications/My App.app", version: "1.0", isFromAppStore: false),
+            AppUpdatesSupport.InstalledApp(name: "Unrelated", bundleID: "com.example.unrelated",
+                path: "/Applications/Unrelated.app", version: "1.0", isFromAppStore: false),
+        ]
+        let expandedRows = AppUpdatesSupport.onlineCatalogUpdates(
+            apps: expandedApps, catalog: expandedCatalog, operatingSystemVersion: "15.7")
+        expect(Set(expandedRows.map(\.name)) == ["Installer", "Renamed"],
+               "identity matching finds installer-based and renamed apps without accepting a conflicting same-name app")
+        expect(expandedRows.allSatisfy { $0.latestVersion == "2.0" },
+               "a companion app's quit list cannot take over another app's identity")
+        expect(AppUpdatesSupport.onlineCatalogUpdates(
+            apps: expandedApps, catalog: expandedCatalog + expandedCatalog,
+            operatingSystemVersion: "15.7").isEmpty,
+               "multiple catalog entries claiming the same identity cannot choose an update by guesswork")
         expect(!onlineRows.contains { $0.name == "Duplicate" || $0.name == "Future"
                 || $0.name == "Rolling" || $0.name == "Case" || $0.name == "Older"
                 || $0.name == "Own" },

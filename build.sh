@@ -316,6 +316,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
+        Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift \
         Sources/Vorssaint/Core/AppUpdateStrings.swift \
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
