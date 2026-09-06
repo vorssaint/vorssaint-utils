@@ -65,7 +65,7 @@ enum SystemShortcutTakeover {
     /// holding is missing from the live table's answer, so asking the table
     /// alone tells the row that the combination it took over is free — and the
     /// row saves it as an ordinary key, dropping the opt-in that was keeping it.
-    static func conflictsWithMacOS(_ shortcut: GlobalShortcut) -> Bool {
+    static func conflictsWithMacOS(_ shortcut: GlobalShortcut, for role: GlobalShortcutRole? = nil) -> Bool {
         lock.lock()
         let held = suppressed
         lock.unlock()
@@ -73,7 +73,8 @@ enum SystemShortcutTakeover {
             shortcut,
             liveEntries: SymbolicHotKeys.liveEntries(),
             symbolicHotKeys: GlobalShortcut.systemSymbolicHotKeys,
-            held: held)
+            held: held,
+            role: role)
     }
 
     /// The live table can change under us (System Settings, another app, wake).
