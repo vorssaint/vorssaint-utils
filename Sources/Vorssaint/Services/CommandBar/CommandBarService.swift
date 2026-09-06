@@ -129,13 +129,16 @@ final class CommandBarService: ObservableObject {
     private var entriesByStableKey: [String: CommandBarEntry] = [:]
     private var presentationLifecycle = CommandBarPresentationLifecycle()
     private var deferredRowShortcut = CommandBarDeferredRowShortcut()
-    private var appEntries: [CommandBarEntry] = [] { didSet { foldedSections[.apps] = nil } }
+    @Published private(set) var appEntries: [CommandBarEntry] = [] {
+        didSet { foldedSections[.apps] = nil }
+    }
     private var windowEntries: [CommandBarEntry] = [] { didSet { foldedSections[.windows] = nil } }
     private var quitEntries: [CommandBarEntry] = [] { didSet { foldedSections[.quit] = nil } }
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
-    private var appsLoading = false
+    @Published private(set) var appsLoading = false
+    private var pendingAppShortcut = CommandBarRowShortcuts.PendingAppLaunch()
     private var windowsLoading = false
     private var windowsLoadedAt: Date?
     private var menuEntries: [CommandBarEntry] = [] { didSet { foldedSections[.menus] = nil } }
@@ -241,6 +244,7 @@ final class CommandBarService: ObservableObject {
             normalizedByID = [:]
             entriesByStableKey = [:]
             cachedApps = []
+            pendingAppShortcut.cancel()
             windowsLoadedAt = nil
             rows = []
             cancelPendingRestart()
@@ -248,6 +252,7 @@ final class CommandBarService: ObservableObject {
     }
 
     func suspend() {
+        pendingAppShortcut.cancel()
         hotkey.unregister()
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
@@ -464,12 +469,40 @@ final class CommandBarService: ObservableObject {
 
     /// Binds (or with nil clears) one row's own combination and registers it
     /// straight away, so the key works before the bar is even closed.
-    func setRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) {
+    @discardableResult
+    func setRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) -> String? {
+        guard AppFeature.commandBar.isAvailable else { return nil }
+        if let shortcut, let message = rowShortcutIssue(shortcut, for: entry) { return message }
         let next = CommandBarRowShortcuts.setting(shortcut, for: entry.stableKey, in: rowShortcuts)
         UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
                                   forKey: DefaultsKey.commandBarRowShortcuts)
         syncRowHotkeys()
         refreshAfterPreferenceChange()
+        return nil
+    }
+
+    private func rowShortcutIssue(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> String? {
+        let strings = L10n.shared.s
+        let text = FeatureStrings.commandBar(L10n.shared.language)
+        switch CommandBarRowShortcuts.assignmentIssue(shortcut, for: entry.stableKey, in: rowShortcuts) {
+        case .invalid: return strings.shortcutInvalid
+        case .occupied(let owner):
+            return String(format: strings.shortcutConflictFormat,
+                          entryTitle(forStableKey: owner) ?? text.rowShortcutsTitle)
+        case .full: return String(format: text.rowShortcutsLimitFormat, CommandBarRowShortcuts.limit)
+        case nil: break
+        }
+        if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
+            return String(format: strings.shortcutConflictFormat, role.title(strings))
+        }
+        if shortcut.conflictsWithSystemShortcut {
+            return String(format: strings.shortcutConflictFormat, "macOS")
+        }
+        if AppFeature.windowLayout.isAvailable,
+           let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
+            return String(format: strings.shortcutConflictFormat, title)
+        }
+        return nil
     }
 
     /// One Carbon key per binding, and not one more. Ids start well past the
@@ -495,8 +528,17 @@ final class CommandBarService: ObservableObject {
 
     /// Runs a row from its own combination, with no bar involved. Runnable
     /// closures are rebuilt from current state before the shortcut uses them.
-    private func runRow(withStableKey key: String) {
+    private func runRow(withStableKey key: String, refreshAppsIfMissing: Bool = true) {
+        pendingAppShortcut.cancel()
+        guard AppFeature.commandBar.isAvailable, rowShortcuts[key] != nil else { return }
         guard let entry = freshFullEntry(forStableKey: key) else {
+            // An app shortcut also works before the bar has ever opened this
+            // session. Scan on demand, then retry once without presenting it.
+            if refreshAppsIfMissing, CommandBarPreferences.source(ofRowID: key) == .apps {
+                pendingAppShortcut.schedule(key, in: rowShortcuts)
+                loadAppsIfNeeded(for: presentationID)
+                return
+            }
             if CommandBarPreferences.source(ofRowID: key) == .macSettings {
                 show(promptingFor: key)
                 return
@@ -838,10 +880,10 @@ final class CommandBarService: ObservableObject {
     /// The row that already answers to this name, so the bar can say so
     /// instead of quietly taking the name away from it.
     func rowAlreadyNamed(_ alias: String, excluding entry: CommandBarEntry) -> String? {
-        guard let key = CommandBarPreferences.rowUsingAlias(alias, in: aliasCache,
+        guard let key = CommandBarPreferences.rowUsingAlias(alias, in: storedAliases,
                                                             excluding: entry.stableKey)
         else { return nil }
-        return entriesByStableKey[key]?.title
+        return entryTitle(forStableKey: key) ?? FeatureStrings.commandBar(L10n.shared.language).namedTitle
     }
 
     func toggleHidden(_ entry: CommandBarEntry) {
@@ -1911,6 +1953,7 @@ final class CommandBarService: ObservableObject {
             self?.handleCaptureKey(keyCode: keyCode, modifiers: modifiers)
         }
         mode = .capturingShortcut(entryID: entry.id)
+        aliasWarning = nil
         refreshPanelLayout()
     }
 
@@ -1943,14 +1986,10 @@ final class CommandBarService: ObservableObject {
                 stepBack()
                 return
             }
-            // Full means full: the card stays up rather than closing on
-            // a combination that was never stored.
-            guard CommandBarRowShortcuts.hasRoom(for: entry.stableKey,
-                                                 in: rowShortcuts) else {
-                NSSound.beep()
+            if let message = setRowShortcut(shortcut, for: entry) {
+                aliasWarning = message
                 return
             }
-            setRowShortcut(shortcut, for: entry)
             stepBack()
         }
     }
@@ -2240,8 +2279,15 @@ final class CommandBarService: ObservableObject {
     /// The previous list stays visible until the fresh one lands, so a newly
     /// installed app appears promptly without a watcher living in the
     /// background or a loading pause. Icons are resolved lazily by the rows.
+    func refreshApplications() {
+        guard AppFeature.commandBar.isAvailable else { return }
+        reloadPreferenceCaches()
+        ensureCatalogIndexed()
+        loadAppsIfNeeded(for: presentationID)
+    }
+
     private func loadAppsIfNeeded(for id: UUID) {
-        guard !appsLoading else { return }
+        guard AppFeature.commandBar.isAvailable, !appsLoading else { return }
         appsLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
@@ -2249,12 +2295,17 @@ final class CommandBarService: ObservableObject {
                 spotlightPaths: Self.spotlightApplicationPaths()))
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.cachedApps = apps
                 self.appsLoading = false
+                guard AppFeature.commandBar.isAvailable else { return }
+                self.cachedApps = apps
+                self.rebuildRunningEntries()
+                if let key = self.pendingAppShortcut.take(in: self.rowShortcuts,
+                                                          isAvailable: AppFeature.commandBar.isAvailable) {
+                    self.runRow(withStableKey: key, refreshAppsIfMissing: false)
+                }
                 guard self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) else { return }
-                self.rebuildRunningEntries()
                 self.refreshResults()
             }
         }

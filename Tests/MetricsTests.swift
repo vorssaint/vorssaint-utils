@@ -23306,7 +23306,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 151 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 158 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
@@ -23663,6 +23663,14 @@ struct MetricsTests {
         let commandPeriod = GlobalShortcut(keyCode: 47, modifiers: [.command])
         var bound = CommandBarRowShortcuts.setting(optionB, for: "app.bundle.a", in: [:])
         expect(bound["app.bundle.a"] == optionB, "a row answers to the keys it was given")
+        expect(CommandBarRowShortcuts.assignmentIssue(optionB, for: "app.bundle.a", in: bound) == nil,
+               "recording an app's existing shortcut is allowed")
+        expect(CommandBarRowShortcuts.assignmentIssue(optionB, for: "app.bundle.b", in: bound)
+                == .occupied("app.bundle.a"),
+               "the app editor names an occupied shortcut before replacing another app's binding")
+        expect(CommandBarRowShortcuts.assignmentIssue(
+                    GlobalShortcut(keyCode: 11, modifiers: []), for: "app.bundle.a", in: bound) == .invalid,
+               "an app shortcut cannot take an ordinary typing key even when editing an existing binding")
         bound = CommandBarRowShortcuts.setting(optionB, for: "app.bundle.b", in: bound)
         expect(bound["app.bundle.b"] == optionB && bound["app.bundle.a"] == nil,
                "the same keys move to the last row that asked; two rows never share one")
@@ -23689,6 +23697,36 @@ struct MetricsTests {
                 && CommandBarRowShortcuts.hasRoom(for: "row.0", in: full)
                 && CommandBarRowShortcuts.hasRoom(for: "row.new", in: [:]),
                "a full list says so before the keys are taken, and rebinding is always allowed")
+        expect(CommandBarRowShortcuts.assignmentIssue(optionN, for: "row.new", in: full) == .full
+                && CommandBarRowShortcuts.assignmentIssue(optionN, for: "row.0", in: full) == nil,
+               "the app editor reports a full list while still allowing existing shortcuts to change")
+        let appBindings = ["app.bundle.a": optionB, "app.bundle.b": optionN]
+        var pendingApp = CommandBarRowShortcuts.PendingAppLaunch()
+        pendingApp.schedule("app.bundle.a", in: appBindings)
+        expect(pendingApp.take(in: appBindings, isAvailable: true) == "app.bundle.a"
+                && pendingApp.take(in: appBindings, isAvailable: true) == nil,
+               "an app shortcut waiting for its first catalog runs exactly once")
+        pendingApp.schedule("app.bundle.a", in: appBindings)
+        pendingApp.schedule("app.bundle.b", in: appBindings)
+        expect(pendingApp.take(in: appBindings, isAvailable: true) == "app.bundle.b",
+               "the latest app shortcut replaces an earlier request while the catalog loads")
+        pendingApp.schedule("app.bundle.a", in: appBindings)
+        expect(pendingApp.take(in: [:], isAvailable: true) == nil,
+               "removing a shortcut while apps load cancels its pending launch")
+        pendingApp.schedule("app.bundle.a", in: appBindings)
+        expect(pendingApp.take(in: ["app.bundle.a": optionN], isAvailable: true) == nil,
+               "changing a shortcut while apps load cannot run its previous binding")
+        pendingApp.schedule("app.bundle.a", in: appBindings)
+        expect(pendingApp.take(in: appBindings, isAvailable: false) == nil
+                && pendingApp.take(in: appBindings, isAvailable: true) == nil,
+               "disabling the feature discards the deferred launch rather than postponing it")
+        pendingApp.schedule("app.bundle.a", in: appBindings)
+        pendingApp.cancel()
+        expect(pendingApp.take(in: appBindings, isAvailable: true) == nil,
+               "suspending shortcuts or running another command cancels a queued app launch")
+        expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.commandBarRowShortcuts,
+                    DefaultsKey.commandBarAliases, DefaultsKey.commandBarPins]),
+               "the app center reuses shortcut, alias and favorite preferences carried by settings backups")
         expect(CommandBarRowShortcuts.isUsable(
                     GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.command])),
                "Command Q is a real combination; the card has to be able to store it")
