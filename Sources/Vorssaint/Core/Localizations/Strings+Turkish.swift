@@ -241,6 +241,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Panelin açılması için imlecin bir simgenin üzerinde ne kadar bekleyeceği.",
         dockPreviewQuitAppOnClose: "× düğmesiyle uygulamadan çık",
         dockPreviewQuitAppOnCloseCaption: "Dock Preview’da × yalnızca o pencereyi kapatmak yerine uygulamadan tamamen çıkar.",
+        dockPreviewOrderByCreation: "Pencereleri oluşturma zamanına göre sırala",
+        dockPreviewOrderByCreationCaption: "En son kullanılanlar yerine önce daha eski pencereleri göster.",
         dockClickMinimize: "Dock simgesine tıklayınca küçült",
         dockClickMinimizeCaption: "Etkin uygulamanın pencereleri Dock simgesine tıklandığında küçülür. Geri getirmek için yeniden tıklayın.",
         dockClickCycleWindows: "Dock simgesine tıklayınca pencere değiştir",

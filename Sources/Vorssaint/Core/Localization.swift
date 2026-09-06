@@ -364,6 +364,8 @@ struct Strings {
     let dockPreviewOpenDelayCaption: String
     let dockPreviewQuitAppOnClose: String
     let dockPreviewQuitAppOnCloseCaption: String
+    let dockPreviewOrderByCreation: String
+    let dockPreviewOrderByCreationCaption: String
     let dockClickMinimize: String
     let dockClickMinimizeCaption: String
     let dockClickCycleWindows: String
@@ -1406,6 +1408,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Quanto tempo o ponteiro precisa ficar sobre um ícone antes de o painel abrir.",
         dockPreviewQuitAppOnClose: "Encerrar o app com o botão ×",
         dockPreviewQuitAppOnCloseCaption: "No Dock Preview, × encerra o app inteiro em vez de fechar apenas aquela janela.",
+        dockPreviewOrderByCreation: "Ordenar janelas por criação",
+        dockPreviewOrderByCreationCaption: "Mostra primeiro as janelas mais antigas em vez das usadas mais recentemente.",
         dockClickMinimize: "Clicar no Dock minimiza",
         dockClickMinimizeCaption: "As janelas do app ativo são minimizadas ao clicar no ícone dele no Dock. Clique de novo para trazê-las de volta.",
         dockClickCycleWindows: "Clicar no Dock alterna janelas",
@@ -2416,6 +2420,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "How long the pointer has to rest on an icon before its panel opens.",
         dockPreviewQuitAppOnClose: "Quit the app with the × button",
         dockPreviewQuitAppOnCloseCaption: "In Dock Preview, × quits the whole app instead of closing only that window.",
+        dockPreviewOrderByCreation: "Order windows by creation time",
+        dockPreviewOrderByCreationCaption: "Show older windows first instead of the ones you used most recently.",
         dockClickMinimize: "Click the Dock icon to minimize",
         dockClickMinimizeCaption: "The active app’s windows minimize when you click its Dock icon. Click again to bring them back.",
         dockClickCycleWindows: "Click the Dock icon to cycle windows",

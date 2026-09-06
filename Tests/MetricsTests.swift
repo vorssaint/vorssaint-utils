@@ -3145,6 +3145,23 @@ struct MetricsTests {
                "the Dock Preview panel starts fully solid")
         expect(registeredDefaults[DefaultsKey.dockPreviewQuitAppOnClose] as? Bool == false,
                "the Dock Preview close button closes one window by default")
+        expect(registeredDefaults[DefaultsKey.dockPreviewOrderByCreation] as? Bool == false,
+               "Dock Preview keeps last-use window order by default")
+        func dockPreviewWindow(id: CGWindowID) -> SwitcherItem {
+            SwitcherItem(id: "w.\(id)", title: "Window \(id)", appName: "App",
+                         pid: 1, windowOwnerPID: 1, windowID: id,
+                         isOnScreen: true, isAppHidden: false, isMinimized: false,
+                         isFullscreen: false, isOnHiddenSpace: false, frame: .zero)
+        }
+        let lastUseOrder = [dockPreviewWindow(id: 30), dockPreviewWindow(id: 10), dockPreviewWindow(id: 20)]
+        expect(DockPreviewSupport.orderedWindows(lastUseOrder, order: .lastUse).map(\.windowID)
+                == [30, 10, 20],
+               "last-use order leaves the enumerated window list unchanged")
+        expect(DockPreviewSupport.orderedWindows(lastUseOrder, order: .creation).map(\.windowID)
+                == [10, 20, 30],
+               "creation order sorts windows by ascending window ID")
+        expect(DockPreviewSupport.orderedWindows([], order: .creation).isEmpty,
+               "creation order keeps an empty list empty")
         expect(DockPreviewSupport.closeAction(quitAppOnClose: false) == .closeWindow
                 && DockPreviewSupport.closeAction(quitAppOnClose: true) == .quitApp,
                "the Dock Preview close preference selects exactly one close action")

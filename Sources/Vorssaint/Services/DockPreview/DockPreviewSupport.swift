@@ -94,6 +94,16 @@ struct HoverCorridor: Equatable {
     }
 }
 
+
+enum DockPreviewWindowOrder: Equatable {
+    case lastUse
+    case creation
+
+    static func fromDefaults(orderByCreation: Bool) -> DockPreviewWindowOrder {
+        orderByCreation ? .creation : .lastUse
+    }
+}
+
 enum DockPreviewSupport {
     static func handlesMiddleClick(eventType: NSEvent.EventType, buttonNumber: Int,
                                    point: CGPoint, visibleRect: CGRect, isHidden: Bool) -> Bool {
@@ -104,6 +114,21 @@ enum DockPreviewSupport {
     static func closeAction(quitAppOnClose: Bool) -> DockPreviewCloseAction {
         quitAppOnClose ? .quitApp : .closeWindow
     }
+
+    /// Reorders Dock Preview cards. Last-use keeps the enumerator’s MRU order;
+    /// creation sorts by ascending window ID (a stable creation-time proxy).
+    static func orderedWindows(_ windows: [SwitcherItem],
+                               order: DockPreviewWindowOrder) -> [SwitcherItem] {
+        switch order {
+        case .lastUse:
+            return windows
+        case .creation:
+            return windows.sorted { lhs, rhs in
+                (lhs.windowID ?? 0) < (rhs.windowID ?? 0)
+            }
+        }
+    }
+
 
     static func performCloseAction(quitAppOnClose: Bool,
                                    requestQuit: () -> Bool,

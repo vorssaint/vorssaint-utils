@@ -242,6 +242,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Сколько указатель должен оставаться на значке, прежде чем откроется панель.",
         dockPreviewQuitAppOnClose: "Завершать приложение кнопкой ×",
         dockPreviewQuitAppOnCloseCaption: "В Dock Preview кнопка × завершает всё приложение, а не закрывает только это окно.",
+        dockPreviewOrderByCreation: "Сортировать окна по времени создания",
+        dockPreviewOrderByCreationCaption: "Показывать сначала старые окна, а не те, что использовались недавно.",
         dockClickMinimize: "Сворачивать кликом по Dock",
         dockClickMinimizeCaption: "Окна активного приложения сворачиваются при клике по его значку в Dock. Кликните ещё раз, чтобы вернуть их.",
         dockClickCycleWindows: "Кликом по Dock переключать окна",
