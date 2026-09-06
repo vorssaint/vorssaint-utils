@@ -206,6 +206,37 @@ struct HomebrewPendingAction {
     }
 }
 
+/// Policy for the post-completion timer on Homebrew operations. The last log
+/// stays available for inspection; only the status chrome is optional to clear.
+enum HomebrewCompletedOperationCleanupSupport {
+    struct Plan: Equatable {
+        var delay: TimeInterval
+        var clearsWholeStatus: Bool
+        var clearsLog: Bool
+    }
+
+    static func plan(for result: HomebrewOperationResult) -> Plan? {
+        switch result {
+        case .running:
+            return nil
+        case .succeeded:
+            return Plan(delay: 8, clearsWholeStatus: true, clearsLog: false)
+        case .cancelled:
+            return Plan(delay: 6, clearsWholeStatus: true, clearsLog: false)
+        case .failed, .needsTerminal:
+            return Plan(delay: 20, clearsWholeStatus: false, clearsLog: false)
+        }
+    }
+
+    static func showsOperationFooter(hasStatus: Bool, logIsEmpty: Bool) -> Bool {
+        hasStatus || !logIsEmpty
+    }
+
+    static func showsLastLogEntry(hasStatus: Bool, logIsEmpty: Bool) -> Bool {
+        !hasStatus && !logIsEmpty
+    }
+}
+
 enum HomebrewCommandBuilder {
     static let candidatePaths = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
     static let installerCommand = #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#

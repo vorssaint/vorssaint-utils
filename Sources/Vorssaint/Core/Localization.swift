@@ -513,6 +513,7 @@ struct Strings {
     let homebrewCancelOperation: String
     let homebrewClearLog: String
     let homebrewLogTitle: String
+    let homebrewViewLastLog: String
     let homebrewVersion: String
     let homebrewDescription: String
     let homebrewHomepage: String
@@ -1550,6 +1551,7 @@ extension Strings {
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Limpar log",
         homebrewLogTitle: "Log",
+        homebrewViewLastLog: "Ver último log",
         homebrewVersion: "Versão",
         homebrewDescription: "Tipo",
         homebrewHomepage: "Abrir site",
@@ -2560,6 +2562,7 @@ extension Strings {
         homebrewCancelOperation: "Cancel",
         homebrewClearLog: "Clear log",
         homebrewLogTitle: "Log",
+        homebrewViewLastLog: "View last log",
         homebrewVersion: "Version",
         homebrewDescription: "Type",
         homebrewHomepage: "Open website",

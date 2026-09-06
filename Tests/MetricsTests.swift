@@ -12343,6 +12343,26 @@ struct MetricsTests {
                 && !homebrewRunStreaming.contains("waitUntilExit"),
                "Homebrew operations wait on a bounded semaphore, not waitUntilExit")
 
+        let homebrewCleanup = homebrewManagerSource.components(separatedBy: "func scheduleCompletedOperationCleanup")
+            .dropFirst().first ?? ""
+        expect(!homebrewCleanup.contains("self.log = \"\""),
+               "completed-operation cleanup keeps the last Homebrew log")
+        expect(HomebrewCompletedOperationCleanupSupport.plan(for: .succeeded)?.clearsLog == false
+                && HomebrewCompletedOperationCleanupSupport.plan(for: .cancelled)?.clearsLog == false
+                && HomebrewCompletedOperationCleanupSupport.plan(for: .failed)?.clearsLog == false
+                && HomebrewCompletedOperationCleanupSupport.plan(for: .needsTerminal)?.clearsLog == false
+                && HomebrewCompletedOperationCleanupSupport.plan(for: .running) == nil,
+               "completion timer never erases the retained Homebrew log")
+        expect(HomebrewCompletedOperationCleanupSupport.plan(for: .succeeded)
+                == HomebrewCompletedOperationCleanupSupport.Plan(delay: 8, clearsWholeStatus: true, clearsLog: false),
+               "successful Homebrew cleanup clears status only")
+        expect(HomebrewCompletedOperationCleanupSupport.showsOperationFooter(hasStatus: false, logIsEmpty: false),
+               "settings still show a footer for the retained last log")
+        expect(HomebrewCompletedOperationCleanupSupport.showsLastLogEntry(hasStatus: false, logIsEmpty: false)
+                && !HomebrewCompletedOperationCleanupSupport.showsLastLogEntry(hasStatus: true, logIsEmpty: false)
+                && !HomebrewCompletedOperationCleanupSupport.showsLastLogEntry(hasStatus: false, logIsEmpty: true),
+               "view-last-log appears only when status is gone and a log remains")
+
         expect(HomebrewPackageKind.allCases == [.cask, .formula],
                "Homebrew package kinds keep casks before formulae")
         expect(HomebrewCommandBuilder.isValidToken("jq"), "simple Homebrew token is valid")
