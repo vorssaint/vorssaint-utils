@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, space
 
     var id: String { rawValue }
 
@@ -25,6 +25,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .peripheralBattery: return DefaultsKey.menuBarPeripheralBattery
         case .power: return DefaultsKey.menuBarPower
         case .fanSpeed: return DefaultsKey.menuBarFanSpeed
+        case .space: return DefaultsKey.menuBarSpace
         }
     }
 
@@ -44,6 +45,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .peripheralBattery: return "keyboard"
         case .power: return "powerplug.fill"
         case .fanSpeed: return "fanblades"
+        case .space: return "macwindow.on.rectangle"
         }
     }
 
@@ -63,6 +65,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .peripheralBattery: return strings.monitorShowPeripheralBattery
         case .power: return strings.monitorShowPowerLabel
         case .fanSpeed: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
+        case .space: return strings.monitorShowSpace
         }
     }
 
@@ -71,7 +74,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .gpu, .gpuTemperature,
         .memory,
         .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
-        .network, .diskUsage, .diskActivity, .power, .fanSpeed,
+        .network, .diskUsage, .diskActivity, .power, .fanSpeed, .space,
     ]
 
     static func order(in defaults: UserDefaults) -> [MenuBarMetric] {
@@ -96,6 +99,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .diskUsage, .diskActivity: return .monitorDisk
         case .battery, .batteryTime, .batteryTemperature, .peripheralBattery, .power: return .monitorPower
         case .fanSpeed: return .fanControl
+        case .space: return .switcher // display only; availability is not gated (see enabled)
         }
     }
 
@@ -110,10 +114,17 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Space reads Mission Control topology; it does not need SystemMonitor sampling.
+    var needsSystemMonitorSampling: Bool { self != .space }
+
+    /// Space stays available even when Switcher is off in the hub — the digit
+    /// only needs SpaceWindowBridge, which is already linked for window work.
+    var isFeatureGated: Bool { self != .space }
+
     static func enabled(in defaults: UserDefaults) -> [MenuBarMetric] {
         order(in: defaults).filter {
             defaults.bool(forKey: $0.defaultsKey)
-                && defaults.bool(forKey: $0.feature.availabilityKey)
+                && (!$0.isFeatureGated || defaults.bool(forKey: $0.feature.availabilityKey))
                 && $0.isAvailableOnCurrentHardware
         }
     }
@@ -121,9 +132,13 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
     static func anyEnabled(in defaults: UserDefaults) -> Bool {
         allCases.contains {
             defaults.bool(forKey: $0.defaultsKey)
-                && defaults.bool(forKey: $0.feature.availabilityKey)
+                && (!$0.isFeatureGated || defaults.bool(forKey: $0.feature.availabilityKey))
                 && $0.isAvailableOnCurrentHardware
         }
+    }
+
+    static func anySystemMonitorSampledEnabled(in defaults: UserDefaults) -> Bool {
+        enabled(in: defaults).contains(where: \.needsSystemMonitorSampling)
     }
 }
 
@@ -455,6 +470,13 @@ enum MenuBarRenderer {
                                             segments: [.symbol(metric.symbolName), .text(" " + value + " RPM")],
                                             width: reservedWidth(for: metric, preset: preset)))
                 }
+            case .space:
+                if let value = spaceNumberText() {
+                    // InstantSpaceSwitcher-style bare digit — no label chrome.
+                    items.append(MetricItem(metric: metric,
+                                            segments: [.text(value)],
+                                            width: reservedWidth(for: metric, preset: preset)))
+                }
             }
         }
         return items
@@ -707,6 +729,10 @@ enum MenuBarRenderer {
                                                 style: style,
                                                 pressure: nil)])
                 }
+            case .space:
+                if let value = spaceNumberText() {
+                    groups.append([.text(value)])
+                }
             }
         }
         return blockJoined(groups, style: style)
@@ -787,6 +813,8 @@ enum MenuBarRenderer {
         case (_, .fanSpeed):
             let count = max(1, SystemMonitor.fanTelemetryCount)
             return FanControlPolicy.menuBarWidthUnits(fanCount: count)
+        case (_, .space):
+            return 2  // bare "99"
         }
     }
 
@@ -1306,6 +1334,21 @@ enum MenuBarRenderer {
         let writeValues = devices.compactMap(\.writeBytesPerSec)
         guard !readValues.isEmpty || !writeValues.isEmpty else { return nil }
         return (readValues.reduce(0, +), writeValues.reduce(0, +))
+    }
+
+    /// Current Space digit for the menu-bar display. Fullscreen Spaces keep
+    /// their index in that display's full Mission Control row.
+    private static func spaceNumberText() -> String? {
+        guard let topology = SpaceWindowBridge.topology() else { return nil }
+        let menuBarID = (NSScreen.main?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
+            .uint32Value
+        let displays = topology.displays.map {
+            SpaceMenuBarSupport.DisplayRow(id: $0.displayID, spaces: $0.spaces, current: $0.currentSpace)
+        }
+        guard let row = SpaceMenuBarSupport.row(forMenuBarDisplayID: menuBarID, displays: displays),
+              let number = SpaceMenuBarSupport.number(current: row.current, spaces: row.spaces)
+        else { return nil }
+        return String(number)
     }
 
     static func nsColor(for pressure: MemoryPressure) -> NSColor {

@@ -738,6 +738,7 @@ extension Strings {
         monitorShowGPUTemperature: "GPU 溫度",
         monitorShowBatteryTemperature: "電池溫度",
         monitorShowPeripheralBattery: "外接裝置電池",
+        monitorShowSpace: "空間",
         peripheralBatteryNoDevices: "未發現外接裝置電池",
         monitorGraphsSection: "圖表",
         monitorGraphsCaption: "選擇要以圖表顯示隨時間變化的指標。",

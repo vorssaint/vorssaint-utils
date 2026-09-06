@@ -17,6 +17,7 @@ final class StatusItemController {
     private var cancellables = Set<AnyCancellable>()
     private var titleTimer: Timer?
     private var defaultsObserver: NSObjectProtocol?
+    private var spaceObserver: NSObjectProtocol?
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
@@ -155,6 +156,15 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        spaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard MenuBarMetric.enabled(in: .standard).contains(.space) else { return }
+            self?.refresh()
+        }
+
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
                                                                   queue: .main) { [weak self] _ in
@@ -185,6 +195,7 @@ final class StatusItemController {
         // a block observer that outlives this instance.
         titleTimer?.invalidate()
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
+        if let spaceObserver { NSWorkspace.shared.notificationCenter.removeObserver(spaceObserver) }
         for item in metricStatusItems.values {
             NSStatusBar.system.removeStatusItem(item)
         }
@@ -196,7 +207,7 @@ final class StatusItemController {
         let defaults = UserDefaults.standard
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
         SystemMonitor.shared.setInterval(seconds: interval)
-        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
+        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anySystemMonitorSampledEnabled(in: defaults))
     }
 
     private func syncTitleTimer(keepAwakeActive: Bool,
@@ -568,7 +579,7 @@ final class StatusItemController {
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
             case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power,
-                 .fanSpeed:
+                 .fanSpeed, .space:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
                 groups.append(MetricStatusGroup(id: id,

@@ -320,7 +320,7 @@ private struct MenuBarMetricOrderEditor: View {
     /// Metrics whose family left the hub keep their saved slot but stay out
     /// of the editor until they return.
     private var visibleOrder: [MenuBarMetric] {
-        order.filter { $0.feature.isAvailable && $0.isAvailableOnCurrentHardware }
+        order.filter { (!$0.isFeatureGated || $0.feature.isAvailable) && $0.isAvailableOnCurrentHardware }
     }
 }
 

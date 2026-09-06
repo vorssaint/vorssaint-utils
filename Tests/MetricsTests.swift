@@ -3951,8 +3951,10 @@ struct MetricsTests {
                "menu bar peripheral battery is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarFanSpeed] as? Bool == false,
                "menu bar fan speed is opt-in")
+        expect(registeredDefaults[DefaultsKey.menuBarSpace] as? Bool == false,
+               "menu bar Space number is opt-in")
         expect(registeredDefaults[DefaultsKey.menuBarMetricOrder] as? String
-               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power,fanSpeed",
+               == "cpu,cpuTemperature,gpu,gpuTemperature,memory,battery,batteryTime,batteryTemperature,peripheralBattery,network,diskUsage,diskActivity,power,fanSpeed,space",
                "menu bar metric order keeps temperature sensors next to their components and disk near live I/O")
         expect(registeredDefaults[DefaultsKey.menuBarCombineTemperatures] as? Bool == true,
                "menu bar combines usage and temperature by default")
@@ -5212,13 +5214,45 @@ struct MetricsTests {
         expect(Defaults.sanitizedMenuBarMemoryStyle("dot") == "dot", "valid memory style is preserved")
         expect(Defaults.sanitizedMenuBarMemoryStyle("both") == "both", "combined memory style is preserved")
         expect(Defaults.sanitizedMenuBarMemoryStyle("bad") == "percent", "invalid memory style falls back to percent")
+
+        // MARK: Space menu bar number
+        expect(SpaceMenuBarSupport.number(current: 10, spaces: [10, 20, 30]) == 1,
+               "first Space is number 1")
+        expect(SpaceMenuBarSupport.number(current: 20, spaces: [10, 20, 30]) == 2,
+               "middle Space is number 2")
+        expect(SpaceMenuBarSupport.number(current: 30, spaces: [10, 20, 30]) == 3,
+               "last Space is number 3")
+        expect(SpaceMenuBarSupport.number(current: 99, spaces: [10, 20, 30]) == nil,
+               "unknown Space id yields nil")
+        expect(SpaceMenuBarSupport.number(current: nil, spaces: [10, 20]) == nil,
+               "missing current Space yields nil")
+        expect(SpaceMenuBarSupport.number(current: 10, spaces: []) == nil,
+               "empty Spaces row yields nil")
+        // Fullscreen Spaces stay in the managed-display row; the digit is that
+        // full-row 1-based index (not an ordinary-desktop-only renumbering).
+        expect(SpaceMenuBarSupport.number(current: 40, spaces: [10, 20, 40]) == 3,
+               "fullscreen Space keeps its full-row index")
+        let picked = SpaceMenuBarSupport.row(forMenuBarDisplayID: 2,
+                                             displays: [
+                                                (id: 1, spaces: [10, 11], current: 10),
+                                                (id: 2, spaces: [20, 21, 22], current: 21),
+                                             ])
+        expect(picked.map { SpaceMenuBarSupport.number(current: $0.current, spaces: $0.spaces) } == 2,
+               "multi-display uses the menu-bar display's Spaces row")
+        let fallback = SpaceMenuBarSupport.row(forMenuBarDisplayID: 99,
+                                               displays: [
+                                                  (id: 1, spaces: [10, 11], current: 11),
+                                               ])
+        expect(fallback.map { SpaceMenuBarSupport.number(current: $0.current, spaces: $0.spaces) } == 2,
+               "unknown menu-bar display id falls back to the first display")
+
         expect(Defaults.sanitizedMenuBarMetricOrder("cpu,gpu,memory,network,battery,power")
                == ["cpu", "gpu", "memory", "network", "battery", "power",
-                   "cpuTemperature", "gpuTemperature", "batteryTime", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity", "fanSpeed"],
+                   "cpuTemperature", "gpuTemperature", "batteryTime", "batteryTemperature", "peripheralBattery", "diskUsage", "diskActivity", "fanSpeed", "space"],
                "menu bar metric order appends temperature sensors without rewriting existing saved order")
         expect(Defaults.sanitizedMenuBarMetricOrder("temperature,cpu,cpu,bad")
                == ["cpuTemperature", "gpuTemperature", "batteryTemperature",
-                   "cpu", "gpu", "memory", "battery", "batteryTime", "peripheralBattery", "network", "diskUsage", "diskActivity", "power", "fanSpeed"],
+                   "cpu", "gpu", "memory", "battery", "batteryTime", "peripheralBattery", "network", "diskUsage", "diskActivity", "power", "fanSpeed", "space"],
                "menu bar metric order migrates the old generic temperature value")
         expect(Defaults.sanitizedBundleIdentifierList([" com.example.One ", "", "com.example.One", "com.example.Two"])
                == ["com.example.One", "com.example.Two"],
@@ -20427,6 +20461,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.fanControlCoolingLevel)
                 && backupKeys.contains(DefaultsKey.fanControlCurves)
                 && backupKeys.contains(DefaultsKey.menuBarFanSpeed)
+                && backupKeys.contains(DefaultsKey.menuBarSpace)
                 && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
                 && !backupKeys.contains(DefaultsKey.fanControlHelperVersion),
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")

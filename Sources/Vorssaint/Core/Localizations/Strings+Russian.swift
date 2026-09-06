@@ -738,6 +738,7 @@ extension Strings {
         monitorShowGPUTemperature: "Температура GPU",
         monitorShowBatteryTemperature: "Температура батареи",
         monitorShowPeripheralBattery: "Батарея аксессуаров",
+        monitorShowSpace: "Рабочий стол",
         peripheralBatteryNoDevices: "Устройства не найдены",
         monitorGraphsSection: "Графики",
         monitorGraphsCaption: "Выберите, для каких метрик показывать график во времени.",

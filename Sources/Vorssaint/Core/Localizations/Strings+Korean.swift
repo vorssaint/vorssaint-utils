@@ -738,6 +738,7 @@ extension Strings {
         monitorShowGPUTemperature: "GPU 온도",
         monitorShowBatteryTemperature: "배터리 온도",
         monitorShowPeripheralBattery: "주변 기기 배터리",
+        monitorShowSpace: "스페이스",
         peripheralBatteryNoDevices: "주변 기기를 찾을 수 없습니다",
         monitorGraphsSection: "그래프",
         monitorGraphsCaption: "시간 흐름에 따라 그래프로 표시할 항목을 선택합니다.",
