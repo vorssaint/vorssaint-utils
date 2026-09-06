@@ -27,7 +27,7 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    private let repository = "vorssaintapp/vorssaint-utils"
+    private let repository = "vorssaint/vorssaint-utils"
     private var downloadURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?
@@ -474,7 +474,10 @@ final class UpdateService: ObservableObject {
     }
 }
 
-private final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDelegate {
+/// Writes a response to a scratch file and abandons it once it passes
+/// `byteLimit`, so a body that never ends cannot fill the disk. Shared by the
+/// app update download and the What's New showcase video.
+final class BoundedUpdateDownloadDelegate: NSObject, URLSessionDataDelegate {
     private let byteLimit: Int64
     private let progress: (Int64, Int64?) -> Void
     private let completion: (URL?, URLResponse?, Error?) -> Void

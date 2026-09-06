@@ -89,17 +89,4 @@ enum RecorderTextRenderer {
         NSGraphicsContext.restoreGraphicsState()
         return context.makeImage()
     }
-
-    /// Where the rasterized line sits on the canvas, in Core Image's
-    /// bottom-left space, with a margin off every edge it touches.
-    static func origin(for overlay: RecorderTextOverlay,
-                       textSize: CGSize,
-                       canvas: CGSize) -> CGPoint {
-        let margin = min(canvas.width, canvas.height) * 0.05
-        let point = overlay.anchor.unitPoint
-        let x = margin + (canvas.width - textSize.width - margin * 2) * point.x
-        // The anchor counts down from the top, the way the screen does.
-        let topY = margin + (canvas.height - textSize.height - margin * 2) * point.y
-        return CGPoint(x: x, y: canvas.height - topY - textSize.height)
-    }
 }

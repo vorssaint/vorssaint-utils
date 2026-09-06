@@ -174,14 +174,22 @@ final class DockPreviewService: ObservableObject {
         endSession()
     }
 
+    func closeWindow(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: false)
+    }
+
     func close(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose))
+    }
+
+    private func close(_ item: SwitcherItem, quitAppOnClose: Bool) {
         guard isVisible,
               windows.contains(item),
               let windowID = item.windowID
         else { return }
 
         DockPreviewSupport.performCloseAction(
-            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
+            quitAppOnClose: quitAppOnClose,
             requestQuit: { [weak self] in
                 let accepted = requestDockPreviewApplicationQuit(item)
                 if accepted { self?.endSession() }
@@ -388,7 +396,9 @@ final class DockPreviewService: ObservableObject {
     /// switch re-confirmations read these) — everything else falls through to
     /// the full handler.
     private func discardFarMouseMove(axPoint: CGPoint) -> Bool {
-        guard isRunning, !isVisible, pendingHover == nil else { return false }
+        // Nothing checks whether the tap is running: the only caller is the tap
+        // callback, which cannot run unless it is.
+        guard !isVisible, pendingHover == nil else { return false }
         let point = appKitPoint(fromAX: axPoint)
         guard !isNearDock(point) else { return false }
         lastAXMousePoint = axPoint
@@ -1462,13 +1472,21 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
         WindowActivator.activate(item)
     }
 
+    func closeWindow(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: false)
+    }
+
     func close(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose))
+    }
+
+    private func close(_ item: SwitcherItem, quitAppOnClose: Bool) {
         guard windows.contains(item),
               let windowID = item.windowID
         else { return }
 
         DockPreviewSupport.performCloseAction(
-            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
+            quitAppOnClose: quitAppOnClose,
             requestQuit: { [weak self] in
                 let accepted = requestDockPreviewApplicationQuit(item)
                 if accepted { self?.closePreviewPanel() }

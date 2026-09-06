@@ -128,6 +128,10 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let soundOutputSwitcherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_S),
                                                            modifiers: [.control, .option, .command])
+    static let keyboardBrightnessDecreaseDefault = GlobalShortcut(
+        keyCode: Int64(kVK_ANSI_Minus), modifiers: [.option, .command])
+    static let keyboardBrightnessIncreaseDefault = GlobalShortcut(
+        keyCode: Int64(kVK_ANSI_Equal), modifiers: [.option, .command])
     static let windowLayoutLeftDefault = GlobalShortcut(keyCode: Int64(kVK_LeftArrow),
                                                         modifiers: [.control, .option])
     static let windowLayoutRightDefault = GlobalShortcut(keyCode: Int64(kVK_RightArrow),
@@ -190,6 +194,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // E opens the latest capture in the editor, beside the capture shortcut.
     static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_E),
                                                              modifiers: [.control, .option, .command])
+    // H opens capture history, on the same free control-option-command layer.
+    static let recentCapturesDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_H),
+                                                      modifiers: [.control, .option, .command])
     // P opens a copied image in the editor, beside the other screenshot tools.
     static let screenshotClipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_P),
                                                            modifiers: [.control, .option, .command])
@@ -512,7 +519,7 @@ struct GlobalShortcut: Equatable, Hashable {
     /// Answered from the cache: deriving a label asks Text Input Services,
     /// which traps the process off the main thread, and the Switcher's tap
     /// asks for one on every key from its own (issue #578).
-    private static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
+    static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
         let cacheKey = LayoutLabelKey(keyCode: keyCode, usesCommand: usesCommand)
         if let cached = (layoutLabelLock.withLock { layoutLabels[cacheKey] }) {
             return cached
@@ -657,6 +664,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenshot
     case screenshotFullScreen
     case screenshotLastCapture
+    case recentCaptures
     case screenshotClipboard
     case cameraPreview
     case radialMenu
@@ -664,6 +672,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case snippetLibrary
     case commandBar
     case screenRecorder
+    case keyboardBrightnessDecrease
+    case keyboardBrightnessIncrease
 
     var id: String { storageKey }
 
@@ -684,6 +694,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
         case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
+        case .recentCaptures: return DefaultsKey.recentCapturesShortcut
         case .screenshotClipboard: return DefaultsKey.screenshotClipboardShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
         case .radialMenu: return DefaultsKey.radialMenuShortcut
@@ -691,6 +702,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
+        case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
+        case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         }
     }
 
@@ -711,6 +724,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
         case .screenshotLastCapture: return .screenshotLastCaptureDefault
+        case .recentCaptures: return .recentCapturesDefault
         case .screenshotClipboard: return .screenshotClipboardDefault
         case .cameraPreview: return .cameraPreviewDefault
         case .radialMenu: return .radialMenuDefault
@@ -718,11 +732,28 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
         case .screenRecorder: return .screenRecorderDefault
+        case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
+        case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         }
     }
 
     var savedShortcut: GlobalShortcut {
         GlobalShortcut.saved(for: storageKey, fallback: defaultShortcut)
+    }
+
+    /// The switcher's event tap can handle its native combinations without
+    /// changing the system takeover setting. Other system actions stay reserved.
+    var permittedSystemShortcutIDs: Set<Int32> {
+        switch self {
+        case .switcher:
+            return [SwitcherNativeSymbolicHotKey.commandTab.rawValue,
+                    SwitcherNativeSymbolicHotKey.commandShiftTab.rawValue]
+        case .switcherWindow:
+            return [SwitcherNativeSymbolicHotKey.nextWindow.rawValue,
+                    SwitcherNativeSymbolicHotKey.previousWindow.rawValue]
+        default:
+            return []
+        }
     }
 
     func title(_ strings: Strings) -> String {
@@ -745,6 +776,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotLastCapture:
             return FeatureStrings.screenshot(L10n.shared.language).editLastCapture
+        case .recentCaptures:
+            return FeatureStrings.recentCaptures(L10n.shared.language).title
         case .screenshotClipboard:
             return FeatureStrings.screenshot(L10n.shared.language).editClipboardImage
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
@@ -753,6 +786,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
+        case .keyboardBrightnessDecrease:
+            return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessDecrease
+        case .keyboardBrightnessIncrease:
+            return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         }
     }
 
@@ -790,6 +827,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
         case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
+        case .recentCaptures: return [DefaultsKey.recentCapturesShortcutEnabled]
         case .screenshotClipboard: return [DefaultsKey.screenshotClipboardShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
@@ -797,6 +835,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
+        case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
+            return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         }
     }
 
@@ -816,7 +856,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
-        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard:
+        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
+             .screenshotClipboard:
             return .screenshot
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
@@ -824,13 +865,31 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
+        case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         }
     }
 
-    /// Every capture role follows its own tool: the shortcut opens the shared
-    /// chooser on that mode, so it lives and dies with the mode itself.
+    /// Keyboard-backlight shortcuts belong with keyboard controls in the
+    /// editor, while their implementation remains part of the brightness
+    /// service and follows that feature's availability.
+    var group: FeatureGroup {
+        switch self {
+        case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .mouseKeyboard
+        default: return feature.group
+        }
+    }
+
+    var isKeyboardBrightness: Bool {
+        self == .keyboardBrightnessDecrease || self == .keyboardBrightnessIncrease
+    }
+
+    /// Capture roles normally follow their own tool. Shared capture history
+    /// stays available while either kind of capture that fills it is installed.
     var availabilityFeatures: [AppFeature] {
-        [feature]
+        switch self {
+        case .recentCaptures: return [.screenshot, .screenRecorder]
+        default: return [feature]
+        }
     }
 
     func isAvailable(using isAvailable: (AppFeature) -> Bool) -> Bool {
@@ -878,10 +937,10 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static let captureFeatures: [AppFeature] =
         [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
 
-    /// Chooser tools first, in chooser order, then the screenshot extras.
+    /// Chooser tools first, in chooser order, then shared history and screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
         .screenshot, .screenRecorder, .screenOCR, .colorPicker,
-        .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
+        .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
     ]
 
     /// The given roles narrowed to the capture group, in display order. The
@@ -906,15 +965,57 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 /// catches the collisions it can and leaves the rest to the registration
 /// failure the shortcut rows already report.
 extension GlobalShortcut {
-    /// The system's shortcut list. Read fresh every time: it can change in
-    /// System Settings while a shortcut field is open.
+    /// The customised half of the system's shortcut list, as System Settings
+    /// writes it. Only the fallback reads it; the live table is the authority.
+    /// Read fresh every time: it can change while a shortcut field is open.
     static var systemSymbolicHotKeys: [String: Any]? {
         UserDefaults(suiteName: "com.apple.symbolichotkeys")?
             .dictionary(forKey: "AppleSymbolicHotKeys")
     }
 
+    /// The WindowServer's live table is the authority: the preferences plist
+    /// only lists entries the user has customised, so a factory key such as
+    /// ⌘⇧4 is missing from it and used to pass here while macOS still answered
+    /// it. The plist is the fallback when the private calls are unavailable,
+    /// and also when they answer with an empty table: an empty read says
+    /// nothing about what macOS answers, and treating it as all clear would
+    /// quietly revive the bug this check exists to catch.
     var conflictsWithSystemShortcut: Bool {
-        Self.matchesSystemShortcut(self, symbolicHotKeys: Self.systemSymbolicHotKeys)
+        conflictsWithSystemShortcut(for: nil)
+    }
+
+    func conflictsWithSystemShortcut(for role: GlobalShortcutRole?) -> Bool {
+        Self.conflictsWithSystemShortcut(self,
+                                         liveEntries: SymbolicHotKeys.liveEntries(),
+                                         symbolicHotKeys: Self.systemSymbolicHotKeys,
+                                         role: role)
+    }
+
+    /// The decision behind `conflictsWithSystemShortcut`, with both sources
+    /// injected so it can be tested without touching the WindowServer. The
+    /// plist is read only when the live table is missing or empty.
+    static func conflictsWithSystemShortcut(_ shortcut: GlobalShortcut,
+                                            liveEntries: [LiveSystemShortcut]?,
+                                            symbolicHotKeys: @autoclosure () -> [String: Any]?,
+                                            role: GlobalShortcutRole? = nil) -> Bool {
+        let permittedIDs = role?.permittedSystemShortcutIDs ?? []
+        if let liveEntries, !liveEntries.isEmpty {
+            return matchesLiveSystemShortcut(shortcut, entries: liveEntries.filter {
+                !permittedIDs.contains($0.id)
+            })
+        }
+        return matchesSystemShortcut(shortcut, symbolicHotKeys: symbolicHotKeys()?.filter {
+            !permittedIDs.contains(Int32($0.key) ?? -1)
+        })
+    }
+
+    /// Whether an enabled live entry uses exactly this combination. Rows with
+    /// no key assigned never reach the snapshot, and a disabled row is not in
+    /// anyone's way.
+    static func matchesLiveSystemShortcut(_ shortcut: GlobalShortcut,
+                                          entries: [LiveSystemShortcut]) -> Bool {
+        guard shortcut.keyCode != Self.noKeyCode else { return false }
+        return entries.contains { $0.enabled && $0.shortcut == shortcut }
     }
 
     /// Whether an enabled system shortcut uses exactly this combination. Entries

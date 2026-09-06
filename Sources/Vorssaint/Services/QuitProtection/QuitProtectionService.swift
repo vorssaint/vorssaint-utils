@@ -18,6 +18,7 @@ final class QuitProtectionService: ObservableObject {
         let event: CGEvent
         let mode: QuitProtectionMode
         let targetProcessIdentifier: pid_t?
+        let switcherSessionGeneration: UInt64
     }
 
     private static let syntheticMarker: Int64 = 0x5652535341494E54
@@ -156,6 +157,8 @@ final class QuitProtectionService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            // The key up that ends the swallow may be among the events missed.
+            swallowShortcut = nil
             cancelPending()
             let enabled = AppFeature.quitWindowProtection.isAvailable
                 && isEnabledForAnyShortcut
@@ -178,6 +181,13 @@ final class QuitProtectionService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // Ordinary typing still avoids consulting another service. A
+        // switcher-owned press must reach its tap, regardless of tap order.
+        if (hasPressInFlight || event.flags.contains(.maskCommand)),
+           deferToSwitcherIfNeeded() {
+            return Unmanaged.passUnretained(event)
+        }
+
         switch type {
         case .keyDown: return handleKeyDown(event)
         case .keyUp: return handleKeyUp(event)
@@ -196,6 +206,14 @@ final class QuitProtectionService: ObservableObject {
         if keyCode == 53, pending != nil {
             cancelPending()
             return nil
+        }
+
+        // Every branch below either needs Command held or belongs to a press
+        // already in flight, and reading which key this is costs an NSEvent
+        // plus a layout lookup on a tap that sees every keystroke on the Mac.
+        // Ordinary typing stops here.
+        guard event.flags.contains(.maskCommand) || hasPressInFlight else {
+            return Unmanaged.passUnretained(event)
         }
 
         let shortcut = matchingShortcut(for: event)
@@ -225,22 +243,24 @@ final class QuitProtectionService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        if isRepeat {
+        let flags = event.flags
+        let command = flags.contains(.maskCommand)
+        if isRepeat, command {
             return nil
         }
 
-        let flags = event.flags
-        let command = flags.contains(.maskCommand)
         let control = flags.contains(.maskControl)
         let option = flags.contains(.maskAlternate)
         let shift = flags.contains(.maskShift)
         let character = NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.lowercased()
+        let commandLabel = GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true)
 
         switch configuration.mode {
         case .hold:
             guard QuitProtectionSupport.isBaseShortcut(
                 keyCharacter: character,
                 keyCode: keyCode,
+                commandLabel: commandLabel,
                 command: command,
                 control: control,
                 option: option,
@@ -257,6 +277,7 @@ final class QuitProtectionService: ObservableObject {
             guard QuitProtectionSupport.isBaseShortcut(
                 keyCharacter: character,
                 keyCode: keyCode,
+                commandLabel: commandLabel,
                 command: command,
                 control: control,
                 option: option,
@@ -272,9 +293,11 @@ final class QuitProtectionService: ObservableObject {
                     intervalMilliseconds: configuration.doublePressIntervalMilliseconds
                 ) {
                     let targetPid = pending.targetProcessIdentifier
+                    let generation = pending.switcherSessionGeneration
                     cancelPending()
                     swallowShortcut = shortcut
-                    confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid)
+                    confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid,
+                            switcherSessionGeneration: generation)
                     return nil
                 }
             }
@@ -286,6 +309,7 @@ final class QuitProtectionService: ObservableObject {
             if QuitProtectionSupport.isExtraShortcut(
                 keyCharacter: character,
                 keyCode: keyCode,
+                commandLabel: commandLabel,
                 command: command,
                 control: control,
                 option: option,
@@ -304,6 +328,7 @@ final class QuitProtectionService: ObservableObject {
             guard QuitProtectionSupport.isBaseShortcut(
                 keyCharacter: character,
                 keyCode: keyCode,
+                commandLabel: commandLabel,
                 command: command,
                 control: control,
                 option: option,
@@ -319,6 +344,13 @@ final class QuitProtectionService: ObservableObject {
     }
 
     private func handleKeyUp(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        // A release only matters to a press this service is holding. Command
+        // cannot be required here the way it is above: the release of Q may
+        // well arrive after Command was let go.
+        guard hasPressInFlight else {
+            return Unmanaged.passUnretained(event)
+        }
+
         let shortcut = matchingShortcut(for: event)
 
         if let swallow = swallowShortcut, shortcut == swallow {
@@ -359,6 +391,23 @@ final class QuitProtectionService: ObservableObject {
 
     // MARK: Confirmation state
 
+    /// A session may begin and end without this tap seeing a key: the
+    /// switcher can swallow it first. Invalidate old confirmations by the
+    /// existing session generation, not by panel visibility or notifications.
+    private func deferToSwitcherIfNeeded() -> Bool {
+        let ownership = AppSwitcher.shared.keyboardInputOwnership
+        let stalePending = pending.map {
+            $0.switcherSessionGeneration != ownership.generation
+        } ?? false
+        if ownership.isOwned || stalePending {
+            if hasPressInFlight {
+                cancelPending()
+                swallowShortcut = nil
+            }
+        }
+        return ownership.isOwned
+    }
+
     private func beginPending(shortcut: QuitProtectionShortcut,
                               mode: QuitProtectionMode,
                               event: CGEvent) {
@@ -369,7 +418,8 @@ final class QuitProtectionService: ObservableObject {
         pending = Pending(shortcut: shortcut,
                           event: event,
                           mode: mode,
-                          targetProcessIdentifier: frontmostProcessIdentifier)
+                          targetProcessIdentifier: frontmostProcessIdentifier,
+                          switcherSessionGeneration: AppSwitcher.shared.keyboardInputOwnership.generation)
 
         let configuration = configuration(for: shortcut)
         switch mode {
@@ -400,15 +450,18 @@ final class QuitProtectionService: ObservableObject {
     }
 
     private func completeHold() {
-        guard let pending, pending.mode == .hold else { return }
+        guard !deferToSwitcherIfNeeded(),
+              let pending, pending.mode == .hold else { return }
         let shortcut = pending.shortcut
         let event = pending.event
         let targetPid = pending.targetProcessIdentifier
+        let generation = pending.switcherSessionGeneration
 
         swallowShortcut = shortcut
         cancelPending()
 
-        confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid)
+        confirm(shortcut: shortcut, event: event, targetProcessIdentifier: targetPid,
+                switcherSessionGeneration: generation)
     }
 
     private func cancelPending() {
@@ -466,6 +519,44 @@ final class QuitProtectionService: ObservableObject {
 
     private func hideHUD() { hud.hide() }
 
+    // MARK: Selection confirmation
+
+    /// What the switcher needs to confirm a protected Q or W on its own. It
+    /// acts on the item it has selected rather than on the frontmost app, so
+    /// the tap above deliberately yields and cannot answer for it.
+    struct SelectionConfirmation {
+        let intervalMilliseconds: Double
+        let showsFeedback: Bool
+    }
+
+    /// Nil when this shortcut is unprotected for that app, which leaves the
+    /// switcher's immediate behavior exactly as it was.
+    func selectionConfirmation(for shortcut: QuitProtectionShortcut,
+                               bundleIdentifier: String?) -> SelectionConfirmation? {
+        guard AppFeature.quitWindowProtection.isAvailable else { return nil }
+        let configuration = configuration(for: shortcut)
+        guard configuration.enabled,
+              QuitProtectionSupport.scopeAllows(configuration.scope,
+                                                bundleIdentifier: bundleIdentifier,
+                                                exceptions: configuration.exceptions)
+        else { return nil }
+        return SelectionConfirmation(
+            intervalMilliseconds: QuitProtectionSupport.sanitizedDoublePressInterval(
+                configuration.doublePressIntervalMilliseconds),
+            showsFeedback: configuration.showFeedback)
+    }
+
+    /// The same panel the tap uses, so both places ask for the second press
+    /// in the same words and the same place.
+    func showSelectionHUD(for shortcut: QuitProtectionShortcut, on screen: NSScreen?) {
+        let strings = FeatureStrings.quitProtection(L10n.shared.language)
+        hud.show(title: String(format: strings.doubleHUDFormat, shortcut.character.uppercased()),
+                 detail: strings.cancelHint,
+                 on: screen)
+    }
+
+    func hideSelectionHUD() { hud.hide() }
+
     private func modifierSymbol(_ modifier: QuitProtectionExtraModifier) -> String {
         switch modifier {
         case .shift: return "⇧"
@@ -479,12 +570,21 @@ final class QuitProtectionService: ObservableObject {
     private func matchingShortcut(for event: CGEvent) -> QuitProtectionShortcut? {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let character = NSEvent(cgEvent: event)?.charactersIgnoringModifiers?.lowercased()
+        // Read from the keycap cache; this tap runs on the main run loop, so a
+        // miss derives from the layout and backfills rather than answering nil.
+        let commandLabel = GlobalShortcut.layoutKeyLabel(for: keyCode, usesCommand: true)
         return QuitProtectionShortcut.allCases.first {
             QuitProtectionSupport.matchesKey(keyCharacter: character,
                                              keyCode: keyCode,
+                                             commandLabel: commandLabel,
                                              shortcut: $0)
         }
     }
+
+    /// A press this service took over: either waiting for the confirmation
+    /// that lets it through, or waiting for the release that closes it. Both
+    /// make the keys that follow this service's business.
+    private var hasPressInFlight: Bool { pending != nil || swallowShortcut != nil }
 
     private func isSynthetic(_ event: CGEvent) -> Bool {
         event.getIntegerValueField(.eventSourceUserData) == Self.syntheticMarker
@@ -493,7 +593,15 @@ final class QuitProtectionService: ObservableObject {
     private func confirm(shortcut: QuitProtectionShortcut,
                          event: CGEvent,
                          targetProcessIdentifier: pid_t?,
-                         removing modifier: QuitProtectionExtraModifier? = nil) {
+                         removing modifier: QuitProtectionExtraModifier? = nil,
+                         switcherSessionGeneration: UInt64? = nil) {
+        let ownership = AppSwitcher.shared.keyboardInputOwnership
+        guard !ownership.isOwned,
+              switcherSessionGeneration.map({ $0 == ownership.generation }) ?? true else {
+            cancelPending()
+            swallowShortcut = nil
+            return
+        }
         if QuitProtectionSupport.usesNativeQuitRequest(for: shortcut),
            requestQuit(targetProcessIdentifier: targetProcessIdentifier) {
             return
@@ -509,12 +617,15 @@ final class QuitProtectionService: ObservableObject {
         return app.terminate()
     }
 
+    /// Answers whether the press was posted, so a failed copy never leaves the
+    /// key up travelling alone.
     private func postSyntheticKeyDown(from event: CGEvent,
-                                      removing modifier: QuitProtectionExtraModifier? = nil) {
-        let copy = event.copy()!
+                                      removing modifier: QuitProtectionExtraModifier? = nil) -> Bool {
+        guard let copy = event.copy() else { return false }
         if let modifier { copy.flags = flags(for: event, removing: modifier) }
         copy.setIntegerValueField(.eventSourceUserData, value: Self.syntheticMarker)
         copy.post(tap: .cghidEventTap)
+        return true
     }
 
     private func postSyntheticKeyUp(from event: CGEvent,
@@ -530,7 +641,7 @@ final class QuitProtectionService: ObservableObject {
 
     private func postSyntheticPress(from event: CGEvent,
                                     removing modifier: QuitProtectionExtraModifier? = nil) {
-        postSyntheticKeyDown(from: event, removing: modifier)
+        guard postSyntheticKeyDown(from: event, removing: modifier) else { return }
         postSyntheticKeyUp(from: event, removing: modifier)
     }
 

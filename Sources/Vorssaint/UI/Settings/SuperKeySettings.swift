@@ -56,6 +56,11 @@ struct SuperKeySettings: View {
                           systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
+                } else if enabled, superKey.isPausedForApplication {
+                    Label(FeatureStrings.mouseExceptions(l10n.language).pausedSuperKey,
+                          systemImage: "pause.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else if enabled, superKey.isRunning {
                     Label(text.activeNow, systemImage: "checkmark.circle.fill")
                         .font(.caption)
@@ -77,6 +82,10 @@ struct SuperKeySettings: View {
                     .foregroundStyle(.secondary)
             }
             .disabled(!enabled)
+
+            if enabled {
+                MouseExceptionsList(scope: .superKey)
+            }
 
             if enabled, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {

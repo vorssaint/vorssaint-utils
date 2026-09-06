@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import ApplicationServices
 import Combine
 import CoreGraphics
 import Foundation
@@ -27,7 +28,9 @@ final class KeyboardDebounceService: ObservableObject {
                                                 globalWindowMs: Defaults.defaultKeyboardDebounceWindowMs,
                                                 keyWindows: [:])
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let nextConfig = KeyboardDebounceConfig(
@@ -44,7 +47,9 @@ final class KeyboardDebounceService: ObservableObject {
             config = nextConfig
         }
 
-        if nextConfig.enabled, Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(featureWanted: nextConfig.enabled,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
             start()
         } else {
             stop()
@@ -109,6 +114,7 @@ final class KeyboardDebounceService: ObservableObject {
 
         if let tap = snapshot.tap {
             CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
         }
         if let runLoop = snapshot.runLoop {
             CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
@@ -231,10 +237,12 @@ final class KeyboardDebounceService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            let currentTap = lifecycleLock.withLock {
-                tap
+            let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
+                CGEvent.tapEnable(tap: currentTap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
             }
-            if let currentTap { CGEvent.tapEnable(tap: currentTap, enable: true) }
             return Unmanaged.passUnretained(event)
         }
 

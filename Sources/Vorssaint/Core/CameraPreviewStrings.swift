@@ -67,10 +67,10 @@ extension CameraPreviewFeatureStrings {
         panelCaption: "Aramadan önce nasıl göründüğünüzü kontrol edin",
         openButton: "Önizlemeyi aç",
         cameraMenuLabel: "Kamera",
-        deniedMessage: "Vorssaint için kamera erişimi Sistem Ayarları'nda kapalı.",
+        deniedMessage: "Vorssaint için kamera erişimi Sistem Ayarları’nda kapalı.",
         noCameraMessage: "Kamera bulunamadı",
         permName: "Kamera",
-        permExplain: "Kameranızı yalnızca önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez ve Mac'inizden çıkmaz."
+        permExplain: "Kameranızı yalnızca önizleme penceresinde gösterir; böylece aramadan önce nasıl göründüğünüzü kontrol edebilirsiniz. Hiçbir şey kaydedilmez ve Mac’inizden çıkmaz."
     )
 
     static let ru = CameraPreviewFeatureStrings(
@@ -113,12 +113,12 @@ extension CameraPreviewFeatureStrings {
         pageTitle: "Aperçu de la caméra",
         hubDescription: "Ouvre un miroir flottant avec votre caméra",
         panelCaption: "Vérifiez votre apparence avant un appel",
-        openButton: "Ouvrir l'aperçu",
+        openButton: "Ouvrir l’aperçu",
         cameraMenuLabel: "Caméra",
-        deniedMessage: "L'accès à la caméra pour Vorssaint est désactivé dans Réglages Système.",
+        deniedMessage: "L’accès à la caméra pour Vorssaint est désactivé dans Réglages Système.",
         noCameraMessage: "Aucune caméra détectée",
         permName: "Caméra",
-        permExplain: "Affiche votre caméra uniquement dans la fenêtre d'aperçu, pour vérifier votre apparence avant un appel. Rien n'est enregistré et rien ne quitte votre Mac."
+        permExplain: "Affiche votre caméra uniquement dans la fenêtre d’aperçu, pour vérifier votre apparence avant un appel. Rien n’est enregistré et rien ne quitte votre Mac."
     )
 
     static let it = CameraPreviewFeatureStrings(
@@ -127,7 +127,7 @@ extension CameraPreviewFeatureStrings {
         panelCaption: "Controlla il tuo aspetto prima di una chiamata",
         openButton: "Apri anteprima",
         cameraMenuLabel: "Fotocamera",
-        deniedMessage: "L'accesso alla fotocamera per Vorssaint è disattivato in Impostazioni di Sistema.",
+        deniedMessage: "L’accesso alla fotocamera per Vorssaint è disattivato in Impostazioni di Sistema.",
         noCameraMessage: "Nessuna fotocamera rilevata",
         permName: "Fotocamera",
         permExplain: "Mostra la tua fotocamera solo nella finestra di anteprima, così controlli il tuo aspetto prima di una chiamata. Nulla viene registrato e nulla lascia il tuo Mac."

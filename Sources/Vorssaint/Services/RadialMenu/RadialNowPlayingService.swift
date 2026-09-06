@@ -2,13 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
-import Darwin
 import Foundation
 import SwiftUI
 
-/// A session-scoped view of macOS Now Playing. MediaRemote is private, so the
-/// bridge resolves every entry point dynamically and treats missing symbols,
-/// timeouts and malformed metadata exactly like an empty playback session.
+/// A session-scoped view of macOS Now Playing. The read itself lives in the
+/// bridge below, out of process; a failed run, a timeout and malformed
+/// metadata all arrive here as an empty playback session.
 /// Nothing here is required for the radial menu itself to work.
 final class RadialNowPlayingService {
     static let shared = RadialNowPlayingService()
@@ -288,126 +287,44 @@ enum RadialNowPlayingApplication {
     }
 }
 
+/// Reads Now Playing through `/usr/bin/perl` loading the adapter library
+/// (`Sources/NowPlayingAdapter`). Since macOS 15.4 MediaRemote answers only
+/// processes carrying Apple's signature; perl is one, the app is not. A
+/// missing script or library, a failed run, a timeout and malformed output
+/// all read as an empty playback session.
 private final class MediaRemoteNowPlayingBridge {
-    private typealias InfoCallback = @convention(block) (NSDictionary?) -> Void
-    private typealias InfoFunction = @convention(c) (DispatchQueue, @escaping InfoCallback) -> Void
-    private typealias PIDCallback = @convention(block) (Int32) -> Void
-    private typealias PIDFunction = @convention(c) (DispatchQueue, @escaping PIDCallback) -> Void
-    private typealias DisplayIDCallback = @convention(block) (NSString?) -> Void
-    private typealias DisplayIDFunction = @convention(c) (DispatchQueue, @escaping DisplayIDCallback) -> Void
-    private typealias IsPlayingCallback = @convention(block) (Bool) -> Void
-    private typealias IsPlayingFunction = @convention(c) (DispatchQueue, @escaping IsPlayingCallback) -> Void
-
     private let queue = DispatchQueue(label: "com.vorssaint.radial-now-playing", qos: .userInitiated)
-    private let handle: UnsafeMutableRawPointer?
-    private let getInfo: InfoFunction?
-    private let getPID: PIDFunction?
-    private let getDisplayID: DisplayIDFunction?
-    private let getIsPlaying: IsPlayingFunction?
-
-    init() {
-        let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY)
-        self.handle = handle
-        getInfo = Self.function(handle, "MRMediaRemoteGetNowPlayingInfo", as: InfoFunction.self)
-        getPID = Self.function(handle, "MRMediaRemoteGetNowPlayingApplicationPID", as: PIDFunction.self)
-        getDisplayID = Self.function(handle, "MRMediaRemoteGetNowPlayingApplicationDisplayID",
-                                     as: DisplayIDFunction.self)
-        getIsPlaying = Self.function(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying",
-                                     as: IsPlayingFunction.self)
-    }
-
-    deinit {
-        if let handle { dlclose(handle) }
-    }
+    /// 2 s: a cold perl load measured 500 ms with no session playing, and a
+    /// real reply adds the MediaRemote round trip plus up to 16 MB of base64
+    /// artwork through the pipe. A kill reads as nothing playing, so a deadline
+    /// that is too tight empties the first wheel after login (#1280). The wheel
+    /// shows `.loading` and holds the card anchor while it waits, so the extra
+    /// second costs nothing on screen.
+    private static let replyTimeout: TimeInterval = 2.0
 
     func fetch(completion: @escaping (RadialNowPlayingSnapshot?) -> Void) {
-        guard let getInfo else {
+        guard let script = Bundle.main.url(forResource: "now-playing", withExtension: "pl"),
+              let library = Bundle.main.privateFrameworksURL?
+                .appendingPathComponent("libVorssaintNowPlaying.dylib"),
+              FileManager.default.fileExists(atPath: library.path) else {
             completion(nil)
             return
         }
-        let result = FetchResult(completion: completion)
-        let group = DispatchGroup()
-
-        group.enter()
-        getInfo(queue) { info in
-            result.setInfo(info as? [String: Any] ?? [:])
-            group.leave()
-        }
-        if let getPID {
-            group.enter()
-            getPID(queue) { pid in
-                result.setPID(pid)
-                group.leave()
+        queue.async {
+            let result = BoundedProcessRunner.run("/usr/bin/perl", [script.path, library.path],
+                                                  timeout: Self.replyTimeout,
+                                                  maxOutputBytes: RadialNowPlayingSupport.maximumAdapterReplyBytes)
+            guard result.status == 0, !result.timedOut,
+                  let reply = RadialNowPlayingSupport.adapterReply(from: result.output) else {
+                completion(nil)
+                return
             }
-        }
-        if let getDisplayID {
-            group.enter()
-            getDisplayID(queue) { identifier in
-                result.setDisplayID(identifier as String?)
-                group.leave()
-            }
-        }
-        if let getIsPlaying {
-            group.enter()
-            getIsPlaying(queue) { isPlaying in
-                result.setRemoteIsPlaying(isPlaying)
-                group.leave()
-            }
-        }
-
-        group.notify(queue: queue) { result.finish() }
-        queue.asyncAfter(deadline: .now() + 0.75) { result.finish() }
-    }
-
-    private static func function<T>(_ handle: UnsafeMutableRawPointer?,
-                                    _ name: String,
-                                    as type: T.Type) -> T? {
-        guard let handle, let symbol = dlsym(handle, name) else { return nil }
-        return unsafeBitCast(symbol, to: type)
-    }
-
-    private final class FetchResult {
-        private let lock = NSLock()
-        private var info: [String: Any] = [:]
-        private var pid: Int32 = 0
-        private var displayID: String?
-        private var remoteIsPlaying: Bool?
-        private var finished = false
-        private let completion: (RadialNowPlayingSnapshot?) -> Void
-
-        init(completion: @escaping (RadialNowPlayingSnapshot?) -> Void) {
-            self.completion = completion
-        }
-
-        func setInfo(_ info: [String: Any]) {
-            lock.withLock { self.info = info }
-        }
-
-        func setPID(_ pid: Int32) {
-            lock.withLock { self.pid = pid }
-        }
-
-        func setDisplayID(_ displayID: String?) {
-            lock.withLock { self.displayID = displayID }
-        }
-
-        func setRemoteIsPlaying(_ remoteIsPlaying: Bool) {
-            lock.withLock { self.remoteIsPlaying = remoteIsPlaying }
-        }
-
-        func finish() {
-            let values: ([String: Any], Int32, String?, Bool?)? = lock.withLock {
-                guard !finished else { return nil }
-                finished = true
-                return (info, pid, displayID, remoteIsPlaying)
-            }
-            guard let (info, pid, displayID, remoteIsPlaying) = values else { return }
             let isPlaying = RadialNowPlayingSupport.playbackIsActive(
-                remoteIsPlaying: remoteIsPlaying, info: info)
-            completion(RadialNowPlayingSupport.snapshot(info: info,
+                remoteIsPlaying: reply.isPlaying, info: reply.info)
+            completion(RadialNowPlayingSupport.snapshot(info: reply.info,
                                                         isPlaying: isPlaying,
-                                                        appBundleIdentifier: displayID,
-                                                        appPID: pid))
+                                                        appBundleIdentifier: reply.displayID,
+                                                        appPID: reply.pid))
         }
     }
 }

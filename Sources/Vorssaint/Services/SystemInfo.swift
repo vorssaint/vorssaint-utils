@@ -5,7 +5,7 @@ import Darwin
 import Foundation
 import IOKit.ps
 
-struct BatteryInfo {
+struct BatteryInfo: Equatable {
     let percent: Int
     let isCharging: Bool
     let isOnBattery: Bool

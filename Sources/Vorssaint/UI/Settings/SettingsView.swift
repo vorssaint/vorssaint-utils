@@ -647,6 +647,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
+    @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -684,6 +685,11 @@ struct EnergySettings: View {
                 Section(automationStrings.automationSection) {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
+                }
+                Section {
+                    SettingsToggleWithCaption(title: automationStrings.pauseWhenLockedToggle,
+                                              caption: automationStrings.pauseWhenLockedCaption,
+                                              isOn: $keepAwakePauseWhenLocked)
                 }
                 if PowerSampler.hasInternalBattery {
                     Section(l10n.s.batteryProtectionSection) {
@@ -1216,6 +1222,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.dockNumberSwitchEnabled) private var dockNumberSwitchEnabled = false
     @ObservedObject private var dockNumberSwitch = DockNumberSwitchService.shared
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
@@ -1497,6 +1504,8 @@ struct SwitcherSettings: View {
                     .onChange(of: previewSize) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
+                    Toggle(l10n.s.minimalWindowPreviews, isOn: $minimalPreviews)
+                    SettingsCaptionText(l10n.s.minimalWindowPreviewsCaption)
                     WindowPreviewExclusionsList()
                 } header: {
                     Text(FeatureStrings.windowPreviewExclusions(l10n.language).sectionTitle)
@@ -1633,7 +1642,7 @@ struct AboutSettings: View {
                     appDelegate()?.showOnboarding()
                 }
                 Button(l10n.s.reviewHighlights) {
-                    appDelegate()?.showUpdateHighlights(includeSupportIntro: true)
+                    appDelegate()?.showUpdateHighlights()
                 }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }

@@ -2,7 +2,7 @@
 "NSAppleEventsUsageDescription" = "Vorssaint usa Automazione per spostare file nel Finder, spostare elementi nel Cestino e aprire comandi del Terminale quando richiedi azioni di Homebrew.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint accede all'audio delle singole app solo per regolarne il volume nel mixer. Nulla viene registrato e nulla lascia il tuo Mac.";
+"NSAudioCaptureUsageDescription" = "Vorssaint usa l'audio di ogni app per regolarne il volume nel mixer e per includere l'audio del Mac nelle registrazioni dello schermo che avvii. Nulla lascia il tuo Mac.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint usa il Bluetooth solo per leggere la batteria delle periferiche connesse. Nulla lascia il tuo Mac.";

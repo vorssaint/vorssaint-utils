@@ -95,6 +95,35 @@ final class RecorderTakeStore: @unchecked Sendable {
         return availableBytes - fileSize >= RecorderSupport.minimumFreeBytesToContinue
     }
 
+    /// Keep one independent file for both preview and export. Its folder lives
+    /// until the take closes, including while undo can still restore the image.
+    func importImage(at sourceURL: URL, into take: Take) -> URL? {
+        guard let values = try? sourceURL.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              values.isRegularFile == true, values.isSymbolicLink != true,
+              let fileSize = values.fileSize,
+              Self.canImport(fileSize: Int64(fileSize), availableBytes: freeBytes(at: take.folder))
+        else { return nil }
+
+        let folder = take.folder.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let destination = folder.appendingPathComponent(sourceURL.lastPathComponent)
+        do {
+            // Never recreate a take that closed while this import was queued.
+            try manager.createDirectory(at: folder, withIntermediateDirectories: false,
+                                        attributes: [.posixPermissions: 0o700])
+            try manager.copyItem(at: sourceURL, to: destination)
+            try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: destination.path)
+            guard MediaSupport.imageThumbnail(at: destination, maxPixel: 1) != nil else {
+                try? manager.removeItem(at: folder)
+                return nil
+            }
+            return destination
+        } catch {
+            try? manager.removeItem(at: folder)
+            return nil
+        }
+    }
+
     private func freeBytes(at url: URL) -> Int64 {
         let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         return values?.volumeAvailableCapacityForImportantUsage ?? 0

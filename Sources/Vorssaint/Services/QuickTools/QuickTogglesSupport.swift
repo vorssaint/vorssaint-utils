@@ -71,9 +71,12 @@ enum QuickTogglesSupport {
 
     /// Whether a volume matches any entry in the user's exclusion list by
     /// name (case-insensitive), volume UUID, full mount path or mount directory name.
+    /// None of the four forms is optional to pass: an entry the user typed is
+    /// honoured or ignored depending on which identifiers the caller happened
+    /// to hand over, so a caller that has none says so with an explicit nil.
     static func isExcluded(volumeName: String?,
-                           volumeUUID: String? = nil,
-                           mountPath: String? = nil,
+                           volumeUUID: String?,
+                           mountPath: String?,
                            excludedVolumes: Set<String>) -> Bool {
         guard !excludedVolumes.isEmpty else { return false }
         if let name = volumeName?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {

@@ -89,6 +89,8 @@ enum SettingsDirectory {
                                                         .externalDisplayToggle,
                                                       FeatureStrings.keepAwakeAutomation(language)
                                                         .powerToggle,
+                                                      FeatureStrings.keepAwakeAutomation(language)
+                                                        .pauseWhenLockedToggle,
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep]),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
@@ -182,7 +184,8 @@ enum SettingsDirectory {
                                          [FeatureStrings.finderRename(language).enableLabel]),
                                        ]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
-                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle]),
+                                      keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle,
+                                                 s.shelfClearOnClose]),
                 SettingsDirectoryItem(page: .media, title: s.mediaName, icon: "photo.on.rectangle.angled",
                                       keywords: ["PDF", "GIF", "PNG", "JPEG", "convert", "resize", "watermark",
                                                  "rename", "profile", "fit", "fill", "crop",
@@ -215,7 +218,9 @@ enum SettingsDirectory {
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",
                                       keywords: [FeatureStrings.commandBar(language).openButton,
-                                                 FeatureStrings.commandBar(language).searchPlaceholder]),
+                                                 FeatureStrings.commandBar(language).searchPlaceholder,
+                                                 FeatureStrings.commandBar(language).appCenterTitle,
+                                                 FeatureStrings.commandBar(language).appAliasLabel]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),
@@ -256,7 +261,8 @@ enum SettingsDirectory {
                                       keywords: [FeatureStrings.radialMenu(language).addButton,
                                                  FeatureStrings.radialMenu(language).kindApp,
                                                  FeatureStrings.radialMenu(language).kindMedia,
-                                                 FeatureStrings.radialMenu(language).kindSubmenu]),
+                                                 FeatureStrings.radialMenu(language).kindSubmenu,
+                                                 FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",

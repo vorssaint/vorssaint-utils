@@ -66,6 +66,12 @@ struct DiskIOCounters: Equatable {
 /// Everything here depends only on Foundation — no IOKit, no AppKit, no UI — so
 /// it compiles and runs standalone in the unit-test target (`./build.sh --test`).
 enum MetricFormat {
+    /// Numbers follow the reader's region, not the app's language: macOS keeps
+    /// those two settings apart, and seven of the thirteen languages here are
+    /// spoken where a decimal is written with a comma. Held in one place so a
+    /// test can pin it and stay honest on a machine set to any region.
+    static var locale: Locale = .current
+
     // MARK: Memory
 
     /// Matches Activity Monitor's Memory Used: app memory, wired memory,
@@ -156,8 +162,8 @@ enum MetricFormat {
 
     /// Bytes (raw) → "0", "8" for B; one decimal under 10, none at or above.
     private static func number(_ value: Double, unit: String) -> String {
-        if unit == "B" { return String(format: "%.0f", value) }
-        return value < 10 ? String(format: "%.1f", value) : String(format: "%.0f", value)
+        if unit == "B" { return String(format: "%.0f", locale: Self.locale, value) }
+        return value < 10 ? String(format: "%.1f", locale: Self.locale, value) : String(format: "%.0f", locale: Self.locale, value)
     }
 
     /// A whole quantity of bytes, e.g. "1.2 GB". Used for session totals.
@@ -175,10 +181,10 @@ enum MetricFormat {
             index += 1
         }
         if units[index] == "B" {
-            return String(format: "%.0f B", value)
+            return String(format: "%.0f B", locale: Self.locale, value)
         }
-        return value < 10 ? String(format: "%.1f %@", value, units[index])
-            : String(format: "%.0f %@", value, units[index])
+        return value < 10 ? String(format: "%.1f %@", locale: Self.locale, value, units[index])
+            : String(format: "%.0f %@", locale: Self.locale, value, units[index])
     }
 
     static func diskBytesPrecise(_ bytes: UInt64) -> String {
@@ -191,13 +197,13 @@ enum MetricFormat {
         }
         let unit = units[index]
         if unit == "B" {
-            return String(format: "%.0f B", value)
+            return String(format: "%.0f B", locale: Self.locale, value)
         }
         if unit == "TB" || unit == "PB" {
-            return String(format: "%.2f %@", value, unit)
+            return String(format: "%.2f %@", locale: Self.locale, value, unit)
         }
-        return value < 10 ? String(format: "%.1f %@", value, unit)
-            : String(format: "%.0f %@", value, unit)
+        return value < 10 ? String(format: "%.1f %@", locale: Self.locale, value, unit)
+            : String(format: "%.0f %@", locale: Self.locale, value, unit)
     }
 
     /// A throughput, e.g. "1.2 MB/s". Used in the panel.
@@ -234,7 +240,7 @@ enum MetricFormat {
             if rounded >= 10 {
                 return "\(Int(rounded.rounded()))\(units[index])"
             }
-            return String(format: "%.1f%@", rounded, units[index])
+            return String(format: "%.1f%@", locale: Self.locale, rounded, units[index])
         }
         return "\(Int(value.rounded()))\(units[index])"
     }
@@ -244,12 +250,12 @@ enum MetricFormat {
     /// Power, e.g. "8.5 W" / "23 W" (one decimal under 10, none above).
     static func watts(_ value: Double) -> String {
         let magnitude = abs(value)
-        return magnitude < 10 ? String(format: "%.1f W", value) : String(format: "%.0f W", value)
+        return magnitude < 10 ? String(format: "%.1f W", locale: Self.locale, value) : String(format: "%.0f W", locale: Self.locale, value)
     }
 
     /// Compact power for the menu bar, e.g. "9W".
     static func wattsCompact(_ value: Double) -> String {
-        String(format: "%.0fW", value.rounded())
+        String(format: "%.0fW", locale: Self.locale, value.rounded())
     }
 
     static func systemPowerWatts(measured: Double?,
@@ -324,9 +330,9 @@ enum MetricFormat {
     static func temperature(_ celsius: Double, unit: TemperatureUnit) -> String {
         switch unit {
         case .celsius:
-            return String(format: "%.0f °C", celsius)
+            return String(format: "%.0f °C", locale: Self.locale, celsius)
         case .fahrenheit:
-            return String(format: "%.0f °F", celsius * 9 / 5 + 32)
+            return String(format: "%.0f °F", locale: Self.locale, celsius * 9 / 5 + 32)
         }
     }
 
@@ -335,9 +341,9 @@ enum MetricFormat {
     static func temperatureCompact(_ celsius: Double, unit: TemperatureUnit) -> String {
         switch unit {
         case .celsius:
-            return String(format: "%.0f°", celsius)
+            return String(format: "%.0f°", locale: Self.locale, celsius)
         case .fahrenheit:
-            return String(format: "%.0f°", celsius * 9 / 5 + 32)
+            return String(format: "%.0f°", locale: Self.locale, celsius * 9 / 5 + 32)
         }
     }
 

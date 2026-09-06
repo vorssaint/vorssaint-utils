@@ -8,14 +8,17 @@ import Combine
 /// so changing a mode on one display updates the controls on all displays.
 final class ScreenCaptureSelectionOptions: ObservableObject {
     let availableTools: [ScreenCaptureTool]
+    let showsCaptureMenu: Bool
     let recorderAudio = RecorderSelectionAudioOptions()
     @Published private(set) var selectedTool: ScreenCaptureTool
     var onSelectionChange: (() -> Void)?
 
-    init(availableTools: [ScreenCaptureTool], selectedTool: ScreenCaptureTool) {
+    init(availableTools: [ScreenCaptureTool], selectedTool: ScreenCaptureTool,
+         showsCaptureMenu: Bool) {
         precondition(availableTools.contains(selectedTool))
         self.availableTools = availableTools
         self.selectedTool = selectedTool
+        self.showsCaptureMenu = showsCaptureMenu
     }
 
     func select(_ tool: ScreenCaptureTool) {
@@ -59,7 +62,7 @@ final class ScreenCaptureService: ObservableObject {
 
     private init() {
         for (tool, hotkey) in toolHotkeys {
-            hotkey.onPress = { [weak self] in self?.capture(initial: tool) }
+            hotkey.onPress = { [weak self] in self?.capture(initial: tool, fromShortcut: true) }
         }
     }
 
@@ -103,11 +106,13 @@ final class ScreenCaptureService: ObservableObject {
     /// Opens the same chooser from every feature surface. A feature-specific
     /// button merely picks the initial mode; the person can switch before
     /// selecting anything.
-    func capture(initial preferred: ScreenCaptureTool? = nil) {
-        if AppFeature.screenRecorder.isAvailable,
-           ScreenRecorderService.shared.stopOrCancelActiveCapture() {
+    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
+        let recorder = ScreenRecorderService.shared
+        if preferred == .recording, AppFeature.screenRecorder.isAvailable,
+           recorder.stopOrCancelActiveCapture() {
             return
         }
+        guard !recorder.hasActiveCapture else { return }
         if countdown != nil {
             cancelSelection()
             return
@@ -134,40 +139,44 @@ final class ScreenCaptureService: ObservableObject {
             return
         }
 
+        let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
         let delay = selected == .screenshot
             ? ScreenshotSupport.sanitizedDelay(
                 UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
             : 0
         guard delay > 0 else {
-            beginSelection(tools: tools, selected: selected)
+            beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
             return
         }
         countdownRemaining = delay
         countdownTools = tools
-        tickCountdown(tools: tools, selected: selected)
+        tickCountdown(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
     }
 
-    private func tickCountdown(tools: [ScreenCaptureTool], selected: ScreenCaptureTool) {
+    private func tickCountdown(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
+                               showsCaptureMenu: Bool) {
         guard countdownRemaining > 0 else {
             countdown = nil
             countdownTools = nil
-            beginSelection(tools: tools, selected: selected)
+            beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
             return
         }
         QuickToolHUD.showCountdown(countdownRemaining)
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.countdownRemaining -= 1
-            self.tickCountdown(tools: tools, selected: selected)
+            self.tickCountdown(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
         }
         countdown = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
-    private func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool) {
+    private func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
+                               showsCaptureMenu: Bool) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
         let options = ScreenCaptureSelectionOptions(availableTools: tools,
-                                                    selectedTool: selected)
+                                                    selectedTool: selected,
+                                                    showsCaptureMenu: showsCaptureMenu)
         self.options = options
         startSelection(options: options)
     }
@@ -195,11 +204,7 @@ final class ScreenCaptureService: ObservableObject {
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
             mode: policy.usesGeometry ? .geometry : .image,
             supportsScrollingCapture: options.availableTools.contains(.screenshot),
-            screenCaptureOptions: options,
-            onCapturePolicyChange: { [weak self, weak options] in
-                guard let self, let options else { return }
-                self.replaceSelection(options: options)
-            })
+            screenCaptureOptions: options)
         selection = controller
         controller.begin { [weak self, weak controller, weak options] outcome in
             guard let self, let controller, let options,
@@ -208,21 +213,6 @@ final class ScreenCaptureService: ObservableObject {
             self.options = nil
             self.route(outcome, selected: options.selectedTool,
                        recorderAudio: options.recorderAudio)
-        }
-    }
-
-    /// Rebuilds only when the newly selected tool needs different source
-    /// pixels or window policy. Tools with the same policy keep switching in
-    /// place, preserving the flicker-free chooser.
-    private func replaceSelection(options: ScreenCaptureSelectionOptions) {
-        guard let controller = selection, self.options === options else { return }
-        selection = nil
-        controller.cancel()
-        DispatchQueue.main.async { [weak self, weak options] in
-            guard let self, let options, self.selection == nil,
-                  self.options === options,
-                  options.selectedTool.feature.isAvailable else { return }
-            self.startSelection(options: options)
         }
     }
 

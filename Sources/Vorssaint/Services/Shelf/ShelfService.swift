@@ -101,6 +101,16 @@ final class ShelfService: ObservableObject {
             case let .batch(items): return items.flatMap { $0.tooltipLeafKinds }
             }
         }
+
+        /// Whether this item, or anything nested in it, is a file. Recurses
+        /// the way leafCount does but stops at the first one it finds.
+        var holdsFile: Bool {
+            switch payload {
+            case .file: return true
+            case .text, .link: return false
+            case let .batch(items): return items.contains(where: \.holdsFile)
+            }
+        }
     }
 
     @Published private(set) var items: [Item] = [] {
@@ -1309,10 +1319,39 @@ final class ShelfService: ObservableObject {
     /// part of it; otherwise they stay scoped to that tile. Batches flatten to
     /// their leaves just like an external drag.
     func fileURLsForActions(startingAt item: Item) -> [URL] {
-        let candidates = selection.contains(item.id) ? selectedItems() : [item]
+        fileURLs(in: selection.contains(item.id) ? selectedItems() : [item])
+    }
+
+    /// What the panel's own buttons act on: the selection when there is one,
+    /// everything otherwise, the way its trash button already reads. A grab
+    /// whose files have all died says so and retires them, exactly as a dead
+    /// drag does, rather than leaving a button that quietly does nothing.
+    func fileURLsForActions() -> [URL] {
+        let candidates = selectionOrEverything
+        let urls = fileURLs(in: candidates)
+        guard urls.isEmpty else { return urls }
+        let leaves = dragItems(for: candidates)
+        if leaves.contains(where: \.holdsFile) {
+            handleDeadDrag(leaves)
+        }
+        return []
+    }
+
+    /// Whether those same candidates hold a file at all. It never touches the
+    /// disk and stops at the first one, so a button can ask on every redraw
+    /// and stay disabled while the shelf holds only text and links.
+    var hasFilesForActions: Bool {
+        selectionOrEverything.contains(where: \.holdsFile)
+    }
+
+    private var selectionOrEverything: [Item] {
+        selection.isEmpty ? items : selectedItems()
+    }
+
+    private func fileURLs(in candidates: [Item]) -> [URL] {
         // Actions heal moved files the same way a drag does: Open or Reveal
         // on a renamed file should find it, not shrug.
-        return livingDragItems(in: dragItems(for: candidates)).compactMap { entry in
+        livingDragItems(in: dragItems(for: candidates)).compactMap { entry in
             guard case let .file(url) = entry.payload else { return nil }
             return url
         }
@@ -2001,6 +2040,11 @@ final class ShelfService: ObservableObject {
     /// thumbnails touch the disk, and this runs at launch), merges it with
     /// anything added in the meantime, then sweeps payload files that lost
     /// their item (crash between write and save, or dropped at sanitizing).
+    /// A blob this build cannot read whole — one that will not decode at all,
+    /// and one that decoded with entries dropped — skips both the save-back
+    /// and the sweep: it is a store this build cannot read, not a shelf the
+    /// user emptied, and the entries it dropped still own payload files that
+    /// the blob it kept still points at.
     private func restoreItems() {
         let sweepCutoff = Date()
         let data = UserDefaults.standard.data(forKey: DefaultsKey.shelfItems)
@@ -2012,8 +2056,9 @@ final class ShelfService: ObservableObject {
             // NSWorkspace and SF Symbols, which are only safe on the main
             // thread, so that step waits for the hop below.
             var sanitized: [ShelfPersistedItem] = []
-            if let data,
-               let decoded = try? JSONDecoder().decode([ShelfPersistedItem].self, from: data) {
+            let store = ShelfPersistenceSupport.load(data)
+            switch store {
+            case let .items(decoded), let .partial(decoded):
                 sanitized = ShelfPersistenceSupport.sanitized(decoded, fileExists: { path in
                     if FileManager.default.fileExists(atPath: path) { return true }
                     // A file on an unmounted volume is not gone: the app can
@@ -2025,6 +2070,8 @@ final class ShelfService: ObservableObject {
                     }
                     return false
                 }, resolveBookmark: Self.resolvedBookmarkPath)
+            case .unreadable:
+                break
             }
             DispatchQueue.main.async {
                 let restored = sanitized.compactMap { self.restoredItem(from: $0) }
@@ -2040,6 +2087,14 @@ final class ShelfService: ObservableObject {
                     self.items = keptRestored + self.items
                     self.startContentThumbnails(for: keptRestored)
                 }
+                // A store this build could not read whole is not an empty
+                // shelf, and it is not the shelf either. Saving over it and
+                // sweeping the payload files it still references would turn
+                // entries this build cannot read into permanent loss — the
+                // dropped entry's file is still there and still referenced,
+                // unlike a `sanitized` drop, whose file is gone by definition.
+                // Both wait for a launch that can read the store again.
+                guard case .items = store else { return }
                 if ShelfPersistenceSupport.needsPersistAfterRestore(
                     restoredIsEmpty: restored.isEmpty,
                     liveItemCount: liveItemCount) {
@@ -2158,6 +2213,15 @@ final class ShelfService: ObservableObject {
         panel?.orderOut(nil)
         ShelfTooltipPopover.shared.hide()
         scheduleDockedSync()
+    }
+
+    /// Handles the floating panel's explicit close button. Automatic hiding,
+    /// shortcut toggling and collapsing the docked shelf keep their contents.
+    func close() {
+        if UserDefaults.standard.bool(forKey: DefaultsKey.shelfClearOnClose) {
+            clear()
+        }
+        hide()
     }
 
     func noteInteraction() {

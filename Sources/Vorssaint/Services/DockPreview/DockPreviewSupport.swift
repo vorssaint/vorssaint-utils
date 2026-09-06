@@ -95,6 +95,12 @@ struct HoverCorridor: Equatable {
 }
 
 enum DockPreviewSupport {
+    static func handlesMiddleClick(eventType: NSEvent.EventType, buttonNumber: Int,
+                                   point: CGPoint, visibleRect: CGRect, isHidden: Bool) -> Bool {
+        (eventType == .otherMouseDown || eventType == .otherMouseUp)
+            && buttonNumber == 2 && !isHidden && visibleRect.contains(point)
+    }
+
     static func closeAction(quitAppOnClose: Bool) -> DockPreviewCloseAction {
         quitAppOnClose ? .quitApp : .closeWindow
     }

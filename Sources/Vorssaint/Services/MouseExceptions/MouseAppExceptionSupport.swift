@@ -4,7 +4,8 @@
 import CoreGraphics
 import Foundation
 
-/// The mouse features that can be told to leave an app alone (issue #358).
+/// The mouse and keyboard features that can be told to leave an app alone
+/// (issues #358, #741).
 /// Each one keeps its OWN list, right under its switch in Settings: excepting
 /// an app from the wheel's glide must not also silence the side buttons there.
 enum MouseExceptionScope: String, CaseIterable {
@@ -14,6 +15,7 @@ enum MouseExceptionScope: String, CaseIterable {
     case navigation
     case buttonShortcuts
     case middleClick
+    case superKey
 
     var defaultsKey: String {
         switch self {
@@ -23,6 +25,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .navigation: return DefaultsKey.mouseNavigationExceptions
         case .buttonShortcuts: return DefaultsKey.mouseButtonExceptions
         case .middleClick: return DefaultsKey.middleClickExceptions
+        case .superKey: return DefaultsKey.superKeyExceptions
         }
     }
 
@@ -36,6 +39,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .navigation: return .mouseNavigation
         case .buttonShortcuts: return .mouseButtonShortcuts
         case .middleClick: return .middleClick
+        case .superKey: return .superKey
         }
     }
 }
@@ -117,7 +121,15 @@ enum MouseAppExceptionSupport {
                            point: CGPoint,
                            now: TimeInterval) -> Bool {
         guard now >= resolvedAt, now - resolvedAt < resolveLifetime else { return false }
-        guard let region else { return point == resolvedPoint }
+        guard region != nil else { return point == resolvedPoint }
+        return cacheNamesWindow(region: region, point: point)
+    }
+
+    /// Whether an answer that aged out still names the window under the
+    /// pointer. The pointer thread serves that one instead of waiting for the
+    /// main thread; over any other window it has nothing to say yet.
+    static func cacheNamesWindow(region: CGRect?, point: CGPoint) -> Bool {
+        guard let region else { return false }
         return region.contains(point)
     }
 

@@ -133,8 +133,9 @@ enum CommandBarPreferences {
         // A file is the deepest and most numerous thing the bar can find, and
         // a bar is for running things first. So a file has to be a plainly
         // better match than a command to lead the list, never merely as good.
-        case .files: return -40
-        case .actions, .apps, .windows, .quitApps, .settingsPages, .macSettings, .snippets,
+        case .files, .settingsPages: return -40
+        case .apps: return 80
+        case .actions, .windows, .quitApps, .macSettings, .snippets,
              .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess:
             return 0
         }
@@ -194,7 +195,12 @@ enum CommandBarPreferences {
     }
 
     static func aliasHit(_ alias: String, query: String) -> AliasHit? {
-        let normalizedQuery = CommandBarSearch.normalized(query)
+        aliasHit(alias, normalizedQuery: CommandBarSearch.normalized(query))
+    }
+
+    /// The same answer for letters the caller has already folded, so a pass
+    /// over the pool folds the query once instead of once per named row.
+    static func aliasHit(_ alias: String, normalizedQuery: String) -> AliasHit? {
         guard !normalizedQuery.isEmpty else { return nil }
         var best: AliasHit?
         for word in CommandBarSearch.normalized(alias).split(separator: " ").map(String.init)

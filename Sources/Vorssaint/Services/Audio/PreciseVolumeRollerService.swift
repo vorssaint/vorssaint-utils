@@ -15,12 +15,20 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var source: CFRunLoopSource?
     private var gate = PreciseVolumeRollerGate()
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let wanted = AppFeature.mixer.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
-        wanted ? start() : stop()
+        if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
+                                               accessibilityGranted: AXIsProcessTrusted(),
+                                               sessionIsActive: SessionActivity.shared.isActive) {
+            start()
+        } else {
+            stop()
+        }
     }
 
     func suspend() {
@@ -85,8 +93,10 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if AXIsProcessTrusted(), let tap {
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
             }
             return Unmanaged.passUnretained(event)
         }

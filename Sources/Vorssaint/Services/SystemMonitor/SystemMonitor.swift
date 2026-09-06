@@ -447,7 +447,7 @@ final class SystemMonitor: ObservableObject {
         let panelGPU = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysGPU)) || menuPanelNeeds.gpu
         let panelMemory = (panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysMemory)) || menuPanelNeeds.memory
         let panelBattery = hasInternalBattery
-            && ((panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery)
+            && ((panelNeedsPower && defaults.bool(forKey: DefaultsKey.monitorSysBattery)) || menuPanelNeeds.battery)
         let panelTemps = panelNeedsSystem && defaults.bool(forKey: DefaultsKey.monitorSysTemps)
         let alertCPU = defaults.bool(forKey: DefaultsKey.monitorAlertCPU)
         let alertCPUTemperature = defaults.bool(forKey: DefaultsKey.monitorAlertCPUTemperature)
@@ -476,8 +476,10 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature) || alertCPUTemperature
         plan.needGPUTemperature = panelTemps || menuPanelNeeds.gpuTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarGPUTemperature)
-        plan.needBatteryTemperature = hasInternalBattery && (panelTemps || menuPanelNeeds.batteryTemperature ||
-            defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
+        plan.needBatteryTemperature = hasInternalBattery && (
+            (panelNeedsPower && defaults.bool(forKey: DefaultsKey.monitorPwrTemperature))
+                || menuPanelNeeds.batteryTemperature
+                || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
         if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
            Self.fanTelemetryAvailable {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
@@ -1015,12 +1017,14 @@ final class SystemMonitor: ObservableObject {
                                            &iterator) == kIOReturnSuccess else { return nil }
         defer { IOObjectRelease(iterator) }
 
-        var entry = IOIteratorNext(iterator)
-        while entry != 0 {
-            defer {
-                IOObjectRelease(entry)
-                entry = IOIteratorNext(iterator)
-            }
+        // The advance lives in the `while` condition so the `defer` only
+        // releases. With the advance inside the defer, returning from the loop
+        // ran it: it released the entry it was done with and then took a
+        // reference on the next service that nothing released. Machines with a
+        // second IOAccelerator (Intel dual graphics, an eGPU) leaked one
+        // io_object_t per sampling tick that way.
+        while case let entry = IOIteratorNext(iterator), entry != 0 {
+            defer { IOObjectRelease(entry) }
             // Fetch ONLY PerformanceStatistics, not the whole (large) property
             // tree. Copying every property each tick is what made continuous GPU
             // sampling for the menu bar expensive.
