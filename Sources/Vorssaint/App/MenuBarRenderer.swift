@@ -699,11 +699,15 @@ enum MenuBarRenderer {
                 }
             case .fanSpeed:
                 if let value = FanControlPolicy.menuBarValue(for: snapshot.fanSpeeds) {
-                    let minimumValue = Array(repeating: "20000", count: snapshot.fanSpeeds.count)
-                        .joined(separator: "/")
+                    // No room held for a value the hardware cannot reach: the
+                    // policy's sane ceiling is 20000 a fan, which reserved
+                    // eleven characters and drew 0/0 in all of them. The block
+                    // takes the width of what it shows, and the label keeps a
+                    // floor under it, so the strip settles at RPM rather than
+                    // at a number no fan reports.
                     groups.append([.metricBlock(label: "RPM",
                                                 value: value,
-                                                minimumValue: minimumValue,
+                                                minimumValue: value,
                                                 style: style,
                                                 pressure: nil)])
                 }
