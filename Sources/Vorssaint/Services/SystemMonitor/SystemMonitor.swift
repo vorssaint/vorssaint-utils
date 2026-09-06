@@ -912,10 +912,10 @@ final class SystemMonitor: ObservableObject {
         preferredCPUKeys = cpuKeys.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.name, platform: cpuTemperaturePlatform)
         }
-        let preferredNames = Set(preferredCPUKeys.map(\.name))
-        fallbackCPUKeys = TemperatureSensorSelector.hasCPUCoreSet(platform: cpuTemperaturePlatform)
-            ? []
-            : cpuKeys.filter { !preferredNames.contains($0.name) }
+        // A Mac that carries the verified core sensors of its own chip reads
+        // only those. One that carries none of them keeps the compatibility
+        // sweep it had before 3.3.3 instead of showing nothing at all.
+        fallbackCPUKeys = preferredCPUKeys.isEmpty ? cpuKeys : []
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
     }
@@ -944,9 +944,9 @@ final class SystemMonitor: ObservableObject {
 
     private func cpuTemperature() -> Double? {
         guard smc != nil else { return nil }
-        // Mapped chips read only their verified core keys. The generic
-        // compatibility path reads the remaining Tp/Te keys when there is
-        // no mapped core set.
+        // Mapped chips read only their verified core keys. The compatibility
+        // path reads the remaining Tp/Te keys when this Mac carries none of
+        // the core sensors its chip generation is mapped to.
         var readings = temperatureReadings(of: preferredCPUKeys)
         if let value = TemperatureSensorSelector.displayedCPUTemperature(readings: readings,
                                                                          platform: cpuTemperaturePlatform) {

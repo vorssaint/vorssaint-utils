@@ -92,13 +92,14 @@ enum TemperatureSensorSelector {
         if let value = core.map({ $0.value }).max() {
             return value
         }
-        switch platform {
-        case .generic:
-            return valid.map { $0.value }.max()
-        case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family,
-             .appleM5Family, .unmappedAppleSilicon:
-            return nil
-        }
+        // Not every Mac carries the sensors its chip generation is mapped to,
+        // and one that does not showed a reading anyway until 3.3.3. It gets
+        // that reading back. A mapped sensor that is present but unreadable
+        // this sample is a different matter and is never replaced by another
+        // one; fan control keeps requiring its own mapped readings either way.
+        guard !readings.contains(where: { isCPUCoreKey($0.key, platform: platform) })
+        else { return nil }
+        return valid.map { $0.value }.max()
     }
 
     static func hasCPUCoreSet(platform: CPUTemperaturePlatform) -> Bool {
@@ -128,7 +129,6 @@ enum TemperatureSensorSelector {
 
     static func isCPUTemperatureKey(_ key: String,
                                     platform: CPUTemperaturePlatform) -> Bool {
-        if platform == .unmappedAppleSilicon { return false }
         if key.hasPrefix("Tp") || key.hasPrefix("Te") { return true }
         return platform == .appleM3Family && key.hasPrefix("Tf")
     }
