@@ -377,7 +377,7 @@ struct ShortcutPreferenceRow: View {
             errorText = String(format: l10n.s.shortcutConflictFormat, conflict.title(l10n.s))
             return
         }
-        if shortcut.conflictsWithSystemShortcut {
+        if shortcut.conflictsWithSystemShortcut(for: role) {
             errorText = String(format: l10n.s.shortcutConflictFormat, "macOS")
             return
         }

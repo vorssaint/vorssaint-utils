@@ -166,12 +166,12 @@ struct UpdateHighlightsView: View {
 
     private func openSettings(_ destination: FeatureSettingsDestination) {
         SettingsRouter.shared.request(destination)
-        appDelegate()?.openSettingsWindow()
+        appDelegate()?.openSettingsFromHighlights()
     }
 
     private func openSettings(_ page: SettingsPage) {
         SettingsRouter.shared.page = page
-        appDelegate()?.openSettingsWindow()
+        appDelegate()?.openSettingsFromHighlights()
     }
 }
 

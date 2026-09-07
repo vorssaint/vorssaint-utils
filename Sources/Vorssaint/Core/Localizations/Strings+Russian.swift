@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "О программе",
         tabReleaseNotes: "Что нового",
         releaseNotesOnUpdateToggle: "Показывать изменения после обновления",
+        minimalWindowPreviews: "Минималистичные миниатюры",
+        minimalWindowPreviewsCaption: "Скрывает заголовки, кнопки и оформление миниатюр в Dock и переключателе приложений. Выделение остаётся видимым.",
         previewSizeLabel: "Размер превью",
         previewSizeNormal: "Обычный",
         previewSizeLarge: "Большой",

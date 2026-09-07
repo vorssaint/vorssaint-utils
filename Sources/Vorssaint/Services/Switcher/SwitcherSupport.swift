@@ -54,60 +54,9 @@ enum SwitcherNativeSymbolicHotKey: Int32, CaseIterable, Hashable {
     case commandShiftTab = 2
     case nextWindow = 27
     case previousWindow = 220
-}
 
-struct SwitcherNativeHotkeyTransition: Equatable {
-    let suppress: Set<SwitcherNativeSymbolicHotKey>
-    let restore: Set<SwitcherNativeSymbolicHotKey>
-}
-
-/// Owns the crash-recovery marker independently of the WindowServer. The
-/// service supplies the system calls while tests can inject failures and restart
-/// from the exact marker that would remain on disk.
-struct SwitcherNativeHotkeyState {
-    private var suppressed: Set<SwitcherNativeSymbolicHotKey>
-    private var orphaned: Set<Int32>
-
-    init(stored: [Int]) {
-        let marker = SwitcherSupport.storedNativeHotkeys(stored)
-        suppressed = marker.known
-        orphaned = Set(marker.orphaned)
-    }
-
-    private var storedIDs: [Int] {
-        Set(suppressed.map(\.rawValue)).union(orphaned).map(Int.init).sorted()
-    }
-
-    mutating func recoverOrphans(setEnabled: (Int32, Bool) -> Bool,
-                                persist: ([Int]) -> Void) {
-        guard !orphaned.isEmpty else { return }
-        orphaned = orphaned.filter { !setEnabled($0, true) }
-        persist(storedIDs)
-    }
-
-    mutating func apply(_ desired: Set<SwitcherNativeSymbolicHotKey>,
-                        isEnabled: (Int32) -> Bool,
-                        setEnabled: (Int32, Bool) -> Bool,
-                        persist: ([Int]) -> Void) {
-        recoverOrphans(setEnabled: setEnabled, persist: persist)
-        let currentlyEnabled = Set(SwitcherNativeSymbolicHotKey.allCases.filter {
-            isEnabled($0.rawValue)
-        })
-        let transition = SwitcherSupport.nativeHotkeyTransition(
-            from: suppressed, to: desired, currentlyEnabled: currentlyEnabled)
-        for key in transition.suppress {
-            let newlyOwned = suppressed.insert(key).inserted
-            if newlyOwned { persist(storedIDs) }
-            if !setEnabled(key.rawValue, false), newlyOwned {
-                suppressed.remove(key)
-                persist(storedIDs)
-            }
-        }
-        for key in transition.restore where setEnabled(key.rawValue, true) {
-            suppressed.remove(key)
-            persist(storedIDs)
-        }
-    }
+    /// The ids the switcher ever asks the WindowServer about.
+    static let ids = Set(allCases.map(\.rawValue))
 }
 
 /// Which running apps earn an entry of their own when they have no window the
@@ -1215,31 +1164,23 @@ enum SwitcherSupport {
         })
     }
 
-    static func nativeHotkeyTransition(from current: Set<SwitcherNativeSymbolicHotKey>,
-                                       to desired: Set<SwitcherNativeSymbolicHotKey>,
-                                       currentlyEnabled: Set<SwitcherNativeSymbolicHotKey>) -> SwitcherNativeHotkeyTransition {
-        SwitcherNativeHotkeyTransition(suppress: desired.intersection(currentlyEnabled),
-                                       restore: current.subtracting(desired))
-    }
-
-    /// Splits a stored take-over marker into the ids this build owns and the
-    /// ids it no longer recognises. An earlier build wrote the reverse window
-    /// key as 28, which is the screenshot key; a marker left behind by a crash
-    /// of that build must still give 28 back, or the key stays switched off
-    /// with nothing left to restore it.
-    static func storedNativeHotkeys(_ stored: [Int])
-        -> (known: Set<SwitcherNativeSymbolicHotKey>, orphaned: [Int32]) {
-        var known: Set<SwitcherNativeSymbolicHotKey> = []
-        var orphaned: [Int32] = []
-        for value in stored {
-            guard let rawValue = Int32(exactly: value) else { continue }
-            if let key = SwitcherNativeSymbolicHotKey(rawValue: rawValue) {
-                known.insert(key)
-            } else {
-                orphaned.append(rawValue)
-            }
-        }
-        return (known, orphaned)
+    /// The raw ids the switcher wants switched off, resolved against the live
+    /// table: the shared take-over speaks WindowServer ids, and reading the
+    /// shortcut of each id from the table is what keeps a remapped key — or a
+    /// neighbour such as the screenshot key — from being taken over by guess.
+    static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
+                                appsShortcut: GlobalShortcut,
+                                windowShortcut: GlobalShortcut,
+                                liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
+        let nativeShortcuts = Dictionary(
+            liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
+                SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }
+            },
+            uniquingKeysWith: { first, _ in first })
+        return Set(nativeHotkeysToSuppress(takeOverSystemShortcuts: takeOverSystemShortcuts,
+                                           appsShortcut: appsShortcut,
+                                           windowShortcut: windowShortcut,
+                                           nativeShortcuts: nativeShortcuts).map(\.rawValue))
     }
 
     /// Mirrors the event tap's `allowingExtraShift` match: Shift reverses a

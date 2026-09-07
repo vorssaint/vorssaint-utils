@@ -22,7 +22,7 @@ enum SymbolicHotKeys {
     typealias GetValueFunction =
         @convention(c) (Int32, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>, UnsafeMutablePointer<UInt32>) -> CGError
 
-    /// Writes go through `SwitcherNativeHotkeys.apply`, which owns the
+    /// Writes go through `SystemShortcutTakeover.apply`, which owns the
     /// write-ahead marker and the restore-after-crash bookkeeping. Nothing
     /// else should call this directly.
     static let setEnabled: SetEnabledFunction? = {
@@ -45,8 +45,8 @@ enum SymbolicHotKeys {
     }()
 
     /// macOS 26 populates ids up to 255; scanning the headroom costs a few
-    /// milliseconds of WindowServer round trips per read, which only happens
-    /// when a shortcut is recorded, and spares a hardcoded ceiling.
+    /// milliseconds of WindowServer round trips per full read, which the
+    /// recorder pays on a save, and spares a hardcoded ceiling.
     static let scanRange: Range<Int32> = 0..<512
 
     /// The key code an entry carries when no key is assigned to it.
@@ -54,21 +54,33 @@ enum SymbolicHotKeys {
 
     /// Every populated row, read fresh: System Settings can change the table
     /// while a shortcut field is open. `nil` when the private calls are gone.
+    /// A caller that already knows its ids should use `entries(for:)` instead
+    /// of paying for the whole scan.
     static func liveEntries() -> [LiveSystemShortcut]? {
         guard let getValue, let isEnabled else { return nil }
-        return scanRange.compactMap { id in
-            var character: UInt32 = 0
-            var keyCode: UInt32 = 0
-            var modifiers: UInt32 = 0
-            guard getValue(id, &character, &keyCode, &modifiers) == .success,
-                  keyCode != unassignedKeyCode else { return nil }
-            return LiveSystemShortcut(
-                id: id,
-                shortcut: GlobalShortcut(
-                    keyCode: Int64(keyCode),
-                    modifiers: GlobalShortcutModifiers(
-                        cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: modifiers))),
-                enabled: isEnabled(id))
-        }
+        return scanRange.compactMap { entry(id: $0, getValue: getValue, isEnabled: isEnabled) }
+    }
+
+    /// The rows for a known set of ids, in the same shape as `liveEntries()`,
+    /// at one round trip per id instead of one per possible id.
+    static func entries(for ids: Set<Int32>) -> [LiveSystemShortcut]? {
+        guard let getValue, let isEnabled else { return nil }
+        return ids.sorted().compactMap { entry(id: $0, getValue: getValue, isEnabled: isEnabled) }
+    }
+
+    private static func entry(id: Int32, getValue: GetValueFunction,
+                              isEnabled: IsEnabledFunction) -> LiveSystemShortcut? {
+        var character: UInt32 = 0
+        var keyCode: UInt32 = 0
+        var modifiers: UInt32 = 0
+        guard getValue(id, &character, &keyCode, &modifiers) == .success,
+              keyCode != unassignedKeyCode else { return nil }
+        return LiveSystemShortcut(
+            id: id,
+            shortcut: GlobalShortcut(
+                keyCode: Int64(keyCode),
+                modifiers: GlobalShortcutModifiers(
+                    cgFlags: SpaceHopSupport.eventFlags(fromCarbonModifiers: modifiers))),
+            enabled: isEnabled(id))
     }
 }

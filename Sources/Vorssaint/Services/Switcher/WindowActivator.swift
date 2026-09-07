@@ -174,7 +174,7 @@ enum WindowActivator {
     }
 
     static func focusedWindowID(for pid: pid_t) -> CGWindowID? {
-        guard Permissions.shared.accessibility else { return nil }
+        guard AXIsProcessTrusted() else { return nil }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 0.35)
         var value: CFTypeRef?

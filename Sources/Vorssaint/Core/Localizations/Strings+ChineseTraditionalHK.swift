@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "關於",
         tabReleaseNotes: "新功能",
         releaseNotesOnUpdateToggle: "更新後顯示新功能",
+        minimalWindowPreviews: "簡潔預覽",
+        minimalWindowPreviewsCaption: "隱藏 Dock 和 App 切換器預覽中的標題、按鈕及裝飾，保留選取標記。",
         previewSizeLabel: "預覽大小",
         previewSizeNormal: "正常",
         previewSizeLarge: "大",

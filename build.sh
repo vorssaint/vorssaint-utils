@@ -217,19 +217,28 @@ fi
 # check in the test file holds it to that), which is what makes this sweep
 # complete rather than a list to keep in step by hand.
 discard_test_preferences() {
-    local preferences="$HOME/Library/Preferences" name
-    for name in "vorss.tests." "com.vorssaint.tests."; do
-        rm -f "$preferences"/$name*.plist(N)
+    local preferences="${1:-$HOME/Library/Preferences}" name attempt
+    local survivors=0 quiet_passes=0
+    # cfprefsd can recreate an emptied domain after the first removal. Require
+    # two quiet checks, but keep a hard limit so persistent failures still fail CI.
+    for attempt in {1..10}; do
+        for name in "vorss.tests." "com.vorssaint.tests."; do
+            rm -f "$preferences"/$name*.plist(N)
+        done
+        rm -f "$preferences/metrics-tests.plist"
+        sleep 0.2
+        survivors=$(find "$preferences" -maxdepth 1 \
+            \( -name "vorss.tests.*.plist" -o -name "com.vorssaint.tests.*.plist" \
+               -o -name "metrics-tests.plist" \) 2>/dev/null | wc -l | tr -d ' ')
+        if [[ "$survivors" == "0" ]]; then
+            quiet_passes=$((quiet_passes + 1))
+            if (( quiet_passes == 2 )); then return 0; fi
+        else
+            quiet_passes=0
+        fi
     done
-    rm -f "$preferences/metrics-tests.plist"
-    local survivors
-    survivors=$(find "$preferences" -maxdepth 1 \
-        \( -name "vorss.tests.*.plist" -o -name "com.vorssaint.tests.*.plist" \
-           -o -name "metrics-tests.plist" \) 2>/dev/null | wc -l | tr -d ' ')
-    if [[ "$survivors" != "0" ]]; then
-        echo "✗ the test run left $survivors preference file(s) in $preferences" >&2
-        return 1
-    fi
+    echo "✗ test preferences did not settle in $preferences ($survivors remaining)" >&2
+    return 1
 }
 
 # --test: compile and run the standalone unit tests (pure helpers only: metrics,
@@ -280,21 +289,25 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift \
         Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecorderSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift \
         Sources/Vorssaint/Services/PrivateFileStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderPresetImageStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderMotion.swift \
         Sources/Vorssaint/Services/Recorder/RecorderPointerTrack.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTypingTrack.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTimeline.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTextOverlay.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderImageOverlay.swift \
         Sources/Vorssaint/Services/Recorder/RecorderBlurRegion.swift \
         Sources/Vorssaint/Services/Recorder/RecorderEditDocument.swift \
         Sources/Vorssaint/Core/AppInfo.swift \
         Sources/Vorssaint/Core/GlobalShortcut.swift \
         Sources/Vorssaint/Core/SymbolicHotKeys.swift \
+        Sources/Vorssaint/Services/SystemShortcutTakeoverSupport.swift \
         Sources/Vorssaint/Core/Localization.swift \
         Sources/Vorssaint/Core/Localizations/Strings+*.swift \
         Sources/Vorssaint/Core/FeatureStrings.swift \
@@ -314,6 +327,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift \
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift \
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift \
+        Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift \
         Sources/Vorssaint/Core/AppUpdateStrings.swift \
         Sources/Vorssaint/Core/DiskImageInstallerStrings.swift \
         Sources/Vorssaint/Services/DiskImageInstaller/DiskImageInstallerSupport.swift \
@@ -332,6 +346,7 @@ if (( TEST )); then
         Sources/Vorssaint/App/StatusItemAnchorSupport.swift \
         Sources/Vorssaint/Services/DockClick/DockClickSupport.swift \
         Sources/Vorssaint/Services/Finder/CutPasteProgressSupport.swift \
+        Sources/Vorssaint/Services/Finder/CutPastePrivilegeSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift \
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift \
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift \
@@ -339,6 +354,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift \
         Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceSupport.swift \
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptionSupport.swift \
+        Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptions.swift \
         Sources/Vorssaint/Services/WindowServerSupport.swift \
         Sources/Vorssaint/Core/MouseButtonStrings.swift \
         Sources/Vorssaint/Core/MouseClickDebounceStrings.swift \
@@ -364,6 +380,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift \
+        Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift \
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift \
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift \
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift \
@@ -390,6 +407,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ShellSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift \
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift \
+        Sources/Vorssaint/Services/Metrics/SpeedTest.swift \
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift \
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift \
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift \
@@ -409,10 +427,14 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
+        Tests/RecentCaptureStoreTests.swift \
+        Tests/RecorderPresetImageStoreTests.swift \
+        Tests/SpeedTestTests.swift \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
     ./build/metrics-tests || test_status=$?
+    ./Tests/PreferenceCleanupTests.sh || test_status=1
     discard_test_preferences || test_status=1
     exit $test_status
 fi

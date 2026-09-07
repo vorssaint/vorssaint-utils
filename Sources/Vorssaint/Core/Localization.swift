@@ -233,6 +233,8 @@ struct Strings {
     let tabAbout: String
     let tabReleaseNotes: String
     let releaseNotesOnUpdateToggle: String
+    let minimalWindowPreviews: String
+    let minimalWindowPreviewsCaption: String
     let previewSizeLabel: String
     let previewSizeNormal: String
     let previewSizeLarge: String
@@ -1279,6 +1281,8 @@ extension Strings {
         tabAbout: "Sobre",
         tabReleaseNotes: "Novidades",
         releaseNotesOnUpdateToggle: "Mostrar novidades ao atualizar",
+        minimalWindowPreviews: "Prévias minimalistas",
+        minimalWindowPreviewsCaption: "Oculta títulos, botões e detalhes decorativos nas prévias do Dock e do alternador. A seleção continua visível.",
         previewSizeLabel: "Tamanho dos previews",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Grande",
@@ -2287,6 +2291,8 @@ extension Strings {
         tabAbout: "About",
         tabReleaseNotes: "What’s New",
         releaseNotesOnUpdateToggle: "Show what’s new after updating",
+        minimalWindowPreviews: "Minimal previews",
+        minimalWindowPreviewsCaption: "Hide titles, buttons and decorative details in Dock and switcher previews. The selection stays visible.",
         previewSizeLabel: "Preview size",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Large",

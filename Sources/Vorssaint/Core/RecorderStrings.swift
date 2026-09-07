@@ -132,6 +132,14 @@ struct RecorderFeatureStrings {
     let blurPickArea: String
     let blurPickAreaHint: String
     let blurCaption: String
+    let addImageButton: String
+    let imageLaneLabel: String
+    let imageLaneEmptyHint: String
+    let thisImageLabel: String
+    let imageSizeLabel: String
+    let imageOpacityLabel: String
+    let imagePositionLabel: String
+    let imageImportFailed: String
 }
 
 extension FeatureStrings {
@@ -282,7 +290,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "This blur",
         blurPickArea: "Choose the area",
         blurPickAreaHint: "Drag over what should stay hidden",
-        blurCaption: "Hidden for as long as its block lasts on the timeline."
+        blurCaption: "Hidden for as long as its block lasts on the timeline.",
+        addImageButton: "Add image",
+        imageLaneLabel: "Image",
+        imageLaneEmptyHint: "Click here to add an image",
+        thisImageLabel: "This image",
+        imageSizeLabel: "Size",
+        imageOpacityLabel: "Opacity",
+        imagePositionLabel: "Position",
+        imageImportFailed: "Couldn’t add this image."
     )
 
     static let ptBR = RecorderFeatureStrings(
@@ -412,7 +428,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Este desfoque",
         blurPickArea: "Escolher a área",
         blurPickAreaHint: "Arraste sobre o que deve ficar escondido",
-        blurCaption: "Fica escondido enquanto o bloco durar na linha do tempo."
+        blurCaption: "Fica escondido enquanto o bloco durar na linha do tempo.",
+        addImageButton: "Adicionar imagem",
+        imageLaneLabel: "Imagem",
+        imageLaneEmptyHint: "Clique aqui para adicionar uma imagem",
+        thisImageLabel: "Esta imagem",
+        imageSizeLabel: "Tamanho",
+        imageOpacityLabel: "Opacidade",
+        imagePositionLabel: "Posição",
+        imageImportFailed: "Não foi possível adicionar esta imagem."
     )
 
     static let tr = RecorderFeatureStrings(
@@ -542,7 +566,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Bu bulanıklık",
         blurPickArea: "Alanı seç",
         blurPickAreaHint: "Gizli kalması gerekenin üzerine sürükleyin",
-        blurCaption: "Zaman çizelgesindeki blok sürdüğü sürece gizli kalır."
+        blurCaption: "Zaman çizelgesindeki blok sürdüğü sürece gizli kalır.",
+        addImageButton: "Görsel ekle",
+        imageLaneLabel: "Görsel",
+        imageLaneEmptyHint: "Görsel eklemek için buraya tıklayın",
+        thisImageLabel: "Bu görsel",
+        imageSizeLabel: "Boyut",
+        imageOpacityLabel: "Matlık",
+        imagePositionLabel: "Konum",
+        imageImportFailed: "Bu görsel eklenemedi."
     )
 
     static let ru = RecorderFeatureStrings(
@@ -672,7 +704,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Это размытие",
         blurPickArea: "Выбрать область",
         blurPickAreaHint: "Проведите по тому, что нужно скрыть",
-        blurCaption: "Скрыто, пока длится блок на шкале времени."
+        blurCaption: "Скрыто, пока длится блок на шкале времени.",
+        addImageButton: "Добавить изображение",
+        imageLaneLabel: "Изображение",
+        imageLaneEmptyHint: "Нажмите здесь, чтобы добавить изображение",
+        thisImageLabel: "Это изображение",
+        imageSizeLabel: "Размер",
+        imageOpacityLabel: "Непрозрачность",
+        imagePositionLabel: "Положение",
+        imageImportFailed: "Не удалось добавить это изображение."
     )
 
     static let es = RecorderFeatureStrings(
@@ -802,7 +842,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Este desenfoque",
         blurPickArea: "Elegir el área",
         blurPickAreaHint: "Arrastra sobre lo que debe quedar oculto",
-        blurCaption: "Queda oculto mientras dure su bloque en la línea de tiempo."
+        blurCaption: "Queda oculto mientras dure su bloque en la línea de tiempo.",
+        addImageButton: "Añadir imagen",
+        imageLaneLabel: "Imagen",
+        imageLaneEmptyHint: "Haz clic aquí para añadir una imagen",
+        thisImageLabel: "Esta imagen",
+        imageSizeLabel: "Tamaño",
+        imageOpacityLabel: "Opacidad",
+        imagePositionLabel: "Posición",
+        imageImportFailed: "No se pudo añadir esta imagen."
     )
 
     static let de = RecorderFeatureStrings(
@@ -932,7 +980,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Diese Unschärfe",
         blurPickArea: "Bereich wählen",
         blurPickAreaHint: "Über das ziehen, was verborgen bleiben soll",
-        blurCaption: "Bleibt verborgen, solange der Block in der Zeitleiste dauert."
+        blurCaption: "Bleibt verborgen, solange der Block in der Zeitleiste dauert.",
+        addImageButton: "Bild hinzufügen",
+        imageLaneLabel: "Bild",
+        imageLaneEmptyHint: "Hier klicken, um ein Bild hinzuzufügen",
+        thisImageLabel: "Dieses Bild",
+        imageSizeLabel: "Größe",
+        imageOpacityLabel: "Deckkraft",
+        imagePositionLabel: "Position",
+        imageImportFailed: "Dieses Bild konnte nicht hinzugefügt werden."
     )
 
     static let fr = RecorderFeatureStrings(
@@ -1062,7 +1118,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Ce flou",
         blurPickArea: "Choisir la zone",
         blurPickAreaHint: "Faites glisser sur ce qui doit rester caché",
-        blurCaption: "Reste caché tant que son bloc dure dans la chronologie."
+        blurCaption: "Reste caché tant que son bloc dure dans la chronologie.",
+        addImageButton: "Ajouter une image",
+        imageLaneLabel: "Image",
+        imageLaneEmptyHint: "Cliquez ici pour ajouter une image",
+        thisImageLabel: "Cette image",
+        imageSizeLabel: "Taille",
+        imageOpacityLabel: "Opacité",
+        imagePositionLabel: "Position",
+        imageImportFailed: "Impossible d’ajouter cette image."
     )
 
     static let it = RecorderFeatureStrings(
@@ -1192,7 +1256,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "Questa sfocatura",
         blurPickArea: "Scegli l’area",
         blurPickAreaHint: "Trascina su ciò che deve restare nascosto",
-        blurCaption: "Resta nascosto finché dura il blocco nella timeline."
+        blurCaption: "Resta nascosto finché dura il blocco nella timeline.",
+        addImageButton: "Aggiungi immagine",
+        imageLaneLabel: "Immagine",
+        imageLaneEmptyHint: "Fai clic qui per aggiungere un’immagine",
+        thisImageLabel: "Questa immagine",
+        imageSizeLabel: "Dimensione",
+        imageOpacityLabel: "Opacità",
+        imagePositionLabel: "Posizione",
+        imageImportFailed: "Impossibile aggiungere questa immagine."
     )
 
     static let ja = RecorderFeatureStrings(
@@ -1322,7 +1394,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "このぼかし",
         blurPickArea: "範囲を選ぶ",
         blurPickAreaHint: "隠したい部分をドラッグ",
-        blurCaption: "タイムラインのブロックが続く間は隠れたままです。"
+        blurCaption: "タイムラインのブロックが続く間は隠れたままです。",
+        addImageButton: "画像を追加",
+        imageLaneLabel: "画像",
+        imageLaneEmptyHint: "クリックして画像を追加",
+        thisImageLabel: "この画像",
+        imageSizeLabel: "サイズ",
+        imageOpacityLabel: "不透明度",
+        imagePositionLabel: "位置",
+        imageImportFailed: "この画像を追加できませんでした。"
     )
 
     static let ko = RecorderFeatureStrings(
@@ -1452,7 +1532,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "선택한 흐림",
         blurPickArea: "영역 선택",
         blurPickAreaHint: "숨길 부분 위로 드래그하세요",
-        blurCaption: "타임라인의 블록이 지속되는 동안 숨겨집니다."
+        blurCaption: "타임라인의 블록이 지속되는 동안 숨겨집니다.",
+        addImageButton: "이미지 추가",
+        imageLaneLabel: "이미지",
+        imageLaneEmptyHint: "여기를 클릭해 이미지를 추가하세요",
+        thisImageLabel: "선택한 이미지",
+        imageSizeLabel: "크기",
+        imageOpacityLabel: "불투명도",
+        imagePositionLabel: "위치",
+        imageImportFailed: "이 이미지를 추가할 수 없습니다."
     )
 
     static let zhHans = RecorderFeatureStrings(
@@ -1582,7 +1670,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "当前模糊",
         blurPickArea: "选取区域",
         blurPickAreaHint: "拖过需要隐藏的内容",
-        blurCaption: "在时间线上的区块持续期间保持隐藏。"
+        blurCaption: "在时间线上的区块持续期间保持隐藏。",
+        addImageButton: "添加图片",
+        imageLaneLabel: "图片",
+        imageLaneEmptyHint: "点按此处添加图片",
+        thisImageLabel: "当前图片",
+        imageSizeLabel: "大小",
+        imageOpacityLabel: "不透明度",
+        imagePositionLabel: "位置",
+        imageImportFailed: "无法添加此图片。"
     )
 
     static let zhTW = RecorderFeatureStrings(
@@ -1712,7 +1808,15 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "這個模糊",
         blurPickArea: "選取區域",
         blurPickAreaHint: "拖曳過需要隱藏的內容",
-        blurCaption: "在時間軸上的區塊持續期間保持隱藏。"
+        blurCaption: "在時間軸上的區塊持續期間保持隱藏。",
+        addImageButton: "加入圖片",
+        imageLaneLabel: "圖片",
+        imageLaneEmptyHint: "按一下這裡加入圖片",
+        thisImageLabel: "這張圖片",
+        imageSizeLabel: "大小",
+        imageOpacityLabel: "不透明度",
+        imagePositionLabel: "位置",
+        imageImportFailed: "無法加入這張圖片。"
     )
 
     static let zhHK = RecorderFeatureStrings(
@@ -1842,6 +1946,14 @@ extension RecorderFeatureStrings {
         thisBlurLabel: "這個模糊",
         blurPickArea: "選取區域",
         blurPickAreaHint: "拖曳過需要隱藏的內容",
-        blurCaption: "在時間軸上的區塊持續期間保持隱藏。"
+        blurCaption: "在時間軸上的區塊持續期間保持隱藏。",
+        addImageButton: "加入圖片",
+        imageLaneLabel: "圖片",
+        imageLaneEmptyHint: "點按這裡加入圖片",
+        thisImageLabel: "這張圖片",
+        imageSizeLabel: "大小",
+        imageOpacityLabel: "不透明度",
+        imagePositionLabel: "位置",
+        imageImportFailed: "無法加入這張圖片。"
     )
 }

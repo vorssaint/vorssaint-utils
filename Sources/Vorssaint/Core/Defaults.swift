@@ -25,6 +25,8 @@ enum DefaultsKey {
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
     static let keepAwakeExternalDisplay = "keepAwakeExternalDisplay"
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
+    static let keepAwakeRunningApps = "keepAwakeRunningApps"
+    static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
     static let keepAwakePauseWhenLocked = "keepAwakePauseWhenLocked"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
@@ -68,11 +70,15 @@ enum DefaultsKey {
     static let mouseNavigationExceptions = "mouseNavigationExceptions"
     static let mouseButtonExceptions = "mouseButtonExceptions"
     static let middleClickExceptions = "middleClickExceptions"
+    static let superKeyExceptions = "superKeyExceptions"
     static let switcherEnabled = "switcherEnabled"
     static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
     // Machine state, never exported: the system shortcuts this process owns,
-    // so a launch after a crash can restore them.
+    // so a launch after a crash can restore them. The switcher-only key is
+    // what builds before the take-over was shared wrote; it is read once,
+    // folded into the shared one, and then retired.
     static let switcherNativeHotkeysSuppressed = "switcherNativeHotkeysSuppressed"
+    static let systemShortcutsSuppressed = "systemShortcutsSuppressed"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"
@@ -88,6 +94,7 @@ enum DefaultsKey {
     static let switcherShowShortcutHints = "switcherShowShortcutHints" // show the shortcut bar under the large-icon switcher
     static let switcherAppearanceDelay = "switcherAppearanceDelay" // milliseconds the shortcut must be held before the panel appears (SwitcherSupport.appearanceDelayMillisecondsRange)
     static let switcherScreenPlacement = "switcherScreenPlacement" // SwitcherScreenPlacement raw value: which display the panel opens on
+    static let minimalWindowPreviews = "minimalWindowPreviews"
     static let dockPreviewEnabled = "dockPreviewEnabled"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
@@ -372,6 +379,7 @@ enum DefaultsKey {
     static let monitorDiskSMART = "monitorDiskSMART"
     static let monitorDiskProtection = "monitorDiskProtection"
     static let monitorDiskTools = "monitorDiskTools"
+    static let monitorPwrTemperature = "monitorPwrTemperature"
     static let monitorPwrSystem = "monitorPwrSystem"
     static let monitorPwrAdapter = "monitorPwrAdapter"
     static let monitorPwrBattery = "monitorPwrBattery"
@@ -493,6 +501,7 @@ enum DefaultsKey {
     /// Compact mode: an empty field shows nothing but itself. Off by default
     static let commandBarCompactMode = "commandBarCompactMode"
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
+    static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → app row ids
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
     static let commandBarPins = "commandBarPins"             // row keys kept at the top, in order
@@ -526,6 +535,11 @@ enum DefaultsKey {
     static let panelUtilityScratchpad = "panelUtilityScratchpad"
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
+    // Mode chooser visibility for dedicated capture shortcuts.
+    static let screenshotShowCaptureMenuOnShortcut = "screenshotShowCaptureMenuOnShortcut"
+    static let recorderShowCaptureMenuOnShortcut = "recorderShowCaptureMenuOnShortcut"
+    static let screenOCRShowCaptureMenuOnShortcut = "screenOCRShowCaptureMenuOnShortcut"
+    static let colorPickerShowCaptureMenuOnShortcut = "colorPickerShowCaptureMenuOnShortcut"
     // Screenshot capture and editor.
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
@@ -551,6 +565,10 @@ enum DefaultsKey {
     static let screenshotIncludePointer = "screenshotIncludePointer"
     static let screenshotShowLastRegion = "screenshotShowLastRegion"
     static let screenshotLoupeStartsOn = "screenshotLoupeStartsOn"
+    static let screenshotLoupeRememberZoom = "screenshotLoupeRememberZoom"
+    static let screenshotLoupeDefaultZoom = "screenshotLoupeDefaultZoom"
+    static let screenshotLoupeLastZoom = "screenshotLoupeLastZoom"
+    static let screenshotLoupeSteppedZoomByDefault = "screenshotLoupeSteppedZoomByDefault"
     static let screenshotDownscale = "screenshotDownscale"
     static let screenshotDelay = "screenshotDelay"
     static let screenshotLastTool = "screenshotLastTool"
@@ -605,6 +623,7 @@ enum DefaultsKey {
     static let windowLayoutShortcutRight = "windowLayoutShortcutRight"
     static let windowLayoutShortcutTop = "windowLayoutShortcutTop"
     static let windowLayoutShortcutBottom = "windowLayoutShortcutBottom"
+    static let windowLayoutShortcutCenterHalf = "windowLayoutShortcutCenterHalf"
     static let windowLayoutShortcutTopLeft = "windowLayoutShortcutTopLeft"
     static let windowLayoutShortcutTopRight = "windowLayoutShortcutTopRight"
     static let windowLayoutShortcutBottomLeft = "windowLayoutShortcutBottomLeft"
@@ -665,16 +684,26 @@ enum OnboardingInfo {
 /// update. Each row deep links to the exact Settings page or opens the tool
 /// itself, so a new feature is one click from being tried instead of buried.
 enum UpdateHighlightsInfo {
-    /// The single release whose first launch shows the tour; any other
-    /// version never shows it. Bump deliberately for releases with headline
-    /// features worth a tour.
+    /// The release whose first launch shows the tour. A patch of that release
+    /// shows the same tour to whoever skipped it and to nobody who already saw
+    /// it; any other version never shows it. Bump deliberately for releases
+    /// with headline features worth a tour.
     static let releaseVersion = "3.3.3"
 
     static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
         let matches = appVersion == releaseVersion
             || appVersion.hasPrefix("\(releaseVersion)-")
             || (AppInfo.isDeveloperBuild && appVersion.hasPrefix(releaseVersion))
+            || isPatch(appVersion, of: releaseVersion)
         return matches && lastSeenVersion != releaseVersion
+    }
+
+    /// Same major and minor with a later patch: 3.3.4 patches 3.3.3, 3.4.0 does not.
+    private static func isPatch(_ version: String, of release: String) -> Bool {
+        guard let version = UpdateServiceSupport.SemanticVersion(raw: version),
+              let release = UpdateServiceSupport.SemanticVersion(raw: release) else { return false }
+        return (version.major, version.minor) == (release.major, release.minor)
+            && version.patch > release.patch
     }
 }
 
@@ -838,6 +867,8 @@ enum Defaults {
         DefaultsKey.keepAwakeAllowDisplaySleep: false,
         DefaultsKey.keepAwakeExternalDisplay: false,
         DefaultsKey.keepAwakeConnectedToPower: false,
+        DefaultsKey.keepAwakeRunningApps: false,
+        DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
         DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,
@@ -873,6 +904,7 @@ enum Defaults {
         DefaultsKey.mouseNavigationExceptions: [String](),
         DefaultsKey.mouseButtonExceptions: [String](),
         DefaultsKey.middleClickExceptions: [String](),
+        DefaultsKey.superKeyExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherTakeOverSystemShortcuts: false,
         DefaultsKey.switcherShortcut: "command:48",
@@ -890,6 +922,7 @@ enum Defaults {
         DefaultsKey.switcherShowShortcutHints: true,
         DefaultsKey.switcherAppearanceDelay: SwitcherSupport.defaultAppearanceDelayMilliseconds,
         DefaultsKey.switcherScreenPlacement: SwitcherScreenPlacement.fallback.rawValue,
+        DefaultsKey.minimalWindowPreviews: false,
         DefaultsKey.dockPreviewEnabled: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,
@@ -1144,6 +1177,7 @@ enum Defaults {
         DefaultsKey.monitorDiskSMART: true,
         DefaultsKey.monitorDiskProtection: true,
         DefaultsKey.monitorDiskTools: true,
+        DefaultsKey.monitorPwrTemperature: true,
         DefaultsKey.monitorPwrSystem: true,
         DefaultsKey.monitorPwrAdapter: true,
         DefaultsKey.monitorPwrBattery: true,
@@ -1278,6 +1312,10 @@ enum Defaults {
         DefaultsKey.recorderEditorPresets: Data(),
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
+        DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
+        DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
+        DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
+        DefaultsKey.colorPickerShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
@@ -1301,6 +1339,10 @@ enum Defaults {
         DefaultsKey.screenshotIncludePointer: false,
         DefaultsKey.screenshotShowLastRegion: true,
         DefaultsKey.screenshotLoupeStartsOn: false,
+        DefaultsKey.screenshotLoupeRememberZoom: false,
+        DefaultsKey.screenshotLoupeDefaultZoom: 1.0,
+        DefaultsKey.screenshotLoupeLastZoom: 1.0,
+        DefaultsKey.screenshotLoupeSteppedZoomByDefault: false,
         DefaultsKey.screenshotDownscale: false,
         DefaultsKey.screenshotDelay: 0,
         DefaultsKey.screenshotLastTool: "arrow",
@@ -1329,6 +1371,7 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutRight: GlobalShortcut.windowLayoutRightDefault.storageValue,
         DefaultsKey.windowLayoutShortcutTop: GlobalShortcut.windowLayoutTopDefault.storageValue,
         DefaultsKey.windowLayoutShortcutBottom: GlobalShortcut.windowLayoutBottomDefault.storageValue,
+        DefaultsKey.windowLayoutShortcutCenterHalf: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutTopLeft: GlobalShortcut.windowLayoutTopLeftDefault.storageValue,
         DefaultsKey.windowLayoutShortcutTopRight: GlobalShortcut.windowLayoutTopRightDefault.storageValue,
         DefaultsKey.windowLayoutShortcutBottomLeft: GlobalShortcut.windowLayoutBottomLeftDefault.storageValue,
@@ -1358,6 +1401,7 @@ enum Defaults {
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
+        migrateBatteryTemperatureVisibility(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -1372,6 +1416,12 @@ enum Defaults {
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
+    }
+
+    static func migrateBatteryTemperatureVisibility(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.monitorPwrTemperature) == nil else { return }
+        defaults.set(defaults.object(forKey: DefaultsKey.monitorSysTemps) as? Bool ?? true,
+                     forKey: DefaultsKey.monitorPwrTemperature)
     }
 
     /// When the user installs or runs a beta pre-release, activate the beta

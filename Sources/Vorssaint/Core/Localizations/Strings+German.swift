@@ -117,6 +117,8 @@ extension Strings {
         tabAbout: "Über",
         tabReleaseNotes: "Neues",
         releaseNotesOnUpdateToggle: "Neuigkeiten nach Update anzeigen",
+        minimalWindowPreviews: "Schlichte Vorschauen",
+        minimalWindowPreviewsCaption: "Blendet Titel, Tasten und Verzierungen in den Vorschauen von Dock und App-Umschalter aus. Die Auswahl bleibt sichtbar.",
         previewSizeLabel: "Vorschaugröße",
         previewSizeNormal: "Normal",
         previewSizeLarge: "Groß",

@@ -174,14 +174,22 @@ final class DockPreviewService: ObservableObject {
         endSession()
     }
 
+    func closeWindow(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: false)
+    }
+
     func close(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose))
+    }
+
+    private func close(_ item: SwitcherItem, quitAppOnClose: Bool) {
         guard isVisible,
               windows.contains(item),
               let windowID = item.windowID
         else { return }
 
         DockPreviewSupport.performCloseAction(
-            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
+            quitAppOnClose: quitAppOnClose,
             requestQuit: { [weak self] in
                 let accepted = requestDockPreviewApplicationQuit(item)
                 if accepted { self?.endSession() }
@@ -1114,19 +1122,26 @@ final class DockPreviewService: ObservableObject {
         guard let preferences = cachedPreferences ?? readDockPreferences(),
               let dockPID = dockProcessID()
         else { return nil }
+
+        var rawElement: AXUIElement?
+        // Resolve only after finding a visible Dock, and reuse the answer
+        // when a pass-through overlay made the ownership check ask first.
+        func hitElement() -> AXUIElement? {
+            if let rawElement { return rawElement }
+            guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(),
+                                                   Float(axPoint.x), Float(axPoint.y),
+                                                   &rawElement) == .success else { return nil }
+            return rawElement
+        }
+
         guard DockClickSupport.dockOwnsPoint(
             axPoint,
-            windows: Self.onScreenWindows(),
+            windows: WindowServerSupport.onScreenWindows(),
             dockProcessID: dockPID,
             dockLayer: Int(CGWindowLevelForKey(.dockWindow)),
-            ownProcessID: getpid()
-        ) else { return nil }
-
-        let system = AXUIElementCreateSystemWide()
-        var rawElement: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(axPoint.x), Float(axPoint.y), &rawElement) == .success,
-              let element = rawElement
-        else { return nil }
+            ownProcessID: getpid(),
+            accessibilityHitProcessID: { hitElement().flatMap { self.pid(of: $0) } }
+        ), let element = hitElement() else { return nil }
 
         for candidate in elementAndParents(from: element) {
             guard pid(of: candidate) == dockPID,
@@ -1136,14 +1151,6 @@ final class DockPreviewService: ObservableObject {
             return DockHit(app: app, iconFrame: frame, preferences: preferences)
         }
         return nil
-    }
-
-    private static func onScreenWindows() -> [MouseAppExceptionSupport.Window] {
-        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                    kCGNullWindowID) as? [[String: Any]] else {
-            return []
-        }
-        return MouseAppExceptionSupport.windows(from: list)
     }
 
     private func runningApplication(forDockElement element: AXUIElement) -> NSRunningApplication? {
@@ -1464,13 +1471,21 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
         WindowActivator.activate(item)
     }
 
+    func closeWindow(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: false)
+    }
+
     func close(_ item: SwitcherItem) {
+        close(item, quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose))
+    }
+
+    private func close(_ item: SwitcherItem, quitAppOnClose: Bool) {
         guard windows.contains(item),
               let windowID = item.windowID
         else { return }
 
         DockPreviewSupport.performCloseAction(
-            quitAppOnClose: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewQuitAppOnClose),
+            quitAppOnClose: quitAppOnClose,
             requestQuit: { [weak self] in
                 let accepted = requestDockPreviewApplicationQuit(item)
                 if accepted { self?.closePreviewPanel() }

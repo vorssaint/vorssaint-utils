@@ -67,6 +67,19 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    var showCaptureMenuOnShortcutKey: String {
+        switch self {
+        case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
+        case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
+        case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
+        }
+    }
+
+    func showsCaptureMenu(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+        !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
+    }
+
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
@@ -1447,16 +1460,68 @@ enum ScreenshotSupport {
     static var captureLoupeMaxZoom: CGFloat {
         captureLoupeBaseSampleSide / captureLoupeMinSampleSide
     }
+    static let captureLoupeDefaultZooms: [Double] = [0.5, 1, 2, 4]
     /// The magnifier square on screen, in view points. Big enough that each
     /// sampled pixel becomes a readable grid cell at every zoom level.
     static let captureLoupeFrameSide: CGFloat = 132
 
-    static func captureLoupeZoom(_ zoom: CGFloat, adjustedBy scrollDelta: CGFloat) -> CGFloat {
-        guard scrollDelta != 0 else {
+    static func captureLoupeInitialZoom(rememberLast: Bool,
+                                        defaultZoom: CGFloat,
+                                        lastZoom: CGFloat) -> CGFloat {
+        let requested = rememberLast ? lastZoom : defaultZoom
+        guard requested.isFinite else { return 1 }
+        return min(max(requested, captureLoupeMinZoom), captureLoupeMaxZoom)
+    }
+
+    static func captureLoupeUsesSteppedZoom(steppedByDefault: Bool,
+                                             optionPressed: Bool) -> Bool {
+        steppedByDefault != optionPressed
+    }
+
+    /// A few high-resolution mouse drivers put sub-notch movement only in
+    /// the fixed-point wheel field. `NSEvent.scrollingDeltaY` rounds those
+    /// packets to zero, which would make apparently random notches disappear.
+    static func captureLoupeWheelDelta(scrollingDelta: CGFloat,
+                                       lineDelta: Int64,
+                                       fixedPointDelta: Double) -> CGFloat {
+        if fixedPointDelta.isFinite, fixedPointDelta != 0 {
+            return CGFloat(fixedPointDelta)
+        }
+        if lineDelta != 0 { return CGFloat(lineDelta) }
+        return scrollingDelta.isFinite ? scrollingDelta : 0
+    }
+
+    /// Fast mode preserves the original one-step-per-event behavior.
+    static func captureLoupeZoom(_ zoom: CGFloat,
+                                 adjustedBy scrollDelta: CGFloat) -> CGFloat {
+        guard scrollDelta.isFinite, scrollDelta != 0 else {
             return min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
         }
         let factor: CGFloat = scrollDelta > 0 ? 1.15 : 1 / 1.15
         return min(max(zoom * factor, captureLoupeMinZoom), captureLoupeMaxZoom)
+    }
+
+    /// Step mode advances by exactly one drawable pixel-grid level. A fixed
+    /// percentage cannot promise that: at the wide end it can skip two odd
+    /// sample sizes, while at the narrow end it can round back to the same
+    /// size and appear to do nothing.
+    static func captureLoupeSteppedZoom(_ zoom: CGFloat,
+                                        adjustedBy scrollDelta: CGFloat) -> CGFloat {
+        let clamped = min(max(zoom, captureLoupeMinZoom), captureLoupeMaxZoom)
+        guard scrollDelta.isFinite, scrollDelta != 0 else { return clamped }
+
+        let currentSide = captureLoupeSampleSide(zoom: clamped)
+        let widestSide = captureLoupeSampleSide(zoom: captureLoupeMinZoom)
+        let targetSide = scrollDelta > 0
+            ? max(captureLoupeMinSampleSide, currentSide - 2)
+            : min(widestSide, currentSide + 2)
+        guard targetSide != currentSide else { return clamped }
+
+        // The widest level lies just below the numeric minimum when expressed
+        // as base / side, so it deliberately resolves to the public boundary.
+        if targetSide == widestSide { return captureLoupeMinZoom }
+        return min(max(captureLoupeBaseSampleSide / targetSide,
+                       captureLoupeMinZoom), captureLoupeMaxZoom)
     }
 
     /// Sampled source pixels per side. Always an odd whole number, never

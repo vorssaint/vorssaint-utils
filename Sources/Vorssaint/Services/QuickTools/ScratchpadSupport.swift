@@ -291,20 +291,6 @@ enum ScratchpadSupport {
         return "\(safeBase) \(existingNames.count + 1)"
     }
 
-    static func migratedLegacyDocument(text: String,
-                                       lastEdited: Date?,
-                                       defaultName: String,
-                                       retention: ScratchpadRetention,
-                                       now: Date,
-                                       id: UUID = UUID()) -> ScratchpadDocument {
-        var document = ScratchpadDocument.initial(defaultName: defaultName,
-                                                  id: id,
-                                                  text: text,
-                                                  modifiedAt: lastEdited)
-        document.applyRetention(retention, now: now)
-        return document
-    }
-
     static func requiresCloseConfirmation(_ pad: ScratchpadPad) -> Bool {
         !pad.text.isEmpty
     }
