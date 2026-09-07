@@ -351,6 +351,13 @@ enum AppUpdatesSupport {
         bundleIDs.allSatisfy { entries[$0] != nil }
     }
 
+    /// Keep partial source failures visible without listing apps whose own
+    /// publisher already answered, or repeating one app for several sources.
+    static func uncheckedAppNames(_ apps: [InstalledApp], checkedPaths: Set<String>) -> [String] {
+        Set(apps.filter { !checkedPaths.contains($0.path) }.map(\.name))
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
     static func appStoreUpdates(apps: [InstalledApp],
                                 storeVersions: [String: StoreEntry],
                                 operatingSystemVersion: String) -> [Item] {

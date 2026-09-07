@@ -29,6 +29,7 @@ final class AppUpdatesService: ObservableObject {
     /// False means the online source failed, so an empty list is incomplete.
     @Published private(set) var onlineCatalogAvailable = true
     @Published private(set) var appStoreAvailable = true
+    @Published private(set) var uncheckedAppNames: [String] = []
     /// A check finished in THIS process. The time of the last check survives
     /// relaunches, but its findings do not, so nothing may claim the Mac is
     /// up to date until a scan has actually run here.
@@ -175,7 +176,10 @@ final class AppUpdatesService: ObservableObject {
             var feedResult = SourceResult(items: [], available: true)
             var onlineResult = SourceResult(
                 items: [],
-                available: !includeOnlineCatalog || packageResult.onlineCoverageAvailable)
+                available: !includeOnlineCatalog || packageResult.onlineCoverageAvailable,
+                uncheckedApps: includeOnlineCatalog && !packageResult.onlineCoverageAvailable
+                    ? AppUpdatesSupport.onlineCatalogCandidates(apps: apps, coveredPaths: coveredPaths)
+                    : [])
 
             group.enter()
             self.storeFindings(for: storeCandidates,
@@ -211,6 +215,9 @@ final class AppUpdatesService: ObservableObject {
                                      packageManagerAvailable: packageResult.available,
                                      onlineCatalogAvailable: onlineResult.available && feedResult.available,
                                      appStoreAvailable: storeResult.available,
+                                     uncheckedAppNames: AppUpdatesSupport.uncheckedAppNames(
+                                        storeResult.uncheckedApps + feedResult.uncheckedApps + onlineResult.uncheckedApps,
+                                        checkedPaths: feedResult.checkedPaths),
                                      automatic: automatic)
                 }
             }
@@ -221,6 +228,7 @@ final class AppUpdatesService: ObservableObject {
                              packageManagerAvailable available: Bool,
                              onlineCatalogAvailable catalogAvailable: Bool,
                              appStoreAvailable storeAvailable: Bool,
+                             uncheckedAppNames: [String],
                              automatic: Bool) {
         // The feature can be switched off in the hub while a scan is in
         // flight; its findings belong to a surface that no longer exists.
@@ -252,6 +260,7 @@ final class AppUpdatesService: ObservableObject {
         packageManagerAvailable = available
         onlineCatalogAvailable = catalogAvailable
         appStoreAvailable = storeAvailable
+        self.uncheckedAppNames = uncheckedAppNames
         hasCheckedThisSession = true
         isChecking = false
         let now = Date()
@@ -353,7 +362,8 @@ final class AppUpdatesService: ObservableObject {
                                                             storeVersions: merged,
                                                             operatingSystemVersion: operatingSystemVersion),
                     available: AppUpdatesSupport.hasStoreCoverage(bundleIDs: candidates.map(\.bundleID),
-                                                                 entries: merged)))
+                                                                 entries: merged),
+                    uncheckedApps: candidates.filter { merged[$0.bundleID] == nil }))
             }
         }
     }
@@ -401,6 +411,7 @@ final class AppUpdatesService: ObservableObject {
         let items: [AppUpdatesSupport.Item]
         let available: Bool
         var checkedPaths: Set<String> = []
+        var uncheckedApps: [AppUpdatesSupport.InstalledApp] = []
     }
 
     private static let onlineCatalogCacheLifetime: TimeInterval = 60 * 60
@@ -432,7 +443,10 @@ final class AppUpdatesService: ObservableObject {
         func checkBatch(_ start: Int) {
             guard start < feeds.count, Date() < deadline else {
                 completion(SourceResult(items: items, available: complete && start >= feeds.count,
-                                        checkedPaths: checkedPaths))
+                                        checkedPaths: checkedPaths,
+                                        uncheckedApps: candidates.filter {
+                                            $0.updateFeed != nil && !checkedPaths.contains($0.path)
+                                        }))
                 return
             }
             let end = min(start + 4, feeds.count)
@@ -495,7 +509,7 @@ final class AppUpdatesService: ObservableObject {
             self.workQueue.async {
                 guard let entries = AppUpdatesSupport.parseOnlineCatalogResponse(
                     data, statusCode: statusCode) else {
-                    completion(SourceResult(items: [], available: false))
+                    completion(SourceResult(items: [], available: false, uncheckedApps: candidates))
                     return
                 }
                 self.onlineCatalogCache = (Date(), entries)

@@ -121,7 +121,15 @@ enum MouseAppExceptionSupport {
                            point: CGPoint,
                            now: TimeInterval) -> Bool {
         guard now >= resolvedAt, now - resolvedAt < resolveLifetime else { return false }
-        guard let region else { return point == resolvedPoint }
+        guard region != nil else { return point == resolvedPoint }
+        return cacheNamesWindow(region: region, point: point)
+    }
+
+    /// Whether an answer that aged out still names the window under the
+    /// pointer. The pointer thread serves that one instead of waiting for the
+    /// main thread; over any other window it has nothing to say yet.
+    static func cacheNamesWindow(region: CGRect?, point: CGPoint) -> Bool {
+        guard let region else { return false }
         return region.contains(point)
     }
 

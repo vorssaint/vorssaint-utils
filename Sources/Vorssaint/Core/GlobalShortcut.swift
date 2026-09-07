@@ -741,6 +741,21 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         GlobalShortcut.saved(for: storageKey, fallback: defaultShortcut)
     }
 
+    /// The switcher's event tap can handle its native combinations without
+    /// changing the system takeover setting. Other system actions stay reserved.
+    var permittedSystemShortcutIDs: Set<Int32> {
+        switch self {
+        case .switcher:
+            return [SwitcherNativeSymbolicHotKey.commandTab.rawValue,
+                    SwitcherNativeSymbolicHotKey.commandShiftTab.rawValue]
+        case .switcherWindow:
+            return [SwitcherNativeSymbolicHotKey.nextWindow.rawValue,
+                    SwitcherNativeSymbolicHotKey.previousWindow.rawValue]
+        default:
+            return []
+        }
+    }
+
     func title(_ strings: Strings) -> String {
         switch self {
         case .keepAwake: return strings.keepAwakeTitle
@@ -962,9 +977,14 @@ extension GlobalShortcut {
     /// nothing about what macOS answers, and treating it as all clear would
     /// quietly revive the bug this check exists to catch.
     var conflictsWithSystemShortcut: Bool {
+        conflictsWithSystemShortcut(for: nil)
+    }
+
+    func conflictsWithSystemShortcut(for role: GlobalShortcutRole?) -> Bool {
         Self.conflictsWithSystemShortcut(self,
                                          liveEntries: SymbolicHotKeys.liveEntries(),
-                                         symbolicHotKeys: Self.systemSymbolicHotKeys)
+                                         symbolicHotKeys: Self.systemSymbolicHotKeys,
+                                         role: role)
     }
 
     /// The decision behind `conflictsWithSystemShortcut`, with both sources
@@ -972,11 +992,17 @@ extension GlobalShortcut {
     /// plist is read only when the live table is missing or empty.
     static func conflictsWithSystemShortcut(_ shortcut: GlobalShortcut,
                                             liveEntries: [LiveSystemShortcut]?,
-                                            symbolicHotKeys: @autoclosure () -> [String: Any]?) -> Bool {
+                                            symbolicHotKeys: @autoclosure () -> [String: Any]?,
+                                            role: GlobalShortcutRole? = nil) -> Bool {
+        let permittedIDs = role?.permittedSystemShortcutIDs ?? []
         if let liveEntries, !liveEntries.isEmpty {
-            return matchesLiveSystemShortcut(shortcut, entries: liveEntries)
+            return matchesLiveSystemShortcut(shortcut, entries: liveEntries.filter {
+                !permittedIDs.contains($0.id)
+            })
         }
-        return matchesSystemShortcut(shortcut, symbolicHotKeys: symbolicHotKeys())
+        return matchesSystemShortcut(shortcut, symbolicHotKeys: symbolicHotKeys()?.filter {
+            !permittedIDs.contains(Int32($0.key) ?? -1)
+        })
     }
 
     /// Whether an enabled live entry uses exactly this combination. Rows with

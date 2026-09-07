@@ -13,6 +13,7 @@ struct AppUpdateStrings {
     let lastCheckFormat: String
     let neverChecked: String
     let upToDate: String
+    let partialUpToDate: String
     let coverageNote: String
     let selectAll: String
     let clearSelection: String
@@ -77,6 +78,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Last checked %@",
         neverChecked: "Not checked yet",
         upToDate: "No updates found",
+        partialUpToDate: "No updates found in this partial check",
         coverageNote: "Checks the original sources of installed apps and a public catalog. Updates install through their original source.",
         selectAll: "Select all",
         clearSelection: "Clear",
@@ -105,7 +107,7 @@ extension AppUpdateStrings {
         openAppHint: "Opens the app so its own updater can finish",
         includeOnlineToggle: "Include other installed apps",
         includeOnlineCaption: "Checks directly with app developers when supported, then uses a public catalog. The app’s own updater installs the update.",
-        incompleteCheck: "Some apps could not be checked",
+        incompleteCheck: "Check incomplete",
         onlineUnavailable: "The online check could not be completed. Other results are still shown."
     )
 
@@ -119,6 +121,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Última verificação %@",
         neverChecked: "Ainda não verificado",
         upToDate: "Nenhuma atualização encontrada",
+        partialUpToDate: "Nenhuma atualização encontrada nesta verificação parcial",
         coverageNote: "Verifica as fontes originais dos apps instalados e um catálogo público. Cada atualização é instalada pela fonte original.",
         selectAll: "Selecionar tudo",
         clearSelection: "Limpar",
@@ -147,7 +150,7 @@ extension AppUpdateStrings {
         openAppHint: "Abre o app para que o atualizador dele conclua",
         includeOnlineToggle: "Incluir outros apps instalados",
         includeOnlineCaption: "Consulta diretamente os desenvolvedores quando possível e usa um catálogo público como complemento. O próprio app instala a atualização.",
-        incompleteCheck: "Não foi possível verificar alguns apps",
+        incompleteCheck: "Verificação incompleta",
         onlineUnavailable: "A verificação online não pôde ser concluída. Os demais resultados continuam visíveis."
     )
 
@@ -161,6 +164,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Son denetleme %@",
         neverChecked: "Henüz denetlenmedi",
         upToDate: "Güncelleme bulunamadı",
+        partialUpToDate: "Bu kısmi denetimde güncelleme bulunamadı",
         coverageNote: "Yüklü uygulamaların özgün kaynaklarını ve herkese açık bir kataloğu denetler. Güncellemeler özgün kaynaklarından yüklenir.",
         selectAll: "Tümünü seç",
         clearSelection: "Temizle",
@@ -189,7 +193,7 @@ extension AppUpdateStrings {
         openAppHint: "Kendi güncelleyicisinin tamamlaması için uygulamayı açar",
         includeOnlineToggle: "Yüklü diğer uygulamaları dahil et",
         includeOnlineCaption: "Desteklendiğinde doğrudan uygulama geliştiricilerine danışır, ardından herkese açık bir katalog kullanır. Güncellemeyi uygulamanın kendisi yükler.",
-        incompleteCheck: "Bazı uygulamalar denetlenemedi",
+        incompleteCheck: "Denetim tamamlanamadı",
         onlineUnavailable: "Çevrimiçi denetleme tamamlanamadı. Diğer sonuçlar gösterilmeye devam ediyor."
     )
 
@@ -203,6 +207,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Последняя проверка %@",
         neverChecked: "Ещё не проверялось",
         upToDate: "Обновления не найдены",
+        partialUpToDate: "При частичной проверке обновления не найдены",
         coverageNote: "Проверяет исходные источники установленных приложений и общедоступный каталог. Обновления устанавливаются из исходного источника.",
         selectAll: "Выбрать все",
         clearSelection: "Снять выбор",
@@ -231,7 +236,7 @@ extension AppUpdateStrings {
         openAppHint: "Открывает приложение, чтобы его средство обновления завершило работу",
         includeOnlineToggle: "Включать другие установленные приложения",
         includeOnlineCaption: "По возможности проверяет обновления напрямую у разработчиков, затем использует общедоступный каталог. Обновление устанавливает само приложение.",
-        incompleteCheck: "Некоторые приложения не удалось проверить",
+        incompleteCheck: "Проверка не завершена",
         onlineUnavailable: "Онлайн-проверку не удалось завершить. Остальные результаты по-прежнему показаны."
     )
 
@@ -245,6 +250,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Última búsqueda %@",
         neverChecked: "Todavía sin buscar",
         upToDate: "No se encontraron actualizaciones",
+        partialUpToDate: "No se encontraron actualizaciones en esta revisión parcial",
         coverageNote: "Revisa las fuentes originales de las apps instaladas y un catálogo público. Cada actualización se instala desde su fuente original.",
         selectAll: "Seleccionar todo",
         clearSelection: "Limpiar",
@@ -273,7 +279,7 @@ extension AppUpdateStrings {
         openAppHint: "Abre la app para que su propio actualizador pueda terminar",
         includeOnlineToggle: "Incluir otras apps instaladas",
         includeOnlineCaption: "Consulta directamente a los desarrolladores cuando es posible y complementa la búsqueda con un catálogo público. La propia app instala la actualización.",
-        incompleteCheck: "No se pudieron revisar algunas apps",
+        incompleteCheck: "Revisión incompleta",
         onlineUnavailable: "No se pudo completar la revisión en línea. Los demás resultados siguen visibles."
     )
 
@@ -287,6 +293,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Zuletzt geprüft %@",
         neverChecked: "Noch nicht geprüft",
         upToDate: "Keine Updates gefunden",
+        partialUpToDate: "Bei dieser teilweisen Prüfung wurden keine Updates gefunden",
         coverageNote: "Prüft die ursprünglichen Quellen installierter Apps und einen öffentlichen Katalog. Updates werden über die ursprüngliche Quelle installiert.",
         selectAll: "Alle auswählen",
         clearSelection: "Aufheben",
@@ -315,7 +322,7 @@ extension AppUpdateStrings {
         openAppHint: "Öffnet die App, damit ihr eigener Updater abschließen kann",
         includeOnlineToggle: "Andere installierte Apps einbeziehen",
         includeOnlineCaption: "Prüft nach Möglichkeit direkt bei den Entwicklern und ergänzt die Suche mit einem öffentlichen Katalog. Die App selbst installiert das Update.",
-        incompleteCheck: "Einige Apps konnten nicht geprüft werden",
+        incompleteCheck: "Prüfung unvollständig",
         onlineUnavailable: "Die Online-Prüfung konnte nicht abgeschlossen werden. Andere Ergebnisse werden weiterhin angezeigt."
     )
 
@@ -329,6 +336,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Dernière vérification %@",
         neverChecked: "Pas encore vérifié",
         upToDate: "Aucune mise à jour trouvée",
+        partialUpToDate: "Aucune mise à jour trouvée lors de cette vérification partielle",
         coverageNote: "Vérifie les sources d’origine des apps installées et un catalogue public. Les mises à jour s’installent depuis leur source d’origine.",
         selectAll: "Tout sélectionner",
         clearSelection: "Effacer",
@@ -357,7 +365,7 @@ extension AppUpdateStrings {
         openAppHint: "Ouvre l’app pour permettre à son propre outil de mise à jour de terminer",
         includeOnlineToggle: "Inclure les autres apps installées",
         includeOnlineCaption: "Consulte directement les développeurs lorsque c’est possible, puis complète la recherche avec un catalogue public. L’app installe elle-même la mise à jour.",
-        incompleteCheck: "Certaines apps n’ont pas pu être vérifiées",
+        incompleteCheck: "Vérification incomplète",
         onlineUnavailable: "La vérification en ligne n’a pas pu aboutir. Les autres résultats restent affichés."
     )
 
@@ -371,6 +379,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "Ultimo controllo %@",
         neverChecked: "Non ancora controllato",
         upToDate: "Nessun aggiornamento trovato",
+        partialUpToDate: "Nessun aggiornamento trovato in questa verifica parziale",
         coverageNote: "Controlla le fonti originali delle app installate e un catalogo pubblico. Gli aggiornamenti vengono installati dalla fonte originale.",
         selectAll: "Seleziona tutto",
         clearSelection: "Azzera",
@@ -399,7 +408,7 @@ extension AppUpdateStrings {
         openAppHint: "Apre l’app per consentire al suo programma di aggiornamento di terminare",
         includeOnlineToggle: "Includi le altre app installate",
         includeOnlineCaption: "Consulta direttamente gli sviluppatori quando possibile e integra la ricerca con un catalogo pubblico. L’app installa il proprio aggiornamento.",
-        incompleteCheck: "Non è stato possibile controllare alcune app",
+        incompleteCheck: "Verifica incompleta",
         onlineUnavailable: "Non è stato possibile completare il controllo online. Gli altri risultati restano visibili."
     )
 
@@ -413,6 +422,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "前回の確認 %@",
         neverChecked: "まだ確認していません",
         upToDate: "アップデートは見つかりませんでした",
+        partialUpToDate: "確認できた範囲ではアップデートは見つかりませんでした",
         coverageNote: "インストール済みAppの配布元と公開カタログを確認します。アップデートは元の配布元からインストールされます。",
         selectAll: "すべて選択",
         clearSelection: "選択解除",
@@ -441,7 +451,7 @@ extension AppUpdateStrings {
         openAppHint: "Appを開き、内蔵のアップデート機能で完了します",
         includeOnlineToggle: "その他のインストール済みAppを含める",
         includeOnlineCaption: "対応している場合は開発元に直接確認し、公開カタログで検索を補います。アップデートはApp自身がインストールします。",
-        incompleteCheck: "一部のAppを確認できませんでした",
+        incompleteCheck: "確認が完了していません",
         onlineUnavailable: "オンライン確認を完了できませんでした。その他の結果は引き続き表示されます。"
     )
 
@@ -455,6 +465,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "마지막 확인 %@",
         neverChecked: "아직 확인하지 않음",
         upToDate: "업데이트를 찾지 못했습니다",
+        partialUpToDate: "확인된 범위에서 업데이트를 찾지 못했습니다",
         coverageNote: "설치된 앱의 원래 배포처와 공개 카탈로그를 확인합니다. 업데이트는 원래 배포처를 통해 설치됩니다.",
         selectAll: "모두 선택",
         clearSelection: "선택 해제",
@@ -483,7 +494,7 @@ extension AppUpdateStrings {
         openAppHint: "앱을 열어 자체 업데이트 기능으로 완료합니다",
         includeOnlineToggle: "설치된 다른 앱 포함",
         includeOnlineCaption: "지원되는 경우 개발자에게 직접 확인하고 공개 카탈로그로 검색을 보완합니다. 업데이트는 앱 자체에서 설치합니다.",
-        incompleteCheck: "일부 앱을 확인하지 못했습니다",
+        incompleteCheck: "확인이 완료되지 않았습니다",
         onlineUnavailable: "온라인 확인을 완료하지 못했습니다. 다른 결과는 계속 표시됩니다."
     )
 
@@ -497,6 +508,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "上次检查 %@",
         neverChecked: "尚未检查",
         upToDate: "未找到更新",
+        partialUpToDate: "本次部分检查未发现更新",
         coverageNote: "检查已安装 App 的原始来源和公开目录。更新通过原始来源安装。",
         selectAll: "全选",
         clearSelection: "清除",
@@ -525,7 +537,7 @@ extension AppUpdateStrings {
         openAppHint: "打开 App，让它自己的更新程序完成更新",
         includeOnlineToggle: "包含其他已安装的 App",
         includeOnlineCaption: "在支持时直接向开发者查询，并通过公开目录补充搜索。更新由 App 自身安装。",
-        incompleteCheck: "部分 App 无法检查",
+        incompleteCheck: "检查未完成",
         onlineUnavailable: "无法完成在线检查。其他结果仍会显示。"
     )
 
@@ -539,6 +551,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "上次檢查 %@",
         neverChecked: "尚未檢查",
         upToDate: "找不到更新",
+        partialUpToDate: "本次部分檢查未找到更新",
         coverageNote: "檢查已安裝 App 的原始來源與公開目錄。更新透過原始來源安裝。",
         selectAll: "全選",
         clearSelection: "清除",
@@ -567,7 +580,7 @@ extension AppUpdateStrings {
         openAppHint: "打開 App，讓它自己的更新程式完成更新",
         includeOnlineToggle: "包含其他已安裝的 App",
         includeOnlineCaption: "支援時直接向開發者查詢，並透過公開目錄補充搜尋。更新由 App 自行安裝。",
-        incompleteCheck: "部分 App 無法檢查",
+        incompleteCheck: "檢查未完成",
         onlineUnavailable: "無法完成線上檢查。其他結果仍會顯示。"
     )
 
@@ -581,6 +594,7 @@ extension AppUpdateStrings {
         lastCheckFormat: "上次檢查 %@",
         neverChecked: "尚未檢查",
         upToDate: "搵唔到更新",
+        partialUpToDate: "今次部分檢查未搵到更新",
         coverageNote: "檢查已安裝 App 嘅原始來源同公開目錄。更新由原始來源安裝。",
         selectAll: "全選",
         clearSelection: "清除",
@@ -609,7 +623,7 @@ extension AppUpdateStrings {
         openAppHint: "打開 App，等佢自己嘅更新程式完成更新",
         includeOnlineToggle: "包含其他已安裝嘅 App",
         includeOnlineCaption: "支援時會直接向開發者查詢，再用公開目錄補充搜尋。更新由 App 自行安裝。",
-        incompleteCheck: "部分 App 無法檢查",
+        incompleteCheck: "檢查未完成",
         onlineUnavailable: "無法完成網上檢查。其他結果仍然會顯示。"
     )
 }

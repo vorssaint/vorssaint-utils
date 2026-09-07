@@ -338,8 +338,8 @@ struct RecorderEditDocument: Codable, Equatable {
     }
 }
 
-/// A named visual starting point. Timeline edits, captions and sound are never
-/// part of a preset, so applying one cannot undo real editing work.
+/// A named visual starting point, including reusable pictures. Cuts, captions
+/// and sound stay with the recording.
 struct RecorderEditPreset: Codable, Equatable, Identifiable {
     let id: UUID
     var name: String
@@ -351,6 +351,8 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
     let showsClickRing: Bool
     let zoomEnabled: Bool
     let zoomAmount: Double
+    /// Absent in older presets, which leave the recording's pictures alone.
+    var images: [RecorderImageOverlay]?
 
     init(id: UUID = UUID(), name: String, document: RecorderEditDocument) {
         self.id = id
@@ -363,6 +365,7 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
         showsClickRing = document.showsClickRing
         zoomEnabled = document.zoomEnabled
         zoomAmount = document.zoomAmount
+        images = document.images
     }
 
     func applying(to document: RecorderEditDocument) -> RecorderEditDocument {
@@ -375,6 +378,7 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
         next.showsClickRing = showsClickRing
         next.zoomEnabled = zoomEnabled
         next.zoomAmount = zoomAmount
+        if let images { next.images = images }
         return next
     }
 }

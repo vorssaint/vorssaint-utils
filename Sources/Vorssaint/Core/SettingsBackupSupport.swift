@@ -232,6 +232,15 @@ enum SettingsBackupSupport {
 
     private static func portableMediaSettings(_ source: [String: Any]) -> [String: Any] {
         var settings = source
+        // Preset pictures are private files on this Mac. A backup carries the
+        // visual settings, never authority to read a caller-supplied image path.
+        if let data = settings[DefaultsKey.recorderEditorPresets] as? Data,
+           var presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: data) {
+            for index in presets.indices where presets[index].images?.isEmpty == false {
+                presets[index].images = nil
+            }
+            settings[DefaultsKey.recorderEditorPresets] = try? JSONEncoder().encode(presets)
+        }
         if let rawProfiles = settings[DefaultsKey.mediaImageProfiles] as? String {
             if let portableProfiles = MediaSupport.portableImageProfiles(rawProfiles) {
                 settings[DefaultsKey.mediaImageProfiles] = portableProfiles
@@ -254,6 +263,20 @@ enum SettingsBackupSupport {
             break
         }
         return settings
+    }
+
+    /// Restoring settings on the same Mac keeps the pictures already owned by
+    /// matching presets, just as mouse exceptions keep their local paths.
+    static func preservingLocalPresetImages(restored: Data, local: Data?) -> Data {
+        guard var presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: restored),
+              let local,
+              let localPresets = try? JSONDecoder().decode([RecorderEditPreset].self, from: local)
+        else { return restored }
+        for index in presets.indices where presets[index].images == nil {
+            let id = presets[index].id
+            presets[index].images = localPresets.first { $0.id == id }?.images
+        }
+        return (try? JSONEncoder().encode(presets)) ?? restored
     }
 
     /// A backup is a file the user can hand around and edit, so a value has to

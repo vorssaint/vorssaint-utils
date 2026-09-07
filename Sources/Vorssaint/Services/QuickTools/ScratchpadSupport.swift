@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Carbon.HIToolbox
 import Foundation
 
 /// How long each scratchpad keeps text that nobody edits. The check runs only
@@ -169,15 +168,15 @@ enum ScratchpadFocusedTabShortcut {
         case hidePad
     }
 
-    static func action(keyCode: UInt16,
+    static func action(charactersIgnoringModifiers: String?,
                        commandOnly: Bool,
                        canCreatePad: Bool,
                        canClosePad: Bool) -> Action? {
         guard commandOnly else { return nil }
-        switch Int(keyCode) {
-        case kVK_ANSI_T:
+        switch charactersIgnoringModifiers?.lowercased() {
+        case "t":
             return canCreatePad ? .createPad : nil
-        case kVK_ANSI_W:
+        case "w":
             return canClosePad ? .closeSelectedPad : .hidePad
         default:
             return nil
@@ -315,20 +314,6 @@ enum ScratchpadSupport {
             return "\(safeBase) \(number)"
         }
         return "\(safeBase) \(existingNames.count + 1)"
-    }
-
-    static func migratedLegacyDocument(text: String,
-                                       lastEdited: Date?,
-                                       defaultName: String,
-                                       retention: ScratchpadRetention,
-                                       now: Date,
-                                       id: UUID = UUID()) -> ScratchpadDocument {
-        var document = ScratchpadDocument.initial(defaultName: defaultName,
-                                                  id: id,
-                                                  text: text,
-                                                  modifiedAt: lastEdited)
-        document.applyRetention(retention, now: now)
-        return document
     }
 
     static func requiresCloseConfirmation(_ pad: ScratchpadPad) -> Bool {

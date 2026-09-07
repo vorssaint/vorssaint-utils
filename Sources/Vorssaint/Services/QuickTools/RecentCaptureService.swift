@@ -7,30 +7,6 @@ import Carbon.HIToolbox
 import ImageIO
 import SwiftUI
 
-struct RecentCaptureEntry: Codable, Equatable, Identifiable {
-    enum Kind: String, Codable {
-        case screenshot
-        case recording
-    }
-
-    let id: UUID
-    let kind: Kind
-    let createdAt: Date
-    let screenshotName: String?
-    let recordingPath: String?
-    let thumbnailName: String?
-    let scale: Double?
-    let anchorX: Double?
-    let anchorY: Double?
-    let anchorWidth: Double?
-    let anchorHeight: Double?
-
-    var recordingURL: URL? {
-        guard let recordingPath else { return nil }
-        return URL(fileURLWithPath: recordingPath)
-    }
-}
-
 /// A bounded, on-demand list of captures. Screenshots live in this cache so
 /// copy-only captures can return after their preview closes. Recordings keep
 /// only their file path and a small thumbnail, never a second video copy.
@@ -46,9 +22,7 @@ final class RecentCaptureService: ObservableObject {
                                       qos: .utility)
     private let generationLock = NSLock()
     private let thumbnailCache = NSCache<NSString, NSImage>()
-    private var storedEntries: [RecentCaptureEntry] = []
-    private var persistedEntries: [RecentCaptureEntry]?
-    private var loaded = false
+    private lazy var store = RecentCaptureStore(directoryURL: root)
     private var clearGeneration = 0
     private var panel: NSPanel?
     private var panelKeyMonitor: Any?
@@ -57,6 +31,7 @@ final class RecentCaptureService: ObservableObject {
     private var panelDeactivateObserver: NSObjectProtocol?
 
     private init() {
+        thumbnailCache.countLimit = ScreenshotSupport.recentCaptureLimit
         hotkey.onPress = { [weak self] in self?.showHistoryWindow() }
         reload()
     }
@@ -218,16 +193,12 @@ final class RecentCaptureService: ObservableObject {
             .appendingPathComponent("RecentCaptures", isDirectory: true)
     }
 
-    private var indexURL: URL? {
-        root?.appendingPathComponent("history.json")
-    }
-
     func reload() {
         queue.async { [weak self] in
             guard let self else { return }
-            self.loadIfNeeded()
+            guard self.store.loadIfNeeded() else { return }
             self.pruneMissingEntries()
-            self.persist()
+            self.store.persist()
             self.publish()
         }
     }
@@ -253,16 +224,15 @@ final class RecentCaptureService: ObservableObject {
 
         queue.async { [weak self] in
             guard let self, let root = self.root else { return }
-            self.loadIfNeeded()
+            guard self.store.loadIfNeeded() else { return }
             do {
-                try self.prepareRoot(root)
                 guard let full = ScreenshotRenderer.pngData(from: image, scale: scale),
                       let smallImage = Self.thumbnail(from: image),
                       let small = ScreenshotRenderer.pngData(from: smallImage, scale: 1)
                 else { return }
-                try self.write(full, to: root.appendingPathComponent(screenshotName))
+                try RecentCaptureStore.write(full, to: root.appendingPathComponent(screenshotName))
                 do {
-                    try self.write(small, to: root.appendingPathComponent(thumbnailName))
+                    try RecentCaptureStore.write(small, to: root.appendingPathComponent(thumbnailName))
                 } catch {
                     try? self.manager.removeItem(at: root.appendingPathComponent(screenshotName))
                     try? self.manager.removeItem(at: root.appendingPathComponent(thumbnailName))
@@ -276,7 +246,7 @@ final class RecentCaptureService: ObservableObject {
     }
 
     func recordRecording(at url: URL) {
-        guard Self.isRegularFile(url) else { return }
+        guard RecentCaptureStore.isRegularFile(url) else { return }
         let id = UUID()
         let thumbnailName = "\(id.uuidString)-thumbnail.png"
         let createdAt = Date()
@@ -298,13 +268,12 @@ final class RecentCaptureService: ObservableObject {
                                 generation: Int) {
         queue.async { [weak self] in
             guard let self, self.currentClearGeneration() == generation,
-                  let root = self.root, Self.isRegularFile(url) else { return }
-            self.loadIfNeeded()
-            guard (try? self.prepareRoot(root)) != nil else { return }
+                  let root = self.root, RecentCaptureStore.isRegularFile(url) else { return }
+            guard self.store.loadIfNeeded() else { return }
             var storedThumbnail: String?
             if let thumbnail,
                let data = ScreenshotRenderer.pngData(from: thumbnail, scale: 1),
-               (try? self.write(data, to: root.appendingPathComponent(thumbnailName))) != nil {
+               (try? RecentCaptureStore.write(data, to: root.appendingPathComponent(thumbnailName))) != nil {
                 storedThumbnail = thumbnailName
             }
             guard self.currentClearGeneration() == generation else {
@@ -333,11 +302,10 @@ final class RecentCaptureService: ObservableObject {
     func remove(_ entry: RecentCaptureEntry) {
         queue.async { [weak self] in
             guard let self else { return }
-            self.loadIfNeeded()
-            guard let stored = self.storedEntries.first(where: { $0.id == entry.id }) else { return }
-            self.storedEntries.removeAll { $0.id == entry.id }
-            self.removeOwnedFiles(for: stored)
-            self.persist()
+            guard self.store.loadIfNeeded() else { return }
+            guard self.store.entries.contains(where: { $0.id == entry.id }) else { return }
+            self.store.entries.removeAll { $0.id == entry.id }
+            self.store.persist()
             self.publish()
         }
     }
@@ -348,12 +316,9 @@ final class RecentCaptureService: ObservableObject {
         generationLock.unlock()
         queue.async { [weak self] in
             guard let self else { return }
-            self.loadIfNeeded()
-            for entry in self.storedEntries {
-                self.removeOwnedFiles(for: entry)
-            }
-            self.storedEntries.removeAll()
-            self.persist()
+            guard self.store.loadIfNeeded() else { return }
+            self.store.entries.removeAll()
+            self.store.persist()
             self.thumbnailCache.removeAllObjects()
             self.publish()
         }
@@ -374,7 +339,7 @@ final class RecentCaptureService: ObservableObject {
         case .screenshot:
             restoreScreenshot(entry)
         case .recording:
-            guard let url = entry.recordingURL, Self.isRegularFile(url) else {
+            guard let url = entry.recordingURL, RecentCaptureStore.isRegularFile(url) else {
                 remove(entry)
                 NSSound.beep()
                 return
@@ -428,52 +393,25 @@ final class RecentCaptureService: ObservableObject {
             image: image, scale: CGFloat(scale), anchorRect: anchor)
     }
 
-    private func loadIfNeeded() {
-        guard !loaded else { return }
-        loaded = true
-        guard let root, (try? prepareRoot(root)) != nil else {
-            storedEntries = []
-            return
-        }
-        if let indexURL, Self.isRegularFile(indexURL),
-           let data = try? Data(contentsOf: indexURL),
-           let decoded = try? JSONDecoder().decode([RecentCaptureEntry].self, from: data) {
-            persistedEntries = decoded
-            storedEntries = decoded.sorted { $0.createdAt > $1.createdAt }
-        } else {
-            storedEntries = []
-        }
-        removeOrphanedCacheFiles(in: root)
-    }
-
     private func pruneMissingEntries() {
         var kept: [RecentCaptureEntry] = []
-        for entry in storedEntries where entryExists(entry) {
+        for entry in store.entries where entryExists(entry) {
             kept.append(entry)
         }
         let keepIDs = cappedIDs(for: kept)
-        let removed = storedEntries.filter { !keepIDs.contains($0.id) }
-        storedEntries = kept.filter { keepIDs.contains($0.id) }
-        for entry in removed {
-            removeOwnedFiles(for: entry)
-        }
+        store.entries = kept.filter { keepIDs.contains($0.id) }
     }
 
     private func prepend(_ entry: RecentCaptureEntry) {
         if let path = entry.recordingPath,
-           let previous = storedEntries.first(where: { $0.recordingPath == path }) {
-            storedEntries.removeAll { $0.id == previous.id }
-            removeOwnedFiles(for: previous)
+           let previous = store.entries.first(where: { $0.recordingPath == path }) {
+            store.entries.removeAll { $0.id == previous.id }
         }
-        storedEntries.append(entry)
-        storedEntries.sort { $0.createdAt > $1.createdAt }
-        let keepIDs = cappedIDs(for: storedEntries)
-        let removed = storedEntries.filter { !keepIDs.contains($0.id) }
-        storedEntries.removeAll { !keepIDs.contains($0.id) }
-        for old in removed {
-            removeOwnedFiles(for: old)
-        }
-        persist()
+        store.entries.append(entry)
+        store.entries.sort { $0.createdAt > $1.createdAt }
+        let keepIDs = cappedIDs(for: store.entries)
+        store.entries.removeAll { !keepIDs.contains($0.id) }
+        store.persist()
         publish()
     }
 
@@ -481,10 +419,10 @@ final class RecentCaptureService: ObservableObject {
         switch entry.kind {
         case .screenshot:
             guard let name = entry.screenshotName, Self.isSafeName(name), let root else { return false }
-            return Self.isRegularFile(root.appendingPathComponent(name))
+            return RecentCaptureStore.isRegularFile(root.appendingPathComponent(name))
         case .recording:
             guard let url = entry.recordingURL else { return false }
-            return Self.isRegularFile(url)
+            return RecentCaptureStore.isRegularFile(url)
         }
     }
 
@@ -503,71 +441,11 @@ final class RecentCaptureService: ObservableObject {
             entries.map(\.id), screenshotBytes: screenshotBytes))
     }
 
-    private func persist() {
-        guard storedEntries != persistedEntries, let root, let indexURL else { return }
-        do {
-            try prepareRoot(root)
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.sortedKeys]
-            try write(encoder.encode(storedEntries), to: indexURL)
-            persistedEntries = storedEntries
-        } catch {
-            return
-        }
-    }
-
     private func publish() {
-        let value = storedEntries
+        let value = store.entries
         DispatchQueue.main.async { [weak self] in
             self?.entries = value
             DispatchQueue.main.async { [weak self] in self?.refreshPanelLayout() }
-        }
-    }
-
-    private func prepareRoot(_ root: URL) throws {
-        try manager.createDirectory(at: root, withIntermediateDirectories: true)
-        let values = try root.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-        guard values.isDirectory == true, values.isSymbolicLink != true else {
-            throw CocoaError(.fileWriteInvalidFileName)
-        }
-        try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: root.path)
-    }
-
-    private func write(_ data: Data, to url: URL) throws {
-        if manager.fileExists(atPath: url.path),
-           (try url.resourceValues(forKeys: [.isSymbolicLinkKey])).isSymbolicLink == true {
-            throw CocoaError(.fileWriteInvalidFileName)
-        }
-        try data.write(to: url, options: .atomic)
-        try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-    }
-
-    private func removeOwnedFiles(for entry: RecentCaptureEntry) {
-        guard let root else { return }
-        if let name = entry.screenshotName,
-           name == "\(entry.id.uuidString).png" {
-            let file = root.appendingPathComponent(name)
-            if Self.isRegularFile(file) { try? manager.removeItem(at: file) }
-        }
-        if let name = entry.thumbnailName,
-           name == "\(entry.id.uuidString)-thumbnail.png" {
-            thumbnailCache.removeObject(forKey: name as NSString)
-            let file = root.appendingPathComponent(name)
-            if Self.isRegularFile(file) { try? manager.removeItem(at: file) }
-        }
-    }
-
-    private func removeOrphanedCacheFiles(in root: URL) {
-        let referenced = Set(storedEntries.flatMap { entry in
-            [entry.screenshotName, entry.thumbnailName].compactMap { $0 }
-        })
-        guard let files = try? manager.contentsOfDirectory(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .isSymbolicLinkKey],
-            options: [.skipsHiddenFiles]) else { return }
-        for file in files where ScreenshotSupport.isRecentCaptureCacheFileName(
-            file.lastPathComponent) && !referenced.contains(file.lastPathComponent) {
-            if Self.isRegularFile(file) { try? manager.removeItem(at: file) }
         }
     }
 
@@ -579,12 +457,6 @@ final class RecentCaptureService: ObservableObject {
 
     private static func isSafeName(_ name: String) -> Bool {
         !name.isEmpty && name == URL(fileURLWithPath: name).lastPathComponent
-    }
-
-    private static func isRegularFile(_ url: URL) -> Bool {
-        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
-        else { return false }
-        return values.isRegularFile == true && values.isSymbolicLink != true
     }
 
     private static func thumbnail(from image: CGImage) -> CGImage? {

@@ -491,7 +491,8 @@ final class FinderCutPaste: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let destPath = FinderBridge.insertionLocationPath() else {
                 DispatchQueue.main.async {
-                    self?.finishPaste(generation: generation, moved: 0, failed: urls.count)
+                    self?.finishPaste(generation: generation, moved: 0, failed: urls.count,
+                                      stillCut: [])
                 }
                 return
             }
@@ -499,6 +500,7 @@ final class FinderCutPaste: ObservableObject {
             let fm = FileManager.default
             let plan = Self.progressPlan(urls: urls, dir: dir)
             var moved = 0, failed = 0
+            var refused: [URL] = []
             var finishedBytes: Int64 = 0
             for (index, src) in urls.enumerated() {
                 if plan.showsProgress {
@@ -511,7 +513,7 @@ final class FinderCutPaste: ObservableObject {
                                               totalBytes: plan.totalBytes))
                 }
                 var poller: DispatchSourceTimer?
-                let success = Self.move(src, into: dir, fm: fm) { dest in
+                let outcome = Self.move(src, into: dir, fm: fm) { dest in
                     guard plan.showsProgress, plan.totalBytes > 0 else { return }
                     poller = self?.makeBytePoller(destination: dest,
                                                   generation: generation,
@@ -522,10 +524,25 @@ final class FinderCutPaste: ObservableObject {
                 }
                 poller?.cancel()
                 finishedBytes += plan.sizes[index] ?? 0
-                if success { moved += 1 } else { failed += 1 }
+                switch outcome {
+                case .moved: moved += 1
+                case .failed: failed += 1
+                case .needsPrivileges:
+                    refused.append(src)
+                }
+            }
+            var stillCut: [URL] = []
+            if !refused.isEmpty {
+                let canceled = FinderBridge.move(refused, into: dir).canceled
+                let result = CutPastePrivilegeSupport.reconcile(
+                    refused, into: dir, canceled: canceled, fm: fm)
+                moved += result.moved
+                failed += result.failed
+                stillCut = result.stillCut
             }
             DispatchQueue.main.async {
-                self?.finishPaste(generation: generation, moved: moved, failed: failed)
+                self?.finishPaste(generation: generation, moved: moved, failed: failed,
+                                  stillCut: stillCut)
             }
         }
     }
@@ -602,37 +619,49 @@ final class FinderCutPaste: ObservableObject {
         }
     }
 
-    private func finishPaste(generation: Int, moved: Int, failed: Int) {
+    private func finishPaste(generation: Int, moved: Int, failed: Int, stillCut: [URL]) {
         guard generation == operationGeneration else { return }
         // Invalidate the generation so a progress publish still in flight from
         // a just-cancelled poller can't revive the moving state after this.
         operationGeneration += 1
         moveInProgress = false
         moveProgress = nil
-        marked = []
-        markedChangeCount = 0
+        marked = stillCut.isEmpty ? [] : marked.filter { stillCut.contains($0.url) }
+        if marked.isEmpty {
+            markedChangeCount = 0
+        }
+        guard moved > 0 || failed > 0 else {
+            refreshPanel()
+            return
+        }
         lastResult = MoveResult(moved: moved, failed: failed)
         refreshPanel()
         scheduleResultDismiss()
+    }
+
+    private enum MoveOutcome {
+        case moved
+        case failed
+        case needsPrivileges
     }
 
     /// `willCopy` fires with the final destination just before the actual
     /// move, and only when one happens (not for no-op moves into the same
     /// folder), so the caller can watch the destination grow.
     private static func move(_ src: URL, into dir: URL, fm: FileManager,
-                             willCopy: (URL) -> Void = { _ in }) -> Bool {
+                             willCopy: (URL) -> Void = { _ in }) -> MoveOutcome {
         // A no-op move (already in the destination) counts as success.
         if src.deletingLastPathComponent().standardizedFileURL.path == dir.standardizedFileURL.path {
-            return true
+            return .moved
         }
-        guard fm.fileExists(atPath: src.path) else { return false }
+        guard fm.fileExists(atPath: src.path) else { return .failed }
         let dest = uniqueDestination(for: src.lastPathComponent, in: dir, fm: fm)
         willCopy(dest)
         do {
             try fm.moveItem(at: src, to: dest)
-            return true
+            return .moved
         } catch {
-            return false
+            return CutPastePrivilegeSupport.needsPrivileges(error) ? .needsPrivileges : .failed
         }
     }
 
@@ -772,6 +801,26 @@ private enum FinderBridge {
         guard result.ok else { return [] }
         return result.output.split(whereSeparator: \.isNewline)
             .map { URL(fileURLWithPath: String($0)) }
+    }
+
+    static func move(_ urls: [URL], into dir: URL) -> (ok: Bool, canceled: Bool) {
+        guard AppleScriptRunner.consentToAutomate(bundleID: finderBundleID) else {
+            return (false, false)
+        }
+        let targets = urls
+            .map { "set end of targets to (POSIX file \(AppleScriptRunner.literal($0.path)) as alias)" }
+            .joined(separator: "\n")
+        let script = """
+        with timeout of 600 seconds
+            tell application "Finder"
+                set targets to {}
+                \(targets)
+                move targets to folder (POSIX file \(AppleScriptRunner.literal(dir.path)) as alias) without replacing
+            end tell
+        end timeout
+        """
+        let result = AppleScriptRunner.runDetailed(script)
+        return (result.ok, result.errorNumber == -128)
     }
 
     static func insertionLocationPath() -> String? {

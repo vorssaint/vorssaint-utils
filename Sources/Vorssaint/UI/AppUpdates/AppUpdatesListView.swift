@@ -109,10 +109,11 @@ struct AppUpdatesListView: View {
     @ViewBuilder
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if updates.hasCheckedThisSession, !updates.isChecking, !coverageIncomplete {
-                Label(text.upToDate, systemImage: "checkmark.circle.fill")
+            if updates.hasCheckedThisSession, !updates.isChecking {
+                Label(coverageIncomplete ? text.partialUpToDate : text.upToDate,
+                      systemImage: coverageIncomplete ? "info.circle" : "checkmark.circle.fill")
                     .font(.system(size: compact ? 11 : 12, weight: .medium))
-                    .foregroundStyle(.green)
+                    .foregroundStyle(coverageIncomplete ? Color.secondary : Color.green)
             }
             Text(text.coverageNote)
                 .font(.system(size: compact ? 9.5 : 11))
@@ -133,6 +134,14 @@ struct AppUpdatesListView: View {
             Label(text.incompleteCheck, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: compact ? 10.5 : 11.5, weight: .medium))
                 .foregroundStyle(.orange)
+            if !updates.uncheckedAppNames.isEmpty {
+                Text(updates.uncheckedAppNames.joined(separator: ", "))
+                    .font(.system(size: compact ? 9.5 : 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(compact ? 3 : nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .help(updates.uncheckedAppNames.joined(separator: ", "))
+            }
             Text(text.onlineUnavailable)
                 .font(.system(size: compact ? 9.5 : 11))
                 .foregroundStyle(.secondary)
