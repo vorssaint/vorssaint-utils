@@ -220,6 +220,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // layer, matching how the system numbers its own capture keys.
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
                                                       modifiers: [.control, .option, .command])
+    static let dictationDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_R),
+                                                 modifiers: [.control, .option, .command])
+    static let dictationSecondaryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_F),
+                                                          modifiers: [.control, .option, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -674,6 +678,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenRecorder
     case keyboardBrightnessDecrease
     case keyboardBrightnessIncrease
+    case dictation
+    case dictationSecondary
 
     var id: String { storageKey }
 
@@ -704,6 +710,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return DefaultsKey.recorderShortcut
         case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
+        case .dictation: return DefaultsKey.dictationShortcut
+        case .dictationSecondary: return DefaultsKey.dictationSecondaryShortcut
         }
     }
 
@@ -734,6 +742,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return .screenRecorderDefault
         case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
+        case .dictation: return .dictationDefault
+        case .dictationSecondary: return .dictationSecondaryDefault
         }
     }
 
@@ -790,6 +800,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessDecrease
         case .keyboardBrightnessIncrease:
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
+        case .dictation: return FeatureStrings.dictation(L10n.shared.language).title
+        case .dictationSecondary:
+            return FeatureStrings.dictationActivation(L10n.shared.language).secondary
         }
     }
 
@@ -802,7 +815,25 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             ? availableRoles(isAvailable: isAvailable)
             : activeRoles(isOn: isOn, isAvailable: isAvailable)
         return candidates.first { candidate in
-            candidate != role && candidate.savedShortcut == shortcut
+            candidate != role && candidate.usesCarbonShortcut && candidate.savedShortcut == shortcut
+        }
+    }
+
+    /// Standalone dictation modifiers are handled by the dedicated flagsChanged
+    /// monitor and must not appear as stale Carbon shortcuts in the global
+    /// shortcut overview or conflict checks.
+    var usesCarbonShortcut: Bool {
+        switch self {
+        case .dictation:
+            let kind = DictationShortcutKind(rawValue: UserDefaults.standard.string(
+                forKey: DefaultsKey.dictationShortcutKind) ?? "") ?? .standard
+            return kind == .standard
+        case .dictationSecondary:
+            let kind = DictationShortcutKind(rawValue: UserDefaults.standard.string(
+                forKey: DefaultsKey.dictationSecondaryShortcutKind) ?? "") ?? .standard
+            return kind == .standard
+        default:
+            return true
         }
     }
 
@@ -837,6 +868,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
+        case .dictation: return [DefaultsKey.dictationEnabled]
+        case .dictationSecondary: return [DefaultsKey.dictationEnabled,
+                                          DefaultsKey.dictationSecondaryEnabled]
         }
     }
 
@@ -866,6 +900,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
+        case .dictation: return .dictation
+        case .dictationSecondary: return .dictation
         }
     }
 
@@ -916,7 +952,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static func activeRoles(isOn: (String) -> Bool,
                             isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
         allCases.filter { role in
-            role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
+            role.usesCarbonShortcut
+                && role.isAvailable(using: isAvailable)
+                && role.requiredEnableKeys.allSatisfy(isOn)
         }
     }
 
@@ -925,7 +963,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// later on the central shortcuts page.
     static func availableRoles(isAvailable: (AppFeature) -> Bool = { $0.isAvailable })
         -> [GlobalShortcutRole] {
-        allCases.filter { $0.isAvailable(using: isAvailable) }
+        allCases.filter { $0.usesCarbonShortcut && $0.isAvailable(using: isAvailable) }
     }
 
     /// The features whose shortcuts share one Screen capture group on the

@@ -602,6 +602,35 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
 
+    // Global voice dictation. Provider credentials live only in Keychain.
+    static let dictationEnabled = "dictationEnabled"
+    static let dictationShortcut = "dictationShortcut"
+    static let dictationShortcutKind = "dictationShortcutKind"
+    static let dictationModifierShortcut = "dictationModifierShortcut"
+    static let dictationProvider = "dictationProvider"
+    static let dictationOpenAIModel = "dictationOpenAIModel"
+    static let dictationGroqModel = "dictationGroqModel"
+    static let dictationMode = "dictationMode"
+    static let dictationLanguage = "dictationLanguage"
+    static let dictationMicrophone = "dictationMicrophone"
+    static let dictationSecondaryEnabled = "dictationSecondaryEnabled"
+    static let dictationSecondaryShortcut = "dictationSecondaryShortcut"
+    static let dictationSecondaryShortcutKind = "dictationSecondaryShortcutKind"
+    static let dictationSecondaryModifierShortcut = "dictationSecondaryModifierShortcut"
+    static let dictationSecondaryMode = "dictationSecondaryMode"
+    static let dictationSecondaryLanguage = "dictationSecondaryLanguage"
+    static let dictationSecondaryMicrophone = "dictationSecondaryMicrophone"
+    static let dictationPauseMedia = "dictationPauseMedia"
+    static let dictationMuteOutput = "dictationMuteOutput"
+    static let dictationMediaResumeDelay = "dictationMediaResumeDelay"
+    static let dictationHistoryEnabled = "dictationHistoryEnabled"
+    static let dictationHistorySaveAudio = "dictationHistorySaveAudio"
+    static let dictationHistoryRetentionDays = "dictationHistoryRetentionDays"
+    static let dictationOutputMode = "dictationOutputMode"
+    static let dictationSecondaryProvider = "dictationSecondaryProvider"
+    static let dictationSecondaryOpenAIModel = "dictationSecondaryOpenAIModel"
+    static let dictationSecondaryGroqModel = "dictationSecondaryGroqModel"
+
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
@@ -1304,6 +1333,33 @@ enum Defaults {
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
         DefaultsKey.colorPickerShowCaptureMenuOnShortcut: true,
+        DefaultsKey.dictationEnabled: false,
+        DefaultsKey.dictationShortcut: GlobalShortcut.dictationDefault.storageValue,
+        DefaultsKey.dictationShortcutKind: DictationShortcutKind.standard.rawValue,
+        DefaultsKey.dictationModifierShortcut: DictationModifierKey.rightCommand.rawValue,
+        DefaultsKey.dictationProvider: DictationProvider.openAI.rawValue,
+        DefaultsKey.dictationOpenAIModel: DictationProvider.openAI.defaultModel.id,
+        DefaultsKey.dictationGroqModel: DictationProvider.groq.defaultModel.id,
+        DefaultsKey.dictationMode: DictationShortcutMode.toggle.rawValue,
+        DefaultsKey.dictationLanguage: DictationLanguage.automatic.rawValue,
+        DefaultsKey.dictationMicrophone: "",
+        DefaultsKey.dictationSecondaryEnabled: false,
+        DefaultsKey.dictationSecondaryShortcut: GlobalShortcut.dictationSecondaryDefault.storageValue,
+        DefaultsKey.dictationSecondaryShortcutKind: DictationShortcutKind.standard.rawValue,
+        DefaultsKey.dictationSecondaryModifierShortcut: DictationModifierKey.rightOption.rawValue,
+        DefaultsKey.dictationSecondaryMode: DictationShortcutMode.toggle.rawValue,
+        DefaultsKey.dictationSecondaryLanguage: DictationLanguage.automatic.rawValue,
+        DefaultsKey.dictationSecondaryMicrophone: "",
+        DefaultsKey.dictationPauseMedia: false,
+        DefaultsKey.dictationMuteOutput: false,
+        DefaultsKey.dictationMediaResumeDelay: 0,
+        DefaultsKey.dictationHistoryEnabled: false,
+        DefaultsKey.dictationHistorySaveAudio: true,
+        DefaultsKey.dictationHistoryRetentionDays: 7,
+        DefaultsKey.dictationOutputMode: DictationOutputMode.raw.rawValue,
+        DefaultsKey.dictationSecondaryProvider: DictationProvider.groq.rawValue,
+        DefaultsKey.dictationSecondaryOpenAIModel: DictationProvider.openAI.defaultModel.id,
+        DefaultsKey.dictationSecondaryGroqModel: DictationProvider.groq.defaultModel.id,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,

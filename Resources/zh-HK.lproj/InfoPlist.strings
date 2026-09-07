@@ -8,7 +8,7 @@
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint 只會使用藍牙讀取已連接周邊裝置的電池電量。不會有任何資料離開你的 Mac。";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint 只會在你為螢幕錄製開啟咪高風時錄音。除非你選擇建立臨時連結，否則音訊只會保留在 Mac 上。";
+"NSMicrophoneUsageDescription" = "Vorssaint 會喺你為螢幕錄製開啟咪高風或啟動聽寫時錄音。聽寫音訊會傳送畀你選擇嘅服務商；其他咪高風音訊會留喺 Mac，除非你建立臨時連結。";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint 只會在你開啟的預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會有任何資料離開你的 Mac。";

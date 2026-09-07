@@ -14412,7 +14412,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14421,7 +14421,7 @@ struct MetricsTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "micMute", "musicBlock", "dictation",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
@@ -14550,9 +14550,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.dictation.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .dictation
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -14598,6 +14599,538 @@ struct MetricsTests {
                 && AppFeature.fanControl.isBeta
                 && !AppFeature.monitorPower.isBeta,
                "fan control is an on-demand beta with no broad permission")
+
+        // MARK: Dictation MVP
+
+        expect(AppFeature.dictation.group == .sound
+                && AppFeature.dictation.enabledKeys == [DefaultsKey.dictationEnabled]
+                && AppFeature.dictation.permissions == [.microphone, .accessibility]
+                && AppFeature.dictation.energyProfile == .idle
+                && AppFeature.dictation.settingsDestination == FeatureSettingsDestination(.dictation)
+                && FeatureVisibilitySupport.features(for: .dictation) == [.dictation],
+               "dictation is an opt-in sound feature with one dedicated Settings page")
+        expect((Defaults.registeredDefaults[DefaultsKey.dictationEnabled] as? Bool) == false
+                && Defaults.registeredDefaults[DefaultsKey.dictationProvider] as? String
+                    == DictationProvider.openAI.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationOpenAIModel] as? String
+                    == DictationProvider.openAI.defaultModel.id
+                && Defaults.registeredDefaults[DefaultsKey.dictationGroqModel] as? String
+                    == DictationProvider.groq.defaultModel.id
+                && Defaults.registeredDefaults[DefaultsKey.dictationLanguage] as? String
+                    == DictationLanguage.automatic.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryLanguage] as? String
+                    == DictationLanguage.automatic.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationMicrophone] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryMicrophone] as? String == ""
+                && Defaults.registeredDefaults[DefaultsKey.dictationPauseMedia] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.dictationMuteOutput] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.dictationMediaResumeDelay] as? Int == 0
+                && Defaults.registeredDefaults[DefaultsKey.dictationHistoryEnabled] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.dictationHistorySaveAudio] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.dictationHistoryRetentionDays] as? Int == 7
+                && Defaults.registeredDefaults[DefaultsKey.dictationShortcutKind] as? String
+                    == DictationShortcutKind.standard.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationModifierShortcut] as? String
+                    == DictationModifierKey.rightCommand.rawValue,
+               "dictation defaults stay disabled and use automatic language detection")
+        expect(GlobalShortcutRole.dictation.storageKey == DefaultsKey.dictationShortcut
+                && GlobalShortcutRole.dictation.requiredEnableKeys == [DefaultsKey.dictationEnabled]
+                && GlobalShortcutRole.dictation.feature == .dictation,
+               "the dictation shortcut follows its feature toggle and stable defaults key")
+
+        let openAIModel = DictationProvider.openAI.defaultModel
+        let groqModel = DictationProvider.groq.defaultModel
+        expect(openAIModel.provider == .openAI
+                && DictationProvider.openAI.transcriptionURL.host == "api.openai.com"
+                && DictationProvider.openAI.sanitizedModel("not-a-model") == openAIModel,
+               "OpenAI dictation uses only its fixed endpoint and sanitizes its model")
+        expect(groqModel.provider == .groq
+                && DictationProvider.groq.transcriptionURL.host == "api.groq.com"
+                && DictationProvider.groq.sanitizedModel("not-a-model") == groqModel,
+               "Groq dictation uses only its fixed endpoint and sanitizes its model")
+        expect(DictationLanguage.portugueseBrazil.apiCode == "pt"
+                && DictationLanguage.automatic.apiCode == nil
+                && DictationLanguage.portugueseBrazil.displayName == "Português (Brasil)",
+               "dictation language choices map to provider-safe ISO codes")
+        expect(DictationModifierKey.from(keyCode: Int64(kVK_RightCommand)) == .rightCommand
+                && DictationModifierKey.from(keyCode: Int64(kVK_RightOption)) == .rightOption
+                && DictationModifierKey.function.keyCode == Int64(kVK_Function)
+                && !DictationModifierKey.leftCommand.displayName.contains("esquerdo")
+                && DictationModifierKey.leftCommand.eventFlag != DictationModifierKey.rightCommand.eventFlag,
+               "standalone modifier choices preserve identities, device-specific flags and neutral labels")
+
+        let multipart = try? DictationMultipartBody(
+            model: openAIModel.id,
+            fileName: "dictation.m4a",
+            mimeType: "audio/mp4",
+            audio: Data("VOICE".utf8),
+            boundary: "BOUNDARY")
+        let multipartText = multipart.flatMap { String(data: $0.data, encoding: .utf8) } ?? ""
+        expect(multipart?.contentType == "multipart/form-data; boundary=BOUNDARY"
+                && multipartText.contains("name=\"model\"")
+                && multipartText.contains(openAIModel.id)
+                && multipartText.contains("name=\"response_format\"")
+                && multipartText.contains("name=\"file\"; filename=\"dictation.m4a\"")
+                && multipartText.contains("Content-Type: audio/mp4")
+                && multipartText.components(separatedBy: "VOICE").count == 2
+                && multipartText.hasSuffix("--BOUNDARY--\r\n"),
+               "the native multipart builder carries one model, JSON response request and M4A payload")
+        let portugueseMultipart = try? DictationMultipartBody(
+            model: openAIModel.id,
+            language: .portugueseBrazil,
+            fileName: "dictation.m4a",
+            mimeType: "audio/mp4",
+            audio: Data("VOICE".utf8),
+            boundary: "LANGUAGE")
+        let portugueseMultipartText = portugueseMultipart.flatMap {
+            String(data: $0.data, encoding: .utf8)
+        } ?? ""
+        expect(portugueseMultipartText.contains("name=\"language\"")
+                && portugueseMultipartText.contains("\r\n\r\npt\r\n")
+                && !multipartText.contains("name=\"language\""),
+               "automatic detection omits the hint and Portuguese sends pt")
+        expect((try? DictationMultipartBody(model: openAIModel.id,
+                                            fileName: "dictation.m4a",
+                                            mimeType: "audio/mp4",
+                                            audio: Data())).map { _ in false } ?? true,
+               "the multipart builder refuses an empty recording")
+
+        let rawTranscript = try? DictationResponseParser.transcript(
+            from: Data(#"{"text":"  raw words  "}"#.utf8))
+        let silentTranscript = try? DictationResponseParser.transcript(
+            from: Data(#"{"text":"  "}"#.utf8))
+        expect(rawTranscript == "  raw words  " && silentTranscript == "  ",
+               "transcription parsing preserves the provider's raw text exactly")
+        expect((try? DictationResponseParser.transcript(from: Data(#"{"result":"no text"}"#.utf8))) == nil
+                && (try? DictationResponseParser.transcript(
+                    from: Data(repeating: 0x41,
+                               count: DictationResponseParser.maximumResponseBytes + 1))) == nil,
+               "missing text and oversized responses are rejected")
+        expect(DictationHTTPErrorClassifier.failure(statusCode: 200) == nil
+                && DictationHTTPErrorClassifier.failure(statusCode: 401) == .invalidKey
+                && DictationHTTPErrorClassifier.failure(statusCode: 403) == .requestRejected
+                && DictationHTTPErrorClassifier.failure(statusCode: 429) == .rateLimited
+                && DictationHTTPErrorClassifier.failure(statusCode: 503) == .server
+                && DictationHTTPErrorClassifier.failure(statusCode: 400) == .requestRejected,
+               "provider errors distinguish keys, rate limits, servers and rejected requests")
+
+        let openAIStop = DictationLifecycle.transition(from: .listening, event: .stop)
+        let groqStop = DictationLifecycle.transition(from: .listening, event: .stop)
+        expect(openAIStop.state == .processing
+                && openAIStop.effects.contains(.upload)
+                && groqStop == openAIStop
+                && DictationInsertionDecision.decide(accessibilityGranted: true) == .paste,
+               "OpenAI and Groq keep insertion eligible after processing and app switches")
+        for state in [DictationState.listening, .processing] {
+            let cancelled = DictationLifecycle.transition(from: state, event: .cancel)
+            expect(cancelled.state == .idle
+                    && cancelled.effects.contains(.cancelAll)
+                    && cancelled.effects.contains(.discardAudio)
+                    && cancelled.effects.contains(.hideHUD)
+                    && !cancelled.effects.contains(.upload)
+                    && !cancelled.effects.contains(.insert),
+                   "Esc cancellation from \(state) discards without upload or insertion")
+        }
+        let denied = DictationLifecycle.transition(from: .listening,
+                                                   event: .failed(.microphoneDenied))
+        expect(denied.state == .failure(.microphoneDenied)
+                && !denied.effects.contains(.upload)
+                && !denied.effects.contains(.insert),
+               "denied microphone permission never uploads or inserts")
+        let silence = DictationLifecycle.transition(
+            from: .processing,
+            event: .transcriptionCompleted(hasText: false))
+        expect(silence.state == .failure(.noSpeech)
+                && silence.effects.contains(.discardAudio)
+                && !silence.effects.contains(.insert),
+               "silence inserts nothing and reports that no speech was detected")
+        expect(DictationInsertionDecision.decide(accessibilityGranted: false)
+                    == .copy(.accessibilityRequiredCopied),
+               "missing Accessibility copies instead of attempting an unsafe paste")
+        let disabledDuringUpload = DictationLifecycle.transition(from: .processing, event: .disable)
+        expect(disabledDuringUpload.state == .idle
+                && disabledDuringUpload.effects.contains(.cancelAll)
+                && disabledDuringUpload.effects.contains(.discardAudio)
+                && !disabledDuringUpload.effects.contains(.insert),
+               "disabling dictation cancels an upload and leaves no insertion behind")
+
+        let dictationPreferenceKeys: Set<String> = [
+            DefaultsKey.dictationEnabled,
+            DefaultsKey.dictationShortcut,
+            DefaultsKey.dictationProvider,
+            DefaultsKey.dictationOpenAIModel,
+            DefaultsKey.dictationGroqModel,
+            DefaultsKey.dictationMode,
+            DefaultsKey.dictationMicrophone,
+            DefaultsKey.dictationSecondaryEnabled,
+            DefaultsKey.dictationSecondaryShortcut,
+            DefaultsKey.dictationSecondaryMode,
+            DefaultsKey.dictationSecondaryMicrophone,
+            DefaultsKey.dictationPauseMedia,
+            DefaultsKey.dictationMuteOutput,
+            DefaultsKey.dictationMediaResumeDelay,
+            DefaultsKey.dictationHistoryEnabled,
+            DefaultsKey.dictationHistorySaveAudio,
+            DefaultsKey.dictationHistoryRetentionDays,
+            DefaultsKey.dictationOutputMode,
+            DefaultsKey.dictationSecondaryProvider,
+            DefaultsKey.dictationSecondaryOpenAIModel,
+            DefaultsKey.dictationSecondaryGroqModel,
+        ]
+        expect(dictationPreferenceKeys.isSubset(of: SettingsBackupSupport.exportKeys()),
+               "dictation's non-secret preferences travel in Settings backups")
+        expect(Defaults.registeredDefaults[DefaultsKey.dictationMode] as? String
+                    == DictationShortcutMode.toggle.rawValue
+                && Defaults.registeredDefaults[DefaultsKey.dictationSecondaryEnabled] as? Bool == false,
+               "existing dictation upgrades to a primary toggle profile with secondary disabled")
+
+        let microphones = [
+            DictationInputDeviceDescriptor(uid: "builtin", name: "MacBook Microphone", isDefault: true),
+            DictationInputDeviceDescriptor(uid: "usb", name: "USB Microphone", isDefault: false),
+        ]
+        let selectedMicrophone = DictationInputDeviceRouting.resolve(
+            preferredUID: "usb", devices: microphones)
+        let missingMicrophone = DictationInputDeviceRouting.resolve(
+            preferredUID: "removed", devices: microphones)
+        let defaultMicrophone = DictationInputDeviceRouting.resolve(
+            preferredUID: nil, devices: microphones)
+        expect(selectedMicrophone.effectiveUID == "usb"
+                && selectedMicrophone.usedFallback == false
+                && missingMicrophone.effectiveUID == "builtin"
+                && missingMicrophone.usedFallback
+                && missingMicrophone.preferredUID == "removed"
+                && defaultMicrophone.effectiveUID == "builtin"
+                && !defaultMicrophone.usedFallback,
+               "dictation microphone routing prefers the saved device and falls back to the default")
+        expect(DictationInputDeviceRouting.resolve(
+            preferredUID: "removed",
+            devices: [DictationInputDeviceDescriptor(uid: "other", name: "Other", isDefault: false)])
+            .effectiveUID == nil,
+               "dictation microphone routing reports no device when the fallback list has no default")
+        expect(DictationMediaPolicy.begin(enabled: true, playback: .playing)
+                    == DictationMediaDecision(action: .pause, shouldResume: true)
+                && DictationMediaPolicy.begin(enabled: true, playback: .paused)
+                    == DictationMediaDecision(action: .none, shouldResume: false)
+                && DictationMediaPolicy.begin(enabled: false, playback: .playing)
+                    == DictationMediaDecision(action: .none, shouldResume: false),
+               "dictation pauses media only when enabled and already playing")
+        expect(DictationMediaPolicy.end(enabled: true, shouldResume: true, playback: .paused)
+                    == .resume
+                && DictationMediaPolicy.end(enabled: true, shouldResume: true, playback: .playing)
+                    == .none
+                && DictationMediaPolicy.end(enabled: true, shouldResume: false, playback: .paused)
+                    == .none,
+               "dictation resumes only media it paused and only while it remains paused")
+        expect(DictationMediaPolicy.sanitizedDelay(-1) == 0
+                && DictationMediaPolicy.sanitizedDelay(3) == 3
+                && DictationMediaPolicy.sanitizedDelay(99) == 5,
+               "dictation media resumption delay is clamped to zero through five seconds")
+        let historyDate = Date(timeIntervalSince1970: 1_000_000)
+        let historyEntry = DictationHistoryEntry(
+            id: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+            createdAt: historyDate,
+            duration: 4.5,
+            provider: .openAI,
+            model: openAIModel,
+            language: .portugueseBrazil,
+            rawText: "fala original",
+            audioFileName: "audio.m4a",
+            processingDuration: 1.25,
+            failure: nil)
+        let encodedHistory = try? JSONEncoder().encode(historyEntry)
+        let decodedHistory = encodedHistory.flatMap { try? JSONDecoder().decode(
+            DictationHistoryEntry.self, from: $0) }
+        expect(decodedHistory == historyEntry
+                && DictationHistoryRetention.sanitizedDays(-1) == 0
+                && DictationHistoryRetention.sanitizedDays(7) == 7
+                && DictationHistoryRetention.sanitizedDays(999) == 365,
+               "dictation history entries are versioned Codable values with bounded retention")
+        expect(DictationHistoryRetention.isExpired(createdAt: historyDate,
+                                                   now: historyDate.addingTimeInterval(7 * 86_400),
+                                                   days: 7)
+                && !DictationHistoryRetention.isExpired(createdAt: historyDate,
+                                                        now: historyDate.addingTimeInterval(6 * 86_400),
+                                                        days: 7),
+               "dictation history expires exactly at the configured age")
+        expect(!DictationHistoryRetention.isExpired(createdAt: historyDate,
+                                                    now: historyDate.addingTimeInterval(365 * 86_400),
+                                                    days: 0),
+               "zero dictation retention keeps history forever")
+        let anotherHistoryEntry = DictationHistoryEntry(createdAt: historyDate.addingTimeInterval(1),
+                                                         duration: 1, provider: .groq,
+                                                         model: DictationProvider.groq.defaultModel,
+                                                         language: .english, rawText: "second",
+                                                         audioFileName: nil, processingDuration: nil, failure: nil)
+        let allHistorySelection = DictationHistorySelection.all(in: [historyEntry, anotherHistoryEntry])
+        expect(DictationHistorySelection.toggled(historyEntry.id, in: []) == [historyEntry.id]
+                && DictationHistorySelection.toggled(historyEntry.id, in: [historyEntry.id]).isEmpty
+                && allHistorySelection == [historyEntry.id, anotherHistoryEntry.id]
+                && DictationHistorySelection.retaining(allHistorySelection, in: [anotherHistoryEntry])
+                    == [anotherHistoryEntry.id],
+               "dictation history selection toggles, selects all and discards deleted entries")
+        let enhancedPayload = try? JSONSerialization.data(withJSONObject: [
+            "choices": [["message": ["content": "Texto revisado."]]],
+        ])
+        let enhancedText = enhancedPayload.flatMap {
+            try? DictationResponseParser.enhancedText(from: $0)
+        }
+        let legacyHistoryJSON = """
+        {"schemaVersion":1,"id":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE","createdAt":"1970-01-12T13:46:40Z","duration":4.5,"provider":"openAI","model":{"id":"whisper-1","provider":"openAI"},"language":"pt","rawText":"fala original","audioFileName":null,"processingDuration":1.25,"failure":null}
+        """.data(using: .utf8)
+        let legacyDecoder = JSONDecoder()
+        legacyDecoder.dateDecodingStrategy = .iso8601
+        let legacyHistory = legacyHistoryJSON.flatMap {
+            try? legacyDecoder.decode(DictationHistoryEntry.self, from: $0)
+        }
+        expect(DictationOutputMode.allCases == [.raw, .enhanced]
+                && enhancedText == "Texto revisado."
+                && legacyHistory?.outputMode == .raw
+                && legacyHistory?.enhancedText == nil,
+               "dictation supports enhanced output and decodes legacy history safely")
+
+        var toggleGesture = DictationShortcutGesture()
+        expect(toggleGesture.keyDown(at: 0, mode: .toggle, sessionIsActive: false) == .begin
+                && toggleGesture.keyDown(at: 0.1, mode: .toggle, sessionIsActive: true) == nil
+                && toggleGesture.keyUp(at: 0.2, sessionIsActive: true) == nil
+                && toggleGesture.keyDown(at: 0.3, mode: .toggle, sessionIsActive: true) == .stop,
+               "toggle ignores repeat and release and stops on the next down")
+        var holdGesture = DictationShortcutGesture()
+        expect(holdGesture.keyDown(at: 1, mode: .pushToTalk, sessionIsActive: false) == .begin
+                && holdGesture.keyUp(at: 1.1, sessionIsActive: true) == .stop
+                && holdGesture.keyUp(at: 1.2, sessionIsActive: true) == nil,
+               "hold-to-talk starts and stops exactly once")
+        var hybridTap = DictationShortcutGesture()
+        expect(hybridTap.keyDown(at: 2, mode: .hybrid, sessionIsActive: false) == .begin
+                && hybridTap.keyUp(at: 2.499, sessionIsActive: true) == nil,
+               "a hybrid tap below 500 ms stays hands-free")
+        expect(hybridTap.keyDown(at: 2.6, mode: .hybrid, sessionIsActive: true) == .stop
+                && hybridTap.keyUp(at: 2.7, sessionIsActive: true) == nil,
+               "a second hybrid tap stops an active hands-free session immediately")
+        var hybridHold = DictationShortcutGesture()
+        expect(hybridHold.keyDown(at: 3, mode: .hybrid, sessionIsActive: false) == .begin
+                && hybridHold.keyUp(at: 3.5, sessionIsActive: true) == .stop,
+               "a hybrid hold at 500 ms stops on release")
+        hybridHold.cancel()
+        expect(hybridHold.pressedAt == nil,
+               "gesture teardown clears a pressed shortcut")
+        var modeSnapshot = DictationShortcutGesture()
+        _ = modeSnapshot.keyDown(at: 4, mode: .pushToTalk, sessionIsActive: false)
+        expect(modeSnapshot.pressedMode == .pushToTalk
+                && modeSnapshot.keyUp(at: 4.1, sessionIsActive: true) == .stop,
+               "key up uses the mode captured by its matching key down")
+        var activeHold = DictationShortcutGesture()
+        expect(activeHold.keyDown(at: 5, mode: .pushToTalk, sessionIsActive: true) == nil
+                && activeHold.keyUp(at: 5.1, sessionIsActive: true) == .stop,
+               "an active hold session has one deterministic release action")
+        var orphanRelease = DictationShortcutGesture()
+        expect(orphanRelease.keyUp(at: 6, sessionIsActive: true) == nil,
+               "an orphan release never stops an active session")
+        expect(SettingsBackupSupport.exportKeys().filter {
+            $0.localizedCaseInsensitiveContains("apiKey")
+                || $0.localizedCaseInsensitiveContains("secret")
+        }.isEmpty,
+               "Settings backups contain no API key or secret key")
+
+        let keychainSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/KeychainStore.swift",
+            encoding: .utf8)) ?? ""
+        expect(keychainSource.contains("protocol KeychainStoring")
+                && keychainSource.contains("kSecAttrService")
+                && keychainSource.contains("kSecAttrAccount")
+                && keychainSource.contains("namespacedService")
+                && keychainSource.contains("kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly")
+                && !keychainSource.contains("UserDefaults"),
+               "API keys use an injectable service/account Keychain store and never defaults")
+
+        let dictationServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationService.swift",
+            encoding: .utf8)) ?? ""
+        let dictationDeviceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/DictationInputDeviceSupport.swift",
+            encoding: .utf8)) ?? ""
+        let dictationMediaSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationMediaController.swift",
+            encoding: .utf8)) ?? ""
+        let dictationOutputMuteSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationOutputMuteController.swift",
+            encoding: .utf8)) ?? ""
+        let dictationHistoryStoreSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationHistoryStore.swift",
+            encoding: .utf8)) ?? ""
+        let dictationHistoryViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/DictationHistoryView.swift",
+            encoding: .utf8)) ?? ""
+        let dictationRecorderSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
+            encoding: .utf8)) ?? ""
+        let dictationClientSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationTranscriptionClient.swift",
+            encoding: .utf8)) ?? ""
+        let dictationAppDelegateSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationServiceSource.contains("transcriptionTask?.cancel()")
+                && dictationServiceSource.contains("recorder.cancel()")
+                && dictationServiceSource.contains("hotkey.unregister()")
+                && dictationServiceSource.contains("secondaryHotkey.unregister()")
+                && dictationServiceSource.contains("clearGestures()")
+                && dictationServiceSource.contains("cancelHotkey.unregister()")
+                && dictationServiceSource.contains("NSEvent.removeMonitor")
+                && dictationServiceSource.contains("hud.hide()")
+                && dictationAppDelegateSource.contains("DictationService.shared.suspend()"),
+               "dictation teardown structurally cancels upload, capture, hotkeys, monitors and HUD")
+        expect(dictationAppDelegateSource.contains(".superKey, .quitWindowProtection, .mixer, .dictation,"),
+               "granting or revoking Accessibility re-syncs the dictation global shortcut")
+        expect(dictationAppDelegateSource.contains("DictationService.shared.syncWithPreferences()")
+                && dictationAppDelegateSource.contains("func appBecameActive()"),
+               "returning to the app re-arms the dictation modifier shortcut before its first use")
+        expect(dictationRecorderSource.contains("PrivateFileStore.createDirectory")
+                && dictationRecorderSource.contains(".posixPermissions: 0o600")
+                && dictationRecorderSource.contains("AudioUnitSetProperty")
+                && dictationRecorderSource.contains("kAudioOutputUnitProperty_CurrentDevice")
+                && dictationRecorderSource.contains("removeItem(at:"),
+               "dictation audio is private and deterministically removed")
+        expect(dictationDeviceSource.contains("kAudioHardwarePropertyDevices")
+                && dictationDeviceSource.contains("kAudioHardwarePropertyDefaultInputDevice")
+                && dictationDeviceSource.contains("DictationInputDeviceRouting.resolve"),
+               "dictation enumerates input devices and resolves a saved microphone with fallback")
+        expect(dictationMediaSource.contains("MPNowPlayingInfoCenter")
+                && dictationMediaSource.contains("postPlayPause")
+                && dictationMediaSource.contains("MPNowPlayingInfoPropertyPlaybackRate")
+                && dictationMediaSource.contains("dictationMediaResumeDelay"),
+               "dictation media control detects browser playback and uses a bounded resume delay")
+        expect(dictationOutputMuteSource.contains("kAudioHardwarePropertyDefaultOutputDevice")
+                && dictationOutputMuteSource.contains("kAudioDevicePropertyMute")
+                && dictationOutputMuteSource.contains("kAudioDevicePropertyVolumeScalar")
+                && dictationOutputMuteSource.contains("still owns the mutation"),
+               "dictation output mute is opt-in, native and restores only its own change")
+        expect(dictationRecorderSource.contains("var peak: Float")
+                && dictationRecorderSource.contains("max(rms * 16, peak * 4)"),
+               "dictation HUD level combines sustained RMS and signal peaks for visibility")
+        expect(dictationClientSource.contains("DictationProviderError(failure: failure")
+                && dictationServiceSource.contains("HTTP \\(lastProviderStatus)"),
+               "provider HTTP status is surfaced without exposing response bodies or credentials")
+        expect(dictationHistoryStoreSource.contains("PrivateFileStore.createDirectory")
+                && dictationHistoryStoreSource.contains("PrivateFileStore.write")
+                && dictationHistoryStoreSource.contains("isBoundedPath")
+                && dictationHistoryStoreSource.contains("removeAudio")
+                && dictationHistoryStoreSource.contains("manifest.json"),
+               "dictation history owns a private manifest and bounds audio deletion to its directory")
+        expect(dictationServiceSource.contains("DictationHistoryStore.shared.removeExpired")
+                && dictationServiceSource.contains("dictationHistoryRetentionDays"),
+               "dictation retention is swept whenever preferences synchronize")
+        expect(dictationServiceSource.contains("preserveFailedRecordingIfEnabled")
+                && dictationServiceSource.contains(".network, .rateLimited, .server, .requestRejected"),
+               "recoverable provider failures preserve private audio for a later retry")
+        expect(dictationServiceSource.contains("func retranscribe(entry:")
+                && dictationServiceSource.contains("func importAudio(from url:")
+                && dictationServiceSource.contains("output(for rawText:")
+                && dictationClientSource.contains("func enhance(text:")
+                && dictationClientSource.contains("provider.enhancementURL"),
+               "dictation supports provider retry, Finder import and optional text enhancement")
+        expect(dictationHistoryViewSource.contains("AVAudioPlayer")
+                && dictationHistoryViewSource.contains("1×")
+                && dictationHistoryViewSource.contains("2×")
+                && dictationHistoryViewSource.contains("DictationWaveform")
+                && dictationHistoryViewSource.contains("Exportar selecionados")
+                && dictationHistoryViewSource.contains("activateFileViewerSelecting")
+                && dictationHistoryViewSource.contains("confirmationDialog"),
+               "dictation history offers selection, export, waveform, playback and safe deletion")
+        let dictationHUDSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Dictation/DictationHUD.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationHUDSource.contains("CGSize(width: 210, height: 44)")
+                && dictationHUDSource.contains("detail.isHidden = state == .listening || state == .processing")
+                && dictationHUDSource.contains("record.circle.fill")
+                && dictationHUDSource.contains("pow(max(0, level), 0.55)"),
+               "dictation listening HUD stays compact and amplifies quiet waveform levels visually")
+        expect(dictationHistoryViewSource.contains("TimelineView(.periodic")
+                && dictationHistoryViewSource.contains("Copiar transcrição")
+                && dictationHistoryViewSource.contains("progress: progress")
+                && dictationHistoryViewSource.contains("playbackRevision"),
+               "dictation history keeps per-entry playback progress and copy action")
+        let dictationAudioRecorderSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Dictation/DictationAudioRecorder.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationAudioRecorderSource.contains("applyRecordingGain(to: buffer)")
+                && dictationAudioRecorderSource.contains("tanh(samples[index] * gain)"),
+               "dictation recordings apply bounded gain for intelligible local playback")
+        expect(dictationClientSource.contains("URLSessionConfiguration.ephemeral")
+                && dictationClientSource.contains("httpCookieAcceptPolicy = .never")
+                && dictationClientSource.contains("request.url?.host == task.originalRequest?.url?.host"),
+               "dictation uploads use an ephemeral cookie-free session and same-host redirects")
+        let dictationSources = [dictationServiceSource, dictationRecorderSource, dictationClientSource]
+        expect(dictationSources.allSatisfy {
+            !$0.contains("print(") && !$0.contains("NSLog(")
+                && !$0.contains("Logger(") && !$0.contains("os_log(")
+        }, "dictation never logs audio, API keys or transcriptions")
+
+        for language in AppLanguage.allCases {
+            let values = Mirror(reflecting: FeatureStrings.dictation(language)).children
+                .compactMap { $0.value as? String }
+            expect(values.count == 39 && values.allSatisfy { !$0.isEmpty },
+                   "dictation has every localized field for \(language.rawValue)")
+            expect(values.allSatisfy {
+                !$0.contains("TODO") && !$0.contains("TBD") && !$0.contains("—")
+            }, "dictation has no placeholder or em-dash text for \(language.rawValue)")
+            let activationValues = Mirror(reflecting: FeatureStrings.dictationActivation(language)).children
+                .compactMap { $0.value as? String }
+            expect(activationValues.count == 13 && activationValues.allSatisfy { !$0.isEmpty },
+                   "dictation activation has every localized field for \(language.rawValue)")
+        }
+        let hotkeySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift",
+            encoding: .utf8)) ?? ""
+        expect(hotkeySource.contains("kEventHotKeyPressed")
+                && hotkeySource.contains("kEventHotKeyReleased")
+                && hotkeySource.contains("onRelease")
+                && hotkeySource.contains("let status = InstallEventHandler")
+                && hotkeySource.contains("instance.generation == generation"),
+               "quick-tool hotkeys route Carbon pressed and released events")
+        expect(dictationServiceSource.contains("if state == .processing")
+                && dictationServiceSource.contains("prepareForRegistration")
+                && dictationServiceSource.contains("secondaryHotkey.sync(enabled: secondaryCarbonEnabled")
+                && dictationServiceSource.contains("modifierShortcutTap.sync(keys: modifierKeys"),
+               "dictation ignores late processing releases and supports modifier shortcuts")
+        let dictationShortcutSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/DictationShortcutSupport.swift",
+            encoding: .utf8)) ?? ""
+        expect(dictationShortcutSource.contains("flagsChanged")
+                && dictationShortcutSource.contains("AXIsProcessTrusted()")
+                && dictationShortcutSource.contains("kVK_RightCommand")
+                && dictationShortcutSource.contains("maskSecondaryFn")
+                && dictationShortcutSource.contains("stop()\n        // `stop()` clears the monitored keys")
+                && dictationShortcutSource.contains("registeredKeys = keys"),
+               "modifier-only dictation shortcuts use an Accessibility-protected flags monitor")
+        expect(dictationRecorderSource.contains("input.inputFormat(forBus: 0)")
+                && dictationRecorderSource.contains("format: captureFormat")
+                && dictationRecorderSource.contains("DictationRecordedAudio.isUsable"),
+               "dictation records at the microphone input format and rejects empty containers")
+        expect(!DictationRecordedAudio.isUsable(fileSize: nil, duration: 5)
+                && !DictationRecordedAudio.isUsable(fileSize: 557, duration: 0)
+                && DictationRecordedAudio.isUsable(fileSize: 1_024, duration: 0.1),
+               "dictation never uploads an empty audio container")
+        expect(DictationProviderDiagnostic.message(from: Data(#"{"error":{"message":"Unsupported audio container"}}"#.utf8))
+                == "Unsupported audio container"
+                && DictationProviderDiagnostic.message(from: Data(#"{"message":"  invalid\nrequest  "}"#.utf8))
+                == "invalid request"
+                && DictationProviderDiagnostic.message(from: Data("not json".utf8)) == nil,
+               "dictation exposes a bounded provider diagnostic without retaining raw responses")
+        let dictationInfoPlist = (try? String(contentsOfFile: "Resources/Info.plist",
+                                              encoding: .utf8)) ?? ""
+        expect(dictationInfoPlist.contains("start Dictation") && dictationInfoPlist.contains("provider you choose"),
+               "the base microphone consent names Dictation and external processing")
+        let localizedPermissionFiles = (try? FileManager.default.contentsOfDirectory(
+            atPath: "Resources"))?.filter { $0.hasSuffix(".lproj") } ?? []
+        expect(localizedPermissionFiles.count == 12
+                && localizedPermissionFiles.allSatisfy { directory in
+                    let source = (try? String(
+                        contentsOfFile: "Resources/\(directory)/InfoPlist.strings",
+                        encoding: .utf8)) ?? ""
+                    return source.contains("NSMicrophoneUsageDescription")
+                        && !source.contains("only when you turn it on for a screen recording")
+                },
+               "all localized microphone prompts cover the expanded recording purpose")
 
         // MARK: Hardware-gated installs
 

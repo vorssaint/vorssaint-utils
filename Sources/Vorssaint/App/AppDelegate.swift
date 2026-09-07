@@ -143,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
                     .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
-                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer,
+                    .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .dictation,
                 ])
             }
             .store(in: &cancellables)
@@ -265,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AudioInputDeviceManager.shared.stop()
         // Flushes any scratchpad edit still inside the save debounce.
         ScratchpadService.shared.suspend()
+        DictationService.shared.suspend()
         // The clipboard history persists through an async pipeline; the last
         // mutation (often a Clear) must land before the process dies.
         if AppFeature.clipboardHistory.isAvailable {
@@ -984,6 +985,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // (Menu bar icon recovery happens on a deliberate reopen, not here: this
         // fires on every activation, so rebuilding here would cause churn/flicker.)
         UpdateService.shared.checkIfStale()
+        // A standalone modifier is observed through a global Accessibility tap.
+        // macOS can invalidate or defer that tap while this app is inactive,
+        // especially just after returning from System Settings. Re-syncing is
+        // idempotent and lets the very first shortcut after activation work.
+        if AppFeature.dictation.isAvailable {
+            Task { @MainActor in
+                DictationService.shared.syncWithPreferences()
+            }
+        }
         restoreAfterAppUpdateHandoff()
     }
 
