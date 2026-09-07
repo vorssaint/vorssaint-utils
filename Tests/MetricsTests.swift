@@ -26019,6 +26019,16 @@ struct MetricsTests {
                 && calendarServiceSource.contains("autosaveName")
                 && calendarInfoPrompt.localizedCaseInsensitiveContains("create events"),
                "Calendar routes popover copy, preserves status-item placement, and declares write access")
+        let calendarTitles: [AppLanguage: String] = [
+            .enUS: "Calendar", .ptBR: "Calendário", .tr: "Takvim", .ru: "Календарь",
+            .es: "Calendario", .de: "Kalender", .fr: "Calendrier", .it: "Calendario",
+            .ja: "カレンダー", .ko: "캘린더", .zhHans: "日历", .zhTW: "行事曆", .zhHK: "日曆",
+        ]
+        expect(calendarTitles.count == AppLanguage.allCases.count
+                && AppLanguage.allCases.allSatisfy {
+                    CalendarStrings.current($0).title == calendarTitles[$0]
+                },
+               "Calendar declares localized copy for every supported app language")
         expect(AppFeature.calendar.group == .tools && AppFeature.calendar.symbolName == "calendar"
                 && AppFeature.calendar.monitorsPermissionChanges,
                "Calendar is a Tools feature that observes permission changes")
