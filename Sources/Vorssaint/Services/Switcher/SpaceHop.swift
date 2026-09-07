@@ -87,7 +87,7 @@ final class SpaceHop {
         // Space forward too; when the app has one here, activate quietly and
         // let the travel decide what comes up.
         let appIsAlreadyHere = appHasWindowOnVisibleSpace()
-        NSApp.yieldActivation(to: app)
+        ActivationHandoff.yield(to: app)
         if !app.activate(from: NSRunningApplication.current,
                          options: appIsAlreadyHere ? [] : [.activateAllWindows]) {
             app.activate(options: appIsAlreadyHere ? [] : [.activateAllWindows])

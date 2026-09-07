@@ -207,17 +207,17 @@ extension WhatsAppOrganizerStrings {
         trashDuplicate: "Placer la nouvelle copie dans la Corbeille",
         keepBoth: "Conserver les deux copies",
         replaceExisting: "Remplacer la copie organisée",
-        duplicateCaption: "Les doublons sont confirmés par une empreinte SHA-256 privée. La copie organisée est revérifiée avant qu'une autre copie soit écartée.",
+        duplicateCaption: "Les doublons sont confirmés par une empreinte SHA-256 privée. La copie organisée est revérifiée avant qu’une autre copie soit écartée.",
         organizeNow: "Organiser les fichiers éligibles maintenant",
         undo: "Annuler la dernière organisation",
         waiting: "Surveillance de Téléchargements",
         working: "Organisation des fichiers WhatsApp…",
         resultFormat: "%1$d déplacés · %2$d doublons · %3$d échecs",
-        lastRunFormat: "Dernière organisation %@ : %d déplacés · %d doublons · %d échecs",
+        lastRunFormat: "Dernière organisation %@\u{00A0}: %d déplacés · %d doublons · %d échecs",
         neverRun: "Aucune organisation effectuée pour le moment.",
         notificationTitle: "Organisation WhatsApp",
         notificationFormat: "%1$d fichiers organisés. %2$d téléchargements en double traités. %3$d échecs.",
-        privacyNote: "Pour identifier les doublons exacts, les octets des fichiers sont lus localement uniquement pendant le calcul d'une empreinte cryptographique. Les contenus et les discussions ne sont jamais stockés ni envoyés."
+        privacyNote: "Pour identifier les doublons exacts, les octets des fichiers sont lus localement uniquement pendant le calcul d’une empreinte cryptographique. Les contenus et les discussions ne sont jamais stockés ni envoyés."
     )
 
     static let it = WhatsAppOrganizerStrings(
@@ -240,9 +240,9 @@ extension WhatsAppOrganizerStrings {
         trashDuplicate: "Sposta la nuova copia nel Cestino",
         keepBoth: "Conserva entrambe le copie",
         replaceExisting: "Sostituisci la copia organizzata",
-        duplicateCaption: "I duplicati sono confermati con un'impronta SHA-256 privata. La copia organizzata viene ricontrollata prima di scartare un'altra copia.",
+        duplicateCaption: "I duplicati sono confermati con un’impronta SHA-256 privata. La copia organizzata viene ricontrollata prima di scartare un’altra copia.",
         organizeNow: "Organizza ora i file idonei",
-        undo: "Annulla l'ultima organizzazione",
+        undo: "Annulla l’ultima organizzazione",
         waiting: "Download sotto osservazione",
         working: "Organizzazione dei file WhatsApp…",
         resultFormat: "%1$d spostati · %2$d duplicati · %3$d falliti",
@@ -250,7 +250,7 @@ extension WhatsAppOrganizerStrings {
         neverRun: "Nessuna organizzazione ancora eseguita.",
         notificationTitle: "Organizzazione WhatsApp",
         notificationFormat: "%1$d file organizzati. %2$d download duplicati gestiti. %3$d falliti.",
-        privacyNote: "Per individuare i duplicati esatti, i byte dei file vengono letti solo localmente durante il calcolo di un'impronta crittografica. Contenuti e chat non vengono mai salvati né inviati."
+        privacyNote: "Per individuare i duplicati esatti, i byte dei file vengono letti solo localmente durante il calcolo di un’impronta crittografica. Contenuti e chat non vengono mai salvati né inviati."
     )
 
     static let tr = WhatsAppOrganizerStrings(
@@ -262,7 +262,7 @@ extension WhatsAppOrganizerStrings {
         destination: "Hedef klasör",
         chooseFolder: "Seç…",
         useDefault: "İndirilenler/WhatsApp kullan",
-        invalidDestination: "İndirilenler'in kendisi dışında bir klasör seçin.",
+        invalidDestination: "İndirilenler’in kendisi dışında bir klasör seçin.",
         organization: "Klasör yapısı",
         flat: "Alt klasörsüz",
         byType: "Dosya türüne göre",
@@ -270,7 +270,7 @@ extension WhatsAppOrganizerStrings {
         delay: "Taşımadan önce bekle",
         minutesFormat: "%d dakika",
         duplicateAction: "Aynı dosya yeniden indirildiğinde",
-        trashDuplicate: "Yeni kopyayı Çöp Sepeti'ne taşı",
+        trashDuplicate: "Yeni kopyayı Çöp Sepeti’ne taşı",
         keepBoth: "İki kopyayı da tut",
         replaceExisting: "Düzenlenen kopyayı değiştir",
         duplicateCaption: "Kopyalar özel bir SHA-256 özetiyle doğrulanır. Bir kopya ayıklanmadan önce düzenlenen kopya yeniden denetlenir.",

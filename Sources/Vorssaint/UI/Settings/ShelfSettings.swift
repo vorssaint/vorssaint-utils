@@ -13,6 +13,7 @@ struct ShelfSettings: View {
     @AppStorage(DefaultsKey.shelfEdgeDragEnabled) private var edgeDrag = false
     @AppStorage(DefaultsKey.shelfCloseAfterDrop) private var closeAfterDrop = false
     @AppStorage(DefaultsKey.shelfRemoveAfterDrop) private var removeAfterDrop = true
+    @AppStorage(DefaultsKey.shelfClearOnClose) private var clearOnClose = false
     @State private var showingAppPicker = false
 
     var body: some View {
@@ -94,6 +95,12 @@ struct ShelfSettings: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Toggle(l10n.s.shelfRemoveAfterDrop, isOn: $removeAfterDrop)
                         Text(l10n.s.shelfRemoveAfterDropCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Toggle(l10n.s.shelfClearOnClose, isOn: $clearOnClose)
+                        Text(l10n.s.shelfClearOnCloseCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

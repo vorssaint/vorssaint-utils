@@ -116,6 +116,7 @@ struct DiskExclusionsList: View {
             .volumeIsRootFileSystemKey,
             .volumeNameKey,
             .volumeLocalizedNameKey,
+            .volumeUUIDStringKey,
         ]
         guard let urls = FileManager.default.mountedVolumeURLs(
             includingResourceValuesForKeys: Array(keys),
@@ -134,7 +135,15 @@ struct DiskExclusionsList: View {
             guard isOfferable else { continue }
             let name = values.volumeLocalizedName ?? values.volumeName ?? url.lastPathComponent
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty, !currentExcluded.contains(trimmed.lowercased()), !results.contains(trimmed) {
+            // The same exclusion test the eject paths use: an entry the user
+            // typed as a volume UUID or a mount path excludes the drive just as
+            // much as its name, so the picker must not offer it again.
+            let alreadyExcluded = QuickTogglesSupport.isExcluded(
+                volumeName: trimmed,
+                volumeUUID: values.volumeUUIDString,
+                mountPath: url.path,
+                excludedVolumes: currentExcluded)
+            if !trimmed.isEmpty, !alreadyExcluded, !results.contains(trimmed) {
                 results.append(trimmed)
             }
         }

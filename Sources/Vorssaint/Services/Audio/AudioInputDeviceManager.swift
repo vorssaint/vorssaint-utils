@@ -135,11 +135,21 @@ final class AudioInputDeviceManager: ObservableObject {
             if lastError != message { lastError = message }
             return false
         }
-        if lastError != nil { lastError = nil }
+        // Record a setter that CoreAudio accepted even when the immediate
+        // read-back is stale. If the target appears asynchronously, the
+        // existing last-writer guard can still restore the original input on
+        // quit; when it never applies, that guard sees a different current UID
+        // and leaves the system alone.
         if inputDeviceBeforeOverride == nil {
             inputDeviceBeforeOverride = deviceBeforeOverride
         }
         appliedInputDeviceUID = device.uid
+        guard Self.defaultInputDeviceUID() == device.uid else {
+            let message = L10n.shared.s.mixerInputUnavailable
+            if lastError != message { lastError = message }
+            return false
+        }
+        if lastError != nil { lastError = nil }
         if currentInputDeviceUID != device.uid {
             currentInputDeviceUID = device.uid
         }

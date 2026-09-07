@@ -598,6 +598,31 @@ enum MixerRoutingSupport {
         return true
     }
 
+    /// Identifies one priority write by all observable state that can make the
+    /// attempt meaningful. Keeping a failed attempt suppresses only an
+    /// identical retry; a real default-device, availability, or priority
+    /// change produces a different value and may try again.
+    struct PrioritySwitchAttempt: Equatable {
+        let targetUID: String
+        let currentUID: String?
+        let availableUIDs: Set<String>
+    }
+
+    static func pendingPrioritySwitchAttempt(
+        targetUID: String?,
+        currentUID: String?,
+        availableUIDs: Set<String>,
+        failedAttempt: PrioritySwitchAttempt?
+    ) -> PrioritySwitchAttempt? {
+        guard shouldSwitchToDevice(targetUID: targetUID, currentUID: currentUID),
+              let targetUID,
+              availableUIDs.contains(targetUID) else { return nil }
+        let attempt = PrioritySwitchAttempt(targetUID: targetUID,
+                                            currentUID: currentUID,
+                                            availableUIDs: availableUIDs)
+        return attempt == failedAttempt ? nil : attempt
+    }
+
     static func resolveInputDevice(preferredUID: String?,
                                    availableUIDs: Set<String>,
                                    currentUID: String?) -> MixerInputRouteResolution {

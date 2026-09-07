@@ -112,6 +112,21 @@ final class ExtraBrightnessService: ObservableObject {
         }
     }
 
+    /// The screen the overlay was built for. Which panel qualifies moves only
+    /// with the display topology, and `didChangeScreenParametersNotification`
+    /// already tracks that into `overlayDisplayID`, so the poll looks the
+    /// display up instead of re-deriving it with `builtInXDRScreen()` four
+    /// times a second. Both walk `NSScreen.screens` reading
+    /// `deviceDescription`; what this drops is the per-screen
+    /// `CGDisplayIsBuiltin` call and, on the built-in panel, `localizedName`
+    /// and `maximumPotentialExtendedDynamicRangeColorComponentValue` through
+    /// `isSupportedPanel` — a small saving on the main thread, and an answer
+    /// that could not have changed since the last screen-change notification.
+    private var overlayScreen: NSScreen? {
+        guard let overlayDisplayID else { return nil }
+        return NSScreen.screens.first { Self.displayID(of: $0) == overlayDisplayID }
+    }
+
     private func refreshSupported() {
         let now = Self.builtInXDRScreen() != nil
         if supported != now { supported = now }
@@ -400,7 +415,7 @@ final class ExtraBrightnessService: ObservableObject {
     /// snaps straight to the target.
     private func renderIfNeeded(immediate: Bool = false) {
         guard !screensAsleep else { return }
-        guard let screen = Self.builtInXDRScreen(), overlayLayer != nil else { return }
+        guard let screen = overlayScreen, overlayLayer != nil else { return }
         presentTrigger()
         let level = Double(UserDefaults.standard.integer(forKey: DefaultsKey.extraBrightnessLevel)) / 100.0
         let headroom = Double(screen.maximumExtendedDynamicRangeColorComponentValue)

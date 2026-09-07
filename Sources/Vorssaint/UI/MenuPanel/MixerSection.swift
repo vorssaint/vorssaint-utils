@@ -256,7 +256,12 @@ struct MixerSection: View {
             get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
             set: { selection in
                 guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
-                mixer.setUniversalOutputDeviceUID(selection)
+                if mixer.setUniversalOutputDeviceUID(selection) {
+                    // Only a direct picker choice changes the configured
+                    // priority. Shortcut cycling and Command Bar actions use
+                    // the same mixer write without rewriting the dragged list.
+                    AudioPriorityService.shared.promoteOutputDevice(selection)
+                }
             }
         )
     }

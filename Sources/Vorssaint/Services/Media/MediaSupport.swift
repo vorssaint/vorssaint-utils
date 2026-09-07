@@ -674,10 +674,12 @@ enum MediaSupport {
 
     static func watermarkLogo(atPath path: String, maxPixel: Int = 2_048) -> CGImage? {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty,
-              let source = CGImageSourceCreateWithURL(URL(fileURLWithPath: trimmed) as CFURL, nil) else {
-            return nil
-        }
+        guard !trimmed.isEmpty else { return nil }
+        return imageThumbnail(at: URL(fileURLWithPath: trimmed), maxPixel: maxPixel)
+    }
+
+    static func imageThumbnail(at url: URL, maxPixel: Int) -> CGImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return CGImageSourceCreateThumbnailAtIndex(source, 0, [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,

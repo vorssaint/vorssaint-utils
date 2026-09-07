@@ -31,6 +31,8 @@ final class AudioPriorityService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var enforceDebouce: DispatchWorkItem?
     private var isEnforcing = false
+    private var failedOutputAttempt: MixerRoutingSupport.PrioritySwitchAttempt?
+    private var failedInputAttempt: MixerRoutingSupport.PrioritySwitchAttempt?
     private var started = false
 
     private init() {}
@@ -46,6 +48,8 @@ final class AudioPriorityService: ObservableObject {
     }
 
     func start() {
+        failedOutputAttempt = nil
+        failedInputAttempt = nil
         guard !started else {
             loadPreferences()
             AudioInputDeviceManager.shared.inputPriorityIsActive = inputPriorityEnabled
@@ -92,6 +96,8 @@ final class AudioPriorityService: ObservableObject {
         enforceDebouce?.cancel()
         enforceDebouce = nil
         isEnforcing = false
+        failedOutputAttempt = nil
+        failedInputAttempt = nil
         AudioInputDeviceManager.shared.inputPriorityIsActive = false
     }
 
@@ -115,6 +121,7 @@ final class AudioPriorityService: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityOutputEnabled)
         outputPriorityEnabled = enabled
+        failedOutputAttempt = nil
         mergeAvailableDevicesIntoPriorityLists()
         scheduleEnforcement()
     }
@@ -123,6 +130,7 @@ final class AudioPriorityService: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(enabled, forKey: DefaultsKey.audioPriorityInputEnabled)
         inputPriorityEnabled = enabled
+        failedInputAttempt = nil
         AudioInputDeviceManager.shared.inputPriorityIsActive = enabled
         mergeAvailableDevicesIntoPriorityLists()
         scheduleEnforcement()
@@ -137,6 +145,7 @@ final class AudioPriorityService: ObservableObject {
             defaults.set(sanitized, forKey: DefaultsKey.audioPriorityOutputUIDs)
         }
         outputPriorityUIDs = sanitized
+        failedOutputAttempt = nil
         updateDeviceNames()
         // Dragging can cross several rows in quick succession. Keep those
         // list edits immediate, but wait for the gesture to settle before a
@@ -153,6 +162,7 @@ final class AudioPriorityService: ObservableObject {
             defaults.set(sanitized, forKey: DefaultsKey.audioPriorityInputUIDs)
         }
         inputPriorityUIDs = sanitized
+        failedInputAttempt = nil
         updateDeviceNames()
         scheduleEnforcement(after: Self.reorderEnforcementDelay)
     }
@@ -308,12 +318,16 @@ final class AudioPriorityService: ObservableObject {
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: outputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
-        guard MixerRoutingSupport.shouldSwitchToDevice(
+        guard let attempt = MixerRoutingSupport.pendingPrioritySwitchAttempt(
             targetUID: target,
-            currentUID: AppVolumeMixer.shared.currentOutputDeviceUID) else { return }
+            currentUID: AppVolumeMixer.shared.currentOutputDeviceUID,
+            availableUIDs: availableUIDs,
+            failedAttempt: failedOutputAttempt) else { return }
         // Automatic selection preserves the configured priority order and
         // explicit per-app routes; only the normal system default changes.
-        AppVolumeMixer.shared.setPriorityOutputDeviceUID(target)
+        failedOutputAttempt = AppVolumeMixer.shared.setPriorityOutputDeviceUID(target)
+            ? nil
+            : attempt
     }
 
     private func enforceInputPriority() {
@@ -321,9 +335,13 @@ final class AudioPriorityService: ObservableObject {
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: inputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
-        guard MixerRoutingSupport.shouldSwitchToDevice(
+        guard let attempt = MixerRoutingSupport.pendingPrioritySwitchAttempt(
             targetUID: target,
-            currentUID: AudioInputDeviceManager.shared.currentInputDeviceUID) else { return }
-        AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target)
+            currentUID: AudioInputDeviceManager.shared.currentInputDeviceUID,
+            availableUIDs: availableUIDs,
+            failedAttempt: failedInputAttempt) else { return }
+        failedInputAttempt = AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target)
+            ? nil
+            : attempt
     }
 }

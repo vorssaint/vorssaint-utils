@@ -59,8 +59,42 @@ enum PanelSurface {
         scheme == .light ? Color.black.opacity(0.055) : Color.white.opacity(0.085)
     }
 
+    /// Raised contrast is asked for by someone who cannot see a hairline at a
+    /// tenth of an opacity, so the outlines that separate one card from the
+    /// next are the ones that answer. A panel is rebuilt every time it opens,
+    /// which is when a change to this setting shows.
     static func border(for scheme: ColorScheme) -> Color {
-        scheme == .light ? Color.black.opacity(0.09) : Color.white.opacity(0.11)
+        let raised = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        return scheme == .light
+            ? Color.black.opacity(raised ? 0.24 : 0.09)
+            : Color.white.opacity(raised ? 0.28 : 0.11)
+    }
+
+    /// A control that sits ON a glass surface rather than in it: the system's
+    /// own round toggles read as physical because they are lighter than what
+    /// is behind them and carry their own shadow.
+    static func raisedFill(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.white.opacity(0.88) : Color.white.opacity(0.14)
+    }
+
+    static func raisedBorder(for scheme: ColorScheme) -> Color {
+        let raised = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        return scheme == .light
+            ? Color.black.opacity(raised ? 0.22 : 0.07)
+            : Color.white.opacity(raised ? 0.32 : 0.16)
+    }
+
+    static func raisedShadow(for scheme: ColorScheme) -> Color {
+        scheme == .light ? Color.black.opacity(0.14) : Color.black.opacity(0.38)
+    }
+
+    /// The lit edge of a glass surface: bright where the light comes from,
+    /// gone by the bottom. Without it a translucent panel reads as paper.
+    static func rimHighlight(for scheme: ColorScheme) -> LinearGradient {
+        LinearGradient(colors: [Color.white.opacity(scheme == .light ? 0.95 : 0.30),
+                                Color.white.opacity(scheme == .light ? 0.12 : 0.04)],
+                       startPoint: .top,
+                       endPoint: .bottom)
     }
 }
 

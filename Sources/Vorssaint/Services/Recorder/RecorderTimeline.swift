@@ -4,6 +4,16 @@
 import CoreGraphics
 import Foundation
 
+/// A block that can be picked up and stretched on a lane: a caption, a
+/// picture, a blur. They behave identically on the timeline, so one
+/// implementation of moving and stretching serves every kind.
+protocol RecorderTimelineBlock {
+    var id: UUID { get }
+    var start: Double { get set }
+    var end: Double { get set }
+    var duration: Double { get }
+}
+
 /// The editable timeline: what is kept, what is cut out of the middle, and
 /// where the picture leans in.
 ///

@@ -18,8 +18,13 @@ import CoreGraphics
 final class SessionActivity {
     static let shared = SessionActivity()
 
-    /// True while this session is the one on screen.
-    private(set) var isActive = false
+    /// True while this session is the one on screen. Written on the main
+    /// thread and read from the tap callbacks the pointer thread serves, so
+    /// it answers under `lock`.
+    var isActive: Bool { lock.withLock { active } }
+
+    private let lock = NSLock()
+    private var active = false
 
     private let center: NotificationCenter
     private var observers: [NSObjectProtocol] = []
@@ -45,7 +50,7 @@ final class SessionActivity {
                 self?.update(isActive: true)
             },
         ]
-        isActive = initialIsActive()
+        active = initialIsActive()
     }
 
     deinit {
@@ -58,9 +63,15 @@ final class SessionActivity {
         handlers.append(handler)
     }
 
+    /// The handlers hand taps back and build them again, so they run with the
+    /// lock released.
     private func update(isActive: Bool) {
-        guard isActive != self.isActive else { return }
-        self.isActive = isActive
+        let changed = lock.withLock { () -> Bool in
+            guard isActive != active else { return false }
+            active = isActive
+            return true
+        }
+        guard changed else { return }
         for handler in handlers { handler(isActive) }
     }
 }

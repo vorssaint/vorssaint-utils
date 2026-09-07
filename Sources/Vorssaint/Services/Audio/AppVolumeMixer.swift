@@ -526,6 +526,16 @@ final class AppVolumeMixer: ObservableObject {
             return false
         }
 
+        // A successful setter return does not guarantee that the HAL accepted
+        // the new default. Publish success only after reading the property
+        // back, otherwise priority enforcement would optimistically expose the
+        // target and retry it forever when the listener restores reality.
+        guard Self.defaultOutputDeviceUID() == device.uid else {
+            outputSwitchError = L10n.shared.s.mixerOutputUnavailable
+            refreshApps()
+            return false
+        }
+
         outputSwitchError = nil
         // The default app output just changed by this app's own hand, so a refresh
         // still reading the previous devices is thrown away; the one at the end
@@ -575,12 +585,6 @@ final class AppVolumeMixer: ObservableObject {
         }
         reconcileEngines(with: apps)
         clearPermissionIfNoActiveAdjustments()
-        // When Audio device priority is active, a manual output choice
-        // promotes the selected UID to the front of the priority list so
-        // enforcement does not immediately undo it.
-        if source == .manualUniversalSelection {
-            AudioPriorityService.shared.promoteOutputDevice(device.uid)
-        }
         refreshApps()
         return true
     }

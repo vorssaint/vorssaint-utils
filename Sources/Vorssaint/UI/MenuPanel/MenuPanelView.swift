@@ -2412,6 +2412,8 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var keepAwakeExternalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var keepAwakeConnectedToPower = false
+    @AppStorage(DefaultsKey.keepAwakeRunningApps) private var keepAwakeRunningApps = false
+    @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
@@ -2554,8 +2556,15 @@ struct KeepAwakeCard: View {
             .buttonStyle(.plain)
 
             if automationExpanded {
-                KeepAwakeAutomationEditor(compact: true)
-                    .padding(.leading, 22)
+                VStack(alignment: .leading, spacing: 8) {
+                    KeepAwakeAutomationEditor(compact: true)
+                    compactOptionToggle(
+                        icon: "lock.fill",
+                        title: automationStrings.pauseWhenLockedToggle,
+                        isOn: $keepAwakePauseWhenLocked
+                    )
+                }
+                .padding(.leading, 22)
             }
         }
     }
@@ -2563,7 +2572,9 @@ struct KeepAwakeCard: View {
     @ViewBuilder
     private var automationSummaryBadges: some View {
         if !keepAwakeExternalDisplay,
-           !keepAwakeConnectedToPower {
+           !keepAwakeConnectedToPower,
+           !keepAwakeRunningApps,
+           !keepAwakePauseWhenLocked {
             Text(automationStrings.automationOff)
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(.tertiary)
@@ -2574,6 +2585,12 @@ struct KeepAwakeCard: View {
                 }
                 if keepAwakeConnectedToPower {
                     automationSystemBadge("powerplug.fill")
+                }
+                if keepAwakeRunningApps {
+                    automationSystemBadge("app.fill")
+                }
+                if keepAwakePauseWhenLocked {
+                    automationSystemBadge("lock.fill")
                 }
             }
         }

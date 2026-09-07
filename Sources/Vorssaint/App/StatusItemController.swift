@@ -82,7 +82,10 @@ final class StatusItemController {
     /// recovers access (see applicationShouldHandleReopen) and the "Show menu bar
     /// icon" button in Settings rebuilds it.
     private func installStatusItem() {
-        StatusItemPlacementSupport.sanitizeStalePlacement(in: .standard)
+        // Nothing here may touch the saved placement. 3.3.3 retired a legacy
+        // 64pt offset on every launch and took working coordinates with it;
+        // giving up a spot is now something only an explicit recovery does.
+        //
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
@@ -107,14 +110,27 @@ final class StatusItemController {
         updateIconAppearance()
     }
 
-    /// Tears the status item down and builds a fresh one. When recovery is explicit,
-    /// reset the saved placement too; otherwise macOS can restore the new item to
-    /// the same hidden/crowded position that made it unreachable.
-    func recreateStatusItem(resetPlacement: Bool = false) {
-        if resetPlacement {
-            StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
-        }
+    /// Tears the status item down and builds a fresh one, dropping the hidden state
+    /// macOS remembered for it so the rebuilt one is not put straight back out of
+    /// sight — while keeping the spot the person arranged, which a brand new
+    /// identity would throw away.
+    func recreateStatusItem() {
+        // The item goes away first: AppKit writes its placement and remembered
+        // visibility back under its own name as it is removed, which would put
+        // back whatever was cleared a moment earlier.
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
+        StatusItemPlacementSupport.clearRememberedVisibility(in: .standard)
+        installStatusItem()
+    }
+
+    /// Starts the item over under a brand new identity, giving up the saved
+    /// position along with everything else macOS remembered about it. Last
+    /// resort: the item lands wherever macOS puts a first-time item, which on
+    /// a crowded bar can be a worse place than the one it came from, so this
+    /// is only for an icon that stayed away after keeping its spot.
+    func resetStatusItemPlacementIdentity() {
+        if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
+        StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
         installStatusItem()
     }
 

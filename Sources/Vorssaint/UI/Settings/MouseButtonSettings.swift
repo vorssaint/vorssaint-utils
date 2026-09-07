@@ -15,6 +15,7 @@ struct MouseButtonShortcutsSection: View {
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var enabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureButton) private var spacesButton = 0
+    @AppStorage(DefaultsKey.mouseSpacesGestureFollowsDrag) private var spacesFollowsDrag = false
 
     @State private var mappings = MouseButtonShortcutSupport.decode(
         UserDefaults.standard.dictionary(forKey: DefaultsKey.mouseButtonShortcuts) as? [String: String])
@@ -81,6 +82,10 @@ struct MouseButtonShortcutsSection: View {
                 .foregroundStyle(.secondary)
             if spacesEnabled {
                 spacesRow
+                Toggle(text.spacesFollowsDragLabel, isOn: $spacesFollowsDrag)
+                Text(text.spacesFollowsDragCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 if !spacesCommandsAreReachable {
                     Text(text.spacesShortcutsOffNote)
                         .font(.caption)

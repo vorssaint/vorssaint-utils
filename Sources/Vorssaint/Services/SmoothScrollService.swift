@@ -196,6 +196,15 @@ final class SmoothScrollService: ObservableObject {
               sourceProcessID != Self.ownProcessID else {
             return Unmanaged.passUnretained(event)
         }
+        // A stepped capture-loupe notch is a discrete command, so it must
+        // reach the overlay now rather than being expanded into a delayed
+        // glide. The opposite (fast) loupe mode intentionally keeps that
+        // glide, including when Option temporarily swaps the two modes.
+        if ScreenshotSelectionController.steppedLoupeNeedsRawWheel(
+            optionPressed: event.flags.contains(.maskAlternate)) {
+            stopGlide()
+            return Unmanaged.passUnretained(event)
+        }
         // Touch devices are already smooth; only mouse wheels glide. The
         // classification is shared with the scroll inverter, so mice that
         // report the wheel as continuous events (issue #267) are wheels too.

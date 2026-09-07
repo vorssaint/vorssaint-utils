@@ -106,6 +106,10 @@ struct MediaWorkspaceView: View {
     @State private var profileName = ""
     @State private var imageMoreOptionsExpanded = false
     @State private var isImportingVideo = false
+    /// Read once per chosen file. Loading it in the body meant decoding the
+    /// logo from disk on every redraw, so dragging the opacity slider was
+    /// re-reading a file for each frame.
+    @State private var watermarkLogo: NSImage?
 
     var compact: Bool
     var onClose: (() -> Void)? = nil
@@ -660,6 +664,11 @@ struct MediaWorkspaceView: View {
                     .padding(previewWatermarkMargin)
                     .opacity(imageWatermarkOpacity)
             }
+            .task(id: currentWatermark.usesLogo ? imageWatermarkLogoPath : "") {
+                watermarkLogo = currentWatermark.usesLogo
+                    ? NSImage(contentsOfFile: imageWatermarkLogoPath)
+                    : nil
+            }
             .frame(width: previewFrameSize.width, height: previewFrameSize.height)
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -701,7 +710,7 @@ struct MediaWorkspaceView: View {
         if currentWatermark.isEnabled {
             HStack(spacing: 4) {
                 if currentWatermark.usesLogo {
-                    if let logo = NSImage(contentsOfFile: currentWatermark.logoPath) {
+                    if let logo = watermarkLogo {
                         Image(nsImage: logo)
                             .resizable()
                             .scaledToFit()

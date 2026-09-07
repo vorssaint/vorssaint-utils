@@ -30,8 +30,12 @@ final class ScrollInverter: ObservableObject {
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    /// Guards the two above: the callback runs on the pointer thread while the
+    /// main thread arms and tears the tap down.
+    private let tapStateLock = NSLock()
     /// Timestamp (ns, event clock) of the last event carrying a gesture phase —
-    /// only touch devices emit those. Read/written solely on the tap callback.
+    /// only touch devices emit those. Read/written solely on the tap callback,
+    /// which is the pointer thread and nothing else.
     private var lastGesturePhaseTimestamp: UInt64?
     private var tapCreationRetryUsed = false
     private var tapCreationRetryWork: DispatchWorkItem?
@@ -65,10 +69,8 @@ final class ScrollInverter: ObservableObject {
     func suspend() { stop() }
 
     private func start() {
-        guard tap == nil else {
-            if let tap {
-                CGEvent.tapEnable(tap: tap, enable: true)
-            }
+        if let port = tapStateLock.withLock({ tap }) {
+            CGEvent.tapEnable(tap: port, enable: true)
             MouseAppExceptions.shared.setSourceTracking(true, for: .scrollDirection)
             isRunning = true
             return
@@ -104,10 +106,14 @@ final class ScrollInverter: ObservableObject {
         tapCreationRetryUsed = false
         tapCreationRetryWork?.cancel()
         tapCreationRetryWork = nil
-        self.tap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        tapStateLock.withLock {
+            self.tap = tap
+            runLoopSource = source
+        }
+        if let source {
+            PointerTapRunLoop.add(source)
+        }
         CGEvent.tapEnable(tap: tap, enable: true)
         isRunning = true
     }
@@ -117,20 +123,21 @@ final class ScrollInverter: ObservableObject {
         tapCreationRetryWork = nil
         tapCreationRetryUsed = false
         MouseAppExceptions.shared.setSourceTracking(false, for: .scrollDirection)
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
+        let (port, source) = tapStateLock.withLock { () -> (CFMachPort?, CFRunLoopSource?) in
+            let current = (tap, runLoopSource)
+            tap = nil
+            runLoopSource = nil
+            return current
         }
-        if let runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        if let port {
+            CGEvent.tapEnable(tap: port, enable: false)
         }
         // Hand the tap back rather than only switching it off: a disabled tap
         // keeps its place in the chain, and a session that is switched away
         // has to stop being an event tap owner outright (issue #1075).
-        if let tap {
-            CFMachPortInvalidate(tap)
+        if let source {
+            PointerTapRunLoop.remove(source, invalidating: port)
         }
-        tap = nil
-        runLoopSource = nil
         isRunning = false
     }
 
@@ -139,8 +146,8 @@ final class ScrollInverter: ObservableObject {
         // unless this session is the one that was switched away from, where
         // the stall is the reason the tap was disabled and re-arming feeds it.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if SessionActivity.shared.isActive, let tap {
-                CGEvent.tapEnable(tap: tap, enable: true)
+            if SessionActivity.shared.isActive, let port = tapStateLock.withLock({ tap }) {
+                CGEvent.tapEnable(tap: port, enable: true)
             }
             return Unmanaged.passUnretained(event)
         }
