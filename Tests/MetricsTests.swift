@@ -18060,10 +18060,11 @@ struct MetricsTests {
         // The preview appears unasked for, so presenting it must not take the
         // keyboard away from whatever the person is typing into. Its shortcuts
         // read a local monitor, which is delivered nothing until the panel is
-        // key. Presenting stays silent and hover takes nothing either; a click
-        // hands the keyboard over in the panel's sendEvent because hosted
-        // SwiftUI content answers presses that never reach mouseDown. Comments
-        // are stripped so prose naming the API cannot answer for the code.
+        // key. Presenting stays silent unless the person opted in, and hover
+        // takes nothing either; a click hands the keyboard over in the panel's
+        // sendEvent because hosted SwiftUI content answers presses that never
+        // reach mouseDown. Comments are stripped so prose naming the API
+        // cannot answer for the code.
         let quickPreviewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
             encoding: .utf8)) ?? ""
@@ -18081,10 +18082,19 @@ struct MetricsTests {
         // hosted SwiftUI content answers presses that never reach mouseDown.
         let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        // The opt-in keys the panel only after it is on screen, and the line
+        // above the call is the preference check itself, so dropping the guard
+        // or keying before ordering front both go red.
+        let presentLines = presentBody.components(separatedBy: "\n")
+        let orderFrontLine = presentLines.firstIndex { $0.contains("orderFrontRegardless()") } ?? -1
+        let makeKeyLine = presentLines.firstIndex { $0.contains("makeKey") } ?? -1
+        expect(orderFrontLine >= 0 && makeKeyLine > orderFrontLine
+                && presentLines[makeKeyLine - 1].contains("screenshotPreviewTakesFocus"),
+               "presenting the screenshot preview takes key focus only behind the opt-in, once the panel is on screen")
         let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
         let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
-        expect(makeKeyCount == panelMakeKeyCount && panelMakeKeyCount >= 1,
-               "presentation and hover never take key focus; only the panel's own click hand-off may")
+        expect(makeKeyCount == panelMakeKeyCount + 1 && panelMakeKeyCount >= 1,
+               "hover never takes key focus; only the opted-in presentation and the panel's own click hand-off may")
         expect(panelBody.contains("sendEvent") && panelBody.contains("leftMouseDown")
                 && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
                "clicking the screenshot preview takes key focus and still delivers every preview button")
@@ -18841,6 +18851,8 @@ struct MetricsTests {
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
                "screenshot preview placement preserves the existing automatic behavior by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == false,
+               "the screenshot preview leaves the keyboard where it was by default; taking it is the opt-in")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
@@ -21017,6 +21029,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
+                && backupKeys.contains(DefaultsKey.screenshotPreviewTakesFocus)
                 && backupKeys.contains(DefaultsKey.screenshotLoupeRememberZoom)
                 && backupKeys.contains(DefaultsKey.screenshotLoupeDefaultZoom)
                 && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
