@@ -7,8 +7,6 @@ import AppKit
 final class PanelInteractionState {
     static let shared = PanelInteractionState()
 
-    /// A visible utility whose workflow intentionally spans clicks in other
-    /// apps. This is one input to the close policy, not the policy itself.
     var viewKeepsPopoverOpen = false
 
     /// The Settings page of the utility the panel is currently hosting, so the
@@ -21,12 +19,8 @@ final class PanelInteractionState {
     /// modal state orphaned and make the next panel unresponsive.
     var isPresentingPopoverModal = false
 
-    /// The one answer every AppKit dismissal path uses. Service state lives
-    /// here so the generic popover host does not know about individual tools,
-    /// and operations stay protected even after the user switches panel tabs.
     var preventsPopoverDismissal: Bool {
-        viewKeepsPopoverOpen
-            || isPresentingPopoverModal
+        isPresentingPopoverModal
             || HomebrewManager.shared.operationStatus?.isActive == true
             || cleanerIsRunning
             || uninstallerIsRunning
