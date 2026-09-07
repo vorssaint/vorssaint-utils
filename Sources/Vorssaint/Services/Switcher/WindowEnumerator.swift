@@ -38,8 +38,11 @@ enum WindowEnumerator {
 
     /// Window surfaces larger than this are considered real, switchable windows.
     private static let minimumSize = CGSize(width: 80, height: 60)
-    /// Hard cap to keep the switcher readable and captures cheap.
-    private static let maximumCount = 24
+    /// Hard cap to keep the switcher readable and captures cheap. Sized to the
+    /// thumbnail cache in `WindowPreviewProvider`, which already budgets for
+    /// this many previews. `visibleSelectionIndices` spends the budget so every
+    /// app keeps an entry before any app gets a second one.
+    private static let maximumCount = 48
     /// AX calls normally return in a few milliseconds. A process that cannot
     /// answer within this ceiling must not hold the switcher behind it.
     private static let messagingTimeout: Float = 0.2
@@ -478,13 +481,19 @@ enum WindowEnumerator {
         }
         var result = ordered
         if ordered.count > maximumCount {
-            result = Array(ordered.prefix(maximumCount))
+            // One entry per app first, then the remaining slots: an app with
+            // many windows must never push another app off the list entirely
+            // (issue #172).
+            result = SwitcherSupport
+                .visibleSelectionIndices(appPIDs: ordered.map(\.pid), limit: maximumCount)
+                .map { ordered[$0] }
             // Asking for the desktop app alone names one entry, so that entry must
             // not vanish just because the list happens to be full. Asking for every
             // windowless app is a bulk choice instead, and there the cap keeps
             // cutting the least recently used tail exactly as it does for windows.
             if windowlessApps == .finder,
-               let desktopEntry = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
+               !result.contains(where: { $0.windowID == nil }),
+               let desktopEntry = ordered.first(where: { $0.windowID == nil }) {
                 result.append(desktopEntry)
             }
         }
