@@ -315,12 +315,17 @@ final class AudioPriorityService: ObservableObject {
         let availableUIDs = Set(AppVolumeMixer.shared.outputDevices
             .filter(\.canBeDefaultOutput)
             .map(\.uid))
+        let currentUID = AppVolumeMixer.shared.currentOutputDeviceUID
+        failedOutputAttempt = MixerRoutingSupport.stillRelevantFailedPrioritySwitchAttempt(
+            failedOutputAttempt,
+            currentUID: currentUID,
+            availableUIDs: availableUIDs)
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: outputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
         guard let attempt = MixerRoutingSupport.pendingPrioritySwitchAttempt(
             targetUID: target,
-            currentUID: AppVolumeMixer.shared.currentOutputDeviceUID,
+            currentUID: currentUID,
             availableUIDs: availableUIDs,
             failedAttempt: failedOutputAttempt) else { return }
         // Automatic selection preserves the configured priority order and
@@ -332,12 +337,17 @@ final class AudioPriorityService: ObservableObject {
 
     private func enforceInputPriority() {
         let availableUIDs = Set(AudioInputDeviceManager.shared.inputDevices.map(\.uid))
+        let currentUID = AudioInputDeviceManager.shared.currentInputDeviceUID
+        failedInputAttempt = MixerRoutingSupport.stillRelevantFailedPrioritySwitchAttempt(
+            failedInputAttempt,
+            currentUID: currentUID,
+            availableUIDs: availableUIDs)
         guard let target = MixerRoutingSupport.firstAvailablePriorityDeviceUID(
             orderedUIDs: inputPriorityUIDs,
             availableUIDs: availableUIDs) else { return }
         guard let attempt = MixerRoutingSupport.pendingPrioritySwitchAttempt(
             targetUID: target,
-            currentUID: AudioInputDeviceManager.shared.currentInputDeviceUID,
+            currentUID: currentUID,
             availableUIDs: availableUIDs,
             failedAttempt: failedInputAttempt) else { return }
         failedInputAttempt = AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target)

@@ -608,6 +608,17 @@ enum MixerRoutingSupport {
         let availableUIDs: Set<String>
     }
 
+    static func stillRelevantFailedPrioritySwitchAttempt(
+        _ failedAttempt: PrioritySwitchAttempt?,
+        currentUID: String?,
+        availableUIDs: Set<String>
+    ) -> PrioritySwitchAttempt? {
+        guard let failedAttempt,
+              failedAttempt.currentUID == currentUID,
+              failedAttempt.availableUIDs == availableUIDs else { return nil }
+        return failedAttempt
+    }
+
     static func pendingPrioritySwitchAttempt(
         targetUID: String?,
         currentUID: String?,

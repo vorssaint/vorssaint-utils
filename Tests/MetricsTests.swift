@@ -25914,6 +25914,18 @@ struct MetricsTests {
             availableUIDs: Set(["speakers", "headphones", "dock"]),
             failedAttempt: failedPriorityAttempt) != nil,
                "priority retry: a real availability change permits another attempt")
+        let clearedAfterDefaultChange = MixerRoutingSupport.stillRelevantFailedPrioritySwitchAttempt(
+            failedPriorityAttempt,
+            currentUID: "headphones",
+            availableUIDs: Set(["speakers", "headphones"]))
+        expect(clearedAfterDefaultChange == nil,
+               "priority retry: observing a real default change clears failed-target memory")
+        expect(MixerRoutingSupport.pendingPrioritySwitchAttempt(
+            targetUID: "headphones",
+            currentUID: "speakers",
+            availableUIDs: Set(["speakers", "headphones"]),
+            failedAttempt: clearedAfterDefaultChange) != nil,
+               "priority retry: a target may retry after the default changes away and back")
 
         // Feature catalog coverage
         expect(AppFeature.audioPriority.group == .sound,
