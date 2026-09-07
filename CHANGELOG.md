@@ -49,6 +49,7 @@ Vorssaint adds edge snap controls and shortcuts for recent captures and keyboard
 - Slider labels shrink instead of being cut where Turkish and Spanish run past the column, in the backdrop and recording panels.
 - Clicks and scrolling no longer lag in full-screen apps and games while the three-finger middle click or the reversed scroll direction is on.
 - Tapping Super key for Escape no longer carries a modifier still reported by the keyboard. Thanks to @gatzifratzi, @PathGao and @hash00.
+- The ambient brightness synchronization offset reads as a signed percentage such as +15% or −10%, where the per-display gap showed its raw source text and wrapped into a narrow column.
 
 ## [3.3.3-beta.4] - 2026-09-03
 

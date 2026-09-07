@@ -28,6 +28,9 @@ struct BrightnessFeatureStrings {
     let keyboardBrightnessShortcuts: String
     let keyboardBrightnessDecrease: String
     let keyboardBrightnessIncrease: String
+    let ambientSyncToggle: String
+    let ambientSyncCaption: String
+    let calibrateOffset: String
 }
 
 extension FeatureStrings {
@@ -72,7 +75,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Turns the keyboard backlight on or off.",
         keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
         keyboardBrightnessDecrease: "Decrease keyboard brightness",
-        keyboardBrightnessIncrease: "Increase keyboard brightness"
+        keyboardBrightnessIncrease: "Increase keyboard brightness",
+        ambientSyncToggle: "Match external displays to the built-in screen",
+        ambientSyncCaption: "Keeps external displays in step with the built-in brightness, keeping each monitor’s own calibrated gap. With the lid closed it follows the ambient light sensor instead.",
+        calibrateOffset: "Use the current brightness as the gap"
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -96,7 +102,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Liga ou desliga a luz do teclado.",
         keyboardBrightnessShortcuts: "Usar atalhos para o brilho do teclado",
         keyboardBrightnessDecrease: "Diminuir brilho do teclado",
-        keyboardBrightnessIncrease: "Aumentar brilho do teclado"
+        keyboardBrightnessIncrease: "Aumentar brilho do teclado",
+        ambientSyncToggle: "Acompanhar os monitores externos à tela do Mac",
+        ambientSyncCaption: "Mantém os monitores externos de acordo com o brilho integrado, preservando a diferença calibrada de cada monitor. Com a tampa fechada, segue o sensor de luz ambiente.",
+        calibrateOffset: "Usar o brilho atual como diferença"
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -120,7 +129,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Klavye ışığını açar veya kapatır.",
         keyboardBrightnessShortcuts: "Klavye parlaklığı kısayollarını kullan",
         keyboardBrightnessDecrease: "Klavye parlaklığını azalt",
-        keyboardBrightnessIncrease: "Klavye parlaklığını artır"
+        keyboardBrightnessIncrease: "Klavye parlaklığını artır",
+        ambientSyncToggle: "Harici ekranları yerleşik ekranla eşleştir",
+        ambientSyncCaption: "Harici ekranları yerleşik parlaklıkla aynı hizada tutar ve her monitörün kalibre edilmiş farkını korur. Kapak kapalıyken bunun yerine ortam ışığı sensörünü izler.",
+        calibrateOffset: "Geçerli parlaklığı fark olarak kullan"
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -144,7 +156,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Включает или выключает подсветку клавиатуры.",
         keyboardBrightnessShortcuts: "Использовать сочетания клавиш для подсветки клавиатуры",
         keyboardBrightnessDecrease: "Уменьшить яркость клавиатуры",
-        keyboardBrightnessIncrease: "Увеличить яркость клавиатуры"
+        keyboardBrightnessIncrease: "Увеличить яркость клавиатуры",
+        ambientSyncToggle: "Согласовывать внешние экраны со встроенным",
+        ambientSyncCaption: "Держит внешние мониторы на одном уровне со встроенным экраном, сохраняя калиброванную разницу каждого. При закрытой крышке следит за датчиком освещённости.",
+        calibrateOffset: "Использовать текущую яркость как разницу"
     )
 
     static let es = BrightnessFeatureStrings(
@@ -168,7 +183,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Enciende o apaga la luz del teclado.",
         keyboardBrightnessShortcuts: "Usar atajos para el brillo del teclado",
         keyboardBrightnessDecrease: "Reducir el brillo del teclado",
-        keyboardBrightnessIncrease: "Aumentar el brillo del teclado"
+        keyboardBrightnessIncrease: "Aumentar el brillo del teclado",
+        ambientSyncToggle: "Igualar los monitores externos a la pantalla integrada",
+        ambientSyncCaption: "Mantiene los monitores externos a la par del brillo integrado, conservando la diferencia calibrada de cada monitor. Con la tapa cerrada sigue el sensor de luz ambiental.",
+        calibrateOffset: "Usar el brillo actual como diferencia"
     )
 
     static let de = BrightnessFeatureStrings(
@@ -192,7 +210,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Schaltet die Tastaturbeleuchtung ein oder aus.",
         keyboardBrightnessShortcuts: "Kurzbefehle für die Tastaturhelligkeit verwenden",
         keyboardBrightnessDecrease: "Tastaturhelligkeit verringern",
-        keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen"
+        keyboardBrightnessIncrease: "Tastaturhelligkeit erhöhen",
+        ambientSyncToggle: "Externe Displays an das eingebaute anpassen",
+        ambientSyncCaption: "Hält externe Displays im Gleichschritt mit der eingebauten Helligkeit und bewahrt dabei die kalibrierte Differenz jedes Displays. Bei geschlossenem Deckel folgt es dem Umgebungslichtsensor.",
+        calibrateOffset: "Aktuelle Helligkeit als Differenz übernehmen"
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -216,7 +237,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Allume ou éteint l’éclairage du clavier.",
         keyboardBrightnessShortcuts: "Utiliser les raccourcis de luminosité du clavier",
         keyboardBrightnessDecrease: "Réduire la luminosité du clavier",
-        keyboardBrightnessIncrease: "Augmenter la luminosité du clavier"
+        keyboardBrightnessIncrease: "Augmenter la luminosité du clavier",
+        ambientSyncToggle: "Aligner les moniteurs externes sur l’écran intégré",
+        ambientSyncCaption: "Garde les moniteurs externes au diapason de la luminosité intégrée, en conservant l’écart calibré de chaque moniteur. Couvercle fermé, il suit le capteur de lumière ambiante.",
+        calibrateOffset: "Utiliser la luminosité actuelle comme écart"
     )
 
     static let it = BrightnessFeatureStrings(
@@ -240,7 +264,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "Accende o spegne l’illuminazione della tastiera.",
         keyboardBrightnessShortcuts: "Usa le scorciatoie per la luminosità della tastiera",
         keyboardBrightnessDecrease: "Riduci luminosità tastiera",
-        keyboardBrightnessIncrease: "Aumenta luminosità tastiera"
+        keyboardBrightnessIncrease: "Aumenta luminosità tastiera",
+        ambientSyncToggle: "Allinea i monitori esterni allo schermo integrato",
+        ambientSyncCaption: "Mantiene i monitori esterni al passo con la luminosità integrata, conservando la differenza calibrata di ciascun monitor. Con il coperchio chiuso segue il sensore di luce ambiente.",
+        calibrateOffset: "Usa la luminosità attuale come differenza"
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -264,7 +291,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "キーボードのバックライトをオンまたはオフにします。",
         keyboardBrightnessShortcuts: "キーボードの明るさのショートカットを使用",
         keyboardBrightnessDecrease: "キーボードの明るさを下げる",
-        keyboardBrightnessIncrease: "キーボードの明るさを上げる"
+        keyboardBrightnessIncrease: "キーボードの明るさを上げる",
+        ambientSyncToggle: "外部ディスプレイを内蔵ディスプレイに合わせる",
+        ambientSyncCaption: "外部ディスプレイを内蔵の明るさに合わせ、各モニタの設定済みの差を保ちます。蓋を閉じると、代わりに環境光センサーに従います。",
+        calibrateOffset: "現在の明るさを差として使用"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -288,7 +318,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "키보드 백라이트를 켜거나 끕니다.",
         keyboardBrightnessShortcuts: "키보드 밝기 단축키 사용",
         keyboardBrightnessDecrease: "키보드 밝기 낮추기",
-        keyboardBrightnessIncrease: "키보드 밝기 높이기"
+        keyboardBrightnessIncrease: "키보드 밝기 높이기",
+        ambientSyncToggle: "외장 디스플레이를 내장 디스플레이에 맞추기",
+        ambientSyncCaption: "외장 디스플레이를 내장 밝기에 맞추고 각 모니터의 설정된 차이를 유지합니다. 덮개를 닫으면 대신 주변 광 센서를 따릅니다.",
+        calibrateOffset: "현재 밝기를 차이로 사용"
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -312,7 +345,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "打开或关闭键盘背光。",
         keyboardBrightnessShortcuts: "使用键盘亮度快捷键",
         keyboardBrightnessDecrease: "降低键盘亮度",
-        keyboardBrightnessIncrease: "提高键盘亮度"
+        keyboardBrightnessIncrease: "提高键盘亮度",
+        ambientSyncToggle: "让外接显示器跟随内置屏幕",
+        ambientSyncCaption: "让外接显示器与内置亮度保持一致，并保留每台显示器的校准差值。合上盖子时改为跟随环境光传感器。",
+        calibrateOffset: "将当前亮度用作差值"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -336,7 +372,10 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "開啟或關閉鍵盤背光。",
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
-        keyboardBrightnessIncrease: "提高鍵盤亮度"
+        keyboardBrightnessIncrease: "提高鍵盤亮度",
+        ambientSyncToggle: "讓外接顯示器跟隨內建螢幕",
+        ambientSyncCaption: "讓外接顯示器與內建亮度保持一致，並保留每台顯示器的校準差值。闔上蓋子時改為跟隨環境光感測器。",
+        calibrateOffset: "將目前亮度用作差值"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -360,6 +399,9 @@ extension BrightnessFeatureStrings {
         keyboardLightCaption: "開啟或關閉鍵盤背光。",
         keyboardBrightnessShortcuts: "使用鍵盤亮度快捷鍵",
         keyboardBrightnessDecrease: "降低鍵盤亮度",
-        keyboardBrightnessIncrease: "提高鍵盤亮度"
+        keyboardBrightnessIncrease: "提高鍵盤亮度",
+        ambientSyncToggle: "讓外接顯示器跟隨內置螢幕",
+        ambientSyncCaption: "讓外接顯示器與內置亮度保持一致，並保留每台顯示器的校準差值。闔上蓋子時改為跟隨環境光感測器。",
+        calibrateOffset: "使用當前亮度作為差值"
     )
 }

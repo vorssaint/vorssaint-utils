@@ -15627,6 +15627,82 @@ struct MetricsTests {
             symbolicHotKeys: ["53": ["enabled": true], "54": ["enabled": true]]),
                "shortcuts left switched on keep the function keys as brightness")
 
+// Ambient brightness synchronization: external displays keep a calibrated
+        // additive gap from the built-in screen as the reference level moves.
+        expectClose(AmbientBrightnessSupport.clampedTarget(reference: 0.5, offset: 0.2), 0.7,
+                    "a monitor offset to 70% when the built-in reads 50%")
+        expectClose(AmbientBrightnessSupport.clampedTarget(reference: 0.5, offset: -0.1), 0.4,
+                    "a dimmer monitor holds a below-zero gap")
+        expect(AmbientBrightnessSupport.clampedTarget(reference: 0.9, offset: 0.3) == 1.0,
+               "an offset past the top clamps to full brightness")
+        expect(AmbientBrightnessSupport.clampedTarget(reference: 0.1, offset: -0.5) == 0.0,
+               "an offset past the bottom clamps to off")
+        expect(AmbientBrightnessSupport.clampedTarget(reference: 0.0, offset: 0.0) == 0.0
+                && AmbientBrightnessSupport.clampedTarget(reference: 1.0, offset: 0.0) == 1.0,
+               "a zero offset maps the external exactly onto the reference")
+
+        expectClose(AmbientBrightnessSupport.offset(reference: 0.5, external: 0.7), 0.2,
+                    "calibration writes the gap that pinned the monitor where the user matched it")
+        expectClose(AmbientBrightnessSupport.offset(reference: 0.7, external: 0.5), -0.2,
+                    "a dimmer monitor records a negative gap")
+        expect(AmbientBrightnessSupport.offset(reference: 0.1, external: 0.99) == 0.89,
+               "calibration records the full gap without clamping against the range")
+        expect(AmbientBrightnessSupport.offset(reference: 0.5, external: 0.5) == 0.0,
+               "two screens matched by eye record a zero gap")
+
+        expect(!AmbientBrightnessSupport.shouldPropagate(previous: 0.5, current: 0.505, step: 0.02),
+               "read noise below the hysteresis step never re-derives the externals")
+        expect(AmbientBrightnessSupport.shouldPropagate(previous: 0.5, current: 0.53, step: 0.02),
+               "a reference move past the step propagates")
+        expect(!AmbientBrightnessSupport.shouldPropagate(previous: 0.5, current: 0.5, step: 0.02),
+               "an unchanged reference does nothing")
+
+        expectClose(AmbientBrightnessSupport.reference(forAmbientLevel: 500, floor: 0, ceiling: 1000), 0.5,
+                    "a raw ambient reading maps proportionally onto 0...1")
+        expect(AmbientBrightnessSupport.reference(forAmbientLevel: 0, floor: 0, ceiling: 1000) == 0.0
+                && AmbientBrightnessSupport.reference(forAmbientLevel: 2000, floor: 0, ceiling: 1000) == 1.0,
+               "mapping clamps raw readings outside the sensor range")
+        expect(AmbientBrightnessSupport.reference(forAmbientLevel: 100, floor: 100, ceiling: 100) == 0.0,
+               "a dead sensor range reads as darkness rather than dividing by zero")
+
+        expect(AmbientBrightnessSupport.sanitizedOffsets([0.2, -0.1]) == [0.2, -0.1],
+               "finite offsets survive a reload untouched")
+        expect(AmbientBrightnessSupport.sanitizedOffsets([3.0, -2.0]) == [1.0, -1.0],
+               "out-of-range offsets clamp to the legal gap before they are trusted")
+        expect(AmbientBrightnessSupport.sanitizedOffsets([Double.nan, Double.infinity, 0.5]) == [0.5],
+               "non-finite offsets are dropped, not trusted")
+
+        expect(AmbientBrightnessSupport.fingerprint(vendor: 0x10AC, model: 0xA05F, serial: 0x22) == "4268:41055:34",
+               "the per-monitor fingerprint keys offsets so one panel never follows another")
+
+        expect(AmbientBrightnessSupport.easedTransition(progress: 0) == 0.0
+                && AmbientBrightnessSupport.easedTransition(progress: 1) == 1.0,
+               "an eased transition starts at rest on the old level and settles exactly on the new one")
+        expectClose(AmbientBrightnessSupport.easedTransition(progress: 0.5), 0.5,
+                    "smoothstep passes through the midpoint halfway")
+        expect(AmbientBrightnessSupport.easedTransition(progress: 0.25) < 0.25
+                && AmbientBrightnessSupport.easedTransition(progress: 0.75) > 0.75,
+               "the easing starts and settles gently, moving fastest mid-flight")
+        expect(AmbientBrightnessSupport.easedTransition(progress: -1) == 0.0
+                && AmbientBrightnessSupport.easedTransition(progress: 2) == 1.0,
+               "progress outside 0...1 clamps rather than overshooting")
+        expectClose(AmbientBrightnessSupport.transitionedValue(from: 0.3, to: 0.7, progress: 0.5), 0.5,
+                    "midway through a transition the display sits between the levels")
+        var easedMonotonic = true
+        var previousEased = 0.0
+        for step in stride(from: 0.0, through: 1.0, by: 0.05) {
+            let eased = AmbientBrightnessSupport.easedTransition(progress: step)
+            if eased < previousEased { easedMonotonic = false }
+            previousEased = eased
+        }
+        expect(easedMonotonic, "an eased transition never moves a display backward mid-flight")
+
+        expect(AmbientBrightnessSupport.transitionedValue(from: 0.3, to: 0.7, progress: 0) == 0.3
+                && AmbientBrightnessSupport.transitionedValue(from: 0.3, to: 0.7, progress: 1) == 0.7,
+               "an animated value starts on the old level and lands exactly on the target")
+        expectClose(AmbientBrightnessSupport.transitionedValue(from: 0.3, to: 0.7, progress: 0.5), 0.5,
+                    "midway through a transition the display sits between the levels")
+
         // Pointer routing on system-routed displays (issue #268): the system
         // only ever steps its native target, so any other display the
         // pointer picks must be stepped by the app.
