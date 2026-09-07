@@ -12,14 +12,17 @@ enum FocusFollowsMouseSupport {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)
     }
 
-    /// Stop at the first visible surface, including our small and raised
-    /// panels. Only our known click-through overlays may be skipped: querying
-    /// our Accessibility tree from a worker can deadlock against the main thread.
+    /// Ask only the native mouse target's app. Visual overlays may sit above
+    /// it without receiving input. Our interactive panels still stop the scan
+    /// before any query: entering our Accessibility tree from a worker can
+    /// deadlock against the main thread.
     static func queryWindow<Result>(in windows: [[String: Any]],
                                     at point: CGPoint,
+                                    pointerWindowID: CGWindowID,
                                     ownProcessID: pid_t,
                                     clickThroughWindowIDs: Set<CGWindowID>,
                                     query: (pid_t) -> Result?) -> Result? {
+        guard pointerWindowID != kCGNullWindowID else { return nil }
         for window in windows {
             guard let bounds = WindowServerSupport.bounds(from: window),
                   bounds.contains(point),
@@ -33,6 +36,8 @@ enum FocusFollowsMouseSupport {
                       clickThroughWindowIDs.contains(windowID) else { return nil }
                 continue
             }
+            guard (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == pointerWindowID
+            else { continue }
             // The Dock, the menu bar, a banner and the desktop are not what
             // hover follows, and neither is the app behind them, since the
             // pointer is on them and not on it.

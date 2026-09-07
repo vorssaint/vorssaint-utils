@@ -3591,15 +3591,15 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.3.4",
+        expect(plistVersion == "3.3.5",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "85",
+        expect(plistBuild == "86",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
         // 3.3.3 adds several headline features, so the tour is re-curated
-        // around only what this update genuinely introduces. 3.3.4 patches
+        // around only what this update introduces. The hotfix releases patch
         // that release: whoever skipped 3.3.3 still gets its tour once, and
         // whoever already saw it does not see it again.
         expect(UpdateHighlightsInfo.releaseVersion == "3.3.3",
@@ -3618,6 +3618,12 @@ struct MetricsTests {
                && !UpdateHighlightsInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
                && !UpdateHighlightsInfo.shouldShow(appVersion: "4.0.0", lastSeenVersion: nil),
                "highlights tour never leaks into another feature release")
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.3.5", lastSeenVersion: "3.3.2"),
+               "updating directly from 3.3.2 to 3.3.5 shows the feature tour that was skipped")
+        expect(UpdateHighlightsInfo.shouldShow(appVersion: "3.3.5", lastSeenVersion: nil),
+               "3.3.5 shows the feature tour when no earlier tour was recorded")
+        expect(!UpdateHighlightsInfo.shouldShow(appVersion: "3.3.5", lastSeenVersion: "3.3.3"),
+               "a tour already seen in 3.3.3 or its hotfixes does not repeat in 3.3.5")
         expect(FileManager.default.fileExists(atPath: "Resources/Images/highlights-windowlayout.png")
                && FileManager.default.fileExists(atPath: "Resources/Images/highlights-quitprotection.png")
                && FileManager.default.fileExists(atPath: "Resources/Images/highlights-recorderblur.png"),
@@ -11020,17 +11026,24 @@ struct MetricsTests {
         let coveringWindow = MouseAppExceptionSupport.Window(frame: dockScreen, layer: 24,
                                                              processID: 4242)
         let dockPoint = CGPoint(x: 90, y: 930)
+        var dockAccessibilityLookups = 0
+        func unexpectedDockAccessibilityLookup() -> pid_t? {
+            dockAccessibilityLookups += 1
+            return 1267
+        }
         expect(DockClickSupport.dockOwnsPoint(dockPoint,
                                               windows: [dockStripWindow],
                                               dockProcessID: 1267,
                                               dockLayer: 20,
-                                              ownProcessID: 501),
+                                              ownProcessID: 501,
+                                              accessibilityHitProcessID: unexpectedDockAccessibilityLookup),
                "Dock click accepts a visible unobstructed Dock strip")
         expect(!DockClickSupport.dockOwnsPoint(dockPoint,
                                                windows: [coveringWindow, dockStripWindow],
                                                dockProcessID: 1267,
                                                dockLayer: 20,
-                                               ownProcessID: 501),
+                                               ownProcessID: 501,
+                                               accessibilityHitProcessID: { 4242 }),
                "Dock click leaves a point covered by fullscreen content untouched")
         expect(DockClickSupport.dockOwnsPoint(
             dockPoint,
@@ -11038,8 +11051,47 @@ struct MetricsTests {
                                                        processID: 501), dockStripWindow],
             dockProcessID: 1267,
             dockLayer: 20,
-            ownProcessID: 501),
+            ownProcessID: 501,
+            accessibilityHitProcessID: unexpectedDockAccessibilityLookup),
                "this app's own panel never hides the Dock below it from the ownership check")
+        // A screen recording overlay reports a full-display, opaque layer-24
+        // window even while Accessibility reaches the Dock underneath it.
+        // Its window-server geometry is identical to real fullscreen content.
+        expect(DockClickSupport.dockOwnsPoint(
+            dockPoint, windows: [coveringWindow, dockStripWindow],
+            dockProcessID: 1267, dockLayer: 20, ownProcessID: 501,
+            accessibilityHitProcessID: { 1267 }),
+               "Dock actions and previews work through an input-transparent recording overlay")
+        expect(!DockClickSupport.dockOwnsPoint(
+            dockPoint, windows: [coveringWindow, dockStripWindow],
+            dockProcessID: 1267, dockLayer: 20, ownProcessID: 501,
+            accessibilityHitProcessID: { nil }),
+               "an unavailable Accessibility answer cannot allow actions through a covering window")
+        expect(!DockClickSupport.dockOwnsPoint(
+            dockPoint, windows: [coveringWindow],
+            dockProcessID: 1267, dockLayer: 20, ownProcessID: 501,
+            accessibilityHitProcessID: unexpectedDockAccessibilityLookup),
+               "a hidden Dock never accepts a click through the parked icon layout")
+        expect(!DockClickSupport.dockOwnsPoint(
+            CGPoint(x: dockScreen.maxX + 100, y: dockPoint.y),
+            windows: [coveringWindow, dockStripWindow],
+            dockProcessID: 1267, dockLayer: 20, ownProcessID: 501,
+            accessibilityHitProcessID: unexpectedDockAccessibilityLookup),
+               "the Dock on another display does not accept a pointer outside its visible bounds")
+        expect(DockClickSupport.dockOwnsPoint(
+            dockPoint, windows: [dockStripWindow, coveringWindow],
+            dockProcessID: 1267, dockLayer: 20, ownProcessID: 501,
+            accessibilityHitProcessID: unexpectedDockAccessibilityLookup),
+               "a window behind the Dock cannot block it")
+        expect(DockClickSupport.dockOwnsPoint(
+            dockPoint,
+            windows: [MouseAppExceptionSupport.Window(frame: dockScreen, layer: 24,
+                                                       alpha: 0, processID: 4242), dockStripWindow],
+            dockProcessID: 1267, dockLayer: 20, ownProcessID: 501,
+            accessibilityHitProcessID: unexpectedDockAccessibilityLookup),
+               "an invisible window does not trigger an Accessibility lookup")
+        expect(dockAccessibilityLookups == 0,
+               "Dock ownership only asks Accessibility for an overlapping window above a visible Dock")
         expect(DockPreviewSupport.mouseMoveSampleInterval > 0
                && DockPreviewSupport.mouseMoveSampleInterval <= 1.0 / 60
                && DockPreviewSupport.mouseMoveSampleInterval < DockPreviewSupport.switchDelay,
@@ -11104,11 +11156,13 @@ struct MetricsTests {
         let ownFocusWindow = windowServerEntry(focusHitFrame, pid: 501, number: 12)
         var focusQueryPIDs: [pid_t] = []
         func queryFocusWindow(_ windows: [[String: Any]],
+                              pointerWindowID: CGWindowID = 11,
                               clickThroughWindowIDs: Set<CGWindowID> = [],
                               querySucceeds: Bool = true) -> pid_t? {
             focusQueryPIDs.removeAll()
             return FocusFollowsMouseSupport.queryWindow(
-                in: windows, at: focusHitPoint, ownProcessID: 501,
+                in: windows, at: focusHitPoint, pointerWindowID: pointerWindowID,
+                ownProcessID: 501,
                 clickThroughWindowIDs: clickThroughWindowIDs
             ) { pid in
                 focusQueryPIDs.append(pid)
@@ -11169,6 +11223,29 @@ struct MetricsTests {
                 && focusQueryPIDs == [1001],
                "the click-through allowlist never skips another app's surface")
         let secondForeignWindow = windowServerEntry(focusHitFrame, pid: 1002, number: 16)
+        var recordingOverlay = windowServerEntry(focusHitFrame, pid: 1003, number: 17)
+        recordingOverlay[kCGWindowLayer as String] = NSNumber(value: 24)
+        expect(queryFocusWindow([recordingOverlay, foreignFocusWindow]) == 1001
+                && focusQueryPIDs == [1001],
+               "hover follows the native mouse target through a recording overlay without querying the overlay")
+        expect(queryFocusWindow([recordingOverlay, foreignFocusWindow], pointerWindowID: 17) == nil
+                && focusQueryPIDs.isEmpty,
+               "a recording overlay that actually receives input still blocks hover")
+        expect(queryFocusWindow([foreignFocusWindow, secondForeignWindow], pointerWindowID: 16) == 1002
+                && focusQueryPIDs == [1002],
+               "an input-transparent ordinary window does not obscure the native target either")
+        expect(queryFocusWindow([foreignFocusWindow], pointerWindowID: 0) == nil
+                && focusQueryPIDs.isEmpty,
+               "an unavailable native target never falls back to visual window order")
+        expect(queryFocusWindow([foreignFocusWindow], pointerWindowID: 16) == nil
+                && focusQueryPIDs.isEmpty,
+               "a native target missing from the current window list never selects another window")
+        expect(queryFocusWindow([ownFocusWindow, foreignFocusWindow], pointerWindowID: 12) == nil
+                && focusQueryPIDs.isEmpty,
+               "a native target owned by this app is never queried through Accessibility")
+        expect(queryFocusWindow([ownFocusWindow, foreignFocusWindow], pointerWindowID: 12,
+                                clickThroughWindowIDs: [12]) == nil && focusQueryPIDs.isEmpty,
+               "a mismatched native target and own overlay list never redirects focus behind it")
         expect(queryFocusWindow([foreignFocusWindow, secondForeignWindow], querySucceeds: false) == nil
                 && focusQueryPIDs == [1001],
                "an unanswered scoped query never falls through to another app")
@@ -23268,6 +23345,7 @@ struct MetricsTests {
         expect(appliedPreset.backdrop == "style" && appliedPreset.zoomAmount == 2.4
                 && appliedPreset.texts.count == 2,
                "an editor preset changes the look without touching timeline edits")
+        RecorderPresetImageStoreTests.run { expect($0, $1) }
 
         // MARK: Screen recorder motion
 

@@ -169,26 +169,36 @@ final class DockClickService {
             return Unmanaged.passUnretained(event)
         }
 
+        // Accessibility gone (e.g. reset): an AX hit-test would hang inside
+        // the tap and freeze clicks, so let the click through untouched.
+        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+
         // The edge band exists on every display and with auto-hide even while
         // the Dock is off screen, but the AX item frames below keep reporting
         // the parked layout and only match along the Dock's long axis — a
         // click near the edge of a Dock-less display whose long-axis
         // coordinate lines up with an icon would minimize or restore apps out
         // of thin air. Only clicks inside the Dock strip that is actually on
-        // screen, with nothing drawn over it, can mean an icon.
+        // screen and reachable by the pointer can mean an icon.
         guard let dockPID = dockProcessID(),
               DockClickSupport.dockOwnsPoint(
                 point,
                 windows: WindowServerSupport.onScreenWindows(),
                 dockProcessID: dockPID,
                 dockLayer: Int(CGWindowLevelForKey(.dockWindow)),
-                ownProcessID: getpid()) else {
+                ownProcessID: getpid(),
+                accessibilityHitProcessID: {
+                    var element: AXUIElement?
+                    guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(),
+                                                           Float(point.x), Float(point.y),
+                                                           &element) == .success,
+                          let element else { return nil }
+                    var pid: pid_t = 0
+                    guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+                    return pid
+                }) else {
             return Unmanaged.passUnretained(event)
         }
-
-        // Accessibility gone (e.g. reset): the AX hit-test below would hang
-        // inside the tap and freeze clicks, so let the click through untouched.
-        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
 
         let hit = dockApplication(at: point)
         guard let app = hit,

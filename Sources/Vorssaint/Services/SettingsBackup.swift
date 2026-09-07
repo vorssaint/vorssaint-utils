@@ -75,6 +75,7 @@ enum SettingsBackup {
     static func applyAndRelaunch(settings: [String: Any]) {
         ScratchpadService.shared.prepareForSettingsRestore()
         let defaults = UserDefaults.standard
+        let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
         // A backup carries only the portable half of an exception list: the
         // path of a program that is not an app is authority on one Mac and is
         // filtered out on export (issue #1009). The clear below covers every
@@ -90,6 +91,10 @@ enum SettingsBackup {
         }
         for (key, value) in settings {
             defaults.set(value, forKey: key)
+        }
+        if let restored = settings[DefaultsKey.recorderEditorPresets] as? Data {
+            defaults.set(SettingsBackupSupport.preservingLocalPresetImages(
+                restored: restored, local: localRecorderPresets), forKey: DefaultsKey.recorderEditorPresets)
         }
         for (key, paths) in carried where !paths.isEmpty {
             defaults.set(SettingsBackupSupport.restoredExceptionList(

@@ -198,6 +198,7 @@ struct RecorderEditorView: View {
                 }
         }
         .menuStyle(.borderlessButton)
+        .disabled(model.isUpdatingPreset)
         .fixedSize()
     }
 

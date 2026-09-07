@@ -98,14 +98,20 @@ final class RecorderTakeStore: @unchecked Sendable {
     /// Keep one independent file for both preview and export. Its folder lives
     /// until the take closes, including while undo can still restore the image.
     func importImage(at sourceURL: URL, into take: Take) -> URL? {
+        copyImage(at: sourceURL, into: take.folder)
+    }
+
+    /// The same private image copy is used by recordings and saved presets.
+    /// The destination must already exist, so a closed recording stays closed.
+    func copyImage(at sourceURL: URL, into directory: URL) -> URL? {
         guard let values = try? sourceURL.resourceValues(
             forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
               values.isRegularFile == true, values.isSymbolicLink != true,
               let fileSize = values.fileSize,
-              Self.canImport(fileSize: Int64(fileSize), availableBytes: freeBytes(at: take.folder))
+              Self.canImport(fileSize: Int64(fileSize), availableBytes: freeBytes(at: directory))
         else { return nil }
 
-        let folder = take.folder.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let folder = directory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         let destination = folder.appendingPathComponent(sourceURL.lastPathComponent)
         do {
             // Never recreate a take that closed while this import was queued.

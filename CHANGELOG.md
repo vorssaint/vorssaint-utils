@@ -4,12 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [3.3.4] - 2026-09-06
+## [Unreleased]
+
+## [3.3.5] - 2026-09-06
 
 ### Summary
-Hotfix update for the CPU temperature reading and the menu bar icon. Everything from the previous release is included and listed further down.
+Hotfix update for Dock actions, window focus, video presets, temperature readings and the menu bar icon. Extra brightness can now be toggled from the Displays panel, and the full feature update is included below.
+
+### Changed
+- Extra brightness can be switched on and off directly from the Displays panel.
 
 ### Fixed
+- Dock previews and click actions work while recording the screen or using overlays that let pointer input pass through.
+- Focus follows mouse keeps working through recording overlays while respecting windows that actually receive input.
+- Video editor presets restore added images with their position, size and opacity for the whole video, independently of the original recording.
 - CPU temperature readings are back on Macs where the System panel had stopped showing them.
 - The menu bar icon stays visible after updating and keeps the spot you arranged.
 
