@@ -336,7 +336,9 @@ private struct DictationHistoryDetails: View {
                 row("Provedor", entry.provider == .openAI ? "OpenAI" : "Groq")
                 row("Modelo", entry.model.id)
                 row("Idioma", entry.language.displayName)
-                row("Transcrição", entry.processingDuration.map { String(format: "%.1f s", $0) } ?? "Não disponível")
+                row("Transcrição", entry.processingDuration.map {
+                    String(format: "%.1f s", locale: .current, $0)
+                } ?? "Não disponível")
             }
             HStack { Spacer(); Button("Concluído") { dismiss() } }
         }
