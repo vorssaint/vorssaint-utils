@@ -80,6 +80,7 @@ struct CalendarPopoverView: View {
 }
 
 private struct CalendarMonthView: View {
+    @ObservedObject private var l10n = L10n.shared
     @Binding var month: Date
     @Binding var selectedDay: Date
     let events: [EKEvent]
@@ -90,8 +91,18 @@ private struct CalendarMonthView: View {
     let showAdjacentMonthDays: Bool
     let eventDots: CalendarEventDots
     let showDeclinedEvents: Bool
-    private let calendar = Calendar.autoupdatingCurrent
-    private let formatter: DateFormatter = { let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMMM yyyy"); return f }()
+    private var calendar: Calendar {
+        var calendar = Calendar.autoupdatingCurrent
+        calendar.locale = l10n.language.locale
+        return calendar
+    }
+
+    private var formatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = l10n.language.locale
+        formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
+        return formatter
+    }
 
     var body: some View {
         VStack(spacing: 5) {

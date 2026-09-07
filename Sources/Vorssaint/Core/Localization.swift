@@ -28,6 +28,10 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     /// so "2 файла" and not "2 файлов".
     var usesFewCountForm: Bool { self == .ru }
 
+    /// The locale used by date, time, and number formatters when the person
+    /// chooses an in-app language that differs from the system language.
+    var locale: Locale { Locale(identifier: rawValue) }
+
     /// The language's own name, shown in its own script, the way macOS lists them.
     var displayName: String {
         switch self {

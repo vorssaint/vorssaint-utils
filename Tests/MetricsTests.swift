@@ -26016,6 +26016,8 @@ struct MetricsTests {
                 && calendarPopoverSource.contains("strings.allDay")
                 && calendarPopoverSource.contains("strings.join")
                 && calendarPopoverSource.contains("strings.duration")
+                && calendarPopoverSource.contains("calendar.locale = l10n.language.locale")
+                && calendarPopoverSource.contains("formatter.locale = l10n.language.locale")
                 && calendarServiceSource.contains("autosaveName")
                 && calendarInfoPrompt.localizedCaseInsensitiveContains("create events"),
                "Calendar routes popover copy, preserves status-item placement, and declares write access")
