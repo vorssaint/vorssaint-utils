@@ -3,12 +3,15 @@
 
 import SwiftUI
 
-/// Reusable controls for screenshot tool order and number assignments.
+/// Reusable controls for screenshot tool order and shortcut assignments.
 struct ScreenshotToolOrderControls: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var orderRaw: String
     @Binding var shortcutsEnabled: Bool
     var showsTitle = true
+    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
+    @State private var recordingTool: ScreenshotSupport.Tool?
+    @State private var errorText: String?
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -44,22 +47,29 @@ struct ScreenshotToolOrderControls: View {
                 }
             }
 
+            Text(errorText ?? (recordingTool == nil ? " "
+                : ShortcutRecordingCaption.text(l10n.s, canClear: true)))
+                .font(.caption)
+                .foregroundStyle(errorText == nil ? Color.secondary : .orange)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, minHeight: 32, alignment: .topLeading)
+                .accessibilityHidden(errorText == nil && recordingTool == nil)
+
             HStack {
                 Spacer()
                 Button(l10n.s.shortcutReset) {
                     orderRaw = ScreenshotSupport.Tool.defaultOrderStorage
+                    bindingsRaw = ""
+                    errorText = nil
                 }
-                .disabled(orderRaw == ScreenshotSupport.Tool.defaultOrderStorage)
+                .disabled(orderRaw == ScreenshotSupport.Tool.defaultOrderStorage && bindingsRaw.isEmpty)
             }
         }
+        .onChange(of: l10n.language) { _, _ in errorText = nil }
     }
 
     private func toolRow(_ tool: ScreenshotSupport.Tool) -> some View {
         let index = orderedTools.firstIndex(of: tool) ?? 0
-        let assignedNumber = ScreenshotSupport.Tool.shortcutNumber(
-            for: tool,
-            orderRaw: orderRaw,
-            enabled: true)
 
         return HStack(spacing: 7) {
             Image(systemName: tool.screenshotSymbolName)
@@ -69,7 +79,30 @@ struct ScreenshotToolOrderControls: View {
                 .lineLimit(1)
             Spacer(minLength: 4)
 
-            shortcutMenu(for: tool, assignedNumber: assignedNumber)
+            Group {
+                if ScreenshotSupport.Tool.bindings(from: bindingsRaw)[tool] != nil {
+                    Button {
+                        var bindings = ScreenshotSupport.Tool.bindings(from: bindingsRaw)
+                        bindings[tool] = nil
+                        bindingsRaw = ScreenshotSupport.Tool.bindingsStorage(bindings)
+                        errorText = nil
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 20, height: 22)
+                            .background(Color.primary.opacity(0.045),
+                                        in: RoundedRectangle(cornerRadius: 6))
+                    }
+                    .buttonStyle(.plain)
+                    .help(l10n.s.shortcutReset)
+                    .accessibilityLabel(tool.screenshotTitle(strings) + ": " + l10n.s.shortcutReset)
+                } else {
+                    Color.clear.frame(width: 20, height: 22)
+                }
+            }
+
+            shortcutRecorder(for: tool)
                 .opacity(shortcutsEnabled ? 1 : 0.48)
 
             Button {
@@ -96,44 +129,28 @@ struct ScreenshotToolOrderControls: View {
         .contentShape(Rectangle())
     }
 
-    private func shortcutMenu(for tool: ScreenshotSupport.Tool,
-                              assignedNumber: Int?) -> some View {
-        Menu {
-            Button {
-                assign(nil, to: tool)
-            } label: {
-                if assignedNumber == nil {
-                    Label(l10n.s.shortcutNone, systemImage: "checkmark")
-                } else {
-                    Text(l10n.s.shortcutNone)
-                }
-            }
-            Divider()
-            ForEach(1...ScreenshotSupport.Tool.shortcutLimit, id: \.self) { number in
-                Button {
-                    assign(number, to: tool)
-                } label: {
-                    if assignedNumber == number {
-                        Label("\(number)", systemImage: "checkmark")
-                    } else {
-                        Text("\(number)")
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Text(assignedNumber.map(String.init) ?? l10n.s.shortcutNone)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 7, weight: .semibold))
-            }
-            .frame(width: 62, height: 22)
-            .background(.quaternary,
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
+    private func shortcutRecorder(for tool: ScreenshotSupport.Tool) -> some View {
+        let shortcut = ScreenshotSupport.Tool.effectiveShortcut(
+            for: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw, enabled: true)
+        let binding = ScreenshotSupport.Tool.bindings(from: bindingsRaw)[tool]
+        let numberTitle = ScreenshotSupport.Tool.shortcutNumber(
+            for: tool, orderRaw: orderRaw, enabled: shortcut != nil).map(String.init)
+        return ShortcutRecorderButton(
+            shortcut: shortcut ?? .keepAwakeDefault,
+            isEnabled: true,
+            waitingTitle: l10n.s.shortcutPressKeys,
+            requiresModifier: false,
+            emptyTitle: binding == nil ? (numberTitle ?? l10n.s.shortcutNone) : nil,
+            clearAction: { assign(nil, to: tool) },
+            notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
+            recordingChanged: { recording in
+                recordingTool = recording ? tool : nil
+                if recording { errorText = nil }
+            },
+            invalidAction: { errorText = l10n.s.shortcutNotCaptured },
+            captureAction: { assign($0, to: tool) })
+            .frame(width: 86)
+            .accessibilityLabel(tool.screenshotTitle(strings))
     }
 
     private func move(_ tool: ScreenshotSupport.Tool, by offset: Int) {
@@ -147,13 +164,30 @@ struct ScreenshotToolOrderControls: View {
         }
     }
 
-    private func assign(_ number: Int?, to tool: ScreenshotSupport.Tool) {
-        withAnimation(.easeInOut(duration: 0.14)) {
-            persist(ScreenshotSupport.Tool.assigningShortcut(
-                number,
-                to: tool,
-                orderRaw: orderRaw))
+    private func assign(_ shortcut: GlobalShortcut?, to tool: ScreenshotSupport.Tool) {
+        let digit = shortcut.flatMap { shortcut in
+            shortcut.modifiers.isEmpty ? Int(shortcut.displayString) : nil
+        }.flatMap { (1...ScreenshotSupport.Tool.shortcutLimit).contains($0) ? $0 : nil }
+        if let shortcut {
+            let reason: String?
+            if ScreenshotSupport.Tool.isReservedEditorKey(shortcut) {
+                reason = strings.toolShortcutReserved
+            } else if digit == nil, let conflict = ScreenshotSupport.Tool.bindingConflict(
+                for: shortcut, excluding: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw) {
+                reason = String(format: l10n.s.shortcutConflictFormat, conflict.screenshotTitle(strings))
+            } else {
+                reason = nil
+            }
+            if let reason {
+                errorText = tool.screenshotTitle(strings) + " · " + shortcut.displayString + "\n" + reason
+                return
+            }
         }
+        let assignment = ScreenshotSupport.Tool.assigningBinding(
+            shortcut, digit: digit, to: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw)
+        orderRaw = assignment.orderRaw
+        bindingsRaw = assignment.bindingsRaw
+        errorText = nil
     }
 
     private func persist(_ order: [ScreenshotSupport.Tool]) {

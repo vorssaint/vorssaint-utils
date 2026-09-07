@@ -12,6 +12,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     /// sentence explaining what to do lives in the caption under the row, so
     /// the field never has to grow to fit it.
     let waitingTitle: String
+    var requiresModifier = true
     /// When set, the button shows this instead of the shortcut, meaning "no
     /// shortcut assigned"; clicking still records a new one.
     var emptyTitle: String? = nil
@@ -66,6 +67,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     }
 
     private func apply(to button: RecorderButton) {
+        button.requiresModifier = requiresModifier
         button.shortcut = shortcut
         button.waitingTitle = waitingTitle
         button.emptyTitle = emptyTitle
@@ -80,6 +82,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
 }
 
 final class RecorderButton: NSButton {
+    var requiresModifier = true
     var shortcut = GlobalShortcut.keepAwakeDefault
     var waitingTitle = ""
     var emptyTitle: String?
@@ -222,7 +225,7 @@ final class RecorderButton: NSButton {
             return
         }
         let captured = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
-        guard captured.isValid else {
+        guard requiresModifier ? captured.isValid : captured.hasPrintableKey else {
             NSSound.beep()
             invalidAction?()
             return

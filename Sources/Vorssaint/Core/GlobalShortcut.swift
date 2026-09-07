@@ -89,6 +89,10 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     init?(storageValue: String) {
+        self.init(storageValue: storageValue, requiringModifier: true)
+    }
+
+    init?(storageValue: String, requiringModifier: Bool) {
         guard let separator = storageValue.firstIndex(of: ":"),
               let keyCode = Int64(storageValue[storageValue.index(after: separator)...])
         else { return nil }
@@ -103,7 +107,7 @@ struct GlobalShortcut: Equatable, Hashable {
             }
         }
         self.init(keyCode: keyCode, modifiers: modifiers)
-        guard isValid else { return nil }
+        guard requiringModifier ? isValid : hasPrintableKey else { return nil }
     }
 
     /// Delete on its own means "take the shortcut off" while a shortcut field
@@ -241,8 +245,10 @@ struct GlobalShortcut: Equatable, Hashable {
 
     var hasUsableKeyCode: Bool { Self.keyCodeRange.contains(keyCode) }
 
+    var hasPrintableKey: Bool { hasUsableKeyCode && keyLabel != nil }
+
     var isValid: Bool {
-        hasUsableKeyCode && keyLabel != nil
+        hasPrintableKey
             && (modifiers.hasPrimaryModifier || Self.standaloneFunctionKeys.contains(keyCode))
     }
 

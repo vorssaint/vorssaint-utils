@@ -23,6 +23,7 @@ struct ScreenshotEditorView: View {
     @State private var sharedRecord: ScreenshotShareRecord?
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
+    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
@@ -610,36 +611,41 @@ struct ScreenshotEditorView: View {
     private func railButton(_ tool: ScreenshotSupport.Tool) -> some View {
         let isActive = model.tool == tool
         let isHovered = hoveredTool == tool
-        let shortcutNumber = ScreenshotSupport.Tool.shortcutNumber(
-            for: tool,
-            orderRaw: toolOrderRaw,
-            enabled: toolShortcutsEnabled)
+        let shortcut = ScreenshotSupport.Tool.effectiveShortcut(
+            for: tool, orderRaw: toolOrderRaw, bindingsRaw: bindingsRaw, enabled: toolShortcutsEnabled)
+        let binding = ScreenshotSupport.Tool.bindings(from: bindingsRaw)[tool]
+        let shortcutLabel = shortcut.map { shortcut in
+            binding != nil ? shortcut.displayString
+                : ScreenshotSupport.Tool.shortcutNumber(for: tool, orderRaw: toolOrderRaw,
+                                                       enabled: true).map(String.init) ?? ""
+        }
         return Button {
             commitEditingTextIfNeeded()
             model.tool = tool
         } label: {
-            Image(systemName: tool.screenshotSymbolName)
-                .font(.system(size: 13.5, weight: .medium))
-                .symbolEffect(.bounce, value: isActive)
-                .frame(width: 33, height: 29)
-                .background(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(isActive
-                                ? Color.accentColor.opacity(0.22)
-                                : isHovered ? Color.primary.opacity(0.08) : .clear)
-                )
-                .foregroundStyle(isActive ? Color.accentColor : Color.primary.opacity(0.85))
-                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                .scaleEffect(isHovered && !isActive ? 1.06 : 1)
-                .overlay(alignment: .topTrailing) {
-                    if let shortcutNumber {
-                        Text("\(shortcutNumber)")
-                            .font(.system(size: 8, weight: .bold, design: .rounded))
-                            .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
-                            .padding(2)
-                            .opacity(isHovered || isActive ? 0.9 : 0)
-                    }
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: tool.screenshotSymbolName)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .symbolEffect(.bounce, value: isActive)
+                    .frame(width: 33, height: 29)
+                if let shortcutLabel {
+                    Text(shortcutLabel)
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .fixedSize()
+                        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                        .padding(2)
+                        .opacity(isHovered || isActive ? 0.9 : 0)
                 }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isActive
+                            ? Color.accentColor.opacity(0.22)
+                            : isHovered ? Color.primary.opacity(0.08) : .clear)
+            )
+            .foregroundStyle(isActive ? Color.accentColor : Color.primary.opacity(0.85))
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .scaleEffect(isHovered && !isActive ? 1.06 : 1)
         }
         .buttonStyle(.borderless)
         .onHover { inside in
@@ -648,8 +654,9 @@ struct ScreenshotEditorView: View {
             }
         }
         .screenshotSafeHelp(tool.screenshotTitle(strings)
-            + (shortcutNumber.map { "  (\($0))" } ?? ""))
-        .accessibilityLabel(tool.screenshotTitle(strings))
+            + (shortcutLabel.map { "  (\($0))" } ?? ""))
+        .accessibilityLabel(tool.screenshotTitle(strings)
+            + (shortcutLabel.map { "  (\($0))" } ?? ""))
     }
 
     // MARK: - QR code (shown only when the capture holds one)

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -1194,6 +1195,92 @@ enum ScreenshotSupport {
                   index < shortcutLimit
             else { return nil }
             return index + 1
+        }
+
+        static func bindings(from raw: String?) -> [Tool: GlobalShortcut] {
+            var result: [Tool: GlobalShortcut] = [:]
+            for entry in (raw ?? "").split(separator: ",") {
+                let pair = entry.split(separator: "=", maxSplits: 1)
+                guard pair.count == 2, let tool = Tool(rawValue: String(pair[0])),
+                      let shortcut = GlobalShortcut(storageValue: String(pair[1]), requiringModifier: false),
+                      !isReservedEditorKey(shortcut) else { continue }
+                result[tool] = shortcut
+            }
+            // Edited backups can contain duplicate bindings. Keep one owner,
+            // in rail-default order, so routing and the displayed keys agree.
+            var seen = Set<GlobalShortcut>()
+            for tool in allCases {
+                if let shortcut = result[tool], !seen.insert(shortcut).inserted {
+                    result[tool] = nil
+                }
+            }
+            return result
+        }
+
+        static func bindingsStorage(_ bindings: [Tool: GlobalShortcut]) -> String {
+            allCases.compactMap { tool in
+                bindings[tool].map { "\(tool.rawValue)=\($0.storageValue)" }
+            }.joined(separator: ",")
+        }
+
+        static func isReservedEditorKey(_ shortcut: GlobalShortcut) -> Bool {
+            let key = Int(shortcut.keyCode)
+            if shortcut.modifiers.contains(.command) {
+                // The editor's Command branch also accepts extra modifiers.
+                return [kVK_ANSI_C, kVK_ANSI_S, kVK_ANSI_Z, kVK_ANSI_P,
+                        kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_Equal, kVK_ANSI_Minus,
+                        kVK_Delete, kVK_ForwardDelete, kVK_ANSI_W, kVK_ANSI_Q].contains(key)
+            }
+            return !shortcut.modifiers.hasPrimaryModifier
+                && [kVK_Escape, kVK_Return, kVK_ANSI_KeypadEnter,
+                    kVK_Delete, kVK_ForwardDelete].contains(key)
+        }
+
+        static func shortcutTool(keyCode: Int64, modifiers: GlobalShortcutModifiers,
+                                 number: Int? = nil, orderRaw: String?,
+                                 bindingsRaw: String?, enabled: Bool) -> Tool? {
+            guard enabled else { return nil }
+            let bindings = bindings(from: bindingsRaw)
+            let shortcut = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
+            if let tool = allCases.first(where: { bindings[$0] == shortcut }) { return tool }
+            guard !modifiers.hasPrimaryModifier, let number,
+                  let tool = shortcutTool(number: number, orderRaw: orderRaw, enabled: true),
+                  bindings[tool] == nil else { return nil }
+            return tool
+        }
+
+        static func effectiveShortcut(for tool: Tool, orderRaw: String?,
+                                      bindingsRaw: String?, enabled: Bool) -> GlobalShortcut? {
+            guard enabled else { return nil }
+            let bindings = bindings(from: bindingsRaw)
+            if let shortcut = bindings[tool] { return shortcut }
+            guard let number = shortcutNumber(for: tool, orderRaw: orderRaw, enabled: true)
+            else { return nil }
+            let codes = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
+                         kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
+            let shortcut = GlobalShortcut(keyCode: Int64(codes[number - 1]), modifiers: [])
+            return bindings.values.contains(shortcut) ? nil : shortcut
+        }
+
+        static func bindingConflict(for shortcut: GlobalShortcut, excluding tool: Tool,
+                                    orderRaw: String?, bindingsRaw: String?) -> Tool? {
+            allCases.first { other in
+                other != tool && effectiveShortcut(for: other, orderRaw: orderRaw,
+                    bindingsRaw: bindingsRaw, enabled: true) == shortcut
+            }
+        }
+
+        /// A recorded digit moves the tool; clearing moves it below the first
+        /// nine. Other bindings stay attached to their tools through reorders.
+        static func assigningBinding(_ shortcut: GlobalShortcut?, digit: Int? = nil,
+                                     to tool: Tool, orderRaw: String?, bindingsRaw: String?)
+            -> (orderRaw: String, bindingsRaw: String) {
+            var bindings = bindings(from: bindingsRaw)
+            bindings[tool] = digit == nil ? shortcut : nil
+            let order = shortcut == nil || digit != nil
+                ? assigningShortcut(digit, to: tool, orderRaw: orderRaw)
+                : ordered(from: orderRaw)
+            return (order.map(\.rawValue).joined(separator: ","), bindingsStorage(bindings))
         }
 
         /// Assigning a number is the same operation as moving the tool into

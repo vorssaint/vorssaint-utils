@@ -570,6 +570,7 @@ enum DefaultsKey {
     static let screenshotLastSticker = "screenshotLastSticker"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
+    static let screenshotToolShortcuts = "screenshotToolShortcuts"
     static let screenshotToolShortcutsEnabled = "screenshotToolShortcutsEnabled"
     static let screenshotBackdropStyle = "screenshotBackdropStyle"
     static let screenshotBackdropPresets = "screenshotBackdropPresets"
@@ -1343,6 +1344,7 @@ enum Defaults {
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
         DefaultsKey.screenshotToolShortcutsEnabled: true,
+        DefaultsKey.screenshotToolShortcuts: "",
         DefaultsKey.screenshotBackdropStyle: "",
         DefaultsKey.screenshotBackdropPresets: "[]",
         DefaultsKey.screenshotOpenEditorDirectly: false,
