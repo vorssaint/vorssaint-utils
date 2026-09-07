@@ -98,28 +98,12 @@ enum MouseButtonDesktopAction {
     case spaceLeft
     case spaceRight
 
-    private enum SymbolicHotKey: UInt32 {
-        case spaceLeft = 79
-        case spaceRight = 81
-    }
-
     private typealias DockNotification = @convention(c) (CFString, Int32) -> Int32
-    private typealias GetSymbolicHotKey = @convention(c) (
-        UInt32,
-        UnsafeMutablePointer<UInt16>,
-        UnsafeMutablePointer<UInt16>,
-        UnsafeMutablePointer<UInt32>
-    ) -> Int32
-    private typealias IsSymbolicHotKeyEnabled = @convention(c) (UInt32) -> Bool
-    private typealias SetSymbolicHotKeyEnabled = @convention(c) (UInt32, Bool) -> Int32
 
     private static let applicationServicesHandle = dlopen(
         "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices", RTLD_LAZY)
 
     private static let sendDockNotification: DockNotification? = symbol("CoreDockSendNotification")
-    private static let getSymbolicHotKey: GetSymbolicHotKey? = symbol("CGSGetSymbolicHotKeyValue")
-    private static let isSymbolicHotKeyEnabled: IsSymbolicHotKeyEnabled? = symbol("CGSIsSymbolicHotKeyEnabled")
-    private static let setSymbolicHotKeyEnabled: SetSymbolicHotKeyEnabled? = symbol("CGSSetSymbolicHotKeyEnabled")
 
     static func perform(_ action: MouseButtonDesktopAction) {
         switch action {
@@ -132,64 +116,18 @@ enum MouseButtonDesktopAction {
         case .showDesktop:
             _ = sendDockNotification?("com.apple.showdesktop.awake" as CFString, 0)
         case .spaceLeft:
-            postSymbolicHotKey(.spaceLeft)
+            pressSpaceShortcut(.left)
         case .spaceRight:
-            postSymbolicHotKey(.spaceRight)
+            pressSpaceShortcut(.right)
         }
     }
 
-    private static func postSymbolicHotKey(_ hotKey: SymbolicHotKey) {
-        guard let getSymbolicHotKey else { return }
-        var keyEquivalent: UInt16 = 0
-        var keyCode: UInt16 = 0
-        var rawFlags: UInt32 = 0
-        guard getSymbolicHotKey(hotKey.rawValue, &keyEquivalent, &keyCode, &rawFlags) == 0 else { return }
-
-        let wasEnabled = isSymbolicHotKeyEnabled?(hotKey.rawValue) ?? true
-        if !wasEnabled {
-            _ = setSymbolicHotKeyEnabled?(hotKey.rawValue, true)
-        }
-        postKey(CGKeyCode(keyCode), flags: CGEventFlags(rawValue: UInt64(rawFlags)))
-
-        // The WindowServer consumes posted events before this main-loop turn
-        // completes. Restoring an intentionally disabled hot key on the next
-        // turn therefore preserves the user's preference without racing it.
-        if !wasEnabled {
-            DispatchQueue.main.async {
-                _ = setSymbolicHotKeyEnabled?(hotKey.rawValue, false)
-            }
-        }
-    }
-
-    private static func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags) {
-        let modifierKeyCodes: [(CGEventFlags, CGKeyCode)] = [
-            (.maskShift, 0x38),
-            (.maskControl, 0x3B),
-            (.maskAlternate, 0x3A),
-            (.maskCommand, 0x37)
-        ]
-        let activeModifiers = modifierKeyCodes.filter { flags.contains($0.0) }
-        var accumulated = CGEventFlags()
-        for (flag, modifierKeyCode) in activeModifiers {
-            accumulated.insert(flag)
-            guard let event = CGEvent(keyboardEventSource: nil, virtualKey: modifierKeyCode, keyDown: true) else { continue }
-            event.type = .flagsChanged
-            event.flags = accumulated
-            event.post(tap: .cgSessionEventTap)
-        }
-        guard let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
-              let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else { return }
-        down.flags = flags
-        up.flags = flags
-        down.post(tap: .cgSessionEventTap)
-        up.post(tap: .cgSessionEventTap)
-        for (flag, modifierKeyCode) in activeModifiers.reversed() {
-            accumulated.remove(flag)
-            guard let event = CGEvent(keyboardEventSource: nil, virtualKey: modifierKeyCode, keyDown: false) else { continue }
-            event.type = .flagsChanged
-            event.flags = accumulated
-            event.post(tap: .cgSessionEventTap)
-        }
+    /// Reuse the project's WindowServer wrapper so custom Spaces shortcuts
+    /// and a deliberately disabled system shortcut keep their existing
+    /// semantics.
+    private static func pressSpaceShortcut(_ direction: SpaceWindowBridge.SpaceDirection) {
+        guard let shortcut = SpaceWindowBridge.spaceShortcut(direction) else { return }
+        SpaceWindowBridge.pressSpaceShortcut(shortcut)
     }
 
     private static func symbol<T>(_ name: String) -> T? {

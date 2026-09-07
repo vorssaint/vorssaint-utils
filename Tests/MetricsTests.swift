@@ -15343,7 +15343,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.mouseButtons(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 32 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 57 && values.allSatisfy { !$0.isEmpty },
                    "every mouse button string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible mouse button strings (\(language.rawValue))")
@@ -19781,7 +19781,7 @@ struct MetricsTests {
         var callSitesMissingShortcutSwitch: [String] = []
         for (index, line) in spacesServiceLines.enumerated()
         where isCodeLine(line)
-            && line.contains("guard let shortcut = MouseButtonShortcutSupport.firesShortcut(") {
+            && line.contains("guard let action = MouseButtonShortcutSupport.action(") {
             shortcutCallSites += 1
             let window = spacesServiceLines[index...].prefix(7)
             let readsSwitch = window.contains {
@@ -19796,7 +19796,7 @@ struct MetricsTests {
             }
         }
         expect(shortcutCallSites > 0 && callSitesMissingShortcutSwitch.isEmpty,
-               "a tap kept up for the drag alone never fires a mapping the shortcut switch turned "
+               "a tap kept up for the drag alone never fires an action the shortcut switch turned "
                    + "off, and that button's click passes through whole: \(callSitesMissingShortcutSwitch)")
         expect(spacesServiceLines.contains {
             isCodeLine($0) && $0.contains(
