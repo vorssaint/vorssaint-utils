@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Dragging a window to the top edge first previews the upper half; pushing farther upward fills the screen.
+
 ## [3.3.5] - 2026-09-06
 
 ### Summary

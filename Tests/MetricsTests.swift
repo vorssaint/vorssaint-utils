@@ -5743,16 +5743,38 @@ struct MetricsTests {
                                          screens: screens,
                                          enabledZones: enabledZones)
         }
-        let topSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
+        let topSnapFrame = WindowLayoutGeometry.rect(for: .topHalf,
                                                      current: snapVisibleFrame,
                                                      visibleFrame: snapVisibleFrame)
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY))
                == WindowEdgeSnapTarget(zone: .top,
                                        frame: topSnapFrame,
-                                       visibleFrame: snapVisibleFrame),
-               "touching the lower edge of the menu bar previews maximize")
+                                       visibleFrame: snapVisibleFrame,
+                                       action: .topHalf),
+               "touching the lower edge of the menu bar previews the upper half")
         expect(snapTarget(CGPoint(x: 720, y: 900))?.action == .maximize,
-               "the full menu bar band remains a top snap target for maximize")
+               "pushing to the physical top promotes the target to maximize")
+        let maximizeSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
+                                                          current: snapVisibleFrame,
+                                                          visibleFrame: snapVisibleFrame)
+        expect(snapTarget(CGPoint(x: 720, y: 900))?.frame == maximizeSnapFrame,
+               "the promoted preview matches the maximize placement")
+        expect(snapTarget(CGPoint(x: 720, y: 887))?.action == .topHalf
+               && snapTarget(CGPoint(x: 720, y: 887.5))?.action == .maximize
+               && snapTarget(CGPoint(x: 720, y: 875))?.action == .topHalf,
+               "crossing the menu bar midpoint promotes and retreating restores the upper half")
+        expect(snapTarget(CGPoint(x: 0, y: 900))?.action == .topLeft
+               && snapTarget(CGPoint(x: 1440, y: 900))?.action == .topRight,
+               "pushing to the physical top keeps corner placements")
+        for menuBarHeight in [CGFloat(0), 8, 25, 38] {
+            let screen = WindowEdgeSnapScreen(
+                frame: CGRect(x: -1440, y: -900, width: 1440, height: 900),
+                visibleFrame: CGRect(x: -1440, y: -900, width: 1440, height: 900 - menuBarHeight)
+            )
+            expect(snapTarget(CGPoint(x: -720, y: -menuBarHeight - 1), screens: [screen])?.action == .topHalf
+                   && snapTarget(CGPoint(x: -720, y: 0), screens: [screen])?.action == .maximize,
+                   "top snapping supports hidden, short and tall menu bars on offset displays")
+        }
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY - 13)) == nil,
                "the top target does not reach below its activation band")
         expect(snapTarget(CGPoint(x: 0, y: 450))?.action == .leftHalf
@@ -5776,6 +5798,7 @@ struct MetricsTests {
         let withoutTop = WindowEdgeSnapZone.enabledZones(from: disabledZoneStorage)
         expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY),
                           enabledZones: withoutTop) == nil
+               && snapTarget(CGPoint(x: 720, y: 900), enabledZones: withoutTop) == nil
                && snapTarget(CGPoint(x: 0, y: 450),
                              enabledZones: withoutTop)?.zone == .left,
                "turning off the top zone leaves the other visual snap areas active")
