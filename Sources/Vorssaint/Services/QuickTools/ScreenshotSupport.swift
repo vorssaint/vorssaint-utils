@@ -1912,6 +1912,64 @@ enum ScreenshotSupport {
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
     }
+
+    /// Smallest a pinned capture can be. The window's resize floor and wheel
+    /// zoom share this so shrinking by either path cannot disagree.
+    static let pinMinSize = CGSize(width: 90, height: 60)
+
+    /// One discrete mouse-wheel notch grows the pin by this fraction.
+    static let pinZoomWheelStep: CGFloat = 0.03
+
+    /// Same gain as Control-scroll in the screenshot editor. Precise trackpad
+    /// packets would jump if each one took a full mouse notch.
+    static let pinZoomPreciseGain: CGFloat = 0.014
+
+    /// How much a pinned capture should grow or shrink for one wheel event.
+    /// Positive `wheelDelta` zooms in, matching the capture loupe.
+    static func pinZoomFactor(wheelDelta: CGFloat, precise: Bool) -> CGFloat {
+        guard wheelDelta.isFinite, wheelDelta != 0 else { return 1 }
+        if precise {
+            let clamped = min(24, max(-24, wheelDelta))
+            return max(0.2, 1 + clamped * pinZoomPreciseGain)
+        }
+        return wheelDelta > 0 ? 1 + pinZoomWheelStep : 1 / (1 + pinZoomWheelStep)
+    }
+
+    /// Trackpad pinch. `magnification` is AppKit's relative change for one
+    /// event in the gesture, already signed so a pinch-out grows the pin.
+    static func pinZoomFactor(magnification: CGFloat) -> CGFloat {
+        guard magnification.isFinite, magnification != 0 else { return 1 }
+        return max(0.2, 1 + magnification)
+    }
+
+    /// Scales `frame` around `anchor` (screen coordinates), keeping aspect
+    /// ratio, then slides it back onto `limits` so a corner zoom cannot run
+    /// the pin off the display.
+    static func pinZoomedFrame(_ frame: CGRect,
+                               factor: CGFloat,
+                               anchor: CGPoint,
+                               minSize: CGSize = pinMinSize,
+                               limits: CGRect) -> CGRect {
+        guard factor.isFinite, factor > 0,
+              frame.width > 0, frame.height > 0,
+              limits.width > 0, limits.height > 0
+        else { return frame }
+
+        let minFactor = max(minSize.width / frame.width, minSize.height / frame.height)
+        let maxFactor = min(limits.width / frame.width, limits.height / frame.height)
+        guard maxFactor > 0 else { return frame }
+        let clampedFactor = min(max(factor, minFactor), max(minFactor, maxFactor))
+        let width = frame.width * clampedFactor
+        let height = frame.height * clampedFactor
+        let tX = (anchor.x - frame.minX) / frame.width
+        let tY = (anchor.y - frame.minY) / frame.height
+        let next = CGRect(x: anchor.x - tX * width,
+                          y: anchor.y - tY * height,
+                          width: width,
+                          height: height)
+        guard next.width <= limits.width, next.height <= limits.height else { return next }
+        return movedRect(next, by: .zero, within: limits)
+    }
 }
 
 /// The action to run automatically right after a capture, chosen in

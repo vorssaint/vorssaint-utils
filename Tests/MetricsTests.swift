@@ -18947,6 +18947,74 @@ struct MetricsTests {
         expectClose(ScreenshotSupport.captureLoupeZoom(4, adjustedBy: 1),
                     ScreenshotSupport.captureLoupeMaxZoom,
                     "zoom reaches the three-pixel sample without a dead range above it")
+        expectClose(ScreenshotSupport.pinZoomFactor(wheelDelta: 1, precise: false),
+                    1 + ScreenshotSupport.pinZoomWheelStep,
+                    "a mouse notch zooms a pinned capture in by Flameshot's step")
+        expectClose(ScreenshotSupport.pinZoomFactor(wheelDelta: -1, precise: false),
+                    1 / (1 + ScreenshotSupport.pinZoomWheelStep),
+                    "a mouse notch zooms a pinned capture out by the same step")
+        expectClose(ScreenshotSupport.pinZoomFactor(wheelDelta: 0, precise: false), 1,
+                    "a still wheel leaves a pinned capture unchanged")
+        expectClose(ScreenshotSupport.pinZoomFactor(wheelDelta: .nan, precise: false), 1,
+                    "a broken wheel delta leaves a pinned capture unchanged")
+        expect(ScreenshotSupport.pinZoomFactor(wheelDelta: 1, precise: true)
+                < ScreenshotSupport.pinZoomFactor(wheelDelta: 1, precise: false),
+               "a precise trackpad packet zooms a pin more gently than a mouse notch")
+        expectClose(ScreenshotSupport.pinZoomFactor(magnification: 0.2), 1.2,
+                    "pinching out grows a pinned capture")
+        expectClose(ScreenshotSupport.pinZoomFactor(magnification: 0), 1,
+                    "a pinch event with no change leaves a pinned capture unchanged")
+        let pinFrame = CGRect(x: 100, y: 80, width: 200, height: 100)
+        let pinLimits = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let pinGrown = ScreenshotSupport.pinZoomedFrame(
+            pinFrame, factor: 2, anchor: CGPoint(x: 100, y: 80), limits: pinLimits)
+        expect(pinGrown.origin == pinFrame.origin
+                && pinGrown.size == CGSize(width: 400, height: 200),
+               "zooming a pin from a corner keeps that corner still")
+        let pinCentered = ScreenshotSupport.pinZoomedFrame(
+            pinFrame, factor: 2, anchor: CGPoint(x: 200, y: 130), limits: pinLimits)
+        expect(abs(pinCentered.midX - pinFrame.midX) < 0.001
+                && abs(pinCentered.midY - pinFrame.midY) < 0.001
+                && pinCentered.size == CGSize(width: 400, height: 200),
+               "zooming a pin from its centre keeps the centre still")
+        let pinCenter = CGPoint(x: pinFrame.midX, y: pinFrame.midY)
+        let pinMin = ScreenshotSupport.pinZoomedFrame(
+            pinFrame, factor: 0.01, anchor: pinCenter, limits: pinLimits)
+        expect(pinMin.height == ScreenshotSupport.pinMinSize.height
+                && abs(pinMin.width / pinMin.height - pinFrame.width / pinFrame.height) < 0.001,
+               "zooming a pin out stops at the shared minimum size")
+        let pinMax = ScreenshotSupport.pinZoomedFrame(
+            pinFrame, factor: 100, anchor: pinCenter, limits: pinLimits)
+        expect(pinMax.width == pinLimits.width
+                && pinMax.minX == pinLimits.minX
+                && pinMax.maxX == pinLimits.maxX,
+               "zooming a pin in cannot grow past the display")
+        let pinOffscreen = ScreenshotSupport.pinZoomedFrame(
+            pinFrame, factor: 2, anchor: CGPoint(x: 100, y: 80),
+            limits: CGRect(x: 0, y: 0, width: 300, height: 200))
+        expect(pinOffscreen.minX >= 0 && pinOffscreen.minY >= 0
+                && pinOffscreen.maxX <= 300 && pinOffscreen.maxY <= 200,
+               "a corner zoom that would leave the display is slid back onto it")
+        expect(ScreenshotSupport.pinZoomedFrame(
+            pinFrame, factor: .nan, anchor: pinCenter, limits: pinLimits) == pinFrame,
+               "a broken zoom amount leaves a pinned capture where it was")
+        let pinControllerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotPinController.swift",
+            encoding: .utf8)) ?? ""
+        let pinControllerCode = pinControllerSource
+            .components(separatedBy: "\n")
+            .map { line -> String in
+                guard let comment = line.range(of: "//") else { return line }
+                return String(line[..<comment.lowerBound])
+            }
+            .joined()
+        expect(!pinControllerSource.isEmpty
+                && pinControllerCode.contains("scrollWheel(with")
+                && pinControllerCode.contains("magnify(with")
+                && pinControllerCode.contains("pinZoomedFrame")
+                && pinControllerCode.contains("pinZoomFactor")
+                && pinControllerCode.contains("momentumPhase"),
+               "a pinned capture zooms from the wheel and pinch, ignoring trackpad coasting")
         expectClose(ScreenshotSupport.captureLoupeSampleSide(zoom: 2), 7,
                     "higher capture loupe zoom samples fewer source pixels")
         expectClose(ScreenshotSupport.captureLoupeSampleSide(zoom: 0.5), 27,

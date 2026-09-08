@@ -6,10 +6,10 @@ import Carbon.HIToolbox
 import UniformTypeIdentifiers
 
 /// Floating pinned screenshots keep a capture visible while working.
-/// Drag anywhere to move, resize from the edges keeping proportions, arrows
-/// nudge, double click or Esc closes, right click offers copy, save, opacity
-/// and click-through. A monitor exists only while a click-through pin needs
-/// its Option-click escape hatch.
+/// Drag anywhere to move, resize from the edges keeping proportions, scroll
+/// or pinch to zoom, arrows nudge, double click or Esc closes, right click
+/// offers copy, save, opacity and click-through. A monitor exists only while
+/// a click-through pin needs its Option-click escape hatch.
 final class ScreenshotPinController {
     static let shared = ScreenshotPinController()
 
@@ -85,7 +85,9 @@ private final class ScreenshotPinWindow: NSPanel {
                           height: CGFloat(image.height) / scale)
         let cap = min(screen.width, screen.height) * 0.55
         let ratio = min(1, min(cap / max(size.width, 1), cap / max(size.height, 1)))
-        size = CGSize(width: max(90, size.width * ratio), height: max(60, size.height * ratio))
+        let floorSize = ScreenshotSupport.pinMinSize
+        size = CGSize(width: max(floorSize.width, size.width * ratio),
+                      height: max(floorSize.height, size.height * ratio))
         let rect = CGRect(x: screen.midX - size.width / 2,
                           y: screen.midY - size.height / 2,
                           width: size.width,
@@ -105,13 +107,30 @@ private final class ScreenshotPinWindow: NSPanel {
         hidesOnDeactivate = false
         contentAspectRatio = CGSize(width: CGFloat(max(1, image.width)),
                                     height: CGFloat(max(1, image.height)))
-        minSize = CGSize(width: 90, height: 60)
+        minSize = ScreenshotSupport.pinMinSize
 
         let view = PinContentView(image: image, window: self)
         contentView = view
     }
 
     override var canBecomeKey: Bool { true }
+
+    /// Grows or shrinks the pin around `anchor`, staying on the display that
+    /// holds that point. A factor of 1, or a frame already at its floor or
+    /// ceiling, is a no-op so coasting packets do not keep rewriting the
+    /// window.
+    func applyZoom(factor: CGFloat, anchor: CGPoint) {
+        guard factor != 1 else { return }
+        let limits = NSScreen.screens.first { $0.frame.contains(anchor) }?.visibleFrame
+            ?? screen?.visibleFrame
+            ?? NSScreen.pointerVisibleFrame
+        let next = ScreenshotSupport.pinZoomedFrame(frame,
+                                                    factor: factor,
+                                                    anchor: anchor,
+                                                    limits: limits)
+        guard next != frame else { return }
+        setFrame(next, display: true)
+    }
 
     // MARK: Actions
 
@@ -216,6 +235,32 @@ private final class ScreenshotPinWindow: NSPanel {
             }
             pinWindow.makeKey()
             super.mouseDown(with: event)
+        }
+
+        override func scrollWheel(with event: NSEvent) {
+            guard let pinWindow else { return }
+            // Trackpad coasting would keep zooming after the fingers left.
+            guard event.momentumPhase == .none else { return }
+            let delta: CGFloat
+            if let cgEvent = event.cgEvent {
+                delta = ScreenshotSupport.captureLoupeWheelDelta(
+                    scrollingDelta: event.scrollingDeltaY,
+                    lineDelta: cgEvent.getIntegerValueField(.scrollWheelEventDeltaAxis1),
+                    fixedPointDelta: cgEvent.getDoubleValueField(
+                        .scrollWheelEventFixedPtDeltaAxis1))
+            } else {
+                delta = event.scrollingDeltaY
+            }
+            let factor = ScreenshotSupport.pinZoomFactor(
+                wheelDelta: delta,
+                precise: event.hasPreciseScrollingDeltas)
+            pinWindow.applyZoom(factor: factor, anchor: NSEvent.mouseLocation)
+        }
+
+        override func magnify(with event: NSEvent) {
+            guard let pinWindow else { return }
+            let factor = ScreenshotSupport.pinZoomFactor(magnification: event.magnification)
+            pinWindow.applyZoom(factor: factor, anchor: NSEvent.mouseLocation)
         }
 
         override func menu(for event: NSEvent) -> NSMenu? {
