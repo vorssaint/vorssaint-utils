@@ -213,9 +213,8 @@ fi
 # suite leaves an empty plist in ~/Library/Preferences. The tests already clear
 # the domains, but cfprefsd writes the emptied file back out around the time the
 # process that owned it exits, so only a caller that outlives the run can remove
-# them. `MetricsTests` keeps every suite name inside these two namespaces (a
-# check in the test file holds it to that), which is what makes this sweep
-# complete rather than a list to keep in step by hand.
+# them. `HarnessSourceTests` checks every Swift test file for these namespaces,
+# making this sweep complete rather than a list to keep in step by hand.
 discard_test_preferences() {
     local preferences="${1:-$HOME/Library/Preferences}" name attempt
     local survivors=0 quiet_passes=0
@@ -241,9 +240,8 @@ discard_test_preferences() {
     return 1
 }
 
-# --test: compile and run the standalone unit tests (pure helpers only: metrics,
-# Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
-# then exit. Fast and deterministic; no XCTest needed.
+# --test: compile and run standalone helper, AppKit/IO fixture, and source-contract
+# suites, then exit. No XCTest or SwiftPM test target is required.
 if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
@@ -425,10 +423,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
-        Tests/MetricsTests.swift \
-        Tests/RecentCaptureStoreTests.swift \
-        Tests/RecorderPresetImageStoreTests.swift \
-        Tests/SpeedTestTests.swift \
+        Tests/*.swift \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
