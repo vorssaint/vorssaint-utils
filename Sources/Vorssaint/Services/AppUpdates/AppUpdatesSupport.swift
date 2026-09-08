@@ -118,6 +118,20 @@ enum AppUpdatesSupport {
         compare(versionCore(candidate), versionCore(installed)) == .orderedDescending
     }
 
+    /// Some app bundles publish a marketing short version with fewer components than the catalog
+    /// records. Android Studio reports 2026.1 for build 2026.1.4.7 (#1465), so a prefix match cannot
+    /// show whether it is genuinely behind; the honest answer is no row, as for an uncomparable `latest`.
+    static func reportsCoarserVersion(installed: String, than catalog: String) -> Bool {
+        let installedParts = parts(of: versionCore(installed))
+        let catalogParts = parts(of: versionCore(catalog))
+        guard installedParts.count < catalogParts.count,
+              (installedParts + catalogParts).allSatisfy({ $0.allSatisfy(\.isNumber) }),
+              zip(installedParts, catalogParts).allSatisfy({
+                  compareDigits($0.0, $0.1) == .orderedSame
+              }) else { return false }
+        return true
+    }
+
     private static func parts(of version: String) -> [String] {
         version
             .split(whereSeparator: { !$0.isLetter && !$0.isNumber })
@@ -469,7 +483,8 @@ enum AppUpdatesSupport {
                   isCompatible(entry,
                                operatingSystemVersion: operatingSystemVersion) else { return nil }
             let latest = versionCore(entry.version)
-            guard isNewer(latest, than: app.version) else { return nil }
+            guard isNewer(latest, than: app.version),
+                  !reportsCoarserVersion(installed: app.version, than: latest) else { return nil }
             return Item(id: "\(Source.onlineCatalog.rawValue):\(app.path)",
                         source: .onlineCatalog,
                         name: app.name,

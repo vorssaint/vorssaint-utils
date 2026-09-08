@@ -21682,6 +21682,19 @@ struct MetricsTests {
             apps: [])
         expect(ownPackageRows.isEmpty,
                "the app update list never offers to replace Vorssaint through its own package")
+        let coarsePackageRows = AppUpdatesSupport.packageUpdates(
+            outdated: [caskUpdate("android-studio", installed: "2026.1",
+                                  current: "2026.1.4.7,quail4")],
+            installed: [HomebrewCaskRecord(token: "android-studio", displayName: "Android Studio",
+                                           installedVersion: "2026.1",
+                                           appFileNames: ["Android Studio.app"])],
+            apps: [AppUpdatesSupport.InstalledApp(
+                name: "Android Studio", bundleID: "com.google.android.studio",
+                path: "/Applications/Android Studio.app", version: "2026.1",
+                isFromAppStore: false)])
+        expect(coarsePackageRows.count == 1
+                && coarsePackageRows.first?.latestVersion == "2026.1.4.7",
+               "a Homebrew-outdated cask still reports when its bundle version is coarser")
 
         let storeApps = [
             AppUpdatesSupport.InstalledApp(name: "Blocker", bundleID: "net.example.blocker",
@@ -21961,6 +21974,39 @@ struct MetricsTests {
                 && AppUpdatesSupport.parseOnlineCatalogResponse(onlineCatalogBody, statusCode: 500) == nil
                 && AppUpdatesSupport.parseOnlineCatalogResponse(Data("broken".utf8), statusCode: 200) == nil,
                "missing, failed and malformed network responses never become successful empty coverage")
+
+        func onlineVersionRows(installed: String, catalog: String) -> [AppUpdatesSupport.Item] {
+            let app = AppUpdatesSupport.InstalledApp(
+                name: "Versioned", bundleID: "com.example.versioned",
+                path: "/Applications/Versioned.app", version: installed,
+                isFromAppStore: false)
+            let entry = AppUpdatesSupport.CatalogEntry(
+                token: "versioned", version: catalog, appNames: ["Versioned.app"],
+                bundleIDs: [], minimumOSVersions: [], exactOSVersions: [],
+                hasUnsupportedOSConstraint: false)
+            return AppUpdatesSupport.onlineCatalogUpdates(
+                apps: [app], catalog: [entry], operatingSystemVersion: "15.7")
+        }
+        expect(onlineVersionRows(installed: "2026.1",
+                                 catalog: "2026.1.4.7,quail4").isEmpty,
+               "Android Studio's coarser bundle version does not create an online catalog update")
+        expect(["2026.1.4-7", "2026.1.4_7", "2026.1.4 7"].allSatisfy {
+            onlineVersionRows(installed: "2026.1", catalog: $0).isEmpty
+        }, "coarser online versions use the same tokenizer as version comparison")
+        expect(onlineVersionRows(installed: "2026.1", catalog: "2026.2").count == 1,
+               "the online catalog still reports a difference in a bundle-reported component")
+        expect(onlineVersionRows(installed: "2026.1", catalog: "2026.2.4").count == 1,
+               "the online catalog still reports when a shared component differs before a longer suffix")
+        expect(onlineVersionRows(installed: "1.12.7", catalog: "1.13.7").count == 1,
+               "the online catalog still reports an Obsidian-shaped full-version difference")
+        expect(onlineVersionRows(installed: "1.2", catalog: "1.2.4beta").count == 1,
+               "a nonnumeric catalog part is a version difference, not coarser precision")
+        expect(onlineVersionRows(installed: "1.2", catalog: "1.2.1").isEmpty,
+               "the online catalog deliberately omits a trailing-only difference when the installed version may be coarser")
+        expect(onlineVersionRows(installed: "02026.01", catalog: "2026.1.4.7").isEmpty,
+               "leading zeros do not hide a coarser online version")
+        expect(!AppUpdatesSupport.reportsCoarserVersion(installed: "1.2.3", than: "1.2"),
+               "a coarser version requires fewer installed components")
 
         let onlineApps = [
             AppUpdatesSupport.InstalledApp(name: "Notes", bundleID: "com.example.notes",
