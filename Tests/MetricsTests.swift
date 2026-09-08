@@ -10402,6 +10402,18 @@ struct MetricsTests {
                && twoAppLayout.contentWidth(simpleMode: true, windowRow: true)
                     == twoAppLayout.simpleWindowPanelSize.width - SwitcherIconRowLayout.padding * 2,
                "App Switcher rows fit the panel with fewer apps than the hint bar is wide")
+        // Stepping through apps must not resize the panel. The window is
+        // re-centred on every selection change, so a width that follows the
+        // selected app's window count drags the whole panel, icon row
+        // included, across the screen on every press (#783).
+        let onePreviewPanel = SwitcherIconRowLayout.compute(appCount: 6,
+                                                            selectedWindowCount: 1,
+                                                            screenVisibleFrame: screen)
+        let manyPreviewPanel = SwitcherIconRowLayout.compute(appCount: 6,
+                                                             selectedWindowCount: 8,
+                                                             screenVisibleFrame: screen)
+        expect(onePreviewPanel.panelSize.width == manyPreviewPanel.panelSize.width,
+               "App Switcher panel keeps one width while stepping through apps")
         expect(SwitcherSupport.gridColumnCount(itemCount: 10, maxColumns: 8) == 5,
                "App Switcher wrapping splits ten windows across two even rows")
         expect(SwitcherSupport.gridColumnCount(itemCount: 9, maxColumns: 8) == 5,
@@ -11746,9 +11758,35 @@ struct MetricsTests {
         expect(groupedIconLayout.appRowContentWidth
                >= CGFloat(appGroups.count) * SwitcherIconRowLayout.appTileWidth,
                "App Switcher icon-row layout uses full app tile width")
-        expect(groupedIconLayout.previewContentWidth
-               >= CGFloat(appGroups[0].windowCount) * SwitcherIconRowLayout.previewCardWidth,
-               "App Switcher icon-row layout reserves room for selected app previews")
+        // The viewport used to be sized to hold every card of the selected app,
+        // which is what made the panel widen and re-centre on each step (#783).
+        // It now stops at the icon row and scrolls past it, while still holding
+        // one whole card whatever the row is doing.
+        expect(groupedIconLayout.previewContentWidth >= SwitcherIconRowLayout.previewCardWidth
+               && groupedIconLayout.previewSurfaceWidth
+                    <= max(groupedIconLayout.appRowSurfaceWidth,
+                           SwitcherIconRowLayout.previewCardWidth
+                               + SwitcherIconRowLayout.previewPanelPadding * 2),
+               "App Switcher icon-row preview stays inside the icon row instead of widening the panel")
+        // A capped viewport can hold fewer cards than it looks like, because the
+        // row puts spacing between them. Counting by card width alone reports a
+        // fit while the last card is still clipped, and the scroll view then
+        // refuses to scroll to it (#783).
+        let cappedPreview = SwitcherIconRowLayout.compute(appCount: 6,
+                                                          selectedWindowCount: 8,
+                                                          screenVisibleFrame: screen)
+        var fittingCardCount = 0
+        while CGFloat(fittingCardCount + 1) * SwitcherIconRowLayout.previewCardWidth
+                + CGFloat(fittingCardCount) * SwitcherIconRowLayout.spacing
+                <= cappedPreview.previewContentWidth {
+            fittingCardCount += 1
+        }
+        expect(fittingCardCount >= 1
+               && cappedPreview.previewContentWidth
+                    < SwitcherIconRowLayout.naturalPreviewWidth(cardCount: 8)
+               && cappedPreview.previewFitsWithoutScrolling(cardCount: fittingCardCount)
+               && !cappedPreview.previewFitsWithoutScrolling(cardCount: fittingCardCount + 1),
+               "App Switcher preview counts card spacing before it stops scrolling")
         expectClose(Double(groupedIconLayout.appRowSurfaceWidth),
                     Double(groupedIconLayout.appRowContentWidth + SwitcherIconRowLayout.rowHorizontalPadding * 2),
                     "App Switcher icon-row layout keeps horizontal padding inside the app row surface")

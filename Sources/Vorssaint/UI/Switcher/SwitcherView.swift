@@ -328,9 +328,14 @@ struct SwitcherView: View {
                                 }
                             .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
                         }
-                        .scrollDisabled(appWindows.count <= Int(switcher.iconRowLayout.previewContentWidth / SwitcherIconRowLayout.previewCardWidth))
+                        .scrollDisabled(switcher.iconRowLayout.previewFitsWithoutScrolling(cardCount: appWindows.count))
                         .frame(width: switcher.iconRowLayout.previewContentWidth,
                                height: SwitcherIconRowLayout.previewCardHeight)
+                        .onAppear {
+                            let index = switcher.selectedIndex
+                            guard switcher.windows.indices.contains(index) else { return }
+                            proxy.scrollTo(switcher.windows[index].id, anchor: .center)
+                        }
                         .onChange(of: switcher.selectedIndex) { _, newIndex in
                             guard switcher.windows.indices.contains(newIndex) else { return }
                             withAnimation(.easeOut(duration: 0.15)) {
