@@ -654,6 +654,10 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @AppStorage(DefaultsKey.clamshellExternalDisplay) private var clamshellExternalDisplay = false
+    @AppStorage(DefaultsKey.clamshellGatePower) private var clamshellGatePower = false
+    @AppStorage(DefaultsKey.clamshellGateNetwork) private var clamshellGateNetwork = false
+    @AppStorage(DefaultsKey.clamshellGateMode) private var clamshellGateMode =
+        KeepAwakeAutomationSupport.ClamshellGateMode.any.rawValue
 
     var body: some View {
         Form {
@@ -733,11 +737,33 @@ struct EnergySettings: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
-                    SettingsToggleWithCaption(title: l10n.s.clamshellExternalDisplayToggle,
-                                              caption: l10n.s.clamshellExternalDisplayCaption,
-                                              isOn: $clamshellExternalDisplay)
+                    SettingsCaptionText(l10n.s.clamshellExternalDisplayCaption)
+                    Picker(l10n.s.clamshellGateMatchLabel, selection: $clamshellGateMode) {
+                        Text(l10n.s.clamshellGateModeAny)
+                            .tag(KeepAwakeAutomationSupport.ClamshellGateMode.any.rawValue)
+                        Text(l10n.s.clamshellGateModeAll)
+                            .tag(KeepAwakeAutomationSupport.ClamshellGateMode.all.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(!awake.clamshellPreferred || awake.clamshellSetupInProgress)
+                    .onChange(of: clamshellGateMode) { _, newValue in
+                        let sanitized = Defaults.sanitizedClamshellGateMode(newValue).rawValue
+                        if sanitized != newValue { clamshellGateMode = sanitized }
+                        awake.automationPreferencesDidChange()
+                    }
+                    Toggle(l10n.s.clamshellExternalDisplayToggle, isOn: $clamshellExternalDisplay)
                         .disabled(!awake.clamshellPreferred || awake.clamshellSetupInProgress)
                         .onChange(of: clamshellExternalDisplay) { _, _ in
+                            awake.automationPreferencesDidChange()
+                        }
+                    Toggle(l10n.s.clamshellGatePowerToggle, isOn: $clamshellGatePower)
+                        .disabled(!awake.clamshellPreferred || awake.clamshellSetupInProgress)
+                        .onChange(of: clamshellGatePower) { _, _ in
+                            awake.automationPreferencesDidChange()
+                        }
+                    Toggle(l10n.s.clamshellGateNetworkToggle, isOn: $clamshellGateNetwork)
+                        .disabled(!awake.clamshellPreferred || awake.clamshellSetupInProgress)
+                        .onChange(of: clamshellGateNetwork) { _, _ in
                             awake.automationPreferencesDidChange()
                         }
                     SettingsCaptionText(l10n.s.clamshellExplanation)

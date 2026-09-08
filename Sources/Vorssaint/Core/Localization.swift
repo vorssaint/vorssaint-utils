@@ -191,6 +191,11 @@ struct Strings {
     let clamshellNeedsPassword: String
     let clamshellExternalDisplayToggle: String
     let clamshellExternalDisplayCaption: String
+    let clamshellGatePowerToggle: String
+    let clamshellGateNetworkToggle: String
+    let clamshellGateModeAny: String
+    let clamshellGateModeAll: String
+    let clamshellGateMatchLabel: String
 
     // MARK: Panel — system monitor
     let systemSection: String
@@ -1246,8 +1251,13 @@ extension Strings {
         clamshellNeedsSession: "Será aplicada sempre que “Manter acordado” estiver ativo",
         clamshellReady: "Pronto. Liga e desliga sem senha",
         clamshellNeedsPassword: "Pedirá a senha de administrador uma vez",
-        clamshellExternalDisplayToggle: "Somente com monitor externo",
-        clamshellExternalDisplayCaption: "Aplica o modo com a tampa fechada só enquanto houver um monitor conectado. “Manter acordado” permanece como você deixou.",
+        clamshellExternalDisplayToggle: "Monitor externo",
+        clamshellExternalDisplayCaption: "Aplica o modo com a tampa fechada só enquanto as condições escolhidas forem verdadeiras (qualquer ou todas). “Manter acordado” permanece como você deixou.",
+        clamshellGatePowerToggle: "Ligado à energia",
+        clamshellGateNetworkToggle: "Rede disponível",
+        clamshellGateModeAny: "Qualquer",
+        clamshellGateModeAll: "Todas",
+        clamshellGateMatchLabel: "Condições",
 
         systemSection: "Sistema",
         temperatures: "Temperaturas",
@@ -2260,8 +2270,13 @@ extension Strings {
         clamshellNeedsSession: "Applied whenever “Keep awake” is active",
         clamshellReady: "Ready. Toggles without a password",
         clamshellNeedsPassword: "Will ask for the administrator password once",
-        clamshellExternalDisplayToggle: "Only with an external display",
-        clamshellExternalDisplayCaption: "Applies lid-closed mode only while a monitor is connected. Keep Awake stays as you left it.",
+        clamshellExternalDisplayToggle: "External display",
+        clamshellExternalDisplayCaption: "Applies lid-closed mode only while the selected conditions hold (match any or all). Keep Awake stays as you left it.",
+        clamshellGatePowerToggle: "Connected to power",
+        clamshellGateNetworkToggle: "Network available",
+        clamshellGateModeAny: "Any",
+        clamshellGateModeAll: "All",
+        clamshellGateMatchLabel: "Match",
 
         systemSection: "System",
         temperatures: "Temperatures",

@@ -11,7 +11,10 @@ enum DefaultsKey {
     static let appearance = "appAppearance"               // AppAppearance.rawValue
     static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass visual styling on macOS 26+
     static let clamshellPreferred = "clamshellPreferred"  // apply closed-lid mode to every session
-    static let clamshellExternalDisplay = "clamshellExternalDisplay" // lid-closed only while a monitor is connected
+    static let clamshellExternalDisplay = "clamshellExternalDisplay" // closed-lid gate: external display
+    static let clamshellGatePower = "clamshellGatePower"             // closed-lid gate: on AC power
+    static let clamshellGateNetwork = "clamshellGateNetwork"         // closed-lid gate: network available
+    static let clamshellGateMode = "clamshellGateMode"               // "any" | "all"
     static let onboardingStep = "onboardingStep"          // resume point if onboarding is interrupted
     static let featuresOnboardingVersion = "featuresOnboardingVersion" // last feature-tour marker handled
     static let lastUpdateIntroVersion = "lastUpdateIntroVersion"
@@ -856,6 +859,9 @@ enum Defaults {
         DefaultsKey.liquidGlassEnabled: false,
         DefaultsKey.clamshellPreferred: false,
         DefaultsKey.clamshellExternalDisplay: false,
+        DefaultsKey.clamshellGatePower: false,
+        DefaultsKey.clamshellGateNetwork: false,
+        DefaultsKey.clamshellGateMode: KeepAwakeAutomationSupport.ClamshellGateMode.any.rawValue,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
         DefaultsKey.keepAwakeAutoStart: false,
@@ -1673,6 +1679,14 @@ enum Defaults {
             return .vorssaint
         }
         return icon
+    }
+
+    static func sanitizedClamshellGateMode(_ rawValue: String?) -> KeepAwakeAutomationSupport.ClamshellGateMode {
+        guard let rawValue,
+              let mode = KeepAwakeAutomationSupport.ClamshellGateMode(rawValue: rawValue) else {
+            return .any
+        }
+        return mode
     }
 
     static func sanitizedMonitorInterval(_ seconds: Int) -> Int {

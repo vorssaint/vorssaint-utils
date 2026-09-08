@@ -2151,8 +2151,25 @@ struct MetricsTests {
                "external-display Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.clamshellExternalDisplay] as? Bool == false,
                "external-display clamshell gate is opt-in")
+        expect(registeredDefaults[DefaultsKey.clamshellGatePower] as? Bool == false,
+               "power clamshell gate is opt-in")
+        expect(registeredDefaults[DefaultsKey.clamshellGateNetwork] as? Bool == false,
+               "network clamshell gate is opt-in")
+        expect(registeredDefaults[DefaultsKey.clamshellGateMode] as? String
+               == KeepAwakeAutomationSupport.ClamshellGateMode.any.rawValue,
+               "clamshell gate mode defaults to any")
         expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clamshellExternalDisplay),
                "external-display clamshell gate follows settings backups")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clamshellGatePower),
+               "power clamshell gate follows settings backups")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clamshellGateNetwork),
+               "network clamshell gate follows settings backups")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clamshellGateMode),
+               "clamshell gate mode follows settings backups")
+        expect(Defaults.sanitizedClamshellGateMode("all") == .all,
+               "valid clamshell gate mode is preserved")
+        expect(Defaults.sanitizedClamshellGateMode("bad") == .any,
+               "invalid clamshell gate mode falls back to any")
         expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
         expect(registeredDefaults[DefaultsKey.keepAwakeRunningApps] as? Bool == false,
@@ -2199,47 +2216,70 @@ struct MetricsTests {
                "the built-in screen does not count as an external display")
         expect(KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true, false]),
                "an online non-built-in screen counts as an external display")
+        expect(KeepAwakeAutomationSupport.clamshellGatePasses(
+            selected: [],
+            mode: .any,
+            externalDisplayConnected: false,
+            connectedToPower: false,
+            networkAvailable: false
+        ), "an empty clamshell gate always passes")
+        expect(!KeepAwakeAutomationSupport.clamshellGatePasses(
+            selected: [.externalDisplay],
+            mode: .any,
+            externalDisplayConnected: false,
+            connectedToPower: true,
+            networkAvailable: true
+        ), "any-mode display gate fails without a monitor")
+        expect(KeepAwakeAutomationSupport.clamshellGatePasses(
+            selected: [.externalDisplay, .power],
+            mode: .any,
+            externalDisplayConnected: false,
+            connectedToPower: true,
+            networkAvailable: false
+        ), "any-mode passes when one selected condition holds")
+        expect(!KeepAwakeAutomationSupport.clamshellGatePasses(
+            selected: [.externalDisplay, .power],
+            mode: .all,
+            externalDisplayConnected: false,
+            connectedToPower: true,
+            networkAvailable: false
+        ), "all-mode fails when any selected condition is missing")
+        expect(KeepAwakeAutomationSupport.clamshellGatePasses(
+            selected: [.externalDisplay, .power, .network],
+            mode: .all,
+            externalDisplayConnected: true,
+            connectedToPower: true,
+            networkAvailable: true
+        ), "all-mode passes when every selected condition holds")
         expect(KeepAwakeAutomationSupport.shouldApplyClamshell(
             preferred: true,
             keepAwakeActive: true,
             sessionPaused: false,
-            externalDisplayGateEnabled: false,
-            externalDisplayConnected: false
-        ), "without the display gate, preferred clamshell applies during an active Keep Awake session")
+            gatePasses: true
+        ), "preferred clamshell applies during an active Keep Awake session when the gate passes")
         expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
             preferred: true,
             keepAwakeActive: true,
             sessionPaused: false,
-            externalDisplayGateEnabled: true,
-            externalDisplayConnected: false
-        ), "with the display gate on, clamshell stays off until a monitor is connected")
-        expect(KeepAwakeAutomationSupport.shouldApplyClamshell(
-            preferred: true,
-            keepAwakeActive: true,
-            sessionPaused: false,
-            externalDisplayGateEnabled: true,
-            externalDisplayConnected: true
-        ), "with the display gate on, clamshell applies while a monitor is connected")
+            gatePasses: false
+        ), "clamshell stays off when the gate fails")
         expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
             preferred: true,
             keepAwakeActive: true,
             sessionPaused: true,
-            externalDisplayGateEnabled: true,
-            externalDisplayConnected: true
+            gatePasses: true
         ), "a paused Keep Awake session does not apply clamshell")
         expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
             preferred: false,
             keepAwakeActive: true,
             sessionPaused: false,
-            externalDisplayGateEnabled: true,
-            externalDisplayConnected: true
+            gatePasses: true
         ), "clamshell stays off when the preference is off")
         expect(!KeepAwakeAutomationSupport.shouldApplyClamshell(
             preferred: true,
             keepAwakeActive: false,
             sessionPaused: false,
-            externalDisplayGateEnabled: false,
-            externalDisplayConnected: true
+            gatePasses: true
         ), "clamshell stays off when Keep Awake is inactive")
         expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
             selectedBundleIDs: [],

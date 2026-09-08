@@ -2408,6 +2408,10 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @AppStorage(DefaultsKey.clamshellExternalDisplay) private var clamshellExternalDisplay = false
+    @AppStorage(DefaultsKey.clamshellGatePower) private var clamshellGatePower = false
+    @AppStorage(DefaultsKey.clamshellGateNetwork) private var clamshellGateNetwork = false
+    @AppStorage(DefaultsKey.clamshellGateMode) private var clamshellGateMode =
+        KeepAwakeAutomationSupport.ClamshellGateMode.any.rawValue
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
     var collapsible = true
@@ -2453,16 +2457,7 @@ struct KeepAwakeCard: View {
                           isOn: $awake.clamshellPreferred,
                           disabled: awake.clamshellSetupInProgress,
                           captionIsError: awake.clamshellSetupFailed)
-                optionRow(title: l10n.s.clamshellExternalDisplayToggle,
-                          caption: l10n.s.clamshellExternalDisplayCaption,
-                          isOn: Binding(
-                            get: { clamshellExternalDisplay },
-                            set: { newValue in
-                                clamshellExternalDisplay = newValue
-                                awake.automationPreferencesDidChange()
-                            }
-                          ),
-                          disabled: !awake.clamshellPreferred || awake.clamshellSetupInProgress)
+                clamshellGateOptions
             }
             .panelCard()
         }
@@ -2471,6 +2466,61 @@ struct KeepAwakeCard: View {
             keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
             keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
             keepAwakeMouseJiggleInterval = Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)
+            clamshellGateMode = Defaults.sanitizedClamshellGateMode(clamshellGateMode).rawValue
+        }
+    }
+
+    private var clamshellGateOptions: some View {
+        let disabled = !awake.clamshellPreferred || awake.clamshellSetupInProgress
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(l10n.s.clamshellExternalDisplayCaption)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Picker(l10n.s.clamshellGateMatchLabel, selection: $clamshellGateMode) {
+                Text(l10n.s.clamshellGateModeAny)
+                    .tag(KeepAwakeAutomationSupport.ClamshellGateMode.any.rawValue)
+                Text(l10n.s.clamshellGateModeAll)
+                    .tag(KeepAwakeAutomationSupport.ClamshellGateMode.all.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .disabled(disabled)
+            .onChange(of: clamshellGateMode) { _, newValue in
+                let sanitized = Defaults.sanitizedClamshellGateMode(newValue).rawValue
+                if sanitized != newValue { clamshellGateMode = sanitized }
+                awake.automationPreferencesDidChange()
+            }
+            compactOptionToggle(icon: "display",
+                                title: l10n.s.clamshellExternalDisplayToggle,
+                                isOn: Binding(
+                                    get: { clamshellExternalDisplay },
+                                    set: { newValue in
+                                        clamshellExternalDisplay = newValue
+                                        awake.automationPreferencesDidChange()
+                                    }
+                                ))
+            .disabled(disabled)
+            compactOptionToggle(icon: "powerplug.fill",
+                                title: l10n.s.clamshellGatePowerToggle,
+                                isOn: Binding(
+                                    get: { clamshellGatePower },
+                                    set: { newValue in
+                                        clamshellGatePower = newValue
+                                        awake.automationPreferencesDidChange()
+                                    }
+                                ))
+            .disabled(disabled)
+            compactOptionToggle(icon: "network",
+                                title: l10n.s.clamshellGateNetworkToggle,
+                                isOn: Binding(
+                                    get: { clamshellGateNetwork },
+                                    set: { newValue in
+                                        clamshellGateNetwork = newValue
+                                        awake.automationPreferencesDidChange()
+                                    }
+                                ))
+            .disabled(disabled)
         }
     }
 
