@@ -21862,6 +21862,32 @@ struct MetricsTests {
         let publisherFeed = AppUpdateFeedSupport.feed(
             info: ["SUFeedURL": "https://updates.example.com/feed.xml"], configuration: nil)
         expect(publisherFeed?.format == .appcast, "the app's declared feed is a supported source")
+        expect(AppUpdateFeedSupport.feedIsAbsent(statusCode: 404)
+                && AppUpdateFeedSupport.feedIsAbsent(statusCode: 410)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 200)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 403)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 500)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 503)
+               && !AppUpdateFeedSupport.feedIsAbsent(statusCode: nil),
+               "only definitive missing publisher responses fall through to the catalog")
+        let publisherSourceCode = { (path: String) -> String in
+            ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .split(whereSeparator: \.isNewline)
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined().split(whereSeparator: \.isWhitespace).joined()
+        }
+        let feedLoaderCode = publisherSourceCode(
+            "Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedLoader.swift")
+        let updatesServiceCode = publisherSourceCode(
+            "Sources/Vorssaint/Services/AppUpdates/AppUpdatesService.swift")
+        expect(feedLoaderCode.contains("varresult:AppUpdateFeedSupport.LoadResult=.failed")
+                && feedLoaderCode.contains("ifAppUpdateFeedSupport.feedIsAbsent(statusCode:statusCode){accepted=falseresult=.absentcompletionHandler(.cancel)return}")
+                && feedLoaderCode.components(separatedBy: "completion(error==nil&&accepted?.data(data):result)").count == 2,
+               "a publisher server that says the feed does not exist is not a failed check; every other refusal still is")
+        expect(updatesServiceCode.contains("uncheckedApps:candidates.filter{uncheckedPaths.contains($0.path)}")
+                && updatesServiceCode.contains("uncheckedPaths.formUnion(findings.uncheckedPaths)")
+                && updatesServiceCode.contains("uncheckedPaths.formUnion(feeds[start...].flatMap{$0.value.map(\\.path)})"),
+               "publisher failures and deadline-cut feeds stay named as unchecked")
         let packagedFeed = AppUpdateFeedSupport.feed(info: [:], configuration:
             "provider: generic\nurl: 'https://updates.example.com/stable'\n")
         expect(packagedFeed?.url.absoluteString == "https://updates.example.com/stable/latest-mac.yml",
@@ -21931,6 +21957,41 @@ struct MetricsTests {
         let manifestReleases = AppUpdateFeedSupport.releases(data: manifest, format: .manifest) ?? []
         expect(feedUpdate(manifestReleases, format: .manifest)?.latestVersion == "1.2",
                "Mac manifests compare visible app versions and use the kernel version for their OS requirement")
+        let absentFindings = AppUpdateFeedSupport.findings(
+            loadResult: .absent, format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(absentFindings.complete && absentFindings.checkedPaths.isEmpty
+                && absentFindings.uncheckedPaths.isEmpty,
+               "an absent publisher manifest leaves the app for catalog coverage without a warning")
+        let failedFindings = AppUpdateFeedSupport.findings(
+            loadResult: .failed, format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(!failedFindings.complete && failedFindings.checkedPaths.isEmpty
+                && failedFindings.uncheckedPaths == [feedApp.path],
+               "a failed publisher manifest remains incomplete and names the app")
+        let successfulFindings = AppUpdateFeedSupport.findings(
+            loadResult: .data(manifest), format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(successfulFindings.complete && successfulFindings.checkedPaths == [feedApp.path]
+                && successfulFindings.uncheckedPaths.isEmpty
+               && successfulFindings.items.first?.latestVersion == "1.2",
+               "a readable publisher manifest still reports its newer release")
+        let unparseableFindings = AppUpdateFeedSupport.findings(
+            loadResult: .data(Data("not a manifest".utf8)), format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(!unparseableFindings.complete && unparseableFindings.checkedPaths.isEmpty
+                && unparseableFindings.uncheckedPaths == [feedApp.path]
+                && unparseableFindings.items.isEmpty,
+               "an unreadable publisher manifest stays a failure and is not treated as absent")
+        let unstableFeedApp = AppUpdatesSupport.InstalledApp(
+            name: "Preview", bundleID: "com.example.preview", path: "/Applications/Preview.app",
+            version: "1.2b", isFromAppStore: false)
+        let unstableFindings = AppUpdateFeedSupport.findings(
+            loadResult: .data(manifest), format: .manifest, apps: [unstableFeedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(!unstableFindings.complete && unstableFindings.checkedPaths.isEmpty
+                && unstableFindings.uncheckedPaths == [unstableFeedApp.path],
+               "a publisher feed cannot check an app with an unstable installed version")
         expect(feedUpdate([.init(version: "1.2", displayVersion: "1.2", minimumOS: "25.0.0", hasDownload: true)],
                           format: .manifest) == nil,
                "a manifest requiring a newer kernel cannot be offered")

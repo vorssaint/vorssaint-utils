@@ -426,6 +426,7 @@ final class AppUpdatesService: ObservableObject {
         let feeds = Array(grouped)
         var items: [AppUpdatesSupport.Item] = []
         var checkedPaths = Set<String>()
+        var uncheckedPaths = Set<String>()
         var complete = true
         let deadline = Date().addingTimeInterval(60)
         var kernelBytes = [CChar](repeating: 0, count: 256)
@@ -442,10 +443,12 @@ final class AppUpdatesService: ObservableObject {
         // All accumulated results are confined to workQueue.
         func checkBatch(_ start: Int) {
             guard start < feeds.count, Date() < deadline else {
+                // A feed the deadline cut off was not checked, so keep its apps named.
+                uncheckedPaths.formUnion(feeds[start...].flatMap { $0.value.map(\.path) })
                 completion(SourceResult(items: items, available: complete && start >= feeds.count,
                                         checkedPaths: checkedPaths,
                                         uncheckedApps: candidates.filter {
-                                            $0.updateFeed != nil && !checkedPaths.contains($0.path)
+                                            uncheckedPaths.contains($0.path)
                                         }))
                 return
             }
@@ -453,26 +456,17 @@ final class AppUpdatesService: ObservableObject {
             let group = DispatchGroup()
             for (feed, apps) in feeds[start..<end] {
                 group.enter()
-                AppUpdateFeedLoader.load(feed.url) { data in
+                AppUpdateFeedLoader.load(feed.url) { loadResult in
                     self.workQueue.async {
                         defer { group.leave() }
-                        guard let data, let releases = AppUpdateFeedSupport.releases(data: data, format: feed.format) else {
-                            complete = false
-                            return
-                        }
-                        for app in apps {
-                            guard AppUpdateFeedSupport.comparableInstalledVersion(app, format: feed.format) != nil else {
-                                complete = false
-                                continue
-                            }
-                            checkedPaths.insert(app.path)
-                            if let item = AppUpdateFeedSupport.update(
-                                app: app, releases: releases, format: feed.format,
-                                operatingSystemVersion: operatingSystemVersion,
-                                kernelVersion: kernelVersion, architecture: architecture) {
-                                items.append(item)
-                            }
-                        }
+                        let findings = AppUpdateFeedSupport.findings(
+                            loadResult: loadResult, format: feed.format, apps: apps,
+                            operatingSystemVersion: operatingSystemVersion,
+                            kernelVersion: kernelVersion, architecture: architecture)
+                        items.append(contentsOf: findings.items)
+                        checkedPaths.formUnion(findings.checkedPaths)
+                        uncheckedPaths.formUnion(findings.uncheckedPaths)
+                        complete = complete && findings.complete
                     }
                 }
             }

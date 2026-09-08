@@ -7,9 +7,18 @@ import Foundation
 /// the feed, including its signature, license and rollout checks.
 enum AppUpdateFeedSupport {
     enum Format: Hashable { case appcast, manifest }
+    enum LoadResult {
+        case data(Data), absent, failed
+    }
     struct Feed: Hashable {
         let url: URL
         let format: Format
+    }
+    struct Findings {
+        var items: [AppUpdatesSupport.Item] = []
+        var checkedPaths = Set<String>()
+        var uncheckedPaths = Set<String>()
+        var complete = true
     }
     struct Release {
         var version = ""
@@ -24,6 +33,13 @@ enum AppUpdateFeedSupport {
     }
 
     static let byteLimit = 2 * 1_024 * 1_024
+
+    /// A definitive 404 or 410 from a publisher is not a failed check. The app falls back
+    /// to whatever the public catalog knows, or nothing if it has no entry.
+    /// Other refusals and errors still leave the check incomplete.
+    static func feedIsAbsent(statusCode: Int?) -> Bool {
+        statusCode == 404 || statusCode == 410
+    }
 
     static func publicURL(_ value: String) -> URL? {
         guard let url = URL(string: value), url.scheme?.lowercased() == "https",
@@ -134,6 +150,37 @@ enum AppUpdateFeedSupport {
             installedVersion: sameDisplay ? "\(app.version) (\(installed))" : app.version,
             latestVersion: sameDisplay ? "\(display) (\(latest.version))" : display,
             token: nil, bundlePath: app.path, storePage: nil)
+    }
+
+    static func findings(loadResult: LoadResult, format: Format,
+                         apps: [AppUpdatesSupport.InstalledApp],
+                         operatingSystemVersion: String, kernelVersion: String,
+                         architecture: String) -> Findings {
+        switch loadResult {
+        case .absent:
+            return Findings()
+        case .failed:
+            return Findings(uncheckedPaths: Set(apps.map(\.path)), complete: false)
+        case let .data(data):
+            guard let releases = releases(data: data, format: format) else {
+                return Findings(uncheckedPaths: Set(apps.map(\.path)), complete: false)
+            }
+            var findings = Findings()
+            for app in apps {
+                guard comparableInstalledVersion(app, format: format) != nil else {
+                    findings.complete = false
+                    findings.uncheckedPaths.insert(app.path)
+                    continue
+                }
+                findings.checkedPaths.insert(app.path)
+                if let item = update(app: app, releases: releases, format: format,
+                                     operatingSystemVersion: operatingSystemVersion,
+                                     kernelVersion: kernelVersion, architecture: architecture) {
+                    findings.items.append(item)
+                }
+            }
+            return findings
+        }
     }
 
     static func comparableInstalledVersion(_ app: AppUpdatesSupport.InstalledApp, format: Format) -> String? {
