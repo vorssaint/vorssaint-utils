@@ -21,6 +21,10 @@ struct MixerSection: View {
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+    @AppStorage(DefaultsKey.panelMixerShowHeadphoneDisconnectControl)
+    private var showHeadphoneDisconnectControl = true
+    @AppStorage(DefaultsKey.panelMixerShowSystemSoundsControl)
+    private var showSystemSoundsControl = true
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
@@ -35,9 +39,11 @@ struct MixerSection: View {
     var collapsible = true
 
     var body: some View {
-        PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible) {
+        PanelSection(.mixer, title: l10n.s.mixerSection, collapsible: collapsible,
+                     supportsEditing: true,
+                     resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 8) {
-                audioDevicesSection
+                audioDevicesSection(editing: editing)
 
                 if AppVolumeMixer.isSupported, (!visibleApps.isEmpty || mixer.needsPermission) {
                     Divider()
@@ -54,7 +60,7 @@ struct MixerSection: View {
                 }
 
                 Divider()
-                optionsDisclosure
+                optionsDisclosure(editing: editing)
             }
             .panelCard()
         }
@@ -69,10 +75,28 @@ struct MixerSection: View {
         }
     }
 
-    private var audioDevicesSection: some View {
+    private func resetPanelDefaults() {
+        showHeadphoneDisconnectControl = true
+        showSystemSoundsControl = true
+    }
+
+    private func audioDevicesSection(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             universalOutputPicker
-            systemSoundOutputPicker
+            if editing || showSystemSoundsControl {
+                if editing {
+                    HStack(spacing: 6) {
+                        Text(l10n.s.mixerSoundEffectsOutputTitle)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(showSystemSoundsControl
+                                             ? Color.primary : Color.secondary)
+                        Spacer(minLength: 0)
+                        PanelInlineHideButton(isVisible: $showSystemSoundsControl)
+                    }
+                } else {
+                    systemSoundOutputPicker
+                }
+            }
             microphonePicker
             if let outputSwitchError = mixer.outputSwitchError {
                 inputMessage(String(format: l10n.s.mixerSystemOutputErrorFormat, outputSwitchError),
@@ -81,7 +105,7 @@ struct MixerSection: View {
         }
     }
 
-    private var optionsDisclosure: some View {
+    private func optionsDisclosure(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
                 optionsExpanded.toggle()
@@ -91,7 +115,7 @@ struct MixerSection: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                        .rotationEffect(.degrees(optionsExpanded || editing ? 90 : 0))
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -101,12 +125,23 @@ struct MixerSection: View {
             }
             .buttonStyle(.plain)
 
-            if optionsExpanded {
+            if optionsExpanded || editing {
                 VStack(alignment: .leading, spacing: 8) {
                     if AppVolumeMixer.isSupported {
                         inactiveAppsVisibilityToggle
                     }
-                    headphoneDisconnectProtectionToggle
+                    if editing {
+                        HStack(spacing: 6) {
+                            Text(l10n.s.mixerLowerOnHeadphonesDisconnect)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(showHeadphoneDisconnectControl
+                                                 ? Color.primary : Color.secondary)
+                            Spacer(minLength: 0)
+                            PanelInlineHideButton(isVisible: $showHeadphoneDisconnectControl)
+                        }
+                    } else if showHeadphoneDisconnectControl {
+                        headphoneDisconnectProtectionToggle
+                    }
                     preciseVolumeRollerToggle
                     if AppFeature.soundOutputSwitcher.isAvailable {
                         soundOutputSwitcherControls
@@ -188,6 +223,7 @@ struct MixerSection: View {
                         mixer.setCurrentOutputVolume($0)
                     }
                 }
+                .padding(.top, 4)
             }
 
             if universalOutputDevices.isEmpty {

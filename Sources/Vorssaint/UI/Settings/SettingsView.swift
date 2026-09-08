@@ -392,6 +392,9 @@ struct GeneralSettings: View {
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
     @AppStorage(DefaultsKey.musicBlockEnabled) private var musicBlockEnabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var musicBlockReplacementPath = ""
+    @AppStorage(DefaultsKey.panelShowBrandMark) private var showBrandMark = true
+    @AppStorage(DefaultsKey.panelShowFooterActions) private var showFooterActions = true
+    @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
 
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
     private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
@@ -496,6 +499,21 @@ struct GeneralSettings: View {
                     SettingsCaptionText(l10n.s.musicBlockCaption)
                 }
                 .settingsSectionAnchor(.musicBlocking)
+            }
+            Section(l10n.s.statusItemContextMenuSection) {
+                StatusItemContextMenuOrderEditor()
+                Text(l10n.s.statusItemContextMenuOrderHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if keepAwakeRightClickToggle {
+                    Text(l10n.s.keepAwakeRightClickToggleCaption)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+            Section(l10n.s.monitorPanelSection) {
+                Toggle(l10n.s.panelShowBrandMark, isOn: $showBrandMark)
+                Toggle(l10n.s.panelShowFooterActions, isOn: $showFooterActions)
             }
             Section(feedbackStrings.sectionTitle) {
                 Button {

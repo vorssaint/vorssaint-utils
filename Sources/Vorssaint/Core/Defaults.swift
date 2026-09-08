@@ -116,6 +116,8 @@ enum DefaultsKey {
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
+    static let panelMixerShowHeadphoneDisconnectControl = "panelMixerShowHeadphoneDisconnectControl"
+    static let panelMixerShowSystemSoundsControl = "panelMixerShowSystemSoundsControl"
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
@@ -281,9 +283,15 @@ enum DefaultsKey {
     // Show/hide whole panel sections that have no monitorShow* key of their own.
     static let panelShowKeepAwake = "panelShowKeepAwake"
     static let panelShowBrightness = "panelShowBrightness"
+    static let panelBrightnessShowOSDControl = "panelBrightnessShowOSDControl"
     static let panelShowUtilities = "panelShowUtilities"
     static let panelShowControls = "panelShowControls"
     static let panelShowToggles = "panelShowToggles"
+    static let panelShowBrandMark = "panelShowBrandMark"
+    static let panelShowFooterActions = "panelShowFooterActions"
+    // An absent value uses the default order and shows all menu items.
+    static let statusItemContextMenuOrder = "statusItemContextMenuOrder"
+    static let statusItemContextMenuHiddenItems = "statusItemContextMenuHiddenItems"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
     static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
@@ -937,6 +945,8 @@ enum Defaults {
         DefaultsKey.mixerHideInactiveApps: false,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
+        DefaultsKey.panelMixerShowHeadphoneDisconnectControl: true,
+        DefaultsKey.panelMixerShowSystemSoundsControl: true,
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
@@ -1087,9 +1097,12 @@ enum Defaults {
         DefaultsKey.panelControlFilesExpanded: false,
         DefaultsKey.panelShowKeepAwake: true,
         DefaultsKey.panelShowBrightness: true,
+        DefaultsKey.panelBrightnessShowOSDControl: true,
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
+        DefaultsKey.panelShowBrandMark: true,
+        DefaultsKey.panelShowFooterActions: true,
         DefaultsKey.panelToggleDarkMode: true,
         DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,

@@ -10,9 +10,23 @@ All notable changes to this project are documented here. The format follows
 App Switcher can focus its list on the display under the pointer. Screenshot previews gain optional keyboard focus, and Scratchpad adds shortcuts to create and close tabs.
 
 ### Added
+- General settings can now reorder the menu bar icon's right-click menu and hide
+  optional items; Settings and Quit remain available.
+- The menu panel can now hide its Vorssaint logo and Settings and Quit buttons.
+- Display and Volume Mixer edit controls can now hide “Show brightness when
+  adjusting,” System Sounds and “Lower volume when headphones disconnect.”
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
 - Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
+
+### Changed
+- Panel appearance, optional-row visibility and right-click menu layouts now
+  travel with settings backups.
+
+### Fixed
+- Menu panel edit controls no longer change section spacing, visibility icons now
+  match their shown or hidden state, and compact sections release unused space
+  when optional rows are hidden.
 
 ## [3.3.5] - 2026-09-06
 

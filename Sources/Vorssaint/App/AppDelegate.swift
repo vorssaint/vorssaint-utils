@@ -1128,80 +1128,99 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let manager = KeepAwakeManager.shared
         let strings = L10n.shared.s
         let menu = NSMenu()
-
-        if AppFeature.keepAwake.isAvailable {
-            let toggleItem = NSMenuItem(title: manager.isActive ? strings.menuDisableAwake : strings.menuEnableAwake,
-                                        action: #selector(menuToggleAwake),
-                                        keyEquivalent: "")
-            toggleItem.target = self
-            menu.addItem(toggleItem)
+        let defaults = UserDefaults.standard
+        let orderedItems = StatusItemContextMenuLayout.visibleOrder(defaults: defaults).filter {
+            contextMenuItemIsAvailable($0, keepAwakeIsActive: manager.isActive, defaults: defaults)
         }
+        let separatorIndexes = StatusItemContextMenuLayout.separatorIndexes(for: orderedItems)
 
-        if AppFeature.keepAwake.isAvailable, !manager.isActive {
-            let durationsItem = NSMenuItem(title: strings.menuActivateFor, action: nil, keyEquivalent: "")
-            let submenu = NSMenu()
-            let options: [(String, Int)] = [(strings.minutes15, 15), (strings.minutes30, 30),
-                                            (strings.hour1, 60), (strings.hours2, 120),
-                                            (strings.hours4, 240), (strings.hours8, 480),
-                                            (strings.indefinitely, 0)]
-            for (label, minutes) in options {
-                let item = NSMenuItem(title: label, action: #selector(menuActivateDuration(_:)), keyEquivalent: "")
-                item.target = self
-                item.tag = minutes
-                submenu.addItem(item)
+        for (index, id) in orderedItems.enumerated() {
+            if separatorIndexes.contains(index) {
+                menu.addItem(.separator())
             }
-            durationsItem.submenu = submenu
-            menu.addItem(durationsItem)
+            menu.addItem(contextMenuItem(for: id, manager: manager, strings: strings))
         }
-
-        if AppFeature.cleaningMode.isAvailable {
-            let cleaningItem = NSMenuItem(title: strings.cleaningMenuItem,
-                                          action: #selector(menuCleaningMode), keyEquivalent: "")
-            cleaningItem.target = self
-            menu.addItem(cleaningItem)
-        }
-
-        if menu.items.isEmpty == false {
-            menu.addItem(.separator())
-        }
-
-        let settingsItem = NSMenuItem(title: strings.menuSettings, action: #selector(menuOpenSettings), keyEquivalent: ",")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
-
-        let aboutItem = NSMenuItem(title: strings.menuAbout, action: #selector(showAbout), keyEquivalent: "")
-        aboutItem.target = self
-        menu.addItem(aboutItem)
-
-        if AppFeature.uninstaller.isAvailable {
-            let uninstallItem = NSMenuItem(title: strings.uninstallerMenuItem,
-                                           action: #selector(menuOpenUninstaller), keyEquivalent: "")
-            uninstallItem.target = self
-            menu.addItem(uninstallItem)
-        }
-
-        if AppFeature.shelf.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
-            let shelfItem = NSMenuItem(title: strings.shelfMenuItem,
-                                       action: #selector(menuOpenShelf), keyEquivalent: "")
-            shelfItem.target = self
-            menu.addItem(shelfItem)
-        }
-
-        let updatesItem = NSMenuItem(title: strings.menuCheckUpdates, action: #selector(menuCheckUpdates), keyEquivalent: "")
-        updatesItem.target = self
-        menu.addItem(updatesItem)
-
-        menu.addItem(.separator())
-
-        let quitItem = NSMenuItem(title: strings.menuQuit, action: #selector(quitApp), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
 
         statusController.statusItem.menu = menu
         statusController.button?.performClick(nil)
         DispatchQueue.main.async { [weak self] in
             self?.statusController.statusItem.menu = nil
         }
+    }
+
+    private func contextMenuItemIsAvailable(_ id: StatusItemContextMenuItemID,
+                                            keepAwakeIsActive: Bool,
+                                            defaults: UserDefaults) -> Bool {
+        switch id {
+        case .keepAwakeToggle:
+            return AppFeature.keepAwake.isAvailable
+        case .activateFor:
+            return AppFeature.keepAwake.isAvailable && !keepAwakeIsActive
+        case .cleaningMode:
+            return AppFeature.cleaningMode.isAvailable
+        case .settings, .about, .checkForUpdates, .quit:
+            return true
+        case .uninstaller:
+            return AppFeature.uninstaller.isAvailable
+        case .shelf:
+            return AppFeature.shelf.isAvailable && defaults.bool(forKey: DefaultsKey.shelfEnabled)
+        }
+    }
+
+    private func contextMenuItem(for id: StatusItemContextMenuItemID,
+                                 manager: KeepAwakeManager,
+                                 strings: Strings) -> NSMenuItem {
+        switch id {
+        case .keepAwakeToggle:
+            return targetedContextMenuItem(
+                title: manager.isActive ? strings.menuDisableAwake : strings.menuEnableAwake,
+                action: #selector(menuToggleAwake))
+        case .activateFor:
+            let item = NSMenuItem(title: strings.menuActivateFor, action: nil, keyEquivalent: "")
+            let submenu = NSMenu()
+            let options: [(String, Int)] = [(strings.minutes15, 15), (strings.minutes30, 30),
+                                            (strings.hour1, 60), (strings.hours2, 120),
+                                            (strings.hours4, 240), (strings.hours8, 480),
+                                            (strings.indefinitely, 0)]
+            for (label, minutes) in options {
+                let durationItem = targetedContextMenuItem(title: label,
+                                                           action: #selector(menuActivateDuration(_:)))
+                durationItem.tag = minutes
+                submenu.addItem(durationItem)
+            }
+            item.submenu = submenu
+            return item
+        case .cleaningMode:
+            return targetedContextMenuItem(title: strings.cleaningMenuItem,
+                                           action: #selector(menuCleaningMode))
+        case .settings:
+            return targetedContextMenuItem(title: strings.menuSettings,
+                                           action: #selector(menuOpenSettings),
+                                           keyEquivalent: ",")
+        case .about:
+            return targetedContextMenuItem(title: strings.menuAbout, action: #selector(showAbout))
+        case .uninstaller:
+            return targetedContextMenuItem(title: strings.uninstallerMenuItem,
+                                           action: #selector(menuOpenUninstaller))
+        case .shelf:
+            return targetedContextMenuItem(title: strings.shelfMenuItem,
+                                           action: #selector(menuOpenShelf))
+        case .checkForUpdates:
+            return targetedContextMenuItem(title: strings.menuCheckUpdates,
+                                           action: #selector(menuCheckUpdates))
+        case .quit:
+            return targetedContextMenuItem(title: strings.menuQuit,
+                                           action: #selector(quitApp),
+                                           keyEquivalent: "q")
+        }
+    }
+
+    private func targetedContextMenuItem(title: String,
+                                         action: Selector,
+                                         keyEquivalent: String = "") -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.target = self
+        return item
     }
 
     @objc private func menuToggleAwake() {

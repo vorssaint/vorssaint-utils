@@ -66,6 +66,10 @@ enum SettingsDirectory {
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
                                        keywords: [s.launchAtLogin, s.languageLabel, s.showMenuBarIcon,
+                                                 s.panelShowBrandMark, s.panelShowFooterActions,
+                                                 s.statusItemContextMenuSection,
+                                                 s.statusItemContextMenuOrderHint,
+                                                 s.menuSettings, s.menuQuit,
                                                   FeatureStrings.appearance(language).label,
                                                   FeatureStrings.appearance(language).dark],
                                        featureKeywords: [

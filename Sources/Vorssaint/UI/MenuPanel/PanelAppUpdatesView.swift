@@ -33,8 +33,7 @@ struct PanelAppUpdatesView: View {
             Label(text.pageTitle, systemImage: "arrow.down.app")
                 .font(.system(size: 12, weight: .semibold))
             Spacer()
-            // The panel's own footer already has a plain Settings button, so
-            // this one is an icon: same row, no second word saying Settings.
+            // Keep this settings button available when the panel footer is hidden.
             Button {
                 SettingsRouter.shared.page = .appUpdates
                 appDelegate()?.openSettingsWindow()

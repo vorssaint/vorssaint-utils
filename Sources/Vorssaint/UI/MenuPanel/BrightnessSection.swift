@@ -11,12 +11,16 @@ struct BrightnessSection: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.panelBrightnessShowOSDControl) private var showOSDControl = true
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
 
     var body: some View {
-        PanelSection(.brightness, title: strings.pageTitle, collapsible: collapsible) {
+        PanelSection(.brightness, title: strings.pageTitle, collapsible: collapsible,
+                     supportsEditing: true,
+                     editButtonVisible: service.brightnessOSDSupported,
+                     resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 if service.displays.isEmpty {
                     Text(strings.noDisplays)
@@ -32,26 +36,41 @@ struct BrightnessSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
                 }
-                if service.brightnessOSDSupported {
+                if service.brightnessOSDSupported, editing || showOSDControl {
                     Divider()
-                    Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                        .help(strings.osdCaption)
-                        .onChange(of: brightnessOSDEnabled) { _, isOn in
-                            if isOn { permissions.requestAccessibility() }
-                            service.syncWithPreferences()
+                    if editing {
+                        HStack(spacing: 6) {
+                            Text(strings.osdToggle)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(showOSDControl ? Color.primary : Color.secondary)
+                            Spacer(minLength: 0)
+                            PanelInlineHideButton(isVisible: $showOSDControl)
                         }
+                    } else {
+                        Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                            .help(strings.osdCaption)
+                            .onChange(of: brightnessOSDEnabled) { _, isOn in
+                                if isOn { permissions.requestAccessibility() }
+                                service.syncWithPreferences()
+                            }
+                    }
                 }
                 if AppFeature.extraBrightness.isAvailable {
                     Divider()
                     ExtraBrightnessPanelToggle()
                 }
             }
+            .padding(.bottom, !editing && !showOSDControl ? 2 : 0)
             .panelCard()
             .onAppear { service.refresh() }
         }
+    }
+
+    private func resetPanelDefaults() {
+        showOSDControl = true
     }
 
     private func row(_ display: BrightnessDisplay) -> some View {
@@ -143,6 +162,7 @@ struct DisplayPowerButton: View {
                         .font(.system(size: compact ? 10.5 : 12, weight: .semibold))
                         .foregroundStyle(display.isActive ? AnyShapeStyle(.secondary)
                                                          : AnyShapeStyle(.green))
+                        .offset(y: compact && display.isActive ? -1 : 0)
                         .frame(width: compact ? 16 : 20, height: 18)
                 }
                 .buttonStyle(.plain)

@@ -73,10 +73,13 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
+    @AppStorage(DefaultsKey.panelBrightnessShowOSDControl) private var showBrightnessOSDControl = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
+    @AppStorage(DefaultsKey.panelShowBrandMark) private var showBrandMark = true
+    @AppStorage(DefaultsKey.panelShowFooterActions) private var showFooterActions = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
@@ -166,32 +169,44 @@ struct MenuPanelView: View {
     }
 
     private var navigablePanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MenuPanelChromeLayout.spacing) {
             UpdateBanner()
                 .reportHeight($updateBannerHeight)
-            header
-            sectionNavigation
-
-            OverlayScrollView(measuredHeight: $navigableContentHeight) {
-                VStack(alignment: .leading, spacing: 12) {
-                    section(for: activeSection, collapsible: false)
-                }
-                .frame(width: 308)
+            if showBrandMark || AppInfo.isBeta {
+                header
             }
-            .frame(width: 308, height: navigableScrollHeight)
+            VStack(alignment: .leading,
+                   spacing: MenuPanelChromeLayout.spacing
+                       - PanelSectionLayout.editControlsTopOverflow) {
+                sectionNavigation
 
-            footer
+                OverlayScrollView(measuredHeight: $navigableContentHeight) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        section(for: activeSection, collapsible: false)
+                    }
+                    .frame(width: 308)
+                    .padding(.top, PanelSectionLayout.editControlsTopOverflow)
+                }
+                .frame(width: 308,
+                       height: navigableScrollHeight + PanelSectionLayout.editControlsTopOverflow)
+            }
+
+            if showFooterActions {
+                footer
+            }
         }
-        .padding(12)
-        .frame(width: 332, height: navigablePanelHeight)
+        .padding(MenuPanelChromeLayout.panelPadding)
+        .frame(width: 332, height: navigablePanelHeight, alignment: .topLeading)
         .panelGlassSurface()
     }
 
     private var metricPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: MenuPanelChromeLayout.spacing) {
             UpdateBanner()
                 .reportHeight($updateBannerHeight)
-            header
+            if showBrandMark || AppInfo.isBeta {
+                header
+            }
 
             if let selectedMetric {
                 metricNavigationHeader(selectedMetric)
@@ -202,10 +217,12 @@ struct MenuPanelView: View {
                 .frame(width: 308, height: metricScrollHeight)
             }
 
-            footer
+            if showFooterActions {
+                footer
+            }
         }
-        .padding(12)
-        .frame(width: 332, height: metricPanelHeight)
+        .padding(MenuPanelChromeLayout.panelPadding)
+        .frame(width: 332, height: metricPanelHeight, alignment: .topLeading)
         .panelGlassSurface()
     }
 
@@ -227,28 +244,46 @@ struct MenuPanelView: View {
     }
 
     private var navigableScrollHeight: CGFloat {
-        let measured = navigableContentHeight == 0 ? estimatedNavigableContentHeight : navigableContentHeight
+        let measured = navigableContentHeight == 0
+            ? estimatedNavigableContentHeight
+            : max(0, navigableContentHeight - PanelSectionLayout.editControlsTopOverflow)
         return min(measured, max(80, maxHeight - navigableChromeHeight))
     }
 
     private var navigablePanelHeight: CGFloat {
-        min(maxHeight, max(220, navigableScrollHeight + navigableChromeHeight))
+        min(maxHeight, max(navigablePanelMinimumHeight,
+                           navigableScrollHeight + navigableChromeHeight))
+    }
+
+    private var navigablePanelMinimumHeight: CGFloat {
+        activeSection == .brightness && !showBrightnessOSDControl ? 0 : 220
     }
 
     private var metricScrollHeight: CGFloat {
         let measured = metricContentHeight == 0 ? estimatedMetricContentHeight : metricContentHeight
-        return min(measured, max(80, maxHeight - navigableChromeHeight))
+        return min(measured, max(80, maxHeight - metricChromeHeight))
     }
 
     private var metricPanelHeight: CGFloat {
-        min(maxHeight, max(220, metricScrollHeight + navigableChromeHeight))
+        min(maxHeight, max(220, metricScrollHeight + metricChromeHeight))
     }
 
     private var navigableChromeHeight: CGFloat {
-        let bannerHeight = updates.state.showsMenuPanelBanner
-            ? (max(updateBannerHeight, 48) + 12)
-            : 0
-        return 180 + bannerHeight
+        chromeHeight(navigationHeight: MenuPanelChromeLayout.sectionNavigationHeight)
+    }
+
+    private var metricChromeHeight: CGFloat {
+        chromeHeight(navigationHeight: MenuPanelChromeLayout.metricNavigationHeight)
+    }
+
+    private func chromeHeight(navigationHeight: CGFloat) -> CGFloat {
+        MenuPanelChromeLayout.height(
+            navigationHeight: navigationHeight,
+            measuredBannerHeight: updates.state.showsMenuPanelBanner ? updateBannerHeight : nil,
+            showsBrandMark: showBrandMark,
+            showsBetaControls: AppInfo.isBeta,
+            showsFooterActions: showFooterActions
+        )
     }
 
     private var estimatedNavigableContentHeight: CGFloat {
@@ -396,7 +431,7 @@ struct MenuPanelView: View {
     }
 
     private var header: some View {
-        MenuPanelHeader()
+        MenuPanelHeader(showsBrandMark: showBrandMark)
     }
 
     private var footer: some View {
@@ -449,14 +484,17 @@ struct MenuPanelView: View {
 }
 
 private struct MenuPanelHeader: View {
+    var showsBrandMark = true
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
         ZStack {
-            BrandMark(width: 48, tint: markTint)
-                .frame(height: 28)
-                .accessibilityHidden(true)
+            if showsBrandMark {
+                BrandMark(width: 48, tint: markTint)
+                    .frame(height: 28)
+                    .accessibilityHidden(true)
+            }
 
             if AppInfo.isBeta {
                 HStack {
@@ -1991,9 +2029,6 @@ struct UtilityActionButton: View {
             }
             Spacer(minLength: 0)
             if isEditing, let visibility {
-                if !visibility.wrappedValue {
-                    PanelHiddenBadge()
-                }
                 PanelInlineHideButton(isVisible: visibility)
             } else {
                 if let shortcutHint {
@@ -2127,9 +2162,6 @@ struct PanelToggleRow: View {
     @ViewBuilder
     private var trailingControl: some View {
         if isEditing, let visibility {
-            if !visibility.wrappedValue {
-                PanelHiddenBadge()
-            }
             PanelInlineHideButton(isVisible: visibility)
         } else {
             Toggle("", isOn: $isOn)
