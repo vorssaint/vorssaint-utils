@@ -365,6 +365,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // We animate the underlying popover window ourselves so applicationDefined
         // dismissal, right-click menus and live Settings previews stay predictable.
         popover.animates = false
+        // The panel paints its own glass surface, or the arrow tip would show plain
+        // system material where the surface stops, the seam users see. The visible
+        // content stays inset either way, before through the content view's frame
+        // and now through the safe area the popover publishes, so only the surface
+        // reaches the arrow.
+        popover.hasFullSizeContent = true
         popover.delegate = self
         let host = NSHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
