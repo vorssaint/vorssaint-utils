@@ -844,6 +844,14 @@ final class AppSwitcher: ObservableObject {
             return
         }
 
+        // Warm the Accessibility Keyboard's pid before the second Tab needs it.
+        // `applicationDidFinishLaunching` only warms a keyboard that was already
+        // running, and this app is usually a login item, so it usually is not.
+        // Resolution is asynchronous — the first call answers "not running" and
+        // schedules the lookup — so asking here spends the gap between the first
+        // Tab and the second on it, rather than cancelling the session.
+        _ = AssistiveKeyboard.isRunning
+
         guard let requested = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
@@ -1592,13 +1600,13 @@ final class AppSwitcher: ObservableObject {
     /// tap. This preserves the click and prevents a nearly simultaneous Command
     /// release from committing the highlighted window first (issues #384 and
     /// #539).
-    private func dismissForClickOutsidePanel(_ event: CGEvent? = nil) {
+    private func dismissForClickOutsidePanel(_ event: CGEvent) {
         guard sessionActive, let panel else { return }
         // On the Accessibility Keyboard a modifier is latched by double-clicking
         // it and every other key is then pressed with the mouse. Those clicks
         // land outside the panel, but they are the user driving the switcher,
         // not dismissing it: without this the session dies on the second Tab.
-        if let event, AssistiveKeyboard.ownsPoint(event.location) { return }
+        if AssistiveKeyboard.ownsPoint(event.location) { return }
         guard SwitcherSupport.shouldDismissForClick(panelIsVisible: panel.isVisible,
                                                     panelFrame: panel.frame,
                                                     location: NSEvent.mouseLocation)
