@@ -659,6 +659,43 @@ enum SwitcherSupport {
         return best?.index
     }
 
+    /// Collapses every window of an app into a single entry, so an app shows once
+    /// in the switcher instead of once per window (or tab). Keeps one
+    /// representative per app, preferring the on-screen, front window so its title
+    /// and thumbnail are the one you would expect when switching to that app.
+    static func groupWindowsByApp(_ windows: [SwitcherItem]) -> [SwitcherItem] {
+        var indexByPid: [pid_t: Int] = [:]
+        var grouped: [SwitcherItem] = []
+        for window in windows {
+            if let index = indexByPid[window.pid] {
+                // Another window of the same app: prefer an on-screen window as
+                // the representative when the one we kept is off-screen.
+                if (window.isOnScreen && !grouped[index].isOnScreen)
+                    || (window.isFullscreen && !grouped[index].isFullscreen) {
+                    grouped[index] = window
+                }
+            } else {
+                indexByPid[window.pid] = grouped.count
+                grouped.append(window)
+            }
+        }
+        return grouped
+    }
+
+    /// Windows belong to the display containing most of their frame.
+    /// Windowless apps and off-display windows have no current display.
+    static func itemsOnDisplay(_ items: [SwitcherItem],
+                               displayBounds: [CGRect],
+                               targetIndex: Int) -> [SwitcherItem] {
+        guard displayBounds.indices.contains(targetIndex) else { return [] }
+        return items.filter { item in
+            guard !item.isAppEntry,
+                  let index = displayIndex(showingMostOf: item.frame,
+                                           displayBounds: displayBounds) else { return false }
+            return index == targetIndex
+        }
+    }
+
     static func hidesApp(bundleIdentifier: String?,
                          appRules: [String: SwitcherAppRule]) -> Bool {
         guard let bundleIdentifier else { return false }

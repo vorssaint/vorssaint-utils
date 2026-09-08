@@ -18,6 +18,18 @@ import CoreGraphics
 /// titled windows use NSWindow metadata so Settings remains reachable even
 /// though the app is a menu-bar accessory.
 enum WindowEnumerator {
+    struct DisplayScope: Sendable {
+        let bounds: [CGRect]
+        let targetIndex: Int
+    }
+
+    struct WindowList {
+        let items: [SwitcherItem]
+        /// Unfiltered source context keeps activation and panel placement tied
+        /// to the foreground window even when it belongs to another display.
+        let sourceItems: [SwitcherItem]
+    }
+
     struct AppSnapshot: Sendable {
         let pid: pid_t
         let bundleIdentifier: String?
@@ -94,7 +106,8 @@ enum WindowEnumerator {
     static func enumerateSwitcherWindows(groupByApp: Bool,
                                          preservingGroupedWindows: Bool,
                                          snapshot: Snapshot,
-                                         isCancelled: @escaping () -> Bool = { false }) -> [SwitcherItem] {
+                                         displayScope: DisplayScope? = nil,
+                                         isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
                 storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
@@ -102,6 +115,7 @@ enum WindowEnumerator {
             preservingGroupedWindows: preservingGroupedWindows,
             marksHiddenSpaces: true,
             snapshot: snapshot,
+            displayScope: displayScope,
             isCancelled: isCancelled
         )
     }
@@ -111,7 +125,7 @@ enum WindowEnumerator {
     static func listWindowsForCommandBar(snapshot: Snapshot) -> [SwitcherItem] {
         listWindows(appRules: [:], groupByApp: false,
                     preservingGroupedWindows: false, marksHiddenSpaces: false,
-                    snapshot: snapshot)
+                    snapshot: snapshot).items
     }
 
     private static func listWindows(appRules: [String: SwitcherAppRule],
@@ -119,7 +133,8 @@ enum WindowEnumerator {
                                     preservingGroupedWindows: Bool,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
-                                    isCancelled: @escaping () -> Bool = { false }) -> [SwitcherItem] {
+                                    displayScope: DisplayScope? = nil,
+                                    isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
             takeOverSystemShortcuts: UserDefaults.standard.bool(
@@ -140,6 +155,7 @@ enum WindowEnumerator {
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
                            snapshot: snapshot,
+                           displayScope: displayScope,
                            isCancelled: isCancelled)
     }
 
@@ -164,7 +180,7 @@ enum WindowEnumerator {
                     preservingGroupedWindows: false,
                     currentSpaceOnly: false,
                     marksHiddenSpaces: false,
-                    snapshot: snapshot())
+                    snapshot: snapshot()).items
     }
 
     private static func listWindows(filterPID: pid_t?,
@@ -178,8 +194,9 @@ enum WindowEnumerator {
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
-                                    isCancelled: @escaping () -> Bool = { false }) -> [SwitcherItem] {
-        guard !isCancelled() else { return [] }
+                                    displayScope: DisplayScope? = nil,
+                                    isCancelled: @escaping () -> Bool = { false }) -> WindowList {
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 
         let ownPid = ProcessInfo.processInfo.processIdentifier
@@ -258,7 +275,7 @@ enum WindowEnumerator {
                                                         normalLevelWindowIDs: normalLevelWindowIDs,
                                                         screenFrames: snapshot.screenFrames,
                                                         isCancelled: isCancelled)
-        guard !isCancelled() else { return [] }
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
 
         var seen = Set<CGWindowID>()
         var windows: [SwitcherItem] = []
@@ -462,19 +479,23 @@ enum WindowEnumerator {
             if minimizedPlacement == .hidden, item.isMinimized { return false }
             return true
         }
-        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? filtered : []
+        let sourceItems = displayScope.map { _ in orderByUse(filtered, frontToBack: frontToBack) }
+        let scoped = displayScope.map {
+            SwitcherSupport.itemsOnDisplay(filtered, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
+        } ?? filtered
+        let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
         let ordered: [SwitcherItem]
         if minimizedPlacement == .end {
-            let primary = filtered.filter { !$0.isMinimized }
-            let deferred = filtered.filter { $0.isMinimized }
+            let primary = scoped.filter { !$0.isMinimized }
+            let deferred = scoped.filter { $0.isMinimized }
             let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
             let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
-            let groupedPrimary = groupByApp ? groupWindowsByApp(orderedPrimary) : orderedPrimary
-            let groupedDeferred = groupByApp ? groupWindowsByApp(orderedDeferred) : orderedDeferred
+            let groupedPrimary = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedPrimary) : orderedPrimary
+            let groupedDeferred = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedDeferred) : orderedDeferred
             ordered = groupedPrimary + groupedDeferred
         } else {
-            let orderedRaw = orderByUse(filtered, frontToBack: frontToBack)
-            ordered = groupByApp ? groupWindowsByApp(orderedRaw) : orderedRaw
+            let orderedRaw = orderByUse(scoped, frontToBack: frontToBack)
+            ordered = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedRaw) : orderedRaw
         }
         var result = ordered
         if ordered.count > maximumCount {
@@ -509,7 +530,7 @@ enum WindowEnumerator {
                 return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
             }
         }
-        return result
+        return WindowList(items: result, sourceItems: sourceItems ?? result)
     }
 
     /// WindowServer can keep stale, titled surfaces around after some apps close
@@ -938,26 +959,4 @@ enum WindowEnumerator {
             .map { windows[$0] }
     }
 
-    /// Collapses every window of an app into a single entry, so an app shows once
-    /// in the switcher instead of once per window (or tab). Keeps one
-    /// representative per app, preferring the on-screen, front window so its title
-    /// and thumbnail are the one you would expect when switching to that app.
-    private static func groupWindowsByApp(_ windows: [SwitcherItem]) -> [SwitcherItem] {
-        var indexByPid: [pid_t: Int] = [:]
-        var grouped: [SwitcherItem] = []
-        for window in windows {
-            if let index = indexByPid[window.pid] {
-                // Another window of the same app: prefer an on-screen window as
-                // the representative when the one we kept is off-screen.
-                if (window.isOnScreen && !grouped[index].isOnScreen)
-                    || (window.isFullscreen && !grouped[index].isFullscreen) {
-                    grouped[index] = window
-                }
-            } else {
-                indexByPid[window.pid] = grouped.count
-                grouped.append(window)
-            }
-        }
-        return grouped
-    }
 }

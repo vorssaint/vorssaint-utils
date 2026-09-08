@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+App Switcher can focus its list on the display under the pointer. Screenshot previews gain optional keyboard focus, and Scratchpad adds shortcuts to create and close tabs.
+
+### Added
+- App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
+- Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
+- Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
+
 ## [3.3.5] - 2026-09-06
 
 ### Summary
