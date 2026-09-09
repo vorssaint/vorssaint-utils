@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, killProcess, portManager
+         commandBar, screenRecorder, screenAnnotation, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads
@@ -112,7 +112,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .killProcess, .portManager:
+             .scratchpad, .commandBar, .screenRecorder, .screenAnnotation, .killProcess, .portManager:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads:
@@ -174,6 +174,7 @@ extension AppFeature {
         case .appUpdates: return "arrow.down.app"
         case .screenshot: return "camera.viewfinder"
         case .screenRecorder: return "record.circle"
+        case .screenAnnotation: return "pencil.and.outline"
         case .cameraPreview: return "web.camera"
         case .notchGestures: return "hand.draw"
         case .notchTimer: return "timer"
@@ -269,7 +270,7 @@ extension AppFeature {
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .killProcess, .portManager,
+             .commandBar, .screenRecorder, .screenAnnotation, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
             return []
@@ -315,6 +316,7 @@ extension AppFeature {
         // Microphone access stays contextual, and Accessibility only keeps
         // typing timing.
         case .screenRecorder: return [.screenRecording, .accessibility, .audioCapture, .microphone]
+        case .screenAnnotation: return []
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]

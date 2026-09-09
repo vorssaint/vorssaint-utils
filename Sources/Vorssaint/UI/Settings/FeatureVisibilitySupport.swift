@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, screenAnnotation, radialMenu, commandBar, killProcess, portManager, notch
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -246,6 +246,8 @@ extension AppFeature {
         case .commandBar: return FeatureSettingsDestination(.commandBar)
         case .screenRecorder:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
+        case .screenAnnotation:
+            return FeatureSettingsDestination(.screenAnnotation)
 
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
             return FeatureSettingsDestination(.monitor)
@@ -293,6 +295,7 @@ enum FeatureVisibilitySupport {
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
         case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads]
+        case .screenAnnotation: return [.screenAnnotation]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
         case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:

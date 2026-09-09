@@ -78,6 +78,14 @@ enum SettingsDirectory {
                                        featureKeywords: AppFeature.allCases.map {
                                         ($0, [$0.hubTitle(s, hub: FeatureStrings.hub(language))])
                                        }),
+                SettingsDirectoryItem(page: .screenAnnotation,
+                                      title: FeatureStrings.annotation(language).title,
+                                      icon: "pencil.and.outline",
+                                      featureKeywords: [
+                                        (.screenAnnotation, [FeatureStrings.annotation(language).title,
+                                                              FeatureStrings.annotation(language).pen,
+                                                              FeatureStrings.annotation(language).highlighter])
+                                      ]),
                 SettingsDirectoryItem(page: .energy, title: s.tabEnergy, icon: "bolt.fill",
                                        featureKeywords: [
                                         (.keepAwake, [s.keepAwakeTitle, s.clamshellTitle,
