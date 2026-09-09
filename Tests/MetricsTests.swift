@@ -2947,6 +2947,16 @@ struct MetricsTests {
             bundleIdentifier: "com.example.editor",
             subrole: "AXUnknown"),
                "App Switcher keeps undescribed windows from unrelated apps filtered")
+        for tags: UInt32 in [786946, 795138] {
+            expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+                role: "AXWindow",
+                subrole: "AXUnknown",
+                fillsScreen: false,
+                hasNormalWindowLevel: true,
+                acceptsUndescribedSubroles: false,
+                isExcludedFromWindowCycle: SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: tags)),
+                   "App Switcher excludes helper windows that opt out of window cycling")
+        }
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXUnknown",
@@ -3913,6 +3923,44 @@ struct MetricsTests {
                "the Shelf provider rejects an untrustworthy status-item frame")
         expect(statusHitTestCode.contains(statusFrameCall) && statusHitTestCode.contains("return false"),
                "status-item hit testing rejects an untrustworthy frame")
+
+        // MARK: The panel surface reaches the popover arrow (issue #1030)
+
+        // AppKit hands the hosted panel a safe area for the popover's border and
+        // draws the arrow on the frame itself, so a surface that stopped at the
+        // panel would leave the tip in the plain system material. None of these
+        // owners compiles into this binary, so pin the three pieces that together
+        // carry the panel's own surface out to the tip.
+        let popoverSetUpCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "private func setUpPopover() {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        expect(popoverSetUpCode.contains("popover.hasFullSizeContent = true"),
+               "the panel is hosted across the whole popover, arrow band included")
+        let panelThemeSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Theme.swift",
+            encoding: .utf8)) ?? ""
+        let panelGlassCode = stripCommentLines((panelThemeSource
+            .components(separatedBy: "private struct PanelGlassSurface: View {").last ?? "")
+            .components(separatedBy: "\n}").first ?? "")
+        expect(panelGlassCode.contains("surface.ignoresSafeArea()"),
+               "the panel surface paints past the safe area, up into the arrow")
+        expect(!panelGlassCode.isEmpty
+                   && !panelGlassCode.contains("RoundedRectangle")
+                   && !panelGlassCode.contains("cornerRadius"),
+               "the panel surface leaves the rounding to the popover balloon that clips it")
+        expect(panelGlassCode.contains(".glassEffect(.regular, in: Rectangle())")
+                   && panelGlassCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
+               "both the standard and the Liquid Glass surface fill the whole balloon, no shape of their own")
+        let panelViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+            encoding: .utf8)) ?? ""
+        let panelBodyCode: (String) -> String = { header in
+            stripCommentLines((panelViewSource.components(separatedBy: header).last ?? "")
+                .components(separatedBy: "\n    }").first ?? "")
+        }
+        expect(panelBodyCode("private var navigablePanel: some View {").contains(".panelGlassSurface()")
+                   && panelBodyCode("private var metricPanel: some View {").contains(".panelGlassSurface()"),
+               "both the navigable panel and the metric panel wear that surface")
 
         // The panel keeps its top edge and its center while its content resizes.
         let panelArea = CGRect(x: 0, y: 0, width: 1470, height: 932)

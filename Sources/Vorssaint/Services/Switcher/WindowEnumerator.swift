@@ -844,16 +844,21 @@ enum WindowEnumerator {
             // Accessibility reports as an undescribed AXWindow. Only the
             // window server can say whether such a surface is one of those
             // real windows or an overlay floating above them.
+            let windowID = role == (kAXWindowRole as String)
+                ? AXWindowResolver.windowID(for: window)
+                : nil
             let hasNormalWindowLevel = subrole == "AXUnknown"
-                && role == (kAXWindowRole as String)
-                && (AXWindowResolver.windowID(for: window)
-                    .map(normalLevelWindowIDs.contains) ?? false)
+                && (windowID.map(normalLevelWindowIDs.contains) ?? false)
             return SwitcherSupport.isSwitchableNonstandardWindow(
                 role: role,
                 subrole: subrole,
                 fillsScreen: fillsScreen,
                 hasNormalWindowLevel: hasNormalWindowLevel,
-                acceptsUndescribedSubroles: acceptsUndescribedSubroles)
+                acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                // A borderless helper stays in the app's window list even when
+                // the app asks the window server to keep it out of cycling.
+                isExcludedFromWindowCycle: windowID
+                    .map(SpaceWindowBridge.isExcludedFromWindowCycle) ?? false)
         }
         guard !isCancelled() else { return false }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"

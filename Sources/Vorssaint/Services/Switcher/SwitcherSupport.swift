@@ -558,12 +558,16 @@ enum SwitcherSupport {
     ///
     /// Every subrole the app did describe is left alone: a dialog, a sheet or
     /// a floating panel is filtered as before unless it fills the screen.
+    ///
+    /// A surface the app asked the window server to keep out of window cycling
+    /// stays out of the switcher however it describes itself.
     static func isSwitchableNonstandardWindow(role: String?,
                                               subrole: String?,
                                               fillsScreen: Bool,
                                               hasNormalWindowLevel: Bool,
-                                              acceptsUndescribedSubroles: Bool) -> Bool {
-        guard role == "AXWindow" else { return false }
+                                              acceptsUndescribedSubroles: Bool,
+                                              isExcludedFromWindowCycle: Bool = false) -> Bool {
+        guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
         }
