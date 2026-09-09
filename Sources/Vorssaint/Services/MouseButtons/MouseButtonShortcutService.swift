@@ -14,10 +14,11 @@ import CoreGraphics
 /// Accessibility for the modifying event tap and the posted keys.
 ///
 /// One button may instead hold and drag for Spaces and Mission Control
-/// (issue #1012). That press is only held back, not taken: it becomes the
-/// app's ordinary click again the moment the release arrives without the
-/// pointer having gone anywhere. Same tap, because the drags it measures are
-/// events this one already receives.
+/// (issue #1012). That press is held back while it may still become a drag.
+/// A still release fires that button's short-click shortcut when one is
+/// active (issue #1507); otherwise the held press is handed back as the
+/// app's ordinary click. Same tap, because the drags it measures are events
+/// this one already receives.
 final class MouseButtonShortcutService: ObservableObject {
     static let shared = MouseButtonShortcutService()
     /// Marks the press this service hands back to the system, so the tap it
@@ -396,12 +397,25 @@ final class MouseButtonShortcutService: ObservableObject {
             case .otherMouseUp:
                 spacesGesture = nil
                 guard gesture.tracker.didFire else {
-                    // The pointer never went far enough to mean anything, so
-                    // the press was only a click: hand it back first and let
-                    // this release close the pair. Below the thresholds this
-                    // feature costs the app nothing at all.
-                    replaySpacesPress(gesture.down, proxy: proxy, at: event.location)
-                    return Unmanaged.passUnretained(event)
+                    // The pointer never went far enough to mean a drag. Prefer
+                    // an active short-click shortcut on this button (issue
+                    // #1507); otherwise hand the press back so this release
+                    // closes an ordinary click.
+                    let shortcut = MouseButtonShortcutSupport.firesShortcut(
+                        for: gesture.button,
+                        isAvailable: AppFeature.mouseButtonShortcuts.isAvailable,
+                        isEnabled: UserDefaults.standard.bool(
+                            forKey: DefaultsKey.mouseButtonShortcutsEnabled),
+                        mappings: mappings,
+                        claimedByWheel: RadialMenuSupport.claimsMouseButton)
+                    switch MouseSpacesGestureSupport.shortClick(activeShortcut: shortcut) {
+                    case .fireShortcut(let shortcut):
+                        post(shortcut)
+                        return nil
+                    case .replayNativeClick:
+                        replaySpacesPress(gesture.down, proxy: proxy, at: event.location)
+                        return Unmanaged.passUnretained(event)
+                    }
                 }
                 // A press that did fire is already held in consumedButtons,
                 // and the release below belongs to it.

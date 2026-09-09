@@ -19780,25 +19780,25 @@ struct MetricsTests {
                "the drag lives on an extra button, never on a side-wheel tick there is no way to hold")
 
         expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
-                                                     hasShortcut: { _ in false },
                                                      claimedByWheel: { _ in false }) == 4,
                "an available, enabled and unclaimed button drives the drag")
         expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
-                                                     hasShortcut: { $0 == 4 },
-                                                     claimedByWheel: { _ in false }) == nil
-                && MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
-                                                         hasShortcut: { _ in false },
-                                                         claimedByWheel: { $0 == 4 }) == nil
+                                                     claimedByWheel: { _ in false }) == 4,
+               "a button that already has a short-click shortcut can still drive the Spaces drag")
+        expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
+                                                     claimedByWheel: { $0 == 4 }) == nil
                 && MouseSpacesGestureSupport.boundButton(isAvailable: false, isEnabled: true, button: 4,
-                                                         hasShortcut: { _ in false },
                                                          claimedByWheel: { _ in false }) == nil
                 && MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: false, button: 4,
-                                                         hasShortcut: { _ in false },
                                                          claimedByWheel: { _ in false }) == nil
                 && MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 0,
-                                                         hasShortcut: { _ in false },
                                                          claimedByWheel: { _ in false }) == nil,
-               "the drag never takes a button from a shortcut, from the wheel, or from a switched-off hub")
+               "the drag never takes a button from the wheel, or from a switched-off hub")
+        let sampleShortcut = GlobalShortcut(keyCode: Int64(kVK_ANSI_A), modifiers: [.command])
+        expect(MouseSpacesGestureSupport.shortClick(activeShortcut: sampleShortcut)
+                == .fireShortcut(sampleShortcut)
+                && MouseSpacesGestureSupport.shortClick(activeShortcut: nil) == .replayNativeClick,
+               "a still Spaces press fires its shortcut when one is active, else becomes an ordinary click")
         expect(MouseButtonShortcutSupport.spacesGestureButton() == nil,
                "with nothing configured the drag claims no button away from navigation")
 
@@ -19812,9 +19812,10 @@ struct MetricsTests {
                 && spacesServiceCode.contains("return armSpacesGesture(event, button: button)"),
                "the bound button's press is held back by the tap that already receives its drags")
         expect(spacesServiceCode.contains("guard gesture.tracker.didFire else {")
+                && spacesServiceCode.contains("MouseSpacesGestureSupport.shortClick")
                 && spacesServiceCode.contains(
                     "replaySpacesPress(gesture.down, proxy: proxy, at: event.location)"),
-               "a press that never fired goes back, so a tap on that button keeps its ordinary click")
+               "a press that never fired fires its shortcut when one is active, else goes back as an ordinary click")
         expect(spacesServiceCode.contains("SpaceWindowBridge.spaceShortcut(.left)")
                 && spacesServiceCode.contains("SpaceWindowBridge.overviewShortcut(.missionControl)")
                 && !spacesServiceCode.contains("DockSwipe"),
@@ -20053,6 +20054,26 @@ struct MetricsTests {
         }
         expect(spacesCaptureRefusesPending,
                "the drag capture refuses a button that is mid-way through becoming a shortcut")
+        var shortcutCaptureAllowsSpacesButton = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where isCodeLine(line) && line.contains("private func handleCapture") {
+            let window = mouseSettingsLines[index...].prefix(20)
+            shortcutCaptureAllowsSpacesButton = !window.contains {
+                isCodeLine($0) && $0.contains("spacesButton")
+            }
+        }
+        expect(shortcutCaptureAllowsSpacesButton,
+               "a Spaces drag button can also be added as a short-click shortcut")
+        var spacesCaptureAllowsShortcutButton = false
+        for (index, line) in mouseSettingsLines.enumerated()
+        where isCodeLine(line) && line.contains("private func handleSpacesCapture") {
+            let window = mouseSettingsLines[index...].prefix(16)
+            spacesCaptureAllowsShortcutButton = !window.contains {
+                isCodeLine($0) && $0.contains("mappings[seen]")
+            }
+        }
+        expect(spacesCaptureAllowsShortcutButton,
+               "a button that already has a shortcut can still be chosen for the Spaces drag")
 
         // A synthesized press has to carry the same flags a finger produces,
         // or the system matches it against no shortcut of its own (issue #401).
