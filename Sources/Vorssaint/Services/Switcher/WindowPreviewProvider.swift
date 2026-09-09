@@ -339,7 +339,7 @@ final class WindowPreviewProvider {
                                       space: CGColorSpaceCreateDeviceRGB(),
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return image }
-        context.interpolationQuality = scale < 1 ? .high : .default
+        context.interpolationQuality = scale < 1 ? .medium : .default
         context.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(scaledWidth), height: CGFloat(scaledHeight)))
         return context.makeImage() ?? image
     }
