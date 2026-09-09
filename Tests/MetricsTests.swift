@@ -12073,6 +12073,45 @@ struct MetricsTests {
                                                          targetStartedMinimized: false,
                                                          ownPID: 99),
                "App Switcher focus retries do not steal focus after the user moves to another app")
+        // A window opened after the switch (Command-N in the app the switcher
+        // just raised) keeps the app frontmost, so the checks above cannot see
+        // it; the retry has to recognize the window itself.
+        expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                         sourcePID: 20,
+                                                         frontmostPID: 10,
+                                                         targetIsMinimized: false,
+                                                         targetStartedMinimized: false,
+                                                         targetAppFrontWindowID: 777,
+                                                         knownWindowIDs: [101, 102],
+                                                         ownPID: 99),
+               "App Switcher focus retries let go of a window the app opened after the switch")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        targetAppFrontWindowID: 102,
+                                                        knownWindowIDs: [101, 102],
+                                                        ownPID: 99),
+               "a window the app already had does not cancel the retry, so the pass still settles the target")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        targetAppFrontWindowID: nil,
+                                                        knownWindowIDs: [101, 102],
+                                                        ownPID: 99),
+               "an app with nothing on screen yet is the case the retry exists for, and still runs")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        targetAppFrontWindowID: 777,
+                                                        knownWindowIDs: [],
+                                                        ownPID: 99),
+               "without a snapshot of the app's windows the retry behaves exactly as before")
         expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                          sourcePID: 20,
                                                          frontmostPID: 30,

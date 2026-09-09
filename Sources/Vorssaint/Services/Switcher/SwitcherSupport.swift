@@ -1124,10 +1124,24 @@ enum SwitcherSupport {
                                          targetIsMinimized: Bool,
                                          targetStartedMinimized: Bool,
                                          targetWasObservedRestored: Bool = false,
+                                         targetAppFrontWindowID: CGWindowID? = nil,
+                                         knownWindowIDs: Set<CGWindowID> = [],
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard !targetIsMinimized
                 || (targetStartedMinimized && !targetWasObservedRestored)
         else { return false }
+        // The retry exists because the target may not be in front yet, so the
+        // target not being frontmost is on its own no reason to stop. A window
+        // the app did not have when the switcher committed is: the user opened
+        // one in the meantime (Command-N and its like), and raising the
+        // switcher's target over it would take that new window away from them
+        // — while the app stays frontmost throughout, which is why the checks
+        // below cannot see it.
+        if let targetAppFrontWindowID,
+           !knownWindowIDs.isEmpty,
+           !knownWindowIDs.contains(targetAppFrontWindowID) {
+            return false
+        }
         guard let sourcePID,
               let frontmostPID else { return true }
         return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
