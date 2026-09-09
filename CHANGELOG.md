@@ -7,12 +7,13 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher can focus its list on the display under the pointer and no longer counts hidden helper windows. Screenshot previews gain optional keyboard focus, Scratchpad adds shortcuts to create and close tabs, and the menu bar panel reads as one surface up to its arrow.
+App Switcher can focus its list on the display under the pointer and no longer counts hidden helper windows. Screenshot previews gain optional keyboard focus, Scratchpad adds shortcuts to create and close tabs, the Command Bar can search the web as a last result, and the menu bar panel reads as one surface up to its arrow.
 
 ### Added
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
 - Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
+- Command Bar can search the web in your default browser as a last result, switched off with the other sources.
 
 ### Fixed
 - The App Switcher no longer shows blank entries for hidden helper windows that apps keep out of window cycling. Thanks to @EugeneCarldotme.

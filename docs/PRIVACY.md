@@ -51,6 +51,8 @@ The service validates and rebuilds the MP4 without its original metadata. The vi
 
 Feedback is delivered to private support channels visible to the service owner. After delivery, the text and any technical details you selected remain there until the service owner deletes them. The temporary delivery copy is then deleted; if delivery never succeeds, that copy is permanently deleted after 7 days. No contact information is sent, so feedback cannot receive a direct reply.
 
+8. **A Command Bar web search, only when you choose that row.** Return on the web-search row opens your default browser at a Google search for what you typed. Vorssaint does not send the query itself; the browser does, under that search engine's own policy. The row can be switched off under Command Bar settings.
+
 That is the entire list. There are no hidden beacons or background uploads.
 
 ## Changes to this document

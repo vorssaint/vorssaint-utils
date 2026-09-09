@@ -43,6 +43,28 @@ enum CommandBarHome {
     }
 }
 
+/// Spotlight and Raycast's last row: search the web for what was typed.
+enum CommandBarWebSearch {
+    static let rowID = "websearch.fallback"
+
+    static func shouldOffer(query: String, inCategory: Bool) -> Bool {
+        guard !inCategory else { return false }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if CommandBarSearch.emojiQuery(from: query) != nil { return false }
+        if CommandBarLinks.typedURL(trimmed) != nil { return false }
+        return true
+    }
+
+    static func url(for query: String) -> URL? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        var components = URLComponents(string: "https://www.google.com/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: trimmed)]
+        return components?.url
+    }
+}
+
 /// The bar can be visible before home has finished preparing, but only the
 /// presentation that asked for that work may receive it.
 struct CommandBarPresentationLifecycle {
