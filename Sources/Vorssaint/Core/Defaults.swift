@@ -181,6 +181,11 @@ enum DefaultsKey {
     // Set only while Vorssaint owes a Bluetooth restore, so a Mac shut down
     // while asleep still gets it back on the next launch.
     static let bluetoothSleepRestorePending = "bluetoothSleepRestorePending"
+    static let wifiSleepEnabled = "wifiSleepEnabled"
+    static let wifiSleepRestoreOnWake = "wifiSleepRestoreOnWake"
+    // Set only while Vorssaint owes a Wi-Fi restore, so a Mac shut down
+    // while asleep still gets it back on the next launch.
+    static let wifiSleepRestorePending = "wifiSleepRestorePending"
     static let musicBlockEnabled = "musicBlockEnabled"
     static let musicBlockReplacementPath = "musicBlockReplacementPath"  // app bundle path ("" = none)
     static let cleanerScheduleFrequency = "cleanerScheduleFrequency"    // off | daily | weekly
@@ -986,6 +991,9 @@ enum Defaults {
         DefaultsKey.bluetoothSleepEnabled: false,
         DefaultsKey.bluetoothSleepRestoreOnWake: true,
         DefaultsKey.bluetoothSleepRestorePending: false,
+        DefaultsKey.wifiSleepEnabled: false,
+        DefaultsKey.wifiSleepRestoreOnWake: true,
+        DefaultsKey.wifiSleepRestorePending: false,
         DefaultsKey.musicBlockEnabled: false,
         DefaultsKey.musicBlockReplacementPath: "",
         DefaultsKey.cleanerScheduleFrequency: "off",

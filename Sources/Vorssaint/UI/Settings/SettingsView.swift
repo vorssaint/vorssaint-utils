@@ -642,6 +642,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
     @AppStorage(DefaultsKey.bluetoothSleepRestoreOnWake) private var bluetoothSleepRestoreOnWake = true
+    @AppStorage(DefaultsKey.wifiSleepEnabled) private var wifiSleepEnabled = false
+    @AppStorage(DefaultsKey.wifiSleepRestoreOnWake) private var wifiSleepRestoreOnWake = true
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
@@ -825,6 +827,27 @@ struct EnergySettings: View {
                     }
                 }
                 .settingsSectionAnchor(.bluetoothSleep)
+            }
+            if AppFeature.wifiSleep.isAvailable {
+                let strings = FeatureStrings.wifiSleep(l10n.language)
+                Section(strings.pageTitle) {
+                    if WiFiSleepService.isSupported {
+                        SettingsToggleWithCaption(title: strings.enable,
+                                                  caption: strings.enableCaption,
+                                                  isOn: $wifiSleepEnabled)
+                            .onChange(of: wifiSleepEnabled) { _, _ in
+                                WiFiSleepService.shared.syncWithPreferences()
+                            }
+                        if wifiSleepEnabled {
+                            SettingsToggleWithCaption(title: strings.restoreToggle,
+                                                      caption: strings.restoreCaption,
+                                                      isOn: $wifiSleepRestoreOnWake)
+                        }
+                    } else {
+                        SettingsCaptionText(strings.unsupported)
+                    }
+                }
+                .settingsSectionAnchor(.wifiSleep)
             }
         }
         .formStyle(.grouped)

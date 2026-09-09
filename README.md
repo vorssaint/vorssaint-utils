@@ -154,6 +154,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Displays.** Adjust brightness or turn individual displays on and off. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage.
 - **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom. Toggle it from the Displays panel or Settings.
 - **Bluetooth on sleep.** Switches Bluetooth off while the Mac sleeps, so a laptop in a bag stops stealing the headphones you are listening to elsewhere. Bluetooth you had already turned off stays off, and only what Vorssaint switched off comes back on wake.
+- **Wi-Fi on sleep.** Switches Wi-Fi off while the Mac sleeps, so a closed laptop goes dark on networks it is not using. Wi-Fi you had already turned off stays off, and only what Vorssaint switched off comes back on wake.
 
 ## Install
 
