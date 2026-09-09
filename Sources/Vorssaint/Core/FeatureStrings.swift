@@ -183,6 +183,12 @@ extension ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "디스플레이가 꺼질 때 클립보드 지우기",
         autoClearOnScreenLock: "화면이 잠길 때 클립보드 지우기",
         autoClearCaption: "시스템 클립보드만 지웁니다. 이미 저장된 항목은 기록에 남습니다.",
+        soundOnCapture: "항목 저장 시 사운드 재생",
+        soundOnCaptureCaption: "클립보드 기록이 새 항목을 저장할 때 macOS 시스템 사운드 Pop을 재생합니다.",
+        soundOnPaste: "기록에서 붙여넣을 때 사운드 재생",
+        soundOnPasteCaption: "기록에서 항목을 붙여넣거나 복사할 때 macOS 시스템 사운드 Pop을 재생합니다.",
+        soundOnFailure: "작업이 실패할 때 사운드 재생",
+        soundOnFailureCaption: "기록에서 붙여넣기나 복사가 실패할 때 macOS 시스템 사운드 Basso를 재생합니다.",
         deleteSelectedFormat: "%d개 삭제"
     )
 }
@@ -468,6 +474,12 @@ struct ClipboardFeatureStrings {
     let autoClearOnDisplaySleep: String
     let autoClearOnScreenLock: String
     let autoClearCaption: String
+    let soundOnCapture: String
+    let soundOnCaptureCaption: String
+    let soundOnPaste: String
+    let soundOnPasteCaption: String
+    let soundOnFailure: String
+    let soundOnFailureCaption: String
     let deleteSelectedFormat: String
 
     static let enUS = ClipboardFeatureStrings(
@@ -524,6 +536,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Clear clipboard on display sleep",
         autoClearOnScreenLock: "Clear clipboard on screen lock",
         autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        soundOnCapture: "Play sound when an item is saved",
+        soundOnCaptureCaption: "Plays the macOS Pop system sound when clipboard history captures a new item.",
+        soundOnPaste: "Play sound when pasting from history",
+        soundOnPasteCaption: "Plays the macOS Pop system sound when an item is pasted or copied from history.",
+        soundOnFailure: "Play sound when an action fails",
+        soundOnFailureCaption: "Plays the macOS Basso system sound when pasting or copying from history fails.",
         deleteSelectedFormat: "Delete %d"
     )
 
@@ -581,6 +599,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Limpar o clipboard quando a tela apagar",
         autoClearOnScreenLock: "Limpar o clipboard ao bloquear a tela",
         autoClearCaption: "Limpa apenas o clipboard do sistema. Os itens já guardados continuam no histórico.",
+        soundOnCapture: "Reproduzir som ao guardar um item",
+        soundOnCaptureCaption: "Reproduz o som do sistema Pop do macOS quando o histórico captura um novo item.",
+        soundOnPaste: "Reproduzir som ao colar do histórico",
+        soundOnPasteCaption: "Reproduz o som do sistema Pop do macOS ao colar ou copiar um item do histórico.",
+        soundOnFailure: "Reproduzir som quando uma ação falha",
+        soundOnFailureCaption: "Reproduz o som do sistema Basso do macOS quando colar ou copiar do histórico falha.",
         deleteSelectedFormat: "Apagar %d"
     )
 
@@ -638,6 +662,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Ekran uykuya geçince panoyu temizle",
         autoClearOnScreenLock: "Ekran kilitlenince panoyu temizle",
         autoClearCaption: "Yalnızca sistem panosunu temizler. Kaydedilmiş ögeler geçmişte kalır.",
+        soundOnCapture: "Öğe kaydedildiğinde ses çal",
+        soundOnCaptureCaption: "Pano geçmişi yeni bir öğeyi kaydettiğinde macOS Pop sistem sesini çalar.",
+        soundOnPaste: "Geçmişten yapıştırırken ses çal",
+        soundOnPasteCaption: "Geçmişten bir öğe yapıştırıldığında veya kopyalandığında macOS Pop sistem sesini çalar.",
+        soundOnFailure: "İşlem başarısız olunca ses çal",
+        soundOnFailureCaption: "Geçmişten yapıştırma veya kopyalama başarısız olduğunda macOS Basso sistem sesini çalar.",
         deleteSelectedFormat: "%d öğeyi sil"
     )
 
@@ -695,6 +725,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Очищать буфер обмена при выключении экрана",
         autoClearOnScreenLock: "Очищать буфер обмена при блокировке экрана",
         autoClearCaption: "Очищается только системный буфер обмена. Сохранённые элементы остаются в истории.",
+        soundOnCapture: "Звук при сохранении элемента",
+        soundOnCaptureCaption: "Проигрывать системный звук Pop macOS, когда история буфера сохраняет новый элемент.",
+        soundOnPaste: "Звук при вставке из истории",
+        soundOnPasteCaption: "Проигрывать системный звук Pop macOS при вставке или копировании элемента из истории.",
+        soundOnFailure: "Звук при сбое действия",
+        soundOnFailureCaption: "Проигрывать системный звук Basso macOS, если вставка или копирование из истории не удались.",
         deleteSelectedFormat: "Удалить: %d"
     )
 
@@ -752,6 +788,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Vaciar el portapapeles al apagarse la pantalla",
         autoClearOnScreenLock: "Vaciar el portapapeles al bloquear la pantalla",
         autoClearCaption: "Solo se vacía el portapapeles del sistema. Los elementos guardados siguen en el historial.",
+        soundOnCapture: "Reproducir sonido al guardar un elemento",
+        soundOnCaptureCaption: "Reproduce el sonido del sistema Pop de macOS cuando el historial captura un elemento nuevo.",
+        soundOnPaste: "Reproducir sonido al pegar desde el historial",
+        soundOnPasteCaption: "Reproduce el sonido del sistema Pop de macOS al pegar o copiar un elemento del historial.",
+        soundOnFailure: "Reproducir sonido si una acción falla",
+        soundOnFailureCaption: "Reproduce el sonido del sistema Basso de macOS cuando falla pegar o copiar desde el historial.",
         deleteSelectedFormat: "Eliminar %d"
     )
 
@@ -809,6 +851,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Zwischenablage beim Ausschalten des Bildschirms leeren",
         autoClearOnScreenLock: "Zwischenablage beim Sperren des Bildschirms leeren",
         autoClearCaption: "Leert nur die Zwischenablage des Systems. Bereits gesicherte Einträge bleiben im Verlauf.",
+        soundOnCapture: "Ton abspielen, wenn ein Eintrag gespeichert wird",
+        soundOnCaptureCaption: "Spielt den macOS-Systemton Pop ab, wenn die Zwischenablage-Historie einen neuen Eintrag speichert.",
+        soundOnPaste: "Ton abspielen beim Einfügen aus dem Verlauf",
+        soundOnPasteCaption: "Spielt den macOS-Systemton Pop ab, wenn ein Eintrag aus dem Verlauf eingefügt oder kopiert wird.",
+        soundOnFailure: "Ton abspielen, wenn eine Aktion fehlschlägt",
+        soundOnFailureCaption: "Spielt den macOS-Systemton Basso ab, wenn Einfügen oder Kopieren aus dem Verlauf fehlschlägt.",
         deleteSelectedFormat: "%d löschen"
     )
 
@@ -866,6 +914,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Vider le presse-papiers à l’extinction de l’écran",
         autoClearOnScreenLock: "Vider le presse-papiers au verrouillage de l’écran",
         autoClearCaption: "Seul le presse-papiers du système est vidé. Les éléments enregistrés restent dans l’historique.",
+        soundOnCapture: "Jouer un son à l’enregistrement d’un élément",
+        soundOnCaptureCaption: "Joue le son système Pop de macOS lorsque l’historique capture un nouvel élément.",
+        soundOnPaste: "Jouer un son en collant depuis l’historique",
+        soundOnPasteCaption: "Joue le son système Pop de macOS lors d’un collage ou d’une copie depuis l’historique.",
+        soundOnFailure: "Jouer un son en cas d’échec",
+        soundOnFailureCaption: "Joue le son système Basso de macOS lorsqu’un collage ou une copie depuis l’historique échoue.",
         deleteSelectedFormat: "Supprimer %d"
     )
 
@@ -923,6 +977,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "Svuota gli appunti quando lo schermo si spegne",
         autoClearOnScreenLock: "Svuota gli appunti al blocco dello schermo",
         autoClearCaption: "Svuota solo gli appunti di sistema. Gli elementi salvati restano nella cronologia.",
+        soundOnCapture: "Riproduci suono quando viene salvato un elemento",
+        soundOnCaptureCaption: "Riproduce il suono di sistema Pop di macOS quando la cronologia cattura un nuovo elemento.",
+        soundOnPaste: "Riproduci suono quando si incolla dalla cronologia",
+        soundOnPasteCaption: "Riproduce il suono di sistema Pop di macOS quando un elemento viene incollato o copiato dalla cronologia.",
+        soundOnFailure: "Riproduci suono quando un’azione non riesce",
+        soundOnFailureCaption: "Riproduce il suono di sistema Basso di macOS quando incollare o copiare dalla cronologia non riesce.",
         deleteSelectedFormat: "Elimina %d"
     )
 
@@ -980,6 +1040,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "ディスプレイスリープ時にクリップボードを消去",
         autoClearOnScreenLock: "画面ロック時にクリップボードを消去",
         autoClearCaption: "システムのクリップボードのみを消去します。保存済みの項目は履歴に残ります。",
+        soundOnCapture: "項目の保存時にサウンドを再生",
+        soundOnCaptureCaption: "クリップボード履歴が新しい項目を保存したとき、macOS のシステムサウンド Pop を再生します。",
+        soundOnPaste: "履歴からのペースト時にサウンドを再生",
+        soundOnPasteCaption: "履歴から項目をペーストまたはコピーしたとき、macOS のシステムサウンド Pop を再生します。",
+        soundOnFailure: "操作に失敗したときにサウンドを再生",
+        soundOnFailureCaption: "履歴からのペーストまたはコピーに失敗したとき、macOS のシステムサウンド Basso を再生します。",
         deleteSelectedFormat: "%d件を削除"
     )
 
@@ -1037,6 +1103,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "显示器睡眠时清空剪贴板",
         autoClearOnScreenLock: "锁定屏幕时清空剪贴板",
         autoClearCaption: "仅清空系统剪贴板，已保存的条目仍保留在历史记录中。",
+        soundOnCapture: "保存条目时播放提示音",
+        soundOnCaptureCaption: "剪贴板历史保存新条目时播放 macOS 系统提示音 Pop。",
+        soundOnPaste: "从历史粘贴时播放提示音",
+        soundOnPasteCaption: "从历史粘贴或复制条目时播放 macOS 系统提示音 Pop。",
+        soundOnFailure: "操作失败时播放提示音",
+        soundOnFailureCaption: "从历史粘贴或复制失败时播放 macOS 系统提示音 Basso。",
         deleteSelectedFormat: "删除 %d 项"
     )
 
@@ -1094,6 +1166,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "僅清除系統剪貼簿，已儲存的項目仍保留在記錄中。",
+        soundOnCapture: "儲存項目時播放提示音",
+        soundOnCaptureCaption: "剪貼簿歷史儲存新項目時播放 macOS 系統提示音 Pop。",
+        soundOnPaste: "從歷史貼上時播放提示音",
+        soundOnPasteCaption: "從歷史貼上或複製項目時播放 macOS 系統提示音 Pop。",
+        soundOnFailure: "操作失敗時播放提示音",
+        soundOnFailureCaption: "從歷史貼上或複製失敗時播放 macOS 系統提示音 Basso。",
         deleteSelectedFormat: "刪除 %d 個"
     )
 
@@ -1151,6 +1229,12 @@ struct ClipboardFeatureStrings {
         autoClearOnDisplaySleep: "顯示器睡眠時清除剪貼簿",
         autoClearOnScreenLock: "鎖定螢幕時清除剪貼簿",
         autoClearCaption: "只會清除系統剪貼簿，已儲存的項目仍會保留在記錄中。",
+        soundOnCapture: "儲存項目時播放提示音",
+        soundOnCaptureCaption: "剪貼板歷史儲存新項目時播放 macOS 系統提示音 Pop。",
+        soundOnPaste: "從歷史貼上時播放提示音",
+        soundOnPasteCaption: "從歷史貼上或複製項目時播放 macOS 系統提示音 Pop。",
+        soundOnFailure: "操作失敗時播放提示音",
+        soundOnFailureCaption: "從歷史貼上或複製失敗時播放 macOS 系統提示音 Basso。",
         deleteSelectedFormat: "刪除 %d 個"
     )
 }

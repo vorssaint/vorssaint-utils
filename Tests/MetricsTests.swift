@@ -230,6 +230,16 @@ struct MetricsTests {
                "auto clear starts at twenty seconds")
         expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnCapture] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnCapture] as? Bool
+                    == ClipboardHistorySoundSupport.defaultEnabled
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnPaste] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnPaste] as? Bool
+                    == ClipboardHistorySoundSupport.defaultEnabled
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnFailure] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnFailure] as? Bool
+                    == ClipboardHistorySoundSupport.defaultEnabled,
+               "clipboard history sound feedback is opt-in so existing installs stay quiet")
 
         // MARK: Clipboard auto clear timing
 
@@ -9091,6 +9101,42 @@ struct MetricsTests {
             expect(false, "protected-folder move fixtures: \(error)")
         }
 
+        // MARK: Clipboard history sound feedback (issue #1340)
+
+        expect(ClipboardHistorySoundSupport.successSoundName == "Pop",
+               "successful capture and paste use the well-known macOS Pop system alert sound")
+        expect(ClipboardHistorySoundSupport.failureSoundName == "Basso",
+               "failures use Basso so they stay distinct from Pop and from NSSound.beep()")
+        expect(ClipboardHistorySoundSupport.defaultEnabled == false,
+               "sound feedback stays off until the user opts in")
+        expect(!ClipboardHistorySoundSupport.shouldPlayOnCapture(preferenceEnabled: false),
+               "a disabled capture preference never plays")
+        expect(ClipboardHistorySoundSupport.shouldPlayOnCapture(preferenceEnabled: true),
+               "capture plays when the preference is on")
+        expect(!ClipboardHistorySoundSupport.shouldPlayOnPaste(preferenceEnabled: true, succeeded: false),
+               "a failed paste never plays the success sound")
+        expect(!ClipboardHistorySoundSupport.shouldPlayOnPaste(preferenceEnabled: false, succeeded: true),
+               "a disabled paste preference never plays")
+        expect(ClipboardHistorySoundSupport.shouldPlayOnPaste(preferenceEnabled: true, succeeded: true),
+               "a successful history paste plays when the preference is on")
+        expect(!ClipboardHistorySoundSupport.shouldPlayOnFailure(preferenceEnabled: false,
+                                                                alreadySignaled: false),
+               "a disabled failure preference never plays")
+        expect(!ClipboardHistorySoundSupport.shouldPlayOnFailure(preferenceEnabled: true,
+                                                                alreadySignaled: true),
+               "Command Bar paths that already beeped do not double-signal")
+        expect(ClipboardHistorySoundSupport.shouldPlayOnFailure(preferenceEnabled: true,
+                                                                alreadySignaled: false),
+               "a clear failure plays when the preference is on and nothing else beeped")
+        expect(!ClipboardHistorySoundSupport.playSuccessIfNeeded(false),
+               "playSuccessIfNeeded is a no-op when the gate is closed")
+        expect(!ClipboardHistorySoundSupport.playFailureIfNeeded(false),
+               "playFailureIfNeeded is a no-op when the gate is closed")
+        expect(ClipboardHistorySoundSupport.successSound() != nil,
+               "Pop resolves from the system sound library")
+        expect(ClipboardHistorySoundSupport.failureSound() != nil,
+               "Basso resolves from the system sound library")
+
         // MARK: Paste copied image as file (issue #429)
 
         expect(FinderPasteImageSupport.preferredImageType(in: ["public.utf8-plain-text"]) == nil,
@@ -15476,7 +15522,7 @@ struct MetricsTests {
             let clipboard = FeatureStrings.clipboard(language)
             let values = Mirror(reflecting: clipboard).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 54 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 60 && values.allSatisfy { !$0.isEmpty },
                    "every clipboard string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible clipboard strings (\(language.rawValue))")
@@ -21288,6 +21334,13 @@ struct MetricsTests {
                "the apps each mouse feature leaves alone travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
                "the apps the clipboard history skips travel with the settings backup")
+        expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnCapture] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnPaste] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.clipboardHistorySoundOnFailure] as? Bool == false
+                && backupKeys.contains(DefaultsKey.clipboardHistorySoundOnCapture)
+                && backupKeys.contains(DefaultsKey.clipboardHistorySoundOnPaste)
+                && backupKeys.contains(DefaultsKey.clipboardHistorySoundOnFailure),
+               "clipboard history sound feedback is opt-in and travels with settings backup")
         expect(backupKeys.contains(DefaultsKey.switcherAppRules),
                "per-app switcher rules travel with the settings backup")
         expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
