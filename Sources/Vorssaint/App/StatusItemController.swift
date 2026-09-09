@@ -35,6 +35,9 @@ final class StatusItemController {
     /// is answered once afterwards rather than on top of it.
     private var isRefreshing = false
     private var refreshRequestedWhileRunning = false
+    /// After an identity-reset recovery, keep a square length until the icon
+    /// is confirmed on screen so macOS has a concrete size to place (#1394).
+    private var holdRecoverySquareLength = false
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
     private static let maxPlacementGeneration = 10_000
@@ -89,7 +92,10 @@ final class StatusItemController {
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let length = holdRecoverySquareLength && StatusItemPlacementSupport.recoveryUsesSquareLength
+            ? NSStatusItem.squareLength
+            : NSStatusItem.variableLength
+        statusItem = NSStatusBar.system.statusItem(withLength: length)
         // A stable identity so macOS remembers the item's position across launches
         // and across rebuilds, instead of re-placing it at the crowded default spot.
         statusItem.autosaveName = StatusItemPlacementSupport.mainAutosaveName(in: .standard)
@@ -119,6 +125,7 @@ final class StatusItemController {
         // visibility back under its own name as it is removed, which would put
         // back whatever was cleared a moment earlier.
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
+        holdRecoverySquareLength = false
         StatusItemPlacementSupport.clearRememberedVisibility(in: .standard)
         installStatusItem()
     }
@@ -131,7 +138,16 @@ final class StatusItemController {
     func resetStatusItemPlacementIdentity() {
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
+        holdRecoverySquareLength = StatusItemPlacementSupport.recoveryUsesSquareLength
         installStatusItem()
+    }
+
+    /// Once recovery has confirmed the icon is on screen, go back to a
+    /// variable-length item so metrics titles can expand again.
+    func releaseRecoverySquareLength() {
+        guard holdRecoverySquareLength else { return }
+        holdRecoverySquareLength = false
+        refresh()
     }
 
     private func bind() {
@@ -403,8 +419,11 @@ final class StatusItemController {
         // status window even when the value is identical — and this runs on
         // every monitor tick and defaults change. Rounded metric strings
         // repeat most ticks, so skipping no-op writes skips that churn.
-        if statusItem.length != NSStatusItem.variableLength {
-            statusItem.length = NSStatusItem.variableLength
+        let desiredLength = holdRecoverySquareLength
+            ? NSStatusItem.squareLength
+            : NSStatusItem.variableLength
+        if statusItem.length != desiredLength {
+            statusItem.length = desiredLength
         }
 
         if title.length == 0 {

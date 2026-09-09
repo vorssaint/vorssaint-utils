@@ -272,6 +272,14 @@ enum MenuBarSpacingSupport {
 enum StatusItemPlacementSupport {
     static let mainAutosaveName = "VorssaintMenuBarItem"
     static let maxPlacementGeneration = 10_000
+    /// Seeded when recovery gives up a saved spot. A first-time item with no
+    /// preferred position is born at the left of the status area (against the
+    /// notch on notched Macs) — the first zone a crowded bar drops — so a
+    /// mid-bar seed is what makes an identity reset worth trying (#1394).
+    static let recoveryPreferredPosition: Double = 500
+    /// Identity-reset recovery asks for a square slot so macOS has a concrete
+    /// size to place; normal installs stay variable-length.
+    static let recoveryUsesSquareLength = true
 
     static func placementGeneration(in defaults: UserDefaults) -> Int {
         min(max(defaults.integer(forKey: DefaultsKey.statusItemPlacementGeneration), 0),
@@ -284,12 +292,31 @@ enum StatusItemPlacementSupport {
         return "\(mainAutosaveName).\(generation)"
     }
 
+    static func autosaveName(forGeneration generation: Int) -> String {
+        let generation = min(max(generation, 0), maxPlacementGeneration)
+        guard generation > 0 else { return mainAutosaveName }
+        return "\(mainAutosaveName).\(generation)"
+    }
+
+    static func preferredPositionKey(for autosaveName: String) -> String {
+        "NSStatusItem Preferred Position \(autosaveName)"
+    }
+
     /// The visibility macOS remembers for one item identity, in both the
     /// spellings it has used. Left behind, either keeps the item marked as
     /// hidden, which is the state the recovery exists to undo.
     private static func clearRememberedVisibility(of name: String, in defaults: UserDefaults) {
         defaults.removeObject(forKey: "NSStatusItem Visible \(name)")
         defaults.removeObject(forKey: "NSStatusItem VisibleCC \(name)")
+    }
+
+    private static func clearPreferredPosition(of name: String, in defaults: UserDefaults) {
+        defaults.removeObject(forKey: preferredPositionKey(for: name))
+    }
+
+    private static func clearAllRememberedState(of name: String, in defaults: UserDefaults) {
+        clearRememberedVisibility(of: name, in: defaults)
+        clearPreferredPosition(of: name, in: defaults)
     }
 
     /// Undoes a remembered hidden state while leaving the arranged position
@@ -303,13 +330,26 @@ enum StatusItemPlacementSupport {
     }
 
     static func bumpPlacementGeneration(in defaults: UserDefaults) {
-        let previousName = mainAutosaveName(in: defaults)
-        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
-        clearRememberedVisibility(of: previousName, in: defaults)
-        let nextGen = (placementGeneration(in: defaults) % maxPlacementGeneration) + 1
+        let previousGeneration = placementGeneration(in: defaults)
+        // Sweep every identity this install may have minted. Leaving Visible /
+        // Preferred keys behind for older generations is how recovery quietly
+        // accumulates junk without helping the next attempt (#1394).
+        for generation in 0...previousGeneration {
+            clearAllRememberedState(of: autosaveName(forGeneration: generation), in: defaults)
+        }
+        let nextGen = (previousGeneration % maxPlacementGeneration) + 1
         defaults.set(nextGen, forKey: DefaultsKey.statusItemPlacementGeneration)
         let nextName = mainAutosaveName(in: defaults)
-        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(nextName)")
-        clearRememberedVisibility(of: nextName, in: defaults)
+        clearAllRememberedState(of: nextName, in: defaults)
+        defaults.set(recoveryPreferredPosition, forKey: preferredPositionKey(for: nextName))
+    }
+
+    /// While macOS is still settling a newborn status window, recovery must
+    /// keep waiting instead of escalating to an identity reset or the
+    /// "still hidden" alert (#1394).
+    static func shouldKeepWaitingForSettlement(isOnScreen: Bool,
+                                               isSettling: Bool,
+                                               settlingGraceLeft: Int) -> Bool {
+        !isOnScreen && isSettling && settlingGraceLeft > 0
     }
 }
