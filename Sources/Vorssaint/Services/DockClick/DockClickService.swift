@@ -60,15 +60,19 @@ final class DockClickService {
     private static let syntheticEventMarker: Int64 = 0x564F5253
     private var pendingSweeps: [pid_t: DispatchWorkItem] = [:]
 
-    private init() {}
+    private init() {
+        SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+    }
 
     func syncWithPreferences() {
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
-        if AppFeature.dockClick.isAvailable,
-           (minimizeEnabled || hideEnabled || cycleEnabled),
-           Permissions.shared.accessibility {
+        if SessionActivitySupport.tapShouldRun(
+            featureWanted: AppFeature.dockClick.isAvailable
+                && (minimizeEnabled || hideEnabled || cycleEnabled),
+            accessibilityGranted: AXIsProcessTrusted(),
+            sessionIsActive: SessionActivity.shared.isActive) {
             start()
         } else {
             stop()
@@ -123,7 +127,11 @@ final class DockClickService {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if let tap { CGEvent.tapEnable(tap: tap, enable: true) }
+            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+            } else {
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            }
             return Unmanaged.passUnretained(event)
         }
         // The replayed down of a press that became a drag: the Dock must
@@ -161,26 +169,36 @@ final class DockClickService {
             return Unmanaged.passUnretained(event)
         }
 
+        // Accessibility gone (e.g. reset): an AX hit-test would hang inside
+        // the tap and freeze clicks, so let the click through untouched.
+        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
+
         // The edge band exists on every display and with auto-hide even while
         // the Dock is off screen, but the AX item frames below keep reporting
         // the parked layout and only match along the Dock's long axis — a
         // click near the edge of a Dock-less display whose long-axis
         // coordinate lines up with an icon would minimize or restore apps out
         // of thin air. Only clicks inside the Dock strip that is actually on
-        // screen, with nothing drawn over it, can mean an icon.
+        // screen and reachable by the pointer can mean an icon.
         guard let dockPID = dockProcessID(),
               DockClickSupport.dockOwnsPoint(
                 point,
                 windows: WindowServerSupport.onScreenWindows(),
                 dockProcessID: dockPID,
                 dockLayer: Int(CGWindowLevelForKey(.dockWindow)),
-                ownProcessID: getpid()) else {
+                ownProcessID: getpid(),
+                accessibilityHitProcessID: {
+                    var element: AXUIElement?
+                    guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(),
+                                                           Float(point.x), Float(point.y),
+                                                           &element) == .success,
+                          let element else { return nil }
+                    var pid: pid_t = 0
+                    guard AXUIElementGetPid(element, &pid) == .success else { return nil }
+                    return pid
+                }) else {
             return Unmanaged.passUnretained(event)
         }
-
-        // Accessibility gone (e.g. reset): the AX hit-test below would hang
-        // inside the tap and freeze clicks, so let the click through untouched.
-        guard AXIsProcessTrusted() else { return Unmanaged.passUnretained(event) }
 
         let hit = dockApplication(at: point)
         guard let app = hit,
@@ -705,7 +723,7 @@ final class DockClickService {
     private static func activate(pid: pid_t) {
         DispatchQueue.main.async {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-            NSApp.yieldActivation(to: app)
+            ActivationHandoff.yield(to: app)
             if !app.activate(from: NSRunningApplication.current, options: []) {
                 app.activate(options: [])
             }

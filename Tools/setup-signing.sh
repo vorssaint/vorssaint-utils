@@ -13,7 +13,7 @@
 # requirement and drop every user's granted permissions. The name lives only in
 # the keychain and codesign output, never in anything the app shows.
 #
-# Free, offline, and idempotent (re-running is a no-op once the identity exists).
+# Free, offline, and idempotent (re-running is a no-op once a working identity exists).
 # It does NOT replace Apple notarization: downloaded builds still show Gatekeeper's
 # "unverified developer" prompt on first launch. It only stabilizes the identity.
 #
@@ -25,7 +25,21 @@ IDENTITY="Vorssaint Utils Signing"
 KC="$HOME/Library/Keychains/vorssaint-signing.keychain-db"
 KCPASS="vorssaint-signing"
 
-if security find-identity -p codesigning 2>/dev/null | grep -q "$IDENTITY"; then
+# A find-identity listing also names certificates codesign then rejects, and -v
+# excludes every self-signed one; ask codesign itself with a throwaway copy.
+identity_can_sign() {
+    local probe signed=1
+    # Locked after every reboot; a locked keychain cannot sign, and a false
+    # answer here would delete it and reissue the identity.
+    security unlock-keychain -p "$KCPASS" "$KC" 2>/dev/null || true
+    probe="$(mktemp)"
+    cp /bin/echo "$probe"
+    codesign --force --strip-disallowed-xattrs --sign "$IDENTITY" "$probe" >/dev/null 2>&1 && signed=0
+    rm -f "$probe"
+    return $signed
+}
+
+if identity_can_sign; then
     echo "✓ Signing identity already installed."
     exit 0
 fi
@@ -58,11 +72,11 @@ security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KCPASS" 
 EXISTING=$(security list-keychains -d user | sed 's/"//g' | xargs)
 security list-keychains -d user -s "$KC" ${=EXISTING}
 
-# Import succeeding is not evidence codesign can see it: read it back the same
-# way build.sh looks it up, so a broken search list fails here and not as a
-# silent ad-hoc fallback three builds later.
-security find-identity -p codesigning 2>/dev/null | grep -q "$IDENTITY" || {
-    echo "✗ Identity imported but codesign cannot find it; keychain search list may be off." >&2
+# Import succeeding is not evidence codesign can sign with it: read it back the
+# same way build.sh looks it up, so a broken search list fails here and not as
+# a silent ad-hoc fallback three builds later.
+identity_can_sign || {
+    echo "✗ Identity imported but codesign cannot sign with it; keychain search list may be off." >&2
     exit 1
 }
 echo "✓ Created signing identity '$IDENTITY'. Future ./build.sh runs use it automatically."

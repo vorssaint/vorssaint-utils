@@ -96,6 +96,7 @@ enum SelfUninstall {
         PastePlainService.shared.suspend()
         SnippetLibraryService.shared.suspend()
         ScreenCaptureService.shared.suspend()
+        RecentCaptureService.shared.suspend()
         QuickLauncherService.shared.suspend()
         ScreenTextService.shared.suspend()
         CameraPreviewService.shared.suspend()
@@ -167,6 +168,7 @@ enum SelfUninstall {
     }
 
     private static func removePreferences() {
+        CommandBarQueryHabits.removeInstallationKey()
         let id = bundleID
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()

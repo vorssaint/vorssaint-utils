@@ -305,6 +305,7 @@ enum SettingsSearchSupport {
             (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
                            screenshot.loupeStartsOnToggle,
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
+                           screenshot.previewFocusToggle,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolArrow]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,
@@ -324,9 +325,11 @@ enum SettingsSearchSupport {
     }
 
     private static func fold(_ value: String) -> String {
+        // No locale: Turkish folds a dotted I to a dotless one, which would
+        // make this page search answer differently there.
         value
             .folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-                     locale: .current)
+                     locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -392,6 +395,37 @@ enum SettingsWindowSupport {
         }
         let height = min(preferredContentHeight, max(availableHeight, minContentHeight))
         return (minContentWidth, height)
+    }
+
+    /// Keep both full presentations intact. Small displays use a movable cascade
+    /// rather than squeezing content or pushing a window outside the work area.
+    static func tourPlacement(settingsSize: CGSize, tourSize: CGSize,
+                              visibleFrame: CGRect) -> (settings: CGRect, tour: CGRect) {
+        let area = visibleFrame.insetBy(dx: 20, dy: 20)
+        let gap: CGFloat = 16
+        var settings = CGRect(origin: area.origin, size: settingsSize)
+        var tour = CGRect(origin: area.origin, size: tourSize)
+        if settings.width + gap + tour.width <= area.width {
+            settings.origin.x = area.midX - (settings.width + gap + tour.width) / 2
+            tour.origin.x = settings.maxX + gap
+            settings.origin.y = area.midY - settings.height / 2
+            tour.origin.y = area.midY - tour.height / 2
+        } else if settings.height + gap + tour.height <= area.height {
+            settings.origin.y = area.midY - (settings.height + gap + tour.height) / 2
+            tour.origin.y = settings.maxY + gap
+            settings.origin.x = area.midX - settings.width / 2
+            tour.origin.x = area.midX - tour.width / 2
+        } else {
+            tour.origin.x = area.maxX - tour.width
+            tour.origin.y = area.maxY - tour.height
+        }
+        func contained(_ frame: CGRect) -> CGRect {
+            var result = frame
+            result.origin.x = max(area.minX, min(frame.minX, area.maxX - frame.width))
+            result.origin.y = min(max(area.minY, frame.minY), area.maxY - frame.height)
+            return result
+        }
+        return (contained(settings), contained(tour))
     }
 
     static func panelPlacement(preferredFrame: CGRect,

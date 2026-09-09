@@ -43,6 +43,8 @@ struct RecorderEditDocument: Codable, Equatable {
     var zoomsGenerated: Bool
     /// Lines of text laid over the recording, in the recording's own time.
     var texts: [RecorderTextOverlay]
+    /// Pictures laid over the recording, in the recording's own time.
+    var images: [RecorderImageOverlay]
     /// Parts of the picture kept unreadable, in the recording's own time.
     var blurs: [RecorderBlurRegion]
     var keepsMicrophone: Bool
@@ -68,6 +70,7 @@ struct RecorderEditDocument: Codable, Equatable {
          zoomSegments: [RecorderTimeline.ZoomSegment] = [],
          zoomsGenerated: Bool = false,
          texts: [RecorderTextOverlay] = [],
+         images: [RecorderImageOverlay] = [],
          blurs: [RecorderBlurRegion] = [],
          keepsMicrophone: Bool = true,
          systemAudioGain: Double = 1,
@@ -91,6 +94,7 @@ struct RecorderEditDocument: Codable, Equatable {
         self.zoomSegments = zoomSegments
         self.zoomsGenerated = zoomsGenerated
         self.texts = texts
+        self.images = images
         self.blurs = blurs
         self.keepsMicrophone = keepsMicrophone
         self.systemAudioGain = systemAudioGain
@@ -125,6 +129,7 @@ struct RecorderEditDocument: Codable, Equatable {
                                                      forKey: .zoomSegments) ?? []
         zoomsGenerated = try container.decodeIfPresent(Bool.self, forKey: .zoomsGenerated) ?? false
         texts = try container.decodeIfPresent([RecorderTextOverlay].self, forKey: .texts) ?? []
+        images = try container.decodeIfPresent([RecorderImageOverlay].self, forKey: .images) ?? []
         blurs = try container.decodeIfPresent([RecorderBlurRegion].self, forKey: .blurs) ?? []
         keepsMicrophone = try container.decodeIfPresent(Bool.self, forKey: .keepsMicrophone) ?? true
         systemAudioGain = try container.decodeIfPresent(Double.self, forKey: .systemAudioGain) ?? 1
@@ -267,6 +272,7 @@ struct RecorderEditDocument: Codable, Equatable {
             || zoomSegments != other.zoomSegments
             || cuts != other.cuts
             || texts != other.texts
+            || images != other.images
             || blurs != other.blurs
     }
 
@@ -291,6 +297,7 @@ struct RecorderEditDocument: Codable, Equatable {
         return trim.start > 0.01 || trim.end < duration - 0.01 || !keepsSystemAudio
             || !keepsMicrophone || systemAudioGain != 1 || microphoneGain != 1
             || !cuts.isEmpty || !zoomSegments.isEmpty || !texts.isEmpty || !blurs.isEmpty
+            || !images.isEmpty
     }
 
     /// A damaged or hand-edited document can never wedge the editor: every
@@ -315,6 +322,7 @@ struct RecorderEditDocument: Codable, Equatable {
         document.zoomSegments = RecorderTimeline.normalized(segments: zoomSegments,
                                                             duration: duration)
         document.texts = RecorderTextOverlay.normalized(texts, duration: duration)
+        document.images = RecorderImageOverlay.normalized(images, duration: duration)
         document.blurs = RecorderBlurRegion.normalized(blurs, duration: duration)
         return document
     }
@@ -330,8 +338,8 @@ struct RecorderEditDocument: Codable, Equatable {
     }
 }
 
-/// A named visual starting point. Timeline edits, captions and sound are never
-/// part of a preset, so applying one cannot undo real editing work.
+/// A named visual starting point, including reusable pictures. Cuts, captions
+/// and sound stay with the recording.
 struct RecorderEditPreset: Codable, Equatable, Identifiable {
     let id: UUID
     var name: String
@@ -343,6 +351,8 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
     let showsClickRing: Bool
     let zoomEnabled: Bool
     let zoomAmount: Double
+    /// Absent in older presets, which leave the recording's pictures alone.
+    var images: [RecorderImageOverlay]?
 
     init(id: UUID = UUID(), name: String, document: RecorderEditDocument) {
         self.id = id
@@ -355,6 +365,7 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
         showsClickRing = document.showsClickRing
         zoomEnabled = document.zoomEnabled
         zoomAmount = document.zoomAmount
+        images = document.images
     }
 
     func applying(to document: RecorderEditDocument) -> RecorderEditDocument {
@@ -367,6 +378,7 @@ struct RecorderEditPreset: Codable, Equatable, Identifiable {
         next.showsClickRing = showsClickRing
         next.zoomEnabled = zoomEnabled
         next.zoomAmount = zoomAmount
+        if let images { next.images = images }
         return next
     }
 }

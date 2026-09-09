@@ -20,6 +20,9 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     @Published private(set) var isPreviewing = false
     @Published private(set) var pads: [ScratchpadPad] = []
     @Published private(set) var selectedPadID: UUID?
+    /// Bumped when Command-W asks the view to close the selected tab
+    /// (so confirmation stays in SwiftUI).
+    @Published private(set) var keyboardCloseSelectedPadSerial = 0
     @Published var text = "" {
         didSet {
             guard hasLoaded, !isReplacingText, var document else { return }
@@ -38,7 +41,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     private weak var textView: NSTextView?
     private var pendingSave: DispatchWorkItem?
     private var document: ScratchpadDocument?
-    private var lastSavedDocument: ScratchpadDocument?
+    private var store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL,
+                                        defaults: .standard)
     private var hasLoaded = false
     private var isReplacingText = false
     private var modalInteractionActive = false
@@ -91,7 +95,12 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         }
         isPreviewing = false
         isPinned = !closesOnClickOutside
-        loadApplyingRetention()
+        guard loadApplyingRetention() else {
+            QuickToolHUD.show(
+                icon: "exclamationmark.triangle",
+                message: FeatureStrings.scratchpad(L10n.shared.language).loadFailed)
+            return
+        }
         let panel = ensurePanel()
         installMonitors(for: panel)
         // The pad keeps the spot and size the user gave it while the app
@@ -120,54 +129,25 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     // MARK: - Document
 
-    /// The former single-buffer file is read once and removed only after the
-    /// replacement document has been written and read back successfully.
-    private static var legacyStoreURL: URL? {
-        PrivateFileStore.containerURL?.appendingPathComponent("Scratchpad.txt")
-    }
-
-    private func loadApplyingRetention() {
-        hasLoaded = true
-        if let document, document != lastSavedDocument {
+    @discardableResult
+    private func loadApplyingRetention() -> Bool {
+        if hasLoaded, let document, document != store.lastSavedDocument {
             flushSave()
-            return
+            return true
         }
         let defaults = UserDefaults.standard
         let defaultName = FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         let retention = ScratchpadRetention.sanitized(
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
-
-        if let stored = defaults.object(forKey: DefaultsKey.scratchpadDocument) {
-            let data = stored as? Data
-            let decoded = data.flatMap { try? JSONDecoder().decode(ScratchpadDocument.self, from: $0) }
-            var loaded = decoded?.sanitized(defaultName: defaultName)
-                ?? .initial(defaultName: defaultName)
-            loaded.applyRetention(retention, now: Date())
-            if loaded == decoded {
-                lastSavedDocument = loaded
-            } else {
-                _ = persist(loaded)
-            }
+        do {
+            let loaded = try store.load(defaultName: defaultName, retention: retention, now: Date())
             apply(loaded)
-            return
+            hasLoaded = true
+            return true
+        } catch {
+            hasLoaded = false
+            return false
         }
-
-        let manager = FileManager.default
-        let legacyURL = Self.legacyStoreURL
-        let legacyText = legacyURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-        let lastEdited = legacyURL.flatMap {
-            (try? manager.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
-        }
-        let migrated = ScratchpadSupport.migratedLegacyDocument(
-            text: legacyText,
-            lastEdited: lastEdited,
-            defaultName: defaultName,
-            retention: retention,
-            now: Date())
-        if persist(migrated), let legacyURL {
-            try? manager.removeItem(at: legacyURL)
-        }
-        apply(migrated)
     }
 
     private func scheduleSave() {
@@ -181,18 +161,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         pendingSave?.cancel()
         pendingSave = nil
         guard hasLoaded, let document else { return }
-        _ = persist(document)
-    }
-
-    @discardableResult
-    private func persist(_ document: ScratchpadDocument) -> Bool {
-        if document == lastSavedDocument { return true }
-        guard let data = document.encoded() else { return false }
-        let defaults = UserDefaults.standard
-        defaults.set(data, forKey: DefaultsKey.scratchpadDocument)
-        guard defaults.data(forKey: DefaultsKey.scratchpadDocument) == data else { return false }
-        lastSavedDocument = document
-        return true
+        _ = store.save(document)
     }
 
     private func apply(_ document: ScratchpadDocument, focus: Bool = false) {
@@ -215,23 +184,23 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func createPad(defaultName: String) {
-        guard let document, let next = document.addingPad(defaultName: defaultName), persist(next) else { return }
+        guard let document, let next = document.addingPad(defaultName: defaultName), store.save(next) else { return }
         apply(next, focus: true)
     }
 
     func selectPad(_ id: UUID) {
-        guard id != selectedPadID, let document, let next = document.selecting(id), persist(next) else { return }
+        guard id != selectedPadID, let document, let next = document.selecting(id), store.save(next) else { return }
         apply(next, focus: true)
     }
 
     func renamePad(_ id: UUID, to name: String) {
-        guard let document, let next = document.renaming(id, to: name), persist(next) else { return }
+        guard let document, let next = document.renaming(id, to: name), store.save(next) else { return }
         apply(next, focus: id == selectedPadID)
     }
 
     @discardableResult
     func closePad(_ id: UUID) -> Bool {
-        guard let document, let next = document.removing(id), persist(next) else { return false }
+        guard let document, let next = document.removing(id), store.save(next) else { return false }
         apply(next, focus: true)
         return true
     }
@@ -253,7 +222,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         pendingSave = nil
         hasLoaded = false
         document = nil
-        lastSavedDocument = nil
+        store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL, defaults: .standard)
     }
 
     // MARK: - Actions
@@ -327,7 +296,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             let response = savePanel.runModal()
             self?.modalInteractionActive = false
             if response == .OK, let url = savePanel.url {
-                try? content.write(to: url, atomically: true, encoding: .utf8)
+                do {
+                    try content.write(to: url, atomically: true, encoding: .utf8)
+                } catch {
+                    // A read-only volume or a full disk used to end here in
+                    // silence, with the save panel closed and nothing written.
+                    QuickToolHUD.show(
+                        icon: "exclamationmark.triangle",
+                        message: FeatureStrings.scratchpad(L10n.shared.language).exportFailed)
+                }
             }
             guard let self, let panel = self.panel, panel.isVisible else { return }
             panel.makeKey()
@@ -430,6 +407,17 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                                                   exportModalActive: modalInteractionActive)
     }
 
+    private func performFocusedTabShortcut(_ action: ScratchpadFocusedTabShortcut.Action) {
+        switch action {
+        case .createPad:
+            createPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
+        case .closeSelectedPad:
+            keyboardCloseSelectedPadSerial += 1
+        case .hidePad:
+            hide()
+        }
+    }
+
     private func installMonitors(for panel: NSPanel) {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
@@ -440,6 +428,22 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                     return event
                 }
                 self.hide()
+                return nil
+            }
+            guard !self.modalInteractionActive else { return event }
+            let commandOnly = event.modifierFlags
+                .intersection([.command, .option, .shift, .control]) == .command
+            if let action = ScratchpadFocusedTabShortcut.action(
+                charactersIgnoringModifiers: event.charactersIgnoringModifiers,
+                commandOnly: commandOnly,
+                canCreatePad: self.canCreatePad,
+                canClosePad: self.canClosePad
+            ) {
+                self.performFocusedTabShortcut(action)
+                return nil
+            }
+            // At the tab limit Command-T still belongs to the pad, not the text.
+            if commandOnly, event.charactersIgnoringModifiers?.lowercased() == "t" {
                 return nil
             }
             return event

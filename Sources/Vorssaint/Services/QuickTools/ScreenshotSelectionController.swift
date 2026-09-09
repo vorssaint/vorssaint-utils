@@ -99,8 +99,12 @@ final class ScreenshotSelectionController {
             }
         }
     }
-    fileprivate var loupeZoom: CGFloat = 1 {
-        didSet { panels.forEach { $0.overlayView.needsDisplay = true } }
+    fileprivate var loupeZoom: CGFloat {
+        didSet {
+            UserDefaults.standard.set(Double(loupeZoom),
+                                      forKey: DefaultsKey.screenshotLoupeLastZoom)
+            panels.forEach { $0.overlayView.needsDisplay = true }
+        }
     }
     fileprivate var currentPointerLocation: CGPoint?
 
@@ -111,6 +115,18 @@ final class ScreenshotSelectionController {
     /// dim over dim and split the keyboard between them, so whichever feature
     /// asks second is turned away.
     private(set) static var isSessionOnScreen = false
+    private static weak var activeSession: ScreenshotSelectionController?
+
+    /// Step mode needs the physical wheel event immediately. Fast mode keeps
+    /// the normal smooth-scroll packet train, which is what gives it its
+    /// deliberately accelerated sweep through the zoom range.
+    static func steppedLoupeNeedsRawWheel(optionPressed: Bool) -> Bool {
+        guard activeSession?.loupeEnabled == true else { return false }
+        return ScreenshotSupport.captureLoupeUsesSteppedZoom(
+            steppedByDefault: UserDefaults.standard.bool(
+                forKey: DefaultsKey.screenshotLoupeSteppedZoomByDefault),
+            optionPressed: optionPressed)
+    }
 
     private let strings = FeatureStrings.screenshot(L10n.shared.language)
     /// Named at the head of the hint bar so the surface never leaves the
@@ -137,11 +153,17 @@ final class ScreenshotSelectionController {
         self.supportsScrollingCapture = supportsScrollingCapture
         self.requiresDraggedRegion = requiresDraggedRegion
         self.screenCaptureOptions = screenCaptureOptions
+        let defaults = UserDefaults.standard
+        self.loupeZoom = ScreenshotSupport.captureLoupeInitialZoom(
+            rememberLast: defaults.bool(forKey: DefaultsKey.screenshotLoupeRememberZoom),
+            defaultZoom: CGFloat(defaults.double(forKey: DefaultsKey.screenshotLoupeDefaultZoom)),
+            lastZoom: CGFloat(defaults.double(forKey: DefaultsKey.screenshotLoupeLastZoom)))
         self.capturePolicy = ScreenshotSupport.UnifiedCapturePolicy(
             freeze: freeze,
             includePointer: includePointer,
             hideVorssaintWindows: hideVorssaintWindows,
             usesGeometry: mode == .geometry)
+        defaults.set(Double(loupeZoom), forKey: DefaultsKey.screenshotLoupeLastZoom)
     }
 
     private var activeTool: ScreenCaptureTool? { screenCaptureOptions?.selectedTool }
@@ -157,6 +179,7 @@ final class ScreenshotSelectionController {
 
     func begin(completion: @escaping (Outcome) -> Void) {
         Self.isSessionOnScreen = true
+        Self.activeSession = self
         self.completion = completion
         screenCaptureOptions?.onSelectionChange = { [weak self] in
             self?.screenCaptureToolDidChange()
@@ -398,8 +421,10 @@ final class ScreenshotSelectionController {
         }
     }
 
-    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat) {
-        loupeZoom = ScreenshotSupport.captureLoupeZoom(loupeZoom, adjustedBy: scrollDelta)
+    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat, stepped: Bool) {
+        loupeZoom = stepped
+            ? ScreenshotSupport.captureLoupeSteppedZoom(loupeZoom, adjustedBy: scrollDelta)
+            : ScreenshotSupport.captureLoupeZoom(loupeZoom, adjustedBy: scrollDelta)
     }
 
     /// C copies the color under the pointer in the configured picker format
@@ -628,8 +653,7 @@ final class ScreenshotSelectionController {
             imageSize: CGSize(width: image.width, height: image.height))
         let x = min(max(Int(point.x.rounded(.down)), 0), image.width - 1)
         let y = min(max(Int(point.y.rounded(.down)), 0), image.height - 1)
-        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1)),
-              let color = NSBitmapImageRep(cgImage: pixel).colorAt(x: 0, y: 0)
+        guard let color = QuickToolsSupport.sampledColor(in: image, x: x, y: y)
         else {
             finish(.failed)
             return
@@ -683,13 +707,17 @@ final class ScreenshotSelectionController {
         // screen marked as taken and every capture feature dead until the app
         // is restarted. The wrong flag is always the one that lets a capture
         // start, never the one that blocks it.
-        if !finished { Self.isSessionOnScreen = false }
+        if !finished {
+            Self.isSessionOnScreen = false
+            if Self.activeSession === self { Self.activeSession = nil }
+        }
     }
 
     private func finish(_ outcome: Outcome) {
         guard !finished else { return }
         finished = true
         Self.isSessionOnScreen = false
+        if Self.activeSession === self { Self.activeSession = nil }
         screenCaptureOptions?.onSelectionChange = nil
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
@@ -904,7 +932,7 @@ private final class ScreenshotOverlayView: NSView {
         let width = min(screenCaptureOptions == nil ? 680 : 620,
                         max(280, bounds.width - 32))
         let height: CGFloat = screenCaptureOptions != nil
-            ? 146
+            ? (screenCaptureOptions?.showsCaptureMenu == false ? 82 : 146)
             : 72
         guideHost.frame = CGRect(x: bounds.midX - width / 2,
                                  y: bounds.maxY - height - 32,
@@ -1010,7 +1038,24 @@ private final class ScreenshotOverlayView: NSView {
             super.scrollWheel(with: event)
             return
         }
-        controller.adjustLoupeZoom(by: event.scrollingDeltaY)
+        let steppedByDefault = UserDefaults.standard.bool(
+            forKey: DefaultsKey.screenshotLoupeSteppedZoomByDefault)
+        let stepped = ScreenshotSupport.captureLoupeUsesSteppedZoom(
+            steppedByDefault: steppedByDefault,
+            optionPressed: event.modifierFlags.contains(.option))
+        let wheelDelta: CGFloat
+        if let cgEvent = event.cgEvent {
+            wheelDelta = ScreenshotSupport.captureLoupeWheelDelta(
+                scrollingDelta: event.scrollingDeltaY,
+                lineDelta: cgEvent.getIntegerValueField(.scrollWheelEventDeltaAxis1),
+                fixedPointDelta: cgEvent.getDoubleValueField(
+                    .scrollWheelEventFixedPtDeltaAxis1))
+        } else {
+            wheelDelta = event.scrollingDeltaY
+        }
+        controller.adjustLoupeZoom(
+            by: wheelDelta,
+            stepped: stepped)
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -1327,9 +1372,7 @@ private final class ScreenshotOverlayView: NSView {
         let x = min(max(Int(pixelPoint.x.rounded(.down)), 0), image.width - 1)
         let y = min(max(Int(pixelPoint.y.rounded(.down)), 0), image.height - 1)
         let point = CGPoint(x: x, y: y)
-        guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
-        else { return (nil, point) }
-        return (NSBitmapImageRep(cgImage: pixel).colorAt(x: 0, y: 0), point)
+        return (QuickToolsSupport.sampledColor(in: image, x: x, y: y), point)
     }
 
     /// Readout bar under the magnifier: a swatch of the pixel under the
@@ -1444,6 +1487,36 @@ private final class PassThroughHostingView<Content: View>: NSHostingView<Content
     }
 }
 
+/// The backing plate the capture chrome draws behind its text.
+///
+/// The shared `HUDBackdrop` cannot serve here: its material blends with what
+/// sits behind the window, and this chrome lives inside the overlay window,
+/// which is opaque while it shows the frozen still. Blending there would read
+/// the live desktop instead of the still the person is aiming at. The plate is
+/// the part that fixes contrast anyway, so keep the material these panels
+/// already draw and add only the plate over it.
+private struct CaptureChromeBackdrop<S: Shape>: View {
+    let material: Material
+    let shape: S
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    /// Reduced transparency already gives an opaque material, so the plate
+    /// steps aside; otherwise it carries the same calibration the shared
+    /// backdrop documents.
+    private var plateOpacity: Double {
+        guard !reduceTransparency else { return 0 }
+        return HUDBackdrop.plateOpacity(dark: colorScheme == .dark)
+    }
+
+    var body: some View {
+        shape.fill(material)
+            .overlay(shape.fill(colorScheme == .dark ? Color.black : Color.white)
+                        .opacity(plateOpacity))
+    }
+}
+
 private struct CaptureGuideView: View {
     let strings: ScreenshotFeatureStrings
     let purpose: String?
@@ -1503,8 +1576,9 @@ private struct CaptureGuideView: View {
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(CaptureChromeBackdrop(
+            material: .regularMaterial,
+            shape: RoundedRectangle(cornerRadius: 16, style: .continuous)))
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1544,11 +1618,18 @@ private struct UnifiedCaptureGuideContent: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                captureModePalette
-                escapeHint
+            if options.showsCaptureMenu {
+                HStack(spacing: 8) {
+                    captureModePalette
+                    escapeHint
+                }
             }
-            contextualGuide
+            HStack(spacing: 8) {
+                contextualGuide
+                if !options.showsCaptureMenu {
+                    escapeHint
+                }
+            }
             RecorderSelectionAudioControls(options: options.recorderAudio)
                 .opacity(options.selectedTool == .recording ? 1 : 0)
                 .allowsHitTesting(options.selectedTool == .recording)
@@ -1579,7 +1660,8 @@ private struct UnifiedCaptureGuideContent: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
-        .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+        .background(CaptureChromeBackdrop(material: .ultraThinMaterial,
+                                          shape: Capsule(style: .continuous)))
         .overlay {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1596,9 +1678,10 @@ private struct UnifiedCaptureGuideContent: View {
         }
         .foregroundStyle(.secondary)
         .padding(.horizontal, 10)
-        .frame(height: 56)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .frame(height: options.showsCaptureMenu ? 56 : 30)
+        .background(CaptureChromeBackdrop(
+            material: .regularMaterial,
+            shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1613,8 +1696,9 @@ private struct UnifiedCaptureGuideContent: View {
             }
         }
         .padding(4)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(CaptureChromeBackdrop(
+            material: .regularMaterial,
+            shape: RoundedRectangle(cornerRadius: 14, style: .continuous)))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)
@@ -1729,7 +1813,8 @@ private struct RecorderSelectionAudioControls: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .padding(4)
-        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .background(CaptureChromeBackdrop(material: .regularMaterial,
+                                          shape: Capsule(style: .continuous)))
         .overlay {
             Capsule(style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.10), lineWidth: 1)

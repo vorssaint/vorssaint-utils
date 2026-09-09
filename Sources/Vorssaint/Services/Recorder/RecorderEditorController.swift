@@ -37,6 +37,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// over: a HUD naming a folder is not the same as giving somebody the file.
     @Published private(set) var lastExportedURL: URL?
     @Published private(set) var editPresets: [RecorderEditPreset] = []
+    @Published private(set) var isUpdatingPreset = false
     @Published private(set) var audioWaveforms: [RecorderAudioSource: [Float]] = [:]
     @Published var document: RecorderEditDocument {
         didSet { documentDidChange(from: oldValue) }
@@ -443,32 +444,89 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     func applyPreset(_ preset: RecorderEditPreset) {
+        guard !isUpdatingPreset, duration > 0 else { return }
+        guard let images = preset.images, !images.isEmpty else {
+            finishApplyingPreset(preset)
+            return
+        }
+        isUpdatingPreset = true
+        let store = RecorderPresetImageStore()
+        let take = self.take
+        let duration = self.duration
+        Task { @MainActor [weak self] in
+            let restored = await Task.detached(priority: .userInitiated) {
+                store.restore(images, into: take, duration: duration)
+            }.value
+            guard let self else { return }
+            self.isUpdatingPreset = false
+            guard let restored else {
+                self.reportPresetImageFailure()
+                return
+            }
+            var prepared = preset
+            prepared.images = restored
+            self.finishApplyingPreset(prepared)
+        }
+    }
+
+    private func finishApplyingPreset(_ preset: RecorderEditPreset) {
         document = preset.applying(to: document)
             .restoringAutomaticZooms(clicks: pointerTrack.clicks,
                                      typingTimes: typingTimes,
                                      duration: duration)
             .sanitized(duration: duration)
+        if let selectedImageID, !document.images.contains(where: { $0.id == selectedImageID }) {
+            self.selectedImageID = nil
+        }
     }
 
     func savePreset(named name: String) {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !clean.isEmpty else { return }
-        if let index = editPresets.firstIndex(where: {
-            $0.name.compare(clean, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-        }) {
-            editPresets[index] = RecorderEditPreset(id: editPresets[index].id,
-                                                    name: clean,
-                                                    document: document)
-        } else {
-            editPresets.append(RecorderEditPreset(name: clean, document: document))
-            editPresets = Array(editPresets.suffix(12))
+        guard !clean.isEmpty, !isUpdatingPreset else { return }
+        isUpdatingPreset = true
+        let snapshot = document
+        let store = RecorderPresetImageStore()
+        Task { @MainActor [weak self] in
+            let images = await Task.detached(priority: .userInitiated) {
+                store.capture(snapshot.images)
+            }.value
+            guard let self else {
+                if let images { store.remove(images) }
+                return
+            }
+            self.isUpdatingPreset = false
+            guard let images else {
+                self.reportPresetImageFailure()
+                return
+            }
+            var prepared = snapshot
+            prepared.images = images
+            self.loadEditPresets()
+            if !self.savePreset(named: clean, document: prepared) {
+                store.remove(images)
+                self.reportPresetImageFailure()
+            }
         }
-        persistEditPresets()
+    }
+
+    private func savePreset(named name: String, document: RecorderEditDocument) -> Bool {
+        var presets = editPresets
+        if let index = presets.firstIndex(where: {
+            $0.name.compare(name, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
+        }) {
+            presets[index] = RecorderEditPreset(id: presets[index].id,
+                                                name: name, document: document)
+        } else {
+            presets.append(RecorderEditPreset(name: name, document: document))
+            presets = Array(presets.suffix(12))
+        }
+        return persistEditPresets(presets)
     }
 
     func removePreset(_ preset: RecorderEditPreset) {
-        editPresets.removeAll { $0.id == preset.id }
-        persistEditPresets()
+        guard !isUpdatingPreset else { return }
+        loadEditPresets()
+        _ = persistEditPresets(editPresets.filter { $0.id != preset.id })
     }
 
     private func loadEditPresets() {
@@ -478,9 +536,22 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         editPresets = Array(presets.suffix(12))
     }
 
-    private func persistEditPresets() {
-        guard let data = try? JSONEncoder().encode(editPresets) else { return }
+    private func persistEditPresets(_ presets: [RecorderEditPreset]) -> Bool {
+        guard let data = try? JSONEncoder().encode(presets) else { return false }
         UserDefaults.standard.set(data, forKey: DefaultsKey.recorderEditorPresets)
+        let retainedPaths = Set(presets.flatMap { $0.images ?? [] }.map(\.path))
+        let retiredImages = editPresets.flatMap { $0.images ?? [] }
+            .filter { !retainedPaths.contains($0.path) }
+        editPresets = presets
+        DispatchQueue.global(qos: .utility).async {
+            RecorderPresetImageStore().remove(retiredImages)
+        }
+        return true
+    }
+
+    private func reportPresetImageFailure() {
+        QuickToolHUD.show(icon: "photo",
+                         message: FeatureStrings.recorder(L10n.shared.language).imageImportFailed)
     }
 
     /// The edit lives next to the master, so reopening a recording finds it
@@ -783,14 +854,20 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Lanes
 
-    /// Both lanes speak the same language to the view, so there is one set of
+    /// Every lane speaks the same language to the view, so there is one set of
     /// gestures to learn and one implementation to keep right.
     @Published var selectedTextID: UUID?
+    @Published var selectedImageID: UUID?
     @Published var selectedBlurID: UUID?
 
     var selectedText: RecorderTextOverlay? {
         guard let selectedTextID else { return nil }
         return document.texts.first { $0.id == selectedTextID }
+    }
+
+    var selectedImage: RecorderImageOverlay? {
+        guard let selectedImageID else { return nil }
+        return document.images.first { $0.id == selectedImageID }
     }
 
     var selectedBlur: RecorderBlurRegion? {
@@ -805,7 +882,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 RecorderZoomLane.Item(id: $0.id,
                                       start: $0.start,
                                       end: $0.end,
-                                      label: String(format: "%.1fx", $0.amount),
+                                      label: String(format: "%.1f×", locale: MetricFormat.locale,
+                                                    $0.amount),
                                       glyph: $0.followsPointer ? "\u{2197}" : "\u{25C9}")
             }
         case .text:
@@ -815,6 +893,15 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                                       end: $0.end,
                                       label: String($0.text.prefix(18)),
                                       glyph: "T")
+            }
+        case .image:
+            return document.images.map {
+                RecorderZoomLane.Item(id: $0.id,
+                                      start: $0.start,
+                                      end: $0.end,
+                                      label: String(URL(fileURLWithPath: $0.path)
+                                        .deletingPathExtension().lastPathComponent.prefix(18)),
+                                      glyph: "\u{25A3}")
             }
         case .blur:
             let label = FeatureStrings.recorder(L10n.shared.language).blurLaneLabel
@@ -832,6 +919,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         switch kind {
         case .zoom: return selectedZoomID
         case .text: return selectedTextID
+        case .image: return selectedImageID
         case .blur: return selectedBlurID
         }
     }
@@ -842,12 +930,16 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             selectedZoomID = id
         case .text:
             selectedTextID = id
+        case .image:
+            selectedImageID = id
         case .blur:
             selectedBlurID = id
         }
         if id != nil {
+            cutSelection = nil
             if kind != .zoom { selectedZoomID = nil }
             if kind != .text { selectedTextID = nil }
+            if kind != .image { selectedImageID = nil }
             if kind != .blur { selectedBlurID = nil }
         }
         // Drawing an area belongs to the blur that was selected; once that
@@ -859,43 +951,39 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         switch kind {
         case .zoom: addZoom(at: time)
         case .text: addText(at: time)
+        case .image: addImage(at: time)
         case .blur: addBlur(at: time)
         }
     }
 
     func moveLaneItem(_ kind: RecorderZoomLane.Kind, id: UUID, to start: Double) {
         switch kind {
-        case .zoom:
-            moveZoom(id, to: start)
-        case .text:
-            guard let overlay = document.texts.first(where: { $0.id == id }) else { return }
-            beginInteraction()
-            var next = document
-            let span = overlay.duration
-            let clamped = max(0, min(start, duration - span))
-            next.texts = next.texts.map { item -> RecorderTextOverlay in
-                guard item.id == id else { return item }
-                var copy = item
-                copy.start = clamped
-                copy.end = clamped + span
-                return copy
-            }
-            applyDuringInteraction(next)
-        case .blur:
-            guard let region = document.blurs.first(where: { $0.id == id }) else { return }
-            beginInteraction()
-            var next = document
-            let span = region.duration
-            let clamped = max(0, min(start, duration - span))
-            next.blurs = next.blurs.map { item -> RecorderBlurRegion in
-                guard item.id == id else { return item }
-                var copy = item
-                copy.start = clamped
-                copy.end = clamped + span
-                return copy
-            }
-            applyDuringInteraction(next)
+        case .zoom: moveZoom(id, to: start)
+        case .text: moveBlock(\.texts, id: id, to: start)
+        case .image: moveBlock(\.images, id: id, to: start)
+        case .blur: moveBlock(\.blurs, id: id, to: start)
         }
+    }
+
+    /// A block keeps its length wherever it is dropped, and never hangs off
+    /// the end of the recording.
+    private func moveBlock<Block: RecorderTimelineBlock>(
+        _ blocks: WritableKeyPath<RecorderEditDocument, [Block]>,
+        id: UUID,
+        to start: Double) {
+        guard let block = document[keyPath: blocks].first(where: { $0.id == id }) else { return }
+        beginInteraction()
+        let span = block.duration
+        let clamped = max(0, min(start, duration - span))
+        var next = document
+        next[keyPath: blocks] = next[keyPath: blocks].map { item -> Block in
+            guard item.id == id else { return item }
+            var copy = item
+            copy.start = clamped
+            copy.end = clamped + span
+            return copy
+        }
+        applyDuringInteraction(next)
     }
 
     func resizeLaneItem(_ kind: RecorderZoomLane.Kind,
@@ -903,43 +991,40 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                         edge: RecorderTimeline.Edge,
                         to time: Double) {
         switch kind {
-        case .zoom:
-            resizeZoom(id, edge: edge, to: time)
-        case .text:
-            guard let overlay = document.texts.first(where: { $0.id == id }) else { return }
-            beginInteraction()
-            var next = document
-            next.texts = next.texts.map { item -> RecorderTextOverlay in
-                guard item.id == id else { return item }
-                var copy = item
-                switch edge {
-                case .start: copy.start = max(0, min(time, overlay.end - 0.4))
-                case .end: copy.end = min(duration, max(time, overlay.start + 0.4))
-                }
-                return copy
-            }
-            applyDuringInteraction(next)
-        case .blur:
-            guard let region = document.blurs.first(where: { $0.id == id }) else { return }
-            beginInteraction()
-            var next = document
-            next.blurs = next.blurs.map { item -> RecorderBlurRegion in
-                guard item.id == id else { return item }
-                var copy = item
-                switch edge {
-                case .start: copy.start = max(0, min(time, region.end - 0.4))
-                case .end: copy.end = min(duration, max(time, region.start + 0.4))
-                }
-                return copy
-            }
-            applyDuringInteraction(next)
+        case .zoom: resizeZoom(id, edge: edge, to: time)
+        case .text: resizeBlock(\.texts, id: id, edge: edge, to: time)
+        case .image: resizeBlock(\.images, id: id, edge: edge, to: time)
+        case .blur: resizeBlock(\.blurs, id: id, edge: edge, to: time)
         }
+    }
+
+    /// Either end can be dragged past the other only until the block would
+    /// stop being a block, which is what keeps a lane grabbable.
+    private func resizeBlock<Block: RecorderTimelineBlock>(
+        _ blocks: WritableKeyPath<RecorderEditDocument, [Block]>,
+        id: UUID,
+        edge: RecorderTimeline.Edge,
+        to time: Double) {
+        guard let block = document[keyPath: blocks].first(where: { $0.id == id }) else { return }
+        beginInteraction()
+        var next = document
+        next[keyPath: blocks] = next[keyPath: blocks].map { item -> Block in
+            guard item.id == id else { return item }
+            var copy = item
+            switch edge {
+            case .start: copy.start = max(0, min(time, block.end - 0.4))
+            case .end: copy.end = min(duration, max(time, block.start + 0.4))
+            }
+            return copy
+        }
+        applyDuringInteraction(next)
     }
 
     func removeSelectedLaneItem(_ kind: RecorderZoomLane.Kind) {
         switch kind {
         case .zoom: removeSelectedZoom()
         case .text: removeSelectedText()
+        case .image: removeSelectedImage()
         case .blur: removeSelectedBlur()
         }
     }
@@ -981,6 +1066,77 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         next.texts.removeAll { $0.id == id }
         applyDuringInteraction(next)
         selectedTextID = nil
+        commitZoomEdit()
+    }
+
+    // MARK: - Image
+
+    /// A picture is picked straight away: an empty block on a lane would say
+    /// nothing, and choosing the file is the first thing anyone does anyway.
+    ///
+    /// It runs to the end of the recording the way a blur does, because a mark
+    /// of your own is normally meant to stay on the whole video.
+    func addImage(at time: Double) {
+        guard duration > 0, let url = Self.chooseImage() else { return }
+        let take = take
+        Task { @MainActor [weak self] in
+            let imported = await Task.detached(priority: .userInitiated) {
+                RecorderTakeStore.shared.importImage(at: url, into: take)
+            }.value
+            guard let self else {
+                if let imported {
+                    try? FileManager.default.removeItem(at: imported.deletingLastPathComponent())
+                }
+                return
+            }
+            guard let imported else {
+                QuickToolHUD.show(icon: "photo",
+                                 message: FeatureStrings.recorder(L10n.shared.language).imageImportFailed)
+                return
+            }
+            self.beginInteraction()
+            let start = max(0, min(time, max(0, self.duration - 0.4)))
+            let overlay = RecorderImageOverlay(path: imported.path, start: start, end: self.duration)
+            var next = self.document
+            next.images.append(overlay)
+            self.applyDuringInteraction(next)
+            self.selectLaneItem(.image, id: overlay.id)
+            self.commitZoomEdit()
+        }
+    }
+
+    /// Only a file the person picked themselves, and only one the system can
+    /// copy into the recording. Decoding happens with the import off the UI thread.
+    private static func chooseImage() -> URL? {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url
+        else { return nil }
+        return url
+    }
+
+    func updateSelectedImage(_ change: (inout RecorderImageOverlay) -> Void) {
+        guard let id = selectedImageID else { return }
+        beginInteraction()
+        var next = document
+        next.images = next.images.map { item -> RecorderImageOverlay in
+            guard item.id == id else { return item }
+            var copy = item
+            change(&copy)
+            return copy
+        }
+        applyDuringInteraction(next)
+    }
+
+    func removeSelectedImage() {
+        guard let id = selectedImageID else { return }
+        beginInteraction()
+        var next = document
+        next.images.removeAll { $0.id == id }
+        applyDuringInteraction(next)
+        selectedImageID = nil
         commitZoomEdit()
     }
 
@@ -1561,6 +1717,14 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     self.model.removeSelectedZoom()
                     return nil
                 }
+                if self.model.selectedTextID != nil {
+                    self.model.removeSelectedText()
+                    return nil
+                }
+                if self.model.selectedImageID != nil {
+                    self.model.removeSelectedImage()
+                    return nil
+                }
                 if self.model.selectedBlurID != nil {
                     self.model.removeSelectedBlur()
                     return nil
@@ -1582,6 +1746,14 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 }
                 if self.model.selectedZoomID != nil {
                     self.model.selectZoom(nil)
+                    return nil
+                }
+                if self.model.selectedTextID != nil {
+                    self.model.selectLaneItem(.text, id: nil)
+                    return nil
+                }
+                if self.model.selectedImageID != nil {
+                    self.model.selectLaneItem(.image, id: nil)
                     return nil
                 }
                 if self.model.selectedBlurID != nil {

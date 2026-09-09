@@ -23,6 +23,8 @@ struct RadialMenuSettings: View {
     @State private var openSubmenuID: UUID?
     @State private var editing: RadialMenuItem?
     @State private var dragging: RadialMenuItem?
+    @State private var showList = false
+    @Environment(\.colorScheme) private var colorScheme
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
 
@@ -111,38 +113,60 @@ struct RadialMenuSettings: View {
             }
 
             Section {
-                if let openSubmenu {
-                    Button {
-                        openSubmenuID = nil
-                        dragging = nil
-                    } label: {
-                        Label("\(text.backButton)  \(openSubmenu.displayName(text))",
-                              systemImage: "chevron.backward")
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.accentColor)
-                }
-                if level.isEmpty {
-                    Text(text.emptyCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(level) { item in
-                    RadialItemRow(item: item,
-                                  text: text,
-                                  dragging: $dragging,
-                                  edit: {
-                                      editing = item
-                                  },
-                                  remove: { remove(id: item.id) },
-                                  openChildren: item.kind == .submenu ? { openSubmenuID = item.id } : nil,
-                                  moveHandler: { moved, target in move(moved, before: target) })
-                }
+                RadialMenuVisualCanvas(
+                    items: level,
+                    profileColor: selectedProfile.color.color(for: colorScheme),
+                    text: text,
+                    openSubmenu: openSubmenu,
+                    onSelect: { item in editing = item },
+                    onReorder: { moved, target in swap(moved, with: target) },
+                    onRemove: { item in remove(id: item.id) },
+                    onOpenSubmenu: { item in openSubmenuID = item.id },
+                    onBack: { openSubmenuID = nil; dragging = nil },
+                    onAdd: { editing = RadialMenuItem(kind: .app) },
+                    onReset: canResetProfile ? { resetToPresetDefaults() } : nil
+                )
+                .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+
+                Text(text.canvasHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
                 if level.count < RadialMenuSupport.maxItemsPerWheel {
                     Button {
                         editing = RadialMenuItem(kind: .app)
                     } label: {
                         Label(text.addButton, systemImage: "plus")
+                    }
+                }
+
+                DisclosureGroup(showList ? text.hideListButton : text.showListButton, isExpanded: $showList) {
+                    if let openSubmenu {
+                        Button {
+                            openSubmenuID = nil
+                            dragging = nil
+                        } label: {
+                            Label("\(text.backButton)  \(openSubmenu.displayName(text))",
+                                  systemImage: "chevron.backward")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    if level.isEmpty {
+                        Text(text.emptyCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(level) { item in
+                        RadialItemRow(item: item,
+                                      text: text,
+                                      dragging: $dragging,
+                                      edit: {
+                                          editing = item
+                                      },
+                                      remove: { remove(id: item.id) },
+                                      openChildren: item.kind == .submenu ? { openSubmenuID = item.id } : nil,
+                                      moveHandler: { moved, target in move(moved, before: target) })
                     }
                 }
             } header: {
@@ -166,6 +190,7 @@ struct RadialMenuSettings: View {
                              item: item,
                              isNew: isNew,
                              allowsSubmenu: openSubmenuID == nil,
+                             openChildren: item.kind == .submenu ? { openSubmenuID = item.id } : nil,
                              save: { saved in
                                  upsert(saved)
                                  if isNew, saved.kind == .submenu {
@@ -301,6 +326,10 @@ struct RadialMenuSettings: View {
         }
         .disabled(!enabled)
 
+        Text(text.mouseTriggerRequirement)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
         if RadialMenuMouseTrigger.sanitized(profile.mouseButton) != .off {
             if let button = RadialMenuMouseTrigger.sanitized(profile.mouseButton).buttonNumber,
                button == MouseButtonShortcutSupport.backButtonNumber
@@ -349,6 +378,37 @@ struct RadialMenuSettings: View {
         persist()
     }
 
+    /// The starter set the selected wheel came from. Wheels created since the
+    /// profiles arrived carry it; an older one is matched by its name, which
+    /// only answers while that name is still the preset's own in the language
+    /// it was created in. Nothing else is a safe guess: falling back to one
+    /// particular starter set replaced a renamed wheel's actions with another
+    /// wheel's.
+    private var resolvedPreset: RadialMenuProfilePreset? {
+        let current = selectedProfile
+        if let stored = current.preset, let preset = RadialMenuProfilePreset(rawValue: stored) {
+            return preset
+        }
+        return RadialMenuProfilePreset.allCases.first { preset in
+            preset.title(text).caseInsensitiveCompare(current.name) == .orderedSame
+                || preset.id.caseInsensitiveCompare(current.name) == .orderedSame
+        }
+    }
+
+    /// Restoring the actions is offered on the wheel itself, and only when the
+    /// set to restore is known. A submenu is the person's own list, so there is
+    /// nothing to put back into it.
+    private var canResetProfile: Bool { openSubmenuID == nil && resolvedPreset != nil }
+
+    private func resetToPresetDefaults() {
+        guard profiles.indices.contains(selectedProfileIndex),
+              let preset = resolvedPreset else { return }
+        profiles[selectedProfileIndex].items = preset.makeItems()
+        openSubmenuID = nil
+        dragging = nil
+        persist()
+    }
+
     private func setLevel(_ new: [RadialMenuItem]) {
         guard profiles.indices.contains(selectedProfileIndex) else { return }
         if let openSubmenuID, let index = profiles[selectedProfileIndex].items.firstIndex(where: { $0.id == openSubmenuID }) {
@@ -380,6 +440,15 @@ struct RadialMenuSettings: View {
               let to = new.firstIndex(where: { $0.id == target.id }),
               from != to else { return }
         new.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
+        setLevel(new)
+    }
+
+    private func swap(_ first: RadialMenuItem, with second: RadialMenuItem) {
+        var new = level
+        guard let from = new.firstIndex(where: { $0.id == first.id }),
+              let to = new.firstIndex(where: { $0.id == second.id }),
+              from != to else { return }
+        new.swapAt(from, to)
         setLevel(new)
     }
 
@@ -659,6 +728,7 @@ private struct RadialItemEditor: View {
     @State var item: RadialMenuItem
     let isNew: Bool
     let allowsSubmenu: Bool
+    var openChildren: (() -> Void)? = nil
     let save: (RadialMenuItem) -> Void
     let delete: (() -> Void)?
 
@@ -761,6 +831,19 @@ private struct RadialItemEditor: View {
                 Text(text.submenuCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let openChildren {
+                    Button {
+                        dismiss()
+                        openChildren()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text(text.editActionsButton)
+                            Image(systemName: "chevron.forward")
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
             }
 
             HStack {

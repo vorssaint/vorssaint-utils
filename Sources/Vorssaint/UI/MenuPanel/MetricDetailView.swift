@@ -11,13 +11,13 @@ enum MetricDetailKind: String, Equatable, Identifiable {
 
     var panelSection: PanelSectionID {
         switch self {
-        case .cpu, .gpu, .memory, .battery:
+        case .cpu, .gpu, .memory:
             return .system
         case .network:
             return .network
         case .disk:
             return .disk
-        case .power:
+        case .battery, .power:
             return .power
         case .fan:
             return .fanControl
@@ -681,7 +681,7 @@ struct MetricDetailView: View {
             let up = row.networkUpBytesPerSec ?? 0
             return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
         default:
-            return String(format: "%.1f%%", row.value)
+            return String(format: "%.1f%%", locale: MetricFormat.locale, row.value)
         }
     }
 
@@ -748,7 +748,8 @@ struct MetricDetailView: View {
     }
 
     private func mbps(_ value: Double) -> String {
-        value >= 100 ? String(format: "%.0f", value) : String(format: "%.1f", value)
+        value >= 100 ? String(format: "%.0f", locale: MetricFormat.locale, value)
+                     : String(format: "%.1f", locale: MetricFormat.locale, value)
     }
 
     private static let memoryFormatter: ByteCountFormatter = {

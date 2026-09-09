@@ -50,6 +50,7 @@ struct CommandBarEntry: Identifiable {
     let answerValue: String?
     /// The calculator's row: pinned above everything and styled as a result.
     let isAnswer: Bool
+    /// Only durable identities may retain habits; window IDs and PIDs are reused.
     let countsUsage: Bool
     /// The text the ranking reads instead of the title, for the rows whose
     /// title carries something that is not a word. An emoji row shows the
@@ -360,20 +361,31 @@ enum CommandBarCatalog {
                 run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
-            let clipboardTitle = FeatureStrings.clipboard(language).title
+            let clipboard = FeatureStrings.clipboard(language)
             let keepsHistory = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
             let canUseHistory = CommandBarClipboardAccess.canUseHistory(
                 captureEnabled: keepsHistory,
                 hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
             entries.append(CommandBarEntry(
                 id: "action.clipboardWindow",
-                title: clipboardTitle,
-                subtitle: area(.clipboardHistory, under: clipboardTitle),
+                title: clipboard.title,
+                subtitle: area(.clipboardHistory, under: clipboard.title),
                 icon: .symbol("doc.on.clipboard"),
                 shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
                 trouble: canUseHistory ? nil
-                    : .needsSetup(featureTitle: clipboardTitle, page: .clipboard),
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            entries.append(CommandBarEntry(
+                id: "action.clipboardClearRecent",
+                title: clipboard.clearRecent,
+                subtitle: area(.clipboardHistory),
+                keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
+                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                icon: .symbol("trash"),
+                trouble: canUseHistory ? nil
+                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
+                confirmationPrompt: clipboard.clearRecent,
+                run: { _ in ClipboardHistoryService.shared.clearRecent() }))
         }
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
@@ -717,6 +729,12 @@ enum CommandBarCatalog {
             subtitle: feedback.commandSubtitle,
             icon: .symbol("lightbulb"),
             run: { _ in afterBeat { appDelegate()?.openFeedbackWindow(kind: .feature) } }))
+        entries.append(CommandBarEntry(
+            id: "action.restartApp",
+            title: String(format: bar.restartAppFormat, AppInfo.name),
+            subtitle: bar.sourceActions,
+            icon: .symbol("arrow.clockwise"),
+            run: { _ in FeatureRuntime.shared.relaunchApp() }))
         // What people try on day one: put the Mac to sleep, restart it, turn
         // Wi-Fi off. Everything but sleep confirms on the row first.
         for action in CommandBarExtras.PowerAction.allCases {
@@ -745,9 +763,7 @@ enum CommandBarCatalog {
                 keywords: "wifi wi-fi",
                 icon: .symbol(wifiOn ? "wifi.slash" : "wifi"),
                 isActive: wifiOn,
-                run: { _ in
-                    if !CommandBarExtras.setWiFiPower(!wifiOn) { NSSound.beep() }
-                }))
+                run: { _ in CommandBarExtras.setWiFiPower(!wifiOn) }))
         }
 
         // The folders every Mac has. A fixed set of destinations, never a
@@ -954,7 +970,7 @@ enum CommandBarCatalog {
             return CommandBarEntry(
                 id: "menu.\(index).\(item.title)",
                 title: item.title,
-                subtitle: path.isEmpty ? appName : "\(appName) › \(path)",
+                subtitle: CommandBarMenuPath.crumb(appName: appName, path: item.path),
                 keywords: bar.kindMenu + " " + appName + " " + path,
                 icon: .symbol("filemenu.and.selection"),
                 menuShortcut: item.shortcut,
@@ -986,6 +1002,7 @@ enum CommandBarCatalog {
                 keywords: name,
                 icon: app.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.circle"),
                 confirmationPrompt: String(format: bar.quitConfirmFormat, name),
+                countsUsage: app.bundleIdentifier != nil,
                 run: { _ in
                     guard let running = NSRunningApplication(processIdentifier: pid),
                           !running.isTerminated else {
@@ -1016,6 +1033,7 @@ enum CommandBarCatalog {
                 keywords: process.path,
                 icon: process.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.octagon"),
                 confirmationPrompt: String(format: killStrings.confirmKillFormat, process.name),
+                countsUsage: false,
                 run: { _ in
                     KillProcessService.shared.kill(process, force: false)
                 })
@@ -1043,6 +1061,7 @@ enum CommandBarCatalog {
                 keywords: bar.kindWindow + " " + appName,
                 icon: NSRunningApplication(processIdentifier: pid)?.bundleURL
                     .map { .appIcon(path: $0.path) } ?? .symbol("macwindow"),
+                countsUsage: false,
                 run: { _ in
                     afterBeat(0.1) {
                         WindowActivator.activate(pid: pid, windowID: windowID, appName: appName)
@@ -1191,10 +1210,10 @@ enum CommandBarCatalog {
     static func emojiEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         CommandBarEmoji.emoji.map { emoji in
             CommandBarEntry(
-                id: "emoji.\(emoji.character)",
+                id: "emoji.\(emoji.identity)",
                 title: emoji.character + "  " + emoji.name,
                 subtitle: bar.kindEmoji,
-                keywords: emoji.name + " " + bar.kindEmoji,
+                keywords: emoji.name + " " + emoji.keywords + " " + bar.kindEmoji,
                 icon: .symbol("face.smiling"),
                 trouble: Permissions.shared.accessibility ? nil : .needsPermission,
                 matchTitle: emoji.name,

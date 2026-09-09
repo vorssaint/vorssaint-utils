@@ -25,6 +25,10 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
     @AppStorage(DefaultsKey.screenshotShowLastRegion) private var showLastRegion = true
     @AppStorage(DefaultsKey.screenshotLoupeStartsOn) private var loupeStartsOn = false
+    @AppStorage(DefaultsKey.screenshotLoupeRememberZoom) private var rememberLoupeZoom = false
+    @AppStorage(DefaultsKey.screenshotLoupeDefaultZoom) private var loupeDefaultZoom = 1.0
+    @AppStorage(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
+    private var steppedLoupeZoomByDefault = false
     @AppStorage(DefaultsKey.screenshotDownscale) private var downscale = false
     @AppStorage(DefaultsKey.screenshotDelay) private var delay = 0
     @AppStorage(DefaultsKey.screenshotDefaultAction) private var defaultActionRaw = ""
@@ -33,6 +37,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
+    @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = false
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
@@ -129,9 +134,33 @@ struct ScreenshotCaptureSettings: View {
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
-                Toggle(strings.loupeStartsOnToggle, isOn: $loupeStartsOn)
-                previewPositionRow
-                defaultActionRow
+                DisclosureGroup {
+                    Toggle(strings.loupeStartsOnToggle, isOn: $loupeStartsOn)
+                    Toggle(strings.loupeRememberZoomToggle, isOn: $rememberLoupeZoom)
+                    if !rememberLoupeZoom {
+                        Picker(strings.loupeDefaultZoomLabel, selection: $loupeDefaultZoom) {
+                            ForEach(ScreenshotSupport.captureLoupeDefaultZooms, id: \.self) { zoom in
+                                Text(zoom.formatted(
+                                    .number.precision(.fractionLength(0...1))) + "×")
+                                    .tag(zoom)
+                            }
+                        }
+                    }
+                    Picker(strings.loupeWheelZoomLabel,
+                           selection: $steppedLoupeZoomByDefault) {
+                        Text(strings.loupeZoomFast).tag(false)
+                        Text(strings.loupeZoomStepped).tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(strings.loupeZoomOptionCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    previewPositionRow
+                    previewFocusRow
+                    defaultActionRow
+                } label: {
+                    Text(FeatureStrings.recorder(l10n.language).moreOptions)
+                }
             }
 
             Section {
@@ -207,6 +236,15 @@ struct ScreenshotCaptureSettings: View {
                 Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
             }
             Text(strings.defaultActionCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var previewFocusRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(strings.previewFocusToggle, isOn: $previewTakesFocus)
+            Text(strings.previewFocusCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

@@ -647,6 +647,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
+    @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -684,6 +685,11 @@ struct EnergySettings: View {
                 Section(automationStrings.automationSection) {
                     SettingsCaptionText(automationStrings.automationCaption)
                     KeepAwakeAutomationEditor()
+                }
+                Section {
+                    SettingsToggleWithCaption(title: automationStrings.pauseWhenLockedToggle,
+                                              caption: automationStrings.pauseWhenLockedCaption,
+                                              isOn: $keepAwakePauseWhenLocked)
                 }
                 if PowerSampler.hasInternalBattery {
                     Section(l10n.s.batteryProtectionSection) {
@@ -1203,6 +1209,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
     @AppStorage(DefaultsKey.switcherShowFullscreenWindows) private var switcherShowFullscreenWindows = true
     @AppStorage(DefaultsKey.switcherScreenPlacement) private var switcherScreenPlacement = SwitcherScreenPlacement.fallback.rawValue
+    @AppStorage(DefaultsKey.switcherCurrentDisplayOnly) private var switcherCurrentDisplayOnly = false
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var switcherCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.switcherSearchPinEnabled) private var switcherSearchPinEnabled = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
@@ -1214,6 +1221,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
+    @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.previewSize) private var previewSize = "normal"
 
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
@@ -1352,6 +1360,12 @@ struct SwitcherSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    Toggle(l10n.s.switcherCurrentDisplayOnly, isOn: $switcherCurrentDisplayOnly)
+                        .disabled(!switcherEnabled)
+                    Text(l10n.s.switcherCurrentDisplayOnlyCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $switcherCurrentSpaceOnly)
                         .disabled(!switcherEnabled)
                     Text(l10n.s.switcherCurrentSpaceOnlyCaption)
@@ -1467,6 +1481,8 @@ struct SwitcherSettings: View {
                     .onChange(of: previewSize) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
+                    Toggle(l10n.s.minimalWindowPreviews, isOn: $minimalPreviews)
+                    SettingsCaptionText(l10n.s.minimalWindowPreviewsCaption)
                     WindowPreviewExclusionsList()
                 } header: {
                     Text(FeatureStrings.windowPreviewExclusions(l10n.language).sectionTitle)
@@ -1603,7 +1619,7 @@ struct AboutSettings: View {
                     appDelegate()?.showOnboarding()
                 }
                 Button(l10n.s.reviewHighlights) {
-                    appDelegate()?.showUpdateHighlights(includeSupportIntro: true)
+                    appDelegate()?.showUpdateHighlights()
                 }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }

@@ -36,6 +36,8 @@ struct RecorderInspector: View {
                 // swap is what teaches the selection model, without a word.
                 if let text = model.selectedText {
                     selectedTextSection(text)
+                } else if let image = model.selectedImage {
+                    selectedImageSection(image)
                 } else if model.selectedBlur != nil {
                     selectedBlurSection
                 } else if let selected = model.selectedZoom {
@@ -85,25 +87,16 @@ struct RecorderInspector: View {
         VStack(alignment: .leading, spacing: 10) {
             sectionTitle(strings.lookLabel)
             HStack(spacing: 7) {
-                lookCard(.raw,
-                         title: strings.lookRaw,
-                         subtitle: strings.shapeOriginal,
-                         icon: "rectangle")
-                lookCard(.clean,
-                         title: strings.lookClean,
-                         subtitle: strings.pointerSmoothingSmooth,
+                lookCard(.raw, title: strings.lookRaw, icon: "rectangle")
+                lookCard(.clean, title: strings.lookClean,
                          icon: "cursorarrow.motionlines")
-                lookCard(.studio,
-                         title: strings.lookStudio,
-                         subtitle: strings.backgroundSectionLabel,
-                         icon: "sparkles")
+                lookCard(.studio, title: strings.lookStudio, icon: "sparkles")
             }
         }
     }
 
     private func lookCard(_ look: RecorderEditDocument.Look,
                           title: String,
-                          subtitle: String,
                           icon: String) -> some View {
         let selected = model.document.matches(look)
         let hovered = hoveredLook == look
@@ -114,18 +107,11 @@ struct RecorderInspector: View {
         } label: {
             VStack(spacing: 6) {
                 lookPreview(look, icon: icon)
-                VStack(spacing: 1) {
-                    Text(title)
-                        .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                    Text(subtitle)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
+                Text(title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 5)
@@ -262,11 +248,13 @@ struct RecorderInspector: View {
             Text(title)
                 .font(.system(size: 10.5))
                 .foregroundStyle(Color(white: 0.72))
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
                 .frame(width: 50, alignment: .leading)
             Slider(value: Binding(get: { value }, set: onChange), in: 0...1)
                 .controlSize(.mini)
                 .onTapGesture(count: 2) { onReset() }
-            Text(String(format: "%.0f%%", value * 100))
+            Text(String(format: "%.0f%%", locale: MetricFormat.locale, value * 100))
                 .font(.system(size: 10.5, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(Color(white: 0.86))
@@ -301,7 +289,7 @@ struct RecorderInspector: View {
             valueSlider(title: strings.zoomAmountLabel,
                         value: segment.amount,
                         range: RecorderSupport.zoomAmountRange,
-                        format: "%.1fx",
+                        format: "%.1f×",
                         onChange: { model.setSelectedZoomAmount($0) },
                         onCommit: { model.commitZoomEdit() },
                         onReset: {
@@ -390,7 +378,9 @@ struct RecorderInspector: View {
                 Text(strings.textPositionLabel)
                     .font(.system(size: 11))
                     .foregroundStyle(Color(white: 0.72))
-                anchorGrid(overlay)
+                anchorGrid(selected: overlay.anchor) { anchor in
+                    model.updateSelectedText { $0.anchor = anchor }
+                }
             }
 
             VStack(alignment: .leading, spacing: 5) {
@@ -419,6 +409,75 @@ struct RecorderInspector: View {
             }
 
             Button(strings.removeText) { model.removeSelectedText() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - One picture
+
+    /// The picture itself was chosen when the block was made, so what is left
+    /// here is how big it is, how solid it is and where it sits.
+    private func selectedImageSection(_ overlay: RecorderImageOverlay) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                model.selectLaneItem(.image, id: nil)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(strings.backToOptions)
+                        .font(.system(size: 11, weight: .medium))
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(Color.accentColor)
+            .keyboardShortcut(.escape, modifiers: [])
+            sectionTitle(strings.thisImageLabel)
+
+            Text(URL(fileURLWithPath: overlay.path).lastPathComponent)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            valueSlider(title: strings.imageSizeLabel,
+                        value: overlay.size,
+                        range: RecorderImageOverlay.sizeRange,
+                        format: "%.0f%%",
+                        scale: 100,
+                        onChange: { value in model.updateSelectedImage { $0.size = value } },
+                        onCommit: { model.commitZoomEdit() },
+                        onReset: {
+                            model.updateSelectedImage { $0.size = RecorderImageOverlay.defaultSize }
+                            model.commitZoomEdit()
+                        })
+
+            valueSlider(title: strings.imageOpacityLabel,
+                        value: overlay.opacity,
+                        range: RecorderImageOverlay.opacityRange,
+                        format: "%.0f%%",
+                        scale: 100,
+                        onChange: { value in model.updateSelectedImage { $0.opacity = value } },
+                        onCommit: { model.commitZoomEdit() },
+                        onReset: {
+                            model.updateSelectedImage { $0.opacity = 1 }
+                            model.commitZoomEdit()
+                        })
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(strings.imagePositionLabel)
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color(white: 0.72))
+                anchorGrid(selected: overlay.anchor) { anchor in
+                    model.updateSelectedImage { $0.anchor = anchor }
+                }
+            }
+
+            Button(strings.removeText) { model.removeSelectedImage() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)
@@ -470,8 +529,11 @@ struct RecorderInspector: View {
     }
 
     /// Nine places instead of a drag: it reads at a glance, needs no gesture
-    /// on the picture, and covers what people actually do with a caption.
-    private func anchorGrid(_ overlay: RecorderTextOverlay) -> some View {
+    /// on the picture, and covers what people actually do with a caption or a
+    /// mark of their own.
+    private func anchorGrid(selected: RecorderTextOverlay.Anchor,
+                            onSelect: @escaping (RecorderTextOverlay.Anchor) -> Void)
+        -> some View {
         let rows: [[RecorderTextOverlay.Anchor]] = [
             [.topLeading, .top, .topTrailing],
             [.leading, .center, .trailing],
@@ -482,12 +544,12 @@ struct RecorderInspector: View {
                 HStack(spacing: 4) {
                     ForEach(rows[row], id: \.rawValue) { anchor in
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(overlay.anchor == anchor
+                            .fill(selected == anchor
                                   ? Color.accentColor.opacity(0.85)
                                   : Color.white.opacity(0.08))
                             .frame(height: 20)
                             .onTapGesture {
-                                model.updateSelectedText { $0.anchor = anchor }
+                                onSelect(anchor)
                                 model.commitZoomEdit()
                             }
                     }
@@ -549,7 +611,7 @@ struct RecorderInspector: View {
                 valueSlider(title: strings.pointerSizeLabel,
                             value: model.document.pointerSize,
                             range: RecorderSupport.pointerSizeRange,
-                            format: "%.2fx",
+                            format: "%.2f×",
                             onChange: { doubleBinding(\.pointerSize).wrappedValue = $0 },
                             onReset: { doubleBinding(\.pointerSize).wrappedValue = 1 })
                 Toggle(strings.clickRingToggle, isOn: boolBinding(\.showsClickRing))
@@ -590,7 +652,7 @@ struct RecorderInspector: View {
                         valueSlider(title: strings.zoomAmountLabel,
                                     value: model.document.zoomAmount,
                                     range: RecorderSupport.zoomAmountRange,
-                                    format: "%.1fx",
+                                    format: "%.1f×",
                                     onChange: { doubleBinding(\.zoomAmount).wrappedValue = $0 },
                                     onReset: { doubleBinding(\.zoomAmount).wrappedValue = 1.8 })
                         if model.hasPointerTrack {
@@ -628,7 +690,7 @@ struct RecorderInspector: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button(model.canCreateAutomaticZooms
-                   ? strings.createAutomaticZooms : strings.zoomLaneEmptyHint) {
+                   ? strings.createAutomaticZooms : strings.addZoomButton) {
                 if model.canCreateAutomaticZooms {
                     model.regenerateZooms()
                 } else {

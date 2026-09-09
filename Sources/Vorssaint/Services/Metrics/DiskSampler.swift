@@ -184,8 +184,8 @@ final class DiskSampler {
             .volumeLocalizedNameKey,
             .volumeTotalCapacityKey,
             .volumeAvailableCapacityKey,
-            .volumeAvailableCapacityForImportantUsageKey,
             .volumeIsInternalKey,
+            .volumeIsReadOnlyKey,
             .volumeIsRemovableKey,
             .volumeIsEjectableKey,
             .volumeIsLocalKey,
@@ -203,8 +203,7 @@ final class DiskSampler {
                   total > 0 else { return nil }
             let rawFree = positiveUInt(values.volumeAvailableCapacity, requiringPositive: true)
                 ?? positiveUInt(values.volumeAvailableCapacity)
-            let free = positiveUInt(values.volumeAvailableCapacityForImportantUsage, requiringPositive: true)
-                ?? positiveUInt(values.volumeAvailableCapacityForImportantUsage)
+            let free = importantFree(for: url, isReadOnly: values.volumeIsReadOnly == true)
                 ?? rawFree
                 ?? 0
             let purgeable: UInt64? = {
@@ -250,6 +249,18 @@ final class DiskSampler {
             return value.isEmpty ? nil : value
         }
         return (bsdName, fileSystemType)
+    }
+
+    /// Free space counting what the system would purge to make room. Only a
+    /// writable volume can answer it: asking a mounted image costs a round
+    /// trip to the purge service and comes back as an error on every sample,
+    /// which is what filled the log while a disk image was attached.
+    private static func importantFree(for url: URL, isReadOnly: Bool) -> UInt64? {
+        guard !isReadOnly,
+              let values = try? url.resourceValues(
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey]) else { return nil }
+        return positiveUInt(values.volumeAvailableCapacityForImportantUsage, requiringPositive: true)
+            ?? positiveUInt(values.volumeAvailableCapacityForImportantUsage)
     }
 
     private static func positiveUInt(_ value: Int?) -> UInt64? {

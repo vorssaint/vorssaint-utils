@@ -94,7 +94,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Mettre en pause dans ces apps",
         addButton: "Ajouter une app…",
         removeButton: "Retirer",
-        caption: "Les aperçus des fenêtres s'arrêtent tant que l'une de ces apps est au premier plan."
+        caption: "Les aperçus des fenêtres s’arrêtent tant que l’une de ces apps est au premier plan."
     )
 
     static let it = WindowPreviewExclusionStrings(

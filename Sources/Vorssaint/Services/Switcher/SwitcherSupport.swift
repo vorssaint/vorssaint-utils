@@ -45,17 +45,18 @@ enum SwitcherPendingKeyDecision: Equatable {
     case cancelAndSwallow
 }
 
-/// WindowServer identifiers for the app and window switcher actions.
+/// WindowServer identifiers for the app and window switcher actions. Read
+/// them from the table, not from memory: 28 is "save picture of screen as a
+/// file", and mapping the reverse window key there once let a switcher
+/// shortcut on the 3 key switch the macOS screenshot key off.
 enum SwitcherNativeSymbolicHotKey: Int32, CaseIterable, Hashable {
     case commandTab = 1
     case commandShiftTab = 2
     case nextWindow = 27
-    case previousWindow = 28
-}
+    case previousWindow = 220
 
-struct SwitcherNativeHotkeyTransition: Equatable {
-    let suppress: Set<SwitcherNativeSymbolicHotKey>
-    let restore: Set<SwitcherNativeSymbolicHotKey>
+    /// The ids the switcher ever asks the WindowServer about.
+    static let ids = Set(allCases.map(\.rawValue))
 }
 
 /// Which running apps earn an entry of their own when they have no window the
@@ -557,12 +558,16 @@ enum SwitcherSupport {
     ///
     /// Every subrole the app did describe is left alone: a dialog, a sheet or
     /// a floating panel is filtered as before unless it fills the screen.
+    ///
+    /// A surface the app asked the window server to keep out of window cycling
+    /// stays out of the switcher however it describes itself.
     static func isSwitchableNonstandardWindow(role: String?,
                                               subrole: String?,
                                               fillsScreen: Bool,
                                               hasNormalWindowLevel: Bool,
-                                              acceptsUndescribedSubroles: Bool) -> Bool {
-        guard role == "AXWindow" else { return false }
+                                              acceptsUndescribedSubroles: Bool,
+                                              isExcludedFromWindowCycle: Bool = false) -> Bool {
+        guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
         }
@@ -656,6 +661,43 @@ enum SwitcherSupport {
             best = (index, area)
         }
         return best?.index
+    }
+
+    /// Collapses every window of an app into a single entry, so an app shows once
+    /// in the switcher instead of once per window (or tab). Keeps one
+    /// representative per app, preferring the on-screen, front window so its title
+    /// and thumbnail are the one you would expect when switching to that app.
+    static func groupWindowsByApp(_ windows: [SwitcherItem]) -> [SwitcherItem] {
+        var indexByPid: [pid_t: Int] = [:]
+        var grouped: [SwitcherItem] = []
+        for window in windows {
+            if let index = indexByPid[window.pid] {
+                // Another window of the same app: prefer an on-screen window as
+                // the representative when the one we kept is off-screen.
+                if (window.isOnScreen && !grouped[index].isOnScreen)
+                    || (window.isFullscreen && !grouped[index].isFullscreen) {
+                    grouped[index] = window
+                }
+            } else {
+                indexByPid[window.pid] = grouped.count
+                grouped.append(window)
+            }
+        }
+        return grouped
+    }
+
+    /// Windows belong to the display containing most of their frame.
+    /// Windowless apps and off-display windows have no current display.
+    static func itemsOnDisplay(_ items: [SwitcherItem],
+                               displayBounds: [CGRect],
+                               targetIndex: Int) -> [SwitcherItem] {
+        guard displayBounds.indices.contains(targetIndex) else { return [] }
+        return items.filter { item in
+            guard !item.isAppEntry,
+                  let index = displayIndex(showingMostOf: item.frame,
+                                           displayBounds: displayBounds) else { return false }
+            return index == targetIndex
+        }
     }
 
     static func hidesApp(bundleIdentifier: String?,
@@ -1076,27 +1118,33 @@ enum SwitcherSupport {
             || frontmostCanBeSystemPromotion
     }
 
+    /// The three Accessibility-backed inputs are autoclosures because the
+    /// minimize restore fires this on every pulse of a dense timer and most
+    /// pulses stop at the frontmost checks below. Taking them as values let a
+    /// caller pay a `kAXWindows` copy and two AX reads per pulse for an answer
+    /// the cheap comparisons had already given; taking them as closures means
+    /// a caller cannot pay that cost early even by accident.
     static func shouldRestoreSourceAfterTargetMinimizeIntent(targetPID: pid_t,
                                                              sourcePID: pid_t?,
                                                              frontmostPID: pid_t?,
-                                                             focusedWindowID: UInt32?,
+                                                             focusedWindowID: @autoclosure () -> UInt32?,
                                                              targetWindowID: UInt32,
-                                                             targetIsMinimized: Bool,
+                                                             targetIsMinimized: @autoclosure () -> Bool,
                                                              ownPID: pid_t = ProcessInfo.processInfo.processIdentifier,
-                                                             frontmostMatchesTargetBundle: Bool = false,
+                                                             frontmostMatchesTargetBundle: @autoclosure () -> Bool = false,
                                                              frontmostCanBeSystemPromotion: Bool = false) -> Bool {
         guard let sourcePID,
               sourcePID != targetPID else { return false }
         if frontmostPID == sourcePID { return false }
-        if let frontmostPID,
-           frontmostPID != targetPID,
-           frontmostPID != ownPID,
-           !frontmostMatchesTargetBundle,
-           !(targetIsMinimized && frontmostCanBeSystemPromotion) {
-            return false
-        }
+        let frontmostIsForeign = frontmostPID != nil
+            && frontmostPID != targetPID
+            && frontmostPID != ownPID
+            && !frontmostMatchesTargetBundle()
+        if frontmostIsForeign, !frontmostCanBeSystemPromotion { return false }
+        let targetIsMinimized = targetIsMinimized()
+        if frontmostIsForeign, !targetIsMinimized { return false }
         if targetIsMinimized { return true }
-        guard let focusedWindowID else { return false }
+        guard let focusedWindowID = focusedWindowID() else { return false }
         return focusedWindowID != targetWindowID
     }
 
@@ -1157,11 +1205,23 @@ enum SwitcherSupport {
         })
     }
 
-    static func nativeHotkeyTransition(from current: Set<SwitcherNativeSymbolicHotKey>,
-                                       to desired: Set<SwitcherNativeSymbolicHotKey>,
-                                       currentlyEnabled: Set<SwitcherNativeSymbolicHotKey>) -> SwitcherNativeHotkeyTransition {
-        SwitcherNativeHotkeyTransition(suppress: desired.intersection(currentlyEnabled),
-                                       restore: current.subtracting(desired))
+    /// The raw ids the switcher wants switched off, resolved against the live
+    /// table: the shared take-over speaks WindowServer ids, and reading the
+    /// shortcut of each id from the table is what keeps a remapped key — or a
+    /// neighbour such as the screenshot key — from being taken over by guess.
+    static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
+                                appsShortcut: GlobalShortcut,
+                                windowShortcut: GlobalShortcut,
+                                liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
+        let nativeShortcuts = Dictionary(
+            liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
+                SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }
+            },
+            uniquingKeysWith: { first, _ in first })
+        return Set(nativeHotkeysToSuppress(takeOverSystemShortcuts: takeOverSystemShortcuts,
+                                           appsShortcut: appsShortcut,
+                                           windowShortcut: windowShortcut,
+                                           nativeShortcuts: nativeShortcuts).map(\.rawValue))
     }
 
     /// Mirrors the event tap's `allowingExtraShift` match: Shift reverses a
@@ -1347,8 +1407,11 @@ enum SwitcherSupport {
     /// away, so a letter of a Latin alphabet is never mistaken for one of the
     /// keys above.
     private static func latinLetter(in text: String?) -> Character? {
+        // No locale: in Turkish a dotted I folds to a dotless one, which is
+        // not ASCII, so the guard below would throw the keystroke away and
+        // that letter would simply stop searching.
         guard let folded = text?.folding(options: [.diacriticInsensitive, .caseInsensitive],
-                                         locale: .current),
+                                         locale: nil),
               folded.count == 1,
               let letter = folded.first,
               letter.isASCII,
@@ -1390,7 +1453,7 @@ enum SwitcherSupport {
 
     private static func normalizedSearchText(_ parts: [String]) -> String {
         parts.joined(separator: " ")
-            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

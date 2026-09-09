@@ -10,7 +10,7 @@ under GPL-3.0-or-later.
 ## Getting started
 
 ```sh
-git clone https://github.com/vorssaintapp/vorssaint-utils.git
+git clone https://github.com/vorssaint/vorssaint-utils.git
 cd vorssaint-utils
 ./build.sh                         # build and assemble the bundle
 ./build/Vorssaint --selftest       # quick health check (SELFTEST OK)
@@ -30,10 +30,10 @@ Hitting a build or permission snag while developing? See the
 By default `build.sh` signs ad hoc, and that code hash changes on every build.
 macOS ties Accessibility and Screen Recording grants to the hash, so each
 rebuild silently orphans them: System Settings keeps showing the app as
-granted, the app is no longer trusted, and no new prompt appears. Developer
-builds (`--dev`) therefore create a free, self signed identity called
-`Vorssaint Utils Signing` in a dedicated keychain automatically when no
-identity is installed. For plain local builds, run the same setup once
+granted, the app is no longer trusted, and no new prompt appears. Builds that
+install (`--dev` or `--install`) therefore create a free, self signed identity
+called `Vorssaint Utils Signing` in a dedicated keychain automatically when no
+identity is installed. For a build you do not install, run the same setup once
 yourself:
 
 ```sh
@@ -110,7 +110,7 @@ and open a PR with the dump and the adjusted prefixes.
 ## Reporting bugs and requesting features
 
 You do not need to write code to help. Use the issue forms on the
-[new issue](https://github.com/vorssaintapp/vorssaint-utils/issues/new/choose) page.
+[new issue](https://github.com/vorssaint/vorssaint-utils/issues/new/choose) page.
 
 - **Bug report.** Include your Vorssaint version from Settings under About and
   your macOS version, plus clear steps to reproduce. The

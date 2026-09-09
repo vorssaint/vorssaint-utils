@@ -284,27 +284,32 @@ enum StatusItemPlacementSupport {
         return "\(mainAutosaveName).\(generation)"
     }
 
+    /// The visibility macOS remembers for one item identity, in both the
+    /// spellings it has used. Left behind, either keeps the item marked as
+    /// hidden, which is the state the recovery exists to undo.
+    private static func clearRememberedVisibility(of name: String, in defaults: UserDefaults) {
+        defaults.removeObject(forKey: "NSStatusItem Visible \(name)")
+        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(name)")
+    }
+
+    /// Undoes a remembered hidden state while leaving the arranged position
+    /// alone. An item that starts over with no saved position is born at the
+    /// left end of the status area, against the notch, which is the first
+    /// zone macOS drops from a crowded bar (issue #167) — so the spot the
+    /// person already arranged is worth far more than a fresh identity, and
+    /// is only given up when keeping it demonstrably fails.
+    static func clearRememberedVisibility(in defaults: UserDefaults) {
+        clearRememberedVisibility(of: mainAutosaveName(in: defaults), in: defaults)
+    }
+
     static func bumpPlacementGeneration(in defaults: UserDefaults) {
         let previousName = mainAutosaveName(in: defaults)
         defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
-        defaults.removeObject(forKey: "NSStatusItem Visible \(previousName)")
-        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(previousName)")
+        clearRememberedVisibility(of: previousName, in: defaults)
         let nextGen = (placementGeneration(in: defaults) % maxPlacementGeneration) + 1
         defaults.set(nextGen, forKey: DefaultsKey.statusItemPlacementGeneration)
         let nextName = mainAutosaveName(in: defaults)
         defaults.removeObject(forKey: "NSStatusItem Preferred Position \(nextName)")
-        defaults.removeObject(forKey: "NSStatusItem Visible \(nextName)")
-        defaults.removeObject(forKey: "NSStatusItem VisibleCC \(nextName)")
-    }
-
-    /// Cleans up any legacy hardcoded placement offset (e.g. 64pt from screen's right edge)
-    /// which placed the item directly under macOS system items like the battery icon.
-    static func sanitizeStalePlacement(in defaults: UserDefaults) {
-        let currentName = mainAutosaveName(in: defaults)
-        let key = "NSStatusItem Preferred Position \(currentName)"
-        if let value = defaults.object(forKey: key) as? NSNumber,
-           abs(value.doubleValue - 64.0) < 0.1 {
-            defaults.removeObject(forKey: key)
-        }
+        clearRememberedVisibility(of: nextName, in: defaults)
     }
 }

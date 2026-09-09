@@ -43,6 +43,9 @@ struct ScreenCaptureSettings: View {
                     }
                     ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
                         .id(currentTool)
+                    if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+                        RecentCapturesShortcutRows()
+                    }
                 } header: {
                     Text(strings.screenCaptureTitle)
                 }
@@ -96,6 +99,30 @@ struct ScreenCaptureSettings: View {
     }
 }
 
+/// Capture history belongs to screenshots and recordings together, so its
+/// shortcut stays visible whichever of those tools is selected.
+private struct RecentCapturesShortcutRows: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = RecentCaptureService.shared
+    @AppStorage(DefaultsKey.recentCapturesShortcutEnabled) private var enabled = false
+
+    var body: some View {
+        let role = GlobalShortcutRole.recentCaptures
+        Toggle(role.title(l10n.s), isOn: $enabled)
+            .onChange(of: enabled) { _, _ in
+                service.syncWithPreferences()
+            }
+        ShortcutPreferenceRow(role: role, isEnabled: enabled) {
+            service.syncWithPreferences()
+        }
+        if enabled, service.shortcutRegistrationFailed {
+            Text(l10n.s.shortcutUnavailable)
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+    }
+}
+
 private extension SettingsSectionAnchor {
     var screenCaptureTool: ScreenCaptureTool? {
         switch self {
@@ -114,6 +141,7 @@ private struct ToolShortcutRows: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ScreenCaptureService.shared
     @AppStorage private var enabled: Bool
+    @AppStorage private var showsCaptureMenu: Bool
 
     private let tool: ScreenCaptureTool
     private let keys: ScreenCaptureTool.DedicatedShortcut
@@ -122,6 +150,7 @@ private struct ToolShortcutRows: View {
         self.tool = tool
         self.keys = keys
         _enabled = AppStorage(wrappedValue: false, keys.enabledKey)
+        _showsCaptureMenu = AppStorage(wrappedValue: true, tool.showCaptureMenuOnShortcutKey)
     }
 
     var body: some View {
@@ -132,6 +161,9 @@ private struct ToolShortcutRows: View {
         ShortcutPreferenceRow(role: keys.role, isEnabled: enabled) {
             service.syncWithPreferences()
         }
+        Toggle(FeatureStrings.screenshot(l10n.language).showCaptureMenuOnShortcut,
+               isOn: $showsCaptureMenu)
+            .disabled(!enabled)
         if enabled, service.toolShortcutRegistrationFailures.contains(tool) {
             Text(l10n.s.shortcutUnavailable)
                 .font(.caption)
