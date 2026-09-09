@@ -94,7 +94,8 @@ enum SettingsDirectory {
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep]),
                                         (.brightness, [FeatureStrings.brightness(language).pageTitle,
-                                                       FeatureStrings.brightness(language).osdToggle]),
+                                                       FeatureStrings.brightness(language).osdToggle,
+                                                       FeatureStrings.brightness(language).linkDisplaysToggle]),
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
                                                            FeatureStrings.bluetoothSleep(language).enable]),

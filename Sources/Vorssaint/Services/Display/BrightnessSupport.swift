@@ -334,6 +334,30 @@ enum BrightnessSupport {
         min(max(current + delta, 0), 1)
     }
 
+    /// Moves `source` to `newValue` and shifts every other display by the same
+    /// delta, clamping each result to 0...1 so relative offsets hold until a
+    /// side hits the floor or ceiling (issue #1504).
+    static func linkedBrightnessLevels(levels: [UInt32: Double],
+                                       source: UInt32,
+                                       newValue: Double) -> [UInt32: Double] {
+        let target = min(max(newValue.isFinite ? newValue : 0, 0), 1)
+        guard let sourceCurrent = levels[source], sourceCurrent.isFinite else {
+            return levels
+        }
+        let delta = target - sourceCurrent
+        var updated: [UInt32: Double] = [:]
+        updated.reserveCapacity(levels.count)
+        for (id, level) in levels {
+            if id == source {
+                updated[id] = target
+                continue
+            }
+            let base = level.isFinite ? level : 0
+            updated[id] = min(max(base + delta, 0), 1)
+        }
+        return updated
+    }
+
     /// Whether a brightness key press aimed at a system-routed display is
     /// stepped by the app instead of left to the system (issue #268). The
     /// system's own key handling only ever moves its native target, so a

@@ -4158,6 +4158,18 @@ struct MetricsTests {
                "pointer-following brightness keys arrive switched off")
         expect(registeredDefaults[DefaultsKey.brightnessOSDEnabled] as? Bool == false,
                "brightness adjustment overlay arrives switched off")
+        expect(registeredDefaults[DefaultsKey.brightnessLinkDisplaysEnabled] as? Bool == false,
+               "linking displays for brightness arrives switched off")
+        let linkDisplaysSettings: [String: Any] = [
+            DefaultsKey.brightnessLinkDisplaysEnabled: true,
+        ]
+        let linkDisplaysBackup = SettingsBackupSupport.payload(appVersion: "test") {
+            linkDisplaysSettings[$0]
+        }
+        let restoredLinkDisplays = SettingsBackupSupport.sanitizedSettings(from: linkDisplaysBackup)
+        expect(linkDisplaysSettings.allSatisfy { key, value in
+            (restoredLinkDisplays?[key] as? NSObject) == (value as? NSObject)
+        }, "linked-displays brightness opt-in survives a settings backup")
         expect(registeredDefaults[DefaultsKey.keyboardBrightnessDecreaseShortcut] as? String
                 == GlobalShortcut.keyboardBrightnessDecreaseDefault.storageValue
                 && registeredDefaults[DefaultsKey.keyboardBrightnessIncreaseShortcut] as? String
@@ -16357,6 +16369,39 @@ struct MetricsTests {
         expect(BrightnessSupport.steppedBrightness(0.97, delta: BrightnessSupport.brightnessKeyStep) == 1.0
                 && BrightnessSupport.steppedBrightness(0.03, delta: -BrightnessSupport.brightnessKeyStep) == 0.0,
                "key steps clamp at both ends of the range")
+
+        // Linked displays keep pairwise offsets until a side hits 0...1
+        // (issue #1504). Values stay binary-friendly so equality stays exact.
+        let linkedShift = BrightnessSupport.linkedBrightnessLevels(
+            levels: [1: 0.50, 2: 0.25, 3: 0.75],
+            source: 1,
+            newValue: 0.625)
+        expect(linkedShift[1] == 0.625 && linkedShift[2] == 0.375 && linkedShift[3] == 0.875,
+               "linking applies the same delta to every display")
+        let linkedClampHigh = BrightnessSupport.linkedBrightnessLevels(
+            levels: [1: 0.50, 2: 0.25, 3: 0.875],
+            source: 1,
+            newValue: 0.75)
+        expect(linkedClampHigh[1] == 0.75 && linkedClampHigh[2] == 0.50 && linkedClampHigh[3] == 1.0,
+               "linking clamps each display independently at 1")
+        let linkedClampLow = BrightnessSupport.linkedBrightnessLevels(
+            levels: [1: 0.25, 2: 0.125, 3: 0.50],
+            source: 1,
+            newValue: 0.0)
+        expect(linkedClampLow[1] == 0.0 && linkedClampLow[2] == 0.0 && linkedClampLow[3] == 0.25,
+               "linking clamps each display independently at 0")
+        let linkedMissing = BrightnessSupport.linkedBrightnessLevels(
+            levels: [2: 0.25, 3: 0.5],
+            source: 1,
+            newValue: 0.75)
+        expect(linkedMissing == [2: 0.25, 3: 0.5],
+               "a source outside the map leaves every level unchanged")
+        let linkedSolo = BrightnessSupport.linkedBrightnessLevels(
+            levels: [9: 0.25],
+            source: 9,
+            newValue: 0.75)
+        expect(linkedSolo == [9: 0.75],
+               "a single linked display still moves to the requested value")
 
         // Keyboards other than the built-in one send brightness as a plain
         // key press, which is why the pointer never got a say on them

@@ -11,6 +11,7 @@ struct BrightnessSection: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessLinkDisplaysEnabled) private var linkDisplaysEnabled = false
     var collapsible = true
 
     private var strings: BrightnessFeatureStrings { FeatureStrings.brightness(l10n.language) }
@@ -31,6 +32,14 @@ struct BrightnessSection: View {
                     Text(displayControlFailureText(failure, strings: strings))
                         .font(.system(size: 10.5))
                         .foregroundStyle(.red)
+                }
+                if service.displays.contains(where: { $0.isActive && $0.method != nil }) {
+                    Divider()
+                    Toggle(strings.linkDisplaysToggle, isOn: $linkDisplaysEnabled)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .help(strings.linkDisplaysCaption)
                 }
                 if service.brightnessOSDSupported {
                     Divider()

@@ -416,20 +416,52 @@ final class BrightnessService: ObservableObject {
 
     /// Moves one display's brightness. The published value updates on the
     /// spot for a responsive slider; the hardware write happens on the work
-    /// queue, and a drag folds into one write of the newest value.
+    /// queue, and a drag folds into one write of the newest value. With
+    /// linked displays enabled, the same delta is applied to every other
+    /// adjustable active display, and the OSD stays on the source only
+    /// (issue #1504). Extra Brightness / XDR overlay stays on its own path.
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
                        showOSD: Bool = false) {
         let clamped = min(max(value, 0), 1)
+        if UserDefaults.standard.bool(forKey: DefaultsKey.brightnessLinkDisplaysEnabled),
+           let linked = linkedLevels(source: id, newValue: clamped) {
+            for (displayID, level) in linked {
+                enqueueBrightness(level, for: displayID,
+                                  showOSD: showOSD && displayID == id)
+            }
+            return
+        }
+        enqueueBrightness(clamped, for: id, showOSD: showOSD)
+    }
+
+    /// Current levels for every adjustable active display, used to compute a
+    /// linked delta. Returns nil when the source is not among them so a lone
+    /// write keeps going through the single-display path.
+    private func linkedLevels(source: CGDirectDisplayID,
+                              newValue: Double) -> [CGDirectDisplayID: Double]? {
+        var levels: [CGDirectDisplayID: Double] = [:]
+        for display in displays where display.isActive && display.method != nil {
+            levels[display.id] = display.brightness
+        }
+        guard levels[source] != nil else { return nil }
+        return BrightnessSupport.linkedBrightnessLevels(levels: levels,
+                                                        source: source,
+                                                        newValue: newValue)
+    }
+
+    private func enqueueBrightness(_ value: Double,
+                                   for id: CGDirectDisplayID,
+                                   showOSD: Bool) {
         if let index = displays.firstIndex(where: { $0.id == id }),
-           displays[index].brightness != clamped {
-            displays[index].brightness = clamped
+           displays[index].brightness != value {
+            displays[index].brightness = value
         }
         stateLock.lock()
         writeSequence &+= 1
-        pendingLevels[id] = PendingWrite(value: clamped,
+        pendingLevels[id] = PendingWrite(value: value,
                                          showOSD: showOSD,
                                          sequence: writeSequence)
-        lastApplied[id] = RememberedLevel(value: clamped,
+        lastApplied[id] = RememberedLevel(value: value,
                                           fingerprint: Self.displayFingerprint(id))
         levelKnownAt[id] = Date()
         let schedule = !drainScheduled
