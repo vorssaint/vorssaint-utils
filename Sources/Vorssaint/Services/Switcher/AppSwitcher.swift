@@ -560,8 +560,7 @@ final class AppSwitcher: ObservableObject {
                 //
                 // Only asked when a start is actually pending, so the window
                 // scan stays off the mouse-down path of everyone who is not
-                // mid-open — and off it entirely for anyone with no keyboard
-                // running, which livePID answers from the cache.
+                // mid-open. Without the keyboard, only the process lookup runs.
                 let startPending = routeLock.withLock {
                     !routeSessionActive && routePendingSessionStart != nil
                 }
@@ -858,14 +857,6 @@ final class AppSwitcher: ObservableObject {
             discardPendingSessionStart(generation: generation)
             return
         }
-
-        // Warm the Accessibility Keyboard's pid before the second Tab needs it.
-        // `applicationDidFinishLaunching` only warms a keyboard that was already
-        // running, and this app is usually a login item, so it usually is not.
-        // Resolution is asynchronous — the first call answers "not running" and
-        // schedules the lookup — so asking here spends the gap between the first
-        // Tab and the second on it, rather than cancelling the session.
-        _ = AssistiveKeyboard.isRunning
 
         guard let requested = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard SwitcherSupport.isCurrentSessionStart(

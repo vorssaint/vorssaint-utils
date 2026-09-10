@@ -7,12 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher opens more smoothly with many windows, can focus its list on the display under the pointer, excludes hidden helper windows and keeps newly opened windows focused after switching. Screenshot previews gain optional keyboard focus, Scratchpad adds tab shortcuts, the menu bar panel keeps a continuous background, Cleaner protects app customizations when clearing caches, and Quit on close preserves incoming calls.
+App Switcher opens more smoothly with many windows, can focus its list on the display under the pointer, excludes hidden helper windows and keeps newly opened windows focused after switching. Screenshot gains custom editor shortcuts and optional preview focus, Scratchpad adds tab shortcuts, the menu bar panel keeps a continuous background, Cleaner protects app customizations when clearing caches, and Quit on close preserves incoming calls.
 
 ### Added
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
-- Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
+- Screenshot gains custom editor shortcuts and optional keyboard focus for previews. Thanks to @santi-ug.
 
 ### Changed
 - The App Switcher opens more smoothly when many windows are open. Thanks to @bebricoOOOOOOf.

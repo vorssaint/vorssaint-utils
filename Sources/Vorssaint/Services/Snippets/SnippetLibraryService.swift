@@ -312,18 +312,6 @@ final class SnippetLibraryService: ObservableObject {
                 return event
             }
         }
-        // The monitors below ask whether a click pressed a key on the
-        // Accessibility Keyboard, and that answer is resolved asynchronously:
-        // the first call reports "not running" and only schedules the lookup.
-        // Here the first call would be the first key the user presses, so
-        // without this the panel dismisses on it and the answer arrives too
-        // late to matter. Asking as the panel opens spends the time between
-        // opening it and reaching for a key on the lookup instead.
-        //
-        // applicationDidFinishLaunching warms this too, but only for a keyboard
-        // that was already running; this app is normally a login item, so the
-        // keyboard is usually switched on afterwards.
-        _ = AssistiveKeyboard.isRunning
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
