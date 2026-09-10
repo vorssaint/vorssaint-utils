@@ -426,6 +426,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
+        Tests/ScreenshotToolShortcutTests.swift \
         Tests/RecentCaptureStoreTests.swift \
         Tests/RecorderPresetImageStoreTests.swift \
         Tests/SpeedTestTests.swift \

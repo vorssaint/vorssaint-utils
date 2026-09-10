@@ -21,7 +21,7 @@ import Foundation
 enum ShortcutRecordingTap {
     private static var tap: CFMachPort?
     private static var runLoopSource: CFRunLoopSource?
-    private static var handler: ((Int64, GlobalShortcutModifiers) -> Void)?
+    private static var handler: ((Int64, GlobalShortcutModifiers, CGEventFlags) -> Void)?
     /// The key most recently pressed while recording and possibly still down.
     private static var heldKeyCode: Int64?
     /// Set when recording ends with a key still down: its autorepeats and
@@ -39,7 +39,7 @@ enum ShortcutRecordingTap {
     /// handler. Returns false when the tap cannot exist (no Accessibility),
     /// in which case the caller keeps its ordinary event path.
     @discardableResult
-    static func begin(_ newHandler: @escaping (Int64, GlobalShortcutModifiers) -> Void) -> Bool {
+    static func begin(_ newHandler: @escaping (Int64, GlobalShortcutModifiers, CGEventFlags) -> Void) -> Bool {
         drainWatchdog?.cancel()
         drainWatchdog = nil
         drainingKeyCode = nil
@@ -161,7 +161,8 @@ enum ShortcutRecordingTap {
                 // Autorepeats of a held key are swallowed but never re-fed:
                 // the field wants the press, not a stream of it.
                 if !isRepeat {
-                    handler(keyCode, GlobalShortcutModifiers(cgFlags: event.flags).union(heldModifiers))
+                    handler(keyCode, GlobalShortcutModifiers(cgFlags: event.flags).union(heldModifiers),
+                            event.flags)
                 }
             } else if keyCode == heldKeyCode {
                 heldKeyCode = nil

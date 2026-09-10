@@ -1949,7 +1949,7 @@ final class CommandBarService: ObservableObject {
         // never reaches the local monitor. It quits Vorssaint instead of
         // landing on the card (issue #1193). When Accessibility cannot
         // create the tap, the monitor below still records as before.
-        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers in
+        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, _ in
             self?.handleCaptureKey(keyCode: keyCode, modifiers: modifiers)
         }
         mode = .capturingShortcut(entryID: entry.id)

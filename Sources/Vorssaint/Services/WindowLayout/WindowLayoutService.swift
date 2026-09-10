@@ -135,20 +135,32 @@ final class WindowLayoutService: ObservableObject {
         shortcutConflictTitle(shortcut, excluding: nil)
     }
 
-    func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding excluded: WindowLayoutAction?) -> String? {
-        guard AppFeature.windowLayout.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled) else { return nil }
-        let text = FeatureStrings.windowLayout(L10n.shared.language)
-        return WindowLayoutAction.shortcutActions.first {
-            $0 != excluded && $0.savedShortcut == shortcut
-        }?.title(text)
+    func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding excluded: WindowLayoutAction?,
+                               includingDirectional: Bool = true) -> String? {
+        guard AppFeature.windowLayout.isAvailable else { return nil }
+        let actionsEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
+        let directional = includingDirectional
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
+            ? UserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
+                .flatMap(GlobalShortcut.init(storageValue:)) : nil
+        guard actionsEnabled || directional != nil else { return nil }
+        switch WindowLayoutShortcutConflict.find(shortcut, directional: directional,
+                                                 excluding: excluded,
+                                                 actionShortcut: { actionsEnabled ? $0.savedShortcut : nil }) {
+        case .directional:
+            return WindowDirectionalStrings.localized(L10n.shared.language).title
+        case .action(let action):
+            return action.title(FeatureStrings.windowLayout(L10n.shared.language))
+        case nil:
+            return nil
+        }
     }
 
     func directionalShortcutConflictTitle(_ shortcut: GlobalShortcut) -> String? {
         if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             return role.title(L10n.shared.s)
         }
-        return shortcutConflictTitle(shortcut)
+        return shortcutConflictTitle(shortcut, excluding: nil, includingDirectional: false)
     }
 
     @discardableResult
