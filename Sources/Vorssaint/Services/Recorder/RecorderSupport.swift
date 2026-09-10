@@ -233,11 +233,12 @@ enum RecorderSupport {
     /// The area a recording covers, resolved once when the person confirms it
     /// and never recomputed: a window that moves keeps recording the region it
     /// was picked in, which is what the pointer track and the zoom assume.
+    ///
+    /// A clicked window becomes the rectangle it occupied on the display it was
+    /// picked from. The selection is already clipped to that display, so a
+    /// window spanning two displays records the part on the selected one.
     struct Region: Equatable {
         let displayID: CGDirectDisplayID
-        /// Set only when a window was clicked, so the stream can follow that
-        /// window's own buffer instead of a slice of the display.
-        let windowID: CGWindowID?
         /// Top-left origin, in the display's pixels, already even on both axes.
         let pixelRect: CGRect
         /// The same area in Cocoa global points, for anchoring panels to it.
