@@ -2281,6 +2281,28 @@ struct MetricsTests {
             sessionPaused: false,
             gatePasses: true
         ), "clamshell stays off when Keep Awake is inactive")
+        // After disablesleep 0, macOS does not replay a lid-close that happened
+        // while sleep was blocked (Francesco / issue thread on #1433). Sleep only
+        // when the gate still fails and the lid is still closed.
+        expect(KeepAwakeAutomationSupport.shouldRequestSleepAfterDisablingClamshell(
+            policyStillApplies: false,
+            lidClosed: true
+        ), "a closed lid after losing the clamshell gate needs an explicit sleep")
+        expect(!KeepAwakeAutomationSupport.shouldRequestSleepAfterDisablingClamshell(
+            policyStillApplies: true,
+            lidClosed: true
+        ), "a recovered gate must not sleep after disablesleep is cleared")
+        expect(!KeepAwakeAutomationSupport.shouldRequestSleepAfterDisablingClamshell(
+            policyStillApplies: false,
+            lidClosed: false
+        ), "an open lid must not sleep when the clamshell gate drops")
+        let keepAwakeManagerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/KeepAwakeManager.swift",
+            encoding: .utf8)) ?? ""
+        expect(keepAwakeManagerSource.contains("shouldRequestSleepAfterDisablingClamshell")
+                && keepAwakeManagerSource.contains("AppleClamshellState")
+                && keepAwakeManagerSource.contains("sleepnow"),
+               "disabling clamshell asks for sleepnow only behind the lid/policy check")
         expect(!KeepAwakeAutomationSupport.selectedAppsAreRunning(
             selectedBundleIDs: [],
             runningBundleIDs: ["com.example.app"]

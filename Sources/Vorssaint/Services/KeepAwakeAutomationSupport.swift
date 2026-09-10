@@ -119,4 +119,12 @@ enum KeepAwakeAutomationSupport {
                                      gatePasses: Bool) -> Bool {
         preferred && keepAwakeActive && !sessionPaused && gatePasses
     }
+
+    /// After `pmset disablesleep 0`, macOS does not replay a lid-close that
+    /// arrived while sleep was blocked. Request `sleepnow` only when the gate
+    /// still does not apply and the lid is still closed (PR #1433 review).
+    static func shouldRequestSleepAfterDisablingClamshell(policyStillApplies: Bool,
+                                                          lidClosed: Bool) -> Bool {
+        !policyStillApplies && lidClosed
+    }
 }

@@ -737,6 +737,13 @@ final class KeepAwakeManager: ObservableObject {
                         self.passwordlessClamshell = false
                     }
                     UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                    // disablesleep 0 does not replay a lid-close that happened
+                    // while sleep was blocked. Mid-session only: never sleepnow
+                    // on quit (synchronous), and never when the gate recovered
+                    // or the lid is open (Francesco / #1433).
+                    if !synchronous {
+                        self.requestSleepIfNeededAfterDisablingClamshell()
+                    }
                 }
             }
         }
@@ -745,6 +752,34 @@ final class KeepAwakeManager: ObservableObject {
         } else {
             Sudoers.pmsetDisableSleep(false, completion: finish)
         }
+    }
+
+    /// When closed-lid mode ends because a gate condition dropped while the
+    /// lid is already shut, ask macOS to sleep explicitly.
+    private func requestSleepIfNeededAfterDisablingClamshell() {
+        let policyStillApplies = shouldApplyClamshellNow()
+        guard let lidClosed = Self.readAppleClamshellState() else { return }
+        guard KeepAwakeAutomationSupport.shouldRequestSleepAfterDisablingClamshell(
+            policyStillApplies: policyStillApplies,
+            lidClosed: lidClosed
+        ) else { return }
+        _ = Shell.run("/usr/bin/pmset", ["sleepnow"])
+    }
+
+    /// `AppleClamshellState` on IOPMrootDomain: true while the lid is closed.
+    private static func readAppleClamshellState() -> Bool? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        guard let raw = IORegistryEntryCreateCFProperty(
+            service,
+            "AppleClamshellState" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() else { return nil }
+        if let flag = raw as? Bool { return flag }
+        return (raw as? NSNumber)?.boolValue
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal
