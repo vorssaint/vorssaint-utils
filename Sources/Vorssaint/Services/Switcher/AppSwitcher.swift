@@ -551,9 +551,24 @@ final class AppSwitcher: ObservableObject {
                 return verdict
             }
             if type == .leftMouseDown || type == .rightMouseDown || type == .otherMouseDown || type == .otherMouseUp {
+                // A click discards a session that is still enumerating, so that
+                // pointing at something else while it prepares does not open a
+                // panel over it. On the Accessibility Keyboard the next Tab *is*
+                // a click, and it arrives before the enumeration finishes: it
+                // would cancel the opening it was meant to advance, and the step
+                // it carried would be lost with it.
+                //
+                // Only asked when a start is actually pending, so the window
+                // scan stays off the mouse-down path of everyone who is not
+                // mid-open — and off it entirely for anyone with no keyboard
+                // running, which livePID answers from the cache.
+                let startPending = routeLock.withLock {
+                    !routeSessionActive && routePendingSessionStart != nil
+                }
+                let clickPressedAKey = startPending && AssistiveKeyboard.ownsPoint(event.location)
                 let stillInactive = routeLock.withLock { () -> Bool in
                     guard !routeSessionActive else { return false }
-                    routePendingSessionStart = nil
+                    if !clickPressedAKey { routePendingSessionStart = nil }
                     return true
                 }
                 if stillInactive { return Unmanaged.passUnretained(event) }
