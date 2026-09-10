@@ -1255,7 +1255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     // MARK: - Application menu
 
-    /// Builds and installs the standard application menu (App / Edit / Window).
+    /// Builds and installs the standard application menu (App / Edit / Go / Window).
     ///
     /// Because the app runs as an accessory, AppKit never gives it the default main
     /// menu a regular app gets, so `NSApp.mainMenu` stays nil and the standard key
@@ -1313,6 +1313,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         editMenu.addItem(NSMenuItem(title: strings.menuPaste, action: #selector(NSText.paste(_:)), keyEquivalent: "v"))
         editMenu.addItem(NSMenuItem(title: strings.menuSelectAll, action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
 
+        // Drivers and other running copies of Vorssaint may translate side buttons
+        // into menu commands before this process ever receives a raw mouse event.
+        let navigationMenuItem = NSMenuItem()
+        navigationMenuItem.submenu = SettingsWindow.navigationMenu(language: L10n.shared.language)
+        mainMenu.addItem(navigationMenuItem)
+
         // Window menu (Minimize / Zoom / Close). Settings is .miniaturizable so
         // Cmd+M actually minimizes; AppKit manages enabling once windowsMenu is set.
         let windowMenuItem = NSMenuItem()
@@ -1348,7 +1354,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // The window's size is fully owned by SettingsWindowSupport's
             // explicit sizing below plus ordinary user drag-resize.
             host.sizingOptions = []
-            let window = NSWindow(contentViewController: host)
+            let window = SettingsWindow(contentViewController: host)
+            window.isMouseButtonCaptureActive = { MouseButtonShortcutService.isCaptureActive }
             // .miniaturizable so the Window menu's Minimize (Cmd+M) actually works.
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             host.view.widthAnchor.constraint(greaterThanOrEqualToConstant: SettingsWindowSupport.minContentWidth).isActive = true

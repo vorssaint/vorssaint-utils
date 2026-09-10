@@ -104,7 +104,19 @@ struct SettingsFeatureTargetRequest: Equatable {
 final class SettingsRouter: ObservableObject {
     static let shared = SettingsRouter()
 
-    @Published var page: SettingsPage = .general
+    @Published var page: SettingsPage = .general {
+        didSet {
+            guard page != oldValue else { return }
+            destination = FeatureSettingsDestination(page)
+            pendingDestinationRequest = nil
+            pendingFeatureTarget = nil
+            if !isTraversingHistory {
+                history.removeSubrange((historyIndex + 1)..<history.count)
+                history.append(destination)
+                historyIndex += 1
+            }
+        }
+    }
     @Published private(set) var destination = FeatureSettingsDestination(.general)
     @Published private(set) var requestID = UUID()
     @Published private(set) var pendingDestinationRequest: SettingsDestinationRequest?
@@ -117,18 +129,58 @@ final class SettingsRouter: ObservableObject {
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
 
-    private init() {}
+    private var history = [FeatureSettingsDestination(.general)]
+    private var historyIndex = 0
+    private var isTraversingHistory = false
+
+    init() {}
 
     func request(_ destination: FeatureSettingsDestination, targetFeature: AppFeature? = nil) {
         let requestID = UUID()
-        self.destination = destination
         page = destination.page
+        self.destination = destination
+        // Section requests refine the current page visit, not a new history entry.
+        history[historyIndex] = destination
         pendingDestinationRequest = SettingsDestinationRequest(id: requestID,
                                                                destination: destination)
         pendingFeatureTarget = targetFeature.map {
             SettingsFeatureTargetRequest(id: requestID, feature: $0)
         }
         self.requestID = requestID
+    }
+
+    func goBack(isPageVisible: (SettingsPage) -> Bool = { _ in true }) {
+        navigateHistory(step: -1, isPageVisible: isPageVisible)
+    }
+
+    func goForward(isPageVisible: (SettingsPage) -> Bool = { _ in true }) {
+        navigateHistory(step: 1, isPageVisible: isPageVisible)
+    }
+
+    func canGoBack(isPageVisible: (SettingsPage) -> Bool = { _ in true }) -> Bool {
+        historyTarget(step: -1, isPageVisible: isPageVisible) != nil
+    }
+
+    func canGoForward(isPageVisible: (SettingsPage) -> Bool = { _ in true }) -> Bool {
+        historyTarget(step: 1, isPageVisible: isPageVisible) != nil
+    }
+
+    private func navigateHistory(step: Int, isPageVisible: (SettingsPage) -> Bool) {
+        guard let index = historyTarget(step: step, isPageVisible: isPageVisible) else { return }
+        historyIndex = index
+        isTraversingHistory = true
+        cleanerTool = nil
+        request(history[index])
+        isTraversingHistory = false
+    }
+
+    private func historyTarget(step: Int, isPageVisible: (SettingsPage) -> Bool) -> Int? {
+        var index = historyIndex + step
+        while history.indices.contains(index) {
+            if isPageVisible(history[index].page) { return index }
+            index += step
+        }
+        return nil
     }
 
     /// Clears only the request a view actually handled. A newer request that

@@ -226,7 +226,11 @@ final class MouseNavigationService: ObservableObject {
             // The same goes for an app the user put on the exception list.
             // Checked only on Down (never per Drag), and both answers come
             // from cached state, so the tap callback stays cheap.
-            if MouseNavigationSupport.shouldPassThrough(
+            // Our Settings window handles raw side buttons without Accessibility.
+            // Do not replace them with an AX command (or swallow them) here.
+            if NSWorkspace.shared.frontmostApplication?.processIdentifier
+                == ProcessInfo.processInfo.processIdentifier
+                || MouseNavigationSupport.shouldPassThrough(
                 bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
                 webURLHandlers: webURLHandlers)
                 || MouseAppExceptions.shared.excludesActionTarget(.navigation, at: event.location) {
