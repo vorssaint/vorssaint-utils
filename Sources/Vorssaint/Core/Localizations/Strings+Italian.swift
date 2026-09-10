@@ -264,6 +264,8 @@ extension Strings {
         cutPasteEnableCaption: "Usa ⌘X per tagliare e ⌘V per spostare file e cartelle nel Finder.",
         cutPasteShowHUD: "Mostra pannello mobile",
         cutPasteShowHUDCaption: "Mostra un indicatore mobile con i file tagliati mentre il Finder è attivo.",
+        cutPastePlaySound: "Riproduci feedback sonoro",
+        cutPastePlaySoundCaption: "Riproduce il suono di sistema Pop di macOS quando i file vengono tagliati o spostati correttamente.",
         cutPasteHowTitle: "Come si usa",
         cutPasteStep1: "Seleziona elementi nel Finder e premi ⌘X per tagliarli.",
         cutPasteStep2: "Apri la cartella di destinazione e premi ⌘V per spostarli lì.",

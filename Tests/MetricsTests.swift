@@ -3699,6 +3699,10 @@ struct MetricsTests {
                "clipboard history shortcut defaults to Ctrl+Opt+Cmd+V")
         expect(registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true,
                "the Finder cut and paste floating panel starts enabled")
+        expect(registeredDefaults[DefaultsKey.finderCutPastePlaySound] as? Bool == false
+                && registeredDefaults[DefaultsKey.finderCutPastePlaySound] as? Bool
+                    == FinderCutPasteSoundSupport.defaultEnabled,
+               "Finder cut and paste sound feedback is opt-in so existing installs stay quiet")
         expect(registeredDefaults[DefaultsKey.finderRenameEnabled] as? Bool == false,
                "the Finder rename shortcut is opt-in")
         expect(registeredDefaults[DefaultsKey.finderRenameShortcut] as? String == ":120",
@@ -9090,6 +9094,27 @@ struct MetricsTests {
         } catch {
             expect(false, "protected-folder move fixtures: \(error)")
         }
+
+        // MARK: Finder cut & paste sound feedback (issue #962)
+
+        expect(FinderCutPasteSoundSupport.systemSoundName == "Pop",
+               "feedback uses the well-known macOS Pop system alert sound")
+        expect(FinderCutPasteSoundSupport.defaultEnabled == false,
+               "sound feedback stays off until the user opts in")
+        expect(!FinderCutPasteSoundSupport.shouldPlayOnCut(preferenceEnabled: false, markedCount: 3),
+               "a disabled preference never plays on cut")
+        expect(!FinderCutPasteSoundSupport.shouldPlayOnCut(preferenceEnabled: true, markedCount: 0),
+               "an empty cut never plays")
+        expect(FinderCutPasteSoundSupport.shouldPlayOnCut(preferenceEnabled: true, markedCount: 2),
+               "a successful cut plays when the preference is on")
+        expect(!FinderCutPasteSoundSupport.shouldPlayOnPaste(preferenceEnabled: true, movedCount: 0),
+               "a failed paste never plays")
+        expect(FinderCutPasteSoundSupport.shouldPlayOnPaste(preferenceEnabled: true, movedCount: 1),
+               "a successful move plays when the preference is on")
+        expect(!FinderCutPasteSoundSupport.playIfNeeded(false),
+               "playIfNeeded is a no-op when the gate is closed")
+        expect(FinderCutPasteSoundSupport.systemSound() != nil,
+               "Pop resolves from the system sound library")
 
         // MARK: Paste copied image as file (issue #429)
 
@@ -21340,6 +21365,9 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true
                 && backupKeys.contains(DefaultsKey.finderCutPasteShowHUD),
                "the Finder cut and paste floating panel default is on and travels with settings backup")
+        expect(Defaults.registeredDefaults[DefaultsKey.finderCutPastePlaySound] as? Bool == false
+                && backupKeys.contains(DefaultsKey.finderCutPastePlaySound),
+               "Finder cut and paste sound feedback is opt-in and travels with settings backup")
         expect(Defaults.registeredDefaults[DefaultsKey.diskImageInstallerTrashesDownload] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.diskImageInstallerRevealsApp] as? Bool == false
                 && backupKeys.contains(DefaultsKey.diskImageInstallerTrashesDownload)
