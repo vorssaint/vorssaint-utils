@@ -385,6 +385,7 @@ extension Strings {
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Borrar registro",
         homebrewLogTitle: "Registro",
+        homebrewViewLastLog: "Ver último registro",
         homebrewVersion: "Versión",
         homebrewDescription: "Tipo",
         homebrewHomepage: "Abrir sitio web",

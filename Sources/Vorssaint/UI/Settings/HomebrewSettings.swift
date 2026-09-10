@@ -471,7 +471,10 @@ struct HomebrewSettings: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if homebrew.operationStatus != nil {
+            if HomebrewCompletedOperationCleanupSupport.showsOperationFooter(
+                hasStatus: homebrew.operationStatus != nil,
+                logIsEmpty: homebrew.log.isEmpty
+            ) {
                 Divider()
                 operationLog
                     .padding(12)
@@ -559,6 +562,52 @@ struct HomebrewSettings: View {
                                         onCancel: homebrew.cancelOperation,
                                         onClear: homebrew.clearLog,
                                         onOpenTerminal: homebrew.openTerminalFallback)
+        } else if HomebrewCompletedOperationCleanupSupport.showsLastLogEntry(
+            hasStatus: false,
+            logIsEmpty: homebrew.log.isEmpty
+        ) {
+            lastOperationLog
+        }
+    }
+
+    private var lastOperationLog: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 8) {
+                Button {
+                    showOperationDetails.toggle()
+                } label: {
+                    Label(showOperationDetails
+                            ? l10n.s.homebrewOperationHideDetails
+                            : l10n.s.homebrewViewLastLog,
+                          systemImage: showOperationDetails ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Button(l10n.s.homebrewClearLog) {
+                    homebrew.clearLog()
+                }
+                .controlSize(.mini)
+            }
+            if showOperationDetails {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(l10n.s.homebrewLogTitle)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                        Spacer(minLength: 0)
+                    }
+                    ScrollView {
+                        Text(homebrew.log)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(height: 96)
+                }
+            }
         }
     }
 

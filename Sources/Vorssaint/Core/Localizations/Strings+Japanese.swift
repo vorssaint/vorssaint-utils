@@ -385,6 +385,7 @@ extension Strings {
         homebrewCancelOperation: "キャンセル",
         homebrewClearLog: "ログをクリア",
         homebrewLogTitle: "ログ",
+        homebrewViewLastLog: "直前のログを表示",
         homebrewVersion: "バージョン",
         homebrewDescription: "種類",
         homebrewHomepage: "サイトを開く",

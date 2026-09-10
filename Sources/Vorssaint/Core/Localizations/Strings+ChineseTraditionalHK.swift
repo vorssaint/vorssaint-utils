@@ -386,6 +386,7 @@ extension Strings {
         homebrewCancelOperation: "取消",
         homebrewClearLog: "清空記錄",
         homebrewLogTitle: "記錄",
+        homebrewViewLastLog: "查看上次記錄",
         homebrewVersion: "版本",
         homebrewDescription: "類型",
         homebrewHomepage: "開啟網站",

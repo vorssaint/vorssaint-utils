@@ -386,6 +386,7 @@ extension Strings {
         homebrewCancelOperation: "취소",
         homebrewClearLog: "로그 지우기",
         homebrewLogTitle: "로그",
+        homebrewViewLastLog: "최근 로그 보기",
         homebrewVersion: "버전",
         homebrewDescription: "설명",
         homebrewHomepage: "웹 사이트 열기",
