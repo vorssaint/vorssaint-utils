@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -40,6 +41,15 @@ extension DiskExclusionStrings {
         removeButton: "Remove",
         customPlaceholder: "Drive or volume name",
         caption: "Drives in this list are never unmounted when using Eject all disks."
+    )
+
+    static let nl = DiskExclusionStrings(
+        listTitle: "Uitgesloten schijven",
+        addButton: "Schijf toevoegen…",
+        otherDrive: "Andere schijfnaam…",
+        removeButton: "Verwijderen",
+        customPlaceholder: "Schijf- of volumenaam",
+        caption: "Schijven in deze lijst worden nooit uitgeworpen bij het gebruik van Alle schijven uitwerpen."
     )
 
     static let ptBR = DiskExclusionStrings(

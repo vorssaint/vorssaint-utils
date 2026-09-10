@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -38,6 +39,14 @@ extension MouseClickDebounceStrings {
         moreOptions: "More options",
         windowLabel: "Filter window",
         windowCaption: "A repeated click inside this interval is treated as an accidental duplicate."
+    )
+
+    static let nl = MouseClickDebounceStrings(
+        title: "Extra klikfilter",
+        caption: "Negeert snelle extra klikken van versleten muisknoppen, zonder gewone klikken te vertragen.",
+        moreOptions: "Meer opties",
+        windowLabel: "Filterinterval",
+        windowCaption: "Een herhaalde klik binnen dit interval wordt gezien als een onbedoelde dubbele klik."
     )
 
     static let ptBR = MouseClickDebounceStrings(

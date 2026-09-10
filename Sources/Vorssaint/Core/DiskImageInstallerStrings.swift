@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -62,6 +63,26 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Show the app in Applications",
         installedKeptDownloadBodyFormat: "%@ is ready in Applications. The disk image was ejected and its download kept.",
         installingFormat: "Installing %@…"
+    )
+
+    static let nl = DiskImageInstallerStrings(
+        title: "Schijfkopie-installatie",
+        hubDescription: "Installeer de enige app in een schijfkopie en ruim de download op",
+        promptTitle: "Deze app installeren?",
+        promptBodyFormat: "%@ wordt gekopieerd naar Programma's. Daarna wordt de schijfkopie uitgeworpen en de download naar de Prullenmand verplaatst.",
+        installButton: "Installeren",
+        installedTitle: "App geïnstalleerd",
+        installedBodyFormat: "%@ staat klaar in Programma's. De schijfkopie is uitgeworpen en de download is naar de Prullenmand verplaatst.",
+        installedKeepingMountBodyFormat: "%@ is geïnstalleerd, maar de schijfkopie kon niet worden uitgeworpen. De download is bewaard.",
+        installedKeepingDownloadBodyFormat: "%@ is geïnstalleerd en de schijfkopie is uitgeworpen, maar de download kon niet naar de Prullenmand worden verplaatst.",
+        failedTitle: "Installeren mislukt",
+        failedBody: "Er is niets gewijzigd. Je kunt de app nog steeds naar Programma's slepen.",
+        verificationFailedBody: "Deze Mac kon de app niet verifiëren, dus er is niets geïnstalleerd.",
+        alreadyInstalledBodyFormat: "%@ staat al in Programma's.",
+        trashDownloadOption: "De download naar de Prullenmand verplaatsen",
+        revealAppOption: "De app in Programma's tonen",
+        installedKeptDownloadBodyFormat: "%@ staat klaar in Programma's. De schijfkopie is uitgeworpen en de download is bewaard.",
+        installingFormat: "%@ installeren…"
     )
 
     static let ptBR = DiskImageInstallerStrings(

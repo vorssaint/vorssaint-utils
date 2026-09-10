@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -40,6 +41,15 @@ extension FinderRenameFeatureStrings {
         enableLabel: "Use a shortcut to rename",
         caption: "The shortcut only acts in Finder and leaves text fields alone. F2 works as a regular key; on keyboards where it controls brightness, use Fn-F2 or choose another shortcut.",
         shortcutLabel: "Rename"
+    )
+
+    static let nl = FinderRenameFeatureStrings(
+        pageTitle: "Finder-sneltoetsen",
+        hubTitle: "Sneltoets voor naam wijzigen",
+        hubDescription: "Wijzig de naam van het geselecteerde bestand of de map met een sneltoets die je zelf kiest.",
+        enableLabel: "Gebruik een sneltoets om de naam te wijzigen",
+        caption: "De sneltoets werkt alleen in Finder en laat tekstvelden met rust. F2 werkt als gewone toets; op toetsenborden waar deze de helderheid regelt, gebruik je Fn-F2 of kies je een andere sneltoets.",
+        shortcutLabel: "Naam wijzigen"
     )
 
     static let ptBR = FinderRenameFeatureStrings(

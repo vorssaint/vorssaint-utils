@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -44,6 +45,17 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Windows only",
         hidden: "Never show",
         caption: "Choose how each app appears. Apps without a rule use the choice above."
+    )
+
+    static let nl = SwitcherAppRulesStrings(
+        listTitle: "Regels per app",
+        addButton: "App toevoegen…",
+        removeButton: "Verwijderen",
+        behaviorLabel: "Gedrag van de wisselaar",
+        showWithoutWindows: "Tonen zonder vensters",
+        windowsOnly: "Alleen met vensters",
+        hidden: "Nooit tonen",
+        caption: "Kies hoe elke app verschijnt. Apps zonder regel gebruiken de keuze hierboven."
     )
 
     static let ptBR = SwitcherAppRulesStrings(

@@ -10,6 +10,25 @@ All notable changes to this project are documented here. The format follows
 App Switcher opens more smoothly with many windows, can focus its list on the display under the pointer, no longer counts hidden helper windows and keeps newly opened windows focused after switching. Screenshot previews gain optional keyboard focus, Scratchpad adds shortcuts to create and close tabs, and the menu bar panel reads as one surface up to its arrow.
 
 ### Added
+- Settings now includes optional protections for Command-Q and Command-W with customizable hold duration, double press, extra modifier requirements and per-app scopes. Thanks to @RuanMD and @PathGao.
+- The capture magnifier now shows each screen pixel on a grid with the pointer's position and color, moves one pixel at a time with the arrow keys, copies the color with C without ending the capture, and can optionally open enabled by default from Settings. Thanks to @ruvelro.
+- Mouse settings now include an optional control to disable pointer acceleration for connected mice, restoring the previous system setting when it is turned off or the app quits. Thanks to @CrowKiller.
+- Mouse settings now include an optional filter for rapid accidental extra clicks from worn primary, secondary and middle buttons.
+- Cleaning Mode now offers an option in Settings to keep the screen visible with a discreet corner indicator instead of blacking out the screen.
+- Mouse button shortcuts can now switch Spaces or open Mission Control and App Exposé by holding an extra button and dragging. Thanks to @iltonandrew.
+- Window Layout now offers configurable window and screen gaps, so snapped windows can keep a preset distance from each other and from the screen edge. Thanks to @marcelharinck.
+- Eject all disks can now exclude specific drives in Settings, keeping backup drives and permanent storage mounted when ejecting other external disks. Thanks to @PathGao.
+- Dock Preview now includes an option in Settings to quit an app from a thumbnail's × button instead of closing only that window, and closes the preview as soon as the quit request is accepted. Thanks to @arefshal.
+- Copy Text from Screen now includes an option in Settings to remove line breaks and join recognized lines as a single paragraph with script-aware spacing. Thanks to @ywu73.
+- Clipboard history now offers retention limit options for 10,000 items and unlimited storage.
+- Clipboard history multi-selection now offers a bulk deletion button and supports Command-Delete and Option-Delete to remove selected items at once. Thanks to @ElPotara.
+- Super key can now use Caps Lock or the right Command, Option, Control or Shift key, with the chosen key shown across Settings, shortcuts and the menu panel. Thanks to @JoanLaRosa.
+- The App Switcher appearance delay can now be adjusted between 0 and 500 ms in Settings. Thanks to @yasinozmeen.
+- The App Switcher can now open on the screen under the pointer, the screen with the menu bar or the screen with the active window. Thanks to @noahjstewart.
+- Text snippets now include a visual date and time variable builder to configure formatting and timezones with live previews. Thanks to @tenbux.
+- Vorssaint is now available in Dutch (Nederlands), with the full interface and permission prompts translated and the language selectable in onboarding and Settings. Thanks to @lennert-vangeert.
+- The disk image installer now shows a progress card while it copies and verifies the app, asks whether to move the download to Trash and whether to show the installed app in Applications, and remembers both choices.
+- The screen recording editor can now blur any area of the picture for as long as you choose, keeping names, emails and other private details unreadable even inside zooms.
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
 - Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.

@@ -51,6 +51,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -86,6 +87,38 @@ extension FeedbackStrings {
         commandFeature: "Suggest a feature",
         commandSubtitle: "Send feedback",
         diagnosticsChannelLabel: "Update channel"
+    )
+
+    static let nl = FeedbackStrings(
+        sectionTitle: "Feedback",
+        sectionCaption: "Stuur een bugmelding of een idee voor een functie rechtstreeks naar de persoon die Vorssaint onderhoudt.",
+        openButton: "Feedback versturen",
+        windowTitle: "Feedback versturen",
+        bugTitle: "Bug",
+        featureTitle: "Functie-idee",
+        messageLabel: "Wat wil je delen?",
+        bugPlaceholder: "Vertel me wat er gebeurde en wat je verwachtte.",
+        featurePlaceholder: "Beschrijf het idee en hoe het zou helpen.",
+        charactersFormat: "%d van 2000 tekens",
+        includeDiagnostics: "Technische details toevoegen",
+        includeDiagnosticsCaption: "Voegt alleen de technische details hieronder toe. Bevat geen logboeken.",
+        whatSentTitle: "Wat wordt verstuurd",
+        whatSentBasic: "De gekozen categorie en de tekst hierboven.",
+        whatSentDiagnostics: "De technische details hieronder.",
+        privacyNote: "Er worden geen naam, account, e-mailadres, apparaat-ID, logboeken, schermafbeeldingen, bestanden of klembordinhoud meegestuurd. Je publieke IP-adres wordt tijdelijk verwerkt ter bescherming tegen misbruik en wordt niet aan de feedback gekoppeld.",
+        retentionNote: "Na verzending blijft de tekst in privékanalen voor ondersteuning staan totdat de beheerder van de dienst hem verwijdert. Een niet-afgeleverde kopie wordt na 7 dagen definitief verwijderd.",
+        sendButton: "Feedback versturen",
+        sending: "Bezig met versturen…",
+        sentTitle: "Feedback verstuurd",
+        sentCaption: "Bedankt. Er is geen contactinformatie verstuurd, dus je ontvangt geen rechtstreeks antwoord.",
+        unavailableError: "Kon geen verbinding maken. Controleer je internetverbinding en probeer het opnieuw.",
+        rateLimitError: "Te veel inzendingen vanaf dit netwerk. Probeer het later opnieuw.",
+        genericError: "Kon de feedback nu niet versturen.",
+        done: "Gereed",
+        commandBug: "Bug melden",
+        commandFeature: "Functie voorstellen",
+        commandSubtitle: "Feedback versturen",
+        diagnosticsChannelLabel: "Updatekanaal"
     )
 
     static let ptBR = FeedbackStrings(

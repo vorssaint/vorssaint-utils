@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -47,6 +48,18 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "No camera detected",
         permName: "Camera",
         permExplain: "Shows your camera only in the preview window, so you can check how you look before a call. Nothing is recorded or leaves your Mac."
+    )
+
+    static let nl = CameraPreviewFeatureStrings(
+        pageTitle: "Cameravoorvertoning",
+        hubDescription: "Opent een zwevende spiegel met je camera",
+        panelCaption: "Bekijk hoe je eruitziet voor een gesprek",
+        openButton: "Voorvertoning openen",
+        cameraMenuLabel: "Camera",
+        deniedMessage: "Cameratoegang voor Vorssaint staat uit in Systeeminstellingen.",
+        noCameraMessage: "Geen camera gevonden",
+        permName: "Camera",
+        permExplain: "Toont je camera alleen in het voorvertoningsvenster, zodat je kunt bekijken hoe je eruitziet voor een gesprek. Er wordt niets opgenomen en niets verlaat je Mac."
     )
 
     static let ptBR = CameraPreviewFeatureStrings(
