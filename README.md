@@ -227,6 +227,7 @@ The [troubleshooting guide](docs/TROUBLESHOOTING.md) walks through the common ca
 
 - [Privacy](docs/PRIVACY.md), what does and does not leave your Mac
 - [Permissions](docs/PERMISSIONS.md), every macOS permission in plain words
+- [Deep links](docs/DEEP_LINKS.md), the `vorssaint://` scheme other apps use to run Vorssaint tools
 - [Troubleshooting](docs/TROUBLESHOOTING.md), the common fixes
 - [Contributing](CONTRIBUTING.md), build, layout and conventions
 - [Support](SUPPORT.md), where to get help
