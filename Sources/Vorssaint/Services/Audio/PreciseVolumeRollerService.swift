@@ -115,7 +115,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         guard gate.accepts(volumePress.direction, at: ProcessInfo.processInfo.systemUptime) else {
             return nil
         }
-        Self.postVolumeKey(volumePress.keyCode, optionShift: true)
+        Self.postSystemDefinedKey(volumePress.keyCode, optionShift: true)
         return nil
     }
 
@@ -129,7 +129,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         return (keyCode, direction, state == 0x0a)
     }
 
-    private static func postVolumeKey(_ keyCode: Int32, optionShift: Bool) {
+    static func postSystemDefinedKey(_ keyCode: Int32, optionShift: Bool) {
         let fineFlags: UInt = optionShift ? 0x80000 | 0x20000 : 0
         for state in [0x0a, 0x0b] {
             let event = NSEvent.otherEvent(with: .systemDefined,

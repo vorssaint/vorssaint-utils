@@ -15530,7 +15530,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let values = Mirror(reflecting: FeatureStrings.mouseButtons(language)).children
                 .compactMap { $0.value as? String }
-            expect(values.count == 32 && values.allSatisfy { !$0.isEmpty },
+            expect(values.count == 57 && values.allSatisfy { !$0.isEmpty },
                    "every mouse button string is set for \(language.rawValue)")
             expect(values.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible mouse button strings (\(language.rawValue))")
@@ -19615,6 +19615,10 @@ struct MetricsTests {
                "mouse button shortcuts ship off by default")
         expect((Defaults.registeredDefaults[DefaultsKey.mouseButtonShortcuts] as? [String: String])?.isEmpty == true,
                "the mapping dictionary registers empty so it travels with backups")
+        expect((Defaults.registeredDefaults[DefaultsKey.mouseButtonActions] as? [String: String])?.isEmpty == true,
+               "direct mouse button actions register empty so they travel with backups")
+        expect((Defaults.registeredDefaults[DefaultsKey.mouseButtonActionRepeats] as? [String: Bool])?.isEmpty == true,
+               "repeating direct mouse actions ship disabled by default")
         expect(Defaults.registeredDefaults[DefaultsKey.panelControlMouseButtonShortcuts] as? Bool == true,
                "the mouse button shortcuts panel row ships visible like its siblings")
         expect(AppFeature.mouseButtonShortcuts.enabledKeys == [DefaultsKey.mouseButtonShortcutsEnabled,
@@ -19661,6 +19665,27 @@ struct MetricsTests {
                "mappings round-trip through their stored form")
         expect(MouseButtonShortcutSupport.decode(nil).isEmpty,
                "no stored mappings decode to none")
+        let decodedActions = MouseButtonShortcutSupport.decode(
+            shortcuts: ["3": buttonCombo.storageValue, "4": "command:11"],
+            actions: ["3": MouseButtonAction.volumeUp.rawValue,
+                      "4": MouseButtonAction.volumeDown.rawValue,
+                      "5": "not-an-action"])
+        expect(decodedActions == [3: .volumeUp, 4: .volumeDown]
+                && MouseButtonShortcutSupport.encodeActions(decodedActions)
+                    == ["3": MouseButtonAction.volumeUp.rawValue,
+                        "4": MouseButtonAction.volumeDown.rawValue],
+               "direct volume actions override legacy shortcuts and round-trip separately")
+        let repeatingActions = MouseButtonShortcutSupport.decodeRepeatingActions(
+            ["3": true, "4": false, "5": true], mappings: decodedActions)
+        expect(repeatingActions == [3]
+                && MouseButtonShortcutSupport.encodeRepeatingActions(repeatingActions,
+                                                                      mappings: decodedActions) == ["3": true],
+               "only mapped volume actions can repeat while held")
+        expect(MouseButtonAction.volumeUp.repeatsWhileHeld
+                && MouseButtonAction.displayBrightnessDown.repeatsWhileHeld
+                && !MouseButtonAction.mediaPlayPause.repeatsWhileHeld
+                && !MouseButtonAction.missionControl.repeatsWhileHeld,
+               "only continuous system controls offer repeat while held")
         expect(MouseButtonShortcutSupport.sortedButtons([
             5: buttonCombo,
             MouseButtonShortcutSupport.sideWheelRightInput: buttonCombo,
@@ -19731,6 +19756,13 @@ struct MetricsTests {
                                                             mappings: [3: buttonCombo],
                                                             claimedByWheel: { _ in false }) == nil,
                "hub-off, switch-off and unmapped buttons all stay inert")
+        expect(MouseButtonShortcutSupport.action(for: 3, isAvailable: true, isEnabled: true,
+                                                 mappings: [3: .volumeUp],
+                                                 claimedByWheel: { _ in false }) == .volumeUp
+                && MouseButtonShortcutSupport.action(for: 3, isAvailable: true, isEnabled: true,
+                                                      mappings: [3: .volumeUp],
+                                                      claimedByWheel: { _ in true }) == nil,
+               "volume actions follow the same ownership rules as shortcuts")
         expect(!MouseButtonShortcutSupport.claimsButton(3) && !MouseButtonShortcutSupport.claimsButton(4),
                "with the feature off no button is claimed away from navigation")
         expect(MouseButtonShortcutSupport.buttonName(for: 3, strings: .enUS)
@@ -19997,7 +20029,7 @@ struct MetricsTests {
         var callSitesMissingShortcutSwitch: [String] = []
         for (index, line) in spacesServiceLines.enumerated()
         where isCodeLine(line)
-            && line.contains("guard let shortcut = MouseButtonShortcutSupport.firesShortcut(") {
+            && line.contains("guard let action = MouseButtonShortcutSupport.action(") {
             shortcutCallSites += 1
             let window = spacesServiceLines[index...].prefix(7)
             let readsSwitch = window.contains {
@@ -20012,7 +20044,7 @@ struct MetricsTests {
             }
         }
         expect(shortcutCallSites > 0 && callSitesMissingShortcutSwitch.isEmpty,
-               "a tap kept up for the drag alone never fires a mapping the shortcut switch turned "
+               "a tap kept up for the drag alone never fires an action the shortcut switch turned "
                    + "off, and that button's click passes through whole: \(callSitesMissingShortcutSwitch)")
         expect(spacesServiceLines.contains {
             isCodeLine($0) && $0.contains(
@@ -21319,6 +21351,8 @@ struct MetricsTests {
                "the radial menu wheel and choices travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.mouseButtonShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.mouseButtonShortcuts)
+                && backupKeys.contains(DefaultsKey.mouseButtonActions)
+                && backupKeys.contains(DefaultsKey.mouseButtonActionRepeats)
                 && backupKeys.contains(DefaultsKey.panelControlMouseButtonShortcuts),
                "mouse button shortcuts travel with the settings backup")
         expect(backupKeys.contains(DefaultsKey.mouseClickDebounceEnabled)
