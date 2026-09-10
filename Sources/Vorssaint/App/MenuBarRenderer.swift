@@ -110,6 +110,34 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Percentage readings (0...100) can render as a compact vertical bar.
+    var supportsUsageBars: Bool {
+        switch self {
+        case .cpu, .gpu, .memory, .diskUsage, .battery, .peripheralBattery: return true
+        default: return false
+        }
+    }
+
+    var appearanceDefaultsKey: String? {
+        switch self {
+        case .cpu: return DefaultsKey.menuBarCPUAppearance
+        case .gpu: return DefaultsKey.menuBarGPUAppearance
+        case .memory: return DefaultsKey.menuBarMemoryAppearance
+        case .diskUsage: return DefaultsKey.menuBarDiskUsageAppearance
+        case .battery: return DefaultsKey.menuBarBatteryAppearance
+        case .peripheralBattery: return DefaultsKey.menuBarPeripheralBatteryAppearance
+        default: return nil
+        }
+    }
+
+    func usageAppearance(in defaults: UserDefaults = .standard) -> MenuBarMetricAppearance {
+        MenuBarMetricAppearance.current(appearanceKey: appearanceDefaultsKey, in: defaults)
+    }
+
+    func usesUsageBars(in defaults: UserDefaults = .standard) -> Bool {
+        MenuBarMetricAppearance.usesBars(appearanceKey: appearanceDefaultsKey, in: defaults)
+    }
+
     static func enabled(in defaults: UserDefaults) -> [MenuBarMetric] {
         order(in: defaults).filter {
             defaults.bool(forKey: $0.defaultsKey)
@@ -197,7 +225,7 @@ enum MenuBarSegment {
     case usageBarBlock(label: String, fraction: Double?, style: MenuBarBlockStyle, pressure: MemoryPressure?)
     case networkBlock(down: String, up: String, style: MenuBarBlockStyle)
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
-    case batteryBlock(percent: Int, isCharging: Bool, style: MenuBarBlockStyle)
+    case batteryBlock(percent: Int, isCharging: Bool, isPluggedIn: Bool, lowPowerMode: Bool, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
 }
@@ -416,7 +444,10 @@ enum MenuBarRenderer {
                 }
             case .battery:
                 if let charge = snapshot.power?.chargePercent {
-                    let symbol = (snapshot.power?.isCharging ?? false) ? "battery.100.bolt" : metric.symbolName
+                    let symbol = batterySymbol(for: charge,
+                                               isCharging: snapshot.power?.isCharging ?? false,
+                                               isPluggedIn: (snapshot.power?.externalConnected ?? false)
+                                                && !(snapshot.power?.isCharging ?? false))
                     let text = "BAT " + percent(Double(charge) / 100.0)
                     items.append(MetricItem(metric: metric,
                                             segments: [.symbol(symbol), .text(" " + text)],
@@ -464,10 +495,7 @@ enum MenuBarRenderer {
                                       metrics: [MenuBarMetric],
                                       style: MenuBarBlockStyle) -> [MenuBarSegment] {
         var groups: [[MenuBarSegment]] = []
-        let appearance = MenuBarMetricAppearance.current
-        let usesBars = appearance == .bars
-        let combineTemperatures = appearance.allowsCombinedTemperatures
-            && UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures)
+        let combineTemperatures = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures)
         let enabled = Set(metrics)
         var renderedCPU = false
         var renderedGPU = false
@@ -482,7 +510,7 @@ enum MenuBarRenderer {
                     let usageFraction = enabled.contains(.cpu) ? snapshot.cpuUsage : nil
                     let usage = usageFraction.map(percent)
                     let temperature = enabled.contains(.cpuTemperature) ? snapshot.cpuTemperature.map(temperatureCompact) : nil
-                    if usesBars {
+                    if MenuBarMetric.cpu.usesUsageBars() {
                         let group = usageAndTemperatureSegments(label: "CPU",
                                                                 fraction: usageFraction,
                                                                 temperature: temperature,
@@ -511,7 +539,7 @@ enum MenuBarRenderer {
                     break
                 }
                 if let usage = snapshot.cpuUsage {
-                    if usesBars {
+                    if MenuBarMetric.cpu.usesUsageBars() {
                         groups.append([.usageBarBlock(label: "CPU",
                                                       fraction: usage,
                                                       style: style,
@@ -531,7 +559,7 @@ enum MenuBarRenderer {
                     let usageFraction = enabled.contains(.gpu) ? snapshot.gpuUsage : nil
                     let usage = usageFraction.map(percent)
                     let temperature = enabled.contains(.gpuTemperature) ? snapshot.gpuTemperature.map(temperatureCompact) : nil
-                    if usesBars {
+                    if MenuBarMetric.gpu.usesUsageBars() {
                         let group = usageAndTemperatureSegments(label: "GPU",
                                                                 fraction: usageFraction,
                                                                 temperature: temperature,
@@ -560,7 +588,7 @@ enum MenuBarRenderer {
                     break
                 }
                 if let usage = snapshot.gpuUsage {
-                    if usesBars {
+                    if MenuBarMetric.gpu.usesUsageBars() {
                         groups.append([.usageBarBlock(label: "GPU",
                                                       fraction: usage,
                                                       style: style,
@@ -576,7 +604,7 @@ enum MenuBarRenderer {
             case .memory:
                 let memoryStyle = MemoryMenuBarStyle.current
                 let memoryValue = MonitorMemoryMetric.current.value(in: snapshot)
-                if usesBars {
+                if MenuBarMetric.memory.usesUsageBars() {
                     groups.append([.usageBarBlock(label: "RAM",
                                                   fraction: MenuBarUsageBarSupport.memoryFraction(used: memoryValue,
                                                                                                   total: snapshot.memoryTotal),
@@ -600,7 +628,7 @@ enum MenuBarRenderer {
                 }
             case .diskUsage:
                 if let disk = primaryDisk(from: snapshot.disk) {
-                    if usesBars {
+                    if MenuBarMetric.diskUsage.usesUsageBars() {
                         groups.append([.usageBarBlock(label: "DSK",
                                                       fraction: disk.usedFraction,
                                                       style: style,
@@ -623,23 +651,30 @@ enum MenuBarRenderer {
                 if combineTemperatures {
                     guard !renderedBattery else { break }
                     renderedBattery = true
-                    let charge = enabled.contains(.battery)
-                        ? snapshot.power?.chargePercent.map { "\(max(0, min(100, $0)))%" }
-                        : nil
+                    let chargePercent = enabled.contains(.battery) ? snapshot.power?.chargePercent : nil
+                    let charge = chargePercent.map { "\(max(0, min(100, $0)))%" }
                     let temperature = enabled.contains(.batteryTemperature)
                         ? snapshot.batteryTemperature.map(temperatureCompact)
                         : nil
-                    if charge != nil, temperature != nil,
-                       let value = combinedComponentValue(primary: charge, temperature: temperature) {
+                    if MenuBarMetric.battery.usesUsageBars() {
+                        let group = nativeBatteryAndTemperatureSegments(percent: chargePercent,
+                                                                        power: snapshot.power,
+                                                                        temperature: temperature,
+                                                                        style: style)
+                        if !group.isEmpty {
+                            groups.append(group)
+                        }
+                    } else if charge != nil, temperature != nil,
+                              let value = combinedComponentValue(primary: charge, temperature: temperature) {
                         groups.append([.metricBlock(label: "BAT",
                                                     value: value,
                                                     minimumValue: "100% 999°",
                                                     style: style,
                                                     pressure: nil)])
-                    } else if let chargePercent = enabled.contains(.battery) ? snapshot.power?.chargePercent : nil {
-                        groups.append([.batteryBlock(percent: chargePercent,
-                                                     isCharging: snapshot.power?.isCharging ?? false,
-                                                     style: style)])
+                    } else if let chargePercent {
+                        groups.append([nativeBatteryBlock(percent: chargePercent,
+                                                          power: snapshot.power,
+                                                          style: style)])
                     } else if let temperature {
                         groups.append([.metricBlock(label: temperatureLabel("BAT"),
                                                     value: temperature,
@@ -660,9 +695,17 @@ enum MenuBarRenderer {
                     break
                 }
                 if let charge = snapshot.power?.chargePercent {
-                    groups.append([.batteryBlock(percent: charge,
-                                                 isCharging: snapshot.power?.isCharging ?? false,
-                                                 style: style)])
+                    if MenuBarMetric.battery.usesUsageBars() {
+                        groups.append([nativeBatteryBlock(percent: charge,
+                                                          power: snapshot.power,
+                                                          style: style)])
+                    } else {
+                        groups.append([.metricBlock(label: "BAT",
+                                                    value: "\(max(0, min(100, charge)))%",
+                                                    minimumValue: "100%",
+                                                    style: style,
+                                                    pressure: nil)])
+                    }
                 }
             case .batteryTime:
                 if let power = snapshot.power,
@@ -682,7 +725,14 @@ enum MenuBarRenderer {
                                                 pressure: nil)])
                 }
             case .peripheralBattery:
-                if let metricValue = PeripheralBatterySupport.menuBarMetric(for: snapshot.peripheralBatteries) {
+                if MenuBarMetric.peripheralBattery.usesUsageBars() {
+                    if let bar = PeripheralBatterySupport.menuBarBar(for: snapshot.peripheralBatteries) {
+                        groups.append([.usageBarBlock(label: bar.label,
+                                                      fraction: bar.fraction,
+                                                      style: style,
+                                                      pressure: nil)])
+                    }
+                } else if let metricValue = PeripheralBatterySupport.menuBarMetric(for: snapshot.peripheralBatteries) {
                     groups.append([.metricBlock(label: metricValue.label,
                                                 value: metricValue.value,
                                                 minimumValue: "100%+9",
@@ -729,6 +779,38 @@ enum MenuBarRenderer {
                                                                       spacing: MenuBarMetricSpacing.current)))
             }
             segments.append(.metricBlock(label: temperatureLabel(label),
+                                         value: temperature,
+                                         minimumValue: "999°",
+                                         style: style,
+                                         pressure: nil))
+        }
+        return segments
+    }
+
+    private static func nativeBatteryBlock(percent: Int,
+                                           power: PowerReading?,
+                                           style: MenuBarBlockStyle) -> MenuBarSegment {
+        .batteryBlock(percent: percent,
+                      isCharging: power?.isCharging ?? false,
+                      isPluggedIn: (power?.externalConnected ?? false) && !(power?.isCharging ?? false),
+                      lowPowerMode: power?.isLowPowerMode == true,
+                      style: style)
+    }
+
+    private static func nativeBatteryAndTemperatureSegments(percent: Int?,
+                                                            power: PowerReading?,
+                                                            temperature: String?,
+                                                            style: MenuBarBlockStyle) -> [MenuBarSegment] {
+        var segments: [MenuBarSegment] = []
+        if let percent {
+            segments.append(nativeBatteryBlock(percent: percent, power: power, style: style))
+        }
+        if let temperature {
+            if !segments.isEmpty {
+                segments.append(.text(MenuBarSpacingSupport.blockGlue(readableStyle: style == .readable,
+                                                                      spacing: MenuBarMetricSpacing.current)))
+            }
+            segments.append(.metricBlock(label: temperatureLabel("BAT"),
                                          value: temperature,
                                          minimumValue: "999°",
                                          style: style,
@@ -851,9 +933,11 @@ enum MenuBarRenderer {
                 result.append(networkBlockAttachment(down: down, up: up, style: style))
             case let .diskActivityBlock(read, write, style):
                 result.append(diskActivityBlockAttachment(read: read, write: write, style: style))
-            case let .batteryBlock(percent, isCharging, style):
+            case let .batteryBlock(percent, isCharging, isPluggedIn, lowPowerMode, style):
                 result.append(batteryBlockAttachment(percent: percent,
                                                      isCharging: isCharging,
+                                                     isPluggedIn: isPluggedIn,
+                                                     lowPowerMode: lowPowerMode,
                                                      style: style))
             case let .dot(pressure):
                 result.append(NSAttributedString(string: "●", attributes: [.foregroundColor: nsColor(for: pressure)]))
@@ -957,14 +1041,19 @@ enum MenuBarRenderer {
 
     private static func batteryBlockAttachment(percent: Int,
                                                isCharging: Bool,
+                                               isPluggedIn: Bool,
+                                               lowPowerMode: Bool,
                                                style: MenuBarBlockStyle) -> NSAttributedString {
         let image = batteryBlockImage(percent: percent,
                                       isCharging: isCharging,
+                                      isPluggedIn: isPluggedIn,
+                                      lowPowerMode: lowPowerMode,
                                       style: style)
         let attachment = NSTextAttachment()
         attachment.image = image
+        // Measured on macOS 26; the shared legacy nudge contributes -0.25pt.
         attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge,
+                                   y: -6.15 + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -1183,48 +1272,40 @@ enum MenuBarRenderer {
 
     private static func batteryBlockImage(percent: Int,
                                           isCharging: Bool,
+                                          isPluggedIn: Bool,
+                                          lowPowerMode: Bool,
                                           style: MenuBarBlockStyle) -> NSImage {
         let clampedPercent = max(0, min(100, percent))
-        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(style)" as NSString
+        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(isPluggedIn)|\(lowPowerMode)|\(style)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
-        let symbolName = batterySymbol(for: percent, isCharging: isCharging)
-        let symbolPointSize: CGFloat = style == .readable ? 17.0 : 15.5
-        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
-                                                         weight: .semibold)
+        let valueFont = NSFont.systemFont(ofSize: 11, weight: .regular)
         let value = "\(clampedPercent)%"
         let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
         let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
-        let reservedValueSize = max(valueSize.width, ("100%" as NSString).size(withAttributes: sizingValueAttrs).width)
-        let symbolWidth: CGFloat = style == .readable ? 20 : 18
-        let gap: CGFloat = style == .readable ? 5 : 4
-        let height: CGFloat = style == .readable ? 22 : 20
-        let imageSize = NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height)
+        let glyphSize = MenuBarBatterySupport.glyphSize
+        let gap: CGFloat = 3.5
+        let height: CGFloat = 20
+        let imageSize = NSSize(width: ceil(valueSize.width + gap + glyphSize.width), height: height)
         let image = NSImage(size: imageSize, flipped: false) { rect in
             NSColor.clear.setFill()
             rect.fill()
-            let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
-                .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
-            if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(symbolConfig) {
-                let symbolSize = symbol.size
-                // draw(in:) stretches the image to exactly fill the rect, so
-                // clamping only the width while leaving height at
-                // the symbol's full natural size squished wide glyphs like
-                // the battery icon. Scale both dimensions together to keep
-                // the glyph's own proportions.
-                let scale = min(symbolWidth / symbolSize.width, 1)
-                let drawSize = NSSize(width: symbolSize.width * scale, height: symbolSize.height * scale)
-                let symbolRect = NSRect(x: 0,
-                                        y: (height - drawSize.height) / 2,
-                                        width: drawSize.width,
-                                        height: drawSize.height)
-                symbol.draw(in: symbolRect)
-            }
-            let valueAttrs = dynamicTextAttributes(font: valueFont)
+            let valueAttrs: [NSAttributedString.Key: Any] = [
+                .font: valueFont,
+                .foregroundColor: MenuBarBatterySupport.valueColor,
+            ]
             let valueY = (height - valueSize.height) / 2
-            (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
-                                     withAttributes: valueAttrs)
+            (value as NSString).draw(at: NSPoint(x: 0, y: valueY), withAttributes: valueAttrs)
+            let glyphRect = NSRect(x: valueSize.width + gap,
+                                   y: (height - glyphSize.height) / 2,
+                                   width: glyphSize.width,
+                                   height: glyphSize.height)
+            MenuBarBatterySupport.drawGlyph(in: glyphRect,
+                                            percent: percent,
+                                            isCharging: isCharging,
+                                            isPluggedIn: isPluggedIn,
+                                            outlineColor: MenuBarBatterySupport.outlineColor,
+                                            fillColor: MenuBarBatterySupport.symbolColor(lowPowerMode: lowPowerMode))
             return true
         }
         image.isTemplate = false
@@ -1236,15 +1317,10 @@ enum MenuBarRenderer {
         [.font: font, .foregroundColor: NSColor.labelColor]
     }
 
-    static func batterySymbol(for percent: Int, isCharging: Bool) -> String {
-        if isCharging { return "battery.100.bolt" }
-        switch percent {
-        case 85...: return "battery.100"
-        case 60..<85: return "battery.75"
-        case 35..<60: return "battery.50"
-        case 10..<35: return "battery.25"
-        default: return "battery.0"
-        }
+    static func batterySymbol(for percent: Int,
+                              isCharging: Bool,
+                              isPluggedIn: Bool = false) -> String {
+        MenuBarBatterySupport.symbolName(for: percent, isCharging: isCharging, isPluggedIn: isPluggedIn)
     }
 
     private static func estimatedSnapshot(fanCount: Int) -> SystemSnapshot {

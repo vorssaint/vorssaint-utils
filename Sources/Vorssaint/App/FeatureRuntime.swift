@@ -281,6 +281,7 @@ final class FeatureRuntime: ObservableObject {
                 FanControlService.shared.syncWithPreferences()
             }
         },
+        .chargeControl: { ChargeControlService.shared.syncWithPreferences() },
     ]
 
     private static func syncMonitor() {

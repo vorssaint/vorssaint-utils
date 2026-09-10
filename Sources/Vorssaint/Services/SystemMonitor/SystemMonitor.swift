@@ -123,6 +123,7 @@ final class SystemMonitor: ObservableObject {
     private var pendingRefresh = false
     private var pendingRefreshSuppressesGPU = false
     private var suppressGPUReadsUntil: TimeInterval = 0
+    private var powerStateRevision = 0
 
     // SMC sensors
     private var smc: SMCClient?
@@ -187,6 +188,10 @@ final class SystemMonitor: ObservableObject {
     private var powerHistory: MetricHistory
     private var batteryHistory: MetricHistory
     private var powerSourceRunLoopSource: CFRunLoopSource?
+    private var batteryNotificationPort: IONotificationPortRef?
+    private var batteryInterestNotification: io_object_t = 0
+    private var powerStateObserver: NSObjectProtocol?
+    private var controllerStateObserver: AnyCancellable?
 
     private init() {
         cpuHistory = MetricHistory(capacity: historyCapacity)
@@ -201,12 +206,31 @@ final class SystemMonitor: ObservableObject {
         batteryHistory = MetricHistory(capacity: historyCapacity)
         if PowerSampler.hasInternalBattery {
             installPowerSourceObserver()
+            installBatteryRegistryObserver()
+            installLowPowerModeObserver()
+            controllerStateObserver = BatteryPowerStateMonitor.shared.$state.sink { [weak self] state in
+                guard let self, self.shouldRun, self.currentPlan(defaults: .standard).needPower,
+                      var power = self.snapshot.power else { return }
+                state.apply(to: &power)
+                self.powerStateRevision &+= 1
+                self.snapshot.power = power
+            }
         }
     }
 
     deinit {
         if let powerSourceRunLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .commonModes)
+        }
+        if batteryInterestNotification != 0 {
+            IOObjectRelease(batteryInterestNotification)
+        }
+        if let batteryNotificationPort {
+            IONotificationPortSetDispatchQueue(batteryNotificationPort, nil)
+            IONotificationPortDestroy(batteryNotificationPort)
+        }
+        if let powerStateObserver {
+            NotificationCenter.default.removeObserver(powerStateObserver)
         }
     }
 
@@ -220,14 +244,91 @@ final class SystemMonitor: ObservableObject {
         powerSourceRunLoopSource = IOPSNotificationCreateRunLoopSource({ context in
             guard let context else { return }
             let monitor = Unmanaged<SystemMonitor>.fromOpaque(context).takeUnretainedValue()
-            DispatchQueue.main.async {
-                guard monitor.shouldRun,
-                      monitor.currentPlan(defaults: .standard).needPower else { return }
-                monitor.refresh()
-            }
+            monitor.powerStateDidChange()
         }, context)?.takeRetainedValue()
         if let powerSourceRunLoopSource {
-            CFRunLoopAddSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .defaultMode)
+            CFRunLoopAddSource(CFRunLoopGetMain(), powerSourceRunLoopSource, .commonModes)
+        }
+    }
+
+    /// AppleSmartBattery changes before the higher-level IOPS cache on some
+    /// cable transitions, so use its direct event as the fast path.
+    private func installBatteryRegistryObserver() {
+        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
+        let battery = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("AppleSmartBattery"))
+        guard battery != 0 else {
+            IONotificationPortDestroy(port)
+            return
+        }
+        let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
+        IONotificationPortSetDispatchQueue(port, .main)
+        var notification: io_object_t = 0
+        let result = IOServiceAddInterestNotification(port,
+                                                      battery,
+                                                      kIOGeneralInterest,
+                                                      { context, _, _, _ in
+                                                          guard let context else { return }
+                                                          let monitor = Unmanaged<SystemMonitor>
+                                                              .fromOpaque(context).takeUnretainedValue()
+                                                          monitor.powerStateDidChange()
+                                                      },
+                                                      context,
+                                                      &notification)
+        IOObjectRelease(battery)
+        guard result == KERN_SUCCESS else {
+            IONotificationPortSetDispatchQueue(port, nil)
+            IONotificationPortDestroy(port)
+            return
+        }
+        batteryNotificationPort = port
+        batteryInterestNotification = notification
+    }
+
+    /// Refreshes charging state immediately after either macOS or the protected
+    /// charge controller changes it, rather than waiting for the background poll.
+    func powerStateDidChange() {
+        runOnMain { [weak self] in
+            guard let self, shouldRun,
+                  currentPlan(defaults: .standard).needPower else { return }
+            powerStateRevision &+= 1
+            if let battery = SystemInfo.batteryRegistrySnapshot() ?? SystemInfo.batterySnapshot() {
+                var updated = snapshot
+                Self.applyBatteryState(battery, to: &updated)
+                snapshot = updated
+            }
+            let foreground = fullMonitorVisible || menuPanelNeeds.any
+            let powerStride = MonitorSamplingPolicy.sampleStride(for: .power,
+                                                                 intervalSeconds: intervalSeconds,
+                                                                 foreground: foreground)
+            tickCount = MonitorSamplingPolicy.alignedTick(tickCount, wakeTicks: powerStride)
+            refresh()
+        }
+    }
+
+    private static func applyBatteryState(_ battery: BatteryInfo,
+                                          to snapshot: inout SystemSnapshot) {
+        var power = snapshot.power ?? PowerReading()
+        power.hasBattery = true
+        power.chargePercent = battery.percent
+        power.isCharging = battery.isCharging
+        power.externalConnected = battery.externalConnected
+        BatteryPowerStateMonitor.shared.state.apply(to: &power)
+        snapshot.power = power
+    }
+
+    /// Low Power Mode is not a power-source change, so IOPS notifications
+    /// miss it. Publish as soon as the process-info flag flips so the menu
+    /// bar battery dot appears without waiting for the next sample stride.
+    private func installLowPowerModeObserver() {
+        powerStateObserver = NotificationCenter.default.addObserver(
+            forName: .NSProcessInfoPowerStateDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.shouldRun,
+                  self.currentPlan(defaults: .standard).needPower else { return }
+            self.refresh()
         }
     }
 
@@ -595,6 +696,7 @@ final class SystemMonitor: ObservableObject {
         let suppressGPUReadsUntil = self.suppressGPUReadsUntil
         let foregroundSampling = fullMonitorVisible || menuPanelNeeds.any
         let intervalSeconds = self.intervalSeconds
+        let powerStateRevision = self.powerStateRevision
         // Ticks advance by the timer's cadence so `tick % stride` keeps
         // measuring base intervals; mutated on main only, read by the queue
         // through the captured value.
@@ -697,6 +799,13 @@ final class SystemMonitor: ObservableObject {
                     if let charge = power.chargePercent { self.batteryHistory.push(Double(charge) / 100.0) }
                 } else {
                     next.power = self.lastPowerReading
+                }
+                let lowPower = PowerSampler.isLowPowerModeEnabled
+                if var power = next.power, power.isLowPowerMode != lowPower {
+                    power.isLowPowerMode = lowPower
+                    next.power = power
+                    self.lastPowerReading = power
+                    sampledAnything = true
                 }
             }
 
@@ -810,12 +919,23 @@ final class SystemMonitor: ObservableObject {
                 ? self.batteryHistory.publishedValues(whileVisible: foregroundSampling) : []
 
             DispatchQueue.main.async {
+                var publishedSnapshot = next
+                if powerStateRevision != self.powerStateRevision,
+                   let battery = SystemInfo.batteryRegistrySnapshot() ?? SystemInfo.batterySnapshot() {
+                    Self.applyBatteryState(battery, to: &publishedSnapshot)
+                }
+                // A queued/full sample must never put cached driver flags back
+                // over a newer controller reading, even at the same revision.
+                if var power = publishedSnapshot.power {
+                    BatteryPowerStateMonitor.shared.state.apply(to: &power)
+                    publishedSnapshot.power = power
+                }
                 // Skip pure carry-over publishes (nothing sampled, same plan,
                 // same mode): the values are identical to the ones on screen.
                 let planChanged = plan != self.lastPublishedPlan
                     || foregroundSampling != self.lastPublishedForeground
                 if sampledAnything || planChanged {
-                    self.snapshot = next
+                    self.snapshot = publishedSnapshot
                     self.lastPublishedPlan = plan
                     self.lastPublishedForeground = foregroundSampling
                 }

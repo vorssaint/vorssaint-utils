@@ -14,10 +14,12 @@ cd "$(dirname "$0")"
 # the script ends.
 ICON_TMP=""
 STAGE_TMP=""
+NATIVE_CHARGE_TMP=""
 
 cleanup() {
     [[ -n "$ICON_TMP" ]] && rm -rf "$ICON_TMP"
     [[ -n "$STAGE_TMP" ]] && rm -rf "$STAGE_TMP"
+    [[ -n "$NATIVE_CHARGE_TMP" ]] && rm -rf "$NATIVE_CHARGE_TMP"
     return 0
 }
 trap cleanup EXIT
@@ -55,6 +57,7 @@ else
     BUILD_CONFIGURATION="release"
 fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
+CHARGE_HELPER_ID="$APP_BUNDLE_ID.charge-control"
 # Now Playing is read through /usr/bin/perl loading this library; see
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
@@ -68,6 +71,16 @@ developer_id_identity() {
         | grep 'Developer ID Application' \
         | head -1 \
         | sed -E 's/.*"(.*)".*/\1/' || true
+}
+
+build_signing_identity() {
+    local identity
+    identity="$(developer_id_identity)"
+    if (( DEV )) && [[ -z "$identity" ]]; then
+        identity="$(security find-identity -v -p codesigning 2>/dev/null \
+            | grep 'Apple Development' | head -1 | sed -E 's/.*"(.*)".*/\1/' || true)"
+    fi
+    print -r -- "$identity"
 }
 
 # A find-identity listing also names certificates codesign then rejects (an
@@ -96,7 +109,7 @@ legacy_identity_installed() {
 # up front instead of falling through to ad-hoc — setup-signing.sh is free,
 # offline and idempotent. Gating on the install rather than the variant keeps
 # this off CI, where neither ci.yml nor release.yml passes --install.
-if (( DEV || INSTALL )) && [[ -z "$(developer_id_identity)" ]] \
+if (( DEV || INSTALL )) && [[ -z "$(build_signing_identity)" ]] \
     && ! legacy_identity_installed; then
     echo "▸ No signing identity installed; creating the stable local one…"
     if ! ./Tools/setup-signing.sh; then
@@ -149,33 +162,43 @@ write_swift_output_file_map() {
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+    local charge_helper="$bundle/Contents/Library/LaunchServices/$CHARGE_HELPER_ID"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
     local devid
-    devid="$(developer_id_identity)"
+    devid="$(build_signing_identity)"
+    local identity_flags=(--options runtime --timestamp)
+    [[ "$devid" == "Apple Development:"* ]] && identity_flags=()
 
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
         [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
-            --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
+            "${identity_flags[@]}" --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
+        [[ -f "$charge_helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
+            "${identity_flags[@]}" --identifier "$CHARGE_HELPER_ID" --sign "$devid" "$charge_helper"
         [[ -f "$adapter" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
-            --options runtime --timestamp --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$devid" "$adapter"
-        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+            "${identity_flags[@]}" --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$devid" "$adapter"
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs "${identity_flags[@]}" \
             --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
     elif legacy_identity_installed; then
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
+        [[ -f "$charge_helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$CHARGE_HELPER_ID" --sign "$LEGACY_IDENTITY" "$charge_helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$LEGACY_IDENTITY" "$adapter"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$bundle"
     else
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign - "$helper"
+        [[ -f "$charge_helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
+            --identifier "$CHARGE_HELPER_ID" --sign - "$charge_helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign - "$adapter"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign - "$bundle"
     fi
     [[ -f "$helper" ]] && /usr/bin/codesign --verify --strict "$helper"
+    [[ -f "$charge_helper" ]] && /usr/bin/codesign --verify --strict "$charge_helper"
     [[ -f "$adapter" ]] && /usr/bin/codesign --verify --strict "$adapter"
     /usr/bin/codesign --verify --deep --strict "$bundle"
     echo "✓ Signature ready: $bundle"
@@ -285,7 +308,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift \
         Sources/Vorssaint/Core/PermissionGuideStrings.swift \
         Sources/Vorssaint/Core/FanControlStrings.swift \
+        Sources/Vorssaint/Core/ChargeControlStrings.swift \
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+        Sources/Vorssaint/Services/ChargeControl/ChargeControlSupport.swift \
+        Sources/Vorssaint/Services/Metrics/BatteryPowerStateSupport.swift \
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift \
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift \
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift \
@@ -434,12 +460,22 @@ if (( TEST )); then
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
     ./build/metrics-tests || test_status=$?
+    swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        Sources/Vorssaint/Services/ChargeControl/ChargeControlSupport.swift \
+        Sources/Vorssaint/Services/ChargeControl/ChargeControlHardware.swift \
+        Tests/ChargeControlHardwareTests.swift \
+        -o build/charge-hardware-tests
+    ./build/charge-hardware-tests || test_status=$?
     ./Tests/PreferenceCleanupTests.sh || test_status=1
     discard_test_preferences || test_status=1
     exit $test_status
 fi
 
 echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
+NATIVE_CHARGE_TMP="$(mktemp -d)"
+NATIVE_CHARGE_OBJECT="$NATIVE_CHARGE_TMP/NativeChargeControl.o"
+clang -fobjc-arc -fmodules -isysroot "$SDK" -target "$TARGET" \
+    -c Sources/NativeChargeControl/NativeChargeControl.m -o "$NATIVE_CHARGE_OBJECT"
 APP_SOURCES=(Sources/Vorssaint/**/*.swift)
 if (( DEV )); then
     APP_OBJECT_DIR="build/objects/$EXECUTABLE"
@@ -450,12 +486,14 @@ if (( DEV )); then
         -output-file-map "$APP_OUTPUT_FILE_MAP" \
         -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
         "${BUILD_VARIANT_FLAGS[@]}" \
+        -I Sources/NativeChargeControl "$NATIVE_CHARGE_OBJECT" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 else
     rm -rf build
     mkdir -p build
     swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
         "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        -I Sources/NativeChargeControl "$NATIVE_CHARGE_OBJECT" \
         "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 fi
 
@@ -469,6 +507,18 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
     Sources/FanControlHelper/main.swift \
     -o "build/$FAN_HELPER_ID"
 "build/$FAN_HELPER_ID" --selftest
+
+echo "▸ Compiling protected charge-control helper…"
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    Sources/Vorssaint/Services/ChargeControl/ChargeControlSupport.swift \
+    Sources/Vorssaint/Services/ChargeControl/ChargeControlXPC.swift \
+    Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+    Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+    Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+    Sources/Vorssaint/Services/ChargeControl/ChargeControlHardware.swift \
+    Sources/ChargeControlHelper/main.swift \
+    -o "build/$CHARGE_HELPER_ID"
+"build/$CHARGE_HELPER_ID" --selftest
 
 echo "▸ Compiling Now Playing adapter…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
@@ -520,6 +570,9 @@ cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
+cp "build/$CHARGE_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$CHARGE_HELPER_ID"
+cp Resources/com.vorssaint.utils.charge-control.plist \
+    "$STAGE/Contents/Library/LaunchDaemons/$CHARGE_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
@@ -537,6 +590,11 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Delete :MachServices:com.vorssaint.utils.fan-control" "$FAN_PLIST"
     /usr/libexec/PlistBuddy -c "Add :MachServices:$FAN_HELPER_ID bool true" "$FAN_PLIST"
+    CHARGE_PLIST="$STAGE/Contents/Library/LaunchDaemons/$CHARGE_HELPER_ID.plist"
+    /usr/libexec/PlistBuddy -c "Set :Label $CHARGE_HELPER_ID" "$CHARGE_PLIST"
+    /usr/libexec/PlistBuddy -c "Set :BundleProgram Contents/Library/LaunchServices/$CHARGE_HELPER_ID" "$CHARGE_PLIST"
+    /usr/libexec/PlistBuddy -c "Delete :MachServices:com.vorssaint.utils.charge-control" "$CHARGE_PLIST"
+    /usr/libexec/PlistBuddy -c "Add :MachServices:$CHARGE_HELPER_ID bool true" "$CHARGE_PLIST"
     # Stamp the source commit + build time so the running dev app shows (in About)
     # exactly which code it was compiled from. Lets you verify it matches HEAD before
     # testing, instead of unknowingly running a stale build. Dev-only; never shipped.
@@ -555,6 +613,13 @@ FAN_HELPER_VERSION="$(
 )"
 /usr/libexec/PlistBuddy -c "Add :VorssaintFanControlHelperVersion string '$FAN_HELPER_VERSION'" \
     "$STAGE/Contents/Info.plist"
+CHARGE_HELPER_VERSION="$(/usr/bin/shasum -a 256 \
+    "$STAGE/Contents/Library/LaunchServices/$CHARGE_HELPER_ID" \
+    "$STAGE/Contents/Library/LaunchDaemons/$CHARGE_HELPER_ID.plist" \
+    | /usr/bin/awk '{print $1}' | /usr/bin/shasum -a 256 \
+    | /usr/bin/awk '{print $1}')"
+/usr/libexec/PlistBuddy -c "Add :VorssaintChargeControlHelperVersion string '$CHARGE_HELPER_VERSION'" \
+    "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"
@@ -572,20 +637,20 @@ fi
 xattr -c -r "$STAGE" 2>/dev/null || true
 
 # Signing, in order of preference:
-#   1. Developer ID Application — the real, Apple-issued identity used for
-#      notarized releases. Signed with the hardened runtime (required for
-#      notarization), the app's entitlements and a secure timestamp. Gives a
-#      stable, team-based designated requirement, so permissions persist across
-#      updates AND Gatekeeper shows no "unverified developer" warning.
+#   1. Developer ID Application, or Apple Development for a Developer build.
+#      The stable team-based requirement preserves permissions across updates;
+#      Developer ID also enables the hardened runtime and secure timestamp.
 #   2. "Vorssaint Utils Signing" — the legacy stable self-signed identity, kept
 #      as a fallback so contributors without a Developer ID still get a constant
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
-DEVID="$(developer_id_identity)"
+DEVID="$(build_signing_identity)"
+APPLE_SIGN_FLAGS=(--options runtime --timestamp)
+[[ "$DEVID" == "Apple Development:"* ]] && APPLE_SIGN_FLAGS=()
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
-        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs "${APPLE_SIGN_FLAGS[@]}" \
             --entitlements "$ENTITLEMENTS" --sign "$DEVID" "$target"
     elif legacy_identity_installed; then
         codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$target"
@@ -594,23 +659,24 @@ codesign_app() {
     fi
 }
 
-codesign_fan_helper() {
+codesign_named_helper() {
     local target="$1"
+    local identifier="$2"
     if [[ -n "$DEVID" ]]; then
-        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
-            --identifier "$FAN_HELPER_ID" --sign "$DEVID" "$target"
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs "${APPLE_SIGN_FLAGS[@]}" \
+            --identifier "$identifier" --sign "$DEVID" "$target"
     elif legacy_identity_installed; then
-        codesign --force --strip-disallowed-xattrs --identifier "$FAN_HELPER_ID" \
+        codesign --force --strip-disallowed-xattrs --identifier "$identifier" \
             --sign "$LEGACY_IDENTITY" "$target"
     else
-        codesign --force --strip-disallowed-xattrs --identifier "$FAN_HELPER_ID" --sign - "$target"
+        codesign --force --strip-disallowed-xattrs --identifier "$identifier" --sign - "$target"
     fi
 }
 
 codesign_now_playing_adapter() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
-        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs "${APPLE_SIGN_FLAGS[@]}" \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$DEVID" "$target"
     elif legacy_identity_installed; then
         codesign --force --strip-disallowed-xattrs --identifier "$NOW_PLAYING_ADAPTER_ID" \
@@ -624,16 +690,20 @@ sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+    local charge_helper="$bundle/Contents/Library/LaunchServices/$CHARGE_HELPER_ID"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 
-    if [[ -n "$DEVID" ]]; then
+    if [[ "$DEVID" == "Apple Development:"* ]]; then
+        echo "  signing with Apple Development identity: $DEVID"
+    elif [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
     elif legacy_identity_installed; then
         echo "  signing with legacy self-signed identity: $LEGACY_IDENTITY"
     else
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
-    [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+    [[ -f "$helper" ]] && codesign_named_helper "$helper" "$FAN_HELPER_ID"
+    [[ -f "$charge_helper" ]] && codesign_named_helper "$charge_helper" "$CHARGE_HELPER_ID"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
     codesign_app "$bundle"
 
@@ -642,12 +712,14 @@ sign_bundle() {
     if ! codesign --verify --deep --strict "$bundle" >/dev/null 2>&1; then
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
-        [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+        [[ -f "$helper" ]] && codesign_named_helper "$helper" "$FAN_HELPER_ID"
+        [[ -f "$charge_helper" ]] && codesign_named_helper "$charge_helper" "$CHARGE_HELPER_ID"
         [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
         codesign_app "$bundle"
     fi
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
     [[ -f "$helper" ]] && codesign --verify --strict "$helper"
+    [[ -f "$charge_helper" ]] && codesign --verify --strict "$charge_helper"
     [[ -f "$adapter" ]] && codesign --verify --strict "$adapter"
     codesign --verify --deep --strict "$bundle"
 }

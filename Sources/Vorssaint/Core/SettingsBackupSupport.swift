@@ -127,6 +127,8 @@ enum SettingsBackupSupport {
         DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
+        DefaultsKey.chargeControlRecoveryNeeded,
+        DefaultsKey.chargeControlHelperVersion,
         DefaultsKey.switcherNativeHotkeysSuppressed,
         DefaultsKey.systemShortcutsSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.

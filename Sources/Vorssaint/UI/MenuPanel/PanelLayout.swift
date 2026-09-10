@@ -10,7 +10,7 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
+    case keepAwake, brightness, mixer, system, network, disk, power, chargeControl, fanControl, utilities, controls,
          toggles
 
     var id: String { rawValue }
@@ -25,6 +25,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .network: return s.networkSection
         case .disk: return s.diskSection
         case .power: return s.powerSection
+        case .chargeControl: return FeatureStrings.chargeControl(L10n.shared.language).title
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
         case .utilities: return s.utilitiesSection
         case .controls: return s.quickControlsSection
@@ -41,6 +42,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .network: return "network"
         case .disk: return "internaldrive"
         case .power: return "bolt.fill"
+        case .chargeControl: return "battery.75percent"
         case .fanControl: return "fanblades.fill"
         case .utilities: return "wrench.and.screwdriver.fill"
         case .controls: return "switch.2"
@@ -60,6 +62,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .network: return DefaultsKey.monitorShowNetwork
         case .disk: return DefaultsKey.monitorShowDisk
         case .power: return DefaultsKey.monitorShowPower
+        case .chargeControl: return DefaultsKey.panelShowChargeControl
         case .fanControl: return DefaultsKey.panelShowFanControl
         case .utilities: return DefaultsKey.panelShowUtilities
         case .controls: return DefaultsKey.panelShowControls
@@ -83,6 +86,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .network: return [.monitorNetwork]
         case .disk: return [.monitorDisk]
         case .power: return [.monitorPower]
+        case .chargeControl: return [.chargeControl]
         case .fanControl: return [.fanControl]
         case .utilities: return [.quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools,
                                  .clipboardHistory,
@@ -126,6 +130,8 @@ enum PanelLayout {
                 // New in 3.1.13: saved orders predate it, so it slots in at
                 // its canonical place instead of the end.
                 result.insert(id, at: keepAwakeIndex + 1)
+            } else if id == .chargeControl, let powerIndex = result.firstIndex(of: .power) {
+                result.insert(id, at: powerIndex + 1)
             } else {
                 result.append(id)
             }

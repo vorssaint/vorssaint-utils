@@ -80,7 +80,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Know what your Mac is doing
 
 - **System monitor.** CPU, GPU, memory, swap use and temperatures with history graphs, including a choice between total memory in use and memory held by apps, plus battery charge, temperature, health, time remaining, cycle count and power draw together in Power, an optional Fan Control beta with continuous manual speeds, custom temperature curves and live RPM, the apps burning energy right now and a shortcut to the Mac's full process inspector.
-- **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars, including optional battery time remaining and fan speed, combined or as separate items.
+- **Menu bar readouts.** Keep the readings you care about in the bar itself, with values or compact usage bars chosen per reading, including optional battery time remaining and fan speed, combined or as separate items. Battery bars use the native Mac battery, lightning and cable icons.
 - **Network.** Live rates, session totals and a built in speed test.
 - **Alerts.** Optional notifications for sustained CPU load, high CPU or battery temperature, memory pressure, low disk space and low battery.
 
@@ -151,6 +151,7 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 ### Energy and display
 
 - **Keep awake.** Keep the Mac up for a timer, until you say stop or automatically with an external display, a power connection or selected apps running in the background, pause the session while the Mac is locked, keep going with the lid closed, let displays sleep without stopping local work, choose the active menu bar icon and color, see the remaining time beside it, and optionally toggle it with a right click.
+- **Charge limit.** Set a charging ceiling (20–100%) so a plugged-in MacBook stops at the level you choose, discharge down to that level, or run a calibration cycle (100% → 10% → 100%, hold an hour, then return to the limit). Off by default in Features; uses a protected helper.
 - **Displays.** Adjust brightness or turn individual displays on and off. External screens use their own control channel when available and fall back to dimming the picture, while the keyboard brightness keys can follow the pointer and show the brightness percentage.
 - **Extra brightness.** Pushes the XDR panel of a MacBook Pro past its regular maximum using the display's HDR headroom. Toggle it from the Displays panel or Settings.
 - **Bluetooth on sleep.** Switches Bluetooth off while the Mac sleeps, so a laptop in a bag stops stealing the headphones you are listening to elsewhere. Bluetooth you had already turned off stays off, and only what Vorssaint switched off comes back on wake.
@@ -200,6 +201,7 @@ Permissions get the same treatment. Every one is optional, the app explains each
 | Notifications | Keep awake, battery, monitor and update alerts | The app stays silent |
 | Full Disk Access, optional | Deeper cleaner and uninstaller scans | Only reachable places are scanned |
 | Administrator, once, optional | Password free closed lid toggling | A password prompt per toggle |
+| Login Items, optional | Fan Control and Charge Limit helpers | Those features stay off until allowed |
 
 The shelf and almost every quick toggle need no permission at all. Finder cut and paste, the uninstaller, emptying the Trash and the Homebrew terminal handoff ask macOS for Automation access the first time they talk to Finder or Terminal.
 

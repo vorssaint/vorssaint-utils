@@ -206,6 +206,9 @@ struct MetricDetailView: View {
                 Spacer(minLength: 0)
             }
             graph
+            if kind == .battery, PowerSampler.hasInternalBattery {
+                ChargeLimitInlineAdjuster()
+            }
         }
         .panelCard()
     }
@@ -508,7 +511,10 @@ struct MetricDetailView: View {
             return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)"
         case .battery:
             if PowerSampler.hasInternalBattery {
-                return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
+                if snapshot.power?.isCharging == true { return l10n.s.powerCharging }
+                return snapshot.power?.externalConnected == true
+                    ? l10n.s.powerPluggedIn
+                    : l10n.s.powerOnBattery
             }
             return PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).first?.name
                 ?? l10n.s.peripheralBatteryNoDevices

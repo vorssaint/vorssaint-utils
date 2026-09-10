@@ -656,6 +656,14 @@ struct EnergySettings: View {
 
     var body: some View {
         Form {
+            if AppFeature.chargeControl.isAvailable {
+                let strings = FeatureStrings.chargeControl(l10n.language)
+                Section(strings.title) {
+                    ChargeControlCardContent(compact: false)
+                    SettingsCaptionText(strings.enableCaption)
+                }
+                .settingsSectionAnchor(.chargeControl)
+            }
             if AppFeature.keepAwake.isAvailable {
                 Section(l10n.s.sessionSection) {
                     Picker(l10n.s.defaultDurationLabel, selection: $defaultDuration) {
@@ -839,6 +847,9 @@ struct EnergySettings: View {
             // re-check so the section never shows a stale availability.
             ExtraBrightnessService.shared.syncWithPreferences()
             BrightnessService.shared.refresh()
+            if AppFeature.chargeControl.isAvailable {
+                ChargeControlService.shared.refresh()
+            }
         }
     }
 

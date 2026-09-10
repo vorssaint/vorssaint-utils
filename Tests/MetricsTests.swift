@@ -805,6 +805,27 @@ struct MetricsTests {
                "battery time formats hours and minutes")
         expect(BatteryTimeSupport.formatted(seconds: 30) == "0h 1m",
                "battery time keeps a positive final minute visible")
+        expect(MetricFormat.batteryIsCharging(systemReported: false,
+                                              registryReported: true,
+                                              amperageMilliamps: 0,
+                                              externalConnected: true)
+                && !MetricFormat.batteryIsCharging(systemReported: true,
+                                                   registryReported: false,
+                                                   amperageMilliamps: 1,
+                                                   externalConnected: true)
+                && !MetricFormat.batteryIsCharging(systemReported: false,
+                                                   registryReported: nil,
+                                                   amperageMilliamps: 1,
+                                                   externalConnected: true)
+                && MetricFormat.batteryIsCharging(systemReported: nil,
+                                                  registryReported: nil,
+                                                  amperageMilliamps: 1,
+                                                  externalConnected: true)
+                && !MetricFormat.batteryIsCharging(systemReported: true,
+                                                   registryReported: true,
+                                                   amperageMilliamps: 1,
+                                                   externalConnected: false),
+               "the direct battery flag wins while disconnect always clears charging")
 
         expect(MetricFormat.systemPowerWatts(measured: 3,
                                              batteryWatts: 10,
@@ -3757,6 +3778,13 @@ struct MetricsTests {
                "menu bar metric spacing defaults to the compact look")
         expect(registeredDefaults[DefaultsKey.menuBarMetricAppearance] as? String == "values",
                "menu bar usage metrics keep numeric values by default")
+        expect(registeredDefaults[DefaultsKey.menuBarCPUAppearance] as? String == ""
+                && registeredDefaults[DefaultsKey.menuBarGPUAppearance] as? String == ""
+                && registeredDefaults[DefaultsKey.menuBarMemoryAppearance] as? String == ""
+                && registeredDefaults[DefaultsKey.menuBarDiskUsageAppearance] as? String == ""
+                && registeredDefaults[DefaultsKey.menuBarBatteryAppearance] as? String == ""
+                && registeredDefaults[DefaultsKey.menuBarPeripheralBatteryAppearance] as? String == "",
+               "per-item menu bar appearances inherit the global choice until set")
         expect(registeredDefaults[DefaultsKey.menuBarUsageBarNormalColor] as? String == "#64D2FF",
                "menu bar bars use a bright normal color by default")
         expect(registeredDefaults[DefaultsKey.menuBarUsageBarElevatedColor] as? String == "#FFD60A"
@@ -3781,6 +3809,163 @@ struct MetricsTests {
                "bar appearance is a valid stored choice")
         expect(Defaults.sanitizedMenuBarMetricAppearance("banana") == "values",
                "unknown menu bar appearances fall back to numeric values")
+        expect(Defaults.sanitizedMenuBarMetricItemAppearance("") == "",
+               "an empty per-item appearance stays empty so it can inherit")
+        expect(Defaults.sanitizedMenuBarMetricItemAppearance("bars") == "bars",
+               "a per-item bar appearance is a valid stored choice")
+        expect(Defaults.sanitizedMenuBarMetricItemAppearance("banana") == "values",
+               "unknown per-item appearances fall back to numeric values")
+        expect(MenuBarMetricAppearance.barCapableAppearanceKeys == [
+            DefaultsKey.menuBarCPUAppearance,
+            DefaultsKey.menuBarGPUAppearance,
+            DefaultsKey.menuBarMemoryAppearance,
+            DefaultsKey.menuBarDiskUsageAppearance,
+            DefaultsKey.menuBarBatteryAppearance,
+            DefaultsKey.menuBarPeripheralBatteryAppearance,
+        ], "usage bars cover every percentage based menu bar metric")
+        let appearanceSuite = "vorss.tests.menuBarAppearance"
+        if let appearanceDefaults = UserDefaults(suiteName: appearanceSuite) {
+            appearanceDefaults.removePersistentDomain(forName: appearanceSuite)
+            appearanceDefaults.set("bars", forKey: DefaultsKey.menuBarMetricAppearance)
+            expect(MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarCPUAppearance,
+                                                   in: appearanceDefaults) == .bars
+                    && MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarGPUAppearance,
+                                                       in: appearanceDefaults) == .bars
+                    && MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarMemoryAppearance,
+                                                       in: appearanceDefaults) == .bars
+                    && MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarDiskUsageAppearance,
+                                                       in: appearanceDefaults) == .bars
+                    && MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarBatteryAppearance,
+                                                       in: appearanceDefaults) == .bars
+                    && MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarPeripheralBatteryAppearance,
+                                                       in: appearanceDefaults) == .bars,
+                   "an unset per-item appearance follows the global bars choice")
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarCPUAppearance)
+            expect(MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarCPUAppearance,
+                                                   in: appearanceDefaults) == .values
+                    && MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarGPUAppearance,
+                                                       in: appearanceDefaults) == .bars
+                    && MenuBarMetricAppearance.usesBars(appearanceKey: DefaultsKey.menuBarGPUAppearance,
+                                                        in: appearanceDefaults)
+                    && !MenuBarMetricAppearance.usesBars(appearanceKey: DefaultsKey.menuBarCPUAppearance,
+                                                         in: appearanceDefaults),
+                   "a per-item appearance overrides only that metric")
+            expect(MenuBarMetricAppearance.anyUsesBars(in: appearanceDefaults),
+                   "any usage bar is enough to keep bar colors available")
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarMetricAppearance)
+            appearanceDefaults.set("", forKey: DefaultsKey.menuBarCPUAppearance)
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarGPUAppearance)
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarMemoryAppearance)
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarDiskUsageAppearance)
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarBatteryAppearance)
+            appearanceDefaults.set("values", forKey: DefaultsKey.menuBarPeripheralBatteryAppearance)
+            expect(!MenuBarMetricAppearance.anyUsesBars(in: appearanceDefaults),
+                   "all-values usage metrics hide the bar color controls")
+            appearanceDefaults.set("banana", forKey: DefaultsKey.menuBarCPUAppearance)
+            expect(MenuBarMetricAppearance.current(appearanceKey: DefaultsKey.menuBarCPUAppearance,
+                                                   in: appearanceDefaults) == .values,
+                   "a corrupt per-item appearance falls back to numeric values")
+            appearanceDefaults.removePersistentDomain(forName: appearanceSuite)
+        }
+        expect(MenuBarBatterySupport.symbolName(for: 75, isCharging: false) == "battery.75percent",
+               "on battery the native fill matches the charge")
+        expect(MenuBarBatterySupport.symbolName(for: 40, isCharging: true, isPluggedIn: true)
+                == "battery.100percent.bolt",
+               "charging uses the native lightning battery")
+        expect(MenuBarBatterySupport.symbolName(for: 80, isCharging: false, isPluggedIn: true)
+                == "powercord.fill",
+               "plugged in without charging uses the power-cord state")
+        expect(MenuBarBatterySupport.symbolColor(lowPowerMode: true) == MenuBarBatterySupport.lowPowerColor
+                && MenuBarBatterySupport.symbolColor(lowPowerMode: false) == MenuBarBatterySupport.valueColor,
+               "Low Power Mode tints the native battery icon yellow")
+        var lightBatteryText = NSColor.clear
+        var darkBatteryText = NSColor.clear
+        NSAppearance(named: .aqua)?.performAsCurrentDrawingAppearance {
+            lightBatteryText = MenuBarBatterySupport.valueColor.usingColorSpace(.sRGB) ?? .clear
+        }
+        NSAppearance(named: .darkAqua)?.performAsCurrentDrawingAppearance {
+            darkBatteryText = MenuBarBatterySupport.valueColor.usingColorSpace(.sRGB) ?? .clear
+        }
+        expect(lightBatteryText.redComponent < 0.1
+                && darkBatteryText.redComponent > 0.9
+                && lightBatteryText.alphaComponent == 1
+                && darkBatteryText.alphaComponent == 1,
+               "native battery text follows light and dark menu bar appearances")
+        expect(MenuBarBatterySupport.glyphSize.width >= 30
+                && MenuBarBatterySupport.glyphSize.width <= 32
+                && MenuBarBatterySupport.glyphSize.height >= 13
+                && MenuBarBatterySupport.glyphSize.height <= 15,
+               "menu bar battery matches the native status-item symbol size")
+        expect(MenuBarBatterySupport.glyphImage(percent: 63,
+                                                isCharging: true,
+                                                isPluggedIn: false,
+                                                lowPowerMode: false).size
+                == MenuBarBatterySupport.glyphSize,
+               "charging battery composition preserves the native glyph size")
+        let pluggedLowBattery = MenuBarBatterySupport.glyphImage(percent: 20,
+                                                                 isCharging: false,
+                                                                 isPluggedIn: true,
+                                                                 lowPowerMode: false)
+        let pluggedHighBattery = MenuBarBatterySupport.glyphImage(percent: 80,
+                                                                  isCharging: false,
+                                                                  isPluggedIn: true,
+                                                                  lowPowerMode: false)
+        expect(pluggedLowBattery.tiffRepresentation != pluggedHighBattery.tiffRepresentation,
+               "plugged battery glyph keeps tracking the live charge")
+        let chargingHighBattery = MenuBarBatterySupport.glyphImage(percent: 80,
+                                                                   isCharging: true,
+                                                                   isPluggedIn: false,
+                                                                   lowPowerMode: false)
+        expect(chargingHighBattery.tiffRepresentation != pluggedHighBattery.tiffRepresentation,
+               "battery glyph reflects a charging-state change at the same level")
+        for percent in [0, 20, 34, 35, 50, 74] {
+            for tint in [NSColor.black, NSColor.white] {
+                let glyph = MenuBarBatterySupport.glyphImage(percent: percent,
+                                                              isCharging: true,
+                                                              isPluggedIn: true,
+                                                              lowPowerMode: false,
+                                                              tint: tint)
+                if let data = glyph.tiffRepresentation,
+                   let bitmap = NSBitmapImageRep(data: data) {
+                    var foregroundPixels = 0
+                    var wrongColorPixels = 0
+                    for x in 0..<bitmap.pixelsWide {
+                        for y in 0..<bitmap.pixelsHigh {
+                            guard let color = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.sRGB),
+                                  color.alphaComponent > 0.5 else { continue }
+                            foregroundPixels += 1
+                            if abs(color.redComponent - (tint == .black ? 0 : 1)) > 0.1 {
+                                wrongColorPixels += 1
+                            }
+                        }
+                    }
+                    expect(foregroundPixels > 0 && wrongColorPixels == 0,
+                           "low-charge bolt uses the foreground tint at \(percent)% without a white-on-light bolt")
+                } else {
+                    expect(false, "low-charge glyph can be rasterized")
+                }
+            }
+        }
+        expectClose(Double(MenuBarBatterySupport.fillFraction(63)), 0.63,
+                    "native battery fill follows the live charge")
+        expectClose(Double(MenuBarBatterySupport.fillFraction(150)), 1,
+                    "native battery fill clamps above full")
+        let batteryBounds = NSRect(origin: .zero, size: MenuBarBatterySupport.glyphSize)
+        let fullBatteryWidth = MenuBarBatterySupport.fillRect(in: batteryBounds, percent: 100).width
+        expectClose(Double(MenuBarBatterySupport.fillRect(in: batteryBounds, percent: 13).width / fullBatteryWidth), 0.13,
+                    "low battery fill stays linear")
+        expectClose(Double(MenuBarBatterySupport.fillRect(in: batteryBounds, percent: 90).width / fullBatteryWidth), 0.90,
+                    "high battery fill stays linear")
+        let unpluggedHighBattery = MenuBarBatterySupport.glyphImage(percent: 80,
+                                                                    isCharging: false,
+                                                                    isPluggedIn: false,
+                                                                    lowPowerMode: false)
+        expect(pluggedHighBattery.tiffRepresentation != unpluggedHighBattery.tiffRepresentation,
+               "plugged in without charging draws the plug inside the battery")
+        expectClose(MenuBarUsageBarSupport.percentFraction(80), 0.8,
+                    "menu bar battery bars map a percent onto the 0...1 fill")
+        expectClose(MenuBarUsageBarSupport.percentFraction(150), 1,
+                    "menu bar percent bars clamp readings above full")
         expect(MenuBarMetricAppearance.values.allowsCombinedTemperatures,
                "numeric menu bar values may combine usage and temperature")
         expect(!MenuBarMetricAppearance.bars.allowsCombinedTemperatures,
@@ -14381,6 +14566,16 @@ struct MetricsTests {
                "monitor tick off the wake grid realigns to the next slot")
         expect(MonitorSamplingPolicy.alignedTick(9, wakeTicks: 1) == 9,
                "monitor tick needs no alignment at every-tick cadence")
+        let powerEventTick = MonitorSamplingPolicy.alignedTick(
+            3,
+            wakeTicks: MonitorSamplingPolicy.sampleStride(for: .power,
+                                                           intervalSeconds: 2,
+                                                           foreground: false))
+        expect(MonitorSamplingPolicy.shouldSample(.power,
+                                                  tick: powerEventTick,
+                                                  intervalSeconds: 2,
+                                                  foreground: false),
+               "power-source events advance to an immediate real power sample")
 
         // MARK: Interface filtering
 
@@ -14634,7 +14829,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14644,7 +14839,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep", "chargeControl",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
@@ -14772,9 +14967,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.chargeControl.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .chargeControl
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -14904,6 +15100,29 @@ struct MetricsTests {
         }
         expect((Defaults.registeredDefaults[DefaultsKey.panelShowFanControl] as? Bool) == true,
                "installing fan control reveals its panel section by default")
+        expect(AppFeature.chargeControl.group == .energyDisplay
+                && AppFeature.chargeControl.enabledKeys == [DefaultsKey.chargeLimitEnabled]
+                && AppFeature.chargeControl.permissions.isEmpty
+                && AppFeature.chargeControl.energyProfile == .periodic
+                && !AppFeature.chargeControl.isBeta,
+               "charge limit is an energy feature that polls while it is on")
+        expect((Defaults.registeredDefaults[DefaultsKey.panelShowChargeControl] as? Bool) == true
+                && (Defaults.registeredDefaults[DefaultsKey.chargeLimitEnabled] as? Bool) == true
+                && (Defaults.registeredDefaults[DefaultsKey.chargeLimitPercent] as? Int) == 80
+                && (Defaults.registeredDefaults[DefaultsKey.chargeSailingEnabled] as? Bool) == false
+                && (Defaults.registeredDefaults[DefaultsKey.chargeSailingRangePercent] as? Int) == 5,
+               "charge limit starts at 80 percent with optional sailing off")
+        let sailingMigrationSuite = "com.vorssaint.tests.chargeSailingRange"
+        if let sailingMigration = UserDefaults(suiteName: sailingMigrationSuite) {
+            sailingMigration.removePersistentDomain(forName: sailingMigrationSuite)
+            sailingMigration.set(90, forKey: DefaultsKey.chargeLimitPercent)
+            sailingMigration.set(85, forKey: DefaultsKey.chargeSailingMinimumPercent)
+            Defaults.migrateChargeSailingRange(in: sailingMigration)
+            expect(sailingMigration.integer(forKey: DefaultsKey.chargeSailingRangePercent) == 5
+                    && sailingMigration.object(forKey: DefaultsKey.chargeSailingMinimumPercent) == nil,
+                   "absolute sailing minimums migrate to a range below the charge limit")
+            sailingMigration.removePersistentDomain(forName: sailingMigrationSuite)
+        }
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.diskImageInstaller(language)
@@ -15236,6 +15455,171 @@ struct MetricsTests {
                 && decodedLegacyFanSnapshot?.configuration == nil
                 && decodedLegacyFanSnapshot?.temperatures == nil,
                "fan snapshots remain compatible with an older installed helper")
+
+        expect(ChargeControlPolicy.sanitizedLimit(80) == 80
+                && ChargeControlPolicy.sanitizedLimit(20) == 20
+                && ChargeControlPolicy.sanitizedLimit(100) == 100
+                && ChargeControlPolicy.sanitizedLimit(5) == 80
+                && Defaults.sanitizedChargeLimit(12) == 80,
+               "charge limits stay inside 20...100 and fall back to 80")
+        expect(ChargeControlPolicy.sanitizedSailingRange(5, limit: 90) == 5
+                && ChargeControlPolicy.sanitizedSailingRange(0, limit: 90) == 1
+                && ChargeControlPolicy.sanitizedSailingRange(90, limit: 90) == 80
+                && ChargeControlPolicy.maximumSailingRange(limit: 20) == 10,
+               "sailing ranges stay between one percent and the ten-percent battery floor")
+        expect(ChargeControlPolicy.postGateRefreshDelays == [0.25, 0.75, 1.5],
+               "charge-gate changes recheck battery telemetry three times within 1.5 seconds")
+        expect(ChargeLimitBarSupport.filledSegmentCount(for: 0) == 0
+                && ChargeLimitBarSupport.filledSegmentCount(for: 63) == 13
+                && ChargeLimitBarSupport.filledSegmentCount(for: 100) == 20
+                && ChargeLimitBarSupport.targetFraction(for: 80) == 0.8
+                && !ChargeLimitBarSupport.isAboveLimit(segment: 15, limit: 80)
+                && ChargeLimitBarSupport.isAboveLimit(segment: 16, limit: 80),
+               "charge bars map level and limit onto twenty 5% segments")
+        var evaluationCoalescer = ChargeControlEvaluationCoalescer()
+        let deferredWhileBusy = evaluationCoalescer.deferIfBusy(true)
+            && evaluationCoalescer.deferIfBusy(true)
+        expect(!evaluationCoalescer.deferIfBusy(false)
+                && deferredWhileBusy
+                && evaluationCoalescer.consumePending()
+                && !evaluationCoalescer.consumePending(),
+               "charge-control request bursts produce one trailing evaluation")
+        expect(BatteryPowerState.adapterConnected(bytes: [0xFF]) == false
+                && BatteryPowerState.adapterConnected(bytes: [0]) == true
+                && BatteryPowerState.adapterConnected(bytes: [2]) == true,
+               "the physical adapter flag distinguishes unplugged from every valid port, including zero")
+        expect(BatteryPowerState.adapterConnected(bytes: nil) == nil
+                && BatteryPowerState.adapterConnected(bytes: []) == nil
+                && BatteryPowerState.adapterConnected(bytes: [0, 0]) == nil
+                && BatteryPowerState.adapterConnected(bytes: [0xFE]) == nil,
+               "missing or invalid physical adapter flags fall back to system telemetry")
+        expect(BatteryPowerState.flag(bytes: [0]) == false
+                && BatteryPowerState.flag(bytes: [1]) == true
+                && BatteryPowerState.flag(bytes: [8], enabledValue: 8) == true
+                && BatteryPowerState.flag(bytes: [2]) == nil
+                && BatteryPowerState.flag(bytes: nil) == nil
+                && BatteryPowerState.flag(bytes: [1, 0]) == nil,
+               "controller flags accept only the known one-byte encodings")
+        let liveCharging = BatteryPowerState(adapterConnected: true, isCharging: true)
+            .resolve(externalConnected: false, isCharging: false)
+        expect(liveCharging.externalConnected && liveCharging.isCharging,
+               "live charging immediately supersedes stale unplugged driver flags")
+        let liveHolding = BatteryPowerState(adapterConnected: true, isCharging: false)
+            .resolve(externalConnected: true, isCharging: true)
+        expect(liveHolding.externalConnected && !liveHolding.isCharging,
+               "live holding immediately supersedes stale charging driver flags")
+        let liveUnplugged = BatteryPowerState(adapterConnected: false, isCharging: true)
+            .resolve(externalConnected: true, isCharging: true)
+        expect(!liveUnplugged.externalConnected && !liveUnplugged.isCharging,
+               "unplugging clears charging even before the controller charging flag settles")
+        let forcedState = BatteryPowerState(adapterConnected: true, isCharging: false, isDischarging: true)
+        let liveDischarging = forcedState.resolve(externalConnected: true, isCharging: true)
+        expect(forcedState.adapterConnected == true
+                && !liveDischarging.externalConnected && !liveDischarging.isCharging,
+               "forced discharge keeps physical presence separate from battery-powered state")
+        let fallbackState = BatteryPowerState().resolve(externalConnected: true, isCharging: false)
+        expect(fallbackState.externalConnected && !fallbackState.isCharging,
+               "unsupported controller keys preserve system-reported holding")
+        expect(ChargeControlRequest(gate: .inhibitCharging, limitPercent: 60)
+                != ChargeControlRequest(gate: .inhibitCharging, limitPercent: 80),
+               "request deduplication distinguishes Intel firmware limits with the same gate")
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 81, limit: 80,
+                                               wasInhibited: false, mode: .limit,
+                                               family: .appleSiliconCHT) == .inhibitCharging,
+               "Apple Silicon stops charging at the cap")
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 81, limit: 80,
+                                               wasInhibited: true, mode: .limit,
+                                               family: .appleSiliconCHT,
+                                               externalConnected: false) == .allowCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 79, limit: 80,
+                                                   wasInhibited: false, mode: .limit,
+                                                   family: .appleSiliconCHT) == .allowCharging,
+               "unplugging releases the gate so reconnecting below the cap charges immediately")
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 79, limit: 80,
+                                               wasInhibited: true, mode: .limit,
+                                               family: .appleSiliconCHT) == .inhibitCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 78, limit: 80,
+                                                   wasInhibited: true, mode: .limit,
+                                                   family: .appleSiliconCHT) == .allowCharging,
+               "Apple Silicon uses a 2 percent hysteresis before charging again")
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 86, limit: 90,
+                                               sailingRange: 5, wasInhibited: true,
+                                               mode: .limit, family: .appleSiliconCHT) == .inhibitCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 85, limit: 90,
+                                                   sailingRange: 5, wasInhibited: true,
+                                                   mode: .limit, family: .appleSiliconCHT) == .allowCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 84, limit: 90,
+                                                   sailingRange: 5, wasInhibited: true,
+                                                   mode: .limit, family: .appleSiliconCHT) == .allowCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 90, limit: 90,
+                                                   sailingRange: 5, wasInhibited: false,
+                                                   mode: .limit, family: .intelBCLM) == .inhibitCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 84, limit: 90,
+                                                   sailingRange: 5, wasInhibited: true,
+                                                   mode: .limit, family: .intelBCLM) == .allowCharging,
+               "a five-percent sailing range at 90 resumes at 85")
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 70, limit: 80,
+                                               wasInhibited: false, mode: .limit,
+                                               family: .intelBCLM) == .inhibitCharging,
+               "Intel writes the firmware cap")
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 90, limit: 80,
+                                               wasInhibited: false, mode: .dischargeToLimit,
+                                               family: .appleSiliconCHT) == .forceDischarge,
+               "manual discharge overrides the cap")
+        for percent in [0, 10, 79, 80, 90, 100] {
+            for connected in [false, true] {
+                expect(ChargeControlPolicy.desiredGate(chargePercent: percent, limit: 90,
+                       wasInhibited: true, mode: .dischargeToLimit, family: .nativePowerUI,
+                       externalConnected: connected) == (connected ? .forceDischarge : .allowCharging),
+                       "manual discharge ignores the limit; unplugged Macs need no adapter write")
+            }
+        }
+        expect(ChargeControlPolicy.desiredGate(chargePercent: 90, limit: 80,
+                                               wasInhibited: true, mode: .topUp,
+                                               family: .appleSiliconCHT) == .allowCharging
+                && ChargeControlPolicy.desiredGate(chargePercent: 70, limit: 80,
+                                                   wasInhibited: true, mode: .topUp,
+                                                   family: .intelBCLM) == .allowCharging,
+               "top up charges past the cap until 100%")
+        let startedLow = ChargeControlPolicy.startCalibration(chargePercent: 72, savedLimit: 80)
+        expect(startedLow.phase == .chargingToFull && startedLow.savedLimit == 80,
+               "calibration charges to full first when the battery is not already at 100%")
+        expect(ChargeControlPolicy.startCalibration(chargePercent: 100, savedLimit: 80).phase
+                == .dischargingToFloor,
+               "calibration skips the first charge when the battery is already full")
+        let calNow = Date(timeIntervalSince1970: 1_000)
+        expect(ChargeControlPolicy.advanceCalibration(startedLow, chargePercent: 100, now: calNow)?.phase
+                == .dischargingToFloor,
+               "the first charge hands off to the discharge to 10%")
+        expect(ChargeControlPolicy.advanceCalibration(
+            ChargeCalibrationState(phase: .holdingAtFull, holdStartedAt: calNow, savedLimit: 80),
+            chargePercent: 100, now: calNow.addingTimeInterval(60 * 60),
+            holdDuration: 60 * 60)?.phase == .restoringLimit,
+               "the hold returns to the saved limit")
+        expect(ChargeControlPolicy.advanceCalibration(
+            ChargeCalibrationState(phase: .restoringLimit, holdStartedAt: nil, savedLimit: 80),
+            chargePercent: 80, now: calNow) == nil,
+               "calibration finishes once the battery is back at the saved limit")
+        expect(ChargeControlPolicy.restoreReason(hasActiveGate: true, heartbeatAge: 8)
+                && !ChargeControlPolicy.restoreReason(hasActiveGate: true, heartbeatAge: 2)
+                && !ChargeControlPolicy.restoreReason(hasActiveGate: false, heartbeatAge: 8),
+               "every active charge gate restores if the app heartbeat is lost")
+        expect(ChargeControlPolicy.paddedSMCBytes([0x01, 0x00, 0x00, 0x00], to: 4)
+                == [0x01, 0x00, 0x00, 0x00]
+                && ChargeControlPolicy.paddedSMCBytes([0x01, 0x00, 0x00, 0x00], to: 1) == [0x01]
+                && ChargeControlPolicy.paddedSMCBytes([0x01], to: 4) == [0x01, 0x00, 0x00, 0x00],
+               "SMC writes pad or trim to the key's reported size")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.chargeControl(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 41 && values.allSatisfy { !$0.isEmpty },
+                   "charge control has every localized field for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "charge control text uses human punctuation for \(language.rawValue)")
+            expectFormat(strings.calHoldRemainingFormat, ["d"],
+                         "calibration hold format stays valid for \(language.rawValue)")
+        }
 
         let fanMigrationSuite = "com.vorssaint.tests.fan-migration.\(UUID().uuidString)"
         if let fanMigration = UserDefaults(suiteName: fanMigrationSuite) {
@@ -15894,6 +16278,9 @@ struct MetricsTests {
                        && $0.energyProfile != .inputs
                },
                "battery and quiet installs nothing that listens to input")
+        expect(FeaturePreset.battery.features.contains(.chargeControl)
+                && FeaturePreset.battery.features.contains(.monitorPower),
+               "the battery preset includes the charge limiter")
         expect(FeaturePreset.battery.features.allSatisfy {
                    !$0.permissions.contains(.accessibility)
                },
@@ -16003,11 +16390,14 @@ struct MetricsTests {
                "the mouse page hides only with all eight mouse features off")
         expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness,
-                                                                         .bluetoothSleep])),
-               "energy hides when all four of its features are off")
+                                                                         .bluetoothSleep,
+                                                                         .chargeControl])),
+               "energy hides when all five of its features are off")
         expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")
+        expect(pageVisible(.energy, available: [.chargeControl]),
+               "charge limit alone keeps the energy page")
         expect(!pageVisible(.monitor, available: allFeatures.subtracting(Set(FeatureVisibilitySupport.monitorFeatures))),
                "monitor page hides with every metric off")
         expect(pageVisible(.monitor, available: [.monitorNetwork]), "one metric keeps the monitor page")
@@ -16060,6 +16450,9 @@ struct MetricsTests {
                 && AppFeature.fanControl.settingsDestination
                 == FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl),
                "shared monitor destinations distinguish the dedicated fan controls")
+        expect(AppFeature.chargeControl.settingsDestination
+                == FeatureSettingsDestination(.energy, sectionAnchor: .chargeControl),
+               "charge limit lands on the Energy page")
         let settingsRouter = SettingsRouter.shared
         var settingsRequestCount = 0
         var settingsRequestsPublishedReady = true
@@ -21400,6 +21793,12 @@ struct MetricsTests {
         let backupKeys = SettingsBackupSupport.exportKeys()
         expect(backupKeys.contains(DefaultsKey.switcherEnabled)
                 && backupKeys.contains(DefaultsKey.menuBarCPU)
+                && backupKeys.contains(DefaultsKey.menuBarCPUAppearance)
+                && backupKeys.contains(DefaultsKey.menuBarGPUAppearance)
+                && backupKeys.contains(DefaultsKey.menuBarMemoryAppearance)
+                && backupKeys.contains(DefaultsKey.menuBarDiskUsageAppearance)
+                && backupKeys.contains(DefaultsKey.menuBarBatteryAppearance)
+                && backupKeys.contains(DefaultsKey.menuBarPeripheralBatteryAppearance)
                 && backupKeys.contains(DefaultsKey.language)
                 && backupKeys.contains(DefaultsKey.appVolumes)
                 && backupKeys.contains(DefaultsKey.mixerShowFinder)
@@ -21561,6 +21960,15 @@ struct MetricsTests {
                 && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
                 && !backupKeys.contains(DefaultsKey.fanControlHelperVersion),
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")
+        expect(backupKeys.contains(DefaultsKey.chargeLimitEnabled)
+                && backupKeys.contains(DefaultsKey.chargeLimitPercent)
+                && backupKeys.contains(DefaultsKey.chargeSailingEnabled)
+                && backupKeys.contains(DefaultsKey.chargeSailingRangePercent)
+                && !backupKeys.contains(DefaultsKey.chargeSailingMinimumPercent)
+                && backupKeys.contains(DefaultsKey.panelShowChargeControl)
+                && !backupKeys.contains(DefaultsKey.chargeControlRecoveryNeeded)
+                && !backupKeys.contains(DefaultsKey.chargeControlHelperVersion),
+               "charge limit preferences travel while helper recovery state stays on one Mac")
         expect(backupKeys.contains(DefaultsKey.screenshotSharingEnabled),
                "the temporary screenshot links preference travels with settings backup")
         expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
@@ -25798,7 +26206,7 @@ struct MetricsTests {
         let buildScriptCode = buildScript.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("#") }
         expect(buildScriptCode.contains { $0.contains("(( DEV || INSTALL ))")
-                                            && $0.contains("developer_id_identity") },
+                                            && $0.contains("build_signing_identity") },
                "the signing setup guard covers every install, not only the Developer variant")
         // The setup script must run against the stock /usr/bin/openssl, which
         // is LibreSSL: it rejects OpenSSL 3's -legacy flag outright, and the
@@ -26062,9 +26470,10 @@ struct MetricsTests {
         expect(selfUninstallSource.contains("guard detachFromSystem() else")
                 && selfUninstallSource.contains("restoreSleepBeforeRemoval() -> Bool")
                 && selfUninstallSource.contains("guard FanControlService.restoreAndUnregisterForRemoval() else")
+                && selfUninstallSource.contains("guard ChargeControlService.restoreAndUnregisterForRemoval() else")
                 && selfUninstallSource.contains("adminPromptRecover")
                 && selfUninstallSource.contains("verification.status == 0"),
-               "in-app uninstall aborts unless fans and normal sleep are restored before removal")
+               "in-app uninstall aborts unless charging, fans, and normal sleep are restored before removal")
         expect(uninstallScriptSource.contains("SleepDisabled"),
                "script uninstall reads the sleep setting back for itself")
 

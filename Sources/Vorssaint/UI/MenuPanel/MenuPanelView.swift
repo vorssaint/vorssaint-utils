@@ -70,6 +70,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
+    @AppStorage(DefaultsKey.panelShowChargeControl) private var showChargeControl = true
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
@@ -260,6 +261,7 @@ struct MenuPanelView: View {
         case .network: return 190
         case .disk: return 360
         case .power: return 170
+        case .chargeControl: return 340
         case .fanControl: return 220
         case .utilities: return 500
         case .controls: return 360
@@ -273,7 +275,8 @@ struct MenuPanelView: View {
         case .cpu, .gpu, .memory: return 430
         case .network: return 330
         case .disk: return 360
-        case .battery, .power: return 360
+        case .battery: return 540
+        case .power: return 360
         case .fan: return 240
         }
     }
@@ -291,6 +294,7 @@ struct MenuPanelView: View {
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
+        case .chargeControl: if showChargeControl { ChargeControlSection(collapsible: collapsible) }
         case .fanControl: if showFanControl { FanControlSection(collapsible: collapsible) }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
@@ -310,6 +314,7 @@ struct MenuPanelView: View {
         case .network: return showNetwork
         case .disk: return showDisk
         case .power: return showPower
+        case .chargeControl: return showChargeControl
         case .fanControl: return showFanControl
         case .utilities: return showUtilities
         case .controls: return showControls

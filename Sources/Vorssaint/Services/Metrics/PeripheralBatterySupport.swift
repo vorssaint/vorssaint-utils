@@ -326,6 +326,11 @@ enum PeripheralBatterySupport {
         let extra = devices.count > 1 ? "+\(min(9, devices.count - 1))" : ""
         return (first.kind.menuLabel, "\(first.percent)%\(extra)")
     }
+
+    static func menuBarBar(for devices: [PeripheralBatteryDevice]) -> (label: String, fraction: Double)? {
+        guard let first = sorted(devices).first else { return nil }
+        return (first.kind.menuLabel, MenuBarUsageBarSupport.percentFraction(first.percent))
+    }
 }
 
 enum PeripheralBatteryRefreshPolicy {

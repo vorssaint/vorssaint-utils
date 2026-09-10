@@ -117,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             KeepAwakeManager.shared.activateOnLaunchIfNeeded()
         }
         FanControlService.recoverIfNeeded()
+        ChargeControlService.recoverIfNeeded()
         // A marker from an earlier build may name a hotkey id this build no
         // longer owns; give it back before any feature decides what to hold,
         // except the ids the switcher is about to take over again, which stay
@@ -260,6 +261,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PreciseVolumeRollerService.shared.stop()
         AppVolumeMixer.shared.stopAll()
         FanControlService.restoreBeforeTerminationIfNeeded()
+        ChargeControlService.restoreBeforeTerminationIfNeeded()
         // Puts the system input back if a microphone was chosen here: the
         // app's audio settings must not outlive the app.
         AudioInputDeviceManager.shared.stop()

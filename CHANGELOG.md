@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
 App Switcher opens more smoothly with many windows, can focus its list on the display under the pointer, excludes hidden helper windows and keeps newly opened windows focused after switching. Screenshot gains custom editor shortcuts and optional preview focus, Scratchpad adds tab shortcuts, the menu bar panel keeps a continuous background, Cleaner protects app customizations when clearing caches, and Quit on close preserves incoming calls.
 
 ### Added
+- Charge Limit adds charge controls and accurate battery status, with a native macOS 27 charging backend (80–100% in 5% steps), Top Up to 100%, and manual Discharge independent of the saved limit or cable connection. Discharge controls adapter input without shutting down USB ports; connected USB devices remained enumerated in testing. Earlier supported hardware retains its existing charge limits and Sailing mode.
+- The menu bar battery icon shows live charge fill, charging and holding states, and improved charging-bolt contrast.
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
 - Screenshot gains custom editor shortcuts and optional keyboard focus for previews. Thanks to @santi-ug.

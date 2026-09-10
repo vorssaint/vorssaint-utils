@@ -315,7 +315,13 @@ enum DefaultsKey {
     static let menuBarFanSpeed = "menuBarFanSpeed"
     static let menuBarPreset = "menuBarPreset"           // dense
     static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
-    static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
+    static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars, fallback for per-item keys
+    static let menuBarCPUAppearance = "menuBarCPUAppearance" // values | bars | empty inherits global
+    static let menuBarGPUAppearance = "menuBarGPUAppearance" // values | bars | empty inherits global
+    static let menuBarMemoryAppearance = "menuBarMemoryAppearance" // values | bars | empty inherits global
+    static let menuBarDiskUsageAppearance = "menuBarDiskUsageAppearance" // values | bars | empty inherits global
+    static let menuBarBatteryAppearance = "menuBarBatteryAppearance" // values | bars | empty inherits global
+    static let menuBarPeripheralBatteryAppearance = "menuBarPeripheralBatteryAppearance" // values | bars | empty inherits global
     static let menuBarUsageBarNormalColor = "menuBarUsageBarNormalColor" // #RRGGBB
     static let menuBarUsageBarElevatedColor = "menuBarUsageBarElevatedColor" // #RRGGBB
     static let menuBarUsageBarCriticalColor = "menuBarUsageBarCriticalColor" // #RRGGBB
@@ -347,6 +353,15 @@ enum DefaultsKey {
     // automatic fan control before this marker can be cleared.
     static let fanControlRecoveryNeeded = "fanControlRecoveryNeeded"
     static let fanControlHelperVersion = "fanControlHelperVersion"
+    static let chargeLimitEnabled = "chargeLimitEnabled"
+    static let chargeLimitPercent = "chargeLimitPercent"
+    static let chargeSailingEnabled = "chargeSailingEnabled"
+    static let chargeSailingRangePercent = "chargeSailingRangePercent"
+    // Previous absolute restart level, read once by the migration below.
+    static let chargeSailingMinimumPercent = "chargeSailingMinimumPercent"
+    static let panelShowChargeControl = "panelShowChargeControl"
+    static let chargeControlRecoveryNeeded = "chargeControlRecoveryNeeded"
+    static let chargeControlHelperVersion = "chargeControlHelperVersion"
     // System monitor — per-metric history graphs (each independently toggleable).
     static let monitorGraphCPU = "monitorGraphCPU"
     static let monitorGraphGPU = "monitorGraphGPU"
@@ -1125,6 +1140,12 @@ enum Defaults {
         DefaultsKey.menuBarPreset: "dense",
         DefaultsKey.menuBarMetricSpacing: "compact",  // owner's call: compact by default in 3.1.8
         DefaultsKey.menuBarMetricAppearance: "values",
+        DefaultsKey.menuBarCPUAppearance: "",
+        DefaultsKey.menuBarGPUAppearance: "",
+        DefaultsKey.menuBarMemoryAppearance: "",
+        DefaultsKey.menuBarDiskUsageAppearance: "",
+        DefaultsKey.menuBarBatteryAppearance: "",
+        DefaultsKey.menuBarPeripheralBatteryAppearance: "",
         DefaultsKey.menuBarUsageBarNormalColor: "#64D2FF",
         DefaultsKey.menuBarUsageBarElevatedColor: "#FFD60A",
         DefaultsKey.menuBarUsageBarCriticalColor: "#FF453A",
@@ -1152,6 +1173,13 @@ enum Defaults {
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
+        DefaultsKey.chargeLimitEnabled: true,
+        DefaultsKey.chargeLimitPercent: ChargeControlPolicy.defaultLimit,
+        DefaultsKey.chargeSailingEnabled: false,
+        DefaultsKey.chargeSailingRangePercent: 5,
+        DefaultsKey.panelShowChargeControl: true,
+        DefaultsKey.chargeControlRecoveryNeeded: false,
+        DefaultsKey.chargeControlHelperVersion: "",
         DefaultsKey.panelNavigationEnabled: true,
         DefaultsKey.monitorGraphCPU: true,
         DefaultsKey.monitorGraphGPU: true,
@@ -1401,6 +1429,7 @@ enum Defaults {
     static func register() {
         let defaults = UserDefaults.standard
         migrateFanControlVisibility(in: defaults)
+        migrateChargeSailingRange(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
         migrateBatteryTemperatureVisibility(in: defaults)
@@ -1479,6 +1508,17 @@ enum Defaults {
             }
         }
         defaults.removeObject(forKey: DefaultsKey.monitorShowFanControlBeta)
+    }
+
+    static func migrateChargeSailingRange(in defaults: UserDefaults) {
+        defer { defaults.removeObject(forKey: DefaultsKey.chargeSailingMinimumPercent) }
+        guard defaults.object(forKey: DefaultsKey.chargeSailingRangePercent) == nil,
+              let legacyMinimum = (defaults.object(forKey: DefaultsKey.chargeSailingMinimumPercent)
+                                   as? NSNumber)?.intValue else { return }
+        let limit = (defaults.object(forKey: DefaultsKey.chargeLimitPercent) as? NSNumber)?.intValue
+            ?? ChargeControlPolicy.defaultLimit
+        defaults.set(ChargeControlPolicy.sanitizedSailingRange(limit - legacyMinimum, limit: limit),
+                     forKey: DefaultsKey.chargeSailingRangePercent)
     }
 
     /// The "show the desktop app without windows" toggle became one choice of
@@ -1663,6 +1703,10 @@ enum Defaults {
         allowedBatteryLimits.contains(percent) ? percent : 10
     }
 
+    static func sanitizedChargeLimit(_ percent: Int) -> Int {
+        ChargeControlPolicy.sanitizedLimit(percent)
+    }
+
     static func sanitizedKeepAwakeMouseJiggleInterval(_ minutes: Int) -> Int {
         allowedKeepAwakeMouseJiggleIntervals.contains(minutes) ? minutes : 5
     }
@@ -1723,6 +1767,12 @@ enum Defaults {
 
     static func sanitizedMenuBarMetricAppearance(_ appearance: String) -> String {
         allowedMenuBarMetricAppearances.contains(appearance) ? appearance : "values"
+    }
+
+    /// Empty means "inherit the global usage display". Anything else is
+    /// coerced to values or bars so a corrupt per-item key cannot stick.
+    static func sanitizedMenuBarMetricItemAppearance(_ appearance: String) -> String {
+        appearance.isEmpty ? "" : sanitizedMenuBarMetricAppearance(appearance)
     }
 
     static func sanitizedMenuBarMetricOrder(_ raw: String) -> [String] {
