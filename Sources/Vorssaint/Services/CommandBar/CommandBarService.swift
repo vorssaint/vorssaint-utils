@@ -757,9 +757,7 @@ final class CommandBarService: ObservableObject {
     private var usageCache: [String: CommandBarUse] = [:]
     /// Cached like the pins: read once per open, checked on every keystroke.
     private var compactMode = false
-    /// Empty until they pick an engine in Settings, so a query never leaves
-    /// for a vendor they did not choose.
-    private var webSearchEngine: CommandBarWebSearch.Engine?
+    private var webSearchEngine = CommandBarWebSearch.defaultEngine
     /// The list was asked for anyway, through `peekHome()`. Cleared on the
     /// next open.
     private var isPeekingHome = false
@@ -1555,10 +1553,9 @@ final class CommandBarService: ObservableObject {
             if result.count >= 12 { break }
         }
         if isEnabled(.webSearch),
-           let engine = webSearchEngine,
-           CommandBarWebSearch.shouldOffer(query: trimmed, inCategory: false, engine: engine),
+           CommandBarWebSearch.shouldOffer(query: trimmed, inCategory: false),
            !hidden.contains(CommandBarWebSearch.rowID),
-           let webSearch = CommandBarCatalog.webSearchEntry(for: trimmed, engine: engine, bar: bar) {
+           let webSearch = CommandBarCatalog.webSearchEntry(for: trimmed, engine: webSearchEngine, bar: bar) {
             result.append(webSearch)
         }
         return result

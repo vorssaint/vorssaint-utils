@@ -17,7 +17,7 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarRowShortcuts) private var rowShortcutsRaw = ""
     @AppStorage(DefaultsKey.commandBarFileScopes) private var fileScopesRaw = ""
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
-    @AppStorage(DefaultsKey.commandBarWebSearchEngine) private var webSearchEngineRaw = ""
+    @AppStorage(DefaultsKey.commandBarWebSearchEngine) private var webSearchEngineRaw = CommandBarWebSearch.Engine.duckDuckGo.rawValue
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
     @State private var showsFileOptions = false
@@ -128,7 +128,6 @@ struct CommandBarSettings: View {
 
             Section {
                 Picker(text.webSearchEngineLabel, selection: $webSearchEngineRaw) {
-                    Text(text.webSearchEngineNone).tag("")
                     ForEach(CommandBarWebSearch.Engine.allCases) { engine in
                         Text(engine.title).tag(engine.rawValue)
                     }

@@ -46,13 +46,14 @@ enum CommandBarHome {
 /// Spotlight and Raycast's last row: search the web for what was typed.
 enum CommandBarWebSearch {
     static let rowID = "websearch.fallback"
+    static let defaultEngine: Engine = .duckDuckGo
 
-    /// Stored ids for the engine the person picked. Empty in Settings means
-    /// none, and that is how the bar ships: it does not search the web until
-    /// they choose.
+    /// Stored ids for the engine the person picked. DuckDuckGo is the
+    /// setting out of the box; Google is there if they want it.
     enum Engine: String, CaseIterable, Identifiable {
-        case google
         case duckDuckGo = "duckduckgo"
+        case kagi
+        case google
         case bing
         case ecosia
 
@@ -61,8 +62,9 @@ enum CommandBarWebSearch {
         /// Brand names, left as the engine writes them.
         var title: String {
             switch self {
-            case .google: return "Google"
             case .duckDuckGo: return "DuckDuckGo"
+            case .kagi: return "Kagi"
+            case .google: return "Google"
             case .bing: return "Bing"
             case .ecosia: return "Ecosia"
             }
@@ -70,21 +72,21 @@ enum CommandBarWebSearch {
 
         var endpoint: String {
             switch self {
-            case .google: return "https://www.google.com/search"
             case .duckDuckGo: return "https://duckduckgo.com/"
+            case .kagi: return "https://kagi.com/search"
+            case .google: return "https://www.google.com/search"
             case .bing: return "https://www.bing.com/search"
             case .ecosia: return "https://www.ecosia.org/search"
             }
         }
     }
 
-    static func engine(from raw: String?) -> Engine? {
-        guard let raw, !raw.isEmpty else { return nil }
-        return Engine(rawValue: raw)
+    static func engine(from raw: String?) -> Engine {
+        if let raw, let engine = Engine(rawValue: raw) { return engine }
+        return defaultEngine
     }
 
-    static func shouldOffer(query: String, inCategory: Bool, engine: Engine?) -> Bool {
-        guard engine != nil else { return false }
+    static func shouldOffer(query: String, inCategory: Bool) -> Bool {
         guard !inCategory else { return false }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }

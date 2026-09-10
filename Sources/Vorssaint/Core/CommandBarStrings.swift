@@ -168,7 +168,6 @@ struct CommandBarFeatureStrings {
     let sourceWebSearch: String
     let webSearchTitleFormat: String
     let webSearchEngineLabel: String
-    let webSearchEngineNone: String
     let webSearchEngineCaption: String
 }
 
@@ -355,8 +354,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Web search",
         webSearchTitleFormat: "Search the web for \"%@\"",
         webSearchEngineLabel: "Search engine",
-        webSearchEngineNone: "Choose one",
-        webSearchEngineCaption: "Until you pick one, the bar does not search the web.")
+        webSearchEngineCaption: "The last result opens this engine in your browser.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -520,8 +518,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Busca na web",
         webSearchTitleFormat: "Buscar na web por \"%@\"",
         webSearchEngineLabel: "Mecanismo de busca",
-        webSearchEngineNone: "Escolha um",
-        webSearchEngineCaption: "Até você escolher um, a barra não busca na web.")
+        webSearchEngineCaption: "O último resultado abre este mecanismo no navegador.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -685,8 +682,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Web araması",
         webSearchTitleFormat: "Web’de \"%@\" ara",
         webSearchEngineLabel: "Arama motoru",
-        webSearchEngineNone: "Birini seçin",
-        webSearchEngineCaption: "Birini seçene kadar çubuk web’de aramaz.")
+        webSearchEngineCaption: "Son sonuç bu motoru tarayıcıda açar.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -850,8 +846,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Поиск в интернете",
         webSearchTitleFormat: "Искать в интернете «%@»",
         webSearchEngineLabel: "Поисковая система",
-        webSearchEngineNone: "Выберите",
-        webSearchEngineCaption: "Пока вы не выберете, строка не ищет в интернете.")
+        webSearchEngineCaption: "Последний результат открывает эту систему в браузере.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -1015,8 +1010,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Búsqueda web",
         webSearchTitleFormat: "Buscar en la web \"%@\"",
         webSearchEngineLabel: "Motor de búsqueda",
-        webSearchEngineNone: "Elige uno",
-        webSearchEngineCaption: "Hasta que elijas uno, la barra no busca en la web.")
+        webSearchEngineCaption: "El último resultado abre este motor en el navegador.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1180,8 +1174,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Websuche",
         webSearchTitleFormat: "Im Web nach „%@“ suchen",
         webSearchEngineLabel: "Suchmaschine",
-        webSearchEngineNone: "Eine wählen",
-        webSearchEngineCaption: "Bis du eine wählst, sucht die Leiste nicht im Web.")
+        webSearchEngineCaption: "Das letzte Ergebnis öffnet diese Suchmaschine im Browser.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1345,8 +1338,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Recherche web",
         webSearchTitleFormat: "Rechercher «\u{00A0}%@\u{00A0}» sur le web",
         webSearchEngineLabel: "Moteur de recherche",
-        webSearchEngineNone: "Choisissez-en un",
-        webSearchEngineCaption: "Tant que vous n’en avez pas choisi, la barre ne cherche pas sur le web.")
+        webSearchEngineCaption: "Le dernier résultat ouvre ce moteur dans le navigateur.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1510,8 +1502,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "Ricerca web",
         webSearchTitleFormat: "Cerca sul web \"%@\"",
         webSearchEngineLabel: "Motore di ricerca",
-        webSearchEngineNone: "Scegline uno",
-        webSearchEngineCaption: "Finché non ne scegli uno, la barra non cerca sul web.")
+        webSearchEngineCaption: "L’ultimo risultato apre questo motore nel browser.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1675,8 +1666,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "ウェブ検索",
         webSearchTitleFormat: "ウェブで「%@」を検索",
         webSearchEngineLabel: "検索エンジン",
-        webSearchEngineNone: "選んでください",
-        webSearchEngineCaption: "選ぶまで、バーはウェブを検索しません。")
+        webSearchEngineCaption: "最後の結果はこのエンジンをブラウザで開きます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1840,8 +1830,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "웹 검색",
         webSearchTitleFormat: "웹에서 \"%@\" 검색",
         webSearchEngineLabel: "검색 엔진",
-        webSearchEngineNone: "하나를 선택",
-        webSearchEngineCaption: "고르기 전에는 막대가 웹을 검색하지 않습니다.")
+        webSearchEngineCaption: "마지막 결과는 이 엔진을 브라우저에서 엽니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -2005,8 +1994,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "网页搜索",
         webSearchTitleFormat: "在网上搜索“%@”",
         webSearchEngineLabel: "搜索引擎",
-        webSearchEngineNone: "请选择",
-        webSearchEngineCaption: "选定之前，命令栏不会搜索网页。")
+        webSearchEngineCaption: "最后一项会在浏览器中打开这个搜索引擎。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2170,8 +2158,7 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "網頁搜尋",
         webSearchTitleFormat: "在網路上搜尋「%@」",
         webSearchEngineLabel: "搜尋引擎",
-        webSearchEngineNone: "請選擇",
-        webSearchEngineCaption: "選定之前，命令列不會搜尋網頁。")
+        webSearchEngineCaption: "最後一項會在瀏覽器中開啟這個搜尋引擎。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2335,6 +2322,5 @@ extension CommandBarFeatureStrings {
         sourceWebSearch: "網頁搜尋",
         webSearchTitleFormat: "在網路上搜尋「%@」",
         webSearchEngineLabel: "搜尋引擎",
-        webSearchEngineNone: "請選擇",
-        webSearchEngineCaption: "選定之前，命令列不會搜尋網頁。")
+        webSearchEngineCaption: "最後一項會在瀏覽器中開啟這個搜尋引擎。")
 }
