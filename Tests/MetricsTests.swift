@@ -18869,25 +18869,42 @@ struct MetricsTests {
                    "custom bindings require an exact modifier match")
             expect(resolve(.init(keyCode: Int64(kVK_ANSI_5), modifiers: []), number: 5) == nil,
                    "a rebound tool no longer answers to its old digit")
-            expect(resolve(one, number: 1, bindings: "text=\(one.storageValue)") == .text
-                && Tool.effectiveShortcut(for: .select, orderRaw: nil,
-                    bindingsRaw: "text=\(one.storageValue)", enabled: true) == nil,
-                   "an imported binding wins over a digit and removes the displaced badge")
             expect(resolve(.init(keyCode: Int64(kVK_ANSI_5), modifiers: []), number: 5,
                            bindings: "text=command:8") == .text,
                    "a rejected reserved binding falls back to the position digit")
-            expect(Tool.bindingConflict(for: text, excluding: .arrow, orderRaw: nil, bindingsRaw: raw) == .text
-                && Tool.bindingConflict(for: one, excluding: .text, orderRaw: nil, bindingsRaw: raw) == .select
-                && Tool.bindingConflict(for: text, excluding: .text, orderRaw: nil, bindingsRaw: raw) == nil,
-                   "conflicts include other bindings and position digits but exclude the tool itself")
+            // Every outside owner is injected: the real checks read defaults
+            // and the WindowServer, and the order is the point under test.
+            func rejection(_ key: GlobalShortcut, excluding tool: Tool = .arrow,
+                           role: GlobalShortcutRole? = nil, layout: String? = nil,
+                           system: Bool = false) -> Tool.BindingRejection? {
+                Tool.bindingRejection(for: key, excluding: tool, bindingsRaw: raw,
+                                      roleConflict: { _ in role },
+                                      windowLayoutConflict: { _ in layout },
+                                      systemConflict: { _ in system })
+            }
+            expect(rejection(text) == .tool(.text) && rejection(text, excluding: .text) == nil
+                && rejection(pen, excluding: .freehand) == nil,
+                   "a key bound to another tool is rejected and a tool's own key is not")
+            expect(rejection(pen, excluding: .freehand, role: .keepAwake) == .role(.keepAwake)
+                && rejection(pen, excluding: .freehand, layout: "Left") == .windowLayout("Left")
+                && rejection(pen, excluding: .freehand, system: true) == .system,
+                   "keys owned by an enabled feature, a window layout action or macOS are rejected before saving")
+            expect(rejection(.init(keyCode: Int64(kVK_Escape), modifiers: []), role: .keepAwake) == .reserved
+                && rejection(text, role: .keepAwake, system: true) == .tool(.text)
+                && rejection(pen, excluding: .freehand, role: .keepAwake, layout: "Left") == .role(.keepAwake)
+                && rejection(pen, excluding: .freehand, layout: "Left", system: true) == .windowLayout("Left"),
+                   "editor keys and tools answer first and the system table is read last")
             for (index, tool) in Tool.allCases.enumerated() {
                 expect(Tool.shortcutTool(keyCode: -1, modifiers: [], number: index + 1,
                         orderRaw: nil, bindingsRaw: "", enabled: true)
                     == Tool.shortcutTool(number: index + 1, orderRaw: nil, enabled: true),
                        "empty bindings preserve position behavior for \(tool)")
-                expect((Tool.effectiveShortcut(for: tool, orderRaw: nil, bindingsRaw: "", enabled: true) != nil)
+                expect((Tool.shortcutLabel(for: tool, orderRaw: nil, bindingsRaw: "", enabled: true) != nil)
                     == (index < Tool.shortcutLimit), "only the first nine tools get default badges")
             }
+            expect(Tool.shortcutLabel(for: .text, orderRaw: nil, bindingsRaw: raw, enabled: true) == text.displayString
+                && Tool.shortcutLabel(for: .text, orderRaw: nil, bindingsRaw: raw, enabled: false) == nil,
+                   "a bound tool's badge shows its caps and disabling shortcuts hides every badge")
             expect(resolve(.init(keyCode: Int64(kVK_ANSI_1), modifiers: .shift), number: 1, bindings: "") == .select,
                    "AZERTY Shift plus a printed digit preserves the existing digit path")
             let moved = Tool.assigningBinding(one, digit: 1, to: .text, orderRaw: nil, bindingsRaw: raw)
@@ -18896,7 +18913,7 @@ struct MetricsTests {
                    "recording a digit moves the tool and clears its custom binding")
             let cleared = Tool.assigningBinding(nil, to: .text, orderRaw: nil, bindingsRaw: raw)
             expect(Tool.ordered(from: cleared.orderRaw).firstIndex(of: .text) == Tool.shortcutLimit
-                && Tool.effectiveShortcut(for: .text, orderRaw: cleared.orderRaw,
+                && Tool.shortcutLabel(for: .text, orderRaw: cleared.orderRaw,
                     bindingsRaw: cleared.bindingsRaw, enabled: true) == nil,
                    "Delete clears the binding and moves the tool outside the numbered slots")
             let rebound = Tool.assigningBinding(text, to: .text, orderRaw: "crop,text", bindingsRaw: "")
@@ -18905,6 +18922,46 @@ struct MetricsTests {
             expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcuts] as? String == ""
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotToolShortcuts),
                    "empty tool bindings are registered and included in settings backups")
+            // What a key "is" comes from what it types on the active layout,
+            // so these pin the layout instead of trusting the test machine's.
+            if let usData = testLayoutData(for: "com.apple.keylayout.US") {
+                GlobalShortcut.refreshLayoutLabels(layoutData: usData)
+                let shiftedOne = GlobalShortcut(keyCode: Int64(kVK_ANSI_1), modifiers: .shift)
+                expect(Tool.shortcutDigit(one) == 1
+                    && Tool.shortcutDigit(.init(keyCode: Int64(kVK_ANSI_Keypad1), modifiers: [])) == 1
+                    && Tool.shortcutDigit(shiftedOne) == nil
+                    && Tool.shortcutDigit(.init(keyCode: Int64(kVK_ANSI_1), modifiers: .command)) == nil
+                    && Tool.shortcutDigit(.init(keyCode: Int64(kVK_ANSI_0), modifiers: [])) == nil
+                    && Tool.shortcutDigit(text) == nil,
+                       "on US a bare or keypad digit names a slot; ⇧1 types !, and ⌘1, 0 and letters do not")
+                expect(Tool.bindings(from: "text=\(one.storageValue)").isEmpty
+                    && resolve(one, number: 1, bindings: "text=\(one.storageValue)") == .select
+                    && Tool.bindings(from: Tool.bindingsStorage([.text: shiftedOne]))[.text] == shiftedOne,
+                       "an imported binding on a digit key is dropped so the digit keeps its slot, ⇧1 stays a key")
+            }
+            if let frenchData = testLayoutData(for: "com.apple.keylayout.French") {
+                GlobalShortcut.refreshLayoutLabels(layoutData: frenchData)
+                let shiftedOne = GlobalShortcut(keyCode: Int64(kVK_ANSI_1), modifiers: .shift)
+                expect(GlobalShortcut.layoutKeyLabel(for: one.keyCode, usesCommand: false) == "&"
+                    && GlobalShortcut.layoutKeyLabel(for: one.keyCode, usesCommand: false, usesShift: true) == "1"
+                    && Tool.shortcutDigit(shiftedOne) == 1 && Tool.shortcutDigit(one) == nil,
+                       "AZERTY reads 1 from Shift on the & key and leaves bare & as a key")
+                let ampersand = Tool.bindingsStorage([.text: one])
+                expect(Tool.bindings(from: ampersand)[.text] == one
+                    && Tool.bindings(from: Tool.bindingsStorage([.text: shiftedOne])).isEmpty
+                    && Tool.bindingRejection(for: one, excluding: .text, bindingsRaw: "",
+                                             roleConflict: { _ in nil }, windowLayoutConflict: { _ in nil },
+                                             systemConflict: { _ in false }) == nil,
+                       "AZERTY records & as a binding with no conflict against 1, and ⇧& is a slot, not a binding")
+                let movedFrench = Tool.assigningBinding(shiftedOne, digit: Tool.shortcutDigit(shiftedOne),
+                                                        to: .text, orderRaw: nil, bindingsRaw: ampersand)
+                expect(Tool.ordered(from: movedFrench.orderRaw).first == .text
+                    && Tool.bindings(from: movedFrench.bindingsRaw).isEmpty
+                    && Tool.shortcutTool(keyCode: shiftedOne.keyCode, modifiers: shiftedOne.modifiers, number: 1,
+                                         orderRaw: movedFrench.orderRaw, bindingsRaw: movedFrench.bindingsRaw,
+                                         enabled: true) == .text,
+                       "AZERTY Shift+& moves the tool into slot 1 instead of saving ⇧&, and then selects it")
+            }
             for layoutID in ["com.apple.keylayout.French", "com.apple.keylayout.Russian"] {
                 if let data = testLayoutData(for: layoutID) {
                     GlobalShortcut.refreshLayoutLabels(layoutData: data)

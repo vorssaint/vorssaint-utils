@@ -611,14 +611,8 @@ struct ScreenshotEditorView: View {
     private func railButton(_ tool: ScreenshotSupport.Tool) -> some View {
         let isActive = model.tool == tool
         let isHovered = hoveredTool == tool
-        let shortcut = ScreenshotSupport.Tool.effectiveShortcut(
+        let shortcutLabel = ScreenshotSupport.Tool.shortcutLabel(
             for: tool, orderRaw: toolOrderRaw, bindingsRaw: bindingsRaw, enabled: toolShortcutsEnabled)
-        let binding = ScreenshotSupport.Tool.bindings(from: bindingsRaw)[tool]
-        let shortcutLabel = shortcut.map { shortcut in
-            binding != nil ? shortcut.displayString
-                : ScreenshotSupport.Tool.shortcutNumber(for: tool, orderRaw: toolOrderRaw,
-                                                       enabled: true).map(String.init) ?? ""
-        }
         return Button {
             commitEditingTextIfNeeded()
             model.tool = tool

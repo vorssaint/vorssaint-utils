@@ -522,16 +522,23 @@ struct GlobalShortcut: Equatable, Hashable {
     /// cannot press. Combinations without Command keep the bare table, which
     /// is what they actually fire on.
     ///
+    /// `usesShift` reads the shifted table instead: what the key types with
+    /// Shift held, which is how AZERTY reaches its digits. Caps never show
+    /// it, since a shortcut prints the bare cap beside ⇧, so only callers
+    /// asking what a press produced pass it.
+    ///
     /// Answered from the cache: deriving a label asks Text Input Services,
     /// which traps the process off the main thread, and the Switcher's tap
     /// asks for one on every key from its own (issue #578).
-    static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool) -> String? {
-        let cacheKey = LayoutLabelKey(keyCode: keyCode, usesCommand: usesCommand)
+    static func layoutKeyLabel(for keyCode: Int64, usesCommand: Bool,
+                               usesShift: Bool = false) -> String? {
+        let cacheKey = LayoutLabelKey(keyCode: keyCode, usesCommand: usesCommand, usesShift: usesShift)
         if let cached = (layoutLabelLock.withLock { layoutLabels[cacheKey] }) {
             return cached
         }
         if Thread.isMainThread {
-            let label = derivedLayoutKeyLabel(for: keyCode, usesCommand: usesCommand)
+            let label = derivedLayoutKeyLabel(for: keyCode, usesCommand: usesCommand,
+                                              usesShift: usesShift)
             layoutLabelLock.withLock { layoutLabels[cacheKey] = label }
             return label
         }
@@ -541,6 +548,7 @@ struct GlobalShortcut: Equatable, Hashable {
     private struct LayoutLabelKey: Hashable {
         let keyCode: Int64
         let usesCommand: Bool
+        let usesShift: Bool
     }
 
     private static let layoutLabelLock = NSLock()
@@ -569,11 +577,15 @@ struct GlobalShortcut: Equatable, Hashable {
         var labels: [LayoutLabelKey: String] = [:]
         for keyCode in UInt16(0)...127 {
             for usesCommand in [false, true] {
-                if let label = derivedLayoutKeyLabel(for: keyCode,
-                                                     layoutData: layoutData,
-                                                     usesCommand: usesCommand) {
-                    labels[LayoutLabelKey(keyCode: Int64(keyCode),
-                                          usesCommand: usesCommand)] = label
+                for usesShift in [false, true] {
+                    if let label = derivedLayoutKeyLabel(for: keyCode,
+                                                         layoutData: layoutData,
+                                                         usesCommand: usesCommand,
+                                                         usesShift: usesShift) {
+                        labels[LayoutLabelKey(keyCode: Int64(keyCode),
+                                              usesCommand: usesCommand,
+                                              usesShift: usesShift)] = label
+                    }
                 }
             }
         }
@@ -581,11 +593,13 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     private static func derivedLayoutKeyLabel(for keyCode: Int64,
-                                              usesCommand: Bool) -> String? {
+                                              usesCommand: Bool,
+                                              usesShift: Bool) -> String? {
         guard let code = UInt16(exactly: keyCode),
               let layoutData = currentLayoutData()
         else { return nil }
-        return derivedLayoutKeyLabel(for: code, layoutData: layoutData, usesCommand: usesCommand)
+        return derivedLayoutKeyLabel(for: code, layoutData: layoutData,
+                                     usesCommand: usesCommand, usesShift: usesShift)
     }
 
     /// The layout the keycaps are read from. An input method answers the
@@ -617,13 +631,15 @@ struct GlobalShortcut: Equatable, Hashable {
 
     private static func derivedLayoutKeyLabel(for code: UInt16,
                                               layoutData: Data,
-                                              usesCommand: Bool) -> String? {
+                                              usesCommand: Bool,
+                                              usesShift: Bool) -> String? {
         var deadKeyState: UInt32 = 0
         var chars = [UniChar](repeating: 0, count: 4)
         var length = 0
         // UCKeyTranslate wants the modifier state already shifted down out of
         // the Carbon event's high byte.
-        let modifierState = usesCommand ? UInt32((cmdKey >> 8) & 0xFF) : 0
+        let modifierState = (usesCommand ? UInt32((cmdKey >> 8) & 0xFF) : 0)
+            | (usesShift ? UInt32((shiftKey >> 8) & 0xFF) : 0)
         let status = layoutData.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> OSStatus in
             guard let layout = bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress
             else { return OSStatus(paramErr) }

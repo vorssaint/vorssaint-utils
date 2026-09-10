@@ -130,17 +130,18 @@ struct ScreenshotToolOrderControls: View {
     }
 
     private func shortcutRecorder(for tool: ScreenshotSupport.Tool) -> some View {
-        let shortcut = ScreenshotSupport.Tool.effectiveShortcut(
-            for: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw, enabled: true)
         let binding = ScreenshotSupport.Tool.bindings(from: bindingsRaw)[tool]
-        let numberTitle = ScreenshotSupport.Tool.shortcutNumber(
-            for: tool, orderRaw: orderRaw, enabled: shortcut != nil).map(String.init)
+        // The position digit is a title, not a shortcut: the field shows it
+        // as its empty state so nothing else (Delete, reset) treats it as a
+        // recorded key.
+        let label = ScreenshotSupport.Tool.shortcutLabel(
+            for: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw, enabled: true)
         return ShortcutRecorderButton(
-            shortcut: shortcut ?? .keepAwakeDefault,
+            shortcut: binding ?? .keepAwakeDefault,
             isEnabled: true,
             waitingTitle: l10n.s.shortcutPressKeys,
             requiresModifier: false,
-            emptyTitle: binding == nil ? (numberTitle ?? l10n.s.shortcutNone) : nil,
+            emptyTitle: binding == nil ? (label ?? l10n.s.shortcutNone) : nil,
             clearAction: { assign(nil, to: tool) },
             notCapturedAction: { errorText = l10n.s.shortcutNotCaptured },
             recordingChanged: { recording in
@@ -164,24 +165,31 @@ struct ScreenshotToolOrderControls: View {
         }
     }
 
+    /// A digit moves the tool and skips every conflict check. Anything else
+    /// has to be free before it is saved; a rejection leaves the previous
+    /// binding in place and says who owns the key.
     private func assign(_ shortcut: GlobalShortcut?, to tool: ScreenshotSupport.Tool) {
-        let digit = shortcut.flatMap { shortcut in
-            shortcut.modifiers.isEmpty ? Int(shortcut.displayString) : nil
-        }.flatMap { (1...ScreenshotSupport.Tool.shortcutLimit).contains($0) ? $0 : nil }
-        if let shortcut {
-            let reason: String?
-            if ScreenshotSupport.Tool.isReservedEditorKey(shortcut) {
+        let digit = shortcut.flatMap(ScreenshotSupport.Tool.shortcutDigit)
+        if let shortcut, digit == nil, let rejection = ScreenshotSupport.Tool.bindingRejection(
+            for: shortcut, excluding: tool, bindingsRaw: bindingsRaw,
+            roleConflict: { GlobalShortcutRole.conflict(for: $0, excluding: nil) },
+            windowLayoutConflict: { WindowLayoutService.shared.shortcutConflictTitle($0) },
+            systemConflict: { $0.conflictsWithSystemShortcut }) {
+            let reason: String
+            switch rejection {
+            case .reserved:
                 reason = strings.toolShortcutReserved
-            } else if digit == nil, let conflict = ScreenshotSupport.Tool.bindingConflict(
-                for: shortcut, excluding: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw) {
-                reason = String(format: l10n.s.shortcutConflictFormat, conflict.screenshotTitle(strings))
-            } else {
-                reason = nil
+            case .tool(let other):
+                reason = String(format: l10n.s.shortcutConflictFormat, other.screenshotTitle(strings))
+            case .role(let role):
+                reason = String(format: l10n.s.shortcutConflictFormat, role.title(l10n.s))
+            case .windowLayout(let title):
+                reason = String(format: l10n.s.shortcutConflictFormat, title)
+            case .system:
+                reason = String(format: l10n.s.shortcutConflictFormat, "macOS")
             }
-            if let reason {
-                errorText = tool.screenshotTitle(strings) + " · " + shortcut.displayString + "\n" + reason
-                return
-            }
+            errorText = tool.screenshotTitle(strings) + " · " + shortcut.displayString + "\n" + reason
+            return
         }
         let assignment = ScreenshotSupport.Tool.assigningBinding(
             shortcut, digit: digit, to: tool, orderRaw: orderRaw, bindingsRaw: bindingsRaw)

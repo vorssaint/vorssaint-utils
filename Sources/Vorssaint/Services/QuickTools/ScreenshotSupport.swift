@@ -1201,9 +1201,13 @@ enum ScreenshotSupport {
             var result: [Tool: GlobalShortcut] = [:]
             for entry in (raw ?? "").split(separator: ",") {
                 let pair = entry.split(separator: "=", maxSplits: 1)
+                // A key that types a digit on the active layout is a rail
+                // position, never a binding, so an imported one is dropped
+                // the same way a reserved key is. Otherwise pressing that
+                // digit would pick a different tool than the badge shows.
                 guard pair.count == 2, let tool = Tool(rawValue: String(pair[0])),
                       let shortcut = GlobalShortcut(storageValue: String(pair[1]), requiringModifier: false),
-                      !isReservedEditorKey(shortcut) else { continue }
+                      !isReservedEditorKey(shortcut), shortcutDigit(shortcut) == nil else { continue }
                 result[tool] = shortcut
             }
             // Edited backups can contain duplicate bindings. Keep one owner,
@@ -1249,25 +1253,65 @@ enum ScreenshotSupport {
             return tool
         }
 
-        static func effectiveShortcut(for tool: Tool, orderRaw: String?,
-                                      bindingsRaw: String?, enabled: Bool) -> GlobalShortcut? {
-            guard enabled else { return nil }
-            let bindings = bindings(from: bindingsRaw)
-            if let shortcut = bindings[tool] { return shortcut }
-            guard let number = shortcutNumber(for: tool, orderRaw: orderRaw, enabled: true)
+        /// The rail slot a recorded key names, read from what the key types
+        /// on the active layout rather than from its position: AZERTY's 1 is
+        /// Shift on the & key, so the physical code alone would record a
+        /// ⇧& binding while the editor keeps answering the typed digit. Shift
+        /// is the only modifier allowed, matching the editor's digit path,
+        /// which also tolerates it and nothing else. Without a readable
+        /// layout the bare cap stands in, the way every other label does.
+        static func shortcutDigit(_ shortcut: GlobalShortcut) -> Int? {
+            guard !shortcut.modifiers.hasPrimaryModifier else { return nil }
+            let shifted = shortcut.modifiers.contains(.shift)
+            let typed = GlobalShortcut.layoutKeyLabel(for: shortcut.keyCode, usesCommand: false,
+                                                      usesShift: shifted)
+                ?? (shifted ? nil : shortcut.displayString)
+            guard let typed, let digit = Int(typed), (1...shortcutLimit).contains(digit)
             else { return nil }
-            let codes = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
-                         kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
-            let shortcut = GlobalShortcut(keyCode: Int64(codes[number - 1]), modifiers: [])
-            return bindings.values.contains(shortcut) ? nil : shortcut
+            return digit
         }
 
-        static func bindingConflict(for shortcut: GlobalShortcut, excluding tool: Tool,
-                                    orderRaw: String?, bindingsRaw: String?) -> Tool? {
-            allCases.first { other in
-                other != tool && effectiveShortcut(for: other, orderRaw: orderRaw,
-                    bindingsRaw: bindingsRaw, enabled: true) == shortcut
+        /// What the rail badge and the recorder show for a tool: its own
+        /// binding's caps, or the position digit of an unbound tool in the
+        /// first nine.
+        static func shortcutLabel(for tool: Tool, orderRaw: String?,
+                                  bindingsRaw: String?, enabled: Bool) -> String? {
+            guard enabled else { return nil }
+            if let binding = bindings(from: bindingsRaw)[tool] { return binding.displayString }
+            return shortcutNumber(for: tool, orderRaw: orderRaw, enabled: true).map(String.init)
+        }
+
+        /// Why a recorded key cannot become a binding, or nil when it can.
+        /// Digits never get here: they move the tool instead. The outside
+        /// checks are the same three every shortcut field runs, passed in by
+        /// the field so the order and the early return are testable without
+        /// defaults or the WindowServer. Recording silences those owners, so
+        /// the key records fine and then fires them once the field lets go:
+        /// macOS and the app's global taps answer before the editor's window
+        /// monitor ever sees the press. The system table is asked last
+        /// because it is the one read that leaves the process.
+        enum BindingRejection: Equatable {
+            case reserved
+            case tool(Tool)
+            case role(GlobalShortcutRole)
+            case windowLayout(String)
+            case system
+        }
+
+        static func bindingRejection(
+            for shortcut: GlobalShortcut, excluding tool: Tool, bindingsRaw: String?,
+            roleConflict: (GlobalShortcut) -> GlobalShortcutRole?,
+            windowLayoutConflict: (GlobalShortcut) -> String?,
+            systemConflict: (GlobalShortcut) -> Bool
+        ) -> BindingRejection? {
+            if isReservedEditorKey(shortcut) { return .reserved }
+            let bindings = bindings(from: bindingsRaw)
+            if let other = allCases.first(where: { $0 != tool && bindings[$0] == shortcut }) {
+                return .tool(other)
             }
+            if let role = roleConflict(shortcut) { return .role(role) }
+            if let title = windowLayoutConflict(shortcut) { return .windowLayout(title) }
+            return systemConflict(shortcut) ? .system : nil
         }
 
         /// A recorded digit moves the tool; clearing moves it below the first
