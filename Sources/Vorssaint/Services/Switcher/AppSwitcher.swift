@@ -1022,7 +1022,7 @@ final class AppSwitcher: ObservableObject {
         if pending.commitWhenReady {
             commitSession()
         } else if capturesPreviews {
-            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 420 * PreviewSizing.scale) { [weak self] windowID, image in
+            WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.scale) { [weak self] windowID, image in
                 guard let self,
                       self.sessionActive,
                       self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
@@ -1540,12 +1540,14 @@ final class AppSwitcher: ObservableObject {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.previewBatchWorkItem = nil
-            guard self.sessionActive, !self.pendingPreviewUpdates.isEmpty else {
-                self.pendingPreviewUpdates.removeAll()
-                return
-            }
-            let updates = self.pendingPreviewUpdates
+            guard self.sessionActive else { return }
+            // The listing is re-checked here, not only when the capture landed:
+            // closing a window or quitting an app drops its thumbnail, and a
+            // capture that arrived just before must not put it back.
+            let listed = Set(self.sessionItems.compactMap(\.previewWindowID))
+            let updates = self.pendingPreviewUpdates.filter { listed.contains($0.key) }
             self.pendingPreviewUpdates.removeAll()
+            guard !updates.isEmpty else { return }
             self.previews.merge(updates) { _, new in new }
         }
         previewBatchWorkItem = work
