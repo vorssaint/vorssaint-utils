@@ -737,6 +737,7 @@ extension Strings {
         monitorShowGPUTemperature: "GPU sıcaklığı",
         monitorShowBatteryTemperature: "Pil sıcaklığı",
         monitorShowPeripheralBattery: "Çevre birimi pili",
+        monitorShowSpace: "Space",
         peripheralBatteryNoDevices: "Aygıt bulunamadı",
         monitorGraphsSection: "Grafikler",
         monitorGraphsCaption: "Hangi metriklerin zaman içinde grafik göstereceğini seç.",

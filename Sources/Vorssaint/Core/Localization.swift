@@ -882,6 +882,7 @@ struct Strings {
     let monitorShowGPUTemperature: String
     let monitorShowBatteryTemperature: String
     let monitorShowPeripheralBattery: String
+    let monitorShowSpace: String
     let peripheralBatteryNoDevices: String
     let monitorGraphsSection: String
     let monitorGraphsCaption: String
@@ -1904,6 +1905,7 @@ extension Strings {
         monitorShowGPUTemperature: "Temperatura da GPU",
         monitorShowBatteryTemperature: "Temperatura da bateria",
         monitorShowPeripheralBattery: "Bateria dos periféricos",
+        monitorShowSpace: "Espaço",
         peripheralBatteryNoDevices: "Nenhum periférico encontrado",
         monitorGraphsSection: "Gráficos",
         monitorGraphsCaption: "Escolha quais métricas mostram um gráfico ao longo do tempo.",
@@ -2916,6 +2918,7 @@ extension Strings {
         monitorShowGPUTemperature: "GPU temperature",
         monitorShowBatteryTemperature: "Battery temperature",
         monitorShowPeripheralBattery: "Peripheral battery",
+        monitorShowSpace: "Space",
         peripheralBatteryNoDevices: "No devices found",
         monitorGraphsSection: "Graphs",
         monitorGraphsCaption: "Choose which metrics show a graph over time.",

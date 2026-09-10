@@ -394,7 +394,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showMetricPanel(for metric: MenuBarMetric, anchoredTo button: NSStatusBarButton) {
-        let detailKind = metric.detailKind
+        guard let detailKind = metric.detailKind else {
+            // Space has no panel section; open the main menu like the app icon.
+            MenuPanelFocus.shared.clearMetricFocus()
+            if popover.isShown {
+                closePopover(animated: false)
+                return
+            }
+            showPopover(anchor: button)
+            return
+        }
         if popover.isShown {
             if MenuPanelFocus.shared.activeMetric == detailKind {
                 metricAnchorSwitchSerial &+= 1

@@ -737,6 +737,7 @@ extension Strings {
         monitorShowGPUTemperature: "Temperatura de GPU",
         monitorShowBatteryTemperature: "Temperatura de batería",
         monitorShowPeripheralBattery: "Batería de periféricos",
+        monitorShowSpace: "Espacio",
         peripheralBatteryNoDevices: "No se encontraron periféricos",
         monitorGraphsSection: "Gráficas",
         monitorGraphsCaption: "Elige qué métricas muestran una gráfica a lo largo del tiempo.",

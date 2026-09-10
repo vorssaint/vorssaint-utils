@@ -90,7 +90,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
 }
 
 extension MenuBarMetric {
-    var detailKind: MetricDetailKind {
+    /// Nil for Space: there is no monitor panel section for Mission Control.
+    var detailKind: MetricDetailKind? {
         switch self {
         case .cpu, .cpuTemperature:
             return .cpu
@@ -108,6 +109,8 @@ extension MenuBarMetric {
             return .power
         case .fanSpeed:
             return .fan
+        case .space:
+            return nil
         }
     }
 }
