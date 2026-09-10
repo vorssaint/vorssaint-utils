@@ -23,6 +23,7 @@ enum DefaultsKey {
     static let updateShowcaseMediaOverride = "updateShowcaseMediaOverride"
     static let defaultDuration = "defaultDurationMinutes" // 0 = indefinite
     static let batteryLimit = "batteryLimitPercent"       // 0 = never
+    static let thermalLimit = "thermalLimitCelsius"       // 0 = never
     static let keepAwakeAutoStart = "keepAwakeAutoStart"  // start Keep Awake when the app launches
     static let keepAwakeRightClickToggle = "keepAwakeRightClickToggle"
     static let keepAwakeAllowDisplaySleep = "keepAwakeAllowDisplaySleep"
@@ -1043,6 +1044,7 @@ enum Defaults {
     static let allowedDurations = [0, 15, 30, 60, 120, 240, 480]
     static let allowedKeepAwakeMouseJiggleIntervals = [1, 2, 5, 10, 15]
     static let allowedBatteryLimits = [0, 5, 10, 15, 20]
+    static let allowedThermalLimits = [0, 35, 40, 45, 50]
     static let allowedMonitorIntervals = [1, 2, 5]
     static let defaultKeyboardDebounceWindowMs = 5
     static let defaultSnippetSoundName = "Tink"
@@ -1082,6 +1084,7 @@ enum Defaults {
         DefaultsKey.dimScreenOnLidClose: false,
         DefaultsKey.defaultDuration: 0,
         DefaultsKey.batteryLimit: 10,
+        DefaultsKey.thermalLimit: 45,
         DefaultsKey.keepAwakeAutoStart: false,
         DefaultsKey.keepAwakeRightClickToggle: false,
         DefaultsKey.keepAwakeAllowDisplaySleep: false,
@@ -2131,6 +2134,10 @@ enum Defaults {
 
     static func sanitizedBatteryLimit(_ percent: Int) -> Int {
         allowedBatteryLimits.contains(percent) ? percent : 10
+    }
+
+    static func sanitizedThermalLimit(_ celsius: Int) -> Int {
+        allowedThermalLimits.contains(celsius) ? celsius : 45
     }
 
     static func sanitizedKeepAwakeMouseJiggleInterval(_ minutes: Int) -> Int {

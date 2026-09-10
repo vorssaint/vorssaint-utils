@@ -994,7 +994,7 @@ final class SystemMonitor: ObservableObject {
         let all = client.keys { name in
             TemperatureSensorSelector.isCPUTemperatureKey(name, platform: cpuTemperaturePlatform)
                 || name.hasPrefix("Tg")
-                || name.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+                || TemperatureSensorSelector.isBatteryTemperatureKey(name)
         }
         cpuKeys = all.filter {
             TemperatureSensorSelector.isCPUTemperatureKey($0.name,
@@ -1010,7 +1010,7 @@ final class SystemMonitor: ObservableObject {
         let preferredNames = Set(preferredCPUKeys.map(\.name))
         fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
-        batteryKeys = all.filter { $0.name.hasPrefix("TB") }
+        batteryKeys = all.filter { TemperatureSensorSelector.isBatteryTemperatureKey($0.name) }
     }
 
     static let fanTelemetryCount: Int = {
@@ -1062,11 +1062,7 @@ final class SystemMonitor: ObservableObject {
 
     private func maxTemperature(of keys: [SMCClient.Key]) -> Double? {
         guard let smc else { return nil }
-        let values = keys.compactMap { key -> Double? in
-            guard let v = smc.readValue(key), v > 1, v < 125 else { return nil }
-            return v
-        }
-        return values.max()
+        return TemperatureSensorSelector.hottestPlausibleReading(keys.map { smc.readValue($0) })
     }
 
     // MARK: - CPU usage

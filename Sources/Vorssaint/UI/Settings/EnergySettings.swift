@@ -24,6 +24,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.bluetoothSleepRestoreOnWake) private var bluetoothSleepRestoreOnWake = true
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
+    @AppStorage(DefaultsKey.thermalLimit) private var thermalLimit = 45
+    @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
@@ -74,6 +76,7 @@ struct EnergySettings: View {
         .onAppear {
             defaultDuration = Defaults.sanitizedDefaultDuration(defaultDuration)
             batteryLimit = Defaults.sanitizedBatteryLimit(batteryLimit)
+            thermalLimit = Defaults.sanitizedThermalLimit(thermalLimit)
             keepAwakeIconTint = Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint).rawValue
             keepAwakeActiveIcon = Defaults.sanitizedKeepAwakeActiveIcon(keepAwakeActiveIcon).rawValue
             keepAwakeMouseJiggleInterval = Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)
@@ -261,6 +264,19 @@ struct EnergySettings: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                 }
+                if BatteryTemperatureSampler.isSupported {
+                    SettingsRow(symbol: "thermometer.high", title: l10n.s.thermalDisableAbove,
+                                caption: l10n.s.thermalProtectionCaption) {
+                        Picker(l10n.s.thermalDisableAbove, selection: $thermalLimit) {
+                            Text(l10n.s.batteryNever).tag(0)
+                            ForEach(Defaults.allowedThermalLimits.dropFirst(), id: \.self) { celsius in
+                                Text(temperatureLabel(celsius)).tag(celsius)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                }
             }
             Divider()
             SettingsRow(symbol: "laptopcomputer", title: l10n.s.clamshellTitle, caption: clamshellCaption) {
@@ -283,6 +299,11 @@ struct EnergySettings: View {
                 .padding(.leading, settingsRowTextInset)
             }
         }
+    }
+
+    private func temperatureLabel(_ celsius: Int) -> String {
+        MetricFormat.temperature(Double(celsius),
+                                 unit: TemperatureUnit(rawValue: temperatureUnit) ?? .celsius)
     }
 
     private var clamshellCaption: String {
