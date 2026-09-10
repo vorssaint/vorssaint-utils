@@ -35,6 +35,8 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
+    @AppStorage(DefaultsKey.screenshotToolShortcutStyle) private var toolShortcutStyle =
+        ScreenshotSupport.ShortcutStyle.number
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = false
@@ -179,7 +181,8 @@ struct ScreenshotCaptureSettings: View {
 
             Section {
                 ScreenshotToolOrderControls(orderRaw: $toolOrderRaw,
-                                            shortcutsEnabled: $toolShortcutsEnabled,
+                                            enabled: $toolShortcutsEnabled,
+                                            style: $toolShortcutStyle,
                                             showsTitle: false)
             } header: {
                 Text(strings.toolShortcutsTitle)

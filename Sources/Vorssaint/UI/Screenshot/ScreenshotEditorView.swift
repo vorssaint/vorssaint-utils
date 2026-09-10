@@ -24,6 +24,8 @@ struct ScreenshotEditorView: View {
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
+    @AppStorage(DefaultsKey.screenshotToolShortcutStyle) private var toolShortcutStyle =
+        ScreenshotSupport.ShortcutStyle.number
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
 
     private var strings: ScreenshotFeatureStrings {
@@ -593,7 +595,9 @@ struct ScreenshotEditorView: View {
             .accessibilityLabel(strings.toolShortcutsTitle)
             .popover(isPresented: $toolOptionsShown, arrowEdge: .leading) {
                 ScreenshotToolOrderControls(orderRaw: $toolOrderRaw,
-                                            shortcutsEnabled: $toolShortcutsEnabled)
+                                            enabled: $toolShortcutsEnabled,
+                                            style: $toolShortcutStyle,
+                                            usesCompactModePicker: true)
                     .padding(14)
                     .frame(width: 340)
             }
@@ -610,10 +614,11 @@ struct ScreenshotEditorView: View {
     private func railButton(_ tool: ScreenshotSupport.Tool) -> some View {
         let isActive = model.tool == tool
         let isHovered = hoveredTool == tool
-        let shortcutNumber = ScreenshotSupport.Tool.shortcutNumber(
+        let shortcutBadge = ScreenshotSupport.Tool.shortcutBadge(
             for: tool,
             orderRaw: toolOrderRaw,
-            enabled: toolShortcutsEnabled)
+            enabled: toolShortcutsEnabled,
+            style: toolShortcutStyle)
         return Button {
             commitEditingTextIfNeeded()
             model.tool = tool
@@ -632,8 +637,8 @@ struct ScreenshotEditorView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .scaleEffect(isHovered && !isActive ? 1.06 : 1)
                 .overlay(alignment: .topTrailing) {
-                    if let shortcutNumber {
-                        Text("\(shortcutNumber)")
+                    if let shortcutBadge {
+                        Text(shortcutBadge)
                             .font(.system(size: 8, weight: .bold, design: .rounded))
                             .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
                             .padding(2)
@@ -648,7 +653,7 @@ struct ScreenshotEditorView: View {
             }
         }
         .screenshotSafeHelp(tool.screenshotTitle(strings)
-            + (shortcutNumber.map { "  (\($0))" } ?? ""))
+            + (shortcutBadge.map { "  (\($0))" } ?? ""))
         .accessibilityLabel(tool.screenshotTitle(strings))
     }
 
