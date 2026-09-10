@@ -638,6 +638,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.brightnessLinkDisplaysEnabled) private var brightnessLinkDisplaysEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
@@ -763,6 +764,9 @@ struct EnergySettings: View {
                                 if isOn { Permissions.shared.requestAccessibility() }
                                 BrightnessService.shared.syncWithPreferences()
                             }
+                        SettingsToggleWithCaption(title: strings.linkDisplaysToggle,
+                                                  caption: strings.linkDisplaysCaption,
+                                                  isOn: $brightnessLinkDisplaysEnabled)
                         if brightness.brightnessOSDSupported {
                             SettingsToggleWithCaption(title: strings.osdToggle,
                                                       caption: strings.osdCaption,
