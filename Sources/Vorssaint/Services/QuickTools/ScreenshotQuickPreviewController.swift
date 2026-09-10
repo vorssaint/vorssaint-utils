@@ -111,12 +111,11 @@ final class ScreenshotQuickPreviewController {
         self.panel = panel
         installKeyMonitor(for: panel)
         panel.orderFrontRegardless()
-        // Default on so ⌘C/⌘S work without a click after capture
-        // (#1463/#1464/#1539/#1555). People who want the keyboard left alone
-        // can turn the preference off (#1089). Activate first: a local key
-        // monitor sees nothing while another app is still frontmost.
+        // Opt-in only. Taking the keyboard on presentation is the bug #1089
+        // reported, so by default a click is still the hand-off; people who
+        // reach for Escape or Enter the moment a capture lands can trade
+        // that for shortcuts that are armed as soon as the preview shows.
         if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus) {
-            NSApp.activate(ignoringOtherApps: true)
             panel.makeKey()
         }
         // A performed action turns the preview into a short confirmation; a
@@ -379,13 +378,13 @@ final class ScreenshotQuickPreviewController {
 private final class ScreenshotQuickPreviewPanel: NSPanel {
     override var canBecomeKey: Bool { true }
 
-    /// The preview shows up after a deliberate capture. Focus is preference-
-    /// gated at presentation (default on); a click still hands the keyboard
-    /// over when focus was left alone. Its shortcuts read a local monitor,
-    /// and that monitor is delivered nothing until this panel is key. The
-    /// hand-off sits in `sendEvent` rather than `mouseDown` because the hosted
-    /// SwiftUI content answers a press on a button itself, and a window's
-    /// `mouseDown` never runs for the clicks a view has taken.
+    /// The preview shows up unasked for, so presenting it leaves the keyboard
+    /// where it was unless the person opted in, and a click is what hands it
+    /// over. Its shortcuts read a local monitor, and that monitor is delivered
+    /// nothing until this panel is key. The hand-off sits in `sendEvent`
+    /// rather than `mouseDown` because the hosted SwiftUI content answers a
+    /// press on a button itself, and a window's `mouseDown` never runs for the
+    /// clicks a view has taken.
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown, !isKeyWindow {
             makeKey()
