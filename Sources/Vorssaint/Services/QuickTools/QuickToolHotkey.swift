@@ -14,6 +14,9 @@ final class QuickToolHotkey {
     private let hotKeyID: UInt32
     private var hotKeyRef: EventHotKeyRef?
     private var registeredShortcut: GlobalShortcut?
+    /// The key the registered combination is stored under, so the take-over
+    /// hears about this hotkey coming and going.
+    private var claimedKey: String?
     var onPress: (() -> Void)?
 
     init(id: UInt32) {
@@ -23,7 +26,7 @@ final class QuickToolHotkey {
     /// Applies the wanted state; returns false when macOS refused the
     /// registration (combination taken by another app).
     @discardableResult
-    func sync(enabled: Bool, shortcut: GlobalShortcut) -> Bool {
+    func sync(enabled: Bool, shortcut: GlobalShortcut, storageKey: String) -> Bool {
         guard enabled else {
             unregister()
             return true
@@ -45,6 +48,8 @@ final class QuickToolHotkey {
         }
         hotKeyRef = ref
         registeredShortcut = shortcut
+        claimedKey = storageKey
+        SystemShortcutTakeover.claim(storageKey, shortcut: shortcut)
         return true
     }
 
@@ -52,6 +57,10 @@ final class QuickToolHotkey {
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
         }
+        if let claimedKey {
+            SystemShortcutTakeover.release(claimedKey)
+        }
+        claimedKey = nil
         hotKeyRef = nil
         registeredShortcut = nil
         Self.instances.removeValue(forKey: hotKeyID)

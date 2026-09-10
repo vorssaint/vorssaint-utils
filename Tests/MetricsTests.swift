@@ -8887,7 +8887,6 @@ struct MetricsTests {
         expect(cased.windowDetail(noOpenWindow: "No window") == nil,
                "the same name in another case is still the same name")
 
-
         // MARK: Shelf tile tooltip
 
         let tooltipStrings = ShelfTooltipStrings(itemsFormat: "%d items", itemsFew: "%d items",
@@ -12483,6 +12482,23 @@ struct MetricsTests {
             owned: legacyMarker, setEnabled: recordRecoveryWrite, persist: { _ in })
         expect(recoveredOwnership == [27, 220] && recoveryWrites == [28],
                "crash recovery gives back stale keys without toggling retained keys or taking new ones")
+        // The switcher is not the only source by the time recovery runs: a
+        // feature that claimed first holds its ids too, so launch keeps what
+        // every source wants together rather than the switcher's ids alone.
+        var earlyClaimWrites: [Int32] = []
+        let earlyClaimOwnership = SystemShortcutTakeoverSupport.apply(
+            SystemShortcutTakeoverSupport.recoveryTransition(
+                from: [1, 28, 30],
+                keeping: SystemShortcutTakeoverSupport.union(
+                    of: ["switcher": [1], "keepAwakeShortcut": [30]])),
+            owned: [1, 28, 30],
+            setEnabled: { id, _ in
+                earlyClaimWrites.append(id)
+                return true
+            },
+            persist: { _ in })
+        expect(earlyClaimOwnership == [1, 30] && earlyClaimWrites == [28],
+               "launch keeps a claim made before recovery ran alongside the switcher's ids")
         // Say the WindowServer refused 28: `apply` leaves it in the marker, so
         // every later transition asks for it again and the give-back finishes
         // at the next take-over or in the next process.
@@ -12529,6 +12545,82 @@ struct MetricsTests {
                "the retry finishes the give-back")
         expect(!writeAheadMissing, "ownership is persisted before every disable")
 
+        // A claimed shortcut resolves to every live id that is exactly that
+        // combination — the two screenshot rows share ⇧⌘ on different keys and
+        // must not be confused; a disabled row still counts, `apply` sorts it out.
+        let liveForClaims: [LiveSystemShortcut] = [
+            LiveSystemShortcut(id: 28, shortcut: GlobalShortcut(keyCode: 20, modifiers: [.command, .shift]), enabled: true),
+            LiveSystemShortcut(id: 30, shortcut: GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]), enabled: true),
+            LiveSystemShortcut(id: 64, shortcut: GlobalShortcut(keyCode: 49, modifiers: [.command]), enabled: false),
+        ]
+        expect(SystemShortcutTakeoverSupport.ids(matching: GlobalShortcut(keyCode: 21, modifiers: [.command, .shift]),
+                                                 in: liveForClaims) == [30]
+               && SystemShortcutTakeoverSupport.ids(matching: GlobalShortcut(keyCode: 49, modifiers: [.command]),
+                                                    in: liveForClaims) == [64]
+               && SystemShortcutTakeoverSupport.ids(matching: .screenshotDefault, in: liveForClaims).isEmpty,
+               "a claimed shortcut maps to exactly the live ids that equal it")
+        expect(SystemShortcutTakeoverSupport.union(of: ["switcher": [1, 2], "screenshotShortcut": [30], "shelf": []]) == [1, 2, 30]
+               && SystemShortcutTakeoverSupport.union(of: [:]).isEmpty,
+               "the service applies what every source wants, together")
+        expect(SystemShortcutTakeoverSupport.transition(from: [1, 30], to: [], currentlyEnabled: [])
+               == SystemShortcutTransition(suppress: [], restore: [1, 30]),
+               "quitting hands back every key any feature took over")
+        // Launch recovery records the ids it kept as the switcher's own, so the
+        // first claim of the launch — a row with no opt-in of its own resolves
+        // to nothing — asks for those ids too and hands none of them back.
+        expect(SystemShortcutTakeoverSupport.transition(
+                   from: [1, 2],
+                   to: SystemShortcutTakeoverSupport.union(of: ["switcher": [1, 2]]),
+                   currentlyEnabled: []) == SystemShortcutTransition(suppress: [], restore: []),
+               "a claim with no opt-in leaves the marker launch recovery is holding alone")
+        // A key already taken over is switched off in the live table, so the
+        // table alone calls it free. What the recorder asks instead counts the
+        // ids the service is holding as macOS's, and falls back to the table
+        // for a key it is not holding.
+        let areaShot = GlobalShortcut(keyCode: 21, modifiers: [.command, .shift])
+        let liveWhileHeld: [LiveSystemShortcut] = [
+            LiveSystemShortcut(id: 30, shortcut: areaShot, enabled: false),
+            LiveSystemShortcut(id: 28, shortcut: GlobalShortcut(keyCode: 20, modifiers: [.command, .shift]), enabled: true),
+        ]
+        let areaShotIsMacOS = SystemShortcutTakeoverSupport.conflictsWithMacOS(
+            areaShot, liveEntries: liveWhileHeld, symbolicHotKeys: nil, held: [30])
+        expect(areaShotIsMacOS
+               && !SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                   areaShot, liveEntries: liveWhileHeld, symbolicHotKeys: nil, held: [1, 2])
+               && SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                   GlobalShortcut(keyCode: 20, modifiers: [.command, .shift]),
+                   liveEntries: liveWhileHeld, symbolicHotKeys: nil, held: []),
+               "a key this app is holding still counts as macOS's, and one it is not holding follows the live table")
+        // The switcher's rows may record the native keys the switcher itself holds
+        // (main permits them per role); every other row sees them as macOS's.
+        let commandTab = GlobalShortcut(keyCode: 48, modifiers: [.command])
+        let liveWithSwitcherKey = [LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: false)]
+        expect(!SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                   commandTab, liveEntries: liveWithSwitcherKey, symbolicHotKeys: nil, held: [1], role: .switcher)
+               && SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                   commandTab, liveEntries: liveWithSwitcherKey, symbolicHotKeys: nil, held: [1], role: nil),
+               "the switcher's own row may record the native key it is holding; any other row sees it as macOS's")
+        // The recorder's one rule for a combination macOS answers: ask unless the
+        // user already agreed to exactly this key on this row; tidy the entry
+        // once the row moves to a key macOS does not want.
+        expect(SystemShortcutTakeoverSupport.recorderDecision(shortcut: areaShot, conflictsWithMacOS: true,
+                                                              takenOver: false, current: .screenshotDefault) == .offer
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: areaShot,
+                                                                 conflictsWithMacOS: areaShotIsMacOS,
+                                                                 takenOver: true, current: areaShot) == .save(clearTakeOver: false)
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: GlobalShortcut(keyCode: 49, modifiers: [.command]),
+                                                                 conflictsWithMacOS: true, takenOver: true, current: areaShot) == .offer
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: areaShot, conflictsWithMacOS: true,
+                                                                 takenOver: true, current: nil) == .offer
+               && SystemShortcutTakeoverSupport.recorderDecision(shortcut: .screenshotDefault, conflictsWithMacOS: false,
+                                                                 takenOver: true, current: areaShot) == .save(clearTakeOver: true),
+               "a taken-over row re-records its own key silently, is asked again for any other macOS key or when no key is recorded, and forgets the take-over when it leaves macOS keys")
+        expect(GlobalShortcutRole.allCases.filter { !$0.supportsTakeOver } == [.switcher, .switcherWindow, .radialMenu]
+               && GlobalShortcutRole.keepAwake.supportsTakeOver && GlobalShortcutRole.finderRename.supportsTakeOver,
+               "only the rows whose key a feature claims may offer to take a macOS shortcut over")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.systemShortcutTakeOverKeys)
+               && registeredDefaults[DefaultsKey.systemShortcutTakeOverKeys] == nil,
+               "which shortcuts to take over is a preference that travels with a settings backup")
         expect(SwitcherSupport.isCurrentActivationGeneration(12, current: 12)
                && !SwitcherSupport.isCurrentActivationGeneration(11, current: 12),
                "App Switcher ignores retries left by an older activation")

@@ -28,7 +28,8 @@ final class PastePlainService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.pastePlainEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
                                             fallback: .pastePlainDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.pastePlainShortcut)
     }
 
     func suspend() {

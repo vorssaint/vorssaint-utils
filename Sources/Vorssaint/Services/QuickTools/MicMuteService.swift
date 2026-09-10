@@ -60,7 +60,8 @@ final class MicMuteService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.micMuteShortcut,
                                             fallback: .micMuteDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.micMuteShortcut)
 
         let wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
         if available {

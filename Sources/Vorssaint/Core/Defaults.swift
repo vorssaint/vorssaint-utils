@@ -79,6 +79,9 @@ enum DefaultsKey {
     // folded into the shared one, and then retired.
     static let switcherNativeHotkeysSuppressed = "switcherNativeHotkeysSuppressed"
     static let systemShortcutsSuppressed = "systemShortcutsSuppressed"
+    // Storage keys of shortcuts the user chose to take over from macOS. A
+    // preference, exported.
+    static let systemShortcutTakeOverKeys = "systemShortcutTakeOverKeys"
     static let switcherShortcut = "switcherShortcut"      // GlobalShortcut storage value
     static let switcherWindowShortcut = "switcherWindowShortcut" // GlobalShortcut storage value
     static let switcherIconRowMode = "switcherIconRowMode"

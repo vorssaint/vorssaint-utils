@@ -308,9 +308,11 @@ final class BrightnessService: ObservableObject {
         let decreaseConflicts = enabled && decreaseShortcut.conflictsWithSystemShortcut
         let increaseConflicts = enabled && increaseShortcut.conflictsWithSystemShortcut
         let decreaseRegistered = keyboardBrightnessDecreaseHotkey.sync(
-            enabled: enabled && !decreaseConflicts, shortcut: decreaseShortcut)
+            enabled: enabled && !decreaseConflicts, shortcut: decreaseShortcut,
+            storageKey: GlobalShortcutRole.keyboardBrightnessDecrease.storageKey)
         let increaseRegistered = keyboardBrightnessIncreaseHotkey.sync(
-            enabled: enabled && !increaseConflicts, shortcut: increaseShortcut)
+            enabled: enabled && !increaseConflicts, shortcut: increaseShortcut,
+            storageKey: GlobalShortcutRole.keyboardBrightnessIncrease.storageKey)
         keyboardBrightnessShortcutRegistrationFailed = decreaseConflicts || increaseConflicts
             || !(decreaseRegistered && increaseRegistered)
     }

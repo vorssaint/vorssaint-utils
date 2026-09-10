@@ -56,6 +56,7 @@ enum SettingsBackupSupport {
         DefaultsKey.panelPowerOrder,
         DefaultsKey.panelCollapsedSections,
         DefaultsKey.quickLauncherItemOrder,
+        DefaultsKey.systemShortcutTakeOverKeys,
         // Experience flags: a restored Mac must not replay onboarding or the
         // feature intros the user has already been through.
         DefaultsKey.hasOnboarded,

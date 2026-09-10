@@ -82,7 +82,8 @@ final class QuickLauncherService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.quickLauncherShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.quickLauncherShortcut,
                                             fallback: .quickLauncherDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.quickLauncherShortcut)
     }
 
     func suspend() {

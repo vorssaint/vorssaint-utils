@@ -42,7 +42,8 @@ final class RecentCaptureService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.recentCapturesShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.recentCapturesShortcut,
                                             fallback: .recentCapturesDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.recentCapturesShortcut)
         if !available { hideHistoryWindow() }
     }
 

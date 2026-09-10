@@ -879,6 +879,19 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         }
     }
 
+    /// Whether a claim ever reaches `SystemShortcutTakeover` for this key, and
+    /// so whether the recorder may offer to take a macOS shortcut over. The
+    /// switcher suppresses its keys through its own take-over toggle rather
+    /// than a claim, and the radial menu's role key is only a migration seed —
+    /// the live shortcuts are the per-profile ones. A row that cannot keep the
+    /// promise refuses the combination instead of making it.
+    var supportsTakeOver: Bool {
+        switch self {
+        case .switcher, .switcherWindow, .radialMenu: return false
+        default: return true
+        }
+    }
+
     var isKeyboardBrightness: Bool {
         self == .keyboardBrightnessDecrease || self == .keyboardBrightnessIncrease
     }

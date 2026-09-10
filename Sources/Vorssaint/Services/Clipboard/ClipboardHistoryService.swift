@@ -980,6 +980,7 @@ final class ClipboardHistoryService: ObservableObject {
             hotKeyRef = ref
             registeredShortcut = shortcut
             shortcutRegistrationFailed = false
+            SystemShortcutTakeover.claim(DefaultsKey.clipboardHistoryShortcut, shortcut: shortcut)
         } else {
             hotKeyRef = nil
             registeredShortcut = nil
@@ -993,7 +994,10 @@ final class ClipboardHistoryService: ObservableObject {
     func suspendShortcut() { unregisterHotkey() }
 
     private func unregisterHotkey() {
-        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
+        if let hotKeyRef {
+            UnregisterEventHotKey(hotKeyRef)
+            SystemShortcutTakeover.release(DefaultsKey.clipboardHistoryShortcut)
+        }
         hotKeyRef = nil
         registeredShortcut = nil
         shortcutRegistrationFailed = false
