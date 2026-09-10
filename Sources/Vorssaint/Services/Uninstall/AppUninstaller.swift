@@ -295,25 +295,14 @@ final class AppUninstaller: ObservableObject {
                                               expectedIdentity: item.fileIdentity,
                                               allowedPaths: allowedPaths,
                                               targetURL: targetURL) else {
-                    // Brew (or another pass) may have already taken the path.
-                    // A missing file is success; only a still-present path that
-                    // failed the identity check is a real refusal.
-                    if fm.fileExists(atPath: item.url.path) {
-                        failed.append(item)
-                    } else {
-                        freed += item.size
-                    }
+                    failed.append(item)
                     continue
                 }
                 do {
                     try fm.trashItem(at: item.url, resultingItemURL: nil)
                     freed += item.size
                 } catch {
-                    if fm.fileExists(atPath: item.url.path) {
-                        stubborn.append(item)
-                    } else {
-                        freed += item.size
-                    }
+                    stubborn.append(item)
                 }
             }
 
@@ -378,19 +367,14 @@ final class AppUninstaller: ObservableObject {
               homebrewPackage?.id == package.id,
               let app = items.first(where: { $0.category == .app && $0.include }),
               let targetURL = target?.url else { return }
-        // Brew already owns the app artifact. Credit it immediately and never
-        // fall through to a second trash pass just because the path briefly
-        // still exists — that race turned a successful cask uninstall into a
-        // false "couldn't move to Trash" sheet (issue #1556).
+        if FileManager.default.fileExists(atPath: targetURL.path) {
+            homebrewPackage = nil
+            removeSelected()
+            return
+        }
         homebrewRemovalSize = app.size
         homebrewRemovedApplication = true
-        homebrewPackage = nil
         setInclude(false, for: app.id)
-        if FileManager.default.fileExists(atPath: targetURL.path) {
-            // Rare: brew reported success but left the bundle. Re-select only
-            // the app so removeSelected can finish it under the package flag.
-            setInclude(true, for: app.id)
-        }
         if items.contains(where: \.include) {
             removeSelected()
         } else {

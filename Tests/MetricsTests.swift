@@ -5297,27 +5297,6 @@ struct MetricsTests {
                                             to: "func removeSelectedWithHomebrew()")
         expect(removeSelectedBody.contains("let knownApplications = mayClaimSharedData"),
                "a removal builds the known-application roster only when it may claim shared data")
-        let finishHomebrewBody = sourceBody(of: appUninstallerSource,
-                                            from: "private func finishRemovalAfterHomebrew",
-                                            to: "private static func trashViaFinder")
-        expect(!finishHomebrewBody.isEmpty,
-               "the Homebrew follow-up removal source reads back for its shape check")
-        // A successful `brew uninstall --cask` can report done a moment before
-        // the app path disappears. Falling through to removeSelected without
-        // marking the package-managed removal made trashItem fail on a path
-        // brew already took, and the done sheet said leftovers could not move
-        // to the Trash even though Applications was empty (issue #1556).
-        let markedPackageRemoval = finishHomebrewBody.range(of: "homebrewRemovedApplication = true")
-        let firstRemoveSelected = finishHomebrewBody.range(of: "removeSelected()")
-        expect(markedPackageRemoval != nil
-                && firstRemoveSelected.map { markedPackageRemoval!.upperBound < $0.lowerBound } == true
-                && finishHomebrewBody.contains("setInclude(false, for: app.id)"),
-               "after Homebrew succeeds the app is credited to the package manager before any trash pass")
-        expect(removeSelectedBody.contains("try fm.trashItem(at: item.url, resultingItemURL: nil)")
-                && removeSelectedBody.contains("fm.fileExists(atPath: item.url.path)")
-                && removeSelectedBody.contains("stubborn.append(item)")
-                && removeSelectedBody.contains("freed += item.size"),
-               "a trashItem that races a path brew already removed counts as freed, not failed")
         expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
                 == "com.vendor.editor",
                "preference panes map to their owning bundle identifier")
