@@ -62,6 +62,13 @@ final class WindowLayoutService: ObservableObject {
     private var edgeSnapSequenceGeneration = 0
     private var edgeSnapPreviewPanel: NSPanel?
     private var edgeSnapPreviewGeneration = 0
+    private var snapLayoutsPanel: SnapLayoutsPanel?
+    /// The screen the open Snap Layouts panel is anchored to, remembered so
+    /// later drag samples can ask "should it stay open" against the same
+    /// screen even once the pointer has moved past the narrow strip that
+    /// first triggered it (see `resolvedEdgeSnapTarget`). Cleared together
+    /// with the panel everywhere it hides.
+    private var snapLayoutsActiveScreen: WindowEdgeSnapScreen?
     private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
     private var settleTimers: [CGWindowID: Timer] = [:]
     private var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
@@ -1034,6 +1041,9 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapResolveAttempts = 0
         edgeSnapDrag = nil
         hideEdgeSnapPreview(immediately: true)
+        snapLayoutsPanel?.hide()
+        snapLayoutsPanel = nil
+        snapLayoutsActiveScreen = nil
         if let edgeSnapRunLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), edgeSnapRunLoopSource, .commonModes)
         }
@@ -1159,6 +1169,7 @@ final class WindowLayoutService: ObservableObject {
             edgeSnapResolveAttempts = 0
             edgeSnapDrag = nil
             hideEdgeSnapPreview(immediately: false)
+            hideSnapLayoutsPanel()
             let generation = edgeSnapSequenceGeneration
             guard let completed else {
                 guard let pressOrigin, let pressCandidate,
@@ -1283,7 +1294,7 @@ final class WindowLayoutService: ObservableObject {
             }
         }
 
-        let target = edgeSnapTarget(atQuartzPoint: location)
+        let target = resolvedEdgeSnapTarget(atQuartzPoint: location)
         if target != drag.target {
             drag.target = target
             if let target {
@@ -1296,13 +1307,111 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func edgeSnapTarget(atQuartzPoint point: CGPoint) -> WindowEdgeSnapTarget? {
-        let appKitPoint = CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
+        let hoverPoint = appKitPoint(fromQuartz: point)
         let screens = NSScreen.screens.map {
             WindowEdgeSnapScreen(frame: $0.frame, visibleFrame: $0.visibleFrame)
         }
-        return WindowEdgeSnapSupport.target(at: appKitPoint,
+        return WindowEdgeSnapSupport.target(at: hoverPoint,
                                             screens: screens,
                                             enabledZones: enabledEdgeSnapZones)
+    }
+
+    private func appKitPoint(fromQuartz point: CGPoint) -> CGPoint {
+        CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
+    }
+
+    /// Whether the Snap Layouts panel is wanted right now: the feature is
+    /// available, both the panel toggle and classic edge snapping are on
+    /// (the panel hooks into the same drag the edge-snap tap already
+    /// tracks — there is no separate tap for it), and every existing
+    /// edge-snap guard still applies.
+    private var snapLayoutsEnabled: Bool {
+        AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowSnapLayoutsEnabled)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+            && !WindowEdgeSnapSupport.isSystemTilingEnabled
+            && AXIsProcessTrusted()
+    }
+
+    /// The classic edge-snap target, or whatever the open Snap Layouts panel
+    /// currently resolves to.
+    ///
+    /// Opening the panel and keeping it open ask different questions
+    /// (`SnapLayoutPresets.shouldShowPanel`'s doc comment has the reasoning):
+    /// while it is already visible, this keeps asking that question against
+    /// the screen it opened on rather than re-deriving a trigger screen from
+    /// the narrow top strip alone, since by the time the pointer is over the
+    /// panel's own cards it may no longer be in that strip at all. Only once
+    /// the panel is neither open-and-reachable nor freshly triggered does
+    /// this fall back to the classic corner/half behavior unchanged, so
+    /// `WindowEdgeSnapDrag.target` keeps flowing into the same
+    /// `applyEdgeSnap` regardless of which path produced it.
+    private func resolvedEdgeSnapTarget(atQuartzPoint point: CGPoint) -> WindowEdgeSnapTarget? {
+        guard snapLayoutsEnabled else {
+            hideSnapLayoutsPanel()
+            return edgeSnapTarget(atQuartzPoint: point)
+        }
+        let hoverPoint = appKitPoint(fromQuartz: point)
+
+        if let activeScreen = snapLayoutsActiveScreen,
+           SnapLayoutPresets.shouldShowPanel(at: hoverPoint,
+                                             panelFrame: snapLayoutsPanel?.frame,
+                                             visibleFrame: activeScreen.visibleFrame,
+                                             isCurrentlyShown: true) {
+            return openPanelTarget(at: hoverPoint, on: activeScreen)
+        }
+
+        guard let triggerScreen = snapLayoutsTriggerScreen(atQuartzPoint: point) else {
+            hideSnapLayoutsPanel()
+            return edgeSnapTarget(atQuartzPoint: point)
+        }
+        snapLayoutsActiveScreen = triggerScreen
+        showSnapLayoutsPanel(on: triggerScreen)
+        return openPanelTarget(at: hoverPoint, on: triggerScreen)
+    }
+
+    /// The target while the panel is open (or just opened this sample):
+    /// whichever cell the pointer hovers, or — Windows' own drag-to-top
+    /// behavior once a panel is offering every halved/thirded choice as an
+    /// explicit cell (upstream issue #894) — maximize, unless the pointer
+    /// is still over a corner sub-zone, which keeps its classic corner
+    /// target so `target(at:)` and this never disagree at the corners.
+    private func openPanelTarget(at hoverPoint: CGPoint, on screen: WindowEdgeSnapScreen) -> WindowEdgeSnapTarget? {
+        if let hovered = snapLayoutsPanel?.updateHover(at: hoverPoint, visibleFrame: screen.visibleFrame) {
+            return hovered
+        }
+        let action = WindowEdgeSnapSupport.openPanelFallbackAction(at: hoverPoint, screen: screen)
+        let rect = WindowLayoutGeometry.rect(for: action,
+                                             current: screen.visibleFrame,
+                                             visibleFrame: screen.visibleFrame,
+                                             windowGap: WindowLayoutGaps.windowGap,
+                                             screenGap: WindowLayoutGaps.screenGap)
+        return WindowEdgeSnapTarget(action: action, frame: rect.integral, visibleFrame: screen.visibleFrame)
+    }
+
+    private func snapLayoutsTriggerScreen(atQuartzPoint point: CGPoint) -> WindowEdgeSnapScreen? {
+        let hoverPoint = appKitPoint(fromQuartz: point)
+        let screens = NSScreen.screens.map {
+            WindowEdgeSnapScreen(frame: $0.frame, visibleFrame: $0.visibleFrame)
+        }
+        return WindowEdgeSnapSupport.snapLayoutsTriggerScreen(at: hoverPoint, screens: screens)
+    }
+
+    private func showSnapLayoutsPanel(on screen: WindowEdgeSnapScreen) {
+        // `availablePresets` always includes at least `.halves`, so this
+        // list is never empty — no guard needed before showing it.
+        let presets = SnapLayoutPresets.availablePresets(for: screen.visibleFrame)
+        let panel = snapLayoutsPanel ?? {
+            let created = SnapLayoutsPanel()
+            snapLayoutsPanel = created
+            return created
+        }()
+        panel.show(visibleFrame: screen.visibleFrame, presets: presets)
+    }
+
+    private func hideSnapLayoutsPanel() {
+        snapLayoutsPanel?.hide()
+        snapLayoutsActiveScreen = nil
     }
 
     private func edgeSnapQuartzScreenFrames() -> [CGRect] {
@@ -1319,7 +1428,7 @@ final class WindowLayoutService: ObservableObject {
                                target: WindowEdgeSnapTarget) {
         guard AppFeature.windowLayout.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled),
-              enabledEdgeSnapZones.contains(target.zone),
+              target.zone.map({ enabledEdgeSnapZones.contains($0) }) ?? true,
               !WindowEdgeSnapSupport.isSystemTilingEnabled,
               AXIsProcessTrusted(),
               canSetFrame(on: drag.window),
@@ -1351,6 +1460,7 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapResolveAttempts = 0
         edgeSnapDrag = nil
         hideEdgeSnapPreview(immediately: false)
+        hideSnapLayoutsPanel()
     }
 
     private var enabledEdgeSnapZones: Set<WindowEdgeSnapZone> {
