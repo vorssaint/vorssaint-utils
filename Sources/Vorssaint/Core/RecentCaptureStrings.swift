@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -176,5 +177,15 @@ extension RecentCaptureStrings {
         open: "開啟",
         remove: "從記錄移除",
         clear: "清除記錄"
+    )
+    static let uk = RecentCaptureStrings(
+        title: "Недавні знімки",
+        empty: "Зробіть знімок екрана або збережіть запис, щоб знайти його тут.",
+        screenshot: "Знімок екрана",
+        recording: "Запис",
+        restore: "Відновити",
+        open: "Відкрити",
+        remove: "Видалити з історії",
+        clear: "Очистити історію"
     )
 }

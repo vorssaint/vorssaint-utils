@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -148,5 +149,13 @@ extension FinderRenameFeatureStrings {
         enableLabel: "使用快捷鍵重新命名",
         caption: "快捷鍵只會在 Finder 生效，不會影響文字欄位。F2 會當作一般按鍵使用；如果它用來調校亮度，請按 Fn-F2 或選擇其他快捷鍵。",
         shortcutLabel: "重新命名"
+    )
+    static let uk = FinderRenameFeatureStrings(
+        pageTitle: "Клавіатурні скорочення Finder",
+        hubTitle: "Клавіатурне скорочення для перейменування",
+        hubDescription: "Перейменуйте обраний файл або папку за обраним поєднанням клавіш.",
+        enableLabel: "Використовувати клавіатурне скорочення для перейменування",
+        caption: "Клавіатурне скорочення діє лише у Finder та не чіпає текстові поля. F2 працює як звичайна клавіша; на клавіатурах, де вона керує яскравістю, використовуйте Fn-F2 або оберіть інше клавіатурне скорочення.",
+        shortcutLabel: "Перейменувати"
     )
 }

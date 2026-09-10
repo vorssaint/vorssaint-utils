@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -487,5 +488,37 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "無法結束處理程序",
         killFailedMessage: "該處理程序可能已經結束，或需要額外的權限。",
         adminPromptFormat: "Vorssaint 需要管理員權限才能結束「%@」。"
+    )
+    static let uk = KillProcessFeatureStrings(
+        pageTitle: "Завершити процес",
+        browseSubtitle: "Огляд та завершення",
+        hubDescription: "Шукайте запущені процеси та примусово завершуйте, перезапускайте або вбивайте дерева процесів",
+        searchPlaceholder: "Фільтр за ім'ям",
+        columnProcess: "Процес",
+        columnCPU: "CPU",
+        columnMemory: "Пам'ять",
+        columnPID: "PID",
+        groupToggle: "Групувати пов'язані процеси",
+        groupCaption: "Групує допоміжні процеси під програмою, яка відповідає за них.",
+        commandBarToggle: "Показувати в Командному рядку",
+        commandBarCaption: "Додає запущені процеси в Панель команд, щоб ви могли знаходити та завершувати їх без відкриття Налаштувань.",
+        refreshTooltip: "Оновити",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "%d процесів",
+        killButton: "Завершити",
+        forceKillButton: "Примусово завершити",
+        killAllFormat: "Завершити всі «%@»",
+        killTreeButton: "Завершити дерево процесів",
+        restartButton: "Почати заново",
+        copyPID: "Скопіювати PID",
+        copyPath: "Скопіювати шлях",
+        emptyStateTitle: "Процеси не знайдені",
+        confirmKillFormat: "Завершити %@?",
+        confirmForceKillFormat: "Примусово завершити %@?",
+        confirmKillAllFormat: "Завершити всі процеси «%@»?",
+        confirmKillTreeFormat: "Завершити %@ та всі його дочірні процеси?",
+        killFailedTitle: "Не вдалося завершити процес",
+        killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
+        adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
     )
 }

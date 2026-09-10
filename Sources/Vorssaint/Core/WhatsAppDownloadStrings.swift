@@ -60,6 +60,7 @@ struct WhatsAppDownloadStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -450,6 +451,13 @@ extension WhatsAppDownloadStrings {
                 localNote: "只檢查本機中繼資料。Vorssaint 絕不讀取對話或檔案內容。",
                 notificationFormat: "%1$d 個檔案（%2$@）已移至垃圾桶。%3$d 個失敗。",
                 scanFailed: "無法掃描下載項目。請檢查系統設定中的「檔案與資料夾」。", manageButton: "管理…")
+        case .uk: return OperationalStrings(
+            automaticCaption: uk.automaticCaption, retentionCaption: enUS.retentionCaption,
+            manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
+            selectRules: enUS.selectRules, cleanSelectedFormat: enUS.cleanSelectedFormat,
+            lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
+            firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
+            notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
@@ -502,4 +510,46 @@ extension WhatsAppDownloadStrings {
             localNote: value.localNote, notificationTitle: notificationTitle,
             notificationFormat: value.notificationFormat, scanFailed: value.scanFailed, manageButton: value.manageButton)
     }
+    static let uk = WhatsAppDownloadStrings(
+        title: "Завантаження WhatsApp",
+        hubDescription: "Тримає файли WhatsApp у Завантаженнях під контролем",
+        intro: "Знаходить файли, які macOS підтверджує як такі, що прийшли з WhatsApp. Вміст файлів та чати ніколи не читаються.",
+        automatic: "Очищати автоматично",
+        automaticCaption: "Перевіряє раз на день та відправляє відповідні файли старші за ваш ліміт у Кошик.",
+        folder: "Папка спостереження",
+        accessReady: "Завантаження доступні",
+        accessDenied: "Vorssaint не має доступу до Завантажень. Дозвольте це у «Файли та папки».",
+        fileTypes: "Типи файлів",
+        allTypes: "Усі",
+        image: "Зображення",
+        video: "Відео",
+        audio: "Аудіо та голосові нотатки",
+        document: "Документи",
+        archive: "Архіви",
+        other: "Інше",
+        retention: "Зберегти на",
+        retentionCaption: "Нещодавно змінені файли знову чекають повний період.",
+        daysFormat: "%d днів",
+        manualIntro: "Скануйте будь-коли. Початковий вибір слідує вашим типам та віковому ліміту; ви можете переглянути кожен підтверджений файл.",
+        noFiles: "У Завантаженнях не знайдено підтверджених файлів WhatsApp.",
+        resultsFormat: "%1$d підтверджених файлів · %2$@",
+        selectRules: "Вибрати за моїми правилами",
+        cleanSelectedFormat: "Перемістити %1$d у Кошик · %2$@",
+        keep: "Зберегти",
+        manageAgain: "Керувати знову",
+        activity: "Активність",
+        neverRun: "Очищення ще не запускалося.",
+        lastRunFormat: "Останнє очищення %@: %d файлів · %@ · не вдалося: %d",
+        nextRunFormat: "Наступна автоматична перевірка %@.",
+        firstTitle: "Що з наявними файлами?",
+        firstMessageFormat: "%d наявних файлів вже відповідають вашим правилам. Виберіть, чи автоматизація може керувати ними, чи лише майбутніми завантаженнями.",
+        futureOnly: "Лише майбутні завантаження",
+        includeExisting: "Включити наявні файли",
+        trashNote: "Файли переміщуються в Кошик і залишаються відновлюваними, поки ви не очистите його.",
+        localNote: "Перевіряються лише локальні метадані файлів. Vorssaint ніколи не читає чати або вміст файлів.",
+        notificationTitle: "Очищення WhatsApp",
+        notificationFormat: "%1$d файлів (%2$@) переміщено в Кошик. Не вдалося: %3$d.",
+        scanFailed: "Не вдалося перевірити папку «Завантаження». Перевірте «Файли та папки» в Системних налаштуваннях.",
+        manageButton: "Керувати…"
+    )
 }

@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -134,5 +135,12 @@ extension MouseClickDebounceStrings {
         moreOptions: "更多選項",
         windowLabel: "過濾時段",
         windowCaption: "此時段內的重複點按會視為意外重複。"
+    )
+    static let uk = MouseClickDebounceStrings(
+        title: "Фільтр зайвих клаців",
+        caption: "Ігнорує швидкі зайві клацання від зношених кнопок миші без уповільнення звичайних клаців.",
+        moreOptions: "Більше опцій",
+        windowLabel: "Фільтрувати вікно",
+        windowCaption: "Повторний клац усередині цього інтервалу вважається випадковим дублікатом."
     )
 }
