@@ -161,6 +161,12 @@ struct SwitcherItem: Identifiable, Equatable {
     /// name, so several places have to present them differently.
     var isAppEntry: Bool { windowID == nil }
 
+    /// Whether the "Minimized windows" placement applies to this entry. An app
+    /// hidden with Cmd+H has put its windows away exactly as minimizing does,
+    /// and activation unhides it the same way it restores a minimized window,
+    /// so the placement treats the two alike (issue #1512).
+    var isMinimizedOrAppHidden: Bool { isMinimized || isAppHidden }
+
     /// What the screen reader hears. An app entry replaces the window title
     /// with its state on screen, so the label has to carry that state too or
     /// the entry sounds identical to a window of the same app.
