@@ -274,6 +274,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CameraPreviewStrings.swift \
         Sources/Vorssaint/Core/ScratchpadStrings.swift \
         Sources/Vorssaint/Core/FinderRenameStrings.swift \
+        Sources/Vorssaint/Core/FinderFolderInfoStrings.swift \
         Sources/Vorssaint/Core/CommandBarStrings.swift \
         Sources/Vorssaint/Core/FeedbackStrings.swift \
         Sources/Vorssaint/Core/RadialMenuStrings.swift \
@@ -336,6 +337,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift \
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift \
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift \
+        Sources/Vorssaint/Services/Finder/FinderFolderInfoSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift \
         Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift \
         Sources/Vorssaint/Services/InstalledApps.swift \

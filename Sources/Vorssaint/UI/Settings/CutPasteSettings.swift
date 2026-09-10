@@ -12,6 +12,7 @@ struct CutPasteSettings: View {
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
     @AppStorage(DefaultsKey.finderRenameShortcut) private var renameShortcutRaw =
         GlobalShortcut.finderRenameDefault.storageValue
+    @AppStorage(DefaultsKey.finderFolderSpaceGetInfo) private var folderSpaceGetInfo = false
     @State private var renameError: String?
     @State private var recordingRename = false
 
@@ -19,12 +20,16 @@ struct CutPasteSettings: View {
         FeatureStrings.finderRename(l10n.language)
     }
 
+    private var folderInfoText: FinderFolderInfoFeatureStrings {
+        FeatureStrings.finderFolderInfo(l10n.language)
+    }
+
     private var renameShortcut: GlobalShortcut {
         GlobalShortcut(storageValue: renameShortcutRaw) ?? .finderRenameDefault
     }
 
     private var needsAccessibility: Bool {
-        (AppFeature.finderCutPaste.isAvailable && enabled)
+        (AppFeature.finderCutPaste.isAvailable && (enabled || folderSpaceGetInfo))
             || (AppFeature.finderRename.isAvailable && renameEnabled)
     }
 
@@ -55,6 +60,16 @@ struct CutPasteSettings: View {
                     }
                 }
                 .settingsSectionAnchor(.finderCutPaste)
+
+                Section {
+                    Toggle(folderInfoText.enableLabel, isOn: $folderSpaceGetInfo)
+                        .onChange(of: folderSpaceGetInfo) { _, _ in
+                            FinderFolderInfoService.shared.syncWithPreferences()
+                        }
+                    Text(folderInfoText.caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Section(l10n.s.cutPasteHowTitle) {
                     howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
@@ -116,7 +131,7 @@ struct CutPasteSettings: View {
             if needsAccessibility, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
-                    if AppFeature.finderCutPaste.isAvailable, enabled {
+                    if AppFeature.finderCutPaste.isAvailable, enabled || folderSpaceGetInfo {
                         Text(l10n.s.cutPasteAutomationNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)

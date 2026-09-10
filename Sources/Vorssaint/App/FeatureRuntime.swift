@@ -214,7 +214,10 @@ final class FeatureRuntime: ObservableObject {
             ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
         },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
-        .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
+        .finderCutPaste: {
+            FinderCutPaste.shared.syncWithPreferences()
+            FinderFolderInfoService.shared.syncWithPreferences()
+        },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
         .shelf: { ShelfService.shared.syncWithPreferences() },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },

@@ -224,7 +224,8 @@ extension AppFeature {
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
-                                      DefaultsKey.finderPasteImageAsFile]
+                                      DefaultsKey.finderPasteImageAsFile,
+                                      DefaultsKey.finderFolderSpaceGetInfo]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled]
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
