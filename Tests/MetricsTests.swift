@@ -5474,7 +5474,13 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.mediaImageProfiles] as? String == "[]",
                "Media image profiles start empty")
         expect((registeredDefaults[DefaultsKey.autoQuitExceptions] as? [String]) == Defaults.mandatoryAutoQuitExceptionBundleIDs,
-               "Finder stays in the default auto-quit exception list")
+               "Finder and Phone stay in the default auto-quit exception list")
+        expect(Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(Defaults.finderBundleIdentifier)
+                && Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(Defaults.phoneBundleIdentifier),
+               "Quit on close never terminates Finder or Phone (Continuity calls)")
+        expect(Defaults.sanitizedAutoQuitExceptions([Defaults.finderBundleIdentifier])
+                .contains(Defaults.phoneBundleIdentifier),
+               "existing auto-quit exception lists gain Phone on sanitize")
         expect(registeredDefaults[DefaultsKey.panelCollapsedSections] == nil,
                "panel collapsed sections intentionally has no registered default")
         expect(registeredDefaults[DefaultsKey.panelUtilityOrder] == nil,
@@ -5513,8 +5519,8 @@ struct MetricsTests {
                == ["com.example.One", "com.example.Two"],
                "bundle id lists are trimmed and deduplicated")
         expect(Defaults.sanitizedAutoQuitExceptions(["com.example.One", Defaults.finderBundleIdentifier])
-               == [Defaults.finderBundleIdentifier, "com.example.One"],
-               "Finder is mandatory in the auto-quit exception list")
+               == [Defaults.finderBundleIdentifier, Defaults.phoneBundleIdentifier, "com.example.One"],
+               "Finder and Phone are mandatory in the auto-quit exception list")
         expect(AutoQuitSupport.isExcepted(bundleIdentifier: "com.example.direct",
                                           bundleURL: nil,
                                           exceptions: ["com.example.direct"]),

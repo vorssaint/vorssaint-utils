@@ -821,7 +821,13 @@ enum PreviewSizing {
 
 enum Defaults {
     static let finderBundleIdentifier = "com.apple.finder"
-    static let mandatoryAutoQuitExceptionBundleIDs = [finderBundleIdentifier]
+    /// Continuity / Calls on Mac. Quitting Phone when its UI flickers window-less
+    /// during an incoming relay disconnects the call (issue #1534).
+    static let phoneBundleIdentifier = "com.apple.mobilephone"
+    static let mandatoryAutoQuitExceptionBundleIDs = [
+        finderBundleIdentifier,
+        phoneBundleIdentifier,
+    ]
 
     static let allowedDurations = [0, 15, 30, 60, 120, 240, 480]
     static let allowedKeepAwakeMouseJiggleIntervals = [1, 2, 5, 10, 15]
