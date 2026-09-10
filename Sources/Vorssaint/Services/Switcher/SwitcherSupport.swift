@@ -18,6 +18,14 @@ struct SwitcherActivationPlan: Equatable {
     let restoreSourceWhenTargetMinimizes: Bool
 }
 
+/// How the owning app is brought forward. App-level activation raises every
+/// window of the app whatever its options say (macOS 11 and later), so a plan
+/// scoped to one window asks the window server to front that window alone.
+enum SwitcherAppActivationRoute: Equatable {
+    case exactWindow(CGWindowID)
+    case wholeApp
+}
+
 struct SwitcherSearchRecord: Equatable {
     let id: String
     let title: String
@@ -1098,6 +1106,14 @@ enum SwitcherSupport {
 
     static func shouldActivateAllWindows(targetsSpecificWindow: Bool) -> Bool {
         activationPlan(targetsSpecificWindow: targetsSpecificWindow).activateAllWindows
+    }
+
+    static func appActivationRoute(plan: SwitcherActivationPlan,
+                                   windowID: CGWindowID?) -> SwitcherAppActivationRoute {
+        if !plan.activateAllWindows, let windowID {
+            return .exactWindow(windowID)
+        }
+        return .wholeApp
     }
 
     static func shouldRestoreSourceAfterTargetMinimize(targetPID: pid_t,

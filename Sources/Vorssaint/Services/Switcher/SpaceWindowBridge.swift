@@ -232,13 +232,16 @@ enum SpaceWindowBridge {
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
     /// The follow-up record pair makes the window key without clicking any of
     /// its content (the synthetic click points just outside the frame).
-    static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) {
-        guard let setFrontProcess, let processForPID else { return }
+    /// Returns false when the window server did not take the request, so the
+    /// caller can fall back to app-level activation.
+    @discardableResult
+    static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
+        guard let setFrontProcess, let processForPID else { return false }
         var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return }
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
-        guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return }
-        guard let postEventRecord else { return }
+        guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return false }
+        guard let postEventRecord else { return true }
         var targetID = windowID
         var clickPoint = CGPoint(x: -1, y: -1)
         var record = [UInt8](repeating: 0, count: 0x100)
@@ -250,6 +253,7 @@ enum SpaceWindowBridge {
         _ = postEventRecord(&psn, &record)
         record[0x08] = 0x02 // …then up: the pair makes the window key
         _ = postEventRecord(&psn, &record)
+        return true
     }
 
     // MARK: - The user's "move a space" shortcut
