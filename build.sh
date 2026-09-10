@@ -241,9 +241,9 @@ discard_test_preferences() {
     return 1
 }
 
-# --test: compile and run the standalone unit tests (pure helpers only: metrics,
-# Homebrew parsing, defaults, localization contracts; no app, no UI, no IOKit),
-# then exit. Fast and deterministic; no XCTest needed.
+# --test: compile and run the helper suite and a native calculator-overlay check.
+# The overlay check needs a macOS graphical session, as provided by the CI runners.
+# Neither suite launches the app; no XCTest dependency is needed.
 if (( TEST )); then
     echo "▸ Building & running unit tests against $(basename "$SDK")…"
     rm -rf build
@@ -430,9 +430,13 @@ if (( TEST )); then
         Tests/RecorderPresetImageStoreTests.swift \
         Tests/SpeedTestTests.swift \
         -o build/metrics-tests
+    swiftc -Onone -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        Sources/Vorssaint/UI/CommandBar/CommandBarGhostBrackets.swift \
+        Tests/CommandBarGhostBracketsTests.swift -o build/calculator-overlay-tests
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
     ./build/metrics-tests || test_status=$?
+    ./build/calculator-overlay-tests || test_status=1
     ./Tests/PreferenceCleanupTests.sh || test_status=1
     discard_test_preferences || test_status=1
     exit $test_status

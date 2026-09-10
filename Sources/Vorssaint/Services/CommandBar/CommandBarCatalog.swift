@@ -1477,10 +1477,14 @@ enum CommandBarCatalog {
     /// Enter copies it.
     static func answerEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
         if let result = CommandBarMath.evaluate(query) {
+            var expression = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            if expression.hasSuffix("=") { expression.removeLast() }
+            let completed = result.closingBrackets.isEmpty ? ""
+                : expression.trimmingCharacters(in: .whitespaces) + result.closingBrackets + " · "
             return CommandBarEntry(
                 id: "math.result",
                 title: result.formatted,
-                subtitle: bar.copyHint,
+                subtitle: completed + bar.copyHint + " · ⇥ → " + CommandBarMath.reusableExpression(for: result),
                 icon: .symbol("equal.square"),
                 isAnswer: true,
                 countsUsage: false,

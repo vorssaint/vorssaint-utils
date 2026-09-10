@@ -1561,10 +1561,19 @@ final class CommandBarService: ObservableObject {
         select(next < 0 ? next + rows.count : next)
     }
 
-    /// Tab completes what is selected into the field, the way every launcher
-    /// does, so the next keystroke refines instead of starting over.
+    /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
-        guard case .search = mode, let entry = selectedEntry, !entry.isAnswer else { return }
+        guard case .search = mode, let entry = selectedEntry else { return }
+        if entry.id == "math.result", let result = CommandBarMath.evaluate(query) {
+            let completion = CommandBarMath.reusableExpression(for: result)
+            if let editor = panel?.firstResponder as? NSTextView, editor.string == query {
+                // Native replacement keeps undo and puts the caret after the reused value.
+                editor.insertText(completion, replacementRange: NSRange(location: 0, length: (query as NSString).length))
+            }
+            query = completion
+            return
+        }
+        guard !entry.isAnswer else { return }
         if queryBeforeCompletion == nil { queryBeforeCompletion = query }
         let completion = CommandBarCompletion.completedQuery(
             current: query, title: entry.title, matchTitle: entry.matchTitle)
