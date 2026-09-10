@@ -63,6 +63,10 @@ struct ScratchpadView: View {
                 Text(String(format: text.deletePadMessageFormat, pad.name))
             }
         }
+        .onChange(of: service.keyboardCloseSelectedPadSerial) { _, _ in
+            guard let selectedPad else { return }
+            requestClose(selectedPad)
+        }
     }
 
     private var tabBar: some View {

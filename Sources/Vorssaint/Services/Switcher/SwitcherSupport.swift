@@ -18,6 +18,53 @@ struct SwitcherActivationPlan: Equatable {
     let restoreSourceWhenTargetMinimizes: Bool
 }
 
+/// Shared by the bounded focus passes on the main thread. Once a pass sees
+/// a newer user action, the remaining passes cannot reclaim the old target.
+final class SwitcherWindowFocusRetryState {
+    let targetStartedMinimized: Bool
+    let knownWindowIDs: Set<CGWindowID>
+    private(set) var targetWasObservedRestored: Bool
+    private(set) var isActive = true
+
+    init(targetWindowID: CGWindowID, targetStartedMinimized: Bool, knownWindowIDs: Set<CGWindowID>) {
+        self.targetStartedMinimized = targetStartedMinimized
+        // The selected target is already known even if the server's snapshot
+        // missed it. An entirely unavailable snapshot still stays unavailable.
+        self.knownWindowIDs = knownWindowIDs.isEmpty ? [] : knownWindowIDs.union([targetWindowID])
+        self.targetWasObservedRestored = !targetStartedMinimized
+    }
+
+    func observe(targetMinimizedState: Bool?) {
+        if targetMinimizedState == false {
+            targetWasObservedRestored = true
+        }
+    }
+
+    func shouldContinue(targetPID: pid_t,
+                        sourcePID: pid_t?,
+                        frontmostPID: @autoclosure () -> pid_t?,
+                        targetMinimizedState: Bool?,
+                        targetAppWindowIDs: @autoclosure () -> Set<CGWindowID>,
+                        targetAppFocusedWindowID: @autoclosure () -> CGWindowID?,
+                        ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
+        guard isActive else { return false }
+        isActive = SwitcherSupport.shouldContinueFocusRetry(
+            targetPID: targetPID,
+            sourcePID: sourcePID,
+            frontmostPID: frontmostPID(),
+            targetIsMinimized: targetMinimizedState == true,
+            targetStartedMinimized: targetStartedMinimized,
+            targetWasObservedRestored: targetWasObservedRestored,
+            knownWindowIDs: knownWindowIDs,
+            targetAppWindowIDs: targetAppWindowIDs(),
+            targetAppFocusedWindowID: targetAppFocusedWindowID(),
+            ownPID: ownPID
+        )
+        observe(targetMinimizedState: targetMinimizedState)
+        return isActive
+    }
+}
+
 struct SwitcherSearchRecord: Equatable {
     let id: String
     let title: String
@@ -558,12 +605,16 @@ enum SwitcherSupport {
     ///
     /// Every subrole the app did describe is left alone: a dialog, a sheet or
     /// a floating panel is filtered as before unless it fills the screen.
+    ///
+    /// A surface the app asked the window server to keep out of window cycling
+    /// stays out of the switcher however it describes itself.
     static func isSwitchableNonstandardWindow(role: String?,
                                               subrole: String?,
                                               fillsScreen: Bool,
                                               hasNormalWindowLevel: Bool,
-                                              acceptsUndescribedSubroles: Bool) -> Bool {
-        guard role == "AXWindow" else { return false }
+                                              acceptsUndescribedSubroles: Bool,
+                                              isExcludedFromWindowCycle: Bool = false) -> Bool {
+        guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
         }
@@ -693,6 +744,43 @@ enum SwitcherSupport {
             best = (index, area)
         }
         return best?.index
+    }
+
+    /// Collapses every window of an app into a single entry, so an app shows once
+    /// in the switcher instead of once per window (or tab). Keeps one
+    /// representative per app, preferring the on-screen, front window so its title
+    /// and thumbnail are the one you would expect when switching to that app.
+    static func groupWindowsByApp(_ windows: [SwitcherItem]) -> [SwitcherItem] {
+        var indexByPid: [pid_t: Int] = [:]
+        var grouped: [SwitcherItem] = []
+        for window in windows {
+            if let index = indexByPid[window.pid] {
+                // Another window of the same app: prefer an on-screen window as
+                // the representative when the one we kept is off-screen.
+                if (window.isOnScreen && !grouped[index].isOnScreen)
+                    || (window.isFullscreen && !grouped[index].isFullscreen) {
+                    grouped[index] = window
+                }
+            } else {
+                indexByPid[window.pid] = grouped.count
+                grouped.append(window)
+            }
+        }
+        return grouped
+    }
+
+    /// Windows belong to the display containing most of their frame.
+    /// Windowless apps and off-display windows have no current display.
+    static func itemsOnDisplay(_ items: [SwitcherItem],
+                               displayBounds: [CGRect],
+                               targetIndex: Int) -> [SwitcherItem] {
+        guard displayBounds.indices.contains(targetIndex) else { return [] }
+        return items.filter { item in
+            guard !item.isAppEntry,
+                  let index = displayIndex(showingMostOf: item.frame,
+                                           displayBounds: displayBounds) else { return false }
+            return index == targetIndex
+        }
     }
 
     static func hidesApp(bundleIdentifier: String?,
@@ -1154,19 +1242,46 @@ enum SwitcherSupport {
         return true
     }
 
+    /// Window identities, not a list of focusable windows: keeping every layer
+    /// prevents an existing dialog or auxiliary surface from appearing new.
+    static func focusRetryWindowIDs(in windows: [[String: Any]], ownerPID: pid_t) -> Set<CGWindowID> {
+        Set(windows.compactMap { info -> CGWindowID? in
+            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID else { return nil }
+            return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
+        })
+    }
+
     static func shouldContinueFocusRetry(targetPID: pid_t,
                                          sourcePID: pid_t?,
-                                         frontmostPID: pid_t?,
+                                         frontmostPID: @autoclosure () -> pid_t?,
                                          targetIsMinimized: Bool,
                                          targetStartedMinimized: Bool,
                                          targetWasObservedRestored: Bool = false,
+                                         knownWindowIDs: Set<CGWindowID> = [],
+                                         targetAppWindowIDs: @autoclosure () -> Set<CGWindowID> = [],
+                                         targetAppFocusedWindowID: @autoclosure () -> CGWindowID? = nil,
                                          ownPID: pid_t = ProcessInfo.processInfo.processIdentifier) -> Bool {
         guard !targetIsMinimized
                 || (targetStartedMinimized && !targetWasObservedRestored)
         else { return false }
-        guard let sourcePID,
-              let frontmostPID else { return true }
-        return frontmostPID == targetPID || frontmostPID == sourcePID || frontmostPID == ownPID
+        let initialFrontmostPID = frontmostPID()
+        if let sourcePID, let initialFrontmostPID,
+           initialFrontmostPID != targetPID && initialFrontmostPID != sourcePID && initialFrontmostPID != ownPID {
+            return false
+        }
+        // Z-order cannot identify keyboard focus: a new transparent helper
+        // may sit above a real window. Only query Accessibility when this app
+        // is active and the cheap window-server list contains something new.
+        // An unavailable focus reading preserves the previous retry behavior.
+        guard initialFrontmostPID == targetPID,
+              !knownWindowIDs.isEmpty,
+              !targetAppWindowIDs().isSubset(of: knownWindowIDs) else { return true }
+        let focusedWindowID = targetAppFocusedWindowID()
+        // Accessibility can wait on the other process. Do not act on the old
+        // foreground observation if the user left the app during that wait.
+        guard frontmostPID() == targetPID else { return false }
+        guard let focusedWindowID else { return true }
+        return knownWindowIDs.contains(focusedWindowID)
     }
 
     /// Async results belong only to the still-pending shortcut press. A key

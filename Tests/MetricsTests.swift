@@ -2540,6 +2540,12 @@ struct MetricsTests {
         expect(scopeAssign != nil && startLayout != nil
                && scopeAssign!.lowerBound < startLayout!.lowerBound,
                "the App Switcher session scope is assigned before the session-start layout pass")
+        // Trimming the list to one display (issue #1391) can drop the window
+        // that was in front, and then index 0 is no longer where the session
+        // started. The initial selection has to follow what the list holds.
+        expect(!switcherCode.contains("hasForegroundItem: source != nil")
+               && switcherCode.contains("hasForegroundItem: listedSource != nil"),
+               "the App Switcher initial selection follows the window the trimmed list still holds")
         expect(!SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
                                                               windowRow: true)
                && SwitcherSupport.usesAppGroupsForMainShortcut(iconRowLayout: true,
@@ -2941,6 +2947,16 @@ struct MetricsTests {
             bundleIdentifier: "com.example.editor",
             subrole: "AXUnknown"),
                "App Switcher keeps undescribed windows from unrelated apps filtered")
+        for tags: UInt32 in [786946, 795138] {
+            expect(!SwitcherSupport.isSwitchableNonstandardWindow(
+                role: "AXWindow",
+                subrole: "AXUnknown",
+                fillsScreen: false,
+                hasNormalWindowLevel: true,
+                acceptsUndescribedSubroles: false,
+                isExcludedFromWindowCycle: SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: tags)),
+                   "App Switcher excludes helper windows that opt out of window cycling")
+        }
         expect(SwitcherSupport.isSwitchableNonstandardWindow(
             role: "AXWindow",
             subrole: "AXUnknown",
@@ -3072,6 +3088,89 @@ struct MetricsTests {
                && SwitcherSupport.displayIndex(showingMostOf: .zero, displayBounds: [leftDisplay, rightDisplay]) == nil
                && SwitcherSupport.displayIndex(showingMostOf: leftDisplay, displayBounds: []) == nil,
                "a window touching no display, an entry without a frame, or no display at all leave the screen to the fallback")
+
+        // MARK: The switcher list held to one display (issue #1391)
+        expect(registeredDefaults[DefaultsKey.switcherCurrentDisplayOnly] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherCurrentDisplayOnly),
+               "the App Switcher lists every display by default and carries the choice in backups")
+        func displayScopedItem(_ name: String, frame: CGRect, windowID: CGWindowID?) -> SwitcherItem {
+            SwitcherItem(id: name, title: name, appName: name,
+                         pid: 1, windowOwnerPID: 1, windowID: windowID,
+                         isOnScreen: true, isAppHidden: false, isMinimized: false,
+                         isFullscreen: false, isOnHiddenSpace: false, frame: frame)
+        }
+        let onLeftDisplay = displayScopedItem("left",
+                                              frame: CGRect(x: 100, y: 100, width: 800, height: 600),
+                                              windowID: 1)
+        let onRightDisplay = displayScopedItem("right",
+                                               frame: CGRect(x: 2100, y: 100, width: 800, height: 600),
+                                               windowID: 2)
+        let withoutWindow = displayScopedItem("windowless", frame: .zero, windowID: nil)
+        let onNoDisplay = displayScopedItem("parked",
+                                            frame: CGRect(x: 6000, y: 100, width: 800, height: 600),
+                                            windowID: 3)
+        let bothDisplays = [leftDisplay, rightDisplay]
+        expect(SwitcherSupport.itemsOnDisplay([onLeftDisplay, onRightDisplay],
+                                              displayBounds: bothDisplays,
+                                              targetIndex: 1).map(\.id) == ["right"],
+               "holding the switcher to one display drops what the other monitor is showing")
+        expect(SwitcherSupport.itemsOnDisplay([onLeftDisplay, onRightDisplay, withoutWindow, onNoDisplay],
+                                              displayBounds: bothDisplays,
+                                              targetIndex: 0).map(\.id) == ["left"],
+               "display filtering excludes windowless apps and windows outside every display")
+        expect(SwitcherSupport.itemsOnDisplay([onLeftDisplay, onRightDisplay],
+                                              displayBounds: bothDisplays,
+                                              targetIndex: 5).isEmpty
+               && SwitcherSupport.itemsOnDisplay([onLeftDisplay, onRightDisplay],
+                                                 displayBounds: [],
+                                                 targetIndex: 0).isEmpty,
+               "a missing display never falls back to windows on other monitors")
+
+        expect(SwitcherSupport.itemsOnDisplay([onLeftDisplay, withoutWindow, onNoDisplay],
+                                              displayBounds: bothDisplays,
+                                              targetIndex: 1).isEmpty,
+               "an empty monitor has no switch targets, including windowless apps")
+        let displayFilterBody = (switcherSource.components(separatedBy: "private var currentDisplayScope")
+            .last ?? "").components(separatedBy: "private var placementVisibleFrame").first ?? ""
+        expect(displayFilterBody.contains("NSScreen.withMouse?.displayID")
+               && displayFilterBody.contains("?? -1"),
+               "display filtering follows the cursor and leaves no target when the display disappears")
+        expect(switcherCode.contains("guard !windows.isEmpty else {\n            discardPendingSessionStart(generation: generation)"),
+               "an empty display discards the pending session before opening a panel or committing a window")
+        let otherScreenRepresentative = SwitcherSupport.groupWindowsByApp([onLeftDisplay, onRightDisplay])
+        expect(SwitcherSupport.itemsOnDisplay(otherScreenRepresentative,
+                                               displayBounds: bothDisplays, targetIndex: 1).isEmpty,
+               "regression fixture reproduces a local window lost when grouping precedes display filtering")
+        let localWindows = SwitcherSupport.itemsOnDisplay([onLeftDisplay, onRightDisplay],
+                                                          displayBounds: bothDisplays, targetIndex: 1)
+        expect(SwitcherSupport.groupWindowsByApp(localWindows).map(\.id) == ["right"],
+               "grouping after display filtering retains the same app's window on the target monitor")
+        let crowdedOtherDisplay = Array(repeating: onLeftDisplay, count: 24) + [onRightDisplay]
+        expect(Array(SwitcherSupport.itemsOnDisplay(crowdedOtherDisplay,
+                                                    displayBounds: bothDisplays, targetIndex: 1)
+            .prefix(24)).map(\.id) == ["right"],
+               "windows on other monitors cannot exhaust the local display's entry limit")
+        let enumeratorCode = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+            encoding: .utf8)) ?? ""
+        let displayFilter = enumeratorCode.range(of: "SwitcherSupport.itemsOnDisplay(filtered,")
+        let grouping = enumeratorCode.range(of: "SwitcherSupport.groupWindowsByApp(orderedPrimary)")
+        let entryCap = enumeratorCode.range(of: "ordered.prefix(maximumCount)")
+        expect(displayFilter != nil && grouping != nil && entryCap != nil
+               && displayFilter!.lowerBound < grouping!.lowerBound
+               && displayFilter!.lowerBound < entryCap!.lowerBound,
+               "enumeration applies the display scope before grouping and capping the list")
+        expect(SwitcherSupport.sessionSourceItem(frontmostPID: 1, focusedWindowID: 1,
+                                                 items: [onLeftDisplay, onRightDisplay])?.id == "left"
+               && !localWindows.contains(where: { $0.id == "left" })
+               && switcherCode.contains("items: sourceItems)")
+               && enumeratorCode.contains("sourceItems: sourceItems ?? result"),
+               "activation retains the foreground window even when the displayed list excludes its monitor")
+        let displaySnapshot = switcherSource.range(of: "let displayScope = currentDisplayScope")
+        let enumerationDispatch = switcherSource.range(of: "enumerationQueue.async")
+        expect(displaySnapshot != nil && enumerationDispatch != nil
+               && displaySnapshot!.lowerBound < enumerationDispatch!.lowerBound,
+               "the target display is captured before window enumeration can delay the session")
 
         // MARK: Switcher entries for apps with no window (issue #351)
         expect(SwitcherWindowlessApps.mode(storedValue: nil,
@@ -3859,6 +3958,44 @@ struct MetricsTests {
                "the Shelf provider rejects an untrustworthy status-item frame")
         expect(statusHitTestCode.contains(statusFrameCall) && statusHitTestCode.contains("return false"),
                "status-item hit testing rejects an untrustworthy frame")
+
+        // MARK: The panel surface reaches the popover arrow (issue #1030)
+
+        // AppKit hands the hosted panel a safe area for the popover's border and
+        // draws the arrow on the frame itself, so a surface that stopped at the
+        // panel would leave the tip in the plain system material. None of these
+        // owners compiles into this binary, so pin the three pieces that together
+        // carry the panel's own surface out to the tip.
+        let popoverSetUpCode = stripCommentLines((statusAnchorAppDelegateSource
+            .components(separatedBy: "private func setUpPopover() {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? "")
+        expect(popoverSetUpCode.contains("popover.hasFullSizeContent = true"),
+               "the panel is hosted across the whole popover, arrow band included")
+        let panelThemeSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Theme.swift",
+            encoding: .utf8)) ?? ""
+        let panelGlassCode = stripCommentLines((panelThemeSource
+            .components(separatedBy: "private struct PanelGlassSurface: View {").last ?? "")
+            .components(separatedBy: "\n}").first ?? "")
+        expect(panelGlassCode.contains("surface.ignoresSafeArea()"),
+               "the panel surface paints past the safe area, up into the arrow")
+        expect(!panelGlassCode.isEmpty
+                   && !panelGlassCode.contains("RoundedRectangle")
+                   && !panelGlassCode.contains("cornerRadius"),
+               "the panel surface leaves the rounding to the popover balloon that clips it")
+        expect(panelGlassCode.contains(".glassEffect(.regular, in: Rectangle())")
+                   && panelGlassCode.contains("Rectangle()\n            .fill(.regularMaterial)"),
+               "both the standard and the Liquid Glass surface fill the whole balloon, no shape of their own")
+        let panelViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+            encoding: .utf8)) ?? ""
+        let panelBodyCode: (String) -> String = { header in
+            stripCommentLines((panelViewSource.components(separatedBy: header).last ?? "")
+                .components(separatedBy: "\n    }").first ?? "")
+        }
+        expect(panelBodyCode("private var navigablePanel: some View {").contains(".panelGlassSurface()")
+                   && panelBodyCode("private var metricPanel: some View {").contains(".panelGlassSurface()"),
+               "both the navigable panel and the metric panel wear that surface")
 
         // The panel keeps its top edge and its center while its content resizes.
         let panelArea = CGRect(x: 0, y: 0, width: 1470, height: 932)
@@ -12108,6 +12245,50 @@ struct MetricsTests {
                                                          targetStartedMinimized: false,
                                                          ownPID: 99),
                "App Switcher focus retries do not steal focus after the user moves to another app")
+        switcherFocusRetryChecks { expect($0, $1) }
+        // A window opened after the switch (Command-N in the app the switcher
+        // just raised) keeps the app frontmost, so the checks above cannot see
+        // it; the retry has to recognize the window itself.
+        expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                         sourcePID: 20,
+                                                         frontmostPID: 10,
+                                                         targetIsMinimized: false,
+                                                         targetStartedMinimized: false,
+                                                         knownWindowIDs: [101, 102],
+                                                         targetAppWindowIDs: [777],
+                                                         targetAppFocusedWindowID: 777,
+                                                         ownPID: 99),
+               "App Switcher focus retries let go of a window the app opened after the switch")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        knownWindowIDs: [101, 102],
+                                                        targetAppWindowIDs: [102],
+                                                        targetAppFocusedWindowID: 102,
+                                                        ownPID: 99),
+               "a window the app already had does not cancel the retry, so the pass still settles the target")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        knownWindowIDs: [101, 102],
+                                                        targetAppWindowIDs: [],
+                                                        targetAppFocusedWindowID: nil,
+                                                        ownPID: 99),
+               "an app with nothing on screen yet is the case the retry exists for, and still runs")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        knownWindowIDs: [],
+                                                        targetAppWindowIDs: [777],
+                                                        targetAppFocusedWindowID: 777,
+                                                        ownPID: 99),
+               "without a snapshot of the app's windows the retry behaves exactly as before")
         expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                          sourcePID: 20,
                                                          frontmostPID: 30,
@@ -13388,6 +13569,12 @@ struct MetricsTests {
             expect(!strings.switcherCurrentSpaceOnlyCaption.isEmpty
                    && !strings.switcherCurrentSpaceOnlyCaption.contains("—"),
                    "\(prefix) App Switcher current-desktop caption is present without em dash")
+            expect(!strings.switcherCurrentDisplayOnly.isEmpty
+                   && !strings.switcherCurrentDisplayOnly.contains("—"),
+                   "\(prefix) App Switcher current-display title is present without em dash")
+            expect(!strings.switcherCurrentDisplayOnlyCaption.isEmpty
+                   && !strings.switcherCurrentDisplayOnlyCaption.contains("—"),
+                   "\(prefix) App Switcher current-display caption is present without em dash")
             expect([strings.switcherScreenPlacementLabel,
                     strings.switcherScreenPlacementPointer,
                     strings.switcherScreenPlacementMenuBar,
@@ -18095,10 +18282,11 @@ struct MetricsTests {
         // The preview appears unasked for, so presenting it must not take the
         // keyboard away from whatever the person is typing into. Its shortcuts
         // read a local monitor, which is delivered nothing until the panel is
-        // key. Presenting stays silent and hover takes nothing either; a click
-        // hands the keyboard over in the panel's sendEvent because hosted
-        // SwiftUI content answers presses that never reach mouseDown. Comments
-        // are stripped so prose naming the API cannot answer for the code.
+        // key. Presenting stays silent unless the person opted in, and hover
+        // takes nothing either; a click hands the keyboard over in the panel's
+        // sendEvent because hosted SwiftUI content answers presses that never
+        // reach mouseDown. Comments are stripped so prose naming the API
+        // cannot answer for the code.
         let quickPreviewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
             encoding: .utf8)) ?? ""
@@ -18116,10 +18304,19 @@ struct MetricsTests {
         // hosted SwiftUI content answers presses that never reach mouseDown.
         let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
+        // The opt-in keys the panel only after it is on screen, and the line
+        // above the call is the preference check itself, so dropping the guard
+        // or keying before ordering front both go red.
+        let presentLines = presentBody.components(separatedBy: "\n")
+        let orderFrontLine = presentLines.firstIndex { $0.contains("orderFrontRegardless()") } ?? -1
+        let makeKeyLine = presentLines.firstIndex { $0.contains("makeKey") } ?? -1
+        expect(orderFrontLine >= 0 && makeKeyLine > orderFrontLine
+                && presentLines[makeKeyLine - 1].contains("screenshotPreviewTakesFocus"),
+               "presenting the screenshot preview takes key focus only behind the opt-in, once the panel is on screen")
         let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
         let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
-        expect(makeKeyCount == panelMakeKeyCount && panelMakeKeyCount >= 1,
-               "presentation and hover never take key focus; only the panel's own click hand-off may")
+        expect(makeKeyCount == panelMakeKeyCount + 1 && panelMakeKeyCount >= 1,
+               "hover never takes key focus; only the opted-in presentation and the panel's own click hand-off may")
         expect(panelBody.contains("sendEvent") && panelBody.contains("leftMouseDown")
                 && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
                "clicking the screenshot preview takes key focus and still delivers every preview button")
@@ -18876,6 +19073,8 @@ struct MetricsTests {
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
                "screenshot preview placement preserves the existing automatic behavior by default")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == false,
+               "the screenshot preview leaves the keyboard where it was by default; taking it is the opt-in")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
@@ -19267,6 +19466,55 @@ struct MetricsTests {
                 && !ScratchpadSupport.requiresCloseConfirmation(
                     ScratchpadDocument.initial(defaultName: "Scratchpad").pads[0]),
                "only closing a scratchpad with content needs destructive confirmation")
+
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "t",
+                                                   commandOnly: true,
+                                                   canCreatePad: true,
+                                                   canClosePad: true) == .createPad,
+               "Command-T creates a scratchpad tab while the pad is focused")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "t",
+                                                   commandOnly: true,
+                                                   canCreatePad: false,
+                                                   canClosePad: true) == nil,
+               "Command-T is idle at the scratchpad tab limit")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "w",
+                                                   commandOnly: true,
+                                                   canCreatePad: true,
+                                                   canClosePad: true) == .closeSelectedPad,
+               "Command-W closes the selected scratchpad tab when more than one remains")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "w",
+                                                   commandOnly: true,
+                                                   canCreatePad: true,
+                                                   canClosePad: false) == .hidePad,
+               "Command-W on the last scratchpad tab hides the pad")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "t",
+                                                   commandOnly: false,
+                                                   canCreatePad: true,
+                                                   canClosePad: true) == nil
+                && ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "w",
+                                                       commandOnly: false,
+                                                       canCreatePad: true,
+                                                       canClosePad: true) == nil
+                && ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "a",
+                                                       commandOnly: true,
+                                                       canCreatePad: true,
+                                                       canClosePad: true) == nil,
+               "scratchpad tab shortcuts need Command alone on T or W")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "W",
+                                                   commandOnly: true,
+                                                   canCreatePad: true,
+                                                   canClosePad: true) == .closeSelectedPad,
+               "Caps Lock preserves the scratchpad close shortcut")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: "z",
+                                                   commandOnly: true,
+                                                   canCreatePad: true,
+                                                   canClosePad: true) == nil,
+               "the AZERTY Z at the US W position must not close a scratchpad")
+        expect(ScratchpadFocusedTabShortcut.action(charactersIgnoringModifiers: nil,
+                                                   commandOnly: true,
+                                                   canCreatePad: true,
+                                                   canClosePad: true) == nil,
+               "events without a character do not trigger scratchpad tab shortcuts")
         var limitedScratchpads = migratedScratchpad
         for _ in 2...ScratchpadDocument.maximumPadCount {
             limitedScratchpads = limitedScratchpads.addingPad(defaultName: "Scratchpad")!
@@ -21052,6 +21300,7 @@ struct MetricsTests {
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
+                && backupKeys.contains(DefaultsKey.screenshotPreviewTakesFocus)
                 && backupKeys.contains(DefaultsKey.screenshotLoupeRememberZoom)
                 && backupKeys.contains(DefaultsKey.screenshotLoupeDefaultZoom)
                 && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
@@ -26063,6 +26312,120 @@ struct MetricsTests {
             failures.forEach { print("  - \($0)") }
             exit(1)
         }
+    }
+
+    private static func switcherFocusRetryChecks(_ expect: (Bool, String) -> Void) {
+        func window(_ id: CGWindowID, pid: pid_t = 10, layer: Int = 0,
+                    onscreen: Bool = true, alpha: Double = 1) -> [String: Any] {
+            [kCGWindowNumber as String: NSNumber(value: id),
+             kCGWindowOwnerPID as String: NSNumber(value: pid),
+             kCGWindowLayer as String: NSNumber(value: layer),
+             kCGWindowIsOnscreen as String: NSNumber(value: onscreen),
+             kCGWindowAlpha as String: NSNumber(value: alpha)]
+        }
+        let snapshot = SwitcherSupport.focusRetryWindowIDs(in: [
+            window(101), window(102, onscreen: false), window(103, layer: 8),
+            window(104, alpha: 0), window(101), window(900, pid: 20),
+            [kCGWindowOwnerPID as String: NSNumber(value: 10)],
+            [kCGWindowNumber as String: NSNumber(value: 901)]
+        ], ownerPID: 10)
+        expect(snapshot == [101, 102, 103, 104],
+               "focus snapshots retain offscreen and auxiliary identities without mixing owners")
+
+        let cases: [(String, pid_t?, Set<CGWindowID>, CGWindowID?, Set<CGWindowID>, Bool, Int, Int)] = [
+            ("new keyboard window cancels", 10, [101, 500], 500, snapshot, false, 1, 1),
+            ("new transparent helper leaves existing keyboard focus alone", 10, [101, 500], 101, snapshot, true, 1, 1),
+            ("new helper cannot hide a new focused window behind it", 10, [101, 500, 501], 501, snapshot, false, 1, 1),
+            ("existing dialog remains eligible", 10, [103], 103, snapshot, true, 1, 0),
+            ("restored offscreen window remains eligible", 10, [102], 102, snapshot, true, 1, 0),
+            ("unavailable focus does not treat an auxiliary surface as user intent", 10, [500], nil, snapshot, true, 1, 1),
+            ("unavailable window list preserves existing behavior", 10, [], 500, snapshot, true, 1, 0),
+            ("unavailable initial snapshot makes no later queries", 10, [500], 500, [], true, 0, 0),
+            ("source handoff ignores windows created in the background", 20, [500], 500, snapshot, true, 0, 0),
+            ("own app handoff makes no window queries", 99, [500], 500, snapshot, true, 0, 0),
+            ("unrelated app cancels before window queries", 30, [500], 500, snapshot, false, 0, 0),
+            ("unknown foreground does not infer a new user action", nil, [500], 500, snapshot, true, 0, 0)
+        ]
+        for (label, frontmost, visible, focused, known, expected, expectedWindowReads, expectedFocusReads) in cases {
+            var windowReads = 0
+            var focusReads = 0
+            func readWindows() -> Set<CGWindowID> { windowReads += 1; return visible }
+            func readFocus() -> CGWindowID? { focusReads += 1; return focused }
+            let actual = SwitcherSupport.shouldContinueFocusRetry(
+                targetPID: 10, sourcePID: 20, frontmostPID: frontmost,
+                targetIsMinimized: false, targetStartedMinimized: false,
+                knownWindowIDs: known, targetAppWindowIDs: readWindows(),
+                targetAppFocusedWindowID: readFocus(), ownPID: 99)
+            expect(actual == expected, "focus retry: " + label)
+            expect(windowReads == expectedWindowReads && focusReads == expectedFocusReads,
+                   "focus retry bounds its queries: " + label)
+        }
+
+        let helper = window(500, alpha: 0)
+        let withHelper = SwitcherSupport.focusRetryWindowIDs(in: [helper, window(101)], ownerPID: 10)
+        let state = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                  targetStartedMinimized: false,
+                                                  knownWindowIDs: snapshot)
+        expect(state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                    targetMinimizedState: false, targetAppWindowIDs: withHelper,
+                                    targetAppFocusedWindowID: 101, ownPID: 99),
+               "a transparent helper does not cancel the fullscreen focus chain")
+        expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                     targetMinimizedState: false, targetAppWindowIDs: [500],
+                                     targetAppFocusedWindowID: 500, ownPID: 99),
+               "a new focused window cancels the remaining fullscreen passes")
+        var lateReads = 0
+        func lateWindows() -> Set<CGWindowID> { lateReads += 1; return [102] }
+        func lateFocus() -> CGWindowID? { lateReads += 1; return 102 }
+        expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                     targetMinimizedState: false, targetAppWindowIDs: lateWindows(),
+                                     targetAppFocusedWindowID: lateFocus(), ownPID: 99),
+               "a later pass cannot reclaim focus after the new window closes")
+        expect(lateReads == 0, "a cancelled focus chain performs no later window queries")
+
+        for destination in [20, 30, 99, nil] as [pid_t?] {
+            for focusResult in [101, nil] as [CGWindowID?] {
+                var foreground: pid_t? = 10
+                func focusAfterSwitchingAway() -> CGWindowID? {
+                    foreground = destination
+                    return focusResult
+                }
+                let pending = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                            targetStartedMinimized: false,
+                                                            knownWindowIDs: snapshot)
+                expect(!pending.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: foreground,
+                                                targetMinimizedState: false, targetAppWindowIDs: [500],
+                                                targetAppFocusedWindowID: focusAfterSwitchingAway(), ownPID: 99),
+                       "a slow focus query cannot reclaim the app after the user leaves it")
+            }
+        }
+
+        let partial = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                    targetStartedMinimized: false,
+                                                    knownWindowIDs: [102])
+        expect(partial.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                      targetMinimizedState: false, targetAppWindowIDs: [101],
+                                      targetAppFocusedWindowID: 101, ownPID: 99),
+               "the selected target is not new when a partial snapshot missed it")
+        let minimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                      targetStartedMinimized: true,
+                                                      knownWindowIDs: snapshot)
+        expect(minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 20,
+                                        targetMinimizedState: true, targetAppWindowIDs: [],
+                                        targetAppFocusedWindowID: nil, ownPID: 99),
+               "a minimized target can finish its first restoration")
+        expect(minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                        targetMinimizedState: false, targetAppWindowIDs: [101],
+                                        targetAppFocusedWindowID: 101, ownPID: 99),
+               "the focus chain observes successful restoration")
+        expect(!minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                         targetMinimizedState: true, targetAppWindowIDs: [101],
+                                         targetAppFocusedWindowID: 101, ownPID: 99),
+               "minimizing the restored target cancels remaining passes")
+        expect(!minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                         targetMinimizedState: false, targetAppWindowIDs: [101],
+                                         targetAppFocusedWindowID: 101, ownPID: 99),
+               "later restoration cannot restart a cancelled focus chain")
     }
 
     private static func scratchpadStoreChecks(_ expect: (Bool, String) -> Void) {
