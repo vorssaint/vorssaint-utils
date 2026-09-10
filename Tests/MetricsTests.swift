@@ -12210,6 +12210,50 @@ struct MetricsTests {
                                                          targetStartedMinimized: false,
                                                          ownPID: 99),
                "App Switcher focus retries do not steal focus after the user moves to another app")
+        switcherFocusRetryChecks { expect($0, $1) }
+        // A window opened after the switch (Command-N in the app the switcher
+        // just raised) keeps the app frontmost, so the checks above cannot see
+        // it; the retry has to recognize the window itself.
+        expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                         sourcePID: 20,
+                                                         frontmostPID: 10,
+                                                         targetIsMinimized: false,
+                                                         targetStartedMinimized: false,
+                                                         knownWindowIDs: [101, 102],
+                                                         targetAppWindowIDs: [777],
+                                                         targetAppFocusedWindowID: 777,
+                                                         ownPID: 99),
+               "App Switcher focus retries let go of a window the app opened after the switch")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        knownWindowIDs: [101, 102],
+                                                        targetAppWindowIDs: [102],
+                                                        targetAppFocusedWindowID: 102,
+                                                        ownPID: 99),
+               "a window the app already had does not cancel the retry, so the pass still settles the target")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        knownWindowIDs: [101, 102],
+                                                        targetAppWindowIDs: [],
+                                                        targetAppFocusedWindowID: nil,
+                                                        ownPID: 99),
+               "an app with nothing on screen yet is the case the retry exists for, and still runs")
+        expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
+                                                        sourcePID: 20,
+                                                        frontmostPID: 10,
+                                                        targetIsMinimized: false,
+                                                        targetStartedMinimized: false,
+                                                        knownWindowIDs: [],
+                                                        targetAppWindowIDs: [777],
+                                                        targetAppFocusedWindowID: 777,
+                                                        ownPID: 99),
+               "without a snapshot of the app's windows the retry behaves exactly as before")
         expect(!SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                          sourcePID: 20,
                                                          frontmostPID: 30,
@@ -26304,6 +26348,120 @@ struct MetricsTests {
             failures.forEach { print("  - \($0)") }
             exit(1)
         }
+    }
+
+    private static func switcherFocusRetryChecks(_ expect: (Bool, String) -> Void) {
+        func window(_ id: CGWindowID, pid: pid_t = 10, layer: Int = 0,
+                    onscreen: Bool = true, alpha: Double = 1) -> [String: Any] {
+            [kCGWindowNumber as String: NSNumber(value: id),
+             kCGWindowOwnerPID as String: NSNumber(value: pid),
+             kCGWindowLayer as String: NSNumber(value: layer),
+             kCGWindowIsOnscreen as String: NSNumber(value: onscreen),
+             kCGWindowAlpha as String: NSNumber(value: alpha)]
+        }
+        let snapshot = SwitcherSupport.focusRetryWindowIDs(in: [
+            window(101), window(102, onscreen: false), window(103, layer: 8),
+            window(104, alpha: 0), window(101), window(900, pid: 20),
+            [kCGWindowOwnerPID as String: NSNumber(value: 10)],
+            [kCGWindowNumber as String: NSNumber(value: 901)]
+        ], ownerPID: 10)
+        expect(snapshot == [101, 102, 103, 104],
+               "focus snapshots retain offscreen and auxiliary identities without mixing owners")
+
+        let cases: [(String, pid_t?, Set<CGWindowID>, CGWindowID?, Set<CGWindowID>, Bool, Int, Int)] = [
+            ("new keyboard window cancels", 10, [101, 500], 500, snapshot, false, 1, 1),
+            ("new transparent helper leaves existing keyboard focus alone", 10, [101, 500], 101, snapshot, true, 1, 1),
+            ("new helper cannot hide a new focused window behind it", 10, [101, 500, 501], 501, snapshot, false, 1, 1),
+            ("existing dialog remains eligible", 10, [103], 103, snapshot, true, 1, 0),
+            ("restored offscreen window remains eligible", 10, [102], 102, snapshot, true, 1, 0),
+            ("unavailable focus does not treat an auxiliary surface as user intent", 10, [500], nil, snapshot, true, 1, 1),
+            ("unavailable window list preserves existing behavior", 10, [], 500, snapshot, true, 1, 0),
+            ("unavailable initial snapshot makes no later queries", 10, [500], 500, [], true, 0, 0),
+            ("source handoff ignores windows created in the background", 20, [500], 500, snapshot, true, 0, 0),
+            ("own app handoff makes no window queries", 99, [500], 500, snapshot, true, 0, 0),
+            ("unrelated app cancels before window queries", 30, [500], 500, snapshot, false, 0, 0),
+            ("unknown foreground does not infer a new user action", nil, [500], 500, snapshot, true, 0, 0)
+        ]
+        for (label, frontmost, visible, focused, known, expected, expectedWindowReads, expectedFocusReads) in cases {
+            var windowReads = 0
+            var focusReads = 0
+            func readWindows() -> Set<CGWindowID> { windowReads += 1; return visible }
+            func readFocus() -> CGWindowID? { focusReads += 1; return focused }
+            let actual = SwitcherSupport.shouldContinueFocusRetry(
+                targetPID: 10, sourcePID: 20, frontmostPID: frontmost,
+                targetIsMinimized: false, targetStartedMinimized: false,
+                knownWindowIDs: known, targetAppWindowIDs: readWindows(),
+                targetAppFocusedWindowID: readFocus(), ownPID: 99)
+            expect(actual == expected, "focus retry: " + label)
+            expect(windowReads == expectedWindowReads && focusReads == expectedFocusReads,
+                   "focus retry bounds its queries: " + label)
+        }
+
+        let helper = window(500, alpha: 0)
+        let withHelper = SwitcherSupport.focusRetryWindowIDs(in: [helper, window(101)], ownerPID: 10)
+        let state = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                  targetStartedMinimized: false,
+                                                  knownWindowIDs: snapshot)
+        expect(state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                    targetMinimizedState: false, targetAppWindowIDs: withHelper,
+                                    targetAppFocusedWindowID: 101, ownPID: 99),
+               "a transparent helper does not cancel the fullscreen focus chain")
+        expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                     targetMinimizedState: false, targetAppWindowIDs: [500],
+                                     targetAppFocusedWindowID: 500, ownPID: 99),
+               "a new focused window cancels the remaining fullscreen passes")
+        var lateReads = 0
+        func lateWindows() -> Set<CGWindowID> { lateReads += 1; return [102] }
+        func lateFocus() -> CGWindowID? { lateReads += 1; return 102 }
+        expect(!state.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                     targetMinimizedState: false, targetAppWindowIDs: lateWindows(),
+                                     targetAppFocusedWindowID: lateFocus(), ownPID: 99),
+               "a later pass cannot reclaim focus after the new window closes")
+        expect(lateReads == 0, "a cancelled focus chain performs no later window queries")
+
+        for destination in [20, 30, 99, nil] as [pid_t?] {
+            for focusResult in [101, nil] as [CGWindowID?] {
+                var foreground: pid_t? = 10
+                func focusAfterSwitchingAway() -> CGWindowID? {
+                    foreground = destination
+                    return focusResult
+                }
+                let pending = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                            targetStartedMinimized: false,
+                                                            knownWindowIDs: snapshot)
+                expect(!pending.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: foreground,
+                                                targetMinimizedState: false, targetAppWindowIDs: [500],
+                                                targetAppFocusedWindowID: focusAfterSwitchingAway(), ownPID: 99),
+                       "a slow focus query cannot reclaim the app after the user leaves it")
+            }
+        }
+
+        let partial = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                    targetStartedMinimized: false,
+                                                    knownWindowIDs: [102])
+        expect(partial.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                      targetMinimizedState: false, targetAppWindowIDs: [101],
+                                      targetAppFocusedWindowID: 101, ownPID: 99),
+               "the selected target is not new when a partial snapshot missed it")
+        let minimized = SwitcherWindowFocusRetryState(targetWindowID: 101,
+                                                      targetStartedMinimized: true,
+                                                      knownWindowIDs: snapshot)
+        expect(minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 20,
+                                        targetMinimizedState: true, targetAppWindowIDs: [],
+                                        targetAppFocusedWindowID: nil, ownPID: 99),
+               "a minimized target can finish its first restoration")
+        expect(minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                        targetMinimizedState: false, targetAppWindowIDs: [101],
+                                        targetAppFocusedWindowID: 101, ownPID: 99),
+               "the focus chain observes successful restoration")
+        expect(!minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                         targetMinimizedState: true, targetAppWindowIDs: [101],
+                                         targetAppFocusedWindowID: 101, ownPID: 99),
+               "minimizing the restored target cancels remaining passes")
+        expect(!minimized.shouldContinue(targetPID: 10, sourcePID: 20, frontmostPID: 10,
+                                         targetMinimizedState: false, targetAppWindowIDs: [101],
+                                         targetAppFocusedWindowID: 101, ownPID: 99),
+               "later restoration cannot restart a cancelled focus chain")
     }
 
     private static func scratchpadStoreChecks(_ expect: (Bool, String) -> Void) {
