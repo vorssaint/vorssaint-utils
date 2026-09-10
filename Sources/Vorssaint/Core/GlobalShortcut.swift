@@ -24,6 +24,12 @@ struct GlobalShortcutModifiers: OptionSet, Hashable {
         contains(.control) || contains(.option) || contains(.command)
     }
 
+    /// How many of the four real modifiers are held. Read to tell a broad
+    /// layer from one narrowed so far that a digit on it becomes a system key.
+    var count: Int {
+        intersection(.validMask).rawValue.nonzeroBitCount
+    }
+
     var cgFlags: CGEventFlags {
         var flags: CGEventFlags = []
         if contains(.control) { flags.insert(.maskControl) }
@@ -904,9 +910,13 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static var featuresToSilenceWhileRecording: [AppFeature] {
         var seen: Set<AppFeature> = []
         var features = allCases.compactMap { seen.insert($0.feature).inserted ? $0.feature : nil }
-        // Window layout keeps one shortcut per action instead of a role, so it
-        // is the one holder of global keys the list above cannot reach.
+        // Window layout keeps one shortcut per action instead of a role, and the
+        // Dock number keys register nine Carbon hotkeys with no role at all, so
+        // each holds global keys the list above cannot reach — and each is torn
+        // down by ShortcutCapture.begin(), so both must be re-synced here or they
+        // stay dead until relaunch.
         if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        if seen.insert(.dockNumberSwitch).inserted { features.append(.dockNumberSwitch) }
         return features
     }
 
