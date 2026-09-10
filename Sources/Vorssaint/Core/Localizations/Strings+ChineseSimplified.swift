@@ -754,6 +754,7 @@ extension Strings {
         menuBarSpacingCompact: "紧凑",
         menuBarHideIconToggle: "显示指标时隐藏 App 图标",
         menuBarHideIconCaption: "当指标离开菜单栏，或有需要提示的内容（更新就绪或麦克风已静音）时，图标会自动回来。",
+        menuBarBatteryHideIconToggle: "仅显示百分比",
         monitorLabelStyleLabel: "标签",
         menuBarLabelStyleCompact: "紧凑",
         menuBarLabelStyleClassic: "经典",

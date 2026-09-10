@@ -302,6 +302,10 @@ private struct MenuBarMetricOrderEditor: View {
                         MemoryMenuBarOrderOption()
                     }
 
+                    if metric == .battery {
+                        BatteryMenuBarOrderOption()
+                    }
+
                     if metric == .network {
                         NetworkMenuBarOrderOption()
                     }
@@ -380,6 +384,18 @@ private struct MemoryMenuBarOrderOption: View {
                 .onAppear {
                     memoryStyle = Defaults.sanitizedMenuBarMemoryStyle(memoryStyle)
                 }
+        }
+    }
+}
+
+private struct BatteryMenuBarOrderOption: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarBattery) private var menuBarBattery = false
+    @AppStorage(DefaultsKey.menuBarBatteryHideIcon) private var hideIcon = false
+
+    var body: some View {
+        if menuBarBattery, PowerSampler.hasInternalBattery {
+            MetricRowOptionToggle(label: l10n.s.menuBarBatteryHideIconToggle, isOn: $hideIcon)
         }
     }
 }

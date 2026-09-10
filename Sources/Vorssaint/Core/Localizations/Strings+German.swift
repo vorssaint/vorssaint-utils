@@ -754,6 +754,7 @@ extension Strings {
         menuBarSpacingCompact: "Kompakt",
         menuBarHideIconToggle: "App-Symbol ausblenden, solange Messwerte angezeigt werden",
         menuBarHideIconCaption: "Das Symbol kehrt von selbst zurück, wenn die Messwerte die Leiste verlassen und wenn es etwas zu melden gibt (ein Update bereit oder das Mikrofon stumm).",
+        menuBarBatteryHideIconToggle: "Nur Prozent",
         monitorLabelStyleLabel: "Beschriftungen",
         menuBarLabelStyleCompact: "Kompakt",
         menuBarLabelStyleClassic: "Klassisch",

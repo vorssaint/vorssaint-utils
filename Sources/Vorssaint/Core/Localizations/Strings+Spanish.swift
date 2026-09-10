@@ -754,6 +754,7 @@ extension Strings {
         menuBarSpacingCompact: "Compacto",
         menuBarHideIconToggle: "Ocultar el icono de la app mientras se muestran métricas",
         menuBarHideIconCaption: "El icono vuelve solo cuando las métricas salen de la barra y cuando hay algo que avisar (una actualización lista o el micrófono silenciado).",
+        menuBarBatteryHideIconToggle: "Solo el porcentaje",
         monitorLabelStyleLabel: "Etiquetas",
         menuBarLabelStyleCompact: "Compactas",
         menuBarLabelStyleClassic: "Clásicas",

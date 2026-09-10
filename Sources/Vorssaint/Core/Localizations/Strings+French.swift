@@ -754,6 +754,7 @@ extension Strings {
         menuBarSpacingCompact: "Compact",
         menuBarHideIconToggle: "Masquer l’icône de l’app quand des métriques sont affichées",
         menuBarHideIconCaption: "L’icône revient d’elle-même quand les métriques quittent la barre et quand il y a quelque chose à signaler (une mise à jour prête ou le micro coupé).",
+        menuBarBatteryHideIconToggle: "Pourcentage seul",
         monitorLabelStyleLabel: "Libellés",
         menuBarLabelStyleCompact: "Compacts",
         menuBarLabelStyleClassic: "Classiques",
