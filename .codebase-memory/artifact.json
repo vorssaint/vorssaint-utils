@@ -1,0 +1,11 @@
+{
+    "schema_version": 2,
+    "commit": "05142d90d8239f3d022d0506048f535cececf4f4",
+    "indexed_at": "2026-09-05T16:26:31Z",
+    "project": "vorssaint-utils",
+    "nodes": 21327,
+    "edges": 81797,
+    "original_size": 34406400,
+    "compressed_size": 6722409,
+    "compression_level": 9
+}
