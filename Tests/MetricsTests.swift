@@ -4596,6 +4596,14 @@ struct MetricsTests {
                "no Bluetooth restore is owed before the first sleep")
         expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.bluetoothSleepRestorePending),
                "a Bluetooth restore owed by one sleeping Mac never travels to another")
+        expect(registeredDefaults[DefaultsKey.wifiSleepEnabled] as? Bool == false,
+               "switching Wi-Fi off on sleep is opt-in")
+        expect(registeredDefaults[DefaultsKey.wifiSleepRestoreOnWake] as? Bool == true,
+               "an enabled Wi-Fi sleep feature puts Wi-Fi back on wake")
+        expect(registeredDefaults[DefaultsKey.wifiSleepRestorePending] as? Bool == false,
+               "no Wi-Fi restore is owed before the first sleep")
+        expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.wifiSleepRestorePending),
+               "a Wi-Fi restore owed by one sleeping Mac never travels to another")
         expect(registeredDefaults[DefaultsKey.musicBlockEnabled] as? Bool == false,
                "blocking the music app from launching is opt-in")
         expect(registeredDefaults[DefaultsKey.musicBlockReplacementPath] as? String == "",
@@ -14634,7 +14642,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14644,7 +14652,7 @@ struct MetricsTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
-            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
+            "keepAwake", "brightness", "extraBrightness", "bluetoothSleep", "wifiSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
@@ -14878,6 +14886,19 @@ struct MetricsTests {
                 && AppFeature.bluetoothSleep.settingsDestination.hasValidSectionAnchor
                 && FeatureVisibilitySupport.features(for: .energy).contains(.bluetoothSleep),
                "Bluetooth on sleep owns a section of the Energy page and can keep it alive alone")
+        expect(AppFeature.wifiSleep.group == .energyDisplay
+                && AppFeature.wifiSleep.enabledKeys == [DefaultsKey.wifiSleepEnabled]
+                && AppFeature.wifiSleep.permissions.isEmpty
+                && AppFeature.wifiSleep.energyProfile == .idle
+                && !AppFeature.wifiSleep.isBeta,
+               "Wi-Fi on sleep is an energy feature that costs nothing at rest")
+        expect((AppFeature.availabilityDefaults[AppFeature.wifiSleep.availabilityKey] as? Bool) == true,
+               "Wi-Fi on sleep ships installed, switched off, so its section is findable")
+        expect(AppFeature.wifiSleep.settingsDestination
+                == FeatureSettingsDestination(.energy, sectionAnchor: .wifiSleep)
+                && AppFeature.wifiSleep.settingsDestination.hasValidSectionAnchor
+                && FeatureVisibilitySupport.features(for: .energy).contains(.wifiSleep),
+               "Wi-Fi on sleep owns a section of the Energy page and can keep it alive alone")
         expect(BluetoothSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: true)
                 == BluetoothSleepSupport.SleepPlan(powersOff: true, owesRestore: true),
                "Bluetooth on before sleep is switched off and owed back")
@@ -14893,6 +14914,30 @@ struct MetricsTests {
                "a wake owing nothing leaves Bluetooth off")
         expect(!BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: true),
                "Bluetooth the user switched on first is left alone")
+        expect(WiFiSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: true)
+                == WiFiSleepSupport.SleepPlan(powersOff: true, owesRestore: true),
+               "Wi-Fi on before sleep is switched off and owed back")
+        expect(WiFiSleepSupport.sleepPlan(isPoweredOn: true, restoresOnWake: false)
+                == WiFiSleepSupport.SleepPlan(powersOff: true, owesRestore: false),
+               "without the restore option, sleep switches Wi-Fi off for good")
+        expect(WiFiSleepSupport.sleepPlan(isPoweredOn: false, restoresOnWake: true)
+                == WiFiSleepSupport.SleepPlan(powersOff: false, owesRestore: false),
+               "Wi-Fi already off before sleep is left alone, so the wake never turns it on")
+        expect(WiFiSleepSupport.restores(owesRestore: true, isPoweredOn: false),
+               "a wake that still owes a restore switches Wi-Fi back on")
+        expect(!WiFiSleepSupport.restores(owesRestore: false, isPoweredOn: false),
+               "a wake owing nothing leaves Wi-Fi off")
+        expect(!WiFiSleepSupport.restores(owesRestore: true, isPoweredOn: true),
+               "Wi-Fi the user switched on first is left alone")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.wifiSleep(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 7 && values.allSatisfy { !$0.isEmpty },
+                   "Wi-Fi on sleep has every localized field for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "Wi-Fi on sleep text uses human punctuation for \(language.rawValue)")
+        }
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.bluetoothSleep(language)
@@ -16003,8 +16048,9 @@ struct MetricsTests {
                "the mouse page hides only with all eight mouse features off")
         expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness,
-                                                                         .bluetoothSleep])),
-               "energy hides when all four of its features are off")
+                                                                         .bluetoothSleep,
+                                                                         .wifiSleep])),
+               "energy hides when all five of its features are off")
         expect(pageVisible(.energy, available: [.extraBrightness]), "XDR alone keeps the energy page")
         expect(pageVisible(.energy, available: [.brightness]),
                "brightness control alone keeps the energy page")

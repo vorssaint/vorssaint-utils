@@ -74,6 +74,8 @@ enum SettingsBackupSupport {
     static let machineStateKeys: Set<String> = [
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
+        // Same for a Wi-Fi restore.
+        DefaultsKey.wifiSleepRestorePending,
         DefaultsKey.micMuteActive,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.
