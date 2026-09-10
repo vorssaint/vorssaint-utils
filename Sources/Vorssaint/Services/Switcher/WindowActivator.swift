@@ -504,7 +504,13 @@ enum WindowActivator {
             sourcePID: sourcePID,
             frontmostPID: currentFrontmostPID(),
             targetMinimizedState: minimizedState,
-            targetAppWindowIDs: windowIDs(ownerPID: targetWindowOwnerPID, options: .optionOnScreenOnly),
+            // The same scope the snapshot used. The on-screen list lags: a
+            // window the app has just opened is focused, and answered as
+            // focused by Accessibility, before the window server composites
+            // it — so comparing on-screen windows against an all-windows
+            // snapshot reported nothing new in exactly the race this guard
+            // exists for, and the focus reading below was never taken.
+            targetAppWindowIDs: windowIDs(ownerPID: targetWindowOwnerPID, options: .optionAll),
             targetAppFocusedWindowID: focusedWindowID(for: targetWindowOwnerPID)
         )
     }
