@@ -167,6 +167,13 @@ The Dock figures describe configured waits, not total loading time. Battery-life
 The selected changes below cover new options and fixes that affect everyday use. Small cosmetic adjustments, tour changes and build-only maintenance are omitted.
 
 ### Added
+- Optional keyboard backlight shortcuts adjust brightness one step at a time, available in Keyboard shortcuts. Thanks to @EugeneCarldotme.
+- Switching Spaces by dragging a button can follow your hand, the way a trackpad swipe does, in Mouse settings.
+- Recent captures can open from their own assignable shortcut without returning to the menu bar panel.
+- Window Layout has a visual map for turning each edge and corner snap area on or off, thanks to @levelupimprovement.
+- The Media image converter writes WebP, TIFF and AVIF, imports image folders recursively and processes large batches with bounded parallelism.
+- Image conversion can rotate, flip and crop, resize by percentage or shortest side without enlarging, and choose its resampling quality.
+- Image metadata can be removed by GPS, EXIF, IPTC or XMP group, while rename templates gain EXIF variables and an insertion menu.
 - Quit Protection guards Command Q and Command W with a hold, double press or extra modifier, configurable per app. Thanks to @RuanMD and @PathGao.
 - Window Layout offers eight-direction pointer placement, adjustable gaps, selectable snap areas and centered half-width windows. Thanks to @Bald-M, @marcelharinck, @levelupimprovement and @Borisserz.
 - Drag Dock previews to move windows, including minimized windows and windows on other desktops. Thanks to @PathGao.

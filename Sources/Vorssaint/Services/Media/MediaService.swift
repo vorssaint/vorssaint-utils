@@ -135,6 +135,7 @@ final class MediaService: ObservableObject {
     private var operationID: UUID?
     private var token: MediaCancellationToken?
     private var activeProcess: Process?
+    private var activeImageProcesses: [ObjectIdentifier: Process] = [:]
     private var activeVisionRequest: VNRequest?
 
     private init() {}
@@ -148,9 +149,13 @@ final class MediaService: ObservableObject {
         lock.lock()
         token?.cancel()
         activeProcess?.terminate()
+        for process in activeImageProcesses.values where process.isRunning {
+            process.terminate()
+        }
         activeVisionRequest?.cancel()
         operationID = nil
         activeProcess = nil
+        activeImageProcesses.removeAll()
         activeVisionRequest = nil
         lock.unlock()
         publish(.cancelled)
@@ -206,10 +211,14 @@ final class MediaService: ObservableObject {
         lock.lock()
         self.token?.cancel()
         self.activeProcess?.terminate()
+        for process in self.activeImageProcesses.values where process.isRunning {
+            process.terminate()
+        }
         self.activeVisionRequest?.cancel()
         self.operationID = id
         self.token = token
         self.activeProcess = nil
+        self.activeImageProcesses.removeAll()
         self.activeVisionRequest = nil
         lock.unlock()
         publish(.running(progress: 0, message: tool.rawValue), operationID: id)
@@ -509,11 +518,8 @@ final class MediaService: ObservableObject {
             try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         }
 
-        var itemResults: [MediaImageBatchItemResult] = []
-        var outputURLs: [URL] = []
+        var plannedOutputURLs: [URL] = []
         var reservedOutputPaths = Set<String>()
-        var originalBytes: Int64 = 0
-        var outputBytes: Int64 = 0
         let watermarkLogo: CGImage?
         if options.watermark.usesLogo {
             guard let logo = MediaSupport.watermarkLogo(atPath: options.watermark.logoPath) else {
@@ -525,56 +531,99 @@ final class MediaService: ObservableObject {
         }
 
         for (offset, inputURL) in inputs.enumerated() {
-            try checkCancellation(token)
-            let inputBytes = fileSize(inputURL)
-            do {
-                let prepared = try makeProcessedImage(inputURL: inputURL,
-                                                      options: options,
-                                                      watermarkLogo: watermarkLogo,
-                                                      token: token)
-                let outputURL = explicitOutputURL ?? MediaSupport.imageOutputURL(for: inputURL,
-                                                                                 outputDirectory: outputDirectory,
-                                                                                 options: options,
-                                                                                 index: offset + 1,
-                                                                                 outputSize: prepared.size,
-                                                                                 reservedPaths: reservedOutputPaths)
-                reservedOutputPaths.insert(outputURL.standardizedFileURL.path)
-                let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
-                defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
-                try writeImage(prepared.image,
-                               properties: prepared.properties,
-                               outputURL: stagedOutputURL,
-                               options: options)
-                try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
-                MediaSupport.makeVisibleIfNeeded(outputURL)
-                preserveModificationDateIfNeeded(from: inputURL, to: outputURL, options: options)
-                let itemOutputBytes = fileSize(outputURL)
-                originalBytes += inputBytes
-                outputBytes += itemOutputBytes
-                outputURLs.append(outputURL)
-                itemResults.append(MediaImageBatchItemResult(inputURL: inputURL,
-                                                             outputURL: outputURL,
-                                                             originalBytes: inputBytes,
-                                                             outputBytes: itemOutputBytes,
-                                                             failure: nil))
-            } catch let failure as MediaFailureBox {
-                if inputs.count == 1 { throw failure }
-                itemResults.append(MediaImageBatchItemResult(inputURL: inputURL,
-                                                             outputURL: nil,
-                                                             originalBytes: inputBytes,
-                                                             outputBytes: 0,
-                                                             failure: failure.failure))
-            } catch {
-                if inputs.count == 1 { throw error }
-                itemResults.append(MediaImageBatchItemResult(inputURL: inputURL,
-                                                             outputURL: nil,
-                                                             originalBytes: inputBytes,
-                                                             outputBytes: 0,
-                                                             failure: .failed(error.localizedDescription)))
+            if let explicitOutputURL {
+                plannedOutputURLs.append(explicitOutputURL)
+                continue
             }
-            publish(.running(progress: Double(offset + 1) / Double(inputs.count), message: "image"),
-                    operationID: operationID)
+            let properties = MediaSupport.imageProperties(at: inputURL) ?? [:]
+            let sourceSize = MediaSupport.imageDisplaySize(properties: properties)
+                ?? CGSize(width: 1, height: 1)
+            let outputSize = options.resizeMode.targetSize(
+                for: options.transform.outputSize(for: sourceSize)
+            )
+            let outputURL = MediaSupport.imageOutputURL(for: inputURL,
+                                                        outputDirectory: outputDirectory,
+                                                        options: options,
+                                                        index: offset + 1,
+                                                        outputSize: outputSize,
+                                                        properties: properties,
+                                                        reservedPaths: reservedOutputPaths)
+            reservedOutputPaths.insert(outputURL.standardizedFileURL.path)
+            plannedOutputURLs.append(outputURL)
         }
+
+        let workerQueue = OperationQueue()
+        workerQueue.name = "com.vorssaint.media.images"
+        workerQueue.qualityOfService = .userInitiated
+        workerQueue.maxConcurrentOperationCount = MediaSupport.imageBatchConcurrency(inputCount: inputs.count)
+        let resultLock = NSLock()
+        var completedCount = 0
+        var indexedResults = [MediaImageBatchItemResult?](repeating: nil, count: inputs.count)
+        let completionGroup = DispatchGroup()
+
+        for (offset, inputURL) in inputs.enumerated() {
+            let outputURL = plannedOutputURLs[offset]
+            completionGroup.enter()
+            workerQueue.addOperation { [self] in
+                defer { completionGroup.leave() }
+                let inputBytes = fileSize(inputURL)
+                let itemResult: MediaImageBatchItemResult
+                do {
+                    try checkCancellation(token)
+                    let prepared = try makeProcessedImage(inputURL: inputURL,
+                                                          options: options,
+                                                          watermarkLogo: watermarkLogo,
+                                                          token: token)
+                    let stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+                    defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+                    try writeImage(prepared.image,
+                                   properties: prepared.properties,
+                                   outputURL: stagedOutputURL,
+                                   options: options,
+                                   operationID: operationID,
+                                   token: token)
+                    try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
+                    MediaSupport.makeVisibleIfNeeded(outputURL)
+                    preserveModificationDateIfNeeded(from: inputURL, to: outputURL, options: options)
+                    itemResult = MediaImageBatchItemResult(inputURL: inputURL,
+                                                           outputURL: outputURL,
+                                                           originalBytes: inputBytes,
+                                                           outputBytes: fileSize(outputURL),
+                                                           failure: nil)
+                } catch let failure as MediaFailureBox {
+                    itemResult = MediaImageBatchItemResult(inputURL: inputURL,
+                                                           outputURL: nil,
+                                                           originalBytes: inputBytes,
+                                                           outputBytes: 0,
+                                                           failure: failure.failure)
+                } catch {
+                    itemResult = MediaImageBatchItemResult(inputURL: inputURL,
+                                                           outputURL: nil,
+                                                           originalBytes: inputBytes,
+                                                           outputBytes: 0,
+                                                           failure: .failed(error.localizedDescription))
+                }
+                resultLock.lock()
+                indexedResults[offset] = itemResult
+                completedCount += 1
+                let progress = Double(completedCount) / Double(inputs.count)
+                resultLock.unlock()
+                publish(.running(progress: progress, message: "image"), operationID: operationID)
+            }
+        }
+        var workersFinished = false
+        repeat {
+            workersFinished = completionGroup.wait(timeout: .now() + .milliseconds(50)) == .success
+        } while !workersFinished
+        try checkCancellation(token)
+
+        let itemResults = indexedResults.compactMap { $0 }
+        if inputs.count == 1, let failure = itemResults.first?.failure {
+            throw MediaFailureBox(failure)
+        }
+        let outputURLs = itemResults.compactMap(\.outputURL)
+        let originalBytes = itemResults.reduce(Int64(0)) { $0 + $1.originalBytes }
+        let outputBytes = itemResults.reduce(Int64(0)) { $0 + $1.outputBytes }
 
         guard !outputURLs.isEmpty else {
             throw MediaFailureBox(itemResults.compactMap(\.failure).first ?? .unsupported)
@@ -610,11 +659,13 @@ final class MediaService: ObservableObject {
         guard let sourceSize = MediaSupport.imageDisplaySize(properties: properties) else {
             throw MediaFailureBox(.unsupported)
         }
-        let expectedSize = options.resizeMode.targetSize(for: sourceSize)
+        let transformedSourceSize = options.transform.outputSize(for: sourceSize)
+        let expectedSize = options.resizeMode.targetSize(for: transformedSourceSize)
         guard MediaSupport.imageRenderSizeIsSafe(expectedSize) else {
             throw MediaFailureBox(.imageTooLarge)
         }
         guard let maxPixel = MediaSupport.imageDecodeMaxPixel(sourceSize: sourceSize,
+                                                              transformedSize: transformedSourceSize,
                                                               targetSize: expectedSize,
                                                               resizeMode: options.resizeMode) else {
             throw MediaFailureBox(.imageTooLarge)
@@ -628,18 +679,20 @@ final class MediaService: ObservableObject {
         guard let sourceImage = CGImageSourceCreateThumbnailAtIndex(source, 0, imageOptions as CFDictionary) else {
             throw MediaFailureBox(.unsupported)
         }
-        let targetSize = options.resizeMode.targetSize(
-            for: CGSize(width: sourceImage.width, height: sourceImage.height)
-        )
-        guard MediaSupport.imageRenderSizeIsSafe(targetSize) else {
+        guard let transformedImage = MediaSupport.transformedImage(sourceImage,
+                                                                   transform: options.transform) else {
+            throw MediaFailureBox(.unsupported)
+        }
+        guard MediaSupport.imageRenderSizeIsSafe(expectedSize) else {
             throw MediaFailureBox(.imageTooLarge)
         }
-        guard let image = renderImage(sourceImage,
-                                      targetSize: targetSize,
+        guard let image = renderImage(transformedImage,
+                                      targetSize: expectedSize,
                                       resizeMode: options.resizeMode,
                                       watermark: options.watermark,
                                       watermarkLogo: watermarkLogo,
                                       background: options.background,
+                                      resampling: options.resampling,
                                       forceOpaque: options.format == .jpeg || options.format == .pdf) else {
             throw MediaFailureBox(.unsupported)
         }
@@ -651,8 +704,16 @@ final class MediaService: ObservableObject {
     private func writeImage(_ image: CGImage,
                             properties: [CFString: Any],
                             outputURL: URL,
-                            options: MediaImageOptions) throws {
-        if options.format == .pdf {
+                            options: MediaImageOptions,
+                            operationID: UUID,
+                            token: MediaCancellationToken) throws {
+        if options.format == .webp {
+            try writeWebP(image: image,
+                          outputURL: outputURL,
+                          quality: MediaSupport.sanitizedQuality(options.quality),
+                          operationID: operationID,
+                          token: token)
+        } else if options.format == .pdf {
             try writePDF(image: image, outputURL: outputURL,
                          quality: MediaSupport.sanitizedQuality(options.quality))
         } else {
@@ -664,7 +725,9 @@ final class MediaService: ObservableObject {
                 kCGImageDestinationLossyCompressionQuality: MediaSupport.sanitizedQuality(options.quality),
             ]
             if !options.stripMetadata {
-                outputProperties.merge(sanitizedImageProperties(properties, image: image)) { current, _ in current }
+                outputProperties.merge(MediaSupport.sanitizedImageProperties(
+                    properties, image: image, policy: options.metadataPolicy
+                )) { current, _ in current }
             }
             CGImageDestinationAddImage(destination, image, outputProperties as CFDictionary)
             guard CGImageDestinationFinalize(destination) else { throw MediaFailureBox(.unsupported) }
@@ -769,6 +832,7 @@ final class MediaService: ObservableObject {
                              watermark: MediaImageWatermark,
                              watermarkLogo: CGImage?,
                              background: MediaImageBackground,
+                             resampling: MediaImageResampling,
                              forceOpaque: Bool) -> CGImage? {
         let width = max(1, Int(targetSize.width.rounded()))
         let height = max(1, Int(targetSize.height.rounded()))
@@ -788,7 +852,15 @@ final class MediaService: ObservableObject {
 
         let previous = NSGraphicsContext.current
         NSGraphicsContext.current = context
-        context.imageInterpolation = .high
+        let interpolation: NSImageInterpolation
+        switch resampling {
+        case .nearest: interpolation = .none
+        case .low: interpolation = .low
+        case .medium: interpolation = .medium
+        case .high: interpolation = .high
+        }
+        context.imageInterpolation = interpolation
+        context.cgContext.interpolationQuality = resampling.interpolationQuality
         let size = NSSize(width: CGFloat(width), height: CGFloat(height))
         let rect = NSRect(origin: .zero, size: size)
         if let fill = backgroundColor(background, forceOpaque: forceOpaque) {
@@ -803,7 +875,7 @@ final class MediaService: ObservableObject {
                                                  operation: .sourceOver,
                                                  fraction: 1,
                                                  respectFlipped: false,
-                                                 hints: [.interpolation: NSImageInterpolation.high.rawValue])
+                                                 hints: [.interpolation: interpolation.rawValue])
         drawWatermark(watermark, logo: watermarkLogo, canvasSize: size)
         NSGraphicsContext.current = previous
         return rep.cgImage
@@ -1068,14 +1140,6 @@ final class MediaService: ObservableObject {
         return try result.get()
     }
 
-    private func sanitizedImageProperties(_ properties: [CFString: Any], image: CGImage) -> [CFString: Any] {
-        var clean = properties
-        clean.removeValue(forKey: kCGImagePropertyOrientation)
-        clean[kCGImagePropertyPixelWidth] = image.width
-        clean[kCGImagePropertyPixelHeight] = image.height
-        return clean
-    }
-
     /// CGImageDestination accepts com.adobe.pdf but ignores the lossy quality,
     /// embedding the bitmap losslessly. Re-encoding as JPEG at the chosen
     /// quality and drawing that image into a PDF context makes Quartz embed
@@ -1103,11 +1167,61 @@ final class MediaService: ObservableObject {
         pdf.closePDF()
     }
 
+    private func writeWebP(image: CGImage,
+                           outputURL: URL,
+                           quality: Double,
+                           operationID: UUID,
+                           token: MediaCancellationToken) throws {
+        let intermediateURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-webp-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        defer { try? FileManager.default.removeItem(at: intermediateURL) }
+        guard let destination = CGImageDestinationCreateWithURL(
+            intermediateURL as CFURL, UTType.png.identifier as CFString, 1, nil
+        ) else {
+            throw MediaFailureBox(.unsupported)
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw MediaFailureBox(.unsupported)
+        }
+
+        let executable = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Library/Helpers/VorssaintWebPEncoder")
+        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+            throw MediaFailureBox(.failed("The bundled WebP encoder is unavailable."))
+        }
+        let process = Process()
+        let errors = Pipe()
+        process.executableURL = executable
+        process.arguments = [intermediateURL.path, outputURL.path, "\(quality * 100)"]
+        process.standardError = errors
+        do {
+            try launchImageProcess(process, operationID: operationID, token: token)
+            defer { clearImageProcess(process) }
+            process.waitUntilExit()
+        } catch {
+            if token.isCancelled { throw MediaFailureBox(.cancelled) }
+            throw MediaFailureBox(.failed(error.localizedDescription))
+        }
+        try checkCancellation(token)
+        guard process.terminationStatus == 0 else {
+            let detail = String(data: errors.fileHandleForReading.readDataToEndOfFile(),
+                                encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let message = detail.flatMap { $0.isEmpty ? nil : $0 } ?? "WebP encoding failed."
+            throw MediaFailureBox(.failed(message))
+        }
+    }
+
     private func typeIdentifier(for format: MediaImageFormat) -> String {
         switch format {
         case .jpeg: return UTType.jpeg.identifier
         case .heic: return UTType.heic.identifier
         case .png: return UTType.png.identifier
+        case .webp: return UTType.webP.identifier
+        case .tiff: return UTType.tiff.identifier
+        case .avif: return "public.avif"
         case .pdf: return UTType.pdf.identifier
         }
     }
@@ -1145,6 +1259,27 @@ final class MediaService: ObservableObject {
         activeProcess = process
     }
 
+    /// Image batches may have several WebP helpers at once. Register each one
+    /// under the same lock used by cancel(), so none can escape between launch
+    /// and becoming cancellable.
+    private func launchImageProcess(_ process: Process,
+                                    operationID: UUID,
+                                    token: MediaCancellationToken) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard self.operationID == operationID, !token.isCancelled else {
+            throw MediaFailureBox(.cancelled)
+        }
+        try process.run()
+        activeImageProcesses[ObjectIdentifier(process)] = process
+    }
+
+    private func clearImageProcess(_ process: Process) {
+        lock.lock()
+        activeImageProcesses.removeValue(forKey: ObjectIdentifier(process))
+        lock.unlock()
+    }
+
     private func setActiveVisionRequest(_ request: VNRequest,
                                         operationID: UUID,
                                         token: MediaCancellationToken) throws {
@@ -1162,6 +1297,7 @@ final class MediaService: ObservableObject {
             operationID = nil
             token = nil
             activeProcess = nil
+            activeImageProcesses.removeAll()
             activeVisionRequest = nil
         }
         lock.unlock()

@@ -5,6 +5,7 @@ import Foundation
 
 struct MediaImageConverterStrings {
     let filesSelectedFormat: String
+    let includeSubfolders: String
     let profile: String
     let noProfile: String
     let profileName: String
@@ -83,6 +84,7 @@ struct MediaImageConverterStrings {
 extension MediaImageConverterStrings {
     static let enUS = MediaImageConverterStrings(
         filesSelectedFormat: "%d files selected",
+        includeSubfolders: "Include subfolders",
         profile: "Profile",
         noProfile: "No profile",
         profileName: "Profile name",
@@ -142,6 +144,7 @@ extension MediaImageConverterStrings {
 
     static let ptBR = MediaImageConverterStrings(
         filesSelectedFormat: "%d arquivos selecionados",
+        includeSubfolders: "Incluir subpastas",
         profile: "Perfil",
         noProfile: "Sem perfil",
         profileName: "Nome do perfil",
@@ -201,6 +204,7 @@ extension MediaImageConverterStrings {
 
     static let tr = MediaImageConverterStrings(
         filesSelectedFormat: "%d dosya seçildi",
+        includeSubfolders: "Alt klasörleri dahil et",
         profile: "Profil",
         noProfile: "Profil yok",
         profileName: "Profil adı",
@@ -260,6 +264,7 @@ extension MediaImageConverterStrings {
 
     static let ru = MediaImageConverterStrings(
         filesSelectedFormat: "Выбрано файлов: %d",
+        includeSubfolders: "Включать подпапки",
         profile: "Профиль",
         noProfile: "Без профиля",
         profileName: "Название профиля",
@@ -319,6 +324,7 @@ extension MediaImageConverterStrings {
 
     static let es = MediaImageConverterStrings(
         filesSelectedFormat: "%d archivos seleccionados",
+        includeSubfolders: "Incluir subcarpetas",
         profile: "Perfil",
         noProfile: "Sin perfil",
         profileName: "Nombre del perfil",
@@ -378,6 +384,7 @@ extension MediaImageConverterStrings {
 
     static let de = MediaImageConverterStrings(
         filesSelectedFormat: "%d Dateien ausgewählt",
+        includeSubfolders: "Unterordner einbeziehen",
         profile: "Profil",
         noProfile: "Kein Profil",
         profileName: "Profilname",
@@ -437,6 +444,7 @@ extension MediaImageConverterStrings {
 
     static let fr = MediaImageConverterStrings(
         filesSelectedFormat: "%d fichiers sélectionnés",
+        includeSubfolders: "Inclure les sous-dossiers",
         profile: "Profil",
         noProfile: "Aucun profil",
         profileName: "Nom du profil",
@@ -496,6 +504,7 @@ extension MediaImageConverterStrings {
 
     static let it = MediaImageConverterStrings(
         filesSelectedFormat: "%d file selezionati",
+        includeSubfolders: "Includi sottocartelle",
         profile: "Profilo",
         noProfile: "Nessun profilo",
         profileName: "Nome del profilo",
@@ -555,6 +564,7 @@ extension MediaImageConverterStrings {
 
     static let ja = MediaImageConverterStrings(
         filesSelectedFormat: "%d個のファイルを選択",
+        includeSubfolders: "サブフォルダを含める",
         profile: "プロファイル",
         noProfile: "プロファイルなし",
         profileName: "プロファイル名",
@@ -614,6 +624,7 @@ extension MediaImageConverterStrings {
 
     static let ko = MediaImageConverterStrings(
         filesSelectedFormat: "%d개 파일 선택됨",
+        includeSubfolders: "하위 폴더 포함",
         profile: "프로필",
         noProfile: "프로필 없음",
         profileName: "프로필 이름",
@@ -673,6 +684,7 @@ extension MediaImageConverterStrings {
 
     static let zhHans = MediaImageConverterStrings(
         filesSelectedFormat: "已选择 %d 个文件",
+        includeSubfolders: "包括子文件夹",
         profile: "配置",
         noProfile: "无配置",
         profileName: "配置名称",
@@ -732,6 +744,7 @@ extension MediaImageConverterStrings {
 
     static let zhTW = MediaImageConverterStrings(
         filesSelectedFormat: "已選取 %d 個檔案",
+        includeSubfolders: "包括子資料夾",
         profile: "設定檔",
         noProfile: "無設定檔",
         profileName: "設定檔名稱",
@@ -791,6 +804,7 @@ extension MediaImageConverterStrings {
 
     static let zhHK = MediaImageConverterStrings(
         filesSelectedFormat: "已選取 %d 個檔案",
+        includeSubfolders: "包括子資料夾",
         profile: "設定檔",
         noProfile: "無設定檔",
         profileName: "設定檔名稱",
