@@ -3155,7 +3155,7 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         let displayFilter = enumeratorCode.range(of: "SwitcherSupport.itemsOnDisplay(filtered,")
         let grouping = enumeratorCode.range(of: "SwitcherSupport.groupWindowsByApp(orderedPrimary)")
-        let entryCap = enumeratorCode.range(of: "ordered.prefix(maximumCount)")
+        let entryCap = enumeratorCode.range(of: "limit: maximumCount")
         expect(displayFilter != nil && grouping != nil && entryCap != nil
                && displayFilter!.lowerBound < grouping!.lowerBound
                && displayFilter!.lowerBound < entryCap!.lowerBound,
