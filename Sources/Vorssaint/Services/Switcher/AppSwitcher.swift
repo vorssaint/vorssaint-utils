@@ -143,6 +143,8 @@ final class AppSwitcher: ObservableObject {
     /// Fires while the pointer stays on the last visible overflow icon.
     private var iconRowEdgeHoverWork: DispatchWorkItem?
     private var iconRowEdgeHoverIndex: Int?
+    private var pendingPreviewUpdates: [CGWindowID: CGImage] = [:]
+    private var previewBatchWorkItem: DispatchWorkItem?
 
     /// The on-screen window when the current session opened — becomes the
     /// second-most-recent window on commit, so a flick toggles straight back.
@@ -1024,7 +1026,7 @@ final class AppSwitcher: ObservableObject {
                 guard let self,
                       self.sessionActive,
                       self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
-                self.previews[windowID] = image
+                self.enqueuePreviewUpdate(windowID: windowID, image: image)
             }
         }
         if !pending.commitWhenReady {
@@ -1506,6 +1508,7 @@ final class AppSwitcher: ObservableObject {
         pendingShow?.cancel()
         pendingShow = nil
         WindowPreviewProvider.shared.cancel()
+        cancelPendingPreviewBatch()
         panel?.orderOut(nil)
         sessionItems = []
         windows = []
@@ -1529,6 +1532,32 @@ final class AppSwitcher: ObservableObject {
         shiftBackChordDeadline = 0
         closingItemIDs = []
         commitPendingForClose = false
+    }
+
+    private func enqueuePreviewUpdate(windowID: CGWindowID, image: CGImage) {
+        pendingPreviewUpdates[windowID] = image
+        guard previewBatchWorkItem == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.previewBatchWorkItem = nil
+            guard self.sessionActive else { return }
+            // The listing is re-checked here, not only when the capture landed:
+            // closing a window or quitting an app drops its thumbnail, and a
+            // capture that arrived just before must not put it back.
+            let listed = Set(self.sessionItems.compactMap(\.previewWindowID))
+            let updates = self.pendingPreviewUpdates.filter { listed.contains($0.key) }
+            self.pendingPreviewUpdates.removeAll()
+            guard !updates.isEmpty else { return }
+            self.previews.merge(updates) { _, new in new }
+        }
+        previewBatchWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04, execute: work)
+    }
+
+    private func cancelPendingPreviewBatch() {
+        previewBatchWorkItem?.cancel()
+        previewBatchWorkItem = nil
+        pendingPreviewUpdates.removeAll()
     }
 
     // MARK: - Panel
