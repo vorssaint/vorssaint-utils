@@ -5375,6 +5375,19 @@ struct MetricsTests {
                && !CleanerPolicy.precheckCacheEntry("com.spotify.client")
                && !CleanerPolicy.precheckCacheEntry("ms-playwright"),
                "system, sensitive and unattributable caches start unchecked")
+        expect(CleanerPolicy.isSpicetifyStorage("com.spotify.client", spicetifyInstalled: true)
+               && CleanerPolicy.isSpicetifyStorage("com.spotify.client.helper", spicetifyInstalled: true)
+               && !CleanerPolicy.isSpicetifyStorage("com.spotify.client", spicetifyInstalled: false)
+               && !CleanerPolicy.isSpicetifyStorage("com.vendor.editor", spicetifyInstalled: true),
+               "Spotify's cache holds Spicetify's installed themes and extensions, "
+               + "so it leaves the list only while Spicetify is installed")
+        // The cache scan is outside this test binary: pin that it asks about
+        // Spicetify once, at spicetify's own folder, before listing entries.
+        let scanCachesBody = sourceBody(of: junkCleanerSource, from: "private static func scanCaches",
+                                        to: "private static func scanLogs")
+        expect(scanCachesBody.contains("CleanerPolicy.spicetifyConfigFolder")
+               && scanCachesBody.components(separatedBy: "isSpicetifyStorage(").count == 2,
+               "the cache scan keeps Spotify's storage out of the list while Spicetify is installed")
         expect(CleanerSupport.Category.deviceBackups.rawValue == 6
                && CleanerSupport.Category.allCases.count == 7,
                "device backups joined the cleaner with a stable category id")

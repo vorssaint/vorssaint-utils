@@ -508,9 +508,13 @@ final class JunkCleaner: ObservableObject {
         let fm = FileManager.default
         let dir = NSHomeDirectory() + "/Library/Caches"
         guard let entries = try? fm.contentsOfDirectory(atPath: dir) else { return [] }
+        let spicetifyInstalled = fm.fileExists(
+            atPath: NSHomeDirectory() + "/" + CleanerPolicy.spicetifyConfigFolder)
         var found: [Item] = []
         for entry in entries where !entry.hasPrefix(".") {
-            guard !CleanerPolicy.isExcludedCacheEntry(entry) else { continue }
+            guard !CleanerPolicy.isExcludedCacheEntry(entry),
+                  !CleanerPolicy.isSpicetifyStorage(entry, spicetifyInstalled: spicetifyInstalled)
+            else { continue }
             let url = URL(fileURLWithPath: dir).appendingPathComponent(entry)
             guard !claimed.contains(url.standardizedFileURL.path) else { continue }
             let size = directorySize(of: url, fm: fm)

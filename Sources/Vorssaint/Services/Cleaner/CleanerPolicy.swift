@@ -70,6 +70,20 @@ enum CleanerPolicy {
         return hiddenCachePrefixes.contains { lowered.hasPrefix($0.lowercased()) }
     }
 
+    /// Spicetify's configuration folder on macOS, relative to the home
+    /// folder; its command line tool creates it on every run.
+    static let spicetifyConfigFolder = ".config/spicetify"
+
+    /// Spotify keeps its web storage (localStorage, IndexedDB) inside its
+    /// cache folder on macOS, under Browser/, and Spicetify's Marketplace
+    /// records every installed theme, extension and snippet in exactly that
+    /// storage. While Spicetify is installed the folder is the user's setup,
+    /// not a cache, so it never appears; without Spicetify it is offline
+    /// music that downloads again and stays a sensitive cache entry.
+    static func isSpicetifyStorage(_ name: String, spicetifyInstalled: Bool) -> Bool {
+        spicetifyInstalled && name.lowercased().hasPrefix("com.spotify.client")
+    }
+
     /// Plain named cache folders known to be pure downloads or build junk;
     /// anything plain named outside this list stays unchecked because bare
     /// names cannot be attributed (some are the system's own, like the maps
