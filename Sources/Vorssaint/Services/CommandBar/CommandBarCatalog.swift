@@ -1536,7 +1536,7 @@ enum CommandBarCatalog {
         return CommandBarEntry(
             id: CommandBarWebSearch.rowID,
             title: String(format: bar.webSearchTitleFormat, trimmed),
-            subtitle: bar.openInBrowser,
+            subtitle: engine.title,
             icon: .symbol("globe"),
             countsUsage: false,
             run: { _ in NSWorkspace.shared.open(url) })

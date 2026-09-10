@@ -1635,10 +1635,13 @@ final class CommandBarService: ObservableObject {
     /// Whether the selected row has anything to offer here. A clipboard item
     /// is a passing thing with no lasting id, so it is not in the index and
     /// there is nothing to pin, name or hide about it: the bar says so by not
-    /// offering the panel at all instead of opening an empty one.
+    /// offering the panel at all instead of opening an empty one. The web
+    /// search fallback is the other way around: built only while you type,
+    /// but the same row every time, so ⌘K still opens.
     var canOpenActions: Bool {
-        guard case .search = mode, let entry = selectedEntry, !entry.isAnswer,
-              entriesByID[entry.id] != nil else { return false }
+        guard case .search = mode, let entry = selectedEntry, !entry.isAnswer else { return false }
+        guard entriesByID[entry.id] != nil
+                || CommandBarWebSearch.offersActions(forRowID: entry.id) else { return false }
         return !actions(for: entry).isEmpty
     }
 
@@ -1737,6 +1740,17 @@ final class CommandBarService: ObservableObject {
                                          symbolName: "keyboard.badge.ellipsis") { [weak self] in
                     self?.setRowShortcut(nil, for: entry)
                     self?.leaveActions()
+                })
+            }
+        }
+        if CommandBarWebSearch.offersActions(forRowID: entry.id) {
+            let searchQuery = query
+            for engine in CommandBarWebSearch.Engine.allCases {
+                let current = engine == webSearchEngine
+                actions.append(RowAction(id: CommandBarWebSearch.engineActionID(engine),
+                                         title: engine.title,
+                                         symbolName: current ? "checkmark" : "globe") { [weak self] in
+                    self?.runWebSearch(query: searchQuery, engine: engine)
                 })
             }
         }
@@ -1932,6 +1946,22 @@ final class CommandBarService: ObservableObject {
         AppUninstaller.shared.select(appURL: url)
         SettingsRouter.shared.page = .uninstaller
         appDelegate()?.openSettingsWindow()
+    }
+
+    /// Remember the engine they picked so the last row follows, then search.
+    private func runWebSearch(query: String, engine: CommandBarWebSearch.Engine) {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let search = text.isEmpty
+            ? savedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            : text
+        UserDefaults.standard.set(engine.rawValue, forKey: DefaultsKey.commandBarWebSearchEngine)
+        webSearchEngine = engine
+        guard let url = CommandBarWebSearch.url(for: search, engine: engine) else {
+            NSSound.beep()
+            return
+        }
+        hide()
+        NSWorkspace.shared.open(url)
     }
 
     func openActions() {

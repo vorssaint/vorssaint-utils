@@ -49,12 +49,13 @@ enum CommandBarWebSearch {
     static let defaultEngine: Engine = .duckDuckGo
 
     /// Stored ids for the engine the person picked. DuckDuckGo is the
-    /// setting out of the box; Google is there if they want it.
+    /// setting out of the box; the rest are there if they want them.
     enum Engine: String, CaseIterable, Identifiable {
         case duckDuckGo = "duckduckgo"
         case kagi
         case google
         case bing
+        case yahoo
         case ecosia
 
         var id: String { rawValue }
@@ -66,6 +67,7 @@ enum CommandBarWebSearch {
             case .kagi: return "Kagi"
             case .google: return "Google"
             case .bing: return "Bing"
+            case .yahoo: return "Yahoo"
             case .ecosia: return "Ecosia"
             }
         }
@@ -76,7 +78,16 @@ enum CommandBarWebSearch {
             case .kagi: return "https://kagi.com/search"
             case .google: return "https://www.google.com/search"
             case .bing: return "https://www.bing.com/search"
+            case .yahoo: return "https://search.yahoo.com/search"
             case .ecosia: return "https://www.ecosia.org/search"
+            }
+        }
+
+        /// Yahoo's search form still names the field `p`.
+        var queryParameter: String {
+            switch self {
+            case .yahoo: return "p"
+            default: return "q"
             }
         }
     }
@@ -99,8 +110,18 @@ enum CommandBarWebSearch {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         var components = URLComponents(string: engine.endpoint)
-        components?.queryItems = [URLQueryItem(name: "q", value: trimmed)]
+        components?.queryItems = [URLQueryItem(name: engine.queryParameter, value: trimmed)]
         return components?.url
+    }
+
+    /// The fallback is built while you type, so it never enters the catalog
+    /// index. It is still the same row every time, which is what ⌘K needs.
+    static func offersActions(forRowID id: String) -> Bool {
+        id == rowID
+    }
+
+    static func engineActionID(_ engine: Engine) -> String {
+        "websearch.engine.\(engine.rawValue)"
     }
 }
 

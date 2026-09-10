@@ -22364,6 +22364,11 @@ struct MetricsTests {
         expect(CommandBarWebSearch.url(for: "a&b", engine: .bing)?.absoluteString
                 == "https://www.bing.com/search?q=a%26b",
                "query characters that would break a URL are escaped")
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .yahoo)?.absoluteString
+                == "https://search.yahoo.com/search?p=hello%20world",
+               "Yahoo keeps the query in p")
+        expect(CommandBarWebSearch.engine(from: "yahoo") == .yahoo,
+               "a stored Yahoo id is kept")
         expect(Defaults.registeredDefaults[DefaultsKey.commandBarWebSearchEngine] as? String
                 == CommandBarWebSearch.Engine.duckDuckGo.rawValue,
                "out of the box a web search uses DuckDuckGo")
@@ -22371,6 +22376,13 @@ struct MetricsTests {
                "the chosen engine is portable configuration")
         expect(!CommandBarPreferences.acceptsPin(rowID: CommandBarWebSearch.rowID),
                "a fallback that exists only while something is typed cannot be pinned")
+        expect(CommandBarWebSearch.offersActions(forRowID: CommandBarWebSearch.rowID)
+                && !CommandBarWebSearch.offersActions(forRowID: "clipboard.abc")
+                && !CommandBarWebSearch.offersActions(forRowID: "app.x"),
+               "⌘K opens on the fallback row, not on a passing clipboard item")
+        expect(CommandBarWebSearch.Engine.allCases.map(CommandBarWebSearch.engineActionID)
+                .allSatisfy { $0.hasPrefix("websearch.engine.") },
+               "each engine is its own action id")
         let commandBarSearchRows = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
             encoding: .utf8)) ?? "")
@@ -22387,6 +22399,9 @@ struct MetricsTests {
                     .components(separatedBy: "if result.count >= 12 { break }")
                     .last ?? "").contains("CommandBarCatalog.webSearchEntry"),
                "web search is appended after the ranked list, so it sits under files and never leads")
+        expect(commandBarSearchRows.contains("CommandBarWebSearch.offersActions")
+                && commandBarSearchRows.contains("func openActions()"),
+               "⌘K on the fallback row is allowed even though it is not in the catalog")
         expect(((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
             encoding: .utf8)) ?? "").contains("static func webSearchEntry"),
