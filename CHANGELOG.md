@@ -13,7 +13,7 @@ App Switcher can focus its list on the display under the pointer and no longer c
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
 - Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
-- Command Bar can search the web in your default browser as a last result, switched off with the other sources.
+- Command Bar can search the web in your default browser as a last result, after you pick a search engine in Command Bar settings.
 
 ### Fixed
 - The App Switcher no longer shows blank entries for hidden helper windows that apps keep out of window cycling. Thanks to @EugeneCarldotme.

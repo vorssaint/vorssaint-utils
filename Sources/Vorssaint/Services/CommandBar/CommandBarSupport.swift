@@ -47,7 +47,44 @@ enum CommandBarHome {
 enum CommandBarWebSearch {
     static let rowID = "websearch.fallback"
 
-    static func shouldOffer(query: String, inCategory: Bool) -> Bool {
+    /// Stored ids for the engine the person picked. Empty in Settings means
+    /// none, and that is how the bar ships: it does not search the web until
+    /// they choose.
+    enum Engine: String, CaseIterable, Identifiable {
+        case google
+        case duckDuckGo = "duckduckgo"
+        case bing
+        case ecosia
+
+        var id: String { rawValue }
+
+        /// Brand names, left as the engine writes them.
+        var title: String {
+            switch self {
+            case .google: return "Google"
+            case .duckDuckGo: return "DuckDuckGo"
+            case .bing: return "Bing"
+            case .ecosia: return "Ecosia"
+            }
+        }
+
+        var endpoint: String {
+            switch self {
+            case .google: return "https://www.google.com/search"
+            case .duckDuckGo: return "https://duckduckgo.com/"
+            case .bing: return "https://www.bing.com/search"
+            case .ecosia: return "https://www.ecosia.org/search"
+            }
+        }
+    }
+
+    static func engine(from raw: String?) -> Engine? {
+        guard let raw, !raw.isEmpty else { return nil }
+        return Engine(rawValue: raw)
+    }
+
+    static func shouldOffer(query: String, inCategory: Bool, engine: Engine?) -> Bool {
+        guard engine != nil else { return false }
         guard !inCategory else { return false }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
@@ -56,10 +93,10 @@ enum CommandBarWebSearch {
         return true
     }
 
-    static func url(for query: String) -> URL? {
+    static func url(for query: String, engine: Engine) -> URL? {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        var components = URLComponents(string: "https://www.google.com/search")
+        var components = URLComponents(string: engine.endpoint)
         components?.queryItems = [URLQueryItem(name: "q", value: trimmed)]
         return components?.url
     }

@@ -1528,8 +1528,10 @@ enum CommandBarCatalog {
 
     /// Last in the list, so a file or an app still leads and Return still
     /// runs that. With nothing else to pick, Return searches the web.
-    static func webSearchEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
-        guard let url = CommandBarWebSearch.url(for: query) else { return nil }
+    static func webSearchEntry(for query: String,
+                               engine: CommandBarWebSearch.Engine,
+                               bar: CommandBarFeatureStrings) -> CommandBarEntry? {
+        guard let url = CommandBarWebSearch.url(for: query, engine: engine) else { return nil }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         return CommandBarEntry(
             id: CommandBarWebSearch.rowID,

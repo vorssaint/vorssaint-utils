@@ -757,6 +757,9 @@ final class CommandBarService: ObservableObject {
     private var usageCache: [String: CommandBarUse] = [:]
     /// Cached like the pins: read once per open, checked on every keystroke.
     private var compactMode = false
+    /// Empty until they pick an engine in Settings, so a query never leaves
+    /// for a vendor they did not choose.
+    private var webSearchEngine: CommandBarWebSearch.Engine?
     /// The list was asked for anyway, through `peekHome()`. Cleared on the
     /// next open.
     private var isPeekingHome = false
@@ -783,6 +786,8 @@ final class CommandBarService: ObservableObject {
             UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         shortcutCache = rowShortcuts
         compactMode = UserDefaults.standard.bool(forKey: DefaultsKey.commandBarCompactMode)
+        webSearchEngine = CommandBarWebSearch.engine(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarWebSearchEngine))
         hasCustomPosition = positionOffset != .zero
         reloadFileSearchCaches()
     }
@@ -1550,9 +1555,10 @@ final class CommandBarService: ObservableObject {
             if result.count >= 12 { break }
         }
         if isEnabled(.webSearch),
-           CommandBarWebSearch.shouldOffer(query: trimmed, inCategory: false),
+           let engine = webSearchEngine,
+           CommandBarWebSearch.shouldOffer(query: trimmed, inCategory: false, engine: engine),
            !hidden.contains(CommandBarWebSearch.rowID),
-           let webSearch = CommandBarCatalog.webSearchEntry(for: trimmed, bar: bar) {
+           let webSearch = CommandBarCatalog.webSearchEntry(for: trimmed, engine: engine, bar: bar) {
             result.append(webSearch)
         }
         return result

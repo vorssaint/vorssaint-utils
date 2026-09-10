@@ -167,6 +167,9 @@ struct CommandBarFeatureStrings {
     let compactModeCaption: String
     let sourceWebSearch: String
     let webSearchTitleFormat: String
+    let webSearchEngineLabel: String
+    let webSearchEngineNone: String
+    let webSearchEngineCaption: String
 }
 
 extension FeatureStrings {
@@ -350,7 +353,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Compact mode",
         compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
         sourceWebSearch: "Web search",
-        webSearchTitleFormat: "Search the web for \"%@\"")
+        webSearchTitleFormat: "Search the web for \"%@\"",
+        webSearchEngineLabel: "Search engine",
+        webSearchEngineNone: "Choose one",
+        webSearchEngineCaption: "Until you pick one, the bar does not search the web.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -512,7 +518,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Modo compacto",
         compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
         sourceWebSearch: "Busca na web",
-        webSearchTitleFormat: "Buscar na web por \"%@\"")
+        webSearchTitleFormat: "Buscar na web por \"%@\"",
+        webSearchEngineLabel: "Mecanismo de busca",
+        webSearchEngineNone: "Escolha um",
+        webSearchEngineCaption: "Até você escolher um, a barra não busca na web.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -674,7 +683,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Kompakt mod",
         compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
         sourceWebSearch: "Web araması",
-        webSearchTitleFormat: "Web’de \"%@\" ara")
+        webSearchTitleFormat: "Web’de \"%@\" ara",
+        webSearchEngineLabel: "Arama motoru",
+        webSearchEngineNone: "Birini seçin",
+        webSearchEngineCaption: "Birini seçene kadar çubuk web’de aramaz.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -836,7 +848,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Компактный режим",
         compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
         sourceWebSearch: "Поиск в интернете",
-        webSearchTitleFormat: "Искать в интернете «%@»")
+        webSearchTitleFormat: "Искать в интернете «%@»",
+        webSearchEngineLabel: "Поисковая система",
+        webSearchEngineNone: "Выберите",
+        webSearchEngineCaption: "Пока вы не выберете, строка не ищет в интернете.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -998,7 +1013,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Modo compacto",
         compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
         sourceWebSearch: "Búsqueda web",
-        webSearchTitleFormat: "Buscar en la web \"%@\"")
+        webSearchTitleFormat: "Buscar en la web \"%@\"",
+        webSearchEngineLabel: "Motor de búsqueda",
+        webSearchEngineNone: "Elige uno",
+        webSearchEngineCaption: "Hasta que elijas uno, la barra no busca en la web.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1160,7 +1178,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Kompaktmodus",
         compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
         sourceWebSearch: "Websuche",
-        webSearchTitleFormat: "Im Web nach „%@“ suchen")
+        webSearchTitleFormat: "Im Web nach „%@“ suchen",
+        webSearchEngineLabel: "Suchmaschine",
+        webSearchEngineNone: "Eine wählen",
+        webSearchEngineCaption: "Bis du eine wählst, sucht die Leiste nicht im Web.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1322,7 +1343,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Mode compact",
         compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
         sourceWebSearch: "Recherche web",
-        webSearchTitleFormat: "Rechercher «\u{00A0}%@\u{00A0}» sur le web")
+        webSearchTitleFormat: "Rechercher «\u{00A0}%@\u{00A0}» sur le web",
+        webSearchEngineLabel: "Moteur de recherche",
+        webSearchEngineNone: "Choisissez-en un",
+        webSearchEngineCaption: "Tant que vous n’en avez pas choisi, la barre ne cherche pas sur le web.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1484,7 +1508,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "Modalità compatta",
         compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
         sourceWebSearch: "Ricerca web",
-        webSearchTitleFormat: "Cerca sul web \"%@\"")
+        webSearchTitleFormat: "Cerca sul web \"%@\"",
+        webSearchEngineLabel: "Motore di ricerca",
+        webSearchEngineNone: "Scegline uno",
+        webSearchEngineCaption: "Finché non ne scegli uno, la barra non cerca sul web.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1646,7 +1673,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "コンパクトモード",
         compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
         sourceWebSearch: "ウェブ検索",
-        webSearchTitleFormat: "ウェブで「%@」を検索")
+        webSearchTitleFormat: "ウェブで「%@」を検索",
+        webSearchEngineLabel: "検索エンジン",
+        webSearchEngineNone: "選んでください",
+        webSearchEngineCaption: "選ぶまで、バーはウェブを検索しません。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1808,7 +1838,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "컴팩트 모드",
         compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
         sourceWebSearch: "웹 검색",
-        webSearchTitleFormat: "웹에서 \"%@\" 검색")
+        webSearchTitleFormat: "웹에서 \"%@\" 검색",
+        webSearchEngineLabel: "검색 엔진",
+        webSearchEngineNone: "하나를 선택",
+        webSearchEngineCaption: "고르기 전에는 막대가 웹을 검색하지 않습니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1970,7 +2003,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "紧凑模式",
         compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
         sourceWebSearch: "网页搜索",
-        webSearchTitleFormat: "在网上搜索“%@”")
+        webSearchTitleFormat: "在网上搜索“%@”",
+        webSearchEngineLabel: "搜索引擎",
+        webSearchEngineNone: "请选择",
+        webSearchEngineCaption: "选定之前，命令栏不会搜索网页。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2132,7 +2168,10 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "精簡模式",
         compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
         sourceWebSearch: "網頁搜尋",
-        webSearchTitleFormat: "在網路上搜尋「%@」")
+        webSearchTitleFormat: "在網路上搜尋「%@」",
+        webSearchEngineLabel: "搜尋引擎",
+        webSearchEngineNone: "請選擇",
+        webSearchEngineCaption: "選定之前，命令列不會搜尋網頁。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2294,5 +2333,8 @@ extension CommandBarFeatureStrings {
         compactModeToggle: "精簡模式",
         compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
         sourceWebSearch: "網頁搜尋",
-        webSearchTitleFormat: "在網路上搜尋「%@」")
+        webSearchTitleFormat: "在網路上搜尋「%@」",
+        webSearchEngineLabel: "搜尋引擎",
+        webSearchEngineNone: "請選擇",
+        webSearchEngineCaption: "選定之前，命令列不會搜尋網頁。")
 }

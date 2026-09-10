@@ -22337,21 +22337,34 @@ struct MetricsTests {
         expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
-        expect(CommandBarWebSearch.shouldOffer(query: "hello", inCategory: false)
-                && !CommandBarWebSearch.shouldOffer(query: "hello", inCategory: true)
-                && !CommandBarWebSearch.shouldOffer(query: "  ", inCategory: false)
-                && !CommandBarWebSearch.shouldOffer(query: ":fire", inCategory: false)
-                && !CommandBarWebSearch.shouldOffer(query: "example.com", inCategory: false),
-               "web search is a fallback for typed words, never a category, a colon emoji search or a URL")
-        expect(!CommandBarWebSearch.shouldOffer(query: "", inCategory: false)
-                && CommandBarWebSearch.url(for: "  ") == nil,
+        expect(CommandBarWebSearch.engine(from: "") == nil
+                && CommandBarWebSearch.engine(from: nil) == nil
+                && CommandBarWebSearch.engine(from: "nope") == nil
+                && CommandBarWebSearch.engine(from: "google") == .google,
+               "an unknown or empty engine id is none, so a new vendor cannot sneak in")
+        expect(CommandBarWebSearch.shouldOffer(query: "hello", inCategory: false, engine: .google)
+                && !CommandBarWebSearch.shouldOffer(query: "hello", inCategory: false, engine: nil)
+                && !CommandBarWebSearch.shouldOffer(query: "hello", inCategory: true, engine: .google)
+                && !CommandBarWebSearch.shouldOffer(query: "  ", inCategory: false, engine: .google)
+                && !CommandBarWebSearch.shouldOffer(query: ":fire", inCategory: false, engine: .google)
+                && !CommandBarWebSearch.shouldOffer(query: "example.com", inCategory: false, engine: .google),
+               "web search is a fallback for typed words, never a category, a colon emoji search, a URL or an unchosen engine")
+        expect(!CommandBarWebSearch.shouldOffer(query: "", inCategory: false, engine: .google)
+                && CommandBarWebSearch.url(for: "  ", engine: .google) == nil,
                "nothing to search is not a row")
-        expect(CommandBarWebSearch.url(for: "hello world")?.absoluteString
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .google)?.absoluteString
                 == "https://www.google.com/search?q=hello%20world",
-               "the query is opened as a Google search the default browser can load")
-        expect(CommandBarWebSearch.url(for: "a&b")?.absoluteString
-                == "https://www.google.com/search?q=a%26b",
+               "Google keeps the query in q")
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .duckDuckGo)?.absoluteString
+                == "https://duckduckgo.com/?q=hello%20world",
+               "DuckDuckGo keeps the query in q")
+        expect(CommandBarWebSearch.url(for: "a&b", engine: .bing)?.absoluteString
+                == "https://www.bing.com/search?q=a%26b",
                "query characters that would break a URL are escaped")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarWebSearchEngine] as? String == "",
+               "out of the box no search engine is chosen, so the bar does not search the web")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarWebSearchEngine),
+               "the chosen engine is portable configuration")
         expect(!CommandBarPreferences.acceptsPin(rowID: CommandBarWebSearch.rowID),
                "a fallback that exists only while something is typed cannot be pinned")
         let commandBarSearchRows = ((try? String(
@@ -24294,7 +24307,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 160 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 163 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")
