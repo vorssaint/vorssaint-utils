@@ -315,7 +315,8 @@ final class AppUpdatesService: ObservableObject {
             return PackageResult(items: [], coveredPaths: [], available: !includeUpdates,
                                  onlineCoverageAvailable: true)
         }
-        let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath))
+        let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath),
+                                              environment: HomebrewEnvironment.forBrew)
         let records = installedOutput.status == 0
             ? HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
             : []
@@ -327,7 +328,8 @@ final class AppUpdatesService: ObservableObject {
                                  onlineCoverageAvailable: installedOutput.status == 0)
         }
         let outdatedOutput = Self.runCommand(
-            HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath))
+            HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath),
+            environment: HomebrewEnvironment.forBrew)
         guard installedOutput.status == 0, outdatedOutput.status == 0 else {
             let failure = [outdatedOutput, installedOutput].first { $0.status != 0 }
             let message = failure.map { HomebrewProgressParser.visibleError(from: $0.output) } ?? ""
@@ -753,10 +755,12 @@ final class AppUpdatesService: ObservableObject {
     private static let commandTimeout: TimeInterval = 120
     private static let commandOutputLimit = 32 * 1_024 * 1_024
 
-    private static func runCommand(_ command: HomebrewCommand) -> (status: Int32, output: String) {
+    private static func runCommand(_ command: HomebrewCommand,
+                                   environment: [String: String]? = nil) -> (status: Int32, output: String) {
         let result = BoundedProcessRunner.run(command.executable, command.arguments,
                                               timeout: commandTimeout,
-                                              maxOutputBytes: commandOutputLimit)
+                                              maxOutputBytes: commandOutputLimit,
+                                              environment: environment)
         return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 }

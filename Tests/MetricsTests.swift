@@ -12998,6 +12998,43 @@ struct MetricsTests {
                 && alternateShellSetupCommand.contains("/bin/mkdir -p /Users/test/.config/fish")
                 && alternateShellSetupCommand.hasSuffix("; eval (/opt/homebrew/bin/brew shellenv fish); brew --version"),
                "Homebrew shell setup creates and activates the interactive shell config")
+
+        // The login shell's exports reach brew through an allowlist (issue #1290).
+        let loginShell = HomebrewEnvironment.loginShellCommand(shellPath: "/bin/zsh")
+        expect(loginShell.executable == "/bin/zsh"
+                && loginShell.arguments.contains("-l")
+                && loginShell.arguments.last == "/usr/bin/env -0",
+               "Homebrew asks the user's shell as a login shell for a NUL-separated environment")
+        let envDump = Data(("HOME=/Users/test\0https_proxy=http://127.0.0.1:7890\0MULTI=a\nb\0"
+                            + "EQUALS=x=y\0EMPTY=\0noequals\0Welcome back\nHOMEBREW_API_DOMAIN=https://mirror.example/api\0").utf8)
+        let parsedEnvironment = HomebrewEnvironment.parse(nullSeparated: envDump)
+        expectEqual(parsedEnvironment["https_proxy"] ?? "", "http://127.0.0.1:7890",
+                    "Homebrew environment parser reads a NAME=value entry")
+        expectEqual(parsedEnvironment["MULTI"] ?? "", "a\nb",
+                    "Homebrew environment parser keeps a newline inside a value; NUL is the only separator")
+        expectEqual(parsedEnvironment["EQUALS"] ?? "", "x=y",
+                    "Homebrew environment parser splits on the first equals sign only")
+        expect(parsedEnvironment["EMPTY"] == "" && parsedEnvironment["noequals"] == nil,
+               "Homebrew environment parser keeps an empty value and drops an entry without one")
+        expect(!parsedEnvironment.keys.contains { $0.contains("Welcome") || $0.hasPrefix("HOMEBREW_") },
+               "Homebrew environment parser drops an entry whose name is not an identifier, "
+               + "such as startup output glued to the variable behind it")
+        let passedThrough = HomebrewEnvironment.passthrough([
+            "PATH": "/tmp/evil:/usr/bin", "DYLD_INSERT_LIBRARIES": "/tmp/evil.dylib", "HOME": "/Users/test",
+            "SHELL": "/bin/zsh", "HTTP_PROXY": "http://127.0.0.1:7890", "https_proxy": "http://127.0.0.1:7890",
+            "ALL_PROXY": "socks5://127.0.0.1:7891", "no_proxy": "localhost", "HOMEBREW_API_DOMAIN": "https://mirror.example/api",
+            "HOMEBREW_BOTTLE_DOMAIN": "https://mirror.example", "HOMEBREWX": "no", "homebrew_lower": "no",
+        ])
+        expect(Set(passedThrough.keys) == ["https_proxy", "ALL_PROXY", "no_proxy",
+                                           "HOMEBREW_API_DOMAIN", "HOMEBREW_BOTTLE_DOMAIN"],
+               "Homebrew passes through only the proxy names brew itself keeps and HOMEBREW_* settings, "
+               + "found \(passedThrough.keys.sorted())")
+        expect(HomebrewEnvironment.exportsFromLoginShell(shellPath: "").isEmpty
+                && HomebrewEnvironment.exportsFromLoginShell(shellPath: "/nonexistent/shell", timeout: 1).isEmpty,
+               "Homebrew contributes nothing when there is no login shell or it cannot start")
+        expect(HomebrewEnvironment.exportsFromLoginShell(shellPath: "/bin/sh").keys
+                .allSatisfy(HomebrewEnvironment.isPassedThrough),
+               "Homebrew never hands a login shell's whole environment to brew")
         expectClose(HomebrewProgressParser.progressFraction(in: "######## 42.5%") ?? -1,
                     0.425,
                     "Homebrew progress parser reads percentage output")

@@ -37,10 +37,12 @@ enum BoundedProcessRunner {
     static func run(_ path: String,
                     _ arguments: [String],
                     timeout: TimeInterval,
-                    maxOutputBytes: Int) -> Result {
+                    maxOutputBytes: Int,
+                    environment: [String: String]? = nil) -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
+        process.environment = environment
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe

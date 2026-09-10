@@ -708,12 +708,20 @@ final class HomebrewManager: ObservableObject {
         }
     }
 
+    /// Called on `workQueue` only: the first `HomebrewEnvironment.forBrew` read
+    /// waits on the login shell.
+    private static func makeProcess(_ command: HomebrewCommand) -> Process {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: command.executable)
+        process.arguments = command.arguments
+        process.environment = HomebrewEnvironment.forBrew
+        return process
+    }
+
     private func run(_ command: HomebrewCommand,
                      completion: @escaping (_ status: Int32, _ output: String) -> Void) {
         workQueue.async {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: command.executable)
-            process.arguments = command.arguments
+            let process = Self.makeProcess(command)
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
@@ -756,9 +764,7 @@ final class HomebrewManager: ObservableObject {
                               onOutput: @escaping (String) -> Void,
                               completion: @escaping (_ status: Int32, _ output: String) -> Void) {
         workQueue.async { [weak self] in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: command.executable)
-            process.arguments = command.arguments
+            let process = Self.makeProcess(command)
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = pipe
