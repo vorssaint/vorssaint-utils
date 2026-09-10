@@ -6,7 +6,9 @@ import Foundation
 /// The command bar's inline calculator. It is deliberately strict: input must
 /// be entirely mathematical, so commands and searches are never answered as sums.
 enum CommandBarMath {
-    /// Words that read as "percent OF a number" across the languages the app speaks.
+    /// Words that read as "percent OF a number" across the languages the app
+    /// speaks. Parser vocabulary, not visible text: people type in their own
+    /// words regardless of the interface language.
     private static let ofWords: Set<String> = ["of", "de", "da", "do", "von", "di", "del", "dal"]
 
     struct Result: Equatable {
@@ -15,7 +17,6 @@ enum CommandBarMath {
         let value: Double
         /// Closing brackets supplied virtually while evaluating an unfinished expression.
         let closingBrackets: String
-
     }
 
     /// Evaluates a complete mathematical expression, supplying only missing
@@ -54,8 +55,8 @@ enum CommandBarMath {
         return number < 0 ? "(\(localized))" : localized
     }
 
-    /// Rounds away floating point noise (0.1 + 0.2 must read as 0.3) and writes
-    /// the number with the separators of this Mac.
+    /// Rounds away floating point noise (0.1 + 0.2 must read as 0.3) and
+    /// writes the number with the separators of this Mac.
     static func format(_ value: Double, locale: Locale = .current) -> String? {
         let rounded = significantRounded(value)
         guard rounded.isFinite else { return nil }
@@ -64,6 +65,8 @@ enum CommandBarMath {
         formatter.minimumFractionDigits = 0
         let magnitude = abs(rounded)
         if rounded != 0, magnitude >= 1e12 || magnitude < 1e-6 {
+            // Plain digits would print a billionth as "0" and a huge product
+            // as a wall of zeros; both read as a wrong answer.
             formatter.numberStyle = .scientific
             formatter.usesSignificantDigits = true
             formatter.maximumSignificantDigits = 8
@@ -73,11 +76,12 @@ enum CommandBarMath {
             formatter.usesGroupingSeparator = true
             formatter.maximumFractionDigits = 8
         }
+        // -0 is an answer no one asked for.
         return formatter.string(from: NSNumber(value: rounded == 0 ? 0 : rounded))
     }
 
-    /// True for dates and clock times, which must remain searches rather than
-    /// subtraction or division expressions.
+    /// True for "2026-07-27", "27/07/2026" and "10:30": groups of digits held
+    /// together by a single kind of separator, with nothing else around them.
     static func looksLikeDateOrTime(_ input: String) -> Bool {
         for separator in ["-", "/", ":"] as [Character] {
             let parts = input.split(separator: separator, omittingEmptySubsequences: false)
@@ -86,7 +90,10 @@ enum CommandBarMath {
                 let digits = part.trimmingCharacters(in: .whitespaces)
                 return !digits.isEmpty && digits.count <= 4 && digits.allSatisfy(\.isNumber)
             }) else { continue }
-            if separator == ":" || parts.count == 3 { return true }
+            // Two plain numbers around a minus really can be a subtraction, so
+            // only the shapes that read as a date or a time are refused.
+            if separator == ":" { return true }
+            if parts.count == 3 { return true }
         }
         return false
     }
@@ -94,8 +101,9 @@ enum CommandBarMath {
     /// Keeps ten significant digits so ordinary decimal arithmetic loses binary noise.
     private static func significantRounded(_ value: Double) -> Double {
         guard value != 0, value.isFinite else { return value }
+        let digits = 10.0
         let magnitude = floor(log10(abs(value)))
-        let factor = pow(10.0, 10.0 - magnitude - 1)
+        let factor = pow(10.0, digits - magnitude - 1)
         guard factor.isFinite, factor != 0 else { return value }
         let scaled = (value * factor).rounded()
         guard scaled.isFinite else { return value }
@@ -213,8 +221,7 @@ enum CommandBarMath {
         let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         guard let equals = trimmed.firstIndex(of: "=") else { return trimmed }
-        guard equals == trimmed.index(before: trimmed.endIndex),
-              !trimmed[..<equals].contains("=") else { return nil }
+        guard equals == trimmed.index(before: trimmed.endIndex) else { return nil }
         let expression = String(trimmed[..<equals]).trimmingCharacters(in: .whitespacesAndNewlines)
         return expression.isEmpty ? nil : expression
     }
@@ -270,15 +277,22 @@ enum CommandBarMath {
             let character = characters[index]
             if character.isWhitespace {
                 index += 1
-            } else if character.isNumber || character == decimalSeparator || character == groupingSeparator {
+                continue
+            }
+            if character.isNumber || character == decimalSeparator || character == groupingSeparator {
                 guard let number = readNumber(&characters, &index,
                                               decimalSeparator: decimalSeparator,
-                                              groupingSeparator: groupingSeparator) else { return nil }
+                                              groupingSeparator: groupingSeparator)
+                else { return nil }
                 tokens.append(.number(number))
-            } else if character == "π" {
+                continue
+            }
+            if character == "π" {
                 tokens.append(.constant(Double.pi))
                 index += 1
-            } else if character.isLetter {
+                continue
+            }
+            if character.isLetter {
                 let word = readWord()
                 if word == "x" {
                     tokens.append(.times)
@@ -293,27 +307,30 @@ enum CommandBarMath {
                 } else {
                     return nil
                 }
-            } else {
-                index += 1
-                switch character {
-                case "+": tokens.append(.plus)
-                case "-", "\u{2212}": tokens.append(.minus)
-                case "*", "\u{00D7}": tokens.append(.times)
-                case "/", "\u{00F7}": tokens.append(.divide)
-                case "^": tokens.append(.power)
-                case "%": tokens.append(.percent)
-                case "(": tokens.append(.left(.round))
-                case "[": tokens.append(.left(.square))
-                case ")": tokens.append(.right(.round))
-                case "]": tokens.append(.right(.square))
-                default: return nil
-                }
+                continue
+            }
+            index += 1
+            switch character {
+            case "+": tokens.append(.plus)
+            case "-", "\u{2212}": tokens.append(.minus)          // also the real minus sign
+            case "*", "\u{00D7}": tokens.append(.times)           // and the multiplication sign
+            case "/", "\u{00F7}": tokens.append(.divide)
+            case "^": tokens.append(.power)
+            case "%": tokens.append(.percent)
+            case "(": tokens.append(.left(.round))
+            case "[": tokens.append(.left(.square))
+            case ")": tokens.append(.right(.round))
+            case "]": tokens.append(.right(.square))
+            default: return nil
             }
         }
         return tokens.isEmpty ? nil : tokens
     }
 
-    /// Reads a locale-aware mantissa and an optional ASCII scientific exponent.
+    /// Reads one number, deciding what each separator means. When both appear,
+    /// the last one is the decimal point. When only one appears, it is grouping
+    /// only if it looks the part: the Mac's grouping separator followed by
+    /// exactly three digits. An optional ASCII scientific exponent follows.
     private static func readNumber(_ characters: inout [Character],
                                    _ index: inout Int,
                                    decimalSeparator: Character,
@@ -321,7 +338,8 @@ enum CommandBarMath {
         var raw = ""
         while index < characters.count {
             let character = characters[index]
-            guard character.isNumber || character == decimalSeparator || character == groupingSeparator else { break }
+            guard character.isNumber || character == decimalSeparator || character == groupingSeparator
+            else { break }
             raw.append(character)
             index += 1
         }
@@ -408,31 +426,20 @@ enum CommandBarMath {
         mutating func parseTerm() -> Operand? {
             guard var left = parseFactor() else { return nil }
             while let token = peek() {
-                if token.startsImplicitProduct {
-                    guard let right = parseFactor() else { return nil }
-                    let value = left.value * right.value
-                    guard value.isFinite else { return nil }
-                    left = Operand(value: value, percentRaw: nil)
-                    continue
-                }
-                guard token == .times || token == .divide || token == .ofWord else { break }
-                advance()
+                let implicit = token.startsImplicitProduct
+                guard implicit || token == .times || token == .divide || token == .ofWord else { break }
+                if !implicit { advance() }
+                if token == .ofWord, left.percentRaw == nil { return nil }
                 guard let right = parseFactor() else { return nil }
-                if token == .ofWord {
-                    guard left.percentRaw != nil else { return nil }
-                    let value = left.value * right.value
-                    guard value.isFinite else { return nil }
-                    left = Operand(value: value, percentRaw: nil)
-                } else if token == .divide {
+                let value: Double
+                if token == .divide {
                     guard right.value != 0 else { return nil }
-                    let value = left.value / right.value
-                    guard value.isFinite else { return nil }
-                    left = Operand(value: value, percentRaw: nil)
+                    value = left.value / right.value
                 } else {
-                    let value = left.value * right.value
-                    guard value.isFinite else { return nil }
-                    left = Operand(value: value, percentRaw: nil)
+                    value = left.value * right.value
                 }
+                guard value.isFinite else { return nil }
+                left = Operand(value: value, percentRaw: nil)
             }
             return left
         }
@@ -468,22 +475,12 @@ enum CommandBarMath {
             case .number(let value), .constant(let value):
                 advance()
                 base = Operand(value: value, percentRaw: nil)
-            case .left(let bracket):
-                advance()
-                depth += 1
-                defer { depth -= 1 }
-                guard depth < 32, let inner = parseExpression(), peek() == .right(bracket) else { return nil }
-                advance()
-                base = Operand(value: inner.value, percentRaw: nil)
+            case .left:
+                guard let value = parseBracketed() else { return nil }
+                base = Operand(value: value, percentRaw: nil)
             case .function(let function):
                 advance()
-                guard case .left(let bracket)? = peek() else { return nil }
-                advance()
-                depth += 1
-                defer { depth -= 1 }
-                guard depth < 32, let argument = parseExpression(), peek() == .right(bracket),
-                      let value = function.apply(to: argument.value) else { return nil }
-                advance()
+                guard let argument = parseBracketed(), let value = function.apply(to: argument) else { return nil }
                 base = Operand(value: value, percentRaw: nil)
             default:
                 return nil
@@ -493,6 +490,17 @@ enum CommandBarMath {
                 return Operand(value: base.value / 100, percentRaw: base.value)
             }
             return base
+        }
+
+        /// Shares bracket matching and nesting limits between groups and function arguments.
+        mutating func parseBracketed() -> Double? {
+            guard case .left(let bracket)? = peek() else { return nil }
+            advance()
+            depth += 1
+            defer { depth -= 1 }
+            guard depth < 32, let inner = parseExpression(), peek() == .right(bracket) else { return nil }
+            advance()
+            return inner.value
         }
 
         /// Inspects the next token without consuming it.
