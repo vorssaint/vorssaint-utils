@@ -43,6 +43,7 @@ final class FanControlService: ObservableObject {
     }
 
     private init() {
+        reconcileManualTimerOnLaunch()
         refreshAccessState()
     }
 
@@ -130,6 +131,7 @@ final class FanControlService: ObservableObject {
             return
         }
         if configuration.mode == .system {
+            clearManualTimerState()
             restoreAutomatic()
             return
         }
@@ -139,6 +141,9 @@ final class FanControlService: ObservableObject {
             return
         }
         error = nil
+        if configuration.mode != .manual {
+            clearManualTimerState()
+        }
         let retrySnapshot = snapshot
         startObservingSystemState()
         let generation = beginRequest()
@@ -151,13 +156,24 @@ final class FanControlService: ObservableObject {
             self.isWorking = false
             guard let response else {
                 self.error = .helperUnavailable
+                // No confirmation either way: do not let a half-applied
+                // request leave a later override reading a stale "previous
+                // mode" or deadline.
+                self.clearManualTimerState()
                 self.restoreAutomatic()
                 return
             }
             self.apply(response)
             if response.succeeded, response.snapshot.isCooling {
+                // Only recorded once the helper has actually confirmed the
+                // override is running, using the state from just before this
+                // apply (retrySnapshot), not the just-applied response.
+                if configuration.mode == .manual {
+                    self.recordManualTimerState(for: configuration, previousSnapshot: retrySnapshot)
+                }
                 self.startTimerIfNeeded()
             } else {
+                self.clearManualTimerState()
                 self.restoreAutomatic(supersedingCurrentRequest: false,
                                       preserving: response.error ?? .controlFailed,
                                       retrySnapshot: retrySnapshot)
@@ -183,6 +199,10 @@ final class FanControlService: ObservableObject {
             self.isWorking = false
             guard let response else {
                 self.error = .helperUnavailable
+                // Same reasoning as applyConfiguration's no-response branch:
+                // an unconfirmed restore must not leave stale bookkeeping for
+                // a later override to inherit.
+                self.clearManualTimerState()
                 return
             }
             self.apply(response)
@@ -191,6 +211,7 @@ final class FanControlService: ObservableObject {
                     self.snapshot = retrySnapshot
                 }
                 if let failure { self.error = failure }
+                self.clearManualTimerState()
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
                 if !AppFeature.fanControl.isAvailable {
                     do {
@@ -215,6 +236,7 @@ final class FanControlService: ObservableObject {
         send { proxy, reply in proxy.restoreAutomatic(withReply: reply) } completion: { response in
             if let response, response.succeeded, !response.snapshot.isCooling {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                self.clearManualTimerState()
             }
         }
         // Losing the authenticated client connection is itself a restore
@@ -296,6 +318,11 @@ final class FanControlService: ObservableObject {
                                       forKey: DefaultsKey.fanControlHelperVersion)
             if response.succeeded, !response.snapshot.isCooling {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                if response.snapshot.stopReason == .timeLimit, self.resumePreviousCurveAfterManualExpiry() {
+                    // Reapplying the interrupted curve is in flight.
+                } else {
+                    self.clearManualTimerState()
+                }
             }
         }
     }
@@ -366,7 +393,13 @@ final class FanControlService: ObservableObject {
             self.apply(response)
             if response.succeeded, !response.snapshot.isCooling {
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-                self.stopIdleWorkIfPossible()
+                if response.snapshot.stopReason == .timeLimit, self.resumePreviousCurveAfterManualExpiry() {
+                    // A curve was running before the timed manual override;
+                    // reapplying it is already in flight, so idle work stays up.
+                } else {
+                    self.clearManualTimerState()
+                    self.stopIdleWorkIfPossible()
+                }
             }
         }
     }
@@ -386,6 +419,96 @@ final class FanControlService: ObservableObject {
         guard generation == requestGeneration else { return false }
         requestInFlight = false
         return true
+    }
+
+    // MARK: - Manual session timer
+
+    /// The deadline itself is enforced by the helper (see
+    /// `FanControlPolicy.sessionDuration`), reusing the `endsAt`/watchdog
+    /// mechanism it already had; the panel's remaining-time label reads that
+    /// live value from `snapshot.endsAt`, not from these UserDefaults keys.
+    /// What these keys are actually for: letting `reconcileManualTimerOnLaunch`
+    /// notice a deadline that elapsed while the app was not running, and
+    /// letting `resumePreviousCurveAfterManualExpiry` know what to hand
+    /// control back to once a real, observed expiry happens. Called only
+    /// after the helper has confirmed the override is actually running, so a
+    /// failed apply can never leave a later override inheriting a wrong
+    /// "previous mode".
+    private func recordManualTimerState(for configuration: FanControlConfiguration,
+                                        previousSnapshot: FanControlSnapshot) {
+        let defaults = UserDefaults.standard
+        guard let seconds = configuration.manualDuration.seconds else {
+            clearManualTimerState()
+            return
+        }
+        if defaults.object(forKey: DefaultsKey.fanControlManualUntil) == nil {
+            // A fresh override: remember what to hand control back to once it
+            // expires, using the state from right before this apply. Later
+            // tweaks (level, duration) while still in manual go through this
+            // same function but land here with the key already set, so they
+            // fall into the branch below and must not overwrite this.
+            let previous = FanControlPolicy.manualOverridePreviousMode(
+                isCooling: previousSnapshot.isCooling,
+                activeMode: previousSnapshot.configuration?.mode
+            )
+            defaults.set(previous.rawValue, forKey: DefaultsKey.fanControlModeBeforeManual)
+            // The curve editor writes fanControlCurves live as the user drags
+            // points, with no Apply step, so by the time the override expires
+            // that key may no longer match what is actually running. Freeze
+            // the curve that was actually confirmed active instead.
+            if previous == .curve, let curves = previousSnapshot.configuration?.curves,
+               let encoded = FanControlConfiguration.encodeCurves(curves) {
+                defaults.set(encoded, forKey: DefaultsKey.fanControlManualPreviousCurves)
+            }
+        }
+        defaults.set(Date().addingTimeInterval(seconds).timeIntervalSince1970,
+                     forKey: DefaultsKey.fanControlManualUntil)
+    }
+
+    private func clearManualTimerState() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: DefaultsKey.fanControlManualUntil)
+        defaults.removeObject(forKey: DefaultsKey.fanControlModeBeforeManual)
+        defaults.removeObject(forKey: DefaultsKey.fanControlManualPreviousCurves)
+    }
+
+    /// Called once a response reports the manual session ended on its own
+    /// deadline. Returns whether a curve was interrupted and is being
+    /// reapplied; the caller leaves idle work running in that case instead of
+    /// treating the fans as settled on system control.
+    @discardableResult
+    private func resumePreviousCurveAfterManualExpiry() -> Bool {
+        let defaults = UserDefaults.standard
+        let previousMode = (defaults.string(forKey: DefaultsKey.fanControlModeBeforeManual))
+            .flatMap(FanControlMode.init(rawValue:))
+        guard FanControlPolicy.modeAfterManualExpiry(previousMode: previousMode) == .curve else {
+            return false
+        }
+        // Prefer the curve frozen when the override began, since the editor
+        // may have since changed fanControlCurves without an Apply; fall back
+        // to the current stored curves only if that snapshot is missing.
+        let storage = defaults.string(forKey: DefaultsKey.fanControlManualPreviousCurves)
+            ?? defaults.string(forKey: DefaultsKey.fanControlCurves)
+        guard let storage, let curves = FanControlConfiguration.decodeCurves(storage) else {
+            return false
+        }
+        clearManualTimerState()
+        applyConfiguration(.curve(curves))
+        return true
+    }
+
+    /// Reverting the hardware, if a session is somehow still running, is
+    /// already handled unconditionally by `recoverIfNeeded()` whenever the
+    /// app was not shut down cleanly, and by the helper's own watchdog
+    /// regardless of this app process. This only clears a stale label so the
+    /// panel does not show a countdown for a session that already ended.
+    private func reconcileManualTimerOnLaunch() {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: DefaultsKey.fanControlManualUntil) != nil else { return }
+        let until = Date(timeIntervalSince1970: defaults.double(forKey: DefaultsKey.fanControlManualUntil))
+        if FanControlPolicy.manualDurationElapsed(until: until, now: Date()) {
+            clearManualTimerState()
+        }
     }
 
     // MARK: - Registration and local reads
@@ -514,6 +637,7 @@ final class FanControlService: ObservableObject {
             self.isWorking = false
             guard let response, response.succeeded, !response.snapshot.isCooling else { return }
             UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+            self.clearManualTimerState()
             guard !AppFeature.fanControl.isAvailable else {
                 self.stopIdleWorkIfPossible()
                 return

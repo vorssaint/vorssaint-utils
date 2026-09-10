@@ -46,6 +46,87 @@ struct FanControlFeatureStrings {
     let hottestCPU: String
     let hottestGPU: String
     let helperUnavailable: String
+    let duration: String
+    let duration15Min: String
+    let duration30Min: String
+    let duration1Hour: String
+    let duration2Hours: String
+    let duration4Hours: String
+    let durationUntilChanged: String
+    let minutesRemainingFormat: String
+    let profilesLabel: String
+    let profileSilent: String
+    let profileBalanced: String
+    let profilePerformance: String
+    let saveAsProfile: String
+    let profileNamePrompt: String
+    let profileNamePlaceholder: String
+    let saveProfileButton: String
+    let cancelButton: String
+    let renameProfile: String
+    let deleteProfile: String
+    let duplicateProfile: String
+    let profileRenamePrompt: String
+    let profileCopySuffixFormat: String
+}
+
+extension FanProfileBuiltIn {
+    /// The translated preset name. `FanControlSupport.swift` (which also
+    /// compiles into the privileged helper) knows only this case's `id` and
+    /// `kind`; the display name lives here instead, alongside the other
+    /// per-language fan control strings.
+    func name(_ strings: FanControlFeatureStrings) -> String {
+        switch self {
+        case .silent: return strings.profileSilent
+        case .balanced: return strings.profileBalanced
+        case .performance: return strings.profilePerformance
+        }
+    }
+
+    /// `name` here only seeds the stored value for the (rare) reader that
+    /// looks at it directly; every display path calls
+    /// `FanProfile.displayName(_:)` instead, which re-translates on read.
+    func makeProfile(_ strings: FanControlFeatureStrings) -> FanProfile {
+        FanProfile(id: id, name: name(strings), kind: kind)
+    }
+
+    static func defaultProfiles(_ strings: FanControlFeatureStrings) -> [FanProfile] {
+        allCases.map { $0.makeProfile(strings) }
+    }
+}
+
+extension FanProfile {
+    /// The label to show in the UI: a built-in always resolves its current
+    /// translation, ignoring whatever name happened to be stored for it;
+    /// everything else uses the name the user gave it.
+    func displayName(_ strings: FanControlFeatureStrings) -> String {
+        builtIn?.name(strings) ?? name
+    }
+
+    /// What `fanControlProfiles` should hold given whatever was previously
+    /// stored: the stored profiles as-is if there are any (even if the user
+    /// deleted every custom one down to nothing but kept editing — no,
+    /// built-ins can't be deleted, so "stored but empty" only happens before
+    /// first seeding), or the three built-ins on a genuinely first run.
+    static func migratedProfiles(storedValue: String?,
+                                 strings: FanControlFeatureStrings) -> [FanProfile] {
+        guard let storedValue else { return FanProfileBuiltIn.defaultProfiles(strings) }
+        let decoded = decodeArray(storedValue)
+        return decoded.isEmpty ? FanProfileBuiltIn.defaultProfiles(strings) : decoded
+    }
+}
+
+extension FanControlFeatureStrings {
+    func durationLabel(for duration: FanControlManualDuration) -> String {
+        switch duration {
+        case .fifteenMinutes: return duration15Min
+        case .thirtyMinutes: return duration30Min
+        case .oneHour: return duration1Hour
+        case .twoHours: return duration2Hours
+        case .fourHours: return duration4Hours
+        case .untilChanged: return durationUntilChanged
+        }
+    }
 }
 
 extension FeatureStrings {
@@ -111,7 +192,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Average CPU",
         hottestCPU: "Hottest CPU",
         hottestGPU: "Hottest GPU",
-        helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again."
+        helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
+        duration: "Duration",
+        duration15Min: "15 minutes",
+        duration30Min: "30 minutes",
+        duration1Hour: "1 hour",
+        duration2Hours: "2 hours",
+        duration4Hours: "4 hours",
+        durationUntilChanged: "Until I change it",
+        minutesRemainingFormat: "%d min left",
+        profilesLabel: "Profiles",
+        profileSilent: "Silent",
+        profileBalanced: "Balanced",
+        profilePerformance: "Performance",
+        saveAsProfile: "Save as profile…",
+        profileNamePrompt: "Name this profile",
+        profileNamePlaceholder: "Profile name",
+        saveProfileButton: "Save",
+        cancelButton: "Cancel",
+        renameProfile: "Rename",
+        deleteProfile: "Delete",
+        duplicateProfile: "Duplicate",
+        profileRenamePrompt: "Rename profile",
+        profileCopySuffixFormat: "%@ copy"
     )
 
     static let ptBR = FanControlFeatureStrings(
@@ -156,7 +259,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Média da CPU",
         hottestCPU: "CPU mais quente",
         hottestGPU: "GPU mais quente",
-        helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente."
+        helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente.",
+        duration: "Duração",
+        duration15Min: "15 minutos",
+        duration30Min: "30 minutos",
+        duration1Hour: "1 hora",
+        duration2Hours: "2 horas",
+        duration4Hours: "4 horas",
+        durationUntilChanged: "Até eu mudar",
+        minutesRemainingFormat: "%d min restantes",
+        profilesLabel: "Perfis",
+        profileSilent: "Silencioso",
+        profileBalanced: "Equilibrado",
+        profilePerformance: "Desempenho",
+        saveAsProfile: "Salvar como perfil…",
+        profileNamePrompt: "Nomeie este perfil",
+        profileNamePlaceholder: "Nome do perfil",
+        saveProfileButton: "Salvar",
+        cancelButton: "Cancelar",
+        renameProfile: "Renomear",
+        deleteProfile: "Excluir",
+        duplicateProfile: "Duplicar",
+        profileRenamePrompt: "Renomear perfil",
+        profileCopySuffixFormat: "Cópia de %@"
     )
 
     static let tr = FanControlFeatureStrings(
@@ -201,7 +326,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Ortalama CPU",
         hottestCPU: "En sıcak CPU",
         hottestGPU: "En sıcak GPU",
-        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin."
+        helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin.",
+        duration: "Süre",
+        duration15Min: "15 dakika",
+        duration30Min: "30 dakika",
+        duration1Hour: "1 saat",
+        duration2Hours: "2 saat",
+        duration4Hours: "4 saat",
+        durationUntilChanged: "Değiştirene kadar",
+        minutesRemainingFormat: "%d dk kaldı",
+        profilesLabel: "Profiller",
+        profileSilent: "Sessiz",
+        profileBalanced: "Dengeli",
+        profilePerformance: "Performans",
+        saveAsProfile: "Profil olarak kaydet…",
+        profileNamePrompt: "Bu profili adlandırın",
+        profileNamePlaceholder: "Profil adı",
+        saveProfileButton: "Kaydet",
+        cancelButton: "İptal",
+        renameProfile: "Yeniden adlandır",
+        deleteProfile: "Sil",
+        duplicateProfile: "Çoğalt",
+        profileRenamePrompt: "Profili yeniden adlandır",
+        profileCopySuffixFormat: "%@ kopyası"
     )
 
     static let ru = FanControlFeatureStrings(
@@ -246,7 +393,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Средняя CPU",
         hottestCPU: "Самая горячая CPU",
         hottestGPU: "Самая горячая GPU",
-        helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку."
+        helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку.",
+        duration: "Длительность",
+        duration15Min: "15 минут",
+        duration30Min: "30 минут",
+        duration1Hour: "1 час",
+        duration2Hours: "2 часа",
+        duration4Hours: "4 часа",
+        durationUntilChanged: "Пока не изменю",
+        minutesRemainingFormat: "Осталось %d мин",
+        profilesLabel: "Профили",
+        profileSilent: "Тихий",
+        profileBalanced: "Сбалансированный",
+        profilePerformance: "Производительность",
+        saveAsProfile: "Сохранить как профиль…",
+        profileNamePrompt: "Назовите этот профиль",
+        profileNamePlaceholder: "Название профиля",
+        saveProfileButton: "Сохранить",
+        cancelButton: "Отмена",
+        renameProfile: "Переименовать",
+        deleteProfile: "Удалить",
+        duplicateProfile: "Дублировать",
+        profileRenamePrompt: "Переименовать профиль",
+        profileCopySuffixFormat: "Копия %@"
     )
 
     static let es = FanControlFeatureStrings(
@@ -291,7 +460,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Promedio de CPU",
         hottestCPU: "CPU más caliente",
         hottestGPU: "GPU más caliente",
-        helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo."
+        helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
+        duration: "Duración",
+        duration15Min: "15 minutos",
+        duration30Min: "30 minutos",
+        duration1Hour: "1 hora",
+        duration2Hours: "2 horas",
+        duration4Hours: "4 horas",
+        durationUntilChanged: "Hasta que lo cambie",
+        minutesRemainingFormat: "%d min restantes",
+        profilesLabel: "Perfiles",
+        profileSilent: "Silencioso",
+        profileBalanced: "Equilibrado",
+        profilePerformance: "Rendimiento",
+        saveAsProfile: "Guardar como perfil…",
+        profileNamePrompt: "Nombra este perfil",
+        profileNamePlaceholder: "Nombre del perfil",
+        saveProfileButton: "Guardar",
+        cancelButton: "Cancelar",
+        renameProfile: "Cambiar nombre",
+        deleteProfile: "Eliminar",
+        duplicateProfile: "Duplicar",
+        profileRenamePrompt: "Cambiar nombre del perfil",
+        profileCopySuffixFormat: "Copia de %@"
     )
 
     static let de = FanControlFeatureStrings(
@@ -336,7 +527,29 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU-Durchschnitt",
         hottestCPU: "Heißeste CPU",
         hottestGPU: "Heißeste GPU",
-        helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut."
+        helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut.",
+        duration: "Dauer",
+        duration15Min: "15 Minuten",
+        duration30Min: "30 Minuten",
+        duration1Hour: "1 Stunde",
+        duration2Hours: "2 Stunden",
+        duration4Hours: "4 Stunden",
+        durationUntilChanged: "Bis ich es ändere",
+        minutesRemainingFormat: "Noch %d Min.",
+        profilesLabel: "Profile",
+        profileSilent: "Leise",
+        profileBalanced: "Ausgewogen",
+        profilePerformance: "Leistung",
+        saveAsProfile: "Als Profil speichern…",
+        profileNamePrompt: "Profil benennen",
+        profileNamePlaceholder: "Profilname",
+        saveProfileButton: "Speichern",
+        cancelButton: "Abbrechen",
+        renameProfile: "Umbenennen",
+        deleteProfile: "Löschen",
+        duplicateProfile: "Duplizieren",
+        profileRenamePrompt: "Profil umbenennen",
+        profileCopySuffixFormat: "%@ Kopie"
     )
 
     static let fr = FanControlFeatureStrings(
@@ -381,7 +594,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Moyenne du CPU",
         hottestCPU: "CPU le plus chaud",
         hottestGPU: "GPU le plus chaud",
-        helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez."
+        helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez.",
+        duration: "Durée",
+        duration15Min: "15 minutes",
+        duration30Min: "30 minutes",
+        duration1Hour: "1 heure",
+        duration2Hours: "2 heures",
+        duration4Hours: "4 heures",
+        durationUntilChanged: "Jusqu’à ce que je le change",
+        minutesRemainingFormat: "%d min restantes",
+        profilesLabel: "Profils",
+        profileSilent: "Silencieux",
+        profileBalanced: "Équilibré",
+        profilePerformance: "Performance",
+        saveAsProfile: "Enregistrer comme profil…",
+        profileNamePrompt: "Nommez ce profil",
+        profileNamePlaceholder: "Nom du profil",
+        saveProfileButton: "Enregistrer",
+        cancelButton: "Annuler",
+        renameProfile: "Renommer",
+        deleteProfile: "Supprimer",
+        duplicateProfile: "Dupliquer",
+        profileRenamePrompt: "Renommer le profil",
+        profileCopySuffixFormat: "Copie de %@"
     )
 
     static let it = FanControlFeatureStrings(
@@ -426,7 +661,29 @@ extension FanControlFeatureStrings {
         averageCPU: "Media CPU",
         hottestCPU: "CPU più calda",
         hottestGPU: "GPU più calda",
-        helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova."
+        helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova.",
+        duration: "Durata",
+        duration15Min: "15 minuti",
+        duration30Min: "30 minuti",
+        duration1Hour: "1 ora",
+        duration2Hours: "2 ore",
+        duration4Hours: "4 ore",
+        durationUntilChanged: "Finché non lo cambio",
+        minutesRemainingFormat: "%d min rimanenti",
+        profilesLabel: "Profili",
+        profileSilent: "Silenzioso",
+        profileBalanced: "Bilanciato",
+        profilePerformance: "Prestazioni",
+        saveAsProfile: "Salva come profilo…",
+        profileNamePrompt: "Assegna un nome al profilo",
+        profileNamePlaceholder: "Nome del profilo",
+        saveProfileButton: "Salva",
+        cancelButton: "Annulla",
+        renameProfile: "Rinomina",
+        deleteProfile: "Elimina",
+        duplicateProfile: "Duplica",
+        profileRenamePrompt: "Rinomina profilo",
+        profileCopySuffixFormat: "Copia di %@"
     )
 
     static let ja = FanControlFeatureStrings(
@@ -471,7 +728,29 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均",
         hottestCPU: "最高CPU",
         hottestGPU: "最高GPU",
-        helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。"
+        helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。",
+        duration: "期間",
+        duration15Min: "15分",
+        duration30Min: "30分",
+        duration1Hour: "1時間",
+        duration2Hours: "2時間",
+        duration4Hours: "4時間",
+        durationUntilChanged: "変更するまで",
+        minutesRemainingFormat: "残り%d分",
+        profilesLabel: "プロファイル",
+        profileSilent: "静音",
+        profileBalanced: "バランス",
+        profilePerformance: "パフォーマンス",
+        saveAsProfile: "プロファイルとして保存…",
+        profileNamePrompt: "このプロファイルに名前を付ける",
+        profileNamePlaceholder: "プロファイル名",
+        saveProfileButton: "保存",
+        cancelButton: "キャンセル",
+        renameProfile: "名前を変更",
+        deleteProfile: "削除",
+        duplicateProfile: "複製",
+        profileRenamePrompt: "プロファイル名を変更",
+        profileCopySuffixFormat: "%@のコピー"
     )
 
     static let ko = FanControlFeatureStrings(
@@ -516,7 +795,29 @@ extension FanControlFeatureStrings {
         averageCPU: "평균 CPU",
         hottestCPU: "가장 뜨거운 CPU",
         hottestGPU: "가장 뜨거운 GPU",
-        helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요."
+        helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요.",
+        duration: "지속 시간",
+        duration15Min: "15분",
+        duration30Min: "30분",
+        duration1Hour: "1시간",
+        duration2Hours: "2시간",
+        duration4Hours: "4시간",
+        durationUntilChanged: "변경할 때까지",
+        minutesRemainingFormat: "%d분 남음",
+        profilesLabel: "프로필",
+        profileSilent: "저소음",
+        profileBalanced: "균형",
+        profilePerformance: "성능",
+        saveAsProfile: "프로필로 저장…",
+        profileNamePrompt: "이 프로필의 이름 지정",
+        profileNamePlaceholder: "프로필 이름",
+        saveProfileButton: "저장",
+        cancelButton: "취소",
+        renameProfile: "이름 변경",
+        deleteProfile: "삭제",
+        duplicateProfile: "복제",
+        profileRenamePrompt: "프로필 이름 변경",
+        profileCopySuffixFormat: "%@ 사본"
     )
 
     static let zhHans = FanControlFeatureStrings(
@@ -561,7 +862,29 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均温度",
         hottestCPU: "CPU最高温度",
         hottestGPU: "GPU最高温度",
-        helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。"
+        helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。",
+        duration: "持续时间",
+        duration15Min: "15分钟",
+        duration30Min: "30分钟",
+        duration1Hour: "1小时",
+        duration2Hours: "2小时",
+        duration4Hours: "4小时",
+        durationUntilChanged: "直到我更改",
+        minutesRemainingFormat: "剩余%d分钟",
+        profilesLabel: "配置文件",
+        profileSilent: "静音",
+        profileBalanced: "均衡",
+        profilePerformance: "性能",
+        saveAsProfile: "存为配置文件…",
+        profileNamePrompt: "为此配置文件命名",
+        profileNamePlaceholder: "配置文件名称",
+        saveProfileButton: "存储",
+        cancelButton: "取消",
+        renameProfile: "重命名",
+        deleteProfile: "删除",
+        duplicateProfile: "复制",
+        profileRenamePrompt: "重命名配置文件",
+        profileCopySuffixFormat: "%@副本"
     )
 
     static let zhTW = FanControlFeatureStrings(
@@ -606,7 +929,29 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
-        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。"
+        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。",
+        duration: "持續時間",
+        duration15Min: "15分鐘",
+        duration30Min: "30分鐘",
+        duration1Hour: "1小時",
+        duration2Hours: "2小時",
+        duration4Hours: "4小時",
+        durationUntilChanged: "直到我變更",
+        minutesRemainingFormat: "剩餘%d分鐘",
+        profilesLabel: "設定檔",
+        profileSilent: "靜音",
+        profileBalanced: "均衡",
+        profilePerformance: "效能",
+        saveAsProfile: "另存為設定檔…",
+        profileNamePrompt: "為此設定檔命名",
+        profileNamePlaceholder: "設定檔名稱",
+        saveProfileButton: "儲存",
+        cancelButton: "取消",
+        renameProfile: "重新命名",
+        deleteProfile: "刪除",
+        duplicateProfile: "複製",
+        profileRenamePrompt: "重新命名設定檔",
+        profileCopySuffixFormat: "%@副本"
     )
 
     static let zhHK = FanControlFeatureStrings(
@@ -651,6 +996,28 @@ extension FanControlFeatureStrings {
         averageCPU: "CPU平均溫度",
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
-        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。"
+        helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。",
+        duration: "持續時間",
+        duration15Min: "15分鐘",
+        duration30Min: "30分鐘",
+        duration1Hour: "1小時",
+        duration2Hours: "2小時",
+        duration4Hours: "4小時",
+        durationUntilChanged: "直到我變更",
+        minutesRemainingFormat: "剩餘%d分鐘",
+        profilesLabel: "設定檔",
+        profileSilent: "靜音",
+        profileBalanced: "均衡",
+        profilePerformance: "效能",
+        saveAsProfile: "另存為設定檔…",
+        profileNamePrompt: "為此設定檔命名",
+        profileNamePlaceholder: "設定檔名稱",
+        saveProfileButton: "儲存",
+        cancelButton: "取消",
+        renameProfile: "重新命名",
+        deleteProfile: "刪除",
+        duplicateProfile: "複製",
+        profileRenamePrompt: "重新命名設定檔",
+        profileCopySuffixFormat: "%@副本"
     )
 }

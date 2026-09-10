@@ -20,6 +20,35 @@ enum FanControlMode: String, Codable, Sendable {
     case curve
 }
 
+/// How long a manual-mode session runs before it reverts on its own.
+/// `untilChanged` means no automatic expiry, matching the behavior manual
+/// mode already had before this type existed. The helper is the only thing
+/// that enforces this (see `FanControlPolicy.sessionDuration` and the
+/// `endsAt`/watchdog mechanism it already had for the legacy fixed session),
+/// so picking a case here never needs a second, app-side timer.
+enum FanControlManualDuration: String, Codable, CaseIterable, Identifiable, Sendable {
+    case fifteenMinutes
+    case thirtyMinutes
+    case oneHour
+    case twoHours
+    case fourHours
+    case untilChanged
+
+    var id: String { rawValue }
+
+    /// `nil` means no automatic expiry.
+    var seconds: TimeInterval? {
+        switch self {
+        case .fifteenMinutes: return 15 * 60
+        case .thirtyMinutes: return 30 * 60
+        case .oneHour: return 60 * 60
+        case .twoHours: return 2 * 60 * 60
+        case .fourHours: return 4 * 60 * 60
+        case .untilChanged: return nil
+        }
+    }
+}
+
 enum FanControlTemperatureSource: String, Codable, CaseIterable, Identifiable, Sendable {
     case averageSoC
     case hottestSoC
@@ -49,6 +78,8 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
     var mode: FanControlMode
     var manualLevel: Int
     var curves: [FanControlCurve]
+    /// Only meaningful in `.manual` mode; ignored otherwise.
+    var manualDuration: FanControlManualDuration
 
     static let defaultCurve = FanControlCurve(
         sensor: .hottestSoC,
@@ -58,15 +89,16 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
         ]
     )
 
-    static func manual(level: Int) -> FanControlConfiguration {
+    static func manual(level: Int,
+                       duration: FanControlManualDuration = .untilChanged) -> FanControlConfiguration {
         FanControlConfiguration(mode: .manual, manualLevel: level,
-                                curves: [])
+                                curves: [], manualDuration: duration)
     }
 
     static func curve(_ curves: [FanControlCurve]) -> FanControlConfiguration {
         FanControlConfiguration(mode: .curve,
                                 manualLevel: FanControlPolicy.defaultCoolingLevel,
-                                curves: curves)
+                                curves: curves, manualDuration: .untilChanged)
     }
 
     static func encodeCurves(_ curves: [FanControlCurve]) -> String? {
@@ -85,6 +117,156 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
 
     static var defaultCurvesStorage: String {
         encodeCurves([defaultCurve]) ?? "[]"
+    }
+}
+
+/// A named shortcut to a fan control configuration, selectable from the panel
+/// with one click instead of walking through mode/level/duration/curve by
+/// hand each time. `id` is stable storage identity (a built-in's is the fixed
+/// `FanProfileBuiltIn.id`, a custom profile's is a UUID string minted once at
+/// "Save as profile…" time); `name` is what the user sees for a custom
+/// profile, but a built-in's displayed name always comes fresh from
+/// `FanProfile.displayName(_:)` (in FanControlStrings.swift) so it
+/// re-translates if the interface language changes after the profile was
+/// seeded. This type stays free of `FanControlFeatureStrings` so it can keep
+/// compiling into the privileged helper target, which links this file for
+/// `FanControlConfiguration` but never needs UI strings.
+struct FanProfile: Codable, Equatable, Identifiable, Sendable {
+    /// Only one curve per profile: the panel and the built-in presets only
+    /// ever need to snapshot the single curve that was actually running, so
+    /// keeping a profile to one curve keeps switching and the settings list
+    /// simple. (Fan control itself still supports several simultaneous
+    /// curves; that combination just isn't something a one-click profile
+    /// captures.)
+    enum Kind: Codable, Equatable, Sendable {
+        case system
+        case manual(level: Int, duration: FanControlManualDuration)
+        case curve(points: [FanControlCurvePoint], temperatureSource: FanControlTemperatureSource)
+    }
+
+    let id: String
+    var name: String
+    var kind: Kind
+}
+
+extension FanProfile {
+    /// Which built-in this profile is, derived from `id` rather than a
+    /// stored flag — so there is no separate bit that could ever disagree
+    /// with the id about whether a profile is a built-in.
+    var builtIn: FanProfileBuiltIn? {
+        FanProfileBuiltIn.allCases.first { $0.id == id }
+    }
+
+    /// Built-ins are not renamable or deletable, only duplicable into an
+    /// editable copy.
+    var isBuiltIn: Bool { builtIn != nil }
+
+    /// The configuration this profile applies — exactly as if the user had
+    /// set mode/level/duration/curve to these values by hand.
+    var configuration: FanControlConfiguration {
+        switch kind {
+        case .system:
+            return FanControlConfiguration(mode: .system,
+                                           manualLevel: FanControlPolicy.defaultCoolingLevel,
+                                           curves: [], manualDuration: .untilChanged)
+        case let .manual(level, duration):
+            return .manual(level: level, duration: duration)
+        case let .curve(points, temperatureSource):
+            return .curve([FanControlCurve(sensor: temperatureSource, points: points)])
+        }
+    }
+
+    /// Whether `configuration` is exactly what this profile would apply.
+    /// Drives both the "apply" path (nothing to do if already active) and
+    /// the panel's highlight (hand-edited controls that happen to match a
+    /// profile again re-select it, without the app having to track that
+    /// specially).
+    func matches(_ configuration: FanControlConfiguration) -> Bool {
+        self.configuration == configuration
+    }
+
+    /// A new custom profile that captures `configuration` under `name`, for
+    /// the panel's "Save as profile…" action.
+    static func makeCustom(id: String = UUID().uuidString,
+                           name: String,
+                           from configuration: FanControlConfiguration) -> FanProfile {
+        let kind: Kind
+        switch configuration.mode {
+        case .system:
+            kind = .system
+        case .manual:
+            kind = .manual(level: configuration.manualLevel, duration: configuration.manualDuration)
+        case .curve:
+            let curve = configuration.curves.first ?? FanControlConfiguration.defaultCurve
+            kind = .curve(points: curve.points, temperatureSource: curve.sensor)
+        }
+        return FanProfile(id: id, name: name, kind: kind)
+    }
+
+    /// A duplicate of this profile as an editable custom copy, named with a
+    /// caller-supplied label (typically the original's displayed name plus a
+    /// "copy" suffix) — the only way to start editing a built-in.
+    func duplicated(named name: String) -> FanProfile {
+        FanProfile(id: UUID().uuidString, name: name, kind: kind)
+    }
+
+    /// The first stored profile whose configuration matches `configuration`,
+    /// if any — what the panel highlights as active. Recomputed from the
+    /// live controls rather than a separately tracked selection, so editing
+    /// mode/level/duration/curve by hand deselects automatically unless the
+    /// result happens to match a (possibly different) profile again.
+    static func activeProfile(matching configuration: FanControlConfiguration,
+                              in profiles: [FanProfile]) -> FanProfile? {
+        profiles.first { $0.matches(configuration) }
+    }
+
+    static func encodeArray(_ profiles: [FanProfile]) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(profiles) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Decodes a stored profile array, silently dropping any entry whose
+    /// `kind` this build does not recognize (e.g. one written by a future
+    /// version and read by an older one) instead of losing every other
+    /// profile because one entry failed to decode.
+    static func decodeArray(_ value: String) -> [FanProfile] {
+        guard let data = value.data(using: .utf8),
+              let attempts = try? JSONDecoder().decode([FanProfileDecodeAttempt].self, from: data)
+        else { return [] }
+        return attempts.compactMap(\.profile)
+    }
+}
+
+/// Decodes one profile in isolation so a single unrecognized `kind` cannot
+/// fail the decode of the whole stored array the way a plain `[FanProfile]`
+/// decode would.
+private struct FanProfileDecodeAttempt: Decodable {
+    let profile: FanProfile?
+    init(from decoder: Decoder) throws {
+        profile = try? FanProfile(from: decoder)
+    }
+}
+
+/// The three presets every install ships with. Not editable or deletable —
+/// `FanProfile.duplicated(named:)` is the only way to get an editable copy of
+/// one — so they always exist as a safe, known-good baseline.
+enum FanProfileBuiltIn: String, CaseIterable, Sendable {
+    case silent
+    case balanced
+    case performance
+
+    /// Stable storage identity; `FanProfile.builtIn` recognizes a profile as
+    /// this built-in only by matching this exact id.
+    var id: String { "builtin.\(rawValue)" }
+
+    var kind: FanProfile.Kind {
+        switch self {
+        case .silent: return .manual(level: 25, duration: .untilChanged)
+        case .balanced: return .system
+        case .performance: return .manual(level: 75, duration: .untilChanged)
+        }
     }
 }
 
@@ -193,6 +375,43 @@ enum FanControlPolicy {
         guard validBounds(minimum: minimum, maximum: maximum),
               validCoolingLevel(level) else { return nil }
         return minimum + (maximum - minimum) * Double(level) / 100
+    }
+
+    /// The deadline the helper should enforce for a session started with this
+    /// configuration. Only manual mode ever expires on its own; a curve keeps
+    /// running until temperatures or the app say otherwise. Centralizing this
+    /// keeps the app and the helper from independently answering the same
+    /// question and disagreeing.
+    static func sessionDuration(for configuration: FanControlConfiguration) -> TimeInterval? {
+        guard configuration.mode == .manual else { return nil }
+        return configuration.manualDuration.seconds
+    }
+
+    static func manualDurationElapsed(until: Date, now: Date) -> Bool {
+        now >= until
+    }
+
+    /// Minutes left before a manual session's deadline, rounded up so the
+    /// label never reads "0 min left" while control is still active, and
+    /// `nil` once (or before) the deadline to signal there is nothing to show.
+    static func remainingManualMinutes(until: Date?, now: Date) -> Int? {
+        guard let until, until > now else { return nil }
+        return max(1, Int((until.timeIntervalSince(now) / 60).rounded(.up)))
+    }
+
+    /// What a manual override should hand control back to once its timer
+    /// expires: the curve it interrupted, or the system if nothing was
+    /// actively running (or the interrupted mode was already system control).
+    static func modeAfterManualExpiry(previousMode: FanControlMode?) -> FanControlMode {
+        previousMode == .curve ? .curve : .system
+    }
+
+    /// What "previous mode" a timed manual override should remember, captured
+    /// once when the override begins so later tweaks (level, duration) while
+    /// still in manual do not overwrite what it should return to.
+    static func manualOverridePreviousMode(isCooling: Bool,
+                                           activeMode: FanControlMode?) -> FanControlMode {
+        (isCooling && activeMode == .curve) ? .curve : .system
     }
 
     static func validConfiguration(_ configuration: FanControlConfiguration) -> Bool {

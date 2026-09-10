@@ -124,6 +124,9 @@ struct MonitorSettings: View {
                     }
                 }
                 .settingsSectionAnchor(.fanControl)
+                Section(fanStrings.profilesLabel) {
+                    FanProfilesSettingsList(strings: fanStrings)
+                }
             }
             Section(l10n.s.monitorGraphsSection) {
                 if AppFeature.monitorCPU.isAvailable {
@@ -589,5 +592,93 @@ private struct PanelOrderDropDelegate: DropDelegate {
         dragging = nil
         PanelLayout.setOrder(order)
         return true
+    }
+}
+
+/// A minimal management list for named fan profiles: rename and delete for
+/// custom profiles, duplicate for any profile (the only way to start editing
+/// a built-in), reorder by drag. Built-ins show no rename/delete controls —
+/// `FanProfile.isBuiltIn` is what the panel and this list both key off of, so
+/// the two surfaces can never disagree about which profiles are protected.
+private struct FanProfilesSettingsList: View {
+    let strings: FanControlFeatureStrings
+    @AppStorage(DefaultsKey.fanControlProfiles) private var profilesStorage = "[]"
+    @State private var renaming: FanProfile?
+    @State private var renameText = ""
+
+    private var profiles: [FanProfile] {
+        FanProfile.decodeArray(profilesStorage)
+    }
+
+    var body: some View {
+        ForEach(profiles) { profile in
+            HStack {
+                Text(profile.displayName(strings))
+                Spacer()
+                if !profile.isBuiltIn {
+                    Button(strings.renameProfile) {
+                        renaming = profile
+                        renameText = profile.displayName(strings)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+                Button(strings.duplicateProfile) { duplicate(profile) }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                if !profile.isBuiltIn {
+                    Button {
+                        delete(profile)
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .onMove(perform: move)
+        .alert(strings.profileRenamePrompt, isPresented: Binding(
+            get: { renaming != nil },
+            set: { if !$0 { renaming = nil } }
+        )) {
+            TextField(strings.profileNamePlaceholder, text: $renameText)
+            Button(strings.saveProfileButton) {
+                if let renaming { rename(renaming, to: renameText) }
+                self.renaming = nil
+            }
+            Button(strings.cancelButton, role: .cancel) { renaming = nil }
+        }
+    }
+
+    private func write(_ profiles: [FanProfile]) {
+        if let encoded = FanProfile.encodeArray(profiles) {
+            profilesStorage = encoded
+        }
+    }
+
+    private func rename(_ profile: FanProfile, to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !profile.isBuiltIn else { return }
+        var updated = profiles
+        guard let index = updated.firstIndex(where: { $0.id == profile.id }) else { return }
+        updated[index].name = trimmed
+        write(updated)
+    }
+
+    private func duplicate(_ profile: FanProfile) {
+        let name = String(format: strings.profileCopySuffixFormat, profile.displayName(strings))
+        write(profiles + [profile.duplicated(named: name)])
+    }
+
+    private func delete(_ profile: FanProfile) {
+        guard !profile.isBuiltIn else { return }
+        write(profiles.filter { $0.id != profile.id })
+    }
+
+    private func move(from source: IndexSet, to destination: Int) {
+        var updated = profiles
+        updated.move(fromOffsets: source, toOffset: destination)
+        write(updated)
     }
 }
