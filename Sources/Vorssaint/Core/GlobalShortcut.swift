@@ -89,6 +89,10 @@ struct GlobalShortcut: Equatable, Hashable {
     }
 
     init?(storageValue: String) {
+        self.init(storageValue: storageValue, allowingUnmodifiedKeys: false)
+    }
+
+    init?(storageValue: String, allowingUnmodifiedKeys: Bool) {
         guard let separator = storageValue.firstIndex(of: ":"),
               let keyCode = Int64(storageValue[storageValue.index(after: separator)...])
         else { return nil }
@@ -103,7 +107,8 @@ struct GlobalShortcut: Equatable, Hashable {
             }
         }
         self.init(keyCode: keyCode, modifiers: modifiers)
-        guard isValid else { return nil }
+        let accepted = allowingUnmodifiedKeys ? isValidForMouseButtonShortcut : isValid
+        guard accepted else { return nil }
     }
 
     /// Delete on its own means "take the shortcut off" while a shortcut field
@@ -244,6 +249,17 @@ struct GlobalShortcut: Equatable, Hashable {
     var isValid: Bool {
         hasUsableKeyCode && keyLabel != nil
             && (modifiers.hasPrimaryModifier || Self.standaloneFunctionKeys.contains(keyCode))
+    }
+
+    /// Mouse-button shortcuts may fire an ordinary key with no modifier
+    /// (Return, a letter, and so on). Global hotkey registration stays
+    /// strict via `isValid`; only the mouse-button recorder and storage
+    /// path opt into this wider rule (issue #1363). Escape alone still
+    /// cancels recording and is never accepted as a binding.
+    var isValidForMouseButtonShortcut: Bool {
+        if isValid { return true }
+        guard hasUsableKeyCode, keyLabel != nil, modifiers.isEmpty else { return false }
+        return keyCode != Int64(kVK_Escape)
     }
 
     var displayString: String {

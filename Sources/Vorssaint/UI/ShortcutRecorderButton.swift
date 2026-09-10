@@ -22,6 +22,10 @@ struct ShortcutRecorderButton: NSViewRepresentable {
     var notCapturedAction: (() -> Void)? = nil
     /// Lets the row show its caption exactly while the field is listening.
     var recordingChanged: ((Bool) -> Void)? = nil
+    /// When true, an ordinary key with no modifier (Return, a letter) is
+    /// accepted. Mouse-button shortcuts use this; global hotkey rows do not
+    /// (issue #1363).
+    var acceptsUnmodifiedKeys: Bool = false
     let invalidAction: () -> Void
     let captureAction: (GlobalShortcut) -> Void
 
@@ -72,6 +76,7 @@ struct ShortcutRecorderButton: NSViewRepresentable {
         button.clearAction = clearAction
         button.notCapturedAction = notCapturedAction
         button.recordingChanged = recordingChanged
+        button.acceptsUnmodifiedKeys = acceptsUnmodifiedKeys
         button.invalidAction = invalidAction
         button.captureAction = captureAction
         button.isEnabled = isEnabled
@@ -86,6 +91,7 @@ final class RecorderButton: NSButton {
     var clearAction: (() -> Void)?
     var notCapturedAction: (() -> Void)?
     var recordingChanged: ((Bool) -> Void)?
+    var acceptsUnmodifiedKeys = false
     var invalidAction: (() -> Void)?
     var captureAction: ((GlobalShortcut) -> Void)?
     private var isRecording = false
@@ -222,7 +228,10 @@ final class RecorderButton: NSButton {
             return
         }
         let captured = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
-        guard captured.isValid else {
+        let accepted = acceptsUnmodifiedKeys
+            ? captured.isValidForMouseButtonShortcut
+            : captured.isValid
+        guard accepted else {
             NSSound.beep()
             invalidAction?()
             return
