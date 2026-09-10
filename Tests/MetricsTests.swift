@@ -8416,6 +8416,53 @@ struct MetricsTests {
             hasDroppableContent: { fatalError("droppable check must stay lazy") }),
                "an unchanged pasteboard outside the Dock skips the content inspection")
 
+        // MARK: Shelf pasteboard / file promises (#1554)
+        // Outlook (and Mail, Safari downloads) drag attachments as file
+        // promises — no public.file-url until the drop is accepted. The shelf
+        // must treat those types as droppable so it activates during the drag.
+
+        expect(ShelfPasteboardSupport.isFilePromiseType(
+            "Apple files promise pasteboard type"),
+               "legacy Apple files promise type is a file promise")
+        expect(ShelfPasteboardSupport.isFilePromiseType(
+            "com.apple.pasteboard.promised-file-content-type"),
+               "modern promised-file-content-type is a file promise")
+        expect(ShelfPasteboardSupport.isFilePromiseType(
+            "com.apple.pasteboard.promised-file-url"),
+               "promised-file-url is a file promise")
+        for type in NSFilePromiseReceiver.readableDraggedTypes {
+            expect(ShelfPasteboardSupport.isFilePromiseType(type),
+                   "NSFilePromiseReceiver type \(type) is recognized as a file promise")
+        }
+        expect(!ShelfPasteboardSupport.isFilePromiseType("public.file-url"),
+               "ordinary file URLs are not classified as file promises")
+        expect(ShelfPasteboardSupport.isDroppablePasteboardType(
+            "Apple files promise pasteboard type"),
+               "file promises count as droppable shelf content")
+        expect(ShelfPasteboardSupport.isDroppablePasteboardType("public.file-url"),
+               "file URLs still count as droppable shelf content")
+        expect(ShelfPasteboardSupport.isDroppablePasteboardType(
+            NSPasteboard.PasteboardType.string.rawValue),
+               "plain text still counts as droppable shelf content")
+        expect(!ShelfPasteboardSupport.isDroppablePasteboardType(
+            "com.vorssaint.tests.not-a-real-pasteboard-type"),
+               "unrelated pasteboard types do not activate the shelf")
+        expect(ShelfPasteboardSupport.promisedFileURLs(
+            named: ["report.pdf", "photo.png"],
+            in: URL(fileURLWithPath: "/tmp/ShelfPromises")) == [
+                URL(fileURLWithPath: "/tmp/ShelfPromises/report.pdf"),
+                URL(fileURLWithPath: "/tmp/ShelfPromises/photo.png")
+            ],
+               "promised file names resolve under the receive directory")
+        expect(ShelfPasteboardSupport.promisedFileURLs(named: [], in: URL(fileURLWithPath: "/tmp")).isEmpty,
+               "an empty promise name list yields no URLs")
+        expect(ShelfPasteboardSupport.promisedFileURLs(
+            named: ["subdir/report.pdf", "  "],
+            in: URL(fileURLWithPath: "/tmp/ShelfPromises")) == [
+                URL(fileURLWithPath: "/tmp/ShelfPromises/report.pdf")
+            ],
+               "promised names keep only the last path component and drop blanks")
+
         // MARK: Shelf reveal
 
         let revealChildA = UUID()

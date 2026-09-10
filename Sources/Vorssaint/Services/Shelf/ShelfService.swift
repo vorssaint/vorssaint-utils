@@ -285,21 +285,31 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    static let tileDropTypes: [NSPasteboard.PasteboardType] = [
-        .fileURL,
-        .URL,
-        .string,
-        .tiff,
-        .png,
-        NSPasteboard.PasteboardType(UTType.gif.identifier),
-        NSPasteboard.PasteboardType("NSFilenamesPboardType"),
-        NSPasteboard.PasteboardType("NSURLPboardType"),
-        NSPasteboard.PasteboardType(UTType.fileURL.identifier),
-        NSPasteboard.PasteboardType(UTType.image.identifier),
-        NSPasteboard.PasteboardType(UTType.url.identifier),
-        NSPasteboard.PasteboardType(UTType.text.identifier),
-        NSPasteboard.PasteboardType(UTType.plainText.identifier),
-    ]
+    static let tileDropTypes: [NSPasteboard.PasteboardType] = {
+        var types: [NSPasteboard.PasteboardType] = [
+            .fileURL,
+            .URL,
+            .string,
+            .tiff,
+            .png,
+            NSPasteboard.PasteboardType(UTType.gif.identifier),
+            NSPasteboard.PasteboardType("NSFilenamesPboardType"),
+            NSPasteboard.PasteboardType("NSURLPboardType"),
+            NSPasteboard.PasteboardType(UTType.fileURL.identifier),
+            NSPasteboard.PasteboardType(UTType.image.identifier),
+            NSPasteboard.PasteboardType(UTType.url.identifier),
+            NSPasteboard.PasteboardType(UTType.text.identifier),
+            NSPasteboard.PasteboardType(UTType.plainText.identifier),
+            // Outlook / Mail / Safari file promises (issue #1554).
+            NSPasteboard.PasteboardType("Apple files promise pasteboard type"),
+            NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url"),
+            NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-content-type"),
+        ]
+        types.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map {
+            NSPasteboard.PasteboardType($0)
+        })
+        return types
+    }()
 
     // MARK: - Lifecycle
 
@@ -530,29 +540,15 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
-        guard let items = pasteboard.pasteboardItems, !items.isEmpty else { return false }
-        let directTypes: Set<String> = [
-            NSPasteboard.PasteboardType.fileURL.rawValue,
-            NSPasteboard.PasteboardType.string.rawValue,
-            NSPasteboard.PasteboardType.tiff.rawValue,
-            NSPasteboard.PasteboardType.png.rawValue,
-            UTType.gif.identifier,
-            UTType.fileURL.identifier,
-            UTType.image.identifier,
-            UTType.url.identifier,
-            UTType.text.identifier,
-            UTType.plainText.identifier,
-            "NSFilenamesPboardType",
-            "NSURLPboardType"
-        ]
-        let supportedUTTypes: [UTType] = [.fileURL, .gif, .image, .url, .text, .plainText]
-
-        for item in items {
+        for item in pasteboard.pasteboardItems ?? [] {
             for type in item.types {
-                if directTypes.contains(type.rawValue) { return true }
-                guard let utType = UTType(type.rawValue) else { continue }
-                if supportedUTTypes.contains(where: { utType.conforms(to: $0) }) { return true }
+                if ShelfPasteboardSupport.isDroppablePasteboardType(type.rawValue) { return true }
             }
+        }
+        // Some sources put promise metadata only on the pasteboard's type
+        // list, not as per-item types. Still count those so Outlook activates.
+        for type in pasteboard.types ?? [] {
+            if ShelfPasteboardSupport.isDroppablePasteboardType(type.rawValue) { return true }
         }
         return false
     }
@@ -1460,6 +1456,72 @@ final class ShelfService: ObservableObject {
         return true
     }
 
+    /// Accepts a live drag, including Outlook-style file promises that only
+    /// materialize once the destination asks for them.
+    func accept(draggingInfo: NSDraggingInfo) -> Bool {
+        if accept(pasteboard: draggingInfo.draggingPasteboard) { return true }
+        let promised = receivePromisedFiles(from: draggingInfo)
+        guard !promised.isEmpty else { return false }
+        if promised.count > 1 {
+            return addFileBatch(promised)
+        }
+        return append(fileItem(for: promised[0]))
+    }
+
+    /// Merges a live drag into an existing pile, fulfilling file promises when
+    /// the pasteboard has no concrete file URLs yet.
+    func merge(draggingInfo: NSDraggingInfo, into targetID: UUID) -> Bool {
+        if mergePasteboard(draggingInfo.draggingPasteboard, into: targetID) {
+            return true
+        }
+        let promised = receivePromisedFiles(from: draggingInfo)
+        guard !promised.isEmpty else { return false }
+        return mergePasteboard(fileURLPasteboard(for: promised), into: targetID)
+    }
+
+    /// Directory promised files are written into before becoming shelf items.
+    /// Prefers the persistent ShelfFiles store so relaunches keep them.
+    private func promiseReceiveDirectory() -> URL {
+        if let store = Self.storeDirectory {
+            PrivateFileStore.createDirectory(at: store)
+            return store
+        }
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        return tempDir
+    }
+
+    private func receivePromisedFiles(from draggingInfo: NSDraggingInfo) -> [URL] {
+        let pasteboard = draggingInfo.draggingPasteboard
+        guard pasteboardHasFilePromise(pasteboard) else { return [] }
+        let destination = promiseReceiveDirectory()
+        // Classic API: asks the source to write files now and returns names.
+        // Outlook for Mac still uses this path for attachment drags.
+        let names = (draggingInfo.namesOfPromisedFilesDroppedAtDestination(destination) as? [String]) ?? []
+        let urls = ShelfPasteboardSupport.promisedFileURLs(named: names, in: destination)
+        return urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    private func pasteboardHasFilePromise(_ pasteboard: NSPasteboard) -> Bool {
+        if (pasteboard.types ?? []).contains(where: { ShelfPasteboardSupport.isFilePromiseType($0.rawValue) }) {
+            return true
+        }
+        for item in pasteboard.pasteboardItems ?? [] {
+            if item.types.contains(where: { ShelfPasteboardSupport.isFilePromiseType($0.rawValue) }) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Temporary pasteboard used to reuse the existing merge/add file path
+    /// after promised files have landed on disk.
+    private func fileURLPasteboard(for urls: [URL]) -> NSPasteboard {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("VorssaintShelfPromiseMerge"))
+        pasteboard.clearContents()
+        pasteboard.writeObjects(urls as [NSURL])
+        return pasteboard
+    }
+
     /// The pasteboard representation used when dragging an item out of the shelf.
     func pasteboardWriter(for item: Item) -> NSPasteboardWriting {
         switch item.payload {
@@ -1710,6 +1772,9 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardCanCreateItem(_ pasteboard: NSPasteboard) -> Bool {
+        if pasteboardHasFilePromise(pasteboard) {
+            return true
+        }
         if !fileURLs(from: pasteboard).isEmpty {
             return true
         }

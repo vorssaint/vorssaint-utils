@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 enum ShelfSelectionSupport {
     /// Escape clears the Shelf selection only when pressed on its own. Keeping
@@ -134,6 +136,65 @@ enum ShelfInteractionSupport {
                                       draggedItemCount: Int,
                                       removeAfterDrop: Bool) -> Bool {
         dropAccepted && draggedItemCount > 0 && removeAfterDrop
+    }
+}
+
+/// Pasteboard type rules for deciding whether a drag can land on the Shelf.
+/// Kept pure so Outlook-style file promises (issue #1554) stay covered by the
+/// unit harness without standing up a real drag session.
+enum ShelfPasteboardSupport {
+    /// Types that mean "a file will exist once the drop is accepted" rather
+    /// than a path that already does. Outlook attachments, Mail drops and
+    /// Safari downloads use these; Finder local files use public.file-url.
+    static var filePromiseTypeIdentifiers: Set<String> {
+        var ids = Set(NSFilePromiseReceiver.readableDraggedTypes)
+        // Deprecated raw name still appears on older/Microsoft sources.
+        ids.insert("Apple files promise pasteboard type")
+        ids.insert("com.apple.pasteboard.promised-file-url")
+        ids.insert("com.apple.pasteboard.promised-file-content-type")
+        return ids
+    }
+
+    private static let directDroppableTypes: Set<String> = [
+        NSPasteboard.PasteboardType.fileURL.rawValue,
+        NSPasteboard.PasteboardType.string.rawValue,
+        NSPasteboard.PasteboardType.tiff.rawValue,
+        NSPasteboard.PasteboardType.png.rawValue,
+        UTType.gif.identifier,
+        UTType.fileURL.identifier,
+        UTType.image.identifier,
+        UTType.url.identifier,
+        UTType.text.identifier,
+        UTType.plainText.identifier,
+        "NSFilenamesPboardType",
+        "NSURLPboardType"
+    ]
+
+    private static let supportedUTTypes: [UTType] = [
+        .fileURL, .gif, .image, .url, .text, .plainText
+    ]
+
+    static func isFilePromiseType(_ rawValue: String) -> Bool {
+        filePromiseTypeIdentifiers.contains(rawValue)
+    }
+
+    /// Types the Shelf already keeps (files, images, text, links) plus file
+    /// promises so a gesture that only promises a file still activates it.
+    static func isDroppablePasteboardType(_ rawValue: String) -> Bool {
+        if isFilePromiseType(rawValue) { return true }
+        if directDroppableTypes.contains(rawValue) { return true }
+        guard let utType = UTType(rawValue) else { return false }
+        return supportedUTTypes.contains { utType.conforms(to: $0) }
+    }
+
+    /// Turns the filenames returned by
+    /// `namesOfPromisedFilesDroppedAtDestination` into URLs under the
+    /// directory the drop asked the source to write into.
+    static func promisedFileURLs(named names: [String], in directory: URL) -> [URL] {
+        names
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { directory.appendingPathComponent(($0 as NSString).lastPathComponent) }
     }
 }
 
