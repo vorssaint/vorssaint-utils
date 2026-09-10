@@ -4,101 +4,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue == String {}
-
-/// The major, user-customizable sections of the menu panel. Raw values are the
-/// stable identifiers persisted in the saved order and the collapsed set, so
-/// renaming a case would orphan a user's stored layout — keep them stable.
-enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
-         toggles
-
-    var id: String { rawValue }
-
-    /// Localized display name, reused from the existing section titles.
-    func title(_ s: Strings) -> String {
-        switch self {
-        case .keepAwake: return s.keepAwakeTitle
-        case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
-        case .mixer: return s.mixerSection
-        case .system: return s.systemSection
-        case .network: return s.networkSection
-        case .disk: return s.diskSection
-        case .power: return s.powerSection
-        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
-        case .utilities: return s.utilitiesSection
-        case .controls: return s.quickControlsSection
-        case .toggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
-        }
-    }
-
-    var symbolName: String {
-        switch self {
-        case .keepAwake: return "moon.zzz.fill"
-        case .brightness: return "display.2"
-        case .mixer: return "slider.horizontal.3"
-        case .system: return "cpu"
-        case .network: return "network"
-        case .disk: return "internaldrive"
-        case .power: return "bolt.fill"
-        case .fanControl: return "fanblades.fill"
-        case .utilities: return "wrench.and.screwdriver.fill"
-        case .controls: return "switch.2"
-        case .toggles: return "togglepower"
-        }
-    }
-
-    /// The UserDefaults key that controls whether this section shows in the panel.
-    /// The monitoring blocks reuse their existing `monitorShow*` keys; the rest
-    /// get a dedicated `panelShow*` key so every section is hideable.
-    var visibilityKey: String {
-        switch self {
-        case .keepAwake: return DefaultsKey.panelShowKeepAwake
-        case .brightness: return DefaultsKey.panelShowBrightness
-        case .mixer: return DefaultsKey.monitorShowMixer
-        case .system: return DefaultsKey.monitorShowSystem
-        case .network: return DefaultsKey.monitorShowNetwork
-        case .disk: return DefaultsKey.monitorShowDisk
-        case .power: return DefaultsKey.monitorShowPower
-        case .fanControl: return DefaultsKey.panelShowFanControl
-        case .utilities: return DefaultsKey.panelShowUtilities
-        case .controls: return DefaultsKey.panelShowControls
-        case .toggles: return DefaultsKey.panelShowToggles
-        }
-    }
-
-    /// Installed sections show by default and remain individually hideable.
-    var shownByDefault: Bool { true }
-
-    /// Hub features that keep this section alive: with all of them off, the
-    /// section leaves the panel, the section navigation and the layout
-    /// editors, regardless of its visibility key (which is preserved for the
-    /// feature's return).
-    var featureGate: [AppFeature] {
-        switch self {
-        case .keepAwake: return [.keepAwake]
-        case .brightness: return [.brightness]
-        case .mixer: return [.mixer]
-        case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
-        case .network: return [.monitorNetwork]
-        case .disk: return [.monitorDisk]
-        case .power: return [.monitorPower]
-        case .fanControl: return [.fanControl]
-        case .utilities: return [.quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools,
-                                 .clipboardHistory,
-                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
-                                 .colorPicker, .screenshot, .screenRecorder,
-                                 .cameraPreview, .scratchpad, .commandBar]
-        case .controls: return [.scrollInverter, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,
-                                .finderCutPaste, .autoQuit,
-                                .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick,
-                                .middleClick, .textSnippets, .superKey, .radialMenu, .mouseClickDebounce]
-        case .toggles: return [.quickToggles, .micMute]
-        }
-    }
-
-    var isAvailable: Bool { featureGate.contains(where: \.isAvailable) }
-}
 
 /// Persisted panel layout: the order the sections appear in and which ones are
 /// collapsed. The order is a comma-joined list of ids; any section missing from
@@ -246,6 +151,17 @@ struct PanelSection<Content: View>: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .panelKeyboardRow(PanelRowID(id, "header"),
+                                  actions: PanelRowActions(activate: toggle,
+                                                           adjust: { direction, _ in
+                                                               // Right expands, left collapses; already being
+                                                               // there hands the key back instead of no-oping.
+                                                               let wantsExpanded = direction == .increase
+                                                               guard wantsExpanded == collapsed else { return false }
+                                                               toggle()
+                                                               return true
+                                                           }),
+                                  cornerRadius: 6)
             } else {
                 sectionTitle(title)
                 Spacer(minLength: 0)
@@ -295,6 +211,8 @@ struct PanelSection<Content: View>: View {
                 .fill(isEditing ? Color.accentColor : Color.clear)
         )
         .help(isEditing ? l10n.s.uninstallerDoneTitle : l10n.s.menuEdit)
+        .panelKeyboardRow(editButtonVisible ? PanelRowID(id, "edit") : nil,
+                          actions: PanelRowActions(activate: toggleEditing), cornerRadius: 6)
     }
 
     private func resetButton(_ action: @escaping () -> Void) -> some View {
@@ -313,6 +231,8 @@ struct PanelSection<Content: View>: View {
                 .fill(Color.primary.opacity(0.07))
         )
         .help(l10n.s.mixerOutputDefault)
+        .panelKeyboardRow(PanelRowID(id, "reset"),
+                          actions: PanelRowActions(activate: action), cornerRadius: 7)
     }
 
     private var isEditing: Bool { supportsEditing && editButtonVisible && editing }
@@ -390,6 +310,10 @@ private struct PanelItemDropDelegate<Item: PanelOrderItem>: DropDelegate {
 struct PanelInlineHideButton: View {
     @ObservedObject private var l10n = L10n.shared
     @Binding var isVisible: Bool
+    /// Non-nil when this button stands alone as its own keyboard row (e.g. a
+    /// block header's hide toggle). `PanelHiddenItemRow` wires its own row
+    /// around the whole placeholder instead, so it leaves this nil.
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         Button {
@@ -407,6 +331,7 @@ struct PanelInlineHideButton: View {
         .buttonStyle(.plain)
         .help(isVisible ? l10n.s.panelHideItem : l10n.s.panelShowItem)
         .accessibilityLabel(isVisible ? l10n.s.panelHideItem : l10n.s.panelShowItem)
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: { isVisible.toggle() }), cornerRadius: 7)
     }
 }
 
@@ -430,6 +355,7 @@ struct PanelHiddenItemRow: View {
     let title: String
     let systemImage: String
     @Binding var isVisible: Bool
+    var keyboardRow: PanelRowID? = nil
 
     var body: some View {
         HStack(spacing: 8) {
@@ -445,6 +371,7 @@ struct PanelHiddenItemRow: View {
             PanelHiddenBadge()
             PanelInlineHideButton(isVisible: $isVisible)
         }
+        .panelKeyboardRow(keyboardRow, actions: PanelRowActions(activate: { isVisible.toggle() }))
         .padding(.vertical, 3)
         .padding(.horizontal, 6)
         .background(

@@ -15,6 +15,8 @@ struct HomebrewOperationStatusView: View {
     var onCancel: () -> Void
     var onClear: () -> Void
     var onOpenTerminal: () -> Void
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 7 : 9) {
@@ -74,11 +76,15 @@ struct HomebrewOperationStatusView: View {
                     onCancel()
                 }
                 .controlSize(.mini)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "homebrewOp-cancel") },
+                                  actions: PanelRowActions(activate: onCancel), cornerRadius: 6)
             } else {
                 Button(l10n.s.homebrewClearLog) {
                     onClear()
                 }
                 .controlSize(.mini)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "homebrewOp-clear") },
+                                  actions: PanelRowActions(activate: onClear), cornerRadius: 6)
             }
         }
     }
@@ -113,11 +119,15 @@ struct HomebrewOperationStatusView: View {
                     Button(l10n.s.homebrewOpenTerminal) {
                         onOpenTerminal()
                     }
+                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "homebrewOp-openTerminal") },
+                                      actions: PanelRowActions(activate: onOpenTerminal), cornerRadius: 6)
                     Button {
                         copy(terminalFallbackCommand)
                     } label: {
                         Label(l10n.s.menuCopy, systemImage: "doc.on.doc")
                     }
+                    .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "homebrewOp-copyCommand") },
+                                      actions: PanelRowActions(activate: { copy(terminalFallbackCommand) }), cornerRadius: 6)
                 }
                 .controlSize(.small)
             }
@@ -135,6 +145,8 @@ struct HomebrewOperationStatusView: View {
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
         .disabled(log.isEmpty)
+        .panelKeyboardRow(log.isEmpty ? nil : keyboardSection.map { PanelRowID($0, "homebrewOp-toggleDetails") },
+                          actions: PanelRowActions(activate: { showDetails.toggle() }))
     }
 
     private var technicalLog: some View {
@@ -151,6 +163,8 @@ struct HomebrewOperationStatusView: View {
                 }
                 .controlSize(.mini)
                 .disabled(log.isEmpty)
+                .panelKeyboardRow(log.isEmpty ? nil : keyboardSection.map { PanelRowID($0, "homebrewOp-copyLog") },
+                                  actions: PanelRowActions(activate: { copy(log) }), cornerRadius: 6)
             }
             ScrollView {
                 Text(log.isEmpty ? " " : log)

@@ -38,6 +38,7 @@ struct PanelURLCleanerView: View {
             }
             .buttonStyle(.plain)
             .help(l10n.s.uninstallerCancel)
+            .panelKeyboardRow(PanelRowID(.utilities, "urlCleaner-close"), actions: PanelRowActions(activate: onClose))
         }
     }
 
@@ -49,6 +50,8 @@ struct PanelURLCleanerView: View {
                 .onChange(of: autoClean) { _, _ in
                     URLCleanerService.shared.syncWithPreferences()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "urlCleaner-autoClean"),
+                                  actions: PanelRowActions(activate: { autoClean.toggle() }))
             Text(l10n.s.urlCleanerEnableCaption)
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -82,21 +85,30 @@ struct PanelURLCleanerView: View {
                 .buttonStyle(.plain)
                 .help(l10n.s.urlCleanerClearButton)
                 .disabled(!canClearInput)
+                .panelKeyboardRow(canClearInput ? PanelRowID(.utilities, "urlCleaner-clear") : nil,
+                                  actions: PanelRowActions(activate: clearInput))
             }
             HStack(spacing: 7) {
+                let canClean = !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 Button(l10n.s.urlCleanerPasteButton) {
                     paste()
                 }
+                .panelKeyboardRow(PanelRowID(.utilities, "urlCleaner-paste"),
+                                  actions: PanelRowActions(activate: paste), cornerRadius: 6)
                 Button(l10n.s.urlCleanerCleanButton) {
                     clean()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(!canClean)
+                .panelKeyboardRow(canClean ? PanelRowID(.utilities, "urlCleaner-clean") : nil,
+                                  actions: PanelRowActions(activate: clean), cornerRadius: 6)
                 Spacer()
                 Button(l10n.s.urlCleanerCopyButton) {
                     copy()
                 }
                 .disabled(output.isEmpty)
+                .panelKeyboardRow(output.isEmpty ? nil : PanelRowID(.utilities, "urlCleaner-copy"),
+                                  actions: PanelRowActions(activate: copy), cornerRadius: 6)
             }
             .controlSize(.small)
 

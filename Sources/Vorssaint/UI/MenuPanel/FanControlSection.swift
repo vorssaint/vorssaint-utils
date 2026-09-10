@@ -136,6 +136,19 @@ struct FanControlCardContent: View {
         .pickerStyle(.segmented)
         .controlSize(.small)
         .disabled(isWorking)
+        .panelKeyboardRow(isWorking ? nil : PanelRowID(.fanControl, "mode"),
+                          actions: PanelRowActions(adjust: { direction, _ in
+                              adjustMode(direction)
+                          }))
+    }
+
+    private func adjustMode(_ direction: PanelAdjustDirection) -> Bool {
+        let modes: [FanControlMode] = [.system, .manual, .curve]
+        guard let index = modes.firstIndex(of: mode) else { return false }
+        let nextIndex = direction == .increase ? index + 1 : index - 1
+        guard modes.indices.contains(nextIndex) else { return false }
+        mode = modes[nextIndex]
+        return true
     }
 
     private var manualControl: some View {
@@ -154,6 +167,22 @@ struct FanControlCardContent: View {
                 .controlSize(.small)
                 .disabled(isWorking)
         }
+        .panelKeyboardRow(PanelRowID(.fanControl, "coolingLevel"),
+                          actions: isWorking ? PanelRowActions() : PanelRowActions(
+                              adjust: { direction, _ in adjustCoolingLevel(direction) }))
+    }
+
+    /// Always moves by the full step: the level is quantized to multiples of
+    /// it (`selectedCoolingLevel` rounds up to the next one), so a finer
+    /// keyboard step would just get rounded away.
+    private func adjustCoolingLevel(_ direction: PanelAdjustDirection) -> Bool {
+        let step = FanControlPolicy.coolingLevelStep
+        let delta = direction == .increase ? step : -step
+        let next = min(FanControlPolicy.maximumCoolingLevel,
+                       max(FanControlPolicy.minimumCoolingLevel, selectedCoolingLevel + delta))
+        guard next != selectedCoolingLevel else { return false }
+        coolingLevel = next
+        return true
     }
 
     private var statusHeader: some View {
@@ -220,11 +249,15 @@ struct FanControlCardContent: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)
+                .panelKeyboardRow(PanelRowID(.fanControl, "allowControl"),
+                                  actions: PanelRowActions(activate: authorize))
         } else if accessState == .requiresApproval, !snapshot.fans.isEmpty {
             Button(strings.openSettings, action: authorize)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .frame(maxWidth: .infinity)
+                .panelKeyboardRow(PanelRowID(.fanControl, "openSettings"),
+                                  actions: PanelRowActions(activate: authorize))
         } else if accessState == .enabled, controlsCanAppear {
             switch mode {
             case .system:
@@ -234,24 +267,33 @@ struct FanControlCardContent: View {
                         .controlSize(.small)
                         .disabled(isWorking)
                         .frame(maxWidth: .infinity)
+                        .panelKeyboardRow(isWorking ? nil : PanelRowID(.fanControl, "returnToSystem"),
+                                          actions: PanelRowActions(activate: stopCooling))
                 }
             case .manual:
-                Button(strings.applyManual) {
+                let applyManual = {
                     coolingLevel = selectedCoolingLevel
                     applyConfiguration(.manual(level: selectedCoolingLevel))
                 }
+                Button(strings.applyManual, action: applyManual)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(isWorking)
                 .frame(maxWidth: .infinity)
+                .panelKeyboardRow(isWorking ? nil : PanelRowID(.fanControl, "applyManual"),
+                                  actions: PanelRowActions(activate: applyManual))
             case .curve:
-                Button(strings.applyCurve) {
+                let applyCurve = {
                     applyConfiguration(.curve(curves))
                 }
+                Button(strings.applyCurve, action: applyCurve)
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .disabled(isWorking || !curveCanRun)
                 .frame(maxWidth: .infinity)
+                .panelKeyboardRow(
+                    (isWorking || !curveCanRun) ? nil : PanelRowID(.fanControl, "applyCurve"),
+                    actions: PanelRowActions(activate: applyCurve))
             }
         }
     }

@@ -413,6 +413,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift \
         Sources/Vorssaint/Services/Metrics/MaxCapacityProbe.swift \
         Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+        Sources/Vorssaint/Services/SystemMonitor/ProcessUsageNavigation.swift \
         Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift \
@@ -425,6 +426,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
+        Sources/Vorssaint/UI/MenuPanel/PanelSectionID.swift \
+        Sources/Vorssaint/UI/MenuPanel/PanelKeyboardNavigator.swift \
         Tests/MetricsTests.swift \
         Tests/RecentCaptureStoreTests.swift \
         Tests/RecorderPresetImageStoreTests.swift \
@@ -433,6 +436,7 @@ if (( TEST )); then
     # `set -e` would end the script on a failing run before the sweep below.
     test_status=0
     ./build/metrics-tests || test_status=$?
+
     ./Tests/PreferenceCleanupTests.sh || test_status=1
     discard_test_preferences || test_status=1
     exit $test_status

@@ -15,7 +15,7 @@ struct PanelAppUpdatesView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
-            AppUpdatesListView(compact: true)
+            AppUpdatesListView(compact: true, keyboardSection: .utilities)
                 .panelCard()
         }
         .onAppear {
@@ -47,6 +47,11 @@ struct PanelAppUpdatesView: View {
             .buttonStyle(.plain)
             .help(l10n.s.menuSettings)
             .accessibilityLabel(l10n.s.menuSettings)
+            .panelKeyboardRow(PanelRowID(.utilities, "appUpdates-settings"),
+                              actions: PanelRowActions(activate: {
+                                  SettingsRouter.shared.page = .appUpdates
+                                  appDelegate()?.openSettingsWindow()
+                              }))
             Button(action: onClose) {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 14))
@@ -55,6 +60,7 @@ struct PanelAppUpdatesView: View {
             }
             .buttonStyle(.plain)
             .help(l10n.s.uninstallerCancel)
+            .panelKeyboardRow(PanelRowID(.utilities, "appUpdates-close"), actions: PanelRowActions(activate: onClose))
         }
     }
 }

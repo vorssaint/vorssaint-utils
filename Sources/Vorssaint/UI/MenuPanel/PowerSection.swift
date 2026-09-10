@@ -124,17 +124,20 @@ struct PowerSection: View {
             if showCharge {
                 batteryUsageRow(editing: editing)
             } else if editing {
-                PanelHiddenItemRow(title: l10n.s.batteryCharge, systemImage: "battery.100", isVisible: $showCharge)
+                PanelHiddenItemRow(title: l10n.s.batteryCharge, systemImage: "battery.100",
+                                   isVisible: $showCharge,
+                                   keyboardRow: PanelRowID(.power, "hidden-charge"))
             }
         case .temperature:
             if showTemperature, let value = monitor.snapshot.batteryTemperature {
                 row(icon: "thermometer.medium", color: .secondary,
                     label: l10n.s.monitorShowBatteryTemperature,
                     value: MetricFormat.temperature(value, unit: TemperatureUnit(rawValue: temperatureUnit) ?? .celsius),
-                    visible: $showTemperature, editing: editing)
+                    visible: $showTemperature, editing: editing, block: .temperature)
             } else if editing && !showTemperature {
                 PanelHiddenItemRow(title: l10n.s.monitorShowBatteryTemperature,
-                                   systemImage: "thermometer.medium", isVisible: $showTemperature)
+                                   systemImage: "thermometer.medium", isVisible: $showTemperature,
+                                   keyboardRow: PanelRowID(.power, "hidden-temperature"))
             }
         case .peripherals:
             peripheralBatteryRows
@@ -142,7 +145,7 @@ struct PowerSection: View {
             if pwrSystem, let watts = power?.systemWatts {
                 row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
                     label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
-                    visible: $pwrSystem, editing: editing)
+                    visible: $pwrSystem, editing: editing, block: .system)
                 if showGraph, monitor.snapshot.systemPowerHistory.count >= 2 {
                     Sparkline(values: monitor.snapshot.systemPowerHistory,
                               color: PanelMetricColor.orange(for: colorScheme),
@@ -152,18 +155,20 @@ struct PowerSection: View {
             } else if editing && !pwrSystem {
                 PanelHiddenItemRow(title: l10n.s.powerSystem,
                                    systemImage: "bolt.fill",
-                                   isVisible: $pwrSystem)
+                                   isVisible: $pwrSystem,
+                                   keyboardRow: PanelRowID(.power, "hidden-system"))
             }
         case .adapter:
             if pwrAdapter, let power, power.externalConnected, let adapter = power.adapterWatts {
                 row(icon: "powerplug.fill", color: .accentColor,
                     label: l10n.s.powerAdapter, value: MetricFormat.watts(adapter),
                     caption: adapterCaption(power),
-                    visible: $pwrAdapter, editing: editing)
+                    visible: $pwrAdapter, editing: editing, block: .adapter)
             } else if editing && !pwrAdapter {
                 PanelHiddenItemRow(title: l10n.s.powerAdapter,
                                    systemImage: "powerplug.fill",
-                                   isVisible: $pwrAdapter)
+                                   isVisible: $pwrAdapter,
+                                   keyboardRow: PanelRowID(.power, "hidden-adapter"))
             }
         case .battery:
             if pwrBattery, power?.hasBattery == true, let flow = power?.batteryWatts {
@@ -172,11 +177,12 @@ struct PowerSection: View {
                     label: l10n.s.powerBattery,
                     value: MetricFormat.watts(abs(flow)),
                     caption: flow >= 0 ? l10n.s.powerCharging : l10n.s.powerOnBattery,
-                    visible: $pwrBattery, editing: editing)
+                    visible: $pwrBattery, editing: editing, block: .battery)
             } else if editing && !pwrBattery {
                 PanelHiddenItemRow(title: l10n.s.powerBattery,
                                    systemImage: "battery.100.bolt",
-                                   isVisible: $pwrBattery)
+                                   isVisible: $pwrBattery,
+                                   keyboardRow: PanelRowID(.power, "hidden-battery"))
             }
         case .health:
             if pwrHealth, let power, let health = power.healthPercent {
@@ -184,11 +190,12 @@ struct PowerSection: View {
                     label: l10n.s.powerHealth,
                     value: "\(Int(health.rounded()))%",
                     caption: power.cycleCount.map { "\($0) \(l10n.s.powerCycles)" },
-                    visible: $pwrHealth, editing: editing)
+                    visible: $pwrHealth, editing: editing, block: .health)
             } else if editing && !pwrHealth {
                 PanelHiddenItemRow(title: l10n.s.powerHealth,
                                    systemImage: "heart.fill",
-                                   isVisible: $pwrHealth)
+                                   isVisible: $pwrHealth,
+                                   keyboardRow: PanelRowID(.power, "hidden-health"))
             }
         case .remaining:
             if pwrTimeRemaining, let power, power.hasBattery,
@@ -199,11 +206,12 @@ struct PowerSection: View {
                     label: strings.title,
                     value: value ?? "...",
                     caption: value == nil ? strings.calculating : strings.systemEstimate,
-                    visible: $pwrTimeRemaining, editing: editing)
+                    visible: $pwrTimeRemaining, editing: editing, block: .remaining)
             } else if editing && !pwrTimeRemaining {
                 PanelHiddenItemRow(title: FeatureStrings.batteryTime(l10n.language).title,
                                    systemImage: "clock",
-                                   isVisible: $pwrTimeRemaining)
+                                   isVisible: $pwrTimeRemaining,
+                                   keyboardRow: PanelRowID(.power, "hidden-remaining"))
             }
         }
     }
@@ -233,7 +241,8 @@ struct PowerSection: View {
                         .monospacedDigit()
                         .frame(width: 38, alignment: .trailing)
                     if editing {
-                        PanelInlineHideButton(isVisible: $showCharge)
+                        PanelInlineHideButton(isVisible: $showCharge,
+                                              keyboardRow: PanelRowID(.power, "hide-charge"))
                     }
                 }
                 if graphBattery, monitor.snapshot.batteryHistory.count >= 2 {
@@ -277,6 +286,49 @@ struct PowerSection: View {
         }
     }
 
+    @ViewBuilder
+    private func hiddenRow(for block: Block) -> some View {
+        switch block {
+        case .charge:
+            PanelHiddenItemRow(title: l10n.s.batteryCharge,
+                               systemImage: "battery.100",
+                               isVisible: $showCharge,
+                               keyboardRow: PanelRowID(.power, "hidden-charge"))
+        case .temperature:
+            PanelHiddenItemRow(title: l10n.s.monitorShowBatteryTemperature,
+                               systemImage: "thermometer.medium",
+                               isVisible: $showTemperature,
+                               keyboardRow: PanelRowID(.power, "hidden-temperature"))
+        case .system:
+            PanelHiddenItemRow(title: l10n.s.powerSystem,
+                               systemImage: "bolt.fill",
+                               isVisible: $pwrSystem,
+                               keyboardRow: PanelRowID(.power, "hidden-system"))
+        case .adapter:
+            PanelHiddenItemRow(title: l10n.s.powerAdapter,
+                               systemImage: "powerplug.fill",
+                               isVisible: $pwrAdapter,
+                               keyboardRow: PanelRowID(.power, "hidden-adapter"))
+        case .battery:
+            PanelHiddenItemRow(title: l10n.s.powerBattery,
+                               systemImage: "battery.100.bolt",
+                               isVisible: $pwrBattery,
+                               keyboardRow: PanelRowID(.power, "hidden-battery"))
+        case .health:
+            PanelHiddenItemRow(title: l10n.s.powerHealth,
+                               systemImage: "heart.fill",
+                               isVisible: $pwrHealth,
+                               keyboardRow: PanelRowID(.power, "hidden-health"))
+        case .remaining:
+            PanelHiddenItemRow(title: FeatureStrings.batteryTime(l10n.language).title,
+                               systemImage: "clock",
+                               isVisible: $pwrTimeRemaining,
+                               keyboardRow: PanelRowID(.power, "hidden-remaining"))
+        case .peripherals:
+            EmptyView()
+        }
+    }
+
     private func peripheralIcon(for kind: PeripheralBatteryKind) -> String {
         switch kind {
         case .keyboard: return "keyboard"
@@ -313,7 +365,7 @@ struct PowerSection: View {
     }
 
     private func row(icon: String, color: Color, label: String, value: String, caption: String? = nil,
-                     visible: Binding<Bool>, editing: Bool) -> some View {
+                     visible: Binding<Bool>, editing: Bool, block: Block) -> some View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.system(size: 11))
@@ -336,7 +388,7 @@ struct PowerSection: View {
                 .contentTransition(.numericText())
                 .frame(minWidth: 44, alignment: .trailing)
             if editing {
-                PanelInlineHideButton(isVisible: visible)
+                PanelInlineHideButton(isVisible: visible, keyboardRow: PanelRowID(.power, "hide-\(block)"))
             }
         }
     }

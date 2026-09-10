@@ -7,7 +7,7 @@ struct PanelRecentCapturesView: View {
     var onClose: () -> Void
 
     var body: some View {
-        RecentCapturesView(onClose: onClose)
+        RecentCapturesView(onClose: onClose, keyboardSection: .utilities)
         .onAppear {
             PanelInteractionState.shared.viewKeepsPopoverOpen = true
         }
@@ -15,14 +15,24 @@ struct PanelRecentCapturesView: View {
     }
 }
 
+/// Local ids for the per-capture rows, in the one place they are spelled —
+/// see `MediaWorkspaceView` for the same arrangement.
+private enum RecentCaptureKeyboardID {
+    static func open(_ entry: RecentCaptureEntry) -> String { "recentCapture-\(entry.id)-open" }
+    static func remove(_ entry: RecentCaptureEntry) -> String { "recentCapture-\(entry.id)-remove" }
+}
+
 /// The same history surface is used by the menu panel and by the floating
 /// palette opened from editors and the Command Bar.
 struct RecentCapturesView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var history = RecentCaptureService.shared
+    @ObservedObject private var navigator = PanelKeyboardNavigator.shared
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     private var text: RecentCaptureStrings {
         FeatureStrings.recentCaptures(l10n.language)
@@ -42,6 +52,12 @@ struct RecentCapturesView: View {
             content
         }
         .onAppear { history.reload() }
+        .onChange(of: confirmingClear) { _, confirming in
+            PanelInteractionState.shared.isPresentingPopoverModal = confirming
+        }
+        .onDisappear {
+            PanelInteractionState.shared.isPresentingPopoverModal = false
+        }
         .confirmationDialog(text.clear,
                             isPresented: $confirmingClear,
                             titleVisibility: .visible) {
@@ -68,6 +84,8 @@ struct RecentCapturesView: View {
             .help(text.clear)
             .accessibilityLabel(text.clear)
             .disabled(visibleEntries.isEmpty)
+            .panelKeyboardRow(visibleEntries.isEmpty ? nil : keyboardSection.map { PanelRowID($0, "recentCaptures-clear") },
+                              actions: PanelRowActions(activate: { confirmingClear = true }))
             if let onClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
@@ -78,6 +96,8 @@ struct RecentCapturesView: View {
                 .buttonStyle(.plain)
                 .help(l10n.s.uninstallerCancel)
                 .accessibilityLabel(l10n.s.uninstallerCancel)
+                .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "recentCaptures-close") },
+                                  actions: PanelRowActions(activate: onClose))
             }
         }
     }
@@ -93,11 +113,18 @@ struct RecentCapturesView: View {
                 .frame(height: 92)
                 .panelCard()
         } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 7) {
-                    ForEach(visibleEntries) { entry in
-                        row(entry)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 7) {
+                        ForEach(visibleEntries) { entry in
+                            row(entry).id(entry.id)
+                        }
                     }
+                }
+                .panelKeyboardRowList(visibleEntries.flatMap(keyboardRows))
+                .onChange(of: navigator.focus) { _, focus in
+                    guard let entryID = focusedEntryID(focus) else { return }
+                    proxy.scrollTo(entryID, anchor: .center)
                 }
             }
             .frame(maxHeight: 300)
@@ -126,6 +153,8 @@ struct RecentCapturesView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.mini)
+                    .panelKeyboardRow(keyboardRow(RecentCaptureKeyboardID.open(entry)),
+                                      actions: PanelRowActions(activate: { history.open(entry) }), cornerRadius: 6)
                     Button {
                         history.remove(entry)
                     } label: {
@@ -136,11 +165,29 @@ struct RecentCapturesView: View {
                     .controlSize(.mini)
                     .help(text.remove)
                     .accessibilityLabel(text.remove)
+                    .panelKeyboardRow(keyboardRow(RecentCaptureKeyboardID.remove(entry)),
+                                      actions: PanelRowActions(activate: { history.remove(entry) }), cornerRadius: 6)
                 }
             }
             Spacer(minLength: 0)
         }
         .panelCard()
+    }
+
+    private func keyboardRow(_ localID: String) -> PanelRowID? {
+        keyboardSection.map { PanelRowID($0, localID) }
+    }
+
+    /// What one capture contributes to the keyboard order, in the order the
+    /// two buttons sit in the row.
+    private func keyboardRows(for entry: RecentCaptureEntry) -> [PanelRowID] {
+        [RecentCaptureKeyboardID.open(entry), RecentCaptureKeyboardID.remove(entry)]
+            .compactMap(keyboardRow)
+    }
+
+    private func focusedEntryID(_ focus: PanelFocusTarget?) -> RecentCaptureEntry.ID? {
+        guard case .row(let row)? = focus, row.section == keyboardSection else { return nil }
+        return visibleEntries.first { keyboardRows(for: $0).contains(row) }?.id
     }
 
     @ViewBuilder

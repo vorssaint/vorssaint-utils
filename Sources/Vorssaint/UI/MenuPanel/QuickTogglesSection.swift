@@ -168,20 +168,24 @@ struct QuickTogglesList: View {
     @ViewBuilder
     private func itemView(_ item: QuickToggleAction) -> some View {
         let strings = FeatureStrings.quickToggles(l10n.language)
+        // Matches the `.disabled(...)` the row gets from the ForEach below,
+        // so Return cannot fire an action the mouse cannot currently click.
+        let isRunning = toggles.state(for: item) == .running
         switch item {
         case .darkMode:
-            UtilityActionButton(title: colorScheme == .dark ? strings.darkModeToLight : strings.darkModeToDark,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: colorScheme == .dark ? strings.darkModeToLight : strings.darkModeToDark,
                                 caption: caption(for: item, idle: strings.darkModeCaption),
                                 systemImage: colorScheme == .dark ? "sun.max.fill" : "moon.fill",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.toggleDarkMode()
                                 })
         case .keyboardLight:
             let brightnessStrings = FeatureStrings.brightness(l10n.language)
-            PanelToggleRow(title: brightnessStrings.keyboardLight,
+            PanelToggleRow(id: PanelRowID(.toggles, item), title: brightnessStrings.keyboardLight,
                            caption: brightnessStrings.keyboardLightCaption,
                            systemImage: "keyboard",
                            isOn: Binding(
@@ -190,20 +194,22 @@ struct QuickTogglesList: View {
                            ),
                            isEditing: editing,
                            showsDragHandle: true,
-                           visibility: visibilityBinding(item))
+                           visibility: visibilityBinding(item),
+                           isDisabledForActivation: isRunning)
         case .micMute:
-            UtilityActionButton(title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
                                 caption: l10n.s.micMuteCaption,
                                 systemImage: micMute.isMuted ? "mic.slash.fill" : "mic",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showMicMute,
                                 shortcutHint: shortcutHint(.micMute),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     MicMuteService.shared.toggle()
                                 })
         case .emptyTrash:
-            UtilityActionButton(title: strings.emptyTrashTitle,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: strings.emptyTrashTitle,
                                 caption: caption(for: item, idle: strings.emptyTrashCaption),
                                 systemImage: "trash",
                                 isEditing: editing,
@@ -212,48 +218,53 @@ struct QuickTogglesList: View {
                                 needsAttention: needsPermission(item),
                                 permissionButtonTitle: permissionButtonTitle(item),
                                 permissionAction: permissionAction(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     // The confirmation alert opens centered and
                                     // key; the panel stays put behind it.
                                     QuickTogglesService.shared.emptyTrash()
                                 })
         case .ejectDisks:
-            UtilityActionButton(title: strings.ejectTitle,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: strings.ejectTitle,
                                 caption: ejectCaption(strings),
                                 systemImage: "eject.fill",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.ejectAllDisks()
                                 })
         case .hiddenFiles:
-            UtilityActionButton(title: toggles.hiddenFilesShown ? strings.hiddenFilesHide : strings.hiddenFilesShow,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: toggles.hiddenFilesShown ? strings.hiddenFilesHide : strings.hiddenFilesShow,
                                 caption: caption(for: item, idle: strings.finderRestartCaption),
                                 systemImage: toggles.hiddenFilesShown ? "eye.slash" : "eye",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.toggleHiddenFiles()
                                 })
         case .desktopIcons:
-            UtilityActionButton(title: toggles.desktopIconsShown ? strings.desktopIconsHide : strings.desktopIconsShow,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: toggles.desktopIconsShown ? strings.desktopIconsHide : strings.desktopIconsShow,
                                 caption: caption(for: item, idle: strings.finderRestartCaption),
                                 systemImage: "desktopcomputer",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     QuickTogglesService.shared.toggleDesktopIcons()
                                 })
         case .lockScreen:
-            UtilityActionButton(title: strings.lockScreenTitle,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: strings.lockScreenTitle,
                                 caption: strings.lockScreenCaption,
                                 systemImage: "lock.fill",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -261,12 +272,13 @@ struct QuickTogglesList: View {
                                     }
                                 })
         case .displayOff:
-            UtilityActionButton(title: strings.displayOffTitle,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: strings.displayOffTitle,
                                 caption: caption(for: item, idle: strings.displayOffCaption),
                                 systemImage: "display",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -274,12 +286,13 @@ struct QuickTogglesList: View {
                                     }
                                 })
         case .screenSaver:
-            UtilityActionButton(title: strings.screenSaverTitle,
+            UtilityActionButton(id: PanelRowID(.toggles, item), title: strings.screenSaverTitle,
                                 caption: strings.screenSaverCaption,
                                 systemImage: "sparkles.tv",
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: visibilityBinding(item),
+                                isDisabledForActivation: isRunning,
                                 action: {
                                     dismissSurface()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {

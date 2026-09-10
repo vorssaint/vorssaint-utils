@@ -78,6 +78,7 @@ struct PanelUninstallerView: View {
             }
             .buttonStyle(.plain)
             .help(l10n.s.uninstallerCancel)
+            .panelKeyboardRow(PanelRowID(.utilities, "uninstaller-close"), actions: PanelRowActions(activate: onClose))
         }
     }
 
@@ -93,6 +94,8 @@ struct PanelUninstallerView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .panelKeyboardRow(PanelRowID(.utilities, "uninstaller-choose"),
+                              actions: PanelRowActions(activate: choose), cornerRadius: 6)
 
             Text(l10n.s.uninstallerEmptyNote)
                 .font(.system(size: 10))
@@ -101,14 +104,14 @@ struct PanelUninstallerView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if !permissions.fullDiskAccess {
-                FullDiskAccessNote(compact: true)
+                FullDiskAccessNote(compact: true, keyboardSection: .utilities)
             }
         }
         .panelCard()
     }
 
     private var appPickerState: some View {
-        AppPickerView(compact: true) {
+        AppPickerView(compact: true, keyboardSection: .utilities) {
             showingAppPicker = false
         } onSelect: { url in
             showingAppPicker = false
@@ -211,6 +214,8 @@ struct PanelUninstallerView: View {
             }
             .buttonStyle(.plain)
             .disabled(uninstaller.isRemovingWithHomebrew)
+            .panelKeyboardRow(uninstaller.isRemovingWithHomebrew ? nil : PanelRowID(.utilities, "uninstaller-reset"),
+                              actions: PanelRowActions(activate: { uninstaller.reset() }))
         }
     }
 
@@ -223,6 +228,18 @@ struct PanelUninstallerView: View {
                 }
             }
         }
+        .panelKeyboardRowList(leftoverKeyboardRows)
+    }
+
+    private var leftoverKeyboardRows: [PanelRowID] {
+        AppUninstaller.Category.allCases.flatMap { category in
+            uninstaller.items.filter { $0.category == category }.flatMap(keyboardRows)
+        }
+    }
+
+    private func keyboardRows(for item: AppUninstaller.Leftover) -> [PanelRowID] {
+        [PanelRowID(.utilities, "uninstaller-\(item.id)-include"),
+         PanelRowID(.utilities, "uninstaller-\(item.id)-reveal")]
     }
 
     private func categoryGroup(_ group: [AppUninstaller.Leftover],
@@ -242,6 +259,10 @@ struct PanelUninstallerView: View {
             Toggle("", isOn: includeBinding(item))
                 .labelsHidden()
                 .toggleStyle(.checkbox)
+                .panelKeyboardRow(PanelRowID(.utilities, "uninstaller-\(item.id)-include"),
+                                  actions: PanelRowActions(activate: {
+                                      includeBinding(item).wrappedValue.toggle()
+                                  }), cornerRadius: 6)
             Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
                 .resizable()
                 .frame(width: 17, height: 17)
@@ -273,12 +294,17 @@ struct PanelUninstallerView: View {
             .buttonStyle(.plain)
             .help(l10n.s.cleanerRevealInFinder)
             .accessibilityLabel(l10n.s.cleanerRevealInFinder)
+            .panelKeyboardRow(PanelRowID(.utilities, "uninstaller-\(item.id)-reveal"),
+                              actions: PanelRowActions(activate: {
+                                  NSWorkspace.shared.activateFileViewerSelecting([item.url])
+                              }), cornerRadius: 6)
             Text(Self.byteString(item.size))
                 .font(.system(size: 10))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
         }
         .frame(minHeight: 24)
+        .panelKeyboardRowGroup(keyboardRows(for: item))
     }
 
     private var footer: some View {
@@ -299,7 +325,11 @@ struct PanelUninstallerView: View {
                 }
                 .controlSize(.small)
                 .disabled(uninstaller.isRemovingWithHomebrew)
+                .panelKeyboardRow(uninstaller.isRemovingWithHomebrew ? nil : PanelRowID(.utilities, "uninstaller-footerCancel"),
+                                  actions: PanelRowActions(activate: { uninstaller.reset() }), cornerRadius: 6)
                 Spacer()
+                let removalDisabled = !uninstaller.items.contains(where: \.include)
+                    || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy)
                 Button {
                     if let package = uninstaller.selectedHomebrewPackage {
                         presentHomebrewRemovalConfirmation(for: package)
@@ -314,9 +344,20 @@ struct PanelUninstallerView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .tint(.red)
-                .disabled(!uninstaller.items.contains(where: \.include)
-                          || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy))
+                .disabled(removalDisabled)
+                .panelKeyboardRow(removalDisabled ? nil : PanelRowID(.utilities, "uninstaller-remove"),
+                                  actions: PanelRowActions(activate: {
+                                      if let package = uninstaller.selectedHomebrewPackage {
+                                          presentHomebrewRemovalConfirmation(for: package)
+                                      } else {
+                                          uninstaller.removeSelected()
+                                      }
+                                  }), cornerRadius: 6)
             }
+            .panelKeyboardRowGroup([
+                PanelRowID(.utilities, "uninstaller-footerCancel"),
+                PanelRowID(.utilities, "uninstaller-remove"),
+            ])
         }
     }
 
@@ -355,9 +396,10 @@ struct PanelUninstallerView: View {
                                             showDetails: $showHomebrewDetails,
                                             onCancel: homebrew.cancelOperation,
                                             onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                                            onOpenTerminal: homebrew.openTerminalFallback,
+                                            keyboardSection: .utilities)
                 if let tap = homebrew.untrustedTap {
-                    HomebrewTrustCard(tap: tap, compact: true)
+                    HomebrewTrustCard(tap: tap, compact: true, keyboardSection: .utilities)
                 }
                 if let error = homebrew.errorMessage, !error.isEmpty {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
@@ -387,13 +429,15 @@ struct PanelUninstallerView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
             if !failed.isEmpty {
-                UninstallFailureNote(items: failed, compact: true)
+                UninstallFailureNote(items: failed, compact: true, keyboardSection: .utilities)
             }
             Button(l10n.s.uninstallerAnother) {
                 uninstaller.reset()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
+            .panelKeyboardRow(PanelRowID(.utilities, "uninstaller-another"),
+                              actions: PanelRowActions(activate: { uninstaller.reset() }), cornerRadius: 6)
         }
         .frame(maxWidth: .infinity)
         .panelCard()

@@ -11,11 +11,14 @@ struct KeepAwakeAutomationEditor: View {
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
 
     var compact = false
+    /// Non-nil only when hosted in the panel; see `KeepAwakeIconPicker`.
+    var keyboardSection: PanelSectionID? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 10) {
             HStack(alignment: .top, spacing: compact ? 6 : 8) {
                 conditionTile(
+                    id: "externalDisplay",
                     title: strings.externalDisplayToggle,
                     icon: "display",
                     selected: externalDisplay
@@ -24,6 +27,7 @@ struct KeepAwakeAutomationEditor: View {
                     awake.automationPreferencesDidChange()
                 }
                 conditionTile(
+                    id: "connectedToPower",
                     title: strings.powerToggle,
                     icon: "powerplug.fill",
                     selected: connectedToPower
@@ -32,6 +36,7 @@ struct KeepAwakeAutomationEditor: View {
                     awake.automationPreferencesDidChange()
                 }
                 conditionTile(
+                    id: "runningApps",
                     title: strings.runningAppsToggle,
                     icon: "app.fill",
                     selected: runningApps
@@ -62,7 +67,8 @@ struct KeepAwakeAutomationEditor: View {
         awake.automationPreferencesDidChange()
     }
 
-    private func conditionTile(title: String,
+    private func conditionTile(id: String,
+                               title: String,
                                icon: String,
                                selected: Bool,
                                action: @escaping () -> Void) -> some View {
@@ -98,6 +104,8 @@ struct KeepAwakeAutomationEditor: View {
             .contentShape(RoundedRectangle(cornerRadius: compact ? 9 : 11, style: .continuous))
         }
         .buttonStyle(.plain)
+        .panelKeyboardRow(keyboardSection.map { PanelRowID($0, "keepAwakeAutomation-\(id)") },
+                          actions: PanelRowActions(activate: action))
     }
 
 }
