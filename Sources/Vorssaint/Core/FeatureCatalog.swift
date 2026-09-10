@@ -230,7 +230,8 @@ extension AppFeature {
         case .urlCleaner: return [DefaultsKey.urlCleanerEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
-        case .brightness: return [DefaultsKey.brightnessControlEnabled]
+        case .brightness: return [DefaultsKey.brightnessControlEnabled,
+                                  DefaultsKey.ambientBrightnessSyncEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,

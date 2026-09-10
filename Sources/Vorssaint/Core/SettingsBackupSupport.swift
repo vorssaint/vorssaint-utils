@@ -131,6 +131,10 @@ enum SettingsBackupSupport {
         DefaultsKey.systemShortcutsSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
+        // Ambient brightness offsets calibrate one physical panel against one
+        // built-in screen on one Mac; porting them elsewhere dims or blinds a
+        // monitor the user never chose a gap for.
+        DefaultsKey.ambientBrightnessOffsets,
     ]
 
     /// The file's content: an envelope with the format version, the app

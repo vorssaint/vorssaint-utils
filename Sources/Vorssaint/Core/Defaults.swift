@@ -162,6 +162,14 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    // Keep external displays in step with the built-in screen (and, with the
+    // lid closed, with the ambient light sensor). Offsets live separately, per
+    // physical monitor, because they belong to one panel on one Mac.
+    static let ambientBrightnessSyncEnabled = "ambientBrightnessSyncEnabled"
+    static let ambientBrightnessOffsets = "ambientBrightnessOffsets" // [fingerprint: Double]
+    // Ambient light sensor mapping used only for clamshell (no built-in screen).
+    static let ambientBrightnessFloor = "ambientBrightnessFloor"
+    static let ambientBrightnessCeiling = "ambientBrightnessCeiling"
     static let keyboardBrightnessShortcutsEnabled = "keyboardBrightnessShortcutsEnabled"
     static let keyboardBrightnessDecreaseShortcut = "keyboardBrightnessDecreaseShortcut"
     static let keyboardBrightnessIncreaseShortcut = "keyboardBrightnessIncreaseShortcut"
@@ -989,6 +997,10 @@ enum Defaults {
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.ambientBrightnessSyncEnabled: false,
+        DefaultsKey.ambientBrightnessOffsets: [String: Double](),
+        DefaultsKey.ambientBrightnessFloor: 0.0,
+        DefaultsKey.ambientBrightnessCeiling: 1000.0,
         DefaultsKey.keyboardBrightnessShortcutsEnabled: false,
         DefaultsKey.keyboardBrightnessDecreaseShortcut: "option+command:27",
         DefaultsKey.keyboardBrightnessIncreaseShortcut: "option+command:24",

@@ -196,57 +196,40 @@ The selected changes below cover new options and fixes that affect everyday use.
 - Liquid Glass effects can be switched off on macOS 26 and later; the app icon supports system appearance styles. Thanks to @divisionseven.
 
 ### Changed
-- Fan Control adds continuous manual speeds and editable temperature curves, with current and target fan speeds on supported Macs.
-- Power brings battery charge, health, history, temperature, accessories and energy-consuming apps together; System adds compressed memory and cached files.
-- App Updates checks publisher feeds and a public catalog, preserves partial results and identifies apps that could not be fully checked.
-- Uninstaller and Cleaner find more verified leftovers and clearly identify files they could not remove. Thanks to @PathGao.
-- Clean URL offers editable site-specific tracking rules and shows what it removed. Thanks to @PathGao.
-- Sound Mixer groups devices, can hide inactive apps and offers finer keyboard volume steps. Thanks to @ruvelro.
-- Command Bar remembers choices, tolerates short typos and expands emoji search; Settings search opens matching sections. Thanks to @MaximilianMauroner and @pergioa.
-- Window Layout maximizes at the top edge and moves windows between displays when left or right shortcuts repeat.
-- Smooth scrolling offers adjustable speed and response across standard and high-refresh displays.
-- Window switching, Dock previews, recording effects, cleaning and file organization avoid repeated work. Thanks to @PathGao.
-- Quit on close avoids elevated CPU use in watched apps. Thanks to @iltonandrew.
-- Clipboard and Shelf show richer image previews; Shelf waits briefly before expanding during a drag.
-- Personal clipboard content, Shelf files, recordings and share records use private storage. Thanks to @ThomasWaldmann.
-- Scratchpad notes use private storage, stay out of settings backups and preserve unreadable originals. Thanks to @CSkjolden.
-- Settings backups preserve local exceptions without exporting machine-specific paths. Thanks to @iltonandrew.
-- Disk image installation shows progress and offers to remove the download after installing.
+- Build checks adapt to Macs with larger thread pools. Thanks to @mugurc.
+- The radial menu throws its actions out of the center one after another when it opens and gathers them back in when it closes.
+- The radial menu's highlight sweeps to the pointed slice, and its actions sit on the glass as raised buttons with guides between them.
+- Panel outlines answer the system's Increase Contrast, which they were ignoring while already following reduced motion and transparency.
 
 ### Fixed
-- Typing and shortcuts stay responsive while App Switcher collects windows from slow apps. Thanks to @MaximilianMauroner.
-- Clipboard operations no longer freeze Command Bar or quick tools when copied content stalls. Thanks to @PathGao and @atomsbaza.
-- Clicks and scrolling stay responsive with mouse controls enabled; focus follows mouse respects held keys, buttons and excluded apps. Thanks to @khichinho.
-- Input features step aside during account switching and recover afterward. Thanks to @PathGao and @iltonandrew.
-- App Switcher handles more window types, restores native shortcuts after crashes and keeps reverse switching reliable. Thanks to @PathGao, @BenjaminD2023, @owendaw and @justin-chiam.
-- App Switcher and Dock previews discard closed windows and show alternate icons consistently. Thanks to @atomsbaza, @iltonandrew, @EugeneCarldotme and @hash00.
-- Dock actions bring restored windows forward, stay on the current desktop and respect fullscreen apps. Thanks to @pboucher, @PathGao and @iltonandrew.
-- Quit on close detects windows created late; moving windows between displays preserves their size. Thanks to @iltonandrew and @DiogoDuart3.
-- Super key preserves held modifiers, restores its source key after crashes and sends Escape correctly. Thanks to @victoraraujo01, @gatzifratzi, @PathGao and @hash00.
-- Shortcut recording respects keyboard layouts, detects conflicts and accepts native switcher combinations. Thanks to @PathGao, @alexis-morain, @arsarsars1, @jtprogru and @owendaw.
-- Clipboard and snippet searches support input-method composition; multiline snippets preserve every line and rich clipboard content. Thanks to @PathGao and @fermincasagrande.
-- Clipboard keyboard navigation stays stable, large previews remain responsive and stored history stays readable. Thanks to @andreisuslov and @naveenkrdy.
-- Shelf preserves saved items when its list cannot be fully read. Thanks to @PathGao.
-- Capture history preserves images when its list cannot be read or saved.
-- Recording saves preserve existing files if export fails or is canceled, and reject incomplete edits or damaged pointer data.
-- Recordings avoid doubled mixer audio; stopping while typing no longer risks a crash. Thanks to @PathGao.
-- Recording trim handles work from the start; other capture shortcuts leave active recordings alone. Thanks to @lmilojevicc.
-- Window captures include dialogs and cross-display windows; scrolling captures avoid repeated footers. Thanks to @iltonandrew.
-- Screenshot editing uses full-resolution copied images, and quick previews leave keyboard focus alone. Thanks to @iltonandrew.
-- Capture guides stay readable and color picking matches the sampled pixel. Thanks to @nik-2002, @I-Have-No-Idea-What-Im-Doing-Right-Now, @PathGao and @MaksimEgorov.
-- Temporary capture links stop appearing available after expiring during sleep. Thanks to @PathGao.
-- Sound Mixer recognizes helper audio and prevents stale-audio stutters. Thanks to @PathGao.
-- Display controls avoid freezes and restore brightness to the correct monitor after reconnection. Thanks to @ozimosko, @bayujo, @PathGao and @iltonandrew.
-- Network readings recover without false spikes; speed tests report server errors and Wi-Fi commands stay responsive. Thanks to @mugurc.
-- Memory, processor temperature and per-app resource readings are more accurate. Thanks to @pergioa and @PathGao.
-- App installation opens the installed copy; stalled package jobs no longer freeze controls. Thanks to @PathGao.
-- Automatic cleaning leaves protected files alone and reports failures; uninstalling restores closed-lid sleep. Thanks to @PathGao and @mugurc.
-- Cut files can move into protected folders with system approval; cancellation preserves unfinished moves. Thanks to @aesophor.
-- Mouse acceleration settings survive reconnection, and app exceptions recognize more running programs. Thanks to @iltonandrew.
-- Keep Awake handles rapid closed-lid changes and more account names. Thanks to @Tr1meputiNe, @iltonandrew and @dhruvsaxena1998.
-- Scratchpad reports save failures; Settings and floating panels keep usable sizes and readable controls. Thanks to @AB-boi and @PathGao.
-- Light-mode selection, regional numbers, search and translations are clearer across supported languages. Thanks to @PathGao and @watain666.
-- Restarting reliably reopens the app, and login settings explain when automatic startup is disabled. Thanks to @PathGao and @wenujacodes.
+- App Switcher takes over the reverse window shortcut without disabling screenshots, and restores keys left disabled after a crash. Thanks to @owendaw.
+- Shortcut recording detects system shortcuts even when they have never been customized. Thanks to @owendaw.
+- Mouse acceleration stays disabled after disconnecting and reconnecting a mouse.
+- The App Switcher shows supported alternate app icons without flickering during navigation. Thanks to @EugeneCarldotme and @hash00.
+- Color picking copies the sampled pixel's correct color and shows matching values in the magnifier. Thanks to @MaksimEgorov.
+- Installing a build you compiled yourself keeps its system permissions across rebuilds, where only the Developer variant was protected. Thanks to @hash00 and @PathGao.
+- The Keep Awake option for no icon shows the crossed-out circle it promised, where the bar across it was never drawn.
+- Saving the scratchpad to a file says so when it cannot be written, where a full disk or a read-only volume ended in silence.
+- Numbers on screen use the decimal mark of your region, where the panel, the menu bar and the editors always wrote a point.
+- The App Switcher and Dock preview now show their selection on the light appearance, where it was white on a light card.
+- The App Switcher names an app once, where a window titled after its own app made it say the name three times.
+- Searching the clipboard and Settings works in Turkish, where the dotted I kept matches from being found.
+- The list of apps on the first screen sorts by the rules of your language, where accented names were pushed past Z.
+- Counts read correctly in Russian, where two to four items take a form of their own and were being given the wrong word.
+- The selected-text and process counts read correctly at one, where every language showed "1 words" and "1 processes".
+- Spanish, Italian, Portuguese and Turkish quote the way the system does, instead of borrowing the French marks.
+- French keeps its punctuation and quotation marks on the line they belong to, where a line break could strand them.
+- Labels that say work is under way end with a real ellipsis, and apostrophes across every language are the typographic ones.
+- The Command Bar's battery example works in every language, where the English word matched nothing and led to an empty list.
+- A menu command names its app once, where every app's own menu made the row read the name twice.
+- The Media preview stops re-reading the watermark image from disk on every frame while its opacity is dragged.
+- The disk monitor no longer asks a mounted image how much it could free, a question it answered with an error every sample.
+- The recording editor's look presets carry one name each instead of repeating it, and sizes use a proper multiplication sign.
+- The zoom panel's button says what it does instead of borrowing the timeline's hint to click somewhere else.
+- Slider labels shrink instead of being cut where Turkish and Spanish run past the column, in the backdrop and recording panels.
+- Clicks and scrolling no longer lag in full-screen apps and games while the three-finger middle click or the reversed scroll direction is on.
+- Tapping Super key for Escape no longer carries a modifier still reported by the keyboard. Thanks to @gatzifratzi, @PathGao and @hash00.
+- The ambient brightness synchronization offset reads as a signed percentage such as +15% or −10%, where the per-display gap showed its raw source text and wrapped into a narrow column.
 
 ## [3.3.3-beta.4] - 2026-09-03
 

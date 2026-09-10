@@ -324,12 +324,14 @@ final class BrightnessService: ObservableObject {
             self?.screensChanged()
         }
         installWakeObservers()
+        AmbientBrightnessSynchronizer.shared.syncWithPreferences()
         refresh()
     }
 
     func stop() {
         guard running else { return }
         running = false
+        AmbientBrightnessSynchronizer.shared.syncWithPreferences()
         removeKeyTap()
         removeFunctionKeyTap()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
@@ -1137,6 +1139,14 @@ final class BrightnessService: ObservableObject {
             return Double(live)
         }
         return fallback
+    }
+
+    /// The current system-pipeline brightness for a display, used as the
+    /// reference channel by the ambient brightness synchronizer. Reads the
+    /// display's live slider the same way a brightness-key press does; nil when
+    /// the display has no system brightness of its own.
+    func systemBrightness(for id: CGDirectDisplayID) -> Double? {
+        currentSystemBrightness(for: id, fallback: displays.first { $0.id == id }?.brightness)
     }
 
     // MARK: - Screen changes

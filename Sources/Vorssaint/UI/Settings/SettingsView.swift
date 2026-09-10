@@ -635,9 +635,11 @@ struct EnergySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var ambientSync = AmbientBrightnessSynchronizer.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.ambientBrightnessSyncEnabled) private var ambientSyncEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
@@ -750,6 +752,10 @@ struct EnergySettings: View {
                         } else {
                             ForEach(brightness.displays) { display in
                                 brightnessRow(display)
+                                if ambientSyncEnabled,
+                                   !display.isBuiltIn, display.isActive, display.method != nil {
+                                    ambientOffsetRow(display)
+                                }
                             }
                         }
                         if let failure = brightness.displayControlFailure {
@@ -775,6 +781,15 @@ struct EnergySettings: View {
                         if (brightnessKeysEnabled || brightnessOSDEnabled),
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
+                        }
+                        if brightness.displays.contains(where: { !$0.isBuiltIn }) {
+                            SettingsToggleWithCaption(title: strings.ambientSyncToggle,
+                                                      caption: strings.ambientSyncCaption,
+                                                      isOn: $ambientSyncEnabled)
+                                .onChange(of: ambientSyncEnabled) { _, isOn in
+                                    if isOn { Permissions.shared.requestAccessibility() }
+                                    AmbientBrightnessSynchronizer.shared.syncWithPreferences()
+                                }
                         }
                         SettingsCaptionText(strings.externalCaption)
                     }
@@ -872,6 +887,51 @@ struct EnergySettings: View {
             }
             DisplayPowerButton(display: display)
         }
+    }
+
+    /// Per-monitor offset row shown under each external display while ambient
+    /// brightness synchronization is on. The offset is a calibrated gap in
+    /// brightness points away from the built-in screen, kept as the reference
+    /// moves; `calibrateOffset` pins the gap that matches real-world luminance
+    /// right now.
+    private func ambientOffsetRow(_ display: BrightnessDisplay) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                ambientSync.setOffset(ambientSync.offset(for: display.id)
+                                      - AmbientBrightnessSupport.offsetNudgeStep,
+                                      for: display.id)
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.plain)
+            Text(offsetPercentLabel(display))
+                .font(.system(.body, design: .monospaced).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(minWidth: 48, alignment: .trailing)
+                .fixedSize()
+            Button {
+                ambientSync.setOffset(ambientSync.offset(for: display.id)
+                                      + AmbientBrightnessSupport.offsetNudgeStep,
+                                      for: display.id)
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            Button(FeatureStrings.brightness(l10n.language).calibrateOffset) {
+                ambientSync.setOffsetFromCurrent(display: display)
+            }
+            .controlSize(.small)
+        }
+        .font(.system(size: 10.5))
+        .foregroundStyle(.secondary)
+        .padding(.leading, 28)
+    }
+
+    private func offsetPercentLabel(_ display: BrightnessDisplay) -> String {
+        let value = Int((ambientSync.offset(for: display.id) * 100).rounded())
+        return value > 0 ? "+\(value)%" : "\(value)%"
     }
 
     private var extraBrightnessLevelBinding: Binding<Double> {
