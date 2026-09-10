@@ -4,12 +4,9 @@ Type an expression in the command bar. Return copies the displayed answer.
 Tab puts the numerical answer back in the field so you can continue calculating.
 Tab preserves more precision than the rounded display, without thousands separators.
 
-Missing closing brackets are inferred only when the expression can otherwise be
-fully evaluated. For `2*(3+4`, the field draws a dim `)` without changing your text,
-selection, clipboard contents, or undo history. Typing the closing bracket makes it
-ordinary text. The answer row also shows the completed expression, including when
-the field has scrolled or the query ends with `=`. Extra or mismatched brackets are
-rejected, as are unfinished operands such as `2*(3+`.
+Missing closing brackets appear as ghost text without changing your input.
+For example, `2*(3+4` evaluates as `2*(3+4)`. Mismatched brackets and unfinished
+operands such as `2*(3+` do not produce an answer.
 
 ## Supported expressions
 
@@ -30,18 +27,5 @@ Functions: `sqrt`, `abs`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `ln`,
 argument. Trigonometric functions take radians; inverse functions return radians.
 Constants are `pi`, `π`, and `e`. Round and square brackets can be nested.
 
-Arithmetic retains locale-aware number parsing and formatting. A lone number,
-ordinary search text, dates, invalid domains, division by zero, and non-finite
-results do not produce calculator answers. Expressions are limited to 120
-characters and bounded nesting. This is a Double-based calculator, not an
-arbitrary-precision or financial accounting engine.
-
-## Checks
-
-`./build.sh --test` runs the calculator cases in the existing `Tests/MetricsTests.swift`
-suite and the native ghost-rendering check in `Tests/CommandBarGhostBracketsTests.swift`.
-The rendering check needs a macOS graphical session, as provided by the CI runners.
-
-Manual checks in the command bar should cover typing and deleting closing brackets,
-caret movement, horizontal scrolling, IME composition, Tab followed by another
-operator, undo after Tab, Return-to-copy, and ordinary searches containing brackets.
+Numbers use your locale's separators. Expressions are limited to 120 characters
+and use floating-point arithmetic rather than arbitrary precision.
