@@ -25903,6 +25903,21 @@ struct MetricsTests {
                "in-app uninstall aborts unless fans and normal sleep are restored before removal")
         expect(uninstallScriptSource.contains("SleepDisabled"),
                "script uninstall reads the sleep setting back for itself")
+        // The roster in `suspendInputInterceptors` has to cover every service
+        // that keeps a session-level head-insert tap alive, since one still
+        // live when Accessibility is revoked is the freeze that teardown
+        // exists to prevent. Quit protection and text snippets both keep one
+        // and both were missing. BrightnessService is deliberately out (its
+        // tap sees only NX_SYSDEFINED keys, not typing) and ShortcutRecordingTap
+        // is out because it exists only while a shortcut field records.
+        expect(selfUninstallSource.contains("TextSnippetService.shared.suspend()")
+                && selfUninstallSource.contains("QuitProtectionService.shared.suspend()"),
+               "the permission teardown stops the snippet and quit protection taps too")
+        let quitProtectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+            encoding: .utf8)) ?? ""
+        expect(quitProtectionSource.contains("func suspend()"),
+               "quit protection exposes the teardown the permission reset calls")
 
         // MARK: Detached command reruns (counted last, so a late rerun still fails)
         // The `||` form reran the whole installer — as root — on every non-zero
