@@ -5481,6 +5481,28 @@ struct MetricsTests {
         expect(Defaults.sanitizedAutoQuitExceptions([Defaults.finderBundleIdentifier])
                 .contains(Defaults.phoneBundleIdentifier),
                "existing auto-quit exception lists gain Phone on sanitize")
+        expect(AutoQuitSupport.shouldDisplayException(
+            bundleID: Defaults.phoneBundleIdentifier, isInstalled: false) == false,
+               "Phone stays out of the exceptions UI when the app is not installed")
+        expect(AutoQuitSupport.shouldDisplayException(
+            bundleID: Defaults.phoneBundleIdentifier, isInstalled: true),
+               "Phone appears in the exceptions UI when the app is present")
+        expect(AutoQuitSupport.shouldDisplayException(
+            bundleID: Defaults.finderBundleIdentifier, isInstalled: true),
+               "Finder remains visible in the exceptions UI")
+        expect(AutoQuitSupport.visibleExceptions(
+            [Defaults.finderBundleIdentifier, Defaults.phoneBundleIdentifier, "com.example.app"],
+            isInstalled: { $0 != Defaults.phoneBundleIdentifier }
+        ) == [Defaults.finderBundleIdentifier, "com.example.app"],
+               "hiding Phone leaves other exceptions, including mandatory Finder, visible")
+        expect(Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(Defaults.phoneBundleIdentifier),
+               "Phone remains a mandatory quit exception even when hidden from the UI")
+        let autoQuitSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/AutoQuitSettings.swift",
+            encoding: .utf8)) ?? ""
+        expect(autoQuitSettingsSource.contains("AutoQuitSupport.visibleExceptions")
+                && autoQuitSettingsSource.contains("InstalledApps.url(for:"),
+               "the AutoQuit settings list filters exceptions through installation-aware visibility")
         expect(registeredDefaults[DefaultsKey.panelCollapsedSections] == nil,
                "panel collapsed sections intentionally has no registered default")
         expect(registeredDefaults[DefaultsKey.panelUtilityOrder] == nil,

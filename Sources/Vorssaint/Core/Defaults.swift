@@ -822,7 +822,9 @@ enum PreviewSizing {
 enum Defaults {
     static let finderBundleIdentifier = "com.apple.finder"
     /// Continuity / Calls on Mac. Quitting Phone when its UI flickers window-less
-    /// during an incoming relay disconnects the call (issue #1534).
+    /// during an incoming relay disconnects the call (issue #1534). Kept in the
+    /// mandatory exception list even when Phone.app is absent; the settings UI
+    /// hides the row until the app is installed.
     static let phoneBundleIdentifier = "com.apple.mobilephone"
     static let mandatoryAutoQuitExceptionBundleIDs = [
         finderBundleIdentifier,
