@@ -123,6 +123,35 @@ enum URLCleaning {
         return result.url == trimmed ? .unchanged : .rewritten
     }
 
+    /// Whether automatic clipboard rewrite may replace the pasteboard.
+    /// Safe string/URL flavors always qualify. Extra rich types (HTML/RTF
+    /// from Share) are allowed only when `string` is a single http(s) URL,
+    /// so a share link can still be cleaned without touching mixed text.
+    static func shouldAutomaticallyRewrite(
+        string: String,
+        types: [String],
+        allowedTypes: Set<String>
+    ) -> Bool {
+        guard !types.isEmpty else { return false }
+        if Set(types).isSubset(of: allowedTypes) { return true }
+        return isLoneHTTPURL(string)
+    }
+
+    /// True when the whole clipboard string is one http(s) URL (optional
+    /// surrounding whitespace). Prose that merely contains a link is not.
+    static func isLoneHTTPURL(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let components = URLComponents(string: trimmed),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host != nil else {
+            return false
+        }
+        return true
+    }
+
     /// Reads the three stored strings into one value. The global additions
     /// keep the plain comma-separated key they have always used, so nothing
     /// has to be migrated when site rules arrive.

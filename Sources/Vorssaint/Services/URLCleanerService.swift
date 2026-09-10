@@ -156,7 +156,7 @@ final class URLCleanerService: ObservableObject {
         guard let text = pasteboard.string(forType: .string),
               let cleaned = URLCleaning.clean(text, rules: rules),
               cleaned.url != text.trimmingCharacters(in: .whitespacesAndNewlines),
-              canSafelyRewriteAutomatically(pasteboard),
+              canSafelyRewriteAutomatically(string: text, pasteboard: pasteboard),
               !token.isCancelled else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
@@ -165,9 +165,15 @@ final class URLCleanerService: ObservableObject {
         return PollResult(changeCount: rewrittenChangeCount, cleaned: cleaned)
     }
 
-    private static func canSafelyRewriteAutomatically(_ pasteboard: NSPasteboard) -> Bool {
-        guard let types = pasteboard.types, !types.isEmpty else { return false }
-        return Set(types).isSubset(of: automaticRewriteTypes)
+    private static func canSafelyRewriteAutomatically(
+        string: String,
+        pasteboard: NSPasteboard
+    ) -> Bool {
+        guard let types = pasteboard.types else { return false }
+        return URLCleaning.shouldAutomaticallyRewrite(
+            string: string,
+            types: types.map(\.rawValue),
+            allowedTypes: Set(automaticRewriteTypes.map(\.rawValue)))
     }
 
     private static var rules: URLCleaning.Rules {
