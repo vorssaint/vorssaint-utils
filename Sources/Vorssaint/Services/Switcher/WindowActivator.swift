@@ -65,10 +65,6 @@ enum WindowActivator {
         }
         let targetStartedMinimized = item.isMinimized
             || windowIsMinimized(windowID: windowID, pid: windowOwnerPID)
-        // The windows the app had when the switcher committed. A delayed focus
-        // pass must not raise its target over a window that appeared after
-        // this moment (issue: Command-N right after a switch).
-        let knownWindowIDs = windowIDs(ownerPID: windowOwnerPID)
         // A window parked on a Space that is not visible cannot be reached by
         // the Accessibility passes below; the hop travels there first and then
         // runs the same focus pass on arrival (issue #339). A minimized window
@@ -81,6 +77,11 @@ enum WindowActivator {
                                   app: app) {
             return
         }
+        // Only paths that schedule a focus pass need a snapshot. Include all
+        // of the owner's windows, even minimized, off-Space and auxiliary ones.
+        let knownWindowIDs = retry || sourceWasFullscreen || item.isFullscreen
+            ? windowIDs(ownerPID: windowOwnerPID, options: .optionAll)
+            : []
         watchTargetMinimizeIfNeeded(windowID: windowID,
                                     targetPID: item.pid,
                                     targetWindowOwnerPID: windowOwnerPID,
@@ -91,6 +92,7 @@ enum WindowActivator {
         prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID)
         if sourceWasFullscreen || item.isFullscreen {
             let retryState = SwitcherWindowFocusRetryState(
+                targetWindowID: windowID,
                 targetStartedMinimized: targetStartedMinimized,
                 knownWindowIDs: knownWindowIDs
             )
@@ -150,6 +152,7 @@ enum WindowActivator {
 
         guard retry else { return }
         let retryState = SwitcherWindowFocusRetryState(
+            targetWindowID: windowID,
             targetStartedMinimized: targetStartedMinimized,
             knownWindowIDs: knownWindowIDs
         )
@@ -479,31 +482,9 @@ enum WindowActivator {
         }
     }
 
-    /// Every window the owner process currently has, by window-server id.
-    /// `.optionAll` on purpose: a window that is minimized or parked on another
-    /// Space existed before the switch just as much as a visible one does.
-    private static func windowIDs(ownerPID: pid_t) -> Set<CGWindowID> {
-        let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
-        return Set(raw.compactMap { info -> CGWindowID? in
-            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID,
-                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0
-            else { return nil }
-            return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
-        })
-    }
-
-    /// The owner's frontmost window. `.optionOnScreenOnly` lists front to back,
-    /// so the first entry that belongs to the owner is the one it would type
-    /// into; `nil` when it has nothing on screen.
-    private static func frontmostWindowID(ownerPID: pid_t) -> CGWindowID? {
-        let raw = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-        for info in raw {
-            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownerPID,
-                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0
-            else { continue }
-            return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
-        }
-        return nil
+    private static func windowIDs(ownerPID: pid_t, options: CGWindowListOption) -> Set<CGWindowID> {
+        let raw = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
+        return SwitcherSupport.focusRetryWindowIDs(in: raw, ownerPID: ownerPID)
     }
 
     private static func shouldContinueFocusRetry(windowID: CGWindowID,
@@ -511,24 +492,21 @@ enum WindowActivator {
                                                  targetWindowOwnerPID: pid_t,
                                                  sourcePID: pid_t?,
                                                  state: SwitcherWindowFocusRetryState) -> Bool {
-        let reportedFrontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let frontmostPID = reportedFrontmostPID == targetWindowOwnerPID
-            ? targetPID
-            : reportedFrontmostPID
+        guard state.isActive else { return false }
+        func currentFrontmostPID() -> pid_t? {
+            let reported = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            return reported == targetWindowOwnerPID ? targetPID : reported
+        }
         let minimizedState = windowMinimizedState(windowID: windowID,
                                                   pid: targetWindowOwnerPID)
-        let shouldContinue = SwitcherSupport.shouldContinueFocusRetry(
+        return state.shouldContinue(
             targetPID: targetPID,
             sourcePID: sourcePID,
-            frontmostPID: frontmostPID,
-            targetIsMinimized: minimizedState == true,
-            targetStartedMinimized: state.targetStartedMinimized,
-            targetWasObservedRestored: state.targetWasObservedRestored,
-            targetAppFrontWindowID: frontmostWindowID(ownerPID: targetWindowOwnerPID),
-            knownWindowIDs: state.knownWindowIDs
+            frontmostPID: currentFrontmostPID(),
+            targetMinimizedState: minimizedState,
+            targetAppWindowIDs: windowIDs(ownerPID: targetWindowOwnerPID, options: .optionOnScreenOnly),
+            targetAppFocusedWindowID: focusedWindowID(for: targetWindowOwnerPID)
         )
-        state.observe(targetMinimizedState: minimizedState)
-        return shouldContinue
     }
 
     private static func watchTargetMinimizeIfNeeded(windowID: CGWindowID,
@@ -870,29 +848,6 @@ fileprivate final class SwitcherPendingWindowClose {
             } else {
                 WindowActivator.finishPendingWindowClose(self, success: false)
             }
-        }
-    }
-}
-
-/// Tracks whether a window that began minimized has already been observed
-/// restored. Once it has, a later minimized state is a new user action and no
-/// delayed focus pass may undo it.
-private final class SwitcherWindowFocusRetryState {
-    let targetStartedMinimized: Bool
-    /// The target app's windows at the moment the switcher committed. Anything
-    /// the app fronts later that is not in here was made after the switch.
-    let knownWindowIDs: Set<CGWindowID>
-    private(set) var targetWasObservedRestored: Bool
-
-    init(targetStartedMinimized: Bool, knownWindowIDs: Set<CGWindowID> = []) {
-        self.targetStartedMinimized = targetStartedMinimized
-        self.knownWindowIDs = knownWindowIDs
-        self.targetWasObservedRestored = !targetStartedMinimized
-    }
-
-    func observe(targetMinimizedState: Bool?) {
-        if targetMinimizedState == false {
-            targetWasObservedRestored = true
         }
     }
 }
