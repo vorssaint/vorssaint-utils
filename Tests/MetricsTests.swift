@@ -4166,6 +4166,22 @@ struct MetricsTests {
             expect(!StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
                         isOnScreen: true, isSettling: false, settlingGraceLeft: 3),
                    "an on-screen icon does not keep waiting")
+            expect(StatusItemPlacementSupport.shouldReconfirmAfterReleasingSquareLength(
+                       holdingSquareLength: true, iconVisible: true),
+                   "a visible compact recovery icon must expand and re-check before success")
+            expect(!StatusItemPlacementSupport.shouldReconfirmAfterReleasingSquareLength(
+                        holdingSquareLength: false, iconVisible: true),
+                   "without a square hold there is nothing to expand and reconfirm")
+            expect(!StatusItemPlacementSupport.shouldReconfirmAfterReleasingSquareLength(
+                        holdingSquareLength: true, iconVisible: false),
+                   "a missing compact icon does not start an expand reconfirm")
+            let appDelegateSource = (try? String(
+                contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift",
+                encoding: .utf8)) ?? ""
+            expect(appDelegateSource.contains("confirmingExpandedAppearance")
+                    && appDelegateSource.contains("shouldReconfirmAfterReleasingSquareLength")
+                    && appDelegateSource.contains("expanding"),
+                   "recovery expands from square length and reconfirms before treating the icon as restored")
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
         }
         expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,

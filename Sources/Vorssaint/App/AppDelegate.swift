@@ -1486,10 +1486,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func verifyIconReappeared(attemptsLeft: Int,
                                       settlingGraceLeft: Int = AppDelegate.reshowSettlingGraceAttempts,
-                                      placementWasReset: Bool = false) {
+                                      placementWasReset: Bool = false,
+                                      confirmingExpandedAppearance: Bool = false) {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.reshowVerifyInterval) { [weak self] in
             guard let self else { return }
             if self.iconIsOnScreen() {
+                // Square-length recovery can fit when metrics/countdown text
+                // cannot. Expand first, then look again before declaring done.
+                if StatusItemPlacementSupport.shouldReconfirmAfterReleasingSquareLength(
+                    holdingSquareLength: self.statusController?.isHoldingRecoverySquareLength == true,
+                    iconVisible: true),
+                   !confirmingExpandedAppearance {
+                    self.logStatusItemPlacement("expanding")
+                    self.statusController?.releaseRecoverySquareLength()
+                    self.verifyIconReappeared(attemptsLeft: attemptsLeft,
+                                              settlingGraceLeft: settlingGraceLeft,
+                                              placementWasReset: placementWasReset,
+                                              confirmingExpandedAppearance: true)
+                    return
+                }
                 self.logStatusItemPlacement("appeared")
                 self.statusController?.releaseRecoverySquareLength()
                 return
@@ -1501,13 +1516,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.logStatusItemPlacement("settling")
                 self.verifyIconReappeared(attemptsLeft: attemptsLeft,
                                           settlingGraceLeft: settlingGraceLeft - 1,
-                                          placementWasReset: placementWasReset)
+                                          placementWasReset: placementWasReset,
+                                          confirmingExpandedAppearance: confirmingExpandedAppearance)
                 return
             }
             guard attemptsLeft <= 1 else {
                 self.verifyIconReappeared(attemptsLeft: attemptsLeft - 1,
                                           settlingGraceLeft: settlingGraceLeft,
-                                          placementWasReset: placementWasReset)
+                                          placementWasReset: placementWasReset,
+                                          confirmingExpandedAppearance: confirmingExpandedAppearance)
                 return
             }
             // Keeping the arranged spot did not bring the icon back, so the
@@ -1519,7 +1536,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.statusController?.resetStatusItemPlacementIdentity()
                 self.verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts,
                                           settlingGraceLeft: Self.reshowSettlingGraceAttempts,
-                                          placementWasReset: true)
+                                          placementWasReset: true,
+                                          confirmingExpandedAppearance: false)
                 return
             }
             self.logStatusItemPlacement("still hidden")

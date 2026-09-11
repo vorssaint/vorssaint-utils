@@ -352,4 +352,12 @@ enum StatusItemPlacementSupport {
                                                settlingGraceLeft: Int) -> Bool {
         !isOnScreen && isSettling && settlingGraceLeft > 0
     }
+
+    /// Compact recovery can fit when the full metrics/countdown item cannot.
+    /// Seeing the icon while square-length must expand and re-check before
+    /// treating recovery as complete (PR #1537 review).
+    static func shouldReconfirmAfterReleasingSquareLength(holdingSquareLength: Bool,
+                                                          iconVisible: Bool) -> Bool {
+        holdingSquareLength && iconVisible
+    }
 }

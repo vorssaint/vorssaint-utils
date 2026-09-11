@@ -142,6 +142,10 @@ final class StatusItemController {
         installStatusItem()
     }
 
+    /// True while recovery is still using a square slot so callers can expand
+    /// and re-check before declaring success.
+    var isHoldingRecoverySquareLength: Bool { holdRecoverySquareLength }
+
     /// Once recovery has confirmed the icon is on screen, go back to a
     /// variable-length item so metrics titles can expand again.
     func releaseRecoverySquareLength() {
