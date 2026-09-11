@@ -1457,26 +1457,24 @@ final class ShelfService: ObservableObject {
     }
 
     /// Accepts a live drag, including Outlook-style file promises that only
-    /// materialize once the destination asks for them.
+    /// materialize once the destination asks for them. File promises win over
+    /// text/link alternatives on the same pasteboard (#1554 review).
     func accept(draggingInfo: NSDraggingInfo) -> Bool {
-        if accept(pasteboard: draggingInfo.draggingPasteboard) { return true }
-        let promised = receivePromisedFiles(from: draggingInfo)
-        guard !promised.isEmpty else { return false }
-        if promised.count > 1 {
-            return addFileBatch(promised)
+        if ShelfPasteboardSupport.shouldFulfillFilePromisesFirst(
+            hasFilePromise: pasteboardHasFilePromise(draggingInfo.draggingPasteboard)) {
+            return beginPromisedFileReceive(from: draggingInfo, mergeInto: nil)
         }
-        return append(fileItem(for: promised[0]))
+        return accept(pasteboard: draggingInfo.draggingPasteboard)
     }
 
     /// Merges a live drag into an existing pile, fulfilling file promises when
-    /// the pasteboard has no concrete file URLs yet.
+    /// present before falling back to text/link pasteboard content.
     func merge(draggingInfo: NSDraggingInfo, into targetID: UUID) -> Bool {
-        if mergePasteboard(draggingInfo.draggingPasteboard, into: targetID) {
-            return true
+        if ShelfPasteboardSupport.shouldFulfillFilePromisesFirst(
+            hasFilePromise: pasteboardHasFilePromise(draggingInfo.draggingPasteboard)) {
+            return beginPromisedFileReceive(from: draggingInfo, mergeInto: targetID)
         }
-        let promised = receivePromisedFiles(from: draggingInfo)
-        guard !promised.isEmpty else { return false }
-        return mergePasteboard(fileURLPasteboard(for: promised), into: targetID)
+        return mergePasteboard(draggingInfo.draggingPasteboard, into: targetID)
     }
 
     /// Directory promised files are written into before becoming shelf items.
@@ -1490,15 +1488,57 @@ final class ShelfService: ObservableObject {
         return tempDir
     }
 
-    private func receivePromisedFiles(from draggingInfo: NSDraggingInfo) -> [URL] {
-        let pasteboard = draggingInfo.draggingPasteboard
-        guard pasteboardHasFilePromise(pasteboard) else { return [] }
+    /// Asks the source for promised filenames and accepts the drop immediately.
+    /// Files may finish writing after AppKit returns; they are ingested then
+    /// without blocking the main thread (#1554 review).
+    private func beginPromisedFileReceive(from draggingInfo: NSDraggingInfo,
+                                          mergeInto targetID: UUID?) -> Bool {
+        guard pasteboardHasFilePromise(draggingInfo.draggingPasteboard) else { return false }
         let destination = promiseReceiveDirectory()
-        // Classic API: asks the source to write files now and returns names.
-        // Outlook for Mac still uses this path for attachment drags.
-        let names = (draggingInfo.namesOfPromisedFilesDroppedAtDestination(destination) as? [String]) ?? []
+        let names = draggingInfo.namesOfPromisedFilesDropped(atDestination: destination) ?? []
+        guard ShelfPasteboardSupport.shouldAcceptPromisedDrop(names: names) else { return false }
         let urls = ShelfPasteboardSupport.promisedFileURLs(named: names, in: destination)
-        return urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        promiseIngestGeneration &+= 1
+        let generation = promiseIngestGeneration
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let ready = Self.waitForPromisedFiles(urls)
+            DispatchQueue.main.async {
+                guard let self, generation == self.promiseIngestGeneration else { return }
+                self.ingestPromisedFiles(ready, mergeInto: targetID)
+            }
+        }
+        return true
+    }
+
+    private func ingestPromisedFiles(_ urls: [URL], mergeInto targetID: UUID?) {
+        guard !urls.isEmpty else { return }
+        if let targetID {
+            _ = mergePasteboard(fileURLPasteboard(for: urls), into: targetID)
+            return
+        }
+        if urls.count > 1 {
+            _ = addFileBatch(urls)
+        } else {
+            _ = append(fileItem(for: urls[0]))
+        }
+    }
+
+    /// Waits briefly for promised files to land without blocking AppKit's drop
+    /// callback. Returns whatever exists by the deadline, in source order.
+    private static func waitForPromisedFiles(_ urls: [URL],
+                                             timeout: TimeInterval = 30,
+                                             pollInterval: TimeInterval = 0.05) -> [URL] {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let ready = ShelfPasteboardSupport.existingPromisedFiles(among: urls) {
+                FileManager.default.fileExists(atPath: $0.path)
+            }
+            if ready.count == urls.count { return ready }
+            Thread.sleep(forTimeInterval: pollInterval)
+        }
+        return ShelfPasteboardSupport.existingPromisedFiles(among: urls) {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
     }
 
     private func pasteboardHasFilePromise(_ pasteboard: NSPasteboard) -> Bool {

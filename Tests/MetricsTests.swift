@@ -8457,11 +8457,41 @@ struct MetricsTests {
         expect(ShelfPasteboardSupport.promisedFileURLs(named: [], in: URL(fileURLWithPath: "/tmp")).isEmpty,
                "an empty promise name list yields no URLs")
         expect(ShelfPasteboardSupport.promisedFileURLs(
-            named: ["subdir/report.pdf", "  "],
+            named: ["subdir/report.pdf", ""],
             in: URL(fileURLWithPath: "/tmp/ShelfPromises")) == [
                 URL(fileURLWithPath: "/tmp/ShelfPromises/report.pdf")
             ],
-               "promised names keep only the last path component and drop blanks")
+               "promised names keep only the last path component and drop empty strings")
+        expect(ShelfPasteboardSupport.promisedFileURLs(
+            named: ["  photo.png  "],
+            in: URL(fileURLWithPath: "/tmp/ShelfPromises")) == [
+                URL(fileURLWithPath: "/tmp/ShelfPromises/  photo.png  ")
+            ],
+               "leading and trailing spaces in promised names are preserved")
+        expect(ShelfPasteboardSupport.shouldFulfillFilePromisesFirst(hasFilePromise: true),
+               "file promises take priority over other pasteboard content")
+        expect(!ShelfPasteboardSupport.shouldFulfillFilePromisesFirst(hasFilePromise: false),
+               "without a file promise the ordinary pasteboard path runs")
+        expect(ShelfPasteboardSupport.shouldAcceptPromisedDrop(names: ["a.pdf"]),
+               "a named promise is enough to accept the drop")
+        expect(!ShelfPasteboardSupport.shouldAcceptPromisedDrop(names: ["", ""]),
+               "empty promise names do not accept the drop")
+        expect(ShelfPasteboardSupport.existingPromisedFiles(
+            among: [
+                URL(fileURLWithPath: "/tmp/ShelfPromises/ready.pdf"),
+                URL(fileURLWithPath: "/tmp/ShelfPromises/missing.pdf")
+            ],
+            fileExists: { $0.lastPathComponent == "ready.pdf" }
+        ) == [URL(fileURLWithPath: "/tmp/ShelfPromises/ready.pdf")],
+               "only promised files that already exist are kept, in order")
+        let shelfPromiseServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Shelf/ShelfService.swift",
+            encoding: .utf8)) ?? ""
+        expect(shelfPromiseServiceSource.contains("namesOfPromisedFilesDropped(atDestination:")
+                && shelfPromiseServiceSource.contains("beginPromisedFileReceive")
+                && shelfPromiseServiceSource.contains("shouldFulfillFilePromisesFirst")
+                && shelfPromiseServiceSource.contains("waitForPromisedFiles"),
+               "the shelf fulfills promises with the modern API, prefers them over text, and ingests asynchronously")
 
         // MARK: Shelf reveal
 

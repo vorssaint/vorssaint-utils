@@ -188,13 +188,31 @@ enum ShelfPasteboardSupport {
     }
 
     /// Turns the filenames returned by
-    /// `namesOfPromisedFilesDroppedAtDestination` into URLs under the
-    /// directory the drop asked the source to write into.
+    /// `namesOfPromisedFilesDropped(atDestination:)` into URLs under the
+    /// directory the drop asked the source to write into. Leading/trailing
+    /// spaces stay — they can be part of a real attachment name (#1554 review).
     static func promisedFileURLs(named names: [String], in directory: URL) -> [URL] {
         names
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .map { directory.appendingPathComponent(($0 as NSString).lastPathComponent) }
+    }
+
+    /// Prefer fulfilling file promises before reading text/links from the same
+    /// pasteboard, or the shelf keeps the alternative and never gets the file.
+    static func shouldFulfillFilePromisesFirst(hasFilePromise: Bool) -> Bool {
+        hasFilePromise
+    }
+
+    /// Accept the drop as soon as the source names files; they may finish
+    /// writing after `performDragOperation` returns.
+    static func shouldAcceptPromisedDrop(names: [String]) -> Bool {
+        names.contains { !$0.isEmpty }
+    }
+
+    /// Keeps promised URLs that exist on disk, preserving source order.
+    static func existingPromisedFiles(among urls: [URL],
+                                      fileExists: (URL) -> Bool) -> [URL] {
+        urls.filter(fileExists)
     }
 }
 
