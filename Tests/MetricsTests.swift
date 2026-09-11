@@ -5268,6 +5268,20 @@ struct MetricsTests {
         try? FileManager.default.removeItem(at: presentChild)
         expect(UninstallerSupport.isConfirmedAbsent(at: presentChild),
                "a missing child under a readable parent is confirmed absent")
+        let danglingLink = absentFixture.appendingPathComponent("Dangling.app")
+        let danglingMade = symlink("/tmp/vorssaint-missing-target-\(UUID().uuidString)",
+                                   danglingLink.path) == 0
+        expect(danglingMade
+               && !UninstallerSupport.isConfirmedAbsent(at: danglingLink),
+               "a dangling symlink still occupies an entry and is not confirmed absent")
+        try? FileManager.default.removeItem(at: danglingLink)
+        let nestedParent = absentFixture.appendingPathComponent("NestedParent", isDirectory: true)
+        let nestedChild = nestedParent.appendingPathComponent("Gone.app")
+        try? FileManager.default.createDirectory(at: nestedParent, withIntermediateDirectories: true)
+        try? "x".write(to: nestedChild, atomically: true, encoding: .utf8)
+        try? FileManager.default.removeItem(at: nestedParent)
+        expect(UninstallerSupport.isConfirmedAbsent(at: nestedChild),
+               "when the item and its parent folder are both gone, absence is confirmed")
         let lostAccessChild = URL(fileURLWithPath: "/private/var/root/VorssaintAccessLost.app")
         expect(!UninstallerSupport.isConfirmedAbsent(at: lostAccessChild),
                "a path under an unreadable parent is not confirmed absent")
