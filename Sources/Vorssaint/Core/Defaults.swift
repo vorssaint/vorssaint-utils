@@ -507,6 +507,9 @@ enum DefaultsKey {
     // the bar looks for no files at all, which is the setting out of the box.
     static let commandBarFileScopes = "commandBarFileScopes"
     static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
+    /// The search engine the Command Bar uses for its last-row web search.
+    /// DuckDuckGo unless they pick another.
+    static let commandBarWebSearchEngine = "commandBarWebSearchEngine"
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -1278,6 +1281,7 @@ enum Defaults {
         DefaultsKey.commandBarHidden: "",
         DefaultsKey.commandBarFileScopes: "",
         DefaultsKey.commandBarFileIgnores: "",
+        DefaultsKey.commandBarWebSearchEngine: "duckduckgo",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
         DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.panelUtilityCommandBar: true,

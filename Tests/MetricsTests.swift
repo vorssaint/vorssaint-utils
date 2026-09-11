@@ -22578,11 +22578,80 @@ struct MetricsTests {
         expect(CommandBarSource.allCases.map(\.rawValue) == [
             "actions", "apps", "menus", "windows", "quitApps", "settingsPages", "macSettings",
             "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
-            "selection", "links", "files", "killProcess",
+            "selection", "links", "files", "killProcess", "webSearch",
         ], "source ids are stable (they persist inside the disabled list)")
         expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
+        expect(CommandBarWebSearch.engine(from: "") == .duckDuckGo
+                && CommandBarWebSearch.engine(from: nil) == .duckDuckGo
+                && CommandBarWebSearch.engine(from: "nope") == .duckDuckGo
+                && CommandBarWebSearch.engine(from: "google") == .google
+                && CommandBarWebSearch.engine(from: "kagi") == .kagi,
+               "DuckDuckGo is the default; a known id is kept")
+        expect(CommandBarWebSearch.shouldOffer(query: "hello", inCategory: false)
+                && !CommandBarWebSearch.shouldOffer(query: "hello", inCategory: true)
+                && !CommandBarWebSearch.shouldOffer(query: "  ", inCategory: false)
+                && !CommandBarWebSearch.shouldOffer(query: ":fire", inCategory: false)
+                && !CommandBarWebSearch.shouldOffer(query: "example.com", inCategory: false),
+               "web search is a fallback for typed words, never a category, a colon emoji search or a URL")
+        expect(!CommandBarWebSearch.shouldOffer(query: "", inCategory: false)
+                && CommandBarWebSearch.url(for: "  ", engine: .duckDuckGo) == nil,
+               "nothing to search is not a row")
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .duckDuckGo)?.absoluteString
+                == "https://duckduckgo.com/?q=hello%20world",
+               "DuckDuckGo keeps the query in q")
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .kagi)?.absoluteString
+                == "https://kagi.com/search?q=hello%20world",
+               "Kagi keeps the query in q")
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .google)?.absoluteString
+                == "https://www.google.com/search?q=hello%20world",
+               "Google keeps the query in q")
+        expect(CommandBarWebSearch.url(for: "a&b", engine: .bing)?.absoluteString
+                == "https://www.bing.com/search?q=a%26b",
+               "query characters that would break a URL are escaped")
+        expect(CommandBarWebSearch.url(for: "hello world", engine: .yahoo)?.absoluteString
+                == "https://search.yahoo.com/search?p=hello%20world",
+               "Yahoo keeps the query in p")
+        expect(CommandBarWebSearch.engine(from: "yahoo") == .yahoo,
+               "a stored Yahoo id is kept")
+        expect(Defaults.registeredDefaults[DefaultsKey.commandBarWebSearchEngine] as? String
+                == CommandBarWebSearch.Engine.duckDuckGo.rawValue,
+               "out of the box a web search uses DuckDuckGo")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarWebSearchEngine),
+               "the chosen engine is portable configuration")
+        expect(!CommandBarPreferences.acceptsPin(rowID: CommandBarWebSearch.rowID),
+               "a fallback that exists only while something is typed cannot be pinned")
+        expect(CommandBarWebSearch.offersActions(forRowID: CommandBarWebSearch.rowID)
+                && !CommandBarWebSearch.offersActions(forRowID: "clipboard.abc")
+                && !CommandBarWebSearch.offersActions(forRowID: "app.x"),
+               "⌘K opens on the fallback row, not on a passing clipboard item")
+        expect(CommandBarWebSearch.Engine.allCases.map(CommandBarWebSearch.engineActionID)
+                .allSatisfy { $0.hasPrefix("websearch.engine.") },
+               "each engine is its own action id")
+        let commandBarSearchRows = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let searchRowsSlice = (commandBarSearchRows
+            .components(separatedBy: "private func searchRows(for trimmed: String)")
+            .last ?? "").components(separatedBy: "\n    func moveSelection(")
+        expect(searchRowsSlice.count > 1
+                && searchRowsSlice[0].contains("if result.count >= 12 { break }")
+                && searchRowsSlice[0].contains("CommandBarCatalog.webSearchEntry")
+                && (searchRowsSlice[0]
+                    .components(separatedBy: "if result.count >= 12 { break }")
+                    .last ?? "").contains("CommandBarCatalog.webSearchEntry"),
+               "web search is appended after the ranked list, so it sits under files and never leads")
+        expect(commandBarSearchRows.contains("CommandBarWebSearch.offersActions")
+                && commandBarSearchRows.contains("func openActions()"),
+               "⌘K on the fallback row is allowed even though it is not in the catalog")
+        expect(((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? "").contains("static func webSearchEntry"),
+               "the fallback row is built next to the typed-URL row")
         expect(CommandBarClipboardAccess.canUseHistory(captureEnabled: true,
                                                        hasSavedItems: false),
                "clipboard capture makes the command bar history available")
@@ -22879,7 +22948,8 @@ struct MetricsTests {
                 && CommandBarPreferences.source(ofRowID: "action.recentCaptures") == .actions
                 && CommandBarPreferences.emojiBrowserRowID == "emoji.browse"
                 && CommandBarPreferences.source(ofRowID: CommandBarPreferences.emojiBrowserRowID)
-                    == .emoji,
+                    == .emoji
+                && CommandBarPreferences.source(ofRowID: CommandBarWebSearch.rowID) == .webSearch,
                "every row knows which source it came from")
         expect(CommandBarPreferences.isEnabled(.folders, disabledRaw: "folders,emoji") == false
                 && CommandBarPreferences.isEnabled(.apps, disabledRaw: "folders,emoji") == true
@@ -22914,7 +22984,8 @@ struct MetricsTests {
         expect(CommandBarPreferences.acceptsAlias(rowID: "app.x")
                 && !CommandBarPreferences.acceptsAlias(rowID: "menu.1.Bold")
                 && !CommandBarPreferences.acceptsAlias(rowID: "window.4")
-                && !CommandBarPreferences.acceptsAlias(rowID: "clipboard.abc"),
+                && !CommandBarPreferences.acceptsAlias(rowID: "clipboard.abc")
+                && !CommandBarPreferences.acceptsAlias(rowID: CommandBarWebSearch.rowID),
                "only rows that are the same thing tomorrow can be named")
 
         var barPins = CommandBarPreferences.togglingPin("action.screenshot", in: [])
@@ -24501,7 +24572,7 @@ struct MetricsTests {
         for language in AppLanguage.allCases {
             let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
                 .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 158 && commandBarValues.allSatisfy { !$0.isEmpty },
+            expect(commandBarValues.count == 162 && commandBarValues.allSatisfy { !$0.isEmpty },
                    "every command bar string is set for \(language.rawValue)")
             expect(commandBarValues.allSatisfy { !$0.contains("—") },
                    "no em-dash in visible command bar strings (\(language.rawValue))")

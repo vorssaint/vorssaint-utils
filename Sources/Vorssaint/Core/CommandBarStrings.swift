@@ -165,6 +165,10 @@ struct CommandBarFeatureStrings {
     let filesIgnoreAdd: String
     let compactModeToggle: String
     let compactModeCaption: String
+    let sourceWebSearch: String
+    let webSearchTitleFormat: String
+    let webSearchEngineLabel: String
+    let webSearchEngineCaption: String
 }
 
 extension FeatureStrings {
@@ -301,7 +305,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "what you copied",
         placeholderSelection: "what is selected",
         placeholderDate: "today",
-        privacyNote: "Everything happens on this Mac: no account, no cloud, nothing sent anywhere.",
+        privacyNote: "Everything happens on this Mac: no account, no cloud. A web search you choose opens in your browser.",
         actionShortcut: "Give it a shortcut",
         actionShortcutChange: "Change the shortcut",
         actionShortcutRemove: "Take the shortcut off",
@@ -346,7 +350,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "A folder or file name",
         filesIgnoreAdd: "Add",
         compactModeToggle: "Compact mode",
-        compactModeCaption: "Bar opens without suggestions. Results appear as you type.")
+        compactModeCaption: "Bar opens without suggestions. Results appear as you type.",
+        sourceWebSearch: "Web search",
+        webSearchTitleFormat: "Search the web for \"%@\"",
+        webSearchEngineLabel: "Search engine",
+        webSearchEngineCaption: "The last result opens this engine in your browser.")
 
     static let ptBR = CommandBarFeatureStrings(
         pageTitle: "Barra de comando",
@@ -461,7 +469,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "o que você copiou",
         placeholderSelection: "o que está selecionado",
         placeholderDate: "hoje",
-        privacyNote: "Tudo acontece neste Mac: sem conta, sem nuvem, nada sai daqui.",
+        privacyNote: "Tudo acontece neste Mac: sem conta, sem nuvem. Uma busca na web que você escolher abre no navegador.",
         actionShortcut: "Dar um atalho",
         actionShortcutChange: "Trocar o atalho",
         actionShortcutRemove: "Tirar o atalho",
@@ -506,7 +514,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome de pasta ou arquivo",
         filesIgnoreAdd: "Adicionar",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.")
+        compactModeCaption: "A barra abre sem sugestões. Os resultados aparecem conforme você digita.",
+        sourceWebSearch: "Busca na web",
+        webSearchTitleFormat: "Buscar na web por \"%@\"",
+        webSearchEngineLabel: "Mecanismo de busca",
+        webSearchEngineCaption: "O último resultado abre este mecanismo no navegador.")
 
     static let tr = CommandBarFeatureStrings(
         pageTitle: "Komut çubuğu",
@@ -621,7 +633,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "kopyaladığınız şey",
         placeholderSelection: "seçili olan",
         placeholderDate: "bugün",
-        privacyNote: "Her şey bu Mac’te olur: hesap yok, bulut yok, hiçbir şey dışarı gitmez.",
+        privacyNote: "Her şey bu Mac’te olur: hesap yok, bulut yok. Seçtiğiniz bir web araması tarayıcıda açılır.",
         actionShortcut: "Kısayol ver",
         actionShortcutChange: "Kısayolu değiştir",
         actionShortcutRemove: "Kısayolu kaldır",
@@ -666,7 +678,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Klasör veya dosya adı",
         filesIgnoreAdd: "Ekle",
         compactModeToggle: "Kompakt mod",
-        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.")
+        compactModeCaption: "Çubuk önerilmeden açılır. Sonuçlar siz yazdıkça görünür.",
+        sourceWebSearch: "Web araması",
+        webSearchTitleFormat: "Web’de \"%@\" ara",
+        webSearchEngineLabel: "Arama motoru",
+        webSearchEngineCaption: "Son sonuç bu motoru tarayıcıda açar.")
 
     static let ru = CommandBarFeatureStrings(
         pageTitle: "Командная панель",
@@ -781,7 +797,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "то, что вы скопировали",
         placeholderSelection: "то, что выделено",
         placeholderDate: "сегодня",
-        privacyNote: "Всё происходит на этом Mac: без аккаунта, без облака, ничего не уходит наружу.",
+        privacyNote: "Всё происходит на этом Mac: без аккаунта, без облака. Выбранный веб-поиск открывается в браузере.",
         actionShortcut: "Назначить сочетание",
         actionShortcutChange: "Изменить сочетание",
         actionShortcutRemove: "Убрать сочетание",
@@ -826,7 +842,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Имя папки или файла",
         filesIgnoreAdd: "Добавить",
         compactModeToggle: "Компактный режим",
-        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.")
+        compactModeCaption: "Строка открывается без подсказок. Результаты появляются по мере ввода.",
+        sourceWebSearch: "Поиск в интернете",
+        webSearchTitleFormat: "Искать в интернете «%@»",
+        webSearchEngineLabel: "Поисковая система",
+        webSearchEngineCaption: "Последний результат открывает эту систему в браузере.")
 
     static let es = CommandBarFeatureStrings(
         pageTitle: "Barra de comandos",
@@ -941,7 +961,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "lo que copiaste",
         placeholderSelection: "lo que está seleccionado",
         placeholderDate: "hoy",
-        privacyNote: "Todo ocurre en este Mac: sin cuenta, sin nube, nada sale de aquí.",
+        privacyNote: "Todo ocurre en este Mac: sin cuenta, sin nube. Una búsqueda web que elijas se abre en el navegador.",
         actionShortcut: "Darle un atajo",
         actionShortcutChange: "Cambiar el atajo",
         actionShortcutRemove: "Quitar el atajo",
@@ -986,7 +1006,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nombre de carpeta o archivo",
         filesIgnoreAdd: "Añadir",
         compactModeToggle: "Modo compacto",
-        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.")
+        compactModeCaption: "La barra se abre sin sugerencias. Los resultados aparecen mientras escribes.",
+        sourceWebSearch: "Búsqueda web",
+        webSearchTitleFormat: "Buscar en la web \"%@\"",
+        webSearchEngineLabel: "Motor de búsqueda",
+        webSearchEngineCaption: "El último resultado abre este motor en el navegador.")
 
     static let de = CommandBarFeatureStrings(
         pageTitle: "Befehlsleiste",
@@ -1101,7 +1125,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "was Sie kopiert haben",
         placeholderSelection: "was ausgewählt ist",
         placeholderDate: "heute",
-        privacyNote: "Alles passiert auf diesem Mac: kein Konto, keine Cloud, nichts verlässt ihn.",
+        privacyNote: "Alles passiert auf diesem Mac: kein Konto, keine Cloud. Eine Websuche, die du wählst, öffnet sich im Browser.",
         actionShortcut: "Kurzbefehl geben",
         actionShortcutChange: "Kurzbefehl ändern",
         actionShortcutRemove: "Kurzbefehl entfernen",
@@ -1146,7 +1170,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Ordner- oder Dateiname",
         filesIgnoreAdd: "Hinzufügen",
         compactModeToggle: "Kompaktmodus",
-        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.")
+        compactModeCaption: "Die Leiste öffnet sich ohne Vorschläge. Die Ergebnisse erscheinen beim Tippen.",
+        sourceWebSearch: "Websuche",
+        webSearchTitleFormat: "Im Web nach „%@“ suchen",
+        webSearchEngineLabel: "Suchmaschine",
+        webSearchEngineCaption: "Das letzte Ergebnis öffnet diese Suchmaschine im Browser.")
 
     static let fr = CommandBarFeatureStrings(
         pageTitle: "Barre de commande",
@@ -1261,7 +1289,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "ce que vous avez copié",
         placeholderSelection: "ce qui est sélectionné",
         placeholderDate: "aujourd’hui",
-        privacyNote: "Tout se passe sur ce Mac\u{00A0}: pas de compte, pas de cloud, rien ne sort.",
+        privacyNote: "Tout se passe sur ce Mac\u{00A0}: pas de compte, pas de cloud. Une recherche web que vous choisissez s’ouvre dans le navigateur.",
         actionShortcut: "Lui donner un raccourci",
         actionShortcutChange: "Changer le raccourci",
         actionShortcutRemove: "Retirer le raccourci",
@@ -1306,7 +1334,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nom de dossier ou de fichier",
         filesIgnoreAdd: "Ajouter",
         compactModeToggle: "Mode compact",
-        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.")
+        compactModeCaption: "La barre s’ouvre sans suggestions. Les résultats apparaissent à mesure que vous tapez.",
+        sourceWebSearch: "Recherche web",
+        webSearchTitleFormat: "Rechercher «\u{00A0}%@\u{00A0}» sur le web",
+        webSearchEngineLabel: "Moteur de recherche",
+        webSearchEngineCaption: "Le dernier résultat ouvre ce moteur dans le navigateur.")
 
     static let it = CommandBarFeatureStrings(
         pageTitle: "Barra dei comandi",
@@ -1421,7 +1453,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "quello che hai copiato",
         placeholderSelection: "quello che è selezionato",
         placeholderDate: "oggi",
-        privacyNote: "Tutto avviene su questo Mac: nessun account, nessun cloud, niente esce di qui.",
+        privacyNote: "Tutto avviene su questo Mac: nessun account, nessun cloud. Una ricerca web che scegli si apre nel browser.",
         actionShortcut: "Dagli una scorciatoia",
         actionShortcutChange: "Cambia la scorciatoia",
         actionShortcutRemove: "Togli la scorciatoia",
@@ -1466,7 +1498,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "Nome di cartella o file",
         filesIgnoreAdd: "Aggiungi",
         compactModeToggle: "Modalità compatta",
-        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.")
+        compactModeCaption: "La barra si apre senza suggerimenti. I risultati appaiono mentre scrivi.",
+        sourceWebSearch: "Ricerca web",
+        webSearchTitleFormat: "Cerca sul web \"%@\"",
+        webSearchEngineLabel: "Motore di ricerca",
+        webSearchEngineCaption: "L’ultimo risultato apre questo motore nel browser.")
 
     static let ja = CommandBarFeatureStrings(
         pageTitle: "コマンドバー",
@@ -1581,7 +1617,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "コピーした内容",
         placeholderSelection: "選択されているもの",
         placeholderDate: "今日",
-        privacyNote: "すべてこの Mac の中で完結します。アカウントもクラウドもなく、外には何も送りません。",
+        privacyNote: "すべてこの Mac の中で完結します。アカウントもクラウドもなく、選んだウェブ検索だけがブラウザで開きます。",
         actionShortcut: "ショートカットを設定",
         actionShortcutChange: "ショートカットを変更",
         actionShortcutRemove: "ショートカットを外す",
@@ -1626,7 +1662,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "フォルダまたはファイルの名前",
         filesIgnoreAdd: "追加",
         compactModeToggle: "コンパクトモード",
-        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。")
+        compactModeCaption: "バーは候補なしで開きます。入力すると結果が現れます。",
+        sourceWebSearch: "ウェブ検索",
+        webSearchTitleFormat: "ウェブで「%@」を検索",
+        webSearchEngineLabel: "検索エンジン",
+        webSearchEngineCaption: "最後の結果はこのエンジンをブラウザで開きます。")
 
     static let ko = CommandBarFeatureStrings(
         pageTitle: "명령 막대",
@@ -1741,7 +1781,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "복사한 내용",
         placeholderSelection: "선택한 내용",
         placeholderDate: "오늘",
-        privacyNote: "모두 이 Mac 안에서 처리됩니다. 계정도 클라우드도 없고 밖으로 나가는 것도 없습니다.",
+        privacyNote: "모두 이 Mac 안에서 처리됩니다. 계정도 클라우드도 없고, 선택한 웹 검색만 브라우저에서 열립니다.",
         actionShortcut: "단축키 지정",
         actionShortcutChange: "단축키 변경",
         actionShortcutRemove: "단축키 해제",
@@ -1786,7 +1826,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "폴더 또는 파일 이름",
         filesIgnoreAdd: "추가",
         compactModeToggle: "컴팩트 모드",
-        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.")
+        compactModeCaption: "막대가 추천 없이 열립니다. 입력하면 결과가 나타납니다.",
+        sourceWebSearch: "웹 검색",
+        webSearchTitleFormat: "웹에서 \"%@\" 검색",
+        webSearchEngineLabel: "검색 엔진",
+        webSearchEngineCaption: "마지막 결과는 이 엔진을 브라우저에서 엽니다.")
 
     static let zhHans = CommandBarFeatureStrings(
         pageTitle: "命令栏",
@@ -1901,7 +1945,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "你拷贝的内容",
         placeholderSelection: "选中的内容",
         placeholderDate: "今天",
-        privacyNote: "一切都在这台 Mac 上完成：不需要账户，不上云，什么都不外传。",
+        privacyNote: "一切都在这台 Mac 上完成：不需要账户，不上云。你选择的网页搜索会在浏览器中打开。",
         actionShortcut: "设置快捷键",
         actionShortcutChange: "更改快捷键",
         actionShortcutRemove: "取消快捷键",
@@ -1946,7 +1990,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "文件夹或文件名",
         filesIgnoreAdd: "添加",
         compactModeToggle: "紧凑模式",
-        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。")
+        compactModeCaption: "命令栏打开时不显示建议，输入时才显示结果。",
+        sourceWebSearch: "网页搜索",
+        webSearchTitleFormat: "在网上搜索“%@”",
+        webSearchEngineLabel: "搜索引擎",
+        webSearchEngineCaption: "最后一项会在浏览器中打开这个搜索引擎。")
 
     static let zhTW = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2061,7 +2109,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "你複製的內容",
         placeholderSelection: "選取的內容",
         placeholderDate: "今天",
-        privacyNote: "一切都在這台 Mac 上完成：不需要帳號，不上雲，什麼都不外傳。",
+        privacyNote: "一切都在這台 Mac 上完成：不需要帳號，不上雲。你選擇的網頁搜尋會在瀏覽器中開啟。",
         actionShortcut: "設定快速鍵",
         actionShortcutChange: "更改快速鍵",
         actionShortcutRemove: "取消快速鍵",
@@ -2106,7 +2154,11 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        sourceWebSearch: "網頁搜尋",
+        webSearchTitleFormat: "在網路上搜尋「%@」",
+        webSearchEngineLabel: "搜尋引擎",
+        webSearchEngineCaption: "最後一項會在瀏覽器中開啟這個搜尋引擎。")
 
     static let zhHK = CommandBarFeatureStrings(
         pageTitle: "指令列",
@@ -2221,7 +2273,7 @@ extension CommandBarFeatureStrings {
         placeholderClipboard: "你複製的內容",
         placeholderSelection: "選取的內容",
         placeholderDate: "今天",
-        privacyNote: "一切都在這台 Mac 上完成：不需要帳號，不上雲，什麼都不外傳。",
+        privacyNote: "一切都在這台 Mac 上完成：不需要帳號，不上雲。你選擇的網頁搜尋會在瀏覽器中開啟。",
         actionShortcut: "設定快速鍵",
         actionShortcutChange: "更改快速鍵",
         actionShortcutRemove: "取消快速鍵",
@@ -2266,5 +2318,9 @@ extension CommandBarFeatureStrings {
         filesIgnorePlaceholder: "檔案夾或檔案名稱",
         filesIgnoreAdd: "加入",
         compactModeToggle: "精簡模式",
-        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。")
+        compactModeCaption: "命令列打開時不顯示建議，輸入時才顯示結果。",
+        sourceWebSearch: "網頁搜尋",
+        webSearchTitleFormat: "在網路上搜尋「%@」",
+        webSearchEngineLabel: "搜尋引擎",
+        webSearchEngineCaption: "最後一項會在瀏覽器中開啟這個搜尋引擎。")
 }

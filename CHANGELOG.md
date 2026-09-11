@@ -12,6 +12,8 @@ App Switcher opens more smoothly, offers display filtering, excludes hidden help
 ### Added
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
+- Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
+- Command Bar can search the web in your default browser as a last result, DuckDuckGo unless you pick another engine.
 - Screenshot gains custom editor shortcuts and optional keyboard focus for previews. Thanks to @santi-ug.
 
 ### Changed
