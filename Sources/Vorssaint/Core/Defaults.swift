@@ -591,6 +591,11 @@ enum DefaultsKey {
     // in Application Support until retention sweeps it.
     static let recorderShortcutEnabled = "recorderShortcutEnabled"
     static let recorderShortcut = "recorderShortcut"
+    static let screenAnnotationTool = "screenAnnotationTool"
+    static let screenAnnotationColor = "screenAnnotationColor"
+    static let screenAnnotationWidth = "screenAnnotationWidth"
+    static let screenAnnotationShortcutEnabled = "screenAnnotationShortcutEnabled"
+    static let screenAnnotationShortcut = "screenAnnotationShortcut"
     static let recorderCountdown = "recorderCountdown"
     static let recorderQuality = "recorderQuality"
     static let recorderFrameRate = "recorderFrameRate"
@@ -1305,6 +1310,11 @@ enum Defaults {
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
         DefaultsKey.recorderShortcutEnabled: false,
         DefaultsKey.recorderShortcut: GlobalShortcut.screenRecorderDefault.storageValue,
+        DefaultsKey.screenAnnotationTool: AnnotationTool.pen.rawValue,
+        DefaultsKey.screenAnnotationColor: "red",
+        DefaultsKey.screenAnnotationWidth: ScreenAnnotationSupport.defaultWidth,
+        DefaultsKey.screenAnnotationShortcutEnabled: false,
+        DefaultsKey.screenAnnotationShortcut: GlobalShortcut.screenAnnotationDefault.storageValue,
         DefaultsKey.recorderCountdown: 3,
         DefaultsKey.recorderQuality: RecorderSupport.Quality.balanced.rawValue,
         DefaultsKey.recorderFrameRate: 60,

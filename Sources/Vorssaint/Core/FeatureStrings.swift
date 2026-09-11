@@ -97,6 +97,79 @@ enum FeatureStrings {
     static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         WhatsAppDownloadStrings.localized(language)
     }
+
+    static func annotation(_ language: AppLanguage) -> ScreenAnnotationStrings {
+        switch language {
+        case .enUS: return .enUS
+        case .ptBR: return .ptBR
+        case .tr: return .tr
+        case .ru: return .ru
+        case .es: return .es
+        case .de: return .de
+        case .fr: return .fr
+        case .it: return .it
+        case .ja: return .ja
+        case .ko: return .ko
+        case .zhHans: return .zhHans
+        case .zhTW: return .zhTW
+        case .zhHK: return .zhHK
+        }
+    }
+}
+
+struct ScreenAnnotationStrings {
+    let title: String
+    let pen: String
+    let highlighter: String
+    let undo: String
+    let clear: String
+    let exit: String
+    let openOverlay: String
+    let settingsDescription: String
+    let penDescription: String
+    let highlighterDescription: String
+    let undoDescription: String
+    let clearDescription: String
+    let controls: String
+
+    init(title: String, pen: String, highlighter: String, undo: String, clear: String,
+         exit: String, openOverlay: String = "Open overlay",
+         settingsDescription: String = "The overlay stays available while this feature is installed. Use the toolbar to choose the tool, color, and width.",
+         penDescription: String = "Freehand stroke",
+         highlighterDescription: String = "Semi-transparent stroke",
+         undoDescription: String = "Removes the last stroke",
+         clearDescription: String = "Removes all strokes",
+         controls: String = "Controls") {
+         self.title = title
+        self.pen = pen
+        self.highlighter = highlighter
+        self.undo = undo
+        self.clear = clear
+        self.exit = exit
+        self.openOverlay = openOverlay
+        self.settingsDescription = settingsDescription
+        self.penDescription = penDescription
+        self.highlighterDescription = highlighterDescription
+        self.undoDescription = undoDescription
+        self.clearDescription = clearDescription
+        self.controls = controls
+    }
+
+    var shortcutLabel: String { "⌃⌥⌘A" }
+
+    static let enUS = ScreenAnnotationStrings(title: "Screen annotation", pen: "Pen", highlighter: "Highlighter", undo: "Undo", clear: "Clear", exit: "Exit", openOverlay: "Open overlay", settingsDescription: "The overlay stays available while this feature is installed. Use the toolbar to choose the tool, color, and width.", penDescription: "Freehand stroke", highlighterDescription: "Semi-transparent stroke", undoDescription: "Removes the last stroke", clearDescription: "Removes all strokes")
+    static let ptBR = ScreenAnnotationStrings(title: "Anotação de tela", pen: "Caneta", highlighter: "Marca-texto", undo: "Desfazer", clear: "Limpar", exit: "Sair", openOverlay: "Abrir overlay", settingsDescription: "O overlay permanece disponível enquanto o recurso estiver instalado. Use a barra para escolher ferramenta, cor e espessura.", penDescription: "Traço livre", highlighterDescription: "Traço semitransparente", undoDescription: "Remove o último traço", clearDescription: "Remove todos os traços", controls: "Controles")
+    static let tr = ScreenAnnotationStrings(title: "Ekran açıklaması", pen: "Kalem", highlighter: "Vurgulayıcı", undo: "Geri al", clear: "Temizle", exit: "Çık")
+    static let ru = ScreenAnnotationStrings(title: "Аннотация экрана", pen: "Перо", highlighter: "Маркер", undo: "Отменить", clear: "Очистить", exit: "Выйти")
+    static let es = ScreenAnnotationStrings(title: "Anotación de pantalla", pen: "Pluma", highlighter: "Resaltador", undo: "Deshacer", clear: "Limpiar", exit: "Salir")
+    static let de = ScreenAnnotationStrings(title: "Bildschirmanmerkung", pen: "Stift", highlighter: "Textmarker", undo: "Widerrufen", clear: "Löschen", exit: "Beenden")
+    static let fr = ScreenAnnotationStrings(title: "Annotation à l’écran", pen: "Stylet", highlighter: "Surligneur", undo: "Annuler", clear: "Effacer", exit: "Quitter")
+    static let it = ScreenAnnotationStrings(title: "Annotazione dello schermo", pen: "Penna", highlighter: "Evidenziatore", undo: "Annulla", clear: "Cancella", exit: "Esci")
+    static let ja = ScreenAnnotationStrings(title: "画面注釈", pen: "ペン", highlighter: "蛍光ペン", undo: "取り消す", clear: "消去", exit: "終了")
+    static let ko = ScreenAnnotationStrings(title: "화면 주석", pen: "펜", highlighter: "형광펜", undo: "실행 취소", clear: "지우기", exit: "나가기")
+    static let zhHans = ScreenAnnotationStrings(title: "屏幕标注", pen: "画笔", highlighter: "荧光笔", undo: "撤销", clear: "清除", exit: "退出")
+    static let zhTW = ScreenAnnotationStrings(title: "螢幕標註", pen: "畫筆", highlighter: "螢光筆", undo: "復原", clear: "清除", exit: "離開")
+    static let zhHK = ScreenAnnotationStrings(title: "螢幕標註", pen: "畫筆", highlighter: "螢光筆", undo: "復原", clear: "清除", exit: "離開")
 }
 
 struct MixerFeatureStrings {

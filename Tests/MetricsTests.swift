@@ -40,6 +40,29 @@ struct MetricsTests {
             if actual != expected { failures.append("\(label): got \(actual), expected \(expected)") }
         }
 
+        // MARK: Screen annotation rules
+
+        let rawPoints = (0..<(ScreenAnnotationSupport.maxPointsPerStroke + 20))
+            .map { AnnotationPoint(x: Double($0), y: Double($0)) }
+        let boundedStroke = AnnotationStroke(tool: .pen, color: .red, width: 100, points: rawPoints)
+        expect(boundedStroke.points.count == ScreenAnnotationSupport.maxPointsPerStroke,
+               "annotation strokes cap their point count")
+        expect(boundedStroke.width == 40 && boundedStroke.color == .red,
+               "annotation stroke values are clamped without changing color")
+        expect(AnnotationColor.orange != AnnotationColor.yellow,
+               "annotation orange and yellow remain distinct colors")
+        expect(ScreenAnnotationSupport.append(AnnotationPoint(x: 0.0001, y: 0.0001), to: [AnnotationPoint(x: 0, y: 0)]).count == 1,
+               "annotation input ignores subpixel noise")
+        expect(ScreenAnnotationSupport.append(AnnotationPoint(x: 0.01, y: 0.01), to: [AnnotationPoint(x: 0, y: 0)]).count == 2,
+               "annotation input records ordinary drawing movement")
+        expect(ScreenAnnotationSupport.undo([boundedStroke]).isEmpty,
+               "annotation undo removes only the last stroke")
+        expect(ScreenAnnotationSupport.clear([boundedStroke]).isEmpty,
+               "annotation clear is idempotent")
+        expect(!ScreenAnnotationSupport.canvasIgnoresMouseEvents(isDrawing: true)
+                && ScreenAnnotationSupport.canvasIgnoresMouseEvents(isDrawing: false),
+               "annotation canvas captures only while drawing")
+
         // MARK: Byte / rate formatting
 
         // Pinned, because everything below reads a decimal point and this
@@ -14784,7 +14807,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14797,7 +14820,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "screenAnnotation", "killProcess",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -16233,9 +16256,10 @@ struct MetricsTests {
                 == FeatureSettingsDestination(.features),
                "features without dedicated pages use explicit nearest Settings destinations")
         expect(!AppFeature.diskImageInstaller.hasNavigableSettingsDestination
+                && AppFeature.screenAnnotation.hasNavigableSettingsDestination
                 && AppFeature.allCases.filter { $0 != .diskImageInstaller }
                     .allSatisfy(\.hasNavigableSettingsDestination),
-               "a feature without a separate configuration surface does not show a dead-end link")
+               "every installed feature either has a real Settings surface or no dead-end link")
         expect(AppFeature.monitorCPU.settingsDestination == FeatureSettingsDestination(.monitor)
                 && AppFeature.fanControl.settingsDestination
                 == FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl),

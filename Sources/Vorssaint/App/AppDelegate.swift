@@ -268,6 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if AppFeature.clipboardHistory.isAvailable {
             ClipboardHistoryService.shared.flushBeforeTermination()
         }
+        ScreenAnnotationService.shared.teardown()
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 
@@ -1165,6 +1166,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(cleaningItem)
         }
 
+        if AppFeature.screenAnnotation.isAvailable {
+            let annotation = FeatureStrings.annotation(L10n.shared.language)
+            let annotationItem = NSMenuItem(title: annotation.title,
+                                            action: #selector(menuToggleScreenAnnotation), keyEquivalent: "")
+            annotationItem.target = self
+            menu.addItem(annotationItem)
+            let clearItem = NSMenuItem(title: annotation.clear,
+                                       action: #selector(menuClearScreenAnnotation), keyEquivalent: "")
+            clearItem.target = self
+            menu.addItem(clearItem)
+        }
+
         if menu.items.isEmpty == false {
             menu.addItem(.separator())
         }
@@ -1214,6 +1227,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuCleaningMode() {
         CleaningModeManager.shared.activate()
+    }
+
+    @objc private func menuToggleScreenAnnotation() {
+        ScreenAnnotationService.shared.toggleDrawing()
+    }
+
+    @objc private func menuClearScreenAnnotation() {
+        ScreenAnnotationService.shared.clearAll()
     }
 
     @objc private func menuActivateDuration(_ sender: NSMenuItem) {
