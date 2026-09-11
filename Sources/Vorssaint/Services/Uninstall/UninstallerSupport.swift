@@ -99,6 +99,16 @@ enum UninstallerSupport {
         return FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
     }
 
+    /// True only when the parent directory is still reachable and the path is
+    /// gone. `fileExists` returning false also happens when access to the
+    /// folder was lost, and that must not look like a successful removal.
+    static func isConfirmedAbsent(at url: URL, fileManager fm: FileManager = .default) -> Bool {
+        if fm.fileExists(atPath: url.path) { return false }
+        let parent = url.deletingLastPathComponent()
+        guard (try? fm.contentsOfDirectory(atPath: parent.path)) != nil else { return false }
+        return !fm.fileExists(atPath: url.path)
+    }
+
     /// A removal path must still exist below the root that produced it and no
     /// component from the item through that root may have become a symlink.
     static func removalPathIsSafe(_ url: URL, within root: URL) -> Bool {

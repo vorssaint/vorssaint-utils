@@ -5255,6 +5255,23 @@ struct MetricsTests {
                && originalFileIdentity != nil
                && UninstallerSupport.fileIdentity(at: safeFile) != originalFileIdentity,
                "removal stays inside its scan root, rejects symlink escapes and detects path replacement")
+        // Absence must be confirmed via a readable parent. A bare !fileExists can
+        // mean lost folder access, and must not be treated as a successful removal
+        // (review on #1561 / issue #1556 follow-up).
+        let absentFixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-absent-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: absentFixture, withIntermediateDirectories: true)
+        let presentChild = absentFixture.appendingPathComponent("StillHere.app")
+        try? "bundle".write(to: presentChild, atomically: true, encoding: .utf8)
+        expect(!UninstallerSupport.isConfirmedAbsent(at: presentChild),
+               "a path that still exists is not confirmed absent")
+        try? FileManager.default.removeItem(at: presentChild)
+        expect(UninstallerSupport.isConfirmedAbsent(at: presentChild),
+               "a missing child under a readable parent is confirmed absent")
+        let lostAccessChild = URL(fileURLWithPath: "/private/var/root/VorssaintAccessLost.app")
+        expect(!UninstallerSupport.isConfirmedAbsent(at: lostAccessChild),
+               "a path under an unreadable parent is not confirmed absent")
+        try? FileManager.default.removeItem(at: absentFixture)
         try? FileManager.default.removeItem(at: safetyFixture)
         func sourceBody(of source: String, from opening: String, to closing: String) -> String {
             guard let start = source.range(of: opening),
@@ -5311,13 +5328,15 @@ struct MetricsTests {
         let firstRemoveSelected = finishHomebrewBody.range(of: "removeSelected()")
         expect(markedPackageRemoval != nil
                 && firstRemoveSelected.map { markedPackageRemoval!.upperBound < $0.lowerBound } == true
-                && finishHomebrewBody.contains("setInclude(false, for: app.id)"),
-               "after Homebrew succeeds the app is credited to the package manager before any trash pass")
+                && finishHomebrewBody.contains("setInclude(false, for: app.id)")
+                && finishHomebrewBody.contains("isConfirmedAbsent")
+                && finishHomebrewBody.contains("homebrewRemovalSize = app.size"),
+               "after Homebrew succeeds the package flag is set before trash, and size is credited only after confirmed absence")
         expect(removeSelectedBody.contains("try fm.trashItem(at: item.url, resultingItemURL: nil)")
-                && removeSelectedBody.contains("fm.fileExists(atPath: item.url.path)")
+                && removeSelectedBody.contains("isConfirmedAbsent")
                 && removeSelectedBody.contains("stubborn.append(item)")
                 && removeSelectedBody.contains("freed += item.size"),
-               "a trashItem that races a path brew already removed counts as freed, not failed")
+               "a path is counted freed only when its absence is confirmed, not on a bare fileExists miss")
         expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
                 == "com.vendor.editor",
                "preference panes map to their owning bundle identifier")

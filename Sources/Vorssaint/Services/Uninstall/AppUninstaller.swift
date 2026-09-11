@@ -239,7 +239,7 @@ final class AppUninstaller: ObservableObject {
                     infoIdentity: expectedInfoIdentity)
             } ?? false
             let targetWasRemovedByPackageManager = packageRemovedApplication
-                && targetURL.map { !fm.fileExists(atPath: $0.path) } == true
+                && targetURL.map { UninstallerSupport.isConfirmedAbsent(at: $0, fileManager: fm) } == true
             let mayClaimSharedData = targetIsOriginal || targetWasRemovedByPackageManager
             let lookupBundleIDs = candidateBundleIDs.union(evidenceBundleIDs)
             // Only the shared-data claims below read this roster, and building
@@ -296,12 +296,12 @@ final class AppUninstaller: ObservableObject {
                                               allowedPaths: allowedPaths,
                                               targetURL: targetURL) else {
                     // Brew (or another pass) may have already taken the path.
-                    // A missing file is success; only a still-present path that
-                    // failed the identity check is a real refusal.
-                    if fm.fileExists(atPath: item.url.path) {
-                        failed.append(item)
-                    } else {
+                    // Only a confirmed absence counts as success; a still-present
+                    // path, or one we can no longer read, stays a failure.
+                    if UninstallerSupport.isConfirmedAbsent(at: item.url, fileManager: fm) {
                         freed += item.size
+                    } else {
+                        failed.append(item)
                     }
                     continue
                 }
@@ -309,10 +309,12 @@ final class AppUninstaller: ObservableObject {
                     try fm.trashItem(at: item.url, resultingItemURL: nil)
                     freed += item.size
                 } catch {
-                    if fm.fileExists(atPath: item.url.path) {
+                    if UninstallerSupport.isConfirmedAbsent(at: item.url, fileManager: fm) {
+                        freed += item.size
+                    } else if fm.fileExists(atPath: item.url.path) {
                         stubborn.append(item)
                     } else {
-                        freed += item.size
+                        failed.append(item)
                     }
                 }
             }
@@ -333,10 +335,10 @@ final class AppUninstaller: ObservableObject {
                 })
                 Self.trashViaFinder(stillSafe.map(\.url))
                 for item in stillSafe {
-                    if fm.fileExists(atPath: item.url.path) {
-                        failed.append(item)
-                    } else {
+                    if UninstallerSupport.isConfirmedAbsent(at: item.url, fileManager: fm) {
                         freed += item.size
+                    } else {
+                        failed.append(item)
                     }
                 }
             }
@@ -378,18 +380,30 @@ final class AppUninstaller: ObservableObject {
               homebrewPackage?.id == package.id,
               let app = items.first(where: { $0.category == .app && $0.include }),
               let targetURL = target?.url else { return }
-        // Brew already owns the app artifact. Credit it immediately and never
-        // fall through to a second trash pass just because the path briefly
-        // still exists — that race turned a successful cask uninstall into a
-        // false "couldn't move to Trash" sheet (issue #1556).
-        homebrewRemovalSize = app.size
+        // Brew owns the package receipt. Mark that before any trash pass so a
+        // brief leftover path does not become a false Trash failure (issue
+        // #1556). Credit the app size only after its absence is confirmed, so
+        // a later trash attempt cannot count the same bytes twice (#1561).
         homebrewRemovedApplication = true
         homebrewPackage = nil
         setInclude(false, for: app.id)
-        if FileManager.default.fileExists(atPath: targetURL.path) {
-            // Rare: brew reported success but left the bundle. Re-select only
-            // the app so removeSelected can finish it under the package flag.
+        if UninstallerSupport.isConfirmedAbsent(at: targetURL) {
+            homebrewRemovalSize = app.size
+        } else if FileManager.default.fileExists(atPath: targetURL.path) {
+            // Brew reported success but left the bundle. Re-select only the
+            // app so removeSelected can finish it under the package flag,
+            // counting size once when it is actually gone.
+            homebrewRemovalSize = 0
             setInclude(true, for: app.id)
+        } else {
+            // Path looks missing but the parent is not readable — access may
+            // have been lost. Keep the failure visible instead of claiming
+            // success.
+            homebrewRemovalSize = 0
+            homebrewRemovedApplication = false
+            setInclude(true, for: app.id)
+            phase = .done(freed: 0, failed: [app])
+            return
         }
         if items.contains(where: \.include) {
             removeSelected()
