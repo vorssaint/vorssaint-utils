@@ -667,8 +667,11 @@ final class DockPreviewService: ObservableObject {
     }
 
     private static func previewableWindows(for pid: pid_t) -> [SwitcherItem] {
-        WindowEnumerator.listWindows(for: pid, maximumCount: 12)
+        let windows = WindowEnumerator.listWindows(for: pid, maximumCount: 12)
             .filter { $0.windowID != nil }
+        let order = DockPreviewWindowOrder.fromDefaults(
+            orderByCreation: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewOrderByCreation))
+        return DockPreviewSupport.orderedWindows(windows, order: order)
     }
 
     private func beginHoverIfStillValid(token: UUID, initialHit: DockHit) {

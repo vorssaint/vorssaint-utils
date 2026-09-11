@@ -241,6 +241,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "ポインタをアイコンに置いてからパネルが開くまでの時間です。",
         dockPreviewQuitAppOnClose: "× ボタンでアプリを終了",
         dockPreviewQuitAppOnCloseCaption: "Dock Preview では、× はそのウインドウだけを閉じる代わりにアプリ全体を終了します。",
+        dockPreviewOrderByCreation: "ウインドウを作成順に並べる",
+        dockPreviewOrderByCreationCaption: "最近使ったものではなく、古いウインドウから順に表示します。",
         dockClickMinimize: "Dock クリックでしまう",
         dockClickMinimizeCaption: "手前のアプリの Dock アイコンをクリックするとウインドウをしまいます。もう一度クリックすると戻ります。",
         dockClickCycleWindows: "Dock クリックでウインドウを切り替え",

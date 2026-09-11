@@ -242,6 +242,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "포인터가 아이콘 위에 머문 뒤 패널이 열리기까지의 시간입니다.",
         dockPreviewQuitAppOnClose: "× 버튼으로 앱 종료",
         dockPreviewQuitAppOnCloseCaption: "Dock Preview에서 ×는 해당 윈도우만 닫는 대신 앱 전체를 종료합니다.",
+        dockPreviewOrderByCreation: "생성 시간순으로 윈도우 정렬",
+        dockPreviewOrderByCreationCaption: "최근에 사용한 윈도우 대신 오래된 윈도우를 먼저 표시합니다.",
         dockClickMinimize: "Dock 클릭으로 최소화",
         dockClickMinimizeCaption: "앞에 있는 앱의 Dock 아이콘을 클릭하면 윈도우를 최소화합니다. 다시 클릭하면 복원됩니다.",
         dockClickCycleWindows: "Dock 클릭으로 윈도우 전환",
