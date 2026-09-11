@@ -125,6 +125,10 @@ final class QuitProtectionService: ObservableObject {
         isRunning = false
     }
 
+    /// Releases the tap, its observer and any press in flight, for callers
+    /// outside this type.
+    func suspend() { stop() }
+
     private func installTap() -> Bool {
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
             | CGEventMask(1 << CGEventType.keyUp.rawValue)
