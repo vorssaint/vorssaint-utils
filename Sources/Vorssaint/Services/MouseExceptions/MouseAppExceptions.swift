@@ -8,34 +8,33 @@ import CoreGraphics
 /// Apps each mouse feature leaves alone (issue #358). Some apps drive
 /// themselves with the wheel and the extra buttons, so a glide or a swallowed
 /// click lands as a wrong command inside them; while one of those apps is the
-/// one being scrolled or clicked, the feature that named it stands down and
-/// the events reach the app exactly as the system produced them. Every
-/// feature keeps its own list, so leaving an app out of one never changes
-/// what the others do there.
+/// one being scrolled or clicked, the relevant behavior stands down and the
+/// events reach the app exactly as the system produced them. Smooth scrolling
+/// and direction inversion share one wheel list; unrelated mouse actions keep
+/// independent lists.
 ///
 /// The app is resolved from the window under the pointer, which is where
 /// macOS delivers both the wheel and the click, and falls back to the app in
 /// front when the pointer is over no window of its own. Resolving asks the
 /// window server, so the answer is cached until the pointer leaves that
-/// window; with every list empty, which is the normal case, nothing is
-/// resolved at all and the taps cost exactly what they always did.
+/// window (or `resolveLifetime` expires); a miss is filled synchronously so every
+/// event gets a correct answer. With every list empty, which is the normal
+/// case, nothing is resolved at all.
 ///
-/// The lists are written on the main thread; the taps that ask run on the
-/// pointer thread (`PointerTapRunLoop`), so everything they read is guarded by
-/// `lock`. Pointer callbacks reuse the last answer and schedule a refresh on
-/// the main thread without waiting for it.
+/// List mutations stay on the main thread; tap lookups read an immutable
+/// snapshot under a lock so a dedicated scroll thread stays race-free. When
+/// the pointer answer is unknown, features with a non-empty list stand down
+/// rather than guess.
 final class MouseAppExceptions: ObservableObject {
     static let shared = MouseAppExceptions()
 
-    /// Guards the lookups, the source ids and the resolved-app cache: written
-    /// on the main thread, read from the tap callbacks.
-    private let lock = NSLock()
-
-    /// The stored lists, as bundle identifiers per feature.
+    /// The stored app identities (bundle identifiers or executable paths).
     @Published private(set) var lists: [MouseExceptionScope: [String]] = [:]
+    /// Scopes whose excepted apps are currently running (for UI / SuperKey).
     @Published private(set) var runningScopes = Set<MouseExceptionScope>()
 
-    /// The same lists as sets, for the lookups the taps make. Under `lock`.
+    private let lock = NSLock()
+    /// The same lists as sets, for the lookups the taps make.
     private var lookups: [MouseExceptionScope: Set<String>] = [:]
     /// True while every list is empty, the fast path out of every question.
     private var allEmpty = true
@@ -53,7 +52,6 @@ final class MouseAppExceptions: ObservableObject {
     private var cachedRegion: CGRect?
     private var cachedPoint: CGPoint = .zero
     private var cachedAt: TimeInterval = -1
-    private var pointerRefreshScheduled = false
 
     private static let ownProcessID = Int32(getpid())
 
@@ -65,26 +63,29 @@ final class MouseAppExceptions: ObservableObject {
 
     func reload() {
         let defaults = UserDefaults.standard
+        Defaults.migrateMouseScrollingExceptions(in: defaults)
+        var nextLists: [MouseExceptionScope: [String]] = [:]
+        var nextLookups: [MouseExceptionScope: Set<String>] = [:]
         for scope in MouseExceptionScope.allCases {
             let raw = defaults.stringArray(forKey: scope.defaultsKey) ?? []
             let sanitized = Defaults.sanitizedBundleIdentifierList(raw)
             if raw != sanitized {
                 defaults.set(sanitized, forKey: scope.defaultsKey)
             }
-            lists[scope] = sanitized
-            lock.withLock { lookups[scope] = Set(sanitized) }
+            nextLists[scope] = sanitized
+            nextLookups[scope] = Set(sanitized)
         }
-        lock.withLock { allEmpty = lookups.values.allSatisfy(\.isEmpty) }
-        invalidateCache()
+        let nextAllEmpty = nextLookups.values.allSatisfy(\.isEmpty)
+        lock.withLock {
+            lookups = nextLookups
+            allEmpty = nextAllEmpty
+            invalidateCacheLocked()
+        }
+        lists = nextLists
         refreshSourceTracking()
     }
 
     func list(_ scope: MouseExceptionScope) -> [String] { lists[scope] ?? [] }
-
-    /// The lists and source ids a tap needs, copied out under the lock.
-    private func lookup(_ scope: MouseExceptionScope) -> (exceptions: Set<String>, sources: Set<Int32>) {
-        lock.withLock { (lookups[scope] ?? [], sourceProcessIDs[scope] ?? []) }
-    }
 
     /// AppKit answers on the main thread, since the taps that ask no longer
     /// run there.
@@ -109,16 +110,25 @@ final class MouseAppExceptions: ObservableObject {
 
     // MARK: - The question the taps ask
 
-    /// True when the app under the pointer or the app that posted the event is
-    /// on this feature's list. Source ids are used only by the two scroll taps;
-    /// hardware wheel events have no app source and keep the original path.
+    /// True when the app under the pointer, the event target, or the app that
+    /// posted the event is on this feature's list. Process-id sets are cheap
+    /// and cover known excepted apps; a cache miss fills the pointer answer
+    /// synchronously so the first tick is never guessed. While the pointer
+    /// app is unknown, hands stay off.
     func excludesPointerTarget(_ scope: MouseExceptionScope,
                                at point: CGPoint,
-                               sourceProcessID: Int64 = 0) -> Bool {
-        let (exceptions, sources) = lookup(scope)
-        guard !exceptions.isEmpty else { return false }
+                               sourceProcessID: Int64 = 0,
+                               targetProcessID: Int64 = 0) -> Bool {
+        let snapshot = makeSnapshot()
+        guard let exceptions = snapshot.lookups[scope], !exceptions.isEmpty else {
+            return false
+        }
         if let pid = MouseAppExceptionSupport.sourceProcessID(sourceProcessID),
-           sources.contains(pid) {
+           snapshot.sourceProcessIDs[scope]?.contains(pid) == true {
+            return true
+        }
+        if let pid = MouseAppExceptionSupport.sourceProcessID(targetProcessID),
+           snapshot.sourceProcessIDs[scope]?.contains(pid) == true {
             return true
         }
         let answer = pointerIdentity(at: point)
@@ -135,17 +145,17 @@ final class MouseAppExceptions: ObservableObject {
     /// off.
     func excludesActionTarget(_ scope: MouseExceptionScope,
                               at point: CGPoint,
-                              sourceProcessID: Int64 = 0) -> Bool {
-        let (exceptions, sources) = lookup(scope)
-        guard !exceptions.isEmpty else { return false }
-        if let pid = MouseAppExceptionSupport.sourceProcessID(sourceProcessID),
-           sources.contains(pid) {
+                              sourceProcessID: Int64 = 0,
+                              targetProcessID: Int64 = 0) -> Bool {
+        if excludesPointerTarget(scope,
+                                 at: point,
+                                 sourceProcessID: sourceProcessID,
+                                 targetProcessID: targetProcessID) {
             return true
         }
-        let answer = pointerIdentity(at: point)
-        guard answer.known else { return true }
-        if MouseAppExceptionSupport.isExcepted(answer.identity, exceptions: exceptions) {
-            return true
+        let snapshot = makeSnapshot()
+        guard let exceptions = snapshot.lookups[scope], !exceptions.isEmpty else {
+            return false
         }
         let frontmost = Self.onMain { Self.identity(for: NSWorkspace.shared.frontmostApplication) }
         return MouseAppExceptionSupport.isExcepted(frontmost, exceptions: exceptions)
@@ -155,12 +165,16 @@ final class MouseAppExceptions: ObservableObject {
     /// With every such feature off, unavailable or carrying an empty list, no
     /// workspace observer or source cache remains alive.
     func setSourceTracking(_ active: Bool, for scope: MouseExceptionScope) {
-        lock.withLock {
-            if active {
-                trackedSourceScopes.insert(scope)
-            } else {
-                trackedSourceScopes.remove(scope)
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.setSourceTracking(active, for: scope)
             }
+            return
+        }
+        if active {
+            trackedSourceScopes.insert(scope)
+        } else {
+            trackedSourceScopes.remove(scope)
         }
         refreshSourceTracking()
     }
@@ -187,25 +201,30 @@ final class MouseAppExceptions: ObservableObject {
     private func stopSourceTracking() {
         runningApplicationsObservation?.invalidate()
         runningApplicationsObservation = nil
-        lock.withLock { sourceProcessIDs.removeAll(keepingCapacity: false) }
+        lock.withLock {
+            sourceProcessIDs.removeAll(keepingCapacity: false)
+        }
         if !runningScopes.isEmpty { runningScopes.removeAll() }
     }
 
     private func rebuildSourceProcesses(_ applications: [NSRunningApplication]) {
-        var rebuilt: [MouseExceptionScope: Set<Int32>] = [:]
-        let (scopes, exceptionsByScope) = lock.withLock { (trackedSourceScopes, lookups) }
+        var next: [MouseExceptionScope: Set<Int32>] = [:]
+        let tracked = trackedSourceScopes
+        let lookupsCopy = lock.withLock { lookups }
         for app in applications {
             let bundleIDs = sourceBundleIdentifiers(for: app)
             guard !bundleIDs.isEmpty else { continue }
-            for scope in scopes {
-                guard let exceptions = exceptionsByScope[scope],
+            for scope in tracked {
+                guard let exceptions = lookupsCopy[scope],
                       MouseAppExceptionSupport.isExcepted(bundleIDs,
                                                           exceptions: exceptions) else { continue }
-                rebuilt[scope, default: []].insert(app.processIdentifier)
+                next[scope, default: []].insert(app.processIdentifier)
             }
         }
-        lock.withLock { sourceProcessIDs = rebuilt }
-        let updatedScopes = Set(rebuilt.keys)
+        lock.withLock {
+            sourceProcessIDs = next
+        }
+        let updatedScopes = Set(next.keys)
         Self.onMain {
             if runningScopes != updatedScopes { runningScopes = updatedScopes }
         }
@@ -236,57 +255,58 @@ final class MouseAppExceptions: ObservableObject {
 
     // MARK: - Resolving
 
+    private func makeSnapshot() -> MouseAppExceptionSupport.LookupSnapshot {
+        lock.withLock {
+            MouseAppExceptionSupport.LookupSnapshot(
+                lookups: lookups,
+                sourceProcessIDs: sourceProcessIDs)
+        }
+    }
+
     /// What the app that owns the window under the pointer answers to, falling
-    /// back to the app in front when the pointer is over none. `known` is false
-    /// only on the pointer thread, which never waits for the main one.
+    /// back to the app in front when the pointer is over none. A miss asks the
+    /// window server on the caller thread (~190 µs) and caches the answer.
+    /// `known` is false when a list is active but no window owns this point:
+    /// inventing the frontmost app there would act inside a listed one by
+    /// mistake, so the feature stands down until a window can be named.
     private func pointerIdentity(at point: CGPoint) -> (known: Bool, identity: String?) {
         let now = ProcessInfo.processInfo.systemUptime
-        // The pointer thread must return even while the main thread is busy.
-        // An answer that aged out still names the window it came from, so the
-        // pointer resting in that window keeps it; anywhere else the answer
-        // belongs to another window and is no answer at all.
-        let isMainThread = Thread.isMainThread
-        var needsRefresh = false
-        let answer = lock.withLock { () -> (settled: Bool, known: Bool, identity: String?) in
-            guard !allEmpty else { return (true, true, nil) }
-            guard MouseAppExceptionSupport.cacheHolds(region: cachedRegion,
-                                                      resolvedPoint: cachedPoint,
-                                                      resolvedAt: cachedAt,
-                                                      point: point,
-                                                      now: now) else {
-                if !isMainThread {
-                    needsRefresh = !pointerRefreshScheduled
-                    if needsRefresh { pointerRefreshScheduled = true }
-                    let sameWindow = MouseAppExceptionSupport.cacheNamesWindow(region: cachedRegion,
-                                                                              point: point)
-                    return (true, sameWindow, sameWindow ? cachedIdentity : nil)
-                }
-                return (false, true, nil)
+        let cached = lock.withLock { () -> (known: Bool, identity: String?)? in
+            guard !allEmpty else { return (true, nil) }
+            if MouseAppExceptionSupport.cacheHolds(region: cachedRegion,
+                                                   resolvedPoint: cachedPoint,
+                                                   resolvedAt: cachedAt,
+                                                   point: point,
+                                                   now: now) {
+                return (true, cachedIdentity)
             }
-            return (true, true, cachedIdentity)
+            return nil
         }
-        if needsRefresh {
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                defer { self.lock.withLock { self.pointerRefreshScheduled = false } }
-                _ = self.pointerIdentity(at: point)
-            }
-        }
-        if answer.settled { return (answer.known, answer.identity) }
+        if let cached { return cached }
 
-        let window = MouseAppExceptionSupport.pointerWindow(in: WindowServerSupport.onScreenWindows(),
-                                                            at: point,
-                                                            ownProcessID: Self.ownProcessID)
-        let app = window.map { NSRunningApplication(processIdentifier: $0.processID) }
-            ?? NSWorkspace.shared.frontmostApplication
-        let identity = Self.identity(for: app)
-        lock.withLock {
-            cachedIdentity = identity
-            cachedRegion = window?.frame
-            cachedPoint = point
-            cachedAt = now
+        let window = MouseAppExceptionSupport.pointerWindow(
+            in: WindowServerSupport.onScreenWindows(),
+            at: point,
+            ownProcessID: Self.ownProcessID)
+        // No window under the pointer: do not borrow the frontmost app as if it
+        // owned this spot. Standing down is the side the exception list exists
+        // to protect (issue #1071 / unknown-pointer hands-off).
+        guard let window else {
+            return (false, nil)
         }
-        return (true, identity)
+        // LaunchServices / workspace work stays outside `lock` so other taps
+        // can still copy their snapshot while this event resolves.
+        let resolvedIdentity = Self.identity(
+            for: NSRunningApplication(processIdentifier: window.processID))
+        let resolvedAt = ProcessInfo.processInfo.systemUptime
+        lock.withLock {
+            guard !allEmpty else { return }
+            cachedIdentity = resolvedIdentity
+            cachedRegion = window.frame
+            cachedPoint = point
+            cachedAt = resolvedAt
+        }
+        return (true, resolvedIdentity)
     }
 
     /// A program with no bundle identifier answers to the file being run
@@ -298,11 +318,9 @@ final class MouseAppExceptions: ObservableObject {
                                                  executablePath: app.executableURL?.path)
     }
 
-    private func invalidateCache() {
-        lock.withLock {
-            cachedIdentity = nil
-            cachedRegion = nil
-            cachedAt = -1
-        }
+    private func invalidateCacheLocked() {
+        cachedIdentity = nil
+        cachedRegion = nil
+        cachedAt = -1
     }
 }
