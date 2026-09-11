@@ -1902,7 +1902,7 @@ private final class TapGainEngine: GainEngine {
             // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
-                                            gain: gain)
+                                            gain: pow(gain, 2))
             // Keep the tiny delay filled for every live engine. Crossing from
             // attenuation into boost then changes level without inserting a
             // fresh block of silence into audio that is already playing.
