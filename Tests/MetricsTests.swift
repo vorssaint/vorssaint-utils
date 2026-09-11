@@ -14466,6 +14466,27 @@ struct MetricsTests {
                 && cleaningCode.contains("guard restoreSuspendedFeatures else {"),
                "Cleaning Mode restores suspended taps only after its login session returns")
 
+        // MARK: Cleaning Mode overlay teardown and mouse button release recovery (#1519)
+        let cleaningOverlaySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/CleaningMode/CleaningOverlayView.swift",
+            encoding: .utf8)) ?? ""
+        expect(cleaningOverlaySource.contains("DispatchQueue.main.async {\n                    manager.deactivate()\n                }"),
+               "Cleaning overlay button dispatches deactivation asynchronously so the click finishes before teardown")
+
+        let hideOverlaysCode = (cleaningCode
+            .components(separatedBy: "private func hideOverlays() {").last ?? "")
+            .components(separatedBy: "\n    }").first ?? ""
+        expect(!hideOverlaysCode.contains("asyncAfter"),
+               "overlay teardown never schedules a delayed release that could drop a subsequent drag")
+        expect(hideOverlaysCode.contains("ignoresMouseEvents = true"),
+               "overlay panels ignore mouse events immediately during teardown")
+        expect(hideOverlaysCode.contains("panels.forEach { $0.orderOut(nil) }"),
+               "overlay panels order out on the next main run-loop turn")
+        expect(hideOverlaysCode.contains("if isLeftDown || isRightDown {"),
+               "mouse button release recovery is strictly limited to buttons held on the cleaning screen")
+        expect(!cleaningCode.contains("buttonState(.hidSystemState"),
+               "cleaning recovery relies on session state rather than raw hardware state")
+
         func systemKeyData(keyCode: Int, state: Int, repeatFlag: Bool = false) -> Int {
             Int((UInt32(keyCode) << 16) | (UInt32(state) << 8) | (repeatFlag ? 1 : 0))
         }
