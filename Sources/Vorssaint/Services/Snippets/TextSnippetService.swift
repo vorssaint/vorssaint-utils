@@ -237,8 +237,8 @@ final class TextSnippetService {
         // Clicks move the caret somewhere unknown; the half-typed trigger is
         // no longer where the deletes would land. A click on the Accessibility
         // Keyboard is the exception: there the mouse is how a key is pressed,
-        // so the click types a character and leaves the caret alone. That check
-        // costs a nil test unless that keyboard is actually running.
+        // so the click types a character and leaves the caret alone. Window
+        // enumeration is skipped when the keyboard is not running.
         if type == .leftMouseDown || type == .rightMouseDown {
             if !AssistiveKeyboard.ownsPoint(event.location) { resetBuffer() }
             return Unmanaged.passUnretained(event)
