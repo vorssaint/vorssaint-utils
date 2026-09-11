@@ -8484,14 +8484,46 @@ struct MetricsTests {
             fileExists: { $0.lastPathComponent == "ready.pdf" }
         ) == [URL(fileURLWithPath: "/tmp/ShelfPromises/ready.pdf")],
                "only promised files that already exist are kept, in order")
+        expect(!ShelfPasteboardSupport.sizeIsStable(recentSizes: [nil, nil, nil]),
+               "missing files are never size-stable")
+        expect(!ShelfPasteboardSupport.sizeIsStable(recentSizes: [10, 20, 30]),
+               "a still-growing file is not size-stable")
+        expect(ShelfPasteboardSupport.sizeIsStable(recentSizes: [10, 12, 12, 12]),
+               "three matching sizes mark a promised file ready")
+        expect(ShelfPasteboardSupport.deliveryResult(
+            expected: [URL(fileURLWithPath: "/tmp/a.pdf")],
+            ready: [URL(fileURLWithPath: "/tmp/a.pdf")])
+               == .complete([URL(fileURLWithPath: "/tmp/a.pdf")]),
+               "all ready files complete the delivery")
+        expect(ShelfPasteboardSupport.deliveryResult(
+            expected: [
+                URL(fileURLWithPath: "/tmp/a.pdf"),
+                URL(fileURLWithPath: "/tmp/b.pdf")
+            ],
+            ready: [URL(fileURLWithPath: "/tmp/a.pdf")])
+               == .partial(ready: [URL(fileURLWithPath: "/tmp/a.pdf")],
+                           failedNames: ["b.pdf"]),
+               "a late or unfinished promise reports the failed name")
+        expect(ShelfPasteboardSupport.deliveryResult(
+            expected: [URL(fileURLWithPath: "/tmp/a.pdf")],
+            ready: []) == .failed(failedNames: ["a.pdf"]),
+               "no ready files is a failed delivery, not silent success")
+        expect(ShelfPasteboardSupport.canAcceptPromisedCount(existingLeaves: 199, promisedCount: 1),
+               "one leaf still fits under the shelf capacity")
+        expect(!ShelfPasteboardSupport.canAcceptPromisedCount(existingLeaves: 200, promisedCount: 1),
+               "a full shelf rejects another promised leaf up front")
         let shelfPromiseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Shelf/ShelfService.swift",
             encoding: .utf8)) ?? ""
         expect(shelfPromiseServiceSource.contains("namesOfPromisedFilesDropped(atDestination:")
                 && shelfPromiseServiceSource.contains("beginPromisedFileReceive")
                 && shelfPromiseServiceSource.contains("shouldFulfillFilePromisesFirst")
-                && shelfPromiseServiceSource.contains("waitForPromisedFiles"),
-               "the shelf fulfills promises with the modern API, prefers them over text, and ingests asynchronously")
+                && shelfPromiseServiceSource.contains("waitForPromisedFileDelivery")
+                && shelfPromiseServiceSource.contains("activePromiseDeliveryIDs")
+                && shelfPromiseServiceSource.contains("cancelPendingPromiseDeliveries")
+                && shelfPromiseServiceSource.contains("reportPromiseDeliveryProblem")
+                && !shelfPromiseServiceSource.contains("promiseIngestGeneration"),
+               "promise drops stay independent, wait for stable saves, report failures, and cancel on clear/disable")
 
         // MARK: Shelf reveal
 

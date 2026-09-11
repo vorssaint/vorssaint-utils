@@ -228,6 +228,10 @@ final class ShelfService: ObservableObject {
     /// opening (which uses the ordinary idle-timer auto-hide instead).
     private var edgePeekMatch: ShelfEdgeMatch?
     private var edgePeekEndWork: DispatchWorkItem?
+    /// In-flight file-promise deliveries. Each drop keeps its own id so a
+    /// second attachment does not cancel the first; clear/disable empties the
+    /// set and abandons waiters (#1554 review).
+    private var activePromiseDeliveryIDs = Set<UUID>()
 
     private let tempDir: URL = {
         let id = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
@@ -319,6 +323,7 @@ final class ShelfService: ObservableObject {
             syncHotkey()
             syncDragMonitor()
         } else {
+            cancelPendingPromiseDeliveries()
             unregisterHotkey()
             stopDragMonitor()
             hide()
@@ -1142,6 +1147,7 @@ final class ShelfService: ObservableObject {
     }
 
     func clear() {
+        cancelPendingPromiseDeliveries()
         let removed = items
         items = []
         selection = []
@@ -1489,8 +1495,8 @@ final class ShelfService: ObservableObject {
     }
 
     /// Asks the source for promised filenames and accepts the drop immediately.
-    /// Files may finish writing after AppKit returns; they are ingested then
-    /// without blocking the main thread (#1554 review).
+    /// Files may finish writing after AppKit returns; each delivery is tracked
+    /// independently so overlapping drops do not cancel each other (#1554).
     private func beginPromisedFileReceive(from draggingInfo: NSDraggingInfo,
                                           mergeInto targetID: UUID?) -> Bool {
         guard pasteboardHasFilePromise(draggingInfo.draggingPasteboard) else { return false }
@@ -1498,47 +1504,127 @@ final class ShelfService: ObservableObject {
         let names = draggingInfo.namesOfPromisedFilesDropped(atDestination: destination) ?? []
         guard ShelfPasteboardSupport.shouldAcceptPromisedDrop(names: names) else { return false }
         let urls = ShelfPasteboardSupport.promisedFileURLs(named: names, in: destination)
-        promiseIngestGeneration &+= 1
-        let generation = promiseIngestGeneration
+        guard ShelfPasteboardSupport.canAcceptPromisedCount(existingLeaves: itemCount,
+                                                            promisedCount: urls.count) else {
+            return false
+        }
+        let deliveryID = UUID()
+        activePromiseDeliveryIDs.insert(deliveryID)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let ready = Self.waitForPromisedFiles(urls)
+            let result = Self.waitForPromisedFileDelivery(urls)
             DispatchQueue.main.async {
-                guard let self, generation == self.promiseIngestGeneration else { return }
-                self.ingestPromisedFiles(ready, mergeInto: targetID)
+                guard let self else { return }
+                guard self.activePromiseDeliveryIDs.contains(deliveryID) else { return }
+                self.activePromiseDeliveryIDs.remove(deliveryID)
+                self.finishPromisedFileDelivery(result, mergeInto: targetID)
             }
         }
         return true
     }
 
-    private func ingestPromisedFiles(_ urls: [URL], mergeInto targetID: UUID?) {
-        guard !urls.isEmpty else { return }
-        if let targetID {
-            _ = mergePasteboard(fileURLPasteboard(for: urls), into: targetID)
-            return
+    private func cancelPendingPromiseDeliveries() {
+        activePromiseDeliveryIDs.removeAll()
+    }
+
+    private func finishPromisedFileDelivery(
+        _ result: ShelfPasteboardSupport.PromisedDeliveryResult,
+        mergeInto targetID: UUID?
+    ) {
+        let ready: [URL]
+        let failedNames: [String]
+        switch result {
+        case let .complete(urls):
+            ready = urls
+            failedNames = []
+        case let .partial(urls, names):
+            ready = urls
+            failedNames = names
+        case let .failed(names):
+            ready = []
+            failedNames = names
         }
-        if urls.count > 1 {
-            _ = addFileBatch(urls)
-        } else {
-            _ = append(fileItem(for: urls[0]))
+
+        var added = true
+        if !ready.isEmpty {
+            added = ingestPromisedFiles(ready, mergeInto: targetID)
+        }
+
+        let strings = ShelfPromiseDeliveryStrings.localized(L10n.shared.language)
+        if !added {
+            reportPromiseDeliveryProblem(title: strings.fullTitle, body: strings.fullBody)
+        } else if !failedNames.isEmpty {
+            let detail = failedNames.joined(separator: ", ")
+            reportPromiseDeliveryProblem(
+                title: strings.failedTitle,
+                body: "\(strings.failedBody)\n\(detail)")
         }
     }
 
-    /// Waits briefly for promised files to land without blocking AppKit's drop
-    /// callback. Returns whatever exists by the deadline, in source order.
-    private static func waitForPromisedFiles(_ urls: [URL],
-                                             timeout: TimeInterval = 30,
-                                             pollInterval: TimeInterval = 0.05) -> [URL] {
+    @discardableResult
+    private func ingestPromisedFiles(_ urls: [URL], mergeInto targetID: UUID?) -> Bool {
+        guard !urls.isEmpty else { return true }
+        if let targetID {
+            return mergePasteboard(fileURLPasteboard(for: urls), into: targetID)
+        }
+        if urls.count > 1 {
+            return addFileBatch(urls)
+        }
+        return append(fileItem(for: urls[0]))
+    }
+
+    private func reportPromiseDeliveryProblem(title: String, body: String) {
+        let strings = ShelfPromiseDeliveryStrings.localized(L10n.shared.language)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = body
+        alert.addButton(withTitle: strings.okButton)
+        NSApp.activate(ignoringOtherApps: true)
+        _ = alert.runModal()
+    }
+
+    /// Polls until each promised path exists with a stable size, or the
+    /// deadline passes. Existence alone is not enough — Outlook can create
+    /// the file before the attachment bytes finish writing.
+    private static func waitForPromisedFileDelivery(
+        _ urls: [URL],
+        timeout: TimeInterval = 60,
+        pollInterval: TimeInterval = 0.05,
+        requiredStableSamples: Int = 3
+    ) -> ShelfPasteboardSupport.PromisedDeliveryResult {
+        let fm = FileManager.default
         let deadline = Date().addingTimeInterval(timeout)
+        var sizeHistory: [URL: [Int64?]] = Dictionary(uniqueKeysWithValues: urls.map { ($0, []) })
+
         while Date() < deadline {
-            let ready = ShelfPasteboardSupport.existingPromisedFiles(among: urls) {
-                FileManager.default.fileExists(atPath: $0.path)
+            var allReady = true
+            for url in urls {
+                let size: Int64?
+                if fm.fileExists(atPath: url.path),
+                   let number = try? fm.attributesOfItem(atPath: url.path)[.size] as? NSNumber {
+                    size = number.int64Value
+                } else {
+                    size = nil
+                }
+                sizeHistory[url, default: []].append(size)
+                if !ShelfPasteboardSupport.sizeIsStable(
+                    recentSizes: sizeHistory[url] ?? [],
+                    requiredStableSamples: requiredStableSamples) {
+                    allReady = false
+                }
             }
-            if ready.count == urls.count { return ready }
+            if allReady {
+                return ShelfPasteboardSupport.deliveryResult(expected: urls, ready: urls)
+            }
             Thread.sleep(forTimeInterval: pollInterval)
         }
-        return ShelfPasteboardSupport.existingPromisedFiles(among: urls) {
-            FileManager.default.fileExists(atPath: $0.path)
+
+        let ready = urls.filter { url in
+            ShelfPasteboardSupport.sizeIsStable(
+                recentSizes: sizeHistory[url] ?? [],
+                requiredStableSamples: requiredStableSamples)
         }
+        return ShelfPasteboardSupport.deliveryResult(expected: urls, ready: ready)
     }
 
     private func pasteboardHasFilePromise(_ pasteboard: NSPasteboard) -> Bool {

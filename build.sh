@@ -417,6 +417,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowLayoutSupport.swift \
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift \
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift \
+        Sources/Vorssaint/Core/ShelfPromiseDeliveryStrings.swift \
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift \
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift \
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift \

@@ -214,6 +214,40 @@ enum ShelfPasteboardSupport {
                                       fileExists: (URL) -> Bool) -> [URL] {
         urls.filter(fileExists)
     }
+
+    /// Whether the shelf still has room for this many promised leaves before
+    /// accepting the drop. Checked again at ingest time in case another drop
+    /// filled the shelf while files were still writing.
+    static func canAcceptPromisedCount(existingLeaves: Int, promisedCount: Int) -> Bool {
+        ShelfPersistenceSupport.canAdd(existingLeaves: existingLeaves, newLeaves: promisedCount)
+    }
+
+    /// Outcome of waiting for promised files to finish writing.
+    enum PromisedDeliveryResult: Equatable {
+        case complete([URL])
+        case partial(ready: [URL], failedNames: [String])
+        case failed(failedNames: [String])
+    }
+
+    /// A file that merely exists may still be mid-write. Require the same
+    /// non-nil size across the newest samples before treating it as ready.
+    static func sizeIsStable(recentSizes: [Int64?], requiredStableSamples: Int = 3) -> Bool {
+        guard requiredStableSamples > 0, recentSizes.count >= requiredStableSamples else {
+            return false
+        }
+        let window = Array(recentSizes.suffix(requiredStableSamples))
+        guard let first = window.first, let size = first else { return false }
+        return window.allSatisfy { $0 == size }
+    }
+
+    static func deliveryResult(expected: [URL], ready: [URL]) -> PromisedDeliveryResult {
+        let failedNames = expected
+            .filter { url in !ready.contains(url) }
+            .map(\.lastPathComponent)
+        if failedNames.isEmpty { return .complete(ready) }
+        if ready.isEmpty { return .failed(failedNames: failedNames) }
+        return .partial(ready: ready, failedNames: failedNames)
+    }
 }
 
 /// A leaf item's kind, reduced to what the pile-breakdown tooltip needs. A
