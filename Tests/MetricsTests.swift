@@ -3181,7 +3181,7 @@ struct MetricsTests {
             encoding: .utf8)) ?? ""
         let displayFilter = enumeratorCode.range(of: "SwitcherSupport.itemsOnDisplay(filtered,")
         let grouping = enumeratorCode.range(of: "SwitcherSupport.groupWindowsByApp(orderedPrimary)")
-        let entryCap = enumeratorCode.range(of: "ordered.prefix(maximumCount)")
+        let entryCap = enumeratorCode.range(of: "limit: maximumCount")
         expect(displayFilter != nil && grouping != nil && entryCap != nil
                && displayFilter!.lowerBound < grouping!.lowerBound
                && displayFilter!.lowerBound < entryCap!.lowerBound,
@@ -3190,7 +3190,7 @@ struct MetricsTests {
                                                  items: [onLeftDisplay, onRightDisplay])?.id == "left"
                && !localWindows.contains(where: { $0.id == "left" })
                && switcherCode.contains("items: sourceItems)")
-               && enumeratorCode.contains("sourceItems: sourceItems ?? result"),
+               && enumeratorCode.contains("sourceItems: sourceCandidates"),
                "activation retains the foreground window even when the displayed list excludes its monitor")
         let displaySnapshot = switcherSource.range(of: "let displayScope = currentDisplayScope")
         let enumerationDispatch = switcherSource.range(of: "enumerationQueue.async")
@@ -3317,6 +3317,134 @@ struct MetricsTests {
                     bundleIdentifier: nil,
                     appRules: ["com.example.notes": .hidden]),
                "only the hidden rule removes an identified app's real windows")
+
+        // MARK: The visible cap spends its slots across apps (issue #172)
+        expect(SwitcherSupport.visibleSelectionIndices(appPIDs: [7, 7, 9], limit: 5) == [0, 1, 2],
+               "a list that fits under the cap keeps every entry")
+        expect(SwitcherSupport.visibleSelectionIndices(appPIDs: [], limit: 5).isEmpty
+               && SwitcherSupport.visibleSelectionIndices(appPIDs: [7, 9], limit: 0).isEmpty,
+               "an empty list or a cap of nothing selects nothing")
+        // The shape that made whole applications disappear: one browser with
+        // many windows ahead of every other app in the use order.
+        let crowdedPIDs = Array(repeating: pid_t(101), count: 18) + [202, 303, 404, 505]
+        let crowdedSurvivors = SwitcherSupport.visibleSelectionIndices(appPIDs: crowdedPIDs, limit: 6)
+        expect(Set(crowdedSurvivors.map { crowdedPIDs[$0] }) == [101, 202, 303, 404, 505],
+               "an app with many windows never pushes another running app off the list")
+        expect(crowdedSurvivors.count == 6,
+               "the cap still spends every slot it has")
+        expect(crowdedSurvivors == crowdedSurvivors.sorted(),
+               "survivors keep the use order they came in, so the toggle target stays put")
+        expect(crowdedSurvivors.first == 0,
+               "the window the user is looking at stays first")
+        expect(crowdedSurvivors.filter { crowdedPIDs[$0] == 101 } == [0, 1],
+               "slots left over after every app is represented go to the most recent windows")
+        // More apps than slots: the apps compete with each other, in order.
+        let manyApps = (1...10).map { pid_t($0 * 11) }
+        expect(SwitcherSupport.visibleSelectionIndices(appPIDs: manyApps, limit: 4) == [0, 1, 2, 3],
+               "with more apps than slots the least recently used apps are the ones that drop")
+        // An app that appears again further down does not claim a second slot
+        // before an app that has none yet.
+        let interleaved: [pid_t] = [1, 2, 1, 3, 1, 4]
+        expect(SwitcherSupport.visibleSelectionIndices(appPIDs: interleaved, limit: 4) == [0, 1, 3, 5],
+               "each app is represented once before any app is represented twice")
+        // Dock previews and the preview refresh ask for one app's windows, where
+        // the selection has to stay exactly what it always was.
+        expect(SwitcherSupport.visibleSelectionIndices(appPIDs: Array(repeating: pid_t(7), count: 20),
+                                                       limit: 12) == Array(0..<12),
+               "a single app's own window list is capped from the front, as before")
+        // Review of #1473: with every slot claimed by an app of its own, the
+        // window before the current one must still be there, or a quick flick
+        // in the grid layout opens another app instead of returning to it.
+        let appsFillEverySlot: [pid_t] = [1, 1] + (2...60).map { pid_t($0) }
+        let fullListSurvivors = SwitcherSupport.visibleSelectionIndices(appPIDs: appsFillEverySlot, limit: 48)
+        expect(Array(fullListSurvivors.prefix(2)) == [0, 1],
+               "the window before the current one survives a list where every slot goes to an app")
+        expect(fullListSurvivors.count == 48 && fullListSurvivors == fullListSurvivors.sorted(),
+               "keeping the toggle target still spends the cap exactly and keeps the use order")
+        // Review of #1473: the window shortcut shows the front app alone, so
+        // other apps must not take places in its list. 24 recently used
+        // windows of that app ahead of 26 other apps used to keep all 24.
+        let frontAppWindows = (1...24).map { index in
+            SwitcherItem.window(id: CGWindowID(1000 + index), title: "w\(index)", appName: "Front",
+                                pid: 1, isOnScreen: true, frame: .zero)
+        }
+        let otherApps = (2...27).map { pid in
+            SwitcherItem.window(id: CGWindowID(2000 + pid), title: "o\(pid)", appName: "Other",
+                                pid: pid_t(pid), isOnScreen: true, frame: .zero)
+        }
+        let windowScopeItems = frontAppWindows + otherApps
+        let scopedSurvivors = SwitcherSupport.visibleSelectionIndices(items: windowScopeItems,
+                                                                      limit: 48, frontmostPID: 1)
+        expect(scopedSurvivors == Array(0..<24),
+               "the window shortcut keeps every window of the front app when other apps are running")
+        let unscopedSurvivors = SwitcherSupport.visibleSelectionIndices(items: windowScopeItems,
+                                                                        limit: 48, frontmostPID: nil)
+        expect(unscopedSurvivors.filter { windowScopeItems[$0].pid == 1 }.count < 24
+               && Set(unscopedSurvivors.map { windowScopeItems[$0].pid }).count == 27,
+               "the all-apps list still spreads its slots so every app stays reachable")
+        // The keyboard can belong to a helper process that renders the app's
+        // window; the scope resolves it to the app the same way the session does.
+        let helperOwned = SwitcherItem.window(id: 3001, title: "h", appName: "Front",
+                                              pid: 1, windowOwnerPID: 91, isOnScreen: true, frame: .zero)
+        let helperScoped = SwitcherSupport.visibleSelectionIndices(items: [helperOwned] + otherApps,
+                                                                   limit: 48, frontmostPID: 91)
+        expect(helperScoped == [0],
+               "a window-scoped list follows a helper-owned front window to its app")
+
+        // A newly focused window can still have an older rank while the focus
+        // watcher catches up. A current server order does not rewrite known history.
+        let previousFocusHistory = windowScopeItems.compactMap(\.windowID)
+        let currentFocusID = frontAppWindows.last!.windowID!
+        let currentServerOrder = [currentFocusID] + previousFocusHistory.filter { $0 != currentFocusID }
+        let reconciledFocusHistory = WindowUseOrder.reconciled(previousFocusHistory,
+            existing: Set(previousFocusHistory), frontToBack: currentServerOrder)
+        expect(reconciledFocusHistory == previousFocusHistory,
+               "a fresh server observation can coexist with the previous known focus history")
+        let unorderedFocusItems = Array(windowScopeItems.reversed())
+        let focusOrder = WindowUseOrder.order(
+            unorderedFocusItems.map { WindowUseOrder.Entry(windowID: $0.windowID, pid: $0.pid) },
+            windowHistory: reconciledFocusHistory, appHistory: (1...27).map { pid_t($0) },
+            frontToBack: currentServerOrder)
+        let focusCandidates = focusOrder.map { unorderedFocusItems[$0] }
+        let currentSource = SwitcherSupport.sessionSourceItem(frontmostPID: 1,
+            focusedWindowID: currentFocusID, items: focusCandidates)
+        let preparedFocusItems = SwitcherSupport.orderedForSession(focusCandidates, currentID: currentSource?.id)
+        let visibleFocusItems = SwitcherSupport.visibleSelectionIndices(
+            items: preparedFocusItems, limit: 48, frontmostPID: nil).map { preparedFocusItems[$0] }
+        expect(visibleFocusItems.first?.windowID == currentFocusID,
+               "a crowded list keeps the actual current window even when its history rank is old")
+        let quickFocusIndex = SwitcherSupport.initialSelectionPosition(pids: visibleFocusItems.map(\.pid),
+            hasForegroundEntry: currentSource != nil, frontmostPID: 1, reversed: false)
+        expect(visibleFocusItems[quickFocusIndex].windowID == previousFocusHistory.first,
+               "a fresh source reading preserves the previous-window target before the cap")
+        expect(visibleFocusItems.count == 48 && Set(visibleFocusItems.map(\.pid)).count == 27,
+               "retaining the actual source still shares the bounded list across other apps")
+        let scopedFocusItems = SwitcherSupport.visibleSelectionIndices(
+            items: preparedFocusItems, limit: 48, frontmostPID: 1).map { preparedFocusItems[$0] }
+        expect(scopedFocusItems.count == 24 && scopedFocusItems.first?.windowID == currentFocusID,
+               "source correction and the app's own window budget work together")
+        expect(SwitcherSupport.orderedForSession(focusCandidates, currentID: nil) == focusCandidates
+               && SwitcherSupport.orderedForSession(focusCandidates, currentID: "missing") == focusCandidates,
+               "an unavailable or removed source leaves the legitimate candidate order unchanged")
+        let focusSourceOnOtherDisplay = SwitcherSupport.sessionSourceItem(frontmostPID: onRightDisplay.pid,
+            focusedWindowID: onRightDisplay.windowID, items: [onRightDisplay, onLeftDisplay])
+        let displayFocusCandidates = SwitcherSupport.itemsOnDisplay([onRightDisplay, onLeftDisplay],
+            displayBounds: bothDisplays, targetIndex: 0)
+        expect(SwitcherSupport.orderedForSession(displayFocusCandidates,
+                                                currentID: focusSourceOnOtherDisplay?.id) == [onLeftDisplay],
+               "correcting the source never restores a window excluded by the display filter")
+        let groupedFocusItems = SwitcherSupport.expandGroupedWindows(
+            orderedWindows: focusCandidates, representatives: SwitcherSupport.groupWindowsByApp(focusCandidates))
+        expect(SwitcherSupport.needsFocusedWindowLookup(frontmostPID: 1, items: groupedFocusItems)
+               && SwitcherSupport.sessionSourceItem(frontmostPID: 1, focusedWindowID: currentFocusID,
+                                                     items: groupedFocusItems)?.windowID == currentFocusID,
+               "the grouped simple row keeps its backing windows available for actual focus resolution")
+        let sourceResolution = enumeratorCode.range(of: "resolveSource?(sourceCandidates)")
+        let sourcePromotion = enumeratorCode.range(of: "SwitcherSupport.orderedForSession(ordered, currentID: source?.id)")
+        expect(sourceResolution != nil && sourcePromotion != nil && entryCap != nil
+               && sourceResolution!.lowerBound < sourcePromotion!.lowerBound
+               && sourcePromotion!.lowerBound < entryCap!.lowerBound,
+               "the production enumeration resolves and promotes the current source before limiting entries")
 
         expect(WindowUseOrder.promoting(target: 7, previous: 3, in: [3, 5, 7]) == [7, 3, 5],
                "committing to a window puts it first and the one left behind second")
@@ -4132,7 +4260,9 @@ struct MetricsTests {
             expect(gen1Name == "VorssaintMenuBarItem.1",
                    "bumped generation produces numbered autosave name")
             expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.1") == nil,
-                   "bumpPlacementGeneration does not seed any hardcoded preferred position")
+                   "a reset lets macOS place the full item without a machine-specific position")
+            expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem") == nil,
+                   "bumping drops the previous identity's preferred position")
 
             // Recovery keeps the spot the person arranged and only drops the
             // hidden state macOS remembered: an item that starts over with no
@@ -4157,11 +4287,47 @@ struct MetricsTests {
             expect(statusDefaults.object(forKey: gen1Position) == nil
                     || statusDefaults.double(forKey: gen1Position) == 280.0,
                    "only the identity reset gives up a saved position")
+            // Leave orphan keys for older generations the way a long-running
+            // install accumulates them, then confirm a bump sweeps them.
+            statusDefaults.set(11.0, forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem")
+            statusDefaults.set(false, forKey: "NSStatusItem Visible VorssaintMenuBarItem")
+            statusDefaults.set(false, forKey: "NSStatusItem VisibleCC VorssaintMenuBarItem.1")
+            let metricPosition = "NSStatusItem Preferred Position VorssaintMetric.cpu"
+            statusDefaults.set(42.0, forKey: metricPosition)
             StatusItemPlacementSupport.bumpPlacementGeneration(in: statusDefaults)
             expect(statusDefaults.object(forKey: gen1Position) == nil
+                    && statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem") == nil
+                    && statusDefaults.object(forKey: "NSStatusItem Visible VorssaintMenuBarItem") == nil
+                    && statusDefaults.object(forKey: "NSStatusItem VisibleCC VorssaintMenuBarItem.1") == nil
                     && StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults)
-                        == "VorssaintMenuBarItem.2",
-                   "the identity reset does give the saved position up")
+                        == "VorssaintMenuBarItem.2"
+                    && statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.2") == nil,
+                   "the identity reset gives the saved position up and sweeps orphaned identities")
+            expect(statusDefaults.double(forKey: metricPosition) == 42.0,
+                   "recovering the main item leaves metric-item positions alone")
+            statusDefaults.set(StatusItemPlacementSupport.maxPlacementGeneration,
+                               forKey: DefaultsKey.statusItemPlacementGeneration)
+            statusDefaults.set(false, forKey: "NSStatusItem Visible VorssaintMenuBarItem.9999")
+            StatusItemPlacementSupport.bumpPlacementGeneration(in: statusDefaults)
+            expect(StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults) == "VorssaintMenuBarItem.1"
+                    && statusDefaults.object(forKey: "NSStatusItem Visible VorssaintMenuBarItem.9999") == nil
+                    && statusDefaults.double(forKey: metricPosition) == 42.0,
+                   "generation wrap clears old main-item state without touching metric placements")
+            expect(StatusItemAnchorSupport.isSettlingStatusFrame(CGRect(x: 0, y: 0, width: 36, height: 0)),
+                   "a newborn status window with zero height is still settling")
+            expect(StatusItemAnchorSupport.isSettlingStatusFrame(nil),
+                   "a status item without a window yet is still settling")
+            expect(!StatusItemAnchorSupport.isSettlingStatusFrame(CGRect(x: 2098, y: 1410, width: 36, height: 30)),
+                   "a real on-bar frame is not settling")
+            expect(StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                       isOnScreen: false, isSettling: true, settlingGraceLeft: 3),
+                   "settling frames keep the recovery waiting instead of declaring failure")
+            expect(!StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                        isOnScreen: false, isSettling: true, settlingGraceLeft: 0),
+                   "settling grace eventually ends so recovery can escalate")
+            expect(!StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                        isOnScreen: true, isSettling: false, settlingGraceLeft: 3),
+                   "an on-screen icon does not keep waiting")
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
         }
         expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,
@@ -23431,6 +23597,8 @@ struct MetricsTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudio),
                "the tap grant this Mac gave stays out of the backup while the sound choice travels")
         var pauseTimeline = RecorderPauseTimeline()
+        RecorderSampleTimingTests.run { expect($0, $1) }
+        RecorderWriterTests.run { expect($0, $1) }
         expect(pauseTimeline.pause(at: 3) && !pauseTimeline.pause(at: 4),
                "a recording enters one pause only once")
         expect(pauseTimeline.elapsed(since: 0, at: 7) == 3

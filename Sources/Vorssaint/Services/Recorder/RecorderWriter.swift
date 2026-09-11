@@ -21,8 +21,7 @@ final class RecorderWriter {
     private let microphoneInput: AVAssetWriterInput?
     private let pauseClock: RecorderPauseClock
 
-    /// Everything is re-timed against the first sample that arrives, so the
-    /// file starts at zero instead of at the machine's uptime.
+    /// Chosen before capture starts, in the host clock shared by every source.
     private var origin: CMTime?
     private var lastVideoSample: CMSampleBuffer?
     private var lastVideoTime: CMTime = .zero
@@ -144,18 +143,18 @@ final class RecorderWriter {
         return true
     }
 
+    func beginSession(at time: CMTime) {
+        guard !started, time.isNumeric else { return }
+        origin = time
+        writer.startSession(atSourceTime: .zero)
+        started = true
+    }
+
     func append(_ sampleBuffer: CMSampleBuffer, kind: RecorderCaptureEngine.Kind) {
         guard !failed else { return }
         let presentation = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
         guard presentation.isValid else { return }
 
-        if origin == nil {
-            // The session opens on the first sample of any source, so the two
-            // tracks share one zero and stay aligned without a second clock.
-            origin = presentation
-            writer.startSession(atSourceTime: .zero)
-            started = true
-        }
         guard let origin, started else { return }
         let duration = CMSampleBufferGetDuration(sampleBuffer)
         let seconds = duration.isValid && !duration.isIndefinite ? max(0, duration.seconds) : 0
@@ -166,26 +165,29 @@ final class RecorderWriter {
 
         switch kind {
         case .video:
+            // Hold the first captured image over startup latency. Keep the
+            // shared origin and every later timestamp so audio stays aligned.
+            let videoTime: CMTime = videoFrameCount == 0 ? .zero : shifted
             guard videoInput.isReadyForMoreMediaData,
-                  let retimed = Self.retimed(sampleBuffer, to: shifted)
+                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
             else { return }
             if videoInput.append(retimed) {
                 videoFrameCount += 1
                 lastVideoSample = sampleBuffer
-                lastVideoTime = shifted
+                lastVideoTime = videoTime
             } else {
                 failed = true
             }
         case .systemAudio:
             guard let systemAudioInput, systemAudioInput.isReadyForMoreMediaData,
-                  let retimed = Self.retimed(sampleBuffer, to: shifted)
+                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: shifted)
             else { return }
             if !systemAudioInput.append(retimed) {
                 failed = true
             }
         case .microphone:
             guard let microphoneInput, microphoneInput.isReadyForMoreMediaData,
-                  let retimed = Self.retimed(sampleBuffer, to: shifted)
+                  let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: shifted)
             else { return }
             if !microphoneInput.append(retimed) {
                 failed = true
@@ -206,9 +208,10 @@ final class RecorderWriter {
                 seconds: pauseClock.elapsed(since: origin.seconds, at: wallClockEnd.seconds),
                 preferredTimescale: 600_000_000)
             if end > lastVideoTime, videoInput.isReadyForMoreMediaData,
-               let tail = Self.retimed(lastVideoSample, to: end) {
+               let tail = RecorderSampleTiming.retimed(lastVideoSample, to: end) {
                 videoInput.append(tail)
             }
+            writer.endSession(atSourceTime: end)
         }
         lastVideoSample = nil
         videoInput.markAsFinished()
@@ -222,22 +225,5 @@ final class RecorderWriter {
         lastVideoSample = nil
         guard writer.status == .writing else { return }
         writer.cancelWriting()
-    }
-
-    /// A copy of the buffer carrying a new presentation time. The pixels are
-    /// shared, not duplicated.
-    private static func retimed(_ sampleBuffer: CMSampleBuffer, to time: CMTime) -> CMSampleBuffer? {
-        var timing = CMSampleTimingInfo(
-            duration: CMSampleBufferGetDuration(sampleBuffer),
-            presentationTimeStamp: time,
-            decodeTimeStamp: .invalid)
-        var copy: CMSampleBuffer?
-        let status = CMSampleBufferCreateCopyWithNewTiming(
-            allocator: kCFAllocatorDefault,
-            sampleBuffer: sampleBuffer,
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &copy)
-        return status == noErr ? copy : nil
     }
 }

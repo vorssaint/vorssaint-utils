@@ -321,6 +321,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return NSScreen.screens.contains { $0.frame.intersects(frame) }
     }
 
+    private func iconIsSettling() -> Bool {
+        StatusItemAnchorSupport.isSettlingStatusFrame(
+            statusController?.statusItem.button?.window?.frame)
+    }
+
     /// What the recovery saw, in the app's own log. Whether macOS gave the
     /// rebuilt item a place is invisible from the outside, so a report of an
     /// icon that never comes back has nothing to go on without this
@@ -1461,6 +1466,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // metrics option must not immediately re-hide what the user just
         // asked to see (and then trip the "still hidden" alert).
         UserDefaults.standard.set(false, forKey: DefaultsKey.menuBarHideIconWithMetrics)
+        guard !isReshowingStatusItem else { return }
+        isReshowingStatusItem = true
         statusController?.recreateStatusItem()
         verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts)
     }
@@ -1469,19 +1476,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// can take longer than one look to settle. Judging it once meant a slow
     /// placement read as a failure and the person was told the bar was full
     /// when it was not, so the answer is asked for several times before
-    /// anything is said.
-    private static let reshowVerifyAttempts = 4
+    /// anything is said. A newborn item also reports a zero-height frame for
+    /// a few seconds (#1394); that settling grace is separate from the
+    /// "still hidden" countdown so recovery does not burn the arranged spot
+    /// while macOS is still placing the window.
+    private var isReshowingStatusItem = false
+    private static let reshowVerifyAttempts = 6
+    private static let reshowSettlingGraceAttempts = 8
     private static let reshowVerifyInterval: TimeInterval = 0.8
 
-    private func verifyIconReappeared(attemptsLeft: Int, placementWasReset: Bool = false) {
+    private func verifyIconReappeared(attemptsLeft: Int,
+                                      settlingGraceLeft: Int = AppDelegate.reshowSettlingGraceAttempts,
+                                      placementWasReset: Bool = false) {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.reshowVerifyInterval) { [weak self] in
             guard let self else { return }
+            // A later choice to hide the icon cancels the explicit recovery.
+            guard !UserDefaults.standard.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics) else {
+                self.isReshowingStatusItem = false
+                return
+            }
             if self.iconIsOnScreen() {
+                self.isReshowingStatusItem = false
                 self.logStatusItemPlacement("appeared")
+                return
+            }
+            if StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                isOnScreen: false,
+                isSettling: self.iconIsSettling(),
+                settlingGraceLeft: settlingGraceLeft) {
+                self.logStatusItemPlacement("settling")
+                self.verifyIconReappeared(attemptsLeft: attemptsLeft,
+                                          settlingGraceLeft: settlingGraceLeft - 1,
+                                          placementWasReset: placementWasReset)
                 return
             }
             guard attemptsLeft <= 1 else {
                 self.verifyIconReappeared(attemptsLeft: attemptsLeft - 1,
+                                          settlingGraceLeft: settlingGraceLeft,
                                           placementWasReset: placementWasReset)
                 return
             }
@@ -1493,9 +1524,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.logStatusItemPlacement("resetting placement")
                 self.statusController?.resetStatusItemPlacementIdentity()
                 self.verifyIconReappeared(attemptsLeft: Self.reshowVerifyAttempts,
+                                          settlingGraceLeft: Self.reshowSettlingGraceAttempts,
                                           placementWasReset: true)
                 return
             }
+            self.isReshowingStatusItem = false
             self.logStatusItemPlacement("still hidden")
             let s = L10n.shared.s
             var body = s.menuBarIconStillHiddenBody

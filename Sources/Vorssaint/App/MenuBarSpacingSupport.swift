@@ -279,9 +279,17 @@ enum StatusItemPlacementSupport {
     }
 
     static func mainAutosaveName(in defaults: UserDefaults) -> String {
-        let generation = placementGeneration(in: defaults)
+        autosaveName(forGeneration: placementGeneration(in: defaults))
+    }
+
+    static func autosaveName(forGeneration generation: Int) -> String {
+        let generation = min(max(generation, 0), maxPlacementGeneration)
         guard generation > 0 else { return mainAutosaveName }
         return "\(mainAutosaveName).\(generation)"
+    }
+
+    static func preferredPositionKey(for autosaveName: String) -> String {
+        "NSStatusItem Preferred Position \(autosaveName)"
     }
 
     /// The visibility macOS remembers for one item identity, in both the
@@ -290,6 +298,15 @@ enum StatusItemPlacementSupport {
     private static func clearRememberedVisibility(of name: String, in defaults: UserDefaults) {
         defaults.removeObject(forKey: "NSStatusItem Visible \(name)")
         defaults.removeObject(forKey: "NSStatusItem VisibleCC \(name)")
+    }
+
+    private static func clearPreferredPosition(of name: String, in defaults: UserDefaults) {
+        defaults.removeObject(forKey: preferredPositionKey(for: name))
+    }
+
+    private static func clearAllRememberedState(of name: String, in defaults: UserDefaults) {
+        clearRememberedVisibility(of: name, in: defaults)
+        clearPreferredPosition(of: name, in: defaults)
     }
 
     /// Undoes a remembered hidden state while leaving the arranged position
@@ -303,13 +320,25 @@ enum StatusItemPlacementSupport {
     }
 
     static func bumpPlacementGeneration(in defaults: UserDefaults) {
-        let previousName = mainAutosaveName(in: defaults)
-        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(previousName)")
-        clearRememberedVisibility(of: previousName, in: defaults)
-        let nextGen = (placementGeneration(in: defaults) % maxPlacementGeneration) + 1
+        let previousGeneration = placementGeneration(in: defaults)
+        // Sweep every identity this install may have minted. Leaving Visible /
+        // Preferred keys behind for older generations is how recovery quietly
+        // accumulates junk without helping the next attempt (#1394).
+        for generation in 0...previousGeneration {
+            clearAllRememberedState(of: autosaveName(forGeneration: generation), in: defaults)
+        }
+        let nextGen = (previousGeneration % maxPlacementGeneration) + 1
         defaults.set(nextGen, forKey: DefaultsKey.statusItemPlacementGeneration)
         let nextName = mainAutosaveName(in: defaults)
-        defaults.removeObject(forKey: "NSStatusItem Preferred Position \(nextName)")
-        clearRememberedVisibility(of: nextName, in: defaults)
+        clearAllRememberedState(of: nextName, in: defaults)
+    }
+
+    /// While macOS is still settling a newborn status window, recovery must
+    /// keep waiting instead of escalating to an identity reset or the
+    /// "still hidden" alert (#1394).
+    static func shouldKeepWaitingForSettlement(isOnScreen: Bool,
+                                               isSettling: Bool,
+                                               settlingGraceLeft: Int) -> Bool {
+        !isOnScreen && isSettling && settlingGraceLeft > 0
     }
 }

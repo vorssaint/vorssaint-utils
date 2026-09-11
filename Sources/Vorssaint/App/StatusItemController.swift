@@ -89,6 +89,9 @@ final class StatusItemController {
         // A fresh NSStatusItem starts blank; the memoized icon state belongs
         // to the previous instance and must not suppress the first apply.
         lastIconStateKey = ""
+        // Recovery must place the full content from the start. A square slot
+        // can fit while its expanded title is dropped, leaving a stale frame
+        // that incorrectly makes the recovery look successful.
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // A stable identity so macOS remembers the item's position across launches
         // and across rebuilds, instead of re-placing it at the crowded default spot.

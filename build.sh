@@ -292,6 +292,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift \
         Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift \
         Sources/Vorssaint/Services/Recorder/RecorderSupport.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderSampleTiming.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderWriter.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift \
+        Sources/Vorssaint/Services/Recorder/RecorderComposition.swift \
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift \
         Sources/Vorssaint/Services/PrivateFileStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift \
@@ -431,6 +435,8 @@ if (( TEST )); then
         Tests/ScreenshotToolShortcutTests.swift \
         Tests/RecentCaptureStoreTests.swift \
         Tests/RecorderPresetImageStoreTests.swift \
+        Tests/RecorderSampleTimingTests.swift \
+        Tests/RecorderWriterTests.swift \
         Tests/SpeedTestTests.swift \
         -o build/metrics-tests
     # `set -e` would end the script on a failing run before the sweep below.
@@ -530,9 +536,9 @@ done
 if (( DEV )); then
     # A distinct identity so the Developer build installs and runs next to the
     # official app, with its own permissions, preferences and login item.
-    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier com.vorssaint.utils.dev" "$STAGE/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleName Vorssaint (Developer)" "$STAGE/Contents/Info.plist"
-    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Vorssaint (Developer)" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $EXECUTABLE" "$STAGE/Contents/Info.plist"
     FAN_PLIST="$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
     /usr/libexec/PlistBuddy -c "Set :Label $FAN_HELPER_ID" "$FAN_PLIST"
