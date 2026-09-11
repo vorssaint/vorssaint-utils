@@ -23,6 +23,9 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardAutoClearOnSleep) private var autoClearOnSleep = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDisplaySleep) private var autoClearOnDisplaySleep = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnScreenLock) private var autoClearOnScreenLock = false
+    @AppStorage(DefaultsKey.clipboardHistorySoundOnCapture) private var soundOnCapture = false
+    @AppStorage(DefaultsKey.clipboardHistorySoundOnPaste) private var soundOnPaste = false
+    @AppStorage(DefaultsKey.clipboardHistorySoundOnFailure) private var soundOnFailure = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -71,6 +74,22 @@ struct ClipboardSettings: View {
                         }
                     }
                     .disabled(!enabled)
+                }
+
+                Section {
+                    Toggle(text.soundOnCapture, isOn: $soundOnCapture)
+                        .disabled(!enabled)
+                    Text(text.soundOnCaptureCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.soundOnPaste, isOn: $soundOnPaste)
+                    Text(text.soundOnPasteCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(text.soundOnFailure, isOn: $soundOnFailure)
+                    Text(text.soundOnFailureCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 // Its own section because it is the one setting here that keeps

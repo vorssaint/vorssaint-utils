@@ -2227,7 +2227,10 @@ final class CommandBarService: ObservableObject {
         }
         ClipboardHistoryService.shared.copy(entry) { copied in
             guard copied else {
-                NSSound.beep()
+                // ClipboardHistoryService already played the gated failure sound
+                // (or stayed quiet when the preference is off). Do not NSSound.beep()
+                // here — that would double-signal when the preference is on and
+                // override the opt-in silence when it is off (issue #1340).
                 return
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {

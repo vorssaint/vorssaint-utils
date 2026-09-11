@@ -463,6 +463,9 @@ enum DefaultsKey {
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
     static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
+    static let clipboardHistorySoundOnCapture = "clipboardHistorySoundOnCapture"
+    static let clipboardHistorySoundOnPaste = "clipboardHistorySoundOnPaste"
+    static let clipboardHistorySoundOnFailure = "clipboardHistorySoundOnFailure"
 
     // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
     // Deliberately outside the clipboardHistory family, since it clears the
@@ -1247,6 +1250,10 @@ enum Defaults {
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
         DefaultsKey.clipboardHistoryQuickPreview: false,
+        // Opt-in: quieter for existing installs (issue #1340).
+        DefaultsKey.clipboardHistorySoundOnCapture: false,
+        DefaultsKey.clipboardHistorySoundOnPaste: false,
+        DefaultsKey.clipboardHistorySoundOnFailure: false,
         DefaultsKey.clipboardAutoClearOnDelay: false,
         DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
         DefaultsKey.clipboardAutoClearOnSleep: false,

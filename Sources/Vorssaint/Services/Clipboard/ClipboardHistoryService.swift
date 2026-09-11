@@ -101,17 +101,20 @@ final class ClipboardHistoryService: ObservableObject {
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
         writeToPasteboard([entry]) { [weak self] copied in
             if copied { self?.touch([entry.id]) }
+            ClipboardHistorySoundSupport.playPasteOutcomeIfNeeded(succeeded: copied)
             completion(copied)
         }
     }
 
     func copy(_ selectedEntries: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
         guard !selectedEntries.isEmpty else {
+            ClipboardHistorySoundSupport.playPasteOutcomeIfNeeded(succeeded: false)
             completion(false)
             return
         }
         writeToPasteboard(selectedEntries) { [weak self] copied in
             if copied { self?.touch(selectedEntries.map(\.id)) }
+            ClipboardHistorySoundSupport.playPasteOutcomeIfNeeded(succeeded: copied)
             completion(copied)
         }
     }
@@ -693,7 +696,10 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageWidth: existing.imageWidth,
                                                  imageHeight: existing.imageHeight))
         } else {
-            guard let name = ClipboardImageStore.store(image.data) else { return }
+            guard let name = ClipboardImageStore.store(image.data) else {
+                ClipboardHistorySoundSupport.playFailureIfNeeded()
+                return
+            }
             insertPromoted(ClipboardHistoryEntry(text: "",
                                                  kind: .image,
                                                  imageFile: name,
@@ -793,6 +799,7 @@ final class ClipboardHistoryService: ObservableObject {
         } else {
             entries.insert(entry, at: firstRecentIndex)
         }
+        ClipboardHistorySoundSupport.playCaptureIfNeeded()
     }
 
     private func normalizeEntryOrder() {
