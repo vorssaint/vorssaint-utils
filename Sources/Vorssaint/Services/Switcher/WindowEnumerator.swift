@@ -50,8 +50,11 @@ enum WindowEnumerator {
 
     /// Window surfaces larger than this are considered real, switchable windows.
     private static let minimumSize = CGSize(width: 80, height: 60)
-    /// Hard cap to keep the switcher readable and captures cheap.
-    private static let maximumCount = 24
+    /// Hard cap to keep the switcher readable and captures cheap. Sized to the
+    /// thumbnail cache in `WindowPreviewProvider`, which already budgets for
+    /// this many previews. `visibleSelectionIndices` spends the budget so every
+    /// app keeps an entry before any app gets a second one.
+    private static let maximumCount = 48
     /// AX calls normally return in a few milliseconds. A process that cannot
     /// answer within this ceiling must not hold the switcher behind it.
     private static let messagingTimeout: Float = 0.2
@@ -103,10 +106,14 @@ enum WindowEnumerator {
                         displayIDsByUUID: SpaceWindowBridge.displayIDsByUUID())
     }
 
+    /// `scopedToFrontmostPID` is set for a session that shows only the front
+    /// app's windows; the cap then spends its slots on that app alone.
     static func enumerateSwitcherWindows(groupByApp: Bool,
                                          preservingGroupedWindows: Bool,
                                          snapshot: Snapshot,
                                          displayScope: DisplayScope? = nil,
+                                         scopedToFrontmostPID: pid_t? = nil,
+                                         resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
@@ -116,6 +123,8 @@ enum WindowEnumerator {
             marksHiddenSpaces: true,
             snapshot: snapshot,
             displayScope: displayScope,
+            scopedToFrontmostPID: scopedToFrontmostPID,
+            resolveSource: resolveSource,
             isCancelled: isCancelled
         )
     }
@@ -134,6 +143,8 @@ enum WindowEnumerator {
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
                                     displayScope: DisplayScope? = nil,
+                                    scopedToFrontmostPID: pid_t? = nil,
+                                    resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
@@ -155,7 +166,9 @@ enum WindowEnumerator {
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
                            snapshot: snapshot,
+                           scopedToFrontmostPID: scopedToFrontmostPID,
                            displayScope: displayScope,
+                           resolveSource: resolveSource,
                            isCancelled: isCancelled)
     }
 
@@ -194,7 +207,9 @@ enum WindowEnumerator {
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
+                                    scopedToFrontmostPID: pid_t? = nil,
                                     displayScope: DisplayScope? = nil,
+                                    resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -484,7 +499,7 @@ enum WindowEnumerator {
             SwitcherSupport.itemsOnDisplay(filtered, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
         } ?? filtered
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
-        let ordered: [SwitcherItem]
+        var ordered: [SwitcherItem]
         if minimizedPlacement == .end {
             let primary = scoped.filter { !$0.isMinimized }
             let deferred = scoped.filter { $0.isMinimized }
@@ -497,20 +512,8 @@ enum WindowEnumerator {
             let orderedRaw = orderByUse(scoped, frontToBack: frontToBack)
             ordered = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedRaw) : orderedRaw
         }
-        var result = ordered
-        if ordered.count > maximumCount {
-            result = Array(ordered.prefix(maximumCount))
-            // Asking for the desktop app alone names one entry, so that entry must
-            // not vanish just because the list happens to be full. Asking for every
-            // windowless app is a bulk choice instead, and there the cap keeps
-            // cutting the least recently used tail exactly as it does for windows.
-            if windowlessApps == .finder,
-               let desktopEntry = ordered.dropFirst(maximumCount).first(where: { $0.windowID == nil }) {
-                result.append(desktopEntry)
-            }
-        }
+        let backingOrdered: [SwitcherItem]
         if groupByApp, preservingGroupedWindows {
-            let backingOrdered: [SwitcherItem]
             if minimizedPlacement == .end {
                 let primary = groupedBackingWindows.filter { !$0.isMinimized }
                 let deferred = groupedBackingWindows.filter { $0.isMinimized }
@@ -518,6 +521,39 @@ enum WindowEnumerator {
             } else {
                 backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
             }
+        } else {
+            backingOrdered = []
+        }
+        // Focus observation runs independently of the use history. Resolve the
+        // current window before discarding candidates, so a fresh focus reading
+        // can still correct a history that has not caught up.
+        let sourceCandidates = sourceItems ?? (backingOrdered.isEmpty ? ordered
+            : SwitcherSupport.expandGroupedWindows(orderedWindows: backingOrdered, representatives: ordered))
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        let source = ordered.isEmpty ? nil : resolveSource?(sourceCandidates)
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        ordered = SwitcherSupport.orderedForSession(ordered, currentID: source?.id)
+        var result = ordered
+        if ordered.count > maximumCount {
+            // One entry per app first, then the remaining slots: an app with
+            // many windows must never push another app off the list entirely
+            // (issue #172). A session scoped to the front app caps that app's
+            // own windows instead.
+            result = SwitcherSupport
+                .visibleSelectionIndices(items: ordered, limit: maximumCount,
+                                         frontmostPID: scopedToFrontmostPID)
+                .map { ordered[$0] }
+            // Asking for the desktop app alone names one entry, so that entry must
+            // not vanish just because the list happens to be full. Asking for every
+            // windowless app is a bulk choice instead, and there the cap keeps
+            // cutting the least recently used tail exactly as it does for windows.
+            if windowlessApps == .finder,
+               !result.contains(where: { $0.windowID == nil }),
+               let desktopEntry = ordered.first(where: { $0.windowID == nil }) {
+                result.append(desktopEntry)
+            }
+        }
+        if groupByApp, preservingGroupedWindows {
             result = SwitcherSupport.expandGroupedWindows(
                 orderedWindows: backingOrdered,
                 representatives: result)
@@ -530,7 +566,7 @@ enum WindowEnumerator {
                 return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
             }
         }
-        return WindowList(items: result, sourceItems: sourceItems ?? result)
+        return WindowList(items: result, sourceItems: sourceCandidates)
     }
 
     /// WindowServer can keep stale, titled surfaces around after some apps close

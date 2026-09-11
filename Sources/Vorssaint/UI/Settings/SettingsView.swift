@@ -756,27 +756,32 @@ struct EnergySettings: View {
                             SettingsCaptionText(displayControlFailureText(failure, strings: strings))
                                 .foregroundStyle(.red)
                         }
-                        SettingsToggleWithCaption(title: strings.keysToggle,
-                                                  caption: strings.keysCaption,
-                                                  isOn: $brightnessKeysEnabled)
-                            .onChange(of: brightnessKeysEnabled) { _, isOn in
-                                if isOn { Permissions.shared.requestAccessibility() }
-                                BrightnessService.shared.syncWithPreferences()
-                            }
-                        if brightness.brightnessOSDSupported {
-                            SettingsToggleWithCaption(title: strings.osdToggle,
-                                                      caption: strings.osdCaption,
-                                                      isOn: $brightnessOSDEnabled)
-                                .onChange(of: brightnessOSDEnabled) { _, isOn in
+                        DisclosureGroup {
+                            SettingsToggleWithCaption(title: strings.keysToggle,
+                                                      caption: strings.keysCaption,
+                                                      isOn: $brightnessKeysEnabled)
+                                .onChange(of: brightnessKeysEnabled) { _, isOn in
                                     if isOn { Permissions.shared.requestAccessibility() }
                                     BrightnessService.shared.syncWithPreferences()
                                 }
+                            DisplayBrightnessShortcutControls()
+                            if brightness.brightnessOSDSupported {
+                                SettingsToggleWithCaption(title: strings.osdToggle,
+                                                          caption: strings.osdCaption,
+                                                          isOn: $brightnessOSDEnabled)
+                                    .onChange(of: brightnessOSDEnabled) { _, isOn in
+                                        if isOn { Permissions.shared.requestAccessibility() }
+                                        BrightnessService.shared.syncWithPreferences()
+                                    }
+                            }
+                            if (brightnessKeysEnabled || brightnessOSDEnabled),
+                               !permissions.accessibility {
+                                PermissionRow(kind: .accessibility)
+                            }
+                            SettingsCaptionText(strings.externalCaption)
+                        } label: {
+                            Text(FeatureStrings.recorder(l10n.language).moreOptions)
                         }
-                        if (brightnessKeysEnabled || brightnessOSDEnabled),
-                           !permissions.accessibility {
-                            PermissionRow(kind: .accessibility)
-                        }
-                        SettingsCaptionText(strings.externalCaption)
                     }
                 }
                 .settingsSectionAnchor(.brightness)

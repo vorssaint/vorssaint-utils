@@ -510,6 +510,15 @@ enum SwitcherSupport {
             ?? candidates.first(where: { $0.windowID == nil })
     }
 
+    /// Fresh focus can lead the independent use history. Promote only a source
+    /// that survived the visibility rules; a source on another display stays out.
+    static func orderedForSession(_ items: [SwitcherItem], currentID: String?) -> [SwitcherItem] {
+        guard let currentID, let index = items.firstIndex(where: { $0.id == currentID }) else { return items }
+        var ordered = items
+        ordered.insert(ordered.remove(at: index), at: 0)
+        return ordered
+    }
+
     /// A focused-window Accessibility query is useful unless exactly one
     /// visible window already identifies the session source. With no visible
     /// windows, AX can still identify a minimized source window.
@@ -619,6 +628,66 @@ enum SwitcherSupport {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
         }
         return fillsScreen && subrole == "AXFloatingWindow"
+    }
+
+    /// Picks the entries that survive the visible cap, by index into `appPIDs`
+    /// (the owning app of each entry, in the order the switcher will show them).
+    ///
+    /// The cap counts entries, not applications, so taking the first `limit` of
+    /// them let a single app with many windows push whole other applications
+    /// off the end: the switcher then looked like those apps were not running
+    /// at all, and the only way to bring one back was to raise it by other
+    /// means so its window rose in the use order. Issue #172 fixed the half of
+    /// this that truncated before the use order was applied; this is the other
+    /// half.
+    ///
+    /// Every app now gets its most recently used entry first, in app order, and
+    /// only the slots left over are filled with further entries. With more apps
+    /// than slots the apps compete with each other instead of one app's windows
+    /// crowding the rest out.
+    ///
+    /// The incoming order is preserved: index 0 is the window the user is
+    /// looking at and index 1 the toggle target, so the survivors must not be
+    /// resorted into app groups.
+    static func visibleSelectionIndices(appPIDs: [pid_t], limit: Int) -> [Int] {
+        guard limit > 0 else { return [] }
+        guard appPIDs.count > limit else { return Array(appPIDs.indices) }
+        var chosen = Set<Int>()
+        var representedApps = Set<pid_t>()
+        // The window in front and the one before it lead the use order, and a
+        // quick flick of the shortcut goes straight from the first to the
+        // second. They stay whatever else a full list has to give up, as they
+        // did under the plain leading slice, even when both belong to one app
+        // and every other slot is needed for an app of its own.
+        for index in appPIDs.indices.prefix(min(2, limit)) {
+            chosen.insert(index)
+            representedApps.insert(appPIDs[index])
+        }
+        for (index, pid) in appPIDs.enumerated() {
+            guard chosen.count < limit else { break }
+            guard representedApps.insert(pid).inserted else { continue }
+            chosen.insert(index)
+        }
+        for index in appPIDs.indices {
+            guard chosen.count < limit else { break }
+            chosen.insert(index)
+        }
+        return chosen.sorted()
+    }
+
+    /// The entries a session keeps once its list is capped, by index into
+    /// `items`. A session scoped to the front app's windows shows that app
+    /// alone, so it caps that app's own list: other apps must not take places
+    /// in a list that never shows them. `frontmostPID` is the process that
+    /// owns the keyboard, resolved to its app the same way the session does.
+    static func visibleSelectionIndices(items: [SwitcherItem],
+                                        limit: Int,
+                                        frontmostPID: pid_t?) -> [Int] {
+        guard let frontmostPID else {
+            return visibleSelectionIndices(appPIDs: items.map(\.pid), limit: limit)
+        }
+        let appPID = appPID(forFrontmost: frontmostPID, items: items)
+        return Array(items.indices.filter { items[$0].pid == appPID }.prefix(max(0, limit)))
     }
 
     /// Finds the regular app that contains an accessory helper bundle.

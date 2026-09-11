@@ -134,8 +134,12 @@ struct ShortcutsSettings: View {
                         .disclosureIndent()
                     }
                 } else {
-                    if feature == .brightness {
+                    if feature == .brightness, roles.allSatisfy(\.isKeyboardBrightness) {
                         KeyboardBrightnessShortcutToggle(isEnabled: $keyboardBrightnessShortcutsEnabled)
+                            .disclosureIndent()
+                    }
+                    if feature == .brightness, !roles.contains(where: \.isKeyboardBrightness) {
+                        DisplayBrightnessShortcutControls(showsShortcutRows: false)
                             .disclosureIndent()
                     }
                     ForEach(roles) { role in
