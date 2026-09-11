@@ -26,6 +26,10 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     let imageHash: String?
     let imageWidth: Int?
     let imageHeight: Int?
+    /// Best-effort app the copy came from, for the preview's metadata line.
+    /// Absent on entries saved before this was recorded, and whenever the
+    /// source could not be worked out. See `ClipboardSourceApp`.
+    let source: ClipboardEntrySource?
 
     init(id: UUID = UUID(),
          text: String,
@@ -36,7 +40,8 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
          imageFile: String? = nil,
          imageHash: String? = nil,
          imageWidth: Int? = nil,
-         imageHeight: Int? = nil) {
+         imageHeight: Int? = nil,
+         source: ClipboardEntrySource? = nil) {
         self.id = id
         self.text = text
         self.copiedAt = copiedAt
@@ -47,6 +52,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         self.imageHash = imageHash
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
+        self.source = source
     }
 
     var isPinned: Bool {
@@ -90,6 +96,36 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         }
     }
 
+    /// What the row badge and the preview call the entry. A link is text that
+    /// is nothing but one web address, which is worth its own name because
+    /// it behaves like one everywhere it is pasted.
+    var displayKind: ClipboardHistoryDisplayKind {
+        switch kind {
+        case .image: return .image
+        case .files: return .files
+        case .text: return isLink ? .link : .text
+        }
+    }
+
+    var isLink: Bool {
+        kind == .text && ClipboardHistorySensitiveText.isWebURL(text)
+    }
+
+    var wordCount: Int {
+        text.split { $0.isWhitespace || $0.isNewline }.count
+    }
+
+    var utf8ByteCount: Int { text.utf8.count }
+
+    /// Counts for the preview's metadata line. Characters count what a person
+    /// sees rather than UTF-8 bytes, so one emoji is one character.
+    var characterCount: Int { text.count }
+
+    var lineCount: Int {
+        guard !text.isEmpty else { return 0 }
+        return text.split(separator: "\n", omittingEmptySubsequences: false).count
+    }
+
     /// What the search box can match. Image entries carry the localized label
     /// plus dimensions so typing "image"/"imagem" finds them.
     func searchableText(imageLabel: String) -> String {
@@ -105,6 +141,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
+        case source
     }
 
     init(from decoder: Decoder) throws {
@@ -120,7 +157,63 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageHash = try container.decodeIfPresent(String.self, forKey: .imageHash)
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
+        source = try container.decodeIfPresent(ClipboardEntrySource.self, forKey: .source)
     }
+}
+
+/// The app a copy came from, as stored on an entry.
+struct ClipboardEntrySource: Codable, Equatable {
+    let bundleID: String
+    let name: String
+}
+
+/// One app's turn at the front, inside the window between two pasteboard
+/// checks.
+struct ClipboardSourceCandidate: Equatable {
+    let source: ClipboardEntrySource
+    let frontSince: Date
+}
+
+enum ClipboardSourceSelection {
+    /// The app that held the front longest inside the window. Copying is
+    /// normally followed within a moment by switching to wherever the text is
+    /// going, so the app in front when a copy is noticed is often the
+    /// destination; the one that held the window is the better guess at the
+    /// source. Same app twice in a row counts as one stretch.
+    static func longestHeld(in window: [ClipboardSourceCandidate],
+                            until end: Date) -> ClipboardEntrySource? {
+        guard !window.isEmpty else { return nil }
+        var held: [String: (source: ClipboardEntrySource, seconds: TimeInterval)] = [:]
+        for (index, candidate) in window.enumerated() {
+            let stop = index + 1 < window.count ? window[index + 1].frontSince : end
+            let seconds = max(0, stop.timeIntervalSince(candidate.frontSince))
+            let total = (held[candidate.source.bundleID]?.seconds ?? 0) + seconds
+            held[candidate.source.bundleID] = (candidate.source, total)
+        }
+        // A tie goes to the app that was in front first: the copy has to have
+        // happened by the time the window ends, so the earlier stretch is the
+        // one that could hold it.
+        return held.values
+            .max { left, right in
+                left.seconds == right.seconds
+                    ? indexOfFirst(left.source.bundleID, in: window)
+                        > indexOfFirst(right.source.bundleID, in: window)
+                    : left.seconds < right.seconds
+            }?
+            .source
+    }
+
+    private static func indexOfFirst(_ bundleID: String,
+                                     in window: [ClipboardSourceCandidate]) -> Int {
+        window.firstIndex { $0.source.bundleID == bundleID } ?? window.count
+    }
+}
+
+enum ClipboardHistoryDisplayKind {
+    case text
+    case link
+    case image
+    case files
 }
 
 enum ClipboardHistoryEditing {
@@ -315,8 +408,11 @@ enum ClipboardHistorySelection {
     }
 }
 
-enum ClipboardHistoryPreview {
-    static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
+enum ClipboardHistorySpaceKey {
+    /// Space belongs to the list only once the keyboard is driving it, so a
+    /// space typed into the search field stays a space, and a modified Space
+    /// keeps whatever it means elsewhere.
+    static func handledByList(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
         selectionIsVisible && !hasModifiers
     }
 }
@@ -328,12 +424,11 @@ enum ClipboardHistoryEscape {
     }
 
     /// Esc backs out one layer at a time - selection, then the window.
-    /// Preview is a persistent view setting, not a layer: only clicking its
-    /// own toggle turns it off (or Space, but only once arrow-key navigation
-    /// has made a row's selection visible - see `ClipboardHistoryPreview
-    /// .handlesSpace`; while the search field has focus, Space just types),
-    /// so a keystroke meant to close the panel can never silently re-hide
-    /// it first.
+    /// Preview is a persistent view setting, not a layer: only the toolbar
+    /// toggle and the pane's own close button turn it off, both of them
+    /// mouse-only now that Space marks a row for batch instead of toggling
+    /// the pane (see `ClipboardHistorySpaceKey`), so a keystroke meant to
+    /// close the panel can never silently re-hide it first.
     static func action(batchCount: Int) -> Action {
         batchCount > 0 ? .clearBatchSelection : .hideWindow
     }
@@ -542,7 +637,7 @@ enum ClipboardHistorySensitiveText {
         return groups.allSatisfy { $0.allSatisfy(\.isHexDigit) }
     }
 
-    private static func isWebURL(_ text: String) -> Bool {
+    static func isWebURL(_ text: String) -> Bool {
         guard let url = URL(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
               let scheme = url.scheme?.lowercased(),
               (scheme == "http" || scheme == "https"),

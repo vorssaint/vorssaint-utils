@@ -320,9 +320,16 @@ private struct QuickEntryRow: View, Equatable {
             .buttonStyle(.plain)
             .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
 
-            entryContent(entry)
+            HStack(alignment: .center, spacing: 9) {
+                ClipboardKindGlyph(kind: entry.displayKind)
+                entryContent(entry)
+            }
             Spacer(minLength: 8)
+            // One width for both states, so the buttons that replace the
+            // labels on hover never change the room the text has, and the
+            // text never reflows under the pointer.
             entryTrailing(entry, shortcutIndex: shortcutIndex, isHovered: isHovered)
+                .frame(width: Self.trailingWidth, alignment: .trailing)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -360,13 +367,19 @@ private struct QuickEntryRow: View, Equatable {
         .onTapGesture { activate(entry) }
     }
 
+    /// Read at draw time rather than observed: the switch lives in Settings,
+    /// and the window is rebuilt on its next opening anyway.
+    private static var uniformRows: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.clipboardUniformRows)
+    }
+
     @ViewBuilder
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
             Text(entry.preview)
                 .font(.system(size: 12))
-                .lineLimit(2)
+                .lineLimit(Self.uniformRows ? 1 : 2)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
@@ -375,8 +388,8 @@ private struct QuickEntryRow: View, Equatable {
                    let thumbnail = ClipboardImageStore.thumbnail(named: name) {
                     Image(nsImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 240, maxHeight: 120)
+                        .aspectRatio(contentMode: Self.uniformRows ? .fill : .fit)
+                        .frame(maxWidth: Self.uniformRows ? 30 : 240, maxHeight: Self.uniformRows ? 30 : 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
@@ -393,8 +406,8 @@ private struct QuickEntryRow: View, Equatable {
                 HStack(alignment: .center, spacing: 8) {
                     Image(nsImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: 240, maxHeight: 120)
+                        .aspectRatio(contentMode: Self.uniformRows ? .fill : .fit)
+                        .frame(maxWidth: Self.uniformRows ? 30 : 240, maxHeight: Self.uniformRows ? 30 : 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(entry.fileNames.first ?? entry.preview)
@@ -430,6 +443,8 @@ private struct QuickEntryRow: View, Equatable {
         }
     }
 
+    private static let trailingWidth: CGFloat = 92
+
     @ViewBuilder
     private func entryTrailing(_ entry: ClipboardHistoryEntry,
                                shortcutIndex: Int?,
@@ -460,6 +475,11 @@ private struct QuickEntryRow: View, Equatable {
             }
         } else {
             VStack(alignment: .trailing, spacing: 3) {
+                Text(ClipboardKindPresentation.label(entry, text: text))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(ClipboardKindPresentation.tint(entry.displayKind))
+                    .lineLimit(1)
+                    .frame(maxWidth: 90, alignment: .trailing)
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
