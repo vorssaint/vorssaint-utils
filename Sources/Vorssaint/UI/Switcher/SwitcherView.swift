@@ -328,14 +328,15 @@ struct SwitcherView: View {
                                 }
                             .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
                         }
-                        .scrollDisabled(appWindows.count <= Int(switcher.iconRowLayout.previewContentWidth / SwitcherIconRowLayout.previewCardWidth))
+                        .scrollDisabled(switcher.iconRowLayout.previewFitsWithoutScrolling(cardCount: appWindows.count))
                         .frame(width: switcher.iconRowLayout.previewContentWidth,
                                height: SwitcherIconRowLayout.previewCardHeight)
-                        .onChange(of: switcher.selectedIndex) { _, newIndex in
-                            guard switcher.windows.indices.contains(newIndex) else { return }
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
-                            }
+                        .onAppear { revealSelection(in: proxy, animated: false) }
+                        .onChange(of: switcher.selectedIndex) { _, _ in
+                            revealSelection(in: proxy, animated: true)
+                        }
+                        .onChange(of: switcher.iconRowLayout.previewContentWidth) { _, _ in
+                            revealSelection(in: proxy, animated: true)
                         }
                     }
                 }
@@ -416,11 +417,12 @@ struct SwitcherView: View {
                         }
                         .padding(.horizontal, SwitcherIconRowLayout.simpleTitleScrollPadding)
                     }
-                    .onChange(of: switcher.selectedIndex) { _, newIndex in
-                        guard switcher.windows.indices.contains(newIndex) else { return }
-                        withAnimation(.easeOut(duration: 0.15)) {
-                            proxy.scrollTo(switcher.windows[newIndex].id, anchor: .center)
-                        }
+                    .onAppear { revealSelection(in: proxy, animated: false) }
+                    .onChange(of: switcher.selectedIndex) { _, _ in
+                        revealSelection(in: proxy, animated: true)
+                    }
+                    .onChange(of: iconRowContentWidth) { _, _ in
+                        revealSelection(in: proxy, animated: true)
                     }
                 }
                 .frame(height: 25 * SwitcherIconRowLayout.scale)
@@ -547,6 +549,23 @@ struct SwitcherView: View {
     private var selectedWindow: SwitcherItem? {
         guard switcher.windows.indices.contains(switcher.selectedIndex) else { return nil }
         return switcher.windows[switcher.selectedIndex]
+    }
+
+    /// Scrolls the selected window into view. Runs on appear, when the
+    /// selection moves, and when the strip it sits in changes width: search
+    /// drops apps from the row, the strips are sized from the row, and a
+    /// narrower strip can leave an unchanged selection outside it.
+    private func revealSelection(in proxy: ScrollViewProxy, animated: Bool) {
+        let index = switcher.selectedIndex
+        guard switcher.windows.indices.contains(index) else { return }
+        let id = switcher.windows[index].id
+        guard animated else {
+            proxy.scrollTo(id, anchor: .center)
+            return
+        }
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo(id, anchor: .center)
+        }
     }
 
     private var selectedAppWindows: [(offset: Int, element: SwitcherItem)] {
