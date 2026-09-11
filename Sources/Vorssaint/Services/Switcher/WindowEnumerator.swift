@@ -113,6 +113,7 @@ enum WindowEnumerator {
                                          snapshot: Snapshot,
                                          displayScope: DisplayScope? = nil,
                                          scopedToFrontmostPID: pid_t? = nil,
+                                         resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
@@ -123,6 +124,7 @@ enum WindowEnumerator {
             snapshot: snapshot,
             displayScope: displayScope,
             scopedToFrontmostPID: scopedToFrontmostPID,
+            resolveSource: resolveSource,
             isCancelled: isCancelled
         )
     }
@@ -142,6 +144,7 @@ enum WindowEnumerator {
                                     snapshot: Snapshot,
                                     displayScope: DisplayScope? = nil,
                                     scopedToFrontmostPID: pid_t? = nil,
+                                    resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
@@ -165,6 +168,7 @@ enum WindowEnumerator {
                            snapshot: snapshot,
                            scopedToFrontmostPID: scopedToFrontmostPID,
                            displayScope: displayScope,
+                           resolveSource: resolveSource,
                            isCancelled: isCancelled)
     }
 
@@ -205,6 +209,7 @@ enum WindowEnumerator {
                                     snapshot: Snapshot,
                                     scopedToFrontmostPID: pid_t? = nil,
                                     displayScope: DisplayScope? = nil,
+                                    resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
         let raw = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
@@ -494,7 +499,7 @@ enum WindowEnumerator {
             SwitcherSupport.itemsOnDisplay(filtered, displayBounds: $0.bounds, targetIndex: $0.targetIndex)
         } ?? filtered
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
-        let ordered: [SwitcherItem]
+        var ordered: [SwitcherItem]
         if minimizedPlacement == .end {
             let primary = scoped.filter { !$0.isMinimized }
             let deferred = scoped.filter { $0.isMinimized }
@@ -507,6 +512,27 @@ enum WindowEnumerator {
             let orderedRaw = orderByUse(scoped, frontToBack: frontToBack)
             ordered = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedRaw) : orderedRaw
         }
+        let backingOrdered: [SwitcherItem]
+        if groupByApp, preservingGroupedWindows {
+            if minimizedPlacement == .end {
+                let primary = groupedBackingWindows.filter { !$0.isMinimized }
+                let deferred = groupedBackingWindows.filter { $0.isMinimized }
+                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
+            } else {
+                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
+            }
+        } else {
+            backingOrdered = []
+        }
+        // Focus observation runs independently of the use history. Resolve the
+        // current window before discarding candidates, so a fresh focus reading
+        // can still correct a history that has not caught up.
+        let sourceCandidates = sourceItems ?? (backingOrdered.isEmpty ? ordered
+            : SwitcherSupport.expandGroupedWindows(orderedWindows: backingOrdered, representatives: ordered))
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        let source = ordered.isEmpty ? nil : resolveSource?(sourceCandidates)
+        guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
+        ordered = SwitcherSupport.orderedForSession(ordered, currentID: source?.id)
         var result = ordered
         if ordered.count > maximumCount {
             // One entry per app first, then the remaining slots: an app with
@@ -528,14 +554,6 @@ enum WindowEnumerator {
             }
         }
         if groupByApp, preservingGroupedWindows {
-            let backingOrdered: [SwitcherItem]
-            if minimizedPlacement == .end {
-                let primary = groupedBackingWindows.filter { !$0.isMinimized }
-                let deferred = groupedBackingWindows.filter { $0.isMinimized }
-                backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
-            } else {
-                backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
-            }
             result = SwitcherSupport.expandGroupedWindows(
                 orderedWindows: backingOrdered,
                 representatives: result)
@@ -548,7 +566,7 @@ enum WindowEnumerator {
                 return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
             }
         }
-        return WindowList(items: result, sourceItems: sourceItems ?? result)
+        return WindowList(items: result, sourceItems: sourceCandidates)
     }
 
     /// WindowServer can keep stale, titled surfaces around after some apps close
