@@ -55,6 +55,11 @@ extension TextSnippet {
 /// matching and variable expansion, all deterministic and injectable so the
 /// harness can pin the behavior down.
 enum TextSnippetSupport {
+    struct PendingKeyUp: Equatable {
+        let keyCode: Int
+        let armedAt: TimeInterval
+    }
+
     /// Keystrokes the buffer remembers; longer triggers cannot match.
     static let bufferLimit = 64
     static let maxTriggerLength = 40
@@ -119,6 +124,40 @@ enum TextSnippetSupport {
 
     static func pastePayload(text: String, trailingText: String) -> String {
         text + trailingText.replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    static func keepsTriggeringDelimiter(caretRetreat: Int?) -> Bool {
+        caretRetreat == nil
+    }
+
+    static func pasteCaretRetreatDelay(caretRetreat: Int?) -> TimeInterval? {
+        caretRetreat == nil ? nil : 0.15
+    }
+
+    static func pendingKeyUpDecision(
+        keyCode: Int,
+        pending: PendingKeyUp?,
+        now: TimeInterval
+    ) -> (consume: Bool, pending: PendingKeyUp?) {
+        guard let pending, now - pending.armedAt <= 1 else { return (false, nil) }
+        guard pending.keyCode == keyCode else { return (false, pending) }
+        return (true, nil)
+    }
+
+    /// Splits the marker before variable expansion so clipboard text that
+    /// contains the same literal is never reinterpreted as cursor placement.
+    static func expandedInsertion(_ replacement: String,
+                                  date: Date,
+                                  clipboard: String?,
+                                  locale: Locale = .current) -> (text: String, caretRetreat: Int?) {
+        guard let marker = replacement.range(of: "{{cursor}}") else {
+            return (expand(replacement, date: date, clipboard: clipboard, locale: locale), nil)
+        }
+        let before = expand(String(replacement[..<marker.lowerBound]),
+                            date: date, clipboard: clipboard, locale: locale)
+        let after = expand(String(replacement[marker.upperBound...]),
+                           date: date, clipboard: clipboard, locale: locale)
+        return (before + after, after.count)
     }
 
     static func expand(_ replacement: String,
