@@ -184,6 +184,24 @@ final class KillProcessService: ObservableObject {
         }
     }
 
+    /// Kills a process identified by its pid, name, and kernel start time.
+    /// This is the shared safe path for rows supplied by another feature.
+    func kill(pid: pid_t,
+              name: String,
+              startedAt: UInt64,
+              force: Bool,
+              completion: (() -> Void)? = nil) {
+        guard !Self.isProtected(pid: pid, name: name) else {
+            completion?()
+            return
+        }
+        let target = KillTarget(pid: pid, startedAt: startedAt)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let removed = self.killBatch([target], force: force, adminPromptProcessName: name)
+            self.finishKill(removed: removed, completion: completion)
+        }
+    }
+
     /// Kills every currently listed process sharing this exact name.
     func killAll(named name: String, force: Bool) {
         let targets = entries.filter { $0.name == name && !$0.isProtected }
@@ -272,7 +290,7 @@ final class KillProcessService: ObservableObject {
     /// reconciles with a real `ps` snapshot shortly after - long enough for
     /// the kernel to have reaped the process, short enough nobody notices
     /// the wait.
-    private func finishKill(removed: Set<pid_t>) {
+    private func finishKill(removed: Set<pid_t>, completion: (() -> Void)? = nil) {
         DispatchQueue.main.async {
             if !removed.isEmpty {
                 self.entries.removeAll { removed.contains($0.pid) }
@@ -280,6 +298,7 @@ final class KillProcessService: ObservableObject {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.refresh(force: true)
+            completion?()
         }
     }
 
@@ -368,6 +387,10 @@ final class KillProcessService: ObservableObject {
 
     static func isProtected(pid: pid_t, name: String = "", path: String = "") -> Bool {
         KillProcessSupport.isProtected(pid: pid, name: name, path: path)
+    }
+
+    static func startTime(for pid: pid_t) -> UInt64? {
+        currentStartTime(pid: pid)
     }
 
     private static func target(for entry: KillProcessEntry) -> KillTarget? {
