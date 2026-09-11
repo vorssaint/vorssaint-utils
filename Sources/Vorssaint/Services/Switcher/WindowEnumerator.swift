@@ -106,10 +106,13 @@ enum WindowEnumerator {
                         displayIDsByUUID: SpaceWindowBridge.displayIDsByUUID())
     }
 
+    /// `scopedToFrontmostPID` is set for a session that shows only the front
+    /// app's windows; the cap then spends its slots on that app alone.
     static func enumerateSwitcherWindows(groupByApp: Bool,
                                          preservingGroupedWindows: Bool,
                                          snapshot: Snapshot,
                                          displayScope: DisplayScope? = nil,
+                                         scopedToFrontmostPID: pid_t? = nil,
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
@@ -119,6 +122,7 @@ enum WindowEnumerator {
             marksHiddenSpaces: true,
             snapshot: snapshot,
             displayScope: displayScope,
+            scopedToFrontmostPID: scopedToFrontmostPID,
             isCancelled: isCancelled
         )
     }
@@ -137,6 +141,7 @@ enum WindowEnumerator {
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
                                     displayScope: DisplayScope? = nil,
+                                    scopedToFrontmostPID: pid_t? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
@@ -158,6 +163,7 @@ enum WindowEnumerator {
                            currentSpaceOnly: currentSpaceOnly,
                            marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
                            snapshot: snapshot,
+                           scopedToFrontmostPID: scopedToFrontmostPID,
                            displayScope: displayScope,
                            isCancelled: isCancelled)
     }
@@ -197,6 +203,7 @@ enum WindowEnumerator {
                                     currentSpaceOnly: Bool,
                                     marksHiddenSpaces: Bool,
                                     snapshot: Snapshot,
+                                    scopedToFrontmostPID: pid_t? = nil,
                                     displayScope: DisplayScope? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else { return WindowList(items: [], sourceItems: []) }
@@ -504,9 +511,11 @@ enum WindowEnumerator {
         if ordered.count > maximumCount {
             // One entry per app first, then the remaining slots: an app with
             // many windows must never push another app off the list entirely
-            // (issue #172).
+            // (issue #172). A session scoped to the front app caps that app's
+            // own windows instead.
             result = SwitcherSupport
-                .visibleSelectionIndices(appPIDs: ordered.map(\.pid), limit: maximumCount)
+                .visibleSelectionIndices(items: ordered, limit: maximumCount,
+                                         frontmostPID: scopedToFrontmostPID)
                 .map { ordered[$0] }
             // Asking for the desktop app alone names one entry, so that entry must
             // not vanish just because the list happens to be full. Asking for every

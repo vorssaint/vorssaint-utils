@@ -645,6 +645,15 @@ enum SwitcherSupport {
         guard appPIDs.count > limit else { return Array(appPIDs.indices) }
         var chosen = Set<Int>()
         var representedApps = Set<pid_t>()
+        // The window in front and the one before it lead the use order, and a
+        // quick flick of the shortcut goes straight from the first to the
+        // second. They stay whatever else a full list has to give up, as they
+        // did under the plain leading slice, even when both belong to one app
+        // and every other slot is needed for an app of its own.
+        for index in appPIDs.indices.prefix(min(2, limit)) {
+            chosen.insert(index)
+            representedApps.insert(appPIDs[index])
+        }
         for (index, pid) in appPIDs.enumerated() {
             guard chosen.count < limit else { break }
             guard representedApps.insert(pid).inserted else { continue }
@@ -655,6 +664,21 @@ enum SwitcherSupport {
             chosen.insert(index)
         }
         return chosen.sorted()
+    }
+
+    /// The entries a session keeps once its list is capped, by index into
+    /// `items`. A session scoped to the front app's windows shows that app
+    /// alone, so it caps that app's own list: other apps must not take places
+    /// in a list that never shows them. `frontmostPID` is the process that
+    /// owns the keyboard, resolved to its app the same way the session does.
+    static func visibleSelectionIndices(items: [SwitcherItem],
+                                        limit: Int,
+                                        frontmostPID: pid_t?) -> [Int] {
+        guard let frontmostPID else {
+            return visibleSelectionIndices(appPIDs: items.map(\.pid), limit: limit)
+        }
+        let appPID = appPID(forFrontmost: frontmostPID, items: items)
+        return Array(items.indices.filter { items[$0].pid == appPID }.prefix(max(0, limit)))
     }
 
     /// Finds the regular app that contains an accessory helper bundle.

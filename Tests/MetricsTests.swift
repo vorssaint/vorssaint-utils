@@ -3326,6 +3326,44 @@ struct MetricsTests {
         expect(SwitcherSupport.visibleSelectionIndices(appPIDs: Array(repeating: pid_t(7), count: 20),
                                                        limit: 12) == Array(0..<12),
                "a single app's own window list is capped from the front, as before")
+        // Review of #1473: with every slot claimed by an app of its own, the
+        // window before the current one must still be there, or a quick flick
+        // in the grid layout opens another app instead of returning to it.
+        let appsFillEverySlot: [pid_t] = [1, 1] + (2...60).map { pid_t($0) }
+        let fullListSurvivors = SwitcherSupport.visibleSelectionIndices(appPIDs: appsFillEverySlot, limit: 48)
+        expect(Array(fullListSurvivors.prefix(2)) == [0, 1],
+               "the window before the current one survives a list where every slot goes to an app")
+        expect(fullListSurvivors.count == 48 && fullListSurvivors == fullListSurvivors.sorted(),
+               "keeping the toggle target still spends the cap exactly and keeps the use order")
+        // Review of #1473: the window shortcut shows the front app alone, so
+        // other apps must not take places in its list. 24 recently used
+        // windows of that app ahead of 26 other apps used to keep all 24.
+        let frontAppWindows = (1...24).map { index in
+            SwitcherItem.window(id: CGWindowID(1000 + index), title: "w\(index)", appName: "Front",
+                                pid: 1, isOnScreen: true, frame: .zero)
+        }
+        let otherApps = (2...27).map { pid in
+            SwitcherItem.window(id: CGWindowID(2000 + pid), title: "o\(pid)", appName: "Other",
+                                pid: pid_t(pid), isOnScreen: true, frame: .zero)
+        }
+        let windowScopeItems = frontAppWindows + otherApps
+        let scopedSurvivors = SwitcherSupport.visibleSelectionIndices(items: windowScopeItems,
+                                                                      limit: 48, frontmostPID: 1)
+        expect(scopedSurvivors == Array(0..<24),
+               "the window shortcut keeps every window of the front app when other apps are running")
+        let unscopedSurvivors = SwitcherSupport.visibleSelectionIndices(items: windowScopeItems,
+                                                                        limit: 48, frontmostPID: nil)
+        expect(unscopedSurvivors.filter { windowScopeItems[$0].pid == 1 }.count < 24
+               && Set(unscopedSurvivors.map { windowScopeItems[$0].pid }).count == 27,
+               "the all-apps list still spreads its slots so every app stays reachable")
+        // The keyboard can belong to a helper process that renders the app's
+        // window; the scope resolves it to the app the same way the session does.
+        let helperOwned = SwitcherItem.window(id: 3001, title: "h", appName: "Front",
+                                              pid: 1, windowOwnerPID: 91, isOnScreen: true, frame: .zero)
+        let helperScoped = SwitcherSupport.visibleSelectionIndices(items: [helperOwned] + otherApps,
+                                                                   limit: 48, frontmostPID: 91)
+        expect(helperScoped == [0],
+               "a window-scoped list follows a helper-owned front window to its app")
 
         expect(WindowUseOrder.promoting(target: 7, previous: 3, in: [3, 5, 7]) == [7, 3, 5],
                "committing to a window puts it first and the one left behind second")

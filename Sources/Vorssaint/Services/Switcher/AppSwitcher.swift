@@ -879,6 +879,7 @@ final class AppSwitcher: ObservableObject {
                 preservingGroupedWindows: preservesGroupedWindows,
                 snapshot: enumerationSnapshot,
                 displayScope: displayScope,
+                scopedToFrontmostPID: requested.scope == .frontmostApp ? reportedFrontPID : nil,
                 isCancelled: { [weak self] in
                     guard let self else { return true }
                     return !self.routeLock.withLock {
