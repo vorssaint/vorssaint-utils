@@ -573,6 +573,7 @@ enum DefaultsKey {
     static let screenshotLastSticker = "screenshotLastSticker"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
+    static let screenshotToolShortcuts = "screenshotToolShortcuts"
     static let screenshotToolShortcutsEnabled = "screenshotToolShortcutsEnabled"
     static let screenshotBackdropStyle = "screenshotBackdropStyle"
     static let screenshotBackdropPresets = "screenshotBackdropPresets"
@@ -824,7 +825,15 @@ enum PreviewSizing {
 
 enum Defaults {
     static let finderBundleIdentifier = "com.apple.finder"
-    static let mandatoryAutoQuitExceptionBundleIDs = [finderBundleIdentifier]
+    /// Continuity / Calls on Mac. Quitting Phone when its UI flickers window-less
+    /// during an incoming relay disconnects the call (issue #1534). Kept in the
+    /// mandatory exception list even when Phone.app is absent; the settings UI
+    /// hides the row until the app is installed.
+    static let phoneBundleIdentifier = "com.apple.mobilephone"
+    static let mandatoryAutoQuitExceptionBundleIDs = [
+        finderBundleIdentifier,
+        phoneBundleIdentifier,
+    ]
 
     static let allowedDurations = [0, 15, 30, 60, 120, 240, 480]
     static let allowedKeepAwakeMouseJiggleIntervals = [1, 2, 5, 10, 15]
@@ -1347,6 +1356,7 @@ enum Defaults {
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
         DefaultsKey.screenshotToolShortcutsEnabled: true,
+        DefaultsKey.screenshotToolShortcuts: "",
         DefaultsKey.screenshotBackdropStyle: "",
         DefaultsKey.screenshotBackdropPresets: "[]",
         DefaultsKey.screenshotOpenEditorDirectly: false,

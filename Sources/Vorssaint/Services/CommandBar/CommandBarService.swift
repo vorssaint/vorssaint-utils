@@ -1989,7 +1989,7 @@ final class CommandBarService: ObservableObject {
         // never reaches the local monitor. It quits Vorssaint instead of
         // landing on the card (issue #1193). When Accessibility cannot
         // create the tap, the monitor below still records as before.
-        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers in
+        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, _ in
             self?.handleCaptureKey(keyCode: keyCode, modifiers: modifiers)
         }
         mode = .capturingShortcut(entryID: entry.id)
@@ -2915,7 +2915,10 @@ final class CommandBarService: ObservableObject {
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel) {
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
+               // Every key on the Accessibility Keyboard is a click outside this
+               // panel. Dismissing on those makes the panel impossible to type into.
+               !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
                 self.hide()
             }
         }
@@ -2926,7 +2929,8 @@ final class CommandBarService: ObservableObject {
         ) { [weak self] notification in
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                  app.bundleIdentifier != Bundle.main.bundleIdentifier
+                  app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                  app.bundleIdentifier != AssistiveKeyboard.bundleID
             else { return }
             self.hide()
         }

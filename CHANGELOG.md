@@ -7,18 +7,22 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher opens more smoothly with many windows, can focus its list on the display under the pointer, no longer counts hidden helper windows and keeps newly opened windows focused after switching. the Command Bar can search the web as a last result, Screenshot previews gain optional keyboard focus, Scratchpad adds shortcuts to create and close tabs, and the menu bar panel reads as one surface up to its arrow.
+App Switcher opens more smoothly, offers display filtering, excludes hidden helper windows and preserves window focus; on-screen keyboard input keeps panels open. Screenshot gains custom editor shortcuts and optional preview focus, Scratchpad adds tab shortcuts, the menu bar panel keeps a continuous background, Cleaner protects app customizations, and Quit on close preserves incoming calls.
 
 ### Added
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
 - Screenshot previews can take keyboard focus automatically when enabled in More options. Thanks to @santi-ug.
 - Command Bar can search the web in your default browser as a last result, DuckDuckGo unless you pick another engine.
+- Screenshot gains custom editor shortcuts and optional keyboard focus for previews. Thanks to @santi-ug.
 
 ### Changed
 - The App Switcher opens more smoothly when many windows are open. Thanks to @bebricoOOOOOOf.
 
 ### Fixed
+- Panels and App Switcher stay open when typing with the Accessibility Keyboard, including the first use. Thanks to @fermincasagrande.
+- Quit on close keeps incoming calls connected when their app has no open window. Thanks to @Borisserz.
+- Cleaner preserves installed customizations stored in an app's cache when all optional caches are selected. Thanks to @EugeneCarldotme.
 - App Switcher keeps newly opened windows focused without interrupting normal window switching. Thanks to @akune.
 - The App Switcher no longer shows blank entries for hidden helper windows that apps keep out of window cycling. Thanks to @EugeneCarldotme.
 - The menu bar panel keeps a single background up to the small arrow at its top, instead of a lighter patch there. Thanks to @iltonandrew.

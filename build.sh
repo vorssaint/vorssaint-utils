@@ -393,6 +393,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SmoothScrollSupport.swift \
         Sources/Vorssaint/Services/MouseAcceleration/MouseAccelerationSupport.swift \
         Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseSupport.swift \
+        Sources/Vorssaint/Services/AssistiveKeyboard.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift \
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift \
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift \
@@ -426,6 +427,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
         Tests/MetricsTests.swift \
+        Tests/AssistiveKeyboardTests.swift \
+        Tests/ScreenshotToolShortcutTests.swift \
         Tests/RecentCaptureStoreTests.swift \
         Tests/RecorderPresetImageStoreTests.swift \
         Tests/SpeedTestTests.swift \
