@@ -101,9 +101,7 @@ enum MixerRender {
                                              channels: buffer.mNumberChannels))
         }
         guard frames > 0, outputChannels > 0, hasWritableOutput else { return 0 }
-        // Converting from linear to exponential gain for perceptually smooth gain adjustments.
-        // This is due to the non-linear perception of human hearing.
-        var gain = pow(gain, 2)
+        var gain = gain
 
         // The usual shape: one interleaved buffer wanting exactly what the
         // tap produced. One pass, nothing to map.
