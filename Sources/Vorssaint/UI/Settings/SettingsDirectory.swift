@@ -105,6 +105,8 @@ enum SettingsDirectory {
                                         (.monitorMemory, [s.monitorMemoryPressureDot]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ]),
+                SettingsDirectoryItem(page: .calendar, title: CalendarStrings.current(language).title, icon: "calendar",
+                                      keywords: ["meetings", "alerts", "agenda"]),
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",

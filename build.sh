@@ -430,6 +430,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift \
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift \
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift \
+        Sources/Vorssaint/Core/CalendarSupport.swift \
+        Sources/Vorssaint/Core/CalendarStrings.swift \
+        Sources/Vorssaint/Services/Calendar/MeetingLinkDetector.swift \
+        Sources/Vorssaint/Services/Calendar/CalendarStatusItemRenderer.swift \
         Tests/MetricsTests.swift \
         Tests/AssistiveKeyboardTests.swift \
         Tests/ScreenshotToolShortcutTests.swift \
