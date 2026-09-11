@@ -256,6 +256,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Media/MediaSupport.swift \
         Sources/Vorssaint/Core/QuitProtectionSupport.swift \
         Sources/Vorssaint/Core/QuitProtectionStrings.swift \
+        Sources/Vorssaint/Core/DictationSupport.swift \
+        Sources/Vorssaint/Core/DictationShortcutSupport.swift \
+        Sources/Vorssaint/Core/DictationInputDeviceSupport.swift \
+        Sources/Vorssaint/Core/DictationHistorySupport.swift \
         Sources/Vorssaint/Core/Defaults.swift \
         Sources/Vorssaint/Core/FeatureCatalog.swift \
         Sources/Vorssaint/Core/FeaturePresets.swift \
@@ -270,6 +274,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ScreenshotStrings.swift \
         Sources/Vorssaint/Core/RecentCaptureStrings.swift \
         Sources/Vorssaint/Core/RecorderStrings.swift \
+        Sources/Vorssaint/Core/DictationStrings.swift \
         Sources/Vorssaint/Core/RecorderShareStrings.swift \
         Sources/Vorssaint/Core/CameraPreviewStrings.swift \
         Sources/Vorssaint/Core/ScratchpadStrings.swift \
@@ -298,6 +303,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift \
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift \
         Sources/Vorssaint/Services/PrivateFileStore.swift \
+        Sources/Vorssaint/Services/KeychainStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderPresetImageStore.swift \
         Sources/Vorssaint/Services/Recorder/RecorderMotion.swift \

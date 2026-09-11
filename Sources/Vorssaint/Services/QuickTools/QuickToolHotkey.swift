@@ -14,7 +14,9 @@ final class QuickToolHotkey {
     private let hotKeyID: UInt32
     private var hotKeyRef: EventHotKeyRef?
     private var registeredShortcut: GlobalShortcut?
+    private var generation: UInt64 = 0
     var onPress: (() -> Void)?
+    var onRelease: (() -> Void)?
 
     init(id: UInt32) {
         hotKeyID = id
@@ -32,7 +34,7 @@ final class QuickToolHotkey {
             return true
         }
         unregister()
-        Self.installSharedHandlerIfNeeded()
+        guard Self.installSharedHandlerIfNeeded() else { return false }
         Self.instances[hotKeyID] = self
         let id = EventHotKeyID(signature: 0x5655_5154, id: hotKeyID) // 'VUQT'
         var ref: EventHotKeyRef?
@@ -41,6 +43,7 @@ final class QuickToolHotkey {
                                          id, GetEventDispatcherTarget(), 0, &ref)
         guard status == noErr, let ref else {
             registeredShortcut = nil
+            Self.instances.removeValue(forKey: hotKeyID)
             return false
         }
         hotKeyRef = ref
@@ -49,6 +52,7 @@ final class QuickToolHotkey {
     }
 
     func unregister() {
+        generation &+= 1
         if let hotKeyRef {
             UnregisterEventHotKey(hotKeyRef)
         }
@@ -64,11 +68,15 @@ final class QuickToolHotkey {
         for instance in instances.values { instance.unregister() }
     }
 
-    private static func installSharedHandlerIfNeeded() {
-        guard sharedHandler == nil else { return }
-        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
-                                 eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ -> OSStatus in
+    private static func installSharedHandlerIfNeeded() -> Bool {
+        guard sharedHandler == nil else { return true }
+        var specs = [
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                          eventKind: UInt32(kEventHotKeyPressed)),
+            EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
+                          eventKind: UInt32(kEventHotKeyReleased)),
+        ]
+        let status = InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ -> OSStatus in
             var id = EventHotKeyID()
             if let event {
                 GetEventParameter(event, EventParamName(kEventParamDirectObject),
@@ -78,8 +86,24 @@ final class QuickToolHotkey {
             guard id.signature == 0x5655_5154,
                   let instance = QuickToolHotkey.instances[id.id]
             else { return OSStatus(eventNotHandledErr) }
-            DispatchQueue.main.async { instance.onPress?() }
+            let kind = event.map(GetEventKind)
+            let generation = instance.generation
+            DispatchQueue.main.async {
+                guard QuickToolHotkey.instances[id.id] === instance,
+                      instance.generation == generation,
+                      instance.hotKeyRef != nil else { return }
+                if kind == UInt32(kEventHotKeyReleased) {
+                    instance.onRelease?()
+                } else {
+                    instance.onPress?()
+                }
+            }
             return noErr
-        }, 1, &spec, nil, &sharedHandler)
+        }, specs.count, &specs, nil, &sharedHandler)
+        guard status == noErr, sharedHandler != nil else {
+            sharedHandler = nil
+            return false
+        }
+        return true
     }
 }

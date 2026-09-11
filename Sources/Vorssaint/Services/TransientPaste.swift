@@ -20,6 +20,7 @@ final class TransientPaste {
 
     @discardableResult
     func paste(_ text: String,
+               shouldPostShortcut: (() -> Bool)? = nil,
                willPostShortcut: (() -> Void)? = nil,
                didPostShortcut: (() -> Void)? = nil,
                didFail: (() -> Void)? = nil) -> Bool {
@@ -71,6 +72,7 @@ final class TransientPaste {
                 self.pendingRestore = (snapshot, changeCount)
                 Self.postPasteWhenModifiersReleased(
                     attempt: 0,
+                    shouldPost: shouldPostShortcut,
                     willPost: willPostShortcut,
                     didPost: didPostShortcut,
                     didFail: didFail
@@ -122,6 +124,7 @@ final class TransientPaste {
     }
 
     private static func postPasteWhenModifiersReleased(attempt: Int,
+                                                       shouldPost: (() -> Bool)?,
                                                        willPost: (() -> Void)?,
                                                        didPost: (() -> Void)?,
                                                        didFail: (() -> Void)?,
@@ -130,7 +133,7 @@ final class TransientPaste {
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                postPasteShortcut(willPost: willPost) { succeeded in
+                postPasteShortcut(shouldPost: shouldPost, willPost: willPost) { succeeded in
                     if succeeded {
                         didPost?()
                     } else {
@@ -143,6 +146,7 @@ final class TransientPaste {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
             postPasteWhenModifiersReleased(attempt: attempt + 1,
+                                           shouldPost: shouldPost,
                                            willPost: willPost,
                                            didPost: didPost,
                                            didFail: didFail,
@@ -150,8 +154,13 @@ final class TransientPaste {
         }
     }
 
-    private static func postPasteShortcut(willPost: (() -> Void)?,
+    private static func postPasteShortcut(shouldPost: (() -> Bool)?,
+                                          willPost: (() -> Void)?,
                                           completion: @escaping (Bool) -> Void) {
+        guard shouldPost?() != false else {
+            completion(false)
+            return
+        }
         guard let keyDown = CGEvent(keyboardEventSource: nil,
                                     virtualKey: CGKeyCode(kVK_ANSI_V),
                                     keyDown: true),

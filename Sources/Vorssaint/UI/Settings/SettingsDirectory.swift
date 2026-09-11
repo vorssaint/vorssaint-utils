@@ -219,6 +219,12 @@ enum SettingsDirectory {
                                                  FeatureStrings.commandBar(language).searchPlaceholder,
                                                  FeatureStrings.commandBar(language).appCenterTitle,
                                                  FeatureStrings.commandBar(language).appAliasLabel]),
+                SettingsDirectoryItem(page: .dictation,
+                                      title: FeatureStrings.dictation(language).title,
+                                      icon: "waveform.badge.mic",
+                                      keywords: [FeatureStrings.dictation(language).provider,
+                                                 FeatureStrings.dictation(language).apiKey,
+                                                 FeatureStrings.dictation(language).shortcut]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),

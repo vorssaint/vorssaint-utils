@@ -1,0 +1,903 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import AppKit
+import ApplicationServices
+import AVFoundation
+import Carbon.HIToolbox
+import Foundation
+
+@MainActor
+final class DictationService: ObservableObject {
+    static let shared = DictationService()
+    static let keychainService = KeychainStore.namespacedService(
+        "com.vorssaint.utils.dictation")
+
+    @Published private(set) var state: DictationState = .idle
+    @Published private(set) var level: Float = 0
+    @Published private(set) var shortcutRegistrationFailed = false
+    @Published private(set) var secondaryShortcutRegistrationFailed = false
+    @Published private(set) var microphoneFallbackName: String?
+
+    private let keychain: KeychainStoring
+    private let client: DictationTranscriptionClient
+    private let recorder: DictationAudioRecorder
+    private let hud = DictationHUD()
+    private let hotkey = QuickToolHotkey(id: 25)
+    private let secondaryHotkey = QuickToolHotkey(id: 27)
+    private let cancelHotkey = QuickToolHotkey(id: 26)
+    private let modifierShortcutTap = DictationModifierShortcutTap()
+    private var transcriptionTask: Task<Void, Never>?
+    private var localEscapeMonitor: Any?
+    private var globalEscapeMonitor: Any?
+    private var sessionID: UUID?
+    private var lastProviderStatus: Int?
+    private var lastProviderDetail: String?
+    private var didRequestAccessibility = false
+    private var accessibilityRetryTask: Task<Void, Never>?
+    private var sessionConfiguration: SessionConfiguration?
+    private var dismissWork: DispatchWorkItem?
+    private var primaryGesture = DictationShortcutGesture()
+    private var secondaryGesture = DictationShortcutGesture()
+    private var activeSlot: DictationShortcutSlot?
+    private var configuredProfiles: [DictationShortcutSlot: DictationShortcutProfile] = [:]
+    private var configuredShortcuts: [DictationShortcutSlot: GlobalShortcut] = [:]
+    private var configuredShortcutKinds: [DictationShortcutSlot: DictationShortcutKind] = [:]
+    private var configuredModifierKeys: [DictationShortcutSlot: DictationModifierKey] = [:]
+    private var configuredEnabled: [DictationShortcutSlot: Bool] = [:]
+
+    private init(keychain: KeychainStoring = KeychainStore.shared,
+                 client: DictationTranscriptionClient = DictationTranscriptionClient(),
+                 recorder suppliedRecorder: DictationAudioRecorder? = nil) {
+        let recorder = suppliedRecorder ?? DictationAudioRecorder()
+        self.keychain = keychain
+        self.client = client
+        self.recorder = recorder
+        hotkey.onPress = { [weak self] in self?.shortcutDown(.primary) }
+        hotkey.onRelease = { [weak self] in self?.shortcutUp(.primary) }
+        secondaryHotkey.onPress = { [weak self] in self?.shortcutDown(.secondary) }
+        secondaryHotkey.onRelease = { [weak self] in self?.shortcutUp(.secondary) }
+        modifierShortcutTap.onPress = { [weak self] key in self?.modifierShortcutDown(key) }
+        modifierShortcutTap.onRelease = { [weak self] key in self?.modifierShortcutUp(key) }
+        cancelHotkey.onPress = { [weak self] in self?.cancel() }
+        recorder.onLevel = { [weak self] level in
+            self?.level = level
+            self?.hud.updateLevel(level)
+        }
+        recorder.onFailure = { [weak self] in
+            self?.fail(.microphoneUnavailable)
+        }
+        recorder.onFinished = { [weak self] in
+            guard self?.state == .listening else { return }
+            self?.stopAndTranscribe()
+        }
+        recorder.onDeviceFallback = { [weak self] name in
+            // The settings picker keeps the unavailable saved device visible;
+            // capture itself transparently uses the current system default.
+            self?.microphoneFallbackName = name
+            self?.showHUD()
+        }
+    }
+
+    var provider: DictationProvider {
+        DictationProvider(rawValue: UserDefaults.standard.string(
+            forKey: DefaultsKey.dictationProvider) ?? "") ?? .openAI
+    }
+
+    var model: DictationModel {
+        let provider = provider
+        let key = provider == .openAI
+            ? DefaultsKey.dictationOpenAIModel : DefaultsKey.dictationGroqModel
+        return provider.sanitizedModel(UserDefaults.standard.string(forKey: key))
+    }
+
+    func storedKey(for provider: DictationProvider) throws -> String? {
+        try keychain.value(service: Self.keychainService, account: provider.rawValue)
+    }
+
+    func saveKey(_ value: String, for provider: DictationProvider) throws {
+        try keychain.setValue(value, service: Self.keychainService, account: provider.rawValue)
+    }
+
+    func removeKey(for provider: DictationProvider) throws {
+        try keychain.deleteValue(service: Self.keychainService, account: provider.rawValue)
+    }
+
+    func testConfiguration(provider: DictationProvider, apiKey: String) async throws {
+        try await client.testConfiguration(provider: provider, apiKey: apiKey)
+    }
+
+    func syncWithPreferences() {
+        _ = DictationHistoryStore.shared.removeExpired(
+            days: UserDefaults.standard.integer(forKey: DefaultsKey.dictationHistoryRetentionDays))
+        let enabled = AppFeature.dictation.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled)
+        if !enabled {
+            shortcutRegistrationFailed = false
+            secondaryShortcutRegistrationFailed = false
+            hotkey.unregister()
+            secondaryHotkey.unregister()
+            modifierShortcutTap.stop()
+            cancel(event: .disable)
+            configuredProfiles.removeAll()
+            configuredShortcuts.removeAll()
+            configuredShortcutKinds.removeAll()
+            configuredModifierKeys.removeAll()
+            configuredEnabled.removeAll()
+            didRequestAccessibility = false
+            accessibilityRetryTask?.cancel()
+            accessibilityRetryTask = nil
+            return
+        }
+        // Dictation needs Accessibility both for a standalone modifier monitor
+        // and to paste the completed text into the current app. Request it on
+        // opt-in instead of leaving a modifier shortcut silently inactive.
+        if AXIsProcessTrusted() {
+            didRequestAccessibility = false
+            accessibilityRetryTask?.cancel()
+            accessibilityRetryTask = nil
+        } else if !didRequestAccessibility {
+            didRequestAccessibility = true
+            Permissions.shared.requestAccessibility()
+            scheduleAccessibilityRetry()
+        }
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.dictationShortcut,
+                                            fallback: .dictationDefault)
+        let primaryKind = shortcutKind(for: .primary)
+        let primaryModifier = modifierKey(for: .primary)
+        prepareForRegistration(.primary, enabled: true, shortcut: shortcut,
+                               profile: profile(for: .primary), kind: primaryKind,
+                               modifierKey: primaryModifier)
+        let primaryCarbonEnabled = primaryKind == .standard
+        let primaryCarbonRegistered = hotkey.sync(enabled: primaryCarbonEnabled,
+                                                   shortcut: shortcut)
+        let secondaryEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dictationSecondaryEnabled)
+        let secondary = GlobalShortcut.saved(for: DefaultsKey.dictationSecondaryShortcut,
+                                              fallback: .dictationSecondaryDefault)
+        let secondaryKind = shortcutKind(for: .secondary)
+        let secondaryModifier = modifierKey(for: .secondary)
+        let modifierConflict = secondaryEnabled
+            && primaryKind == .modifier
+            && secondaryKind == .modifier
+            && primaryModifier == secondaryModifier
+        let carbonConflict = secondaryEnabled
+            && primaryKind == .standard
+            && secondaryKind == .standard
+            && secondary == shortcut
+        let conflicts = modifierConflict || carbonConflict
+        let registerSecondary = secondaryEnabled && !conflicts
+        prepareForRegistration(.secondary, enabled: registerSecondary, shortcut: secondary,
+                               profile: profile(for: .secondary), kind: secondaryKind,
+                               modifierKey: secondaryModifier)
+        let secondaryCarbonEnabled = registerSecondary && secondaryKind == .standard
+        let secondaryCarbonRegistered = secondaryHotkey.sync(enabled: secondaryCarbonEnabled,
+                                                              shortcut: secondary)
+        var modifierKeys = Set<DictationModifierKey>()
+        if primaryKind == .modifier { modifierKeys.insert(primaryModifier) }
+        if registerSecondary, secondaryKind == .modifier { modifierKeys.insert(secondaryModifier) }
+        let modifierRegistered = modifierShortcutTap.sync(keys: modifierKeys)
+        if !modifierKeys.isEmpty && !modifierRegistered {
+            // TCC can become trusted a moment after the system prompt or after
+            // a locally-installed build replaces the app. Retry registration
+            // without making the user toggle Dictation off and on again.
+            scheduleAccessibilityRetry()
+        }
+        shortcutRegistrationFailed = primaryKind == .modifier
+            ? !modifierRegistered : !primaryCarbonRegistered
+        secondaryShortcutRegistrationFailed = conflicts || (secondaryKind == .modifier
+            ? (registerSecondary && !modifierRegistered) : (registerSecondary && !secondaryCarbonRegistered))
+    }
+
+    func suspend() {
+        accessibilityRetryTask?.cancel()
+        accessibilityRetryTask = nil
+        hotkey.unregister()
+        secondaryHotkey.unregister()
+        modifierShortcutTap.stop()
+        cancel(event: .disable)
+    }
+
+    private func scheduleAccessibilityRetry() {
+        guard accessibilityRetryTask == nil else { return }
+        accessibilityRetryTask = Task { [weak self] in
+            // Poll briefly because TCC updates asynchronously and does not
+            // emit a notification that the event-tap owner can rely on.
+            for _ in 0 ..< 12 {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled, let self else { return }
+                guard AppFeature.dictation.isAvailable,
+                      UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled) else { return }
+                if AXIsProcessTrusted() {
+                    self.didRequestAccessibility = false
+                    self.accessibilityRetryTask = nil
+                    self.syncWithPreferences()
+                    return
+                }
+            }
+            self?.accessibilityRetryTask = nil
+        }
+    }
+
+    func toggle() {
+        switch state {
+        case .idle, .failure:
+            begin()
+        case .listening:
+            stopAndTranscribe()
+        case .processing:
+            cancel()
+        }
+    }
+
+    private func shortcutDown(_ slot: DictationShortcutSlot) {
+        if let activeSlot, activeSlot != slot { return }
+        let mode = profile(for: slot).mode
+        let now = ProcessInfo.processInfo.systemUptime
+        let action: DictationShortcutAction?
+        if slot == .primary {
+            action = primaryGesture.keyDown(at: now, mode: mode, sessionIsActive: sessionID != nil)
+        } else {
+            action = secondaryGesture.keyDown(at: now, mode: mode, sessionIsActive: sessionID != nil)
+        }
+        perform(action, slot: slot)
+    }
+
+    private func modifierShortcutDown(_ key: DictationModifierKey) {
+        guard let slot = configuredModifierKeys.first(where: { $0.value == key })?.key,
+              configuredShortcutKinds[slot] == .modifier,
+              configuredEnabled[slot] == true else { return }
+        shortcutDown(slot)
+    }
+
+    private func modifierShortcutUp(_ key: DictationModifierKey) {
+        guard let slot = configuredModifierKeys.first(where: { $0.value == key })?.key,
+              configuredShortcutKinds[slot] == .modifier,
+              configuredEnabled[slot] == true else { return }
+        shortcutUp(slot)
+    }
+
+    private func shortcutUp(_ slot: DictationShortcutSlot) {
+        if state == .processing {
+            cancelGesture(slot)
+            return
+        }
+        let now = ProcessInfo.processInfo.systemUptime
+        let action: DictationShortcutAction?
+        if slot == .primary {
+            action = primaryGesture.keyUp(at: now, sessionIsActive: sessionID != nil)
+        } else {
+            action = secondaryGesture.keyUp(at: now, sessionIsActive: sessionID != nil)
+        }
+        guard activeSlot == nil || activeSlot == slot else { return }
+        perform(action, slot: slot)
+    }
+
+    private func perform(_ action: DictationShortcutAction?, slot: DictationShortcutSlot) {
+        switch action {
+        case .begin: begin(profile: profile(for: slot))
+        case .stop:
+            if state == .listening { stopAndTranscribe() }
+            else if state != .processing { cancel() }
+        case nil: break
+        }
+    }
+
+    func cancel() {
+        cancel(event: .cancel)
+    }
+
+    private func begin(profile: DictationShortcutProfile? = nil) {
+        guard AppFeature.dictation.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled) else { return }
+        dismissWork?.cancel()
+        dismissWork = nil
+        lastProviderStatus = nil
+        let profile = profile ?? self.profile(for: .primary)
+        let provider = profile.provider
+        let model = profile.model
+        let apiKey: String
+        do {
+            guard let key = try storedKey(for: provider),
+                  !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else {
+                fail(.missingKey)
+                return
+            }
+            apiKey = key
+        } catch {
+            fail(.keychain)
+            return
+        }
+        let id = UUID()
+        sessionID = id
+        activeSlot = profile.slot
+        sessionConfiguration = SessionConfiguration(provider: provider,
+                                                    model: model,
+                                                    apiKey: apiKey,
+                                                    profile: profile)
+        switch Permissions.shared.microphone {
+        case .granted:
+            startRecording(sessionID: id)
+        case .denied:
+            fail(.microphoneDenied)
+        case .undetermined, .unknown:
+            Permissions.shared.requestMicrophone { [weak self] granted in
+                guard let self, self.sessionID == id else { return }
+                if granted {
+                    self.startRecording(sessionID: id)
+                } else {
+                    self.fail(.microphoneDenied)
+                }
+            }
+        }
+    }
+
+    private func startRecording(sessionID id: UUID) {
+        guard sessionID == id,
+              AppFeature.dictation.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.dictationEnabled) else {
+            cancel(event: .disable)
+            return
+        }
+        DictationOutputMuteController.shared.begin()
+        DictationMediaController.shared.begin()
+        do {
+            try recorder.start(microphoneUID: sessionConfiguration?.profile.microphoneUID)
+        } catch let failure as DictationFailure {
+            DictationMediaController.shared.end()
+            fail(failure)
+            return
+        } catch {
+            DictationMediaController.shared.end()
+            fail(.microphoneUnavailable)
+            return
+        }
+        let transition = DictationLifecycle.transition(from: state, event: .begin)
+        state = transition.state
+        installEscapeHandlers()
+        showHUD()
+    }
+
+    private func stopAndTranscribe() {
+        guard state == .listening,
+              let id = sessionID,
+              let configuration = sessionConfiguration else { return }
+        let file: URL
+        do {
+            file = try recorder.stop()
+        } catch let failure as DictationFailure {
+            DictationMediaController.shared.end()
+            fail(failure)
+            return
+        } catch {
+            DictationMediaController.shared.end()
+            fail(.noSpeech)
+            return
+        }
+        DictationMediaController.shared.end()
+        DictationOutputMuteController.shared.end()
+        let recordingStartedAt = recorder.lastRecordingStartedAt ?? Date()
+        let recordingDuration = recorder.lastRecordingDuration ?? 0
+        let processingStartedAt = Date()
+        let transition = DictationLifecycle.transition(from: state, event: .stop)
+        state = transition.state
+        level = 0
+        showHUD()
+        transcriptionTask?.cancel()
+        transcriptionTask = Task { [weak self] in
+            guard let self else { return }
+            defer { self.recorder.discardFile() }
+            do {
+                let text = try await self.client.transcribe(file: file,
+                                                            provider: configuration.provider,
+                                                            model: configuration.model,
+                                                            apiKey: configuration.apiKey,
+                                                            language: configuration.profile.language)
+                guard !Task.isCancelled, self.sessionID == id else { return }
+                let hasSpeech = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                let completed = DictationLifecycle.transition(
+                    from: self.state,
+                    event: .transcriptionCompleted(hasText: hasSpeech))
+                self.state = completed.state
+                guard hasSpeech else {
+                    self.fail(.noSpeech)
+                    return
+                }
+                let output = await self.output(for: text, configuration: configuration)
+                guard !Task.isCancelled, self.sessionID == id else { return }
+                self.saveHistoryIfEnabled(rawText: text,
+                                          output: output.text,
+                                          outputMode: output.mode,
+                                          configuration: configuration,
+                                          recordingStartedAt: recordingStartedAt,
+                                          recordingDuration: recordingDuration,
+                                          processingDuration: Date().timeIntervalSince(processingStartedAt),
+                                          audioURL: file)
+                self.insert(output.text, sessionID: id)
+            } catch let providerError as DictationProviderError {
+                guard !Task.isCancelled, self.sessionID == id else { return }
+                self.fail(providerError.failure,
+                          providerStatus: providerError.statusCode,
+                          providerDetail: providerError.detail)
+            } catch let failure as DictationFailure {
+                guard failure != .cancelled, !Task.isCancelled, self.sessionID == id else { return }
+                self.fail(failure)
+            } catch {
+                guard !Task.isCancelled, self.sessionID == id else { return }
+                self.fail(.network)
+            }
+        }
+    }
+
+    private func insert(_ text: String, sessionID id: UUID) {
+        guard sessionID == id else { return }
+        guard AXIsProcessTrusted() else {
+            copyToClipboard(text)
+            fail(.accessibilityRequiredCopied)
+            return
+        }
+        switch DictationInsertionDecision.decide(accessibilityGranted: true) {
+        case .copy(let failure):
+            copyToClipboard(text)
+            fail(failure)
+        case .paste:
+            // Post Cmd-V against the current cursor. AX wrappers are not stable
+            // across app, window, Space, or browser changes while transcription
+            // is in flight; retaining one and comparing it here rejects valid
+            // delivery targets. TransientPaste delays the event until its
+            // clipboard transaction is ready, matching the native paste flow.
+            let accepted = TransientPaste.shared.paste(
+                text,
+                didPostShortcut: { [weak self] in
+                    guard let self, self.sessionID == id else { return }
+                    self.finishSuccessfully()
+                },
+                didFail: { [weak self] in
+                    guard let self, self.sessionID == id else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.65) { [weak self] in
+                        guard let self, self.sessionID == id else { return }
+                        self.copyToClipboard(text)
+                        self.fail(.pasteFailedCopied)
+                    }
+                })
+            if !accepted {
+                copyToClipboard(text)
+                fail(.pasteFailedCopied)
+            }
+        }
+    }
+
+    private func copyToClipboard(_ text: String) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if pasteboard.setString(text, forType: .string) {
+            ClipboardHistoryService.shared.ignoreNextChange(upTo: pasteboard.changeCount)
+        }
+    }
+
+    private func saveHistoryIfEnabled(rawText: String,
+                                      output: String,
+                                      outputMode: DictationOutputMode,
+                                      configuration: SessionConfiguration,
+                                      recordingStartedAt: Date,
+                                      recordingDuration: TimeInterval,
+                                      processingDuration: TimeInterval,
+                                      audioURL: URL) {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistoryEnabled) else { return }
+        let keepAudio = UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio)
+        let entry = DictationHistoryEntry(
+            createdAt: recordingStartedAt,
+            duration: recordingDuration,
+            provider: configuration.provider,
+            model: configuration.model,
+            language: configuration.profile.language,
+            rawText: rawText,
+            enhancedText: outputMode == .enhanced ? output : nil,
+            outputMode: outputMode,
+            audioFileName: nil,
+            processingDuration: processingDuration,
+            failure: nil)
+        _ = try? DictationHistoryStore.shared.save(entry, audioURL: keepAudio ? audioURL : nil)
+        _ = DictationHistoryStore.shared.removeExpired(
+            days: UserDefaults.standard.integer(forKey: DefaultsKey.dictationHistoryRetentionDays))
+    }
+
+    private func output(for rawText: String,
+                        configuration: SessionConfiguration) async -> (text: String, mode: DictationOutputMode) {
+        guard configuration.profile.outputMode == .enhanced else {
+            return (rawText, .raw)
+        }
+        do {
+            let enhanced = try await client.enhance(text: rawText,
+                                                    provider: configuration.provider,
+                                                    apiKey: configuration.apiKey,
+                                                    language: configuration.profile.language)
+            return (enhanced, .enhanced)
+        } catch {
+            // Literal text is always a safe, useful fallback when the optional
+            // second request is unavailable or cancelled.
+            return (rawText, .raw)
+        }
+    }
+
+    func retranscribe(entry: DictationHistoryEntry,
+                      provider: DictationProvider,
+                      model: DictationModel,
+                      language: DictationLanguage,
+                      outputMode: DictationOutputMode? = nil) async throws -> DictationHistoryEntry {
+        guard let fileName = entry.audioFileName,
+              let file = DictationHistoryStore.shared.audioURL(for: fileName) else {
+            throw DictationFailure.noSpeech
+        }
+        let key = try apiKey(for: provider)
+        let started = Date()
+        let raw = try await client.transcribe(file: file,
+                                              provider: provider,
+                                              model: model,
+                                              apiKey: key,
+                                              language: language)
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw DictationFailure.noSpeech
+        }
+        let requestedMode = outputMode ?? currentOutputMode
+        let configuration = SessionConfiguration(provider: provider,
+                                                 model: model,
+                                                 apiKey: key,
+                                                 profile: DictationShortcutProfile(
+                                                    slot: .primary,
+                                                    mode: .toggle,
+                                                    provider: provider,
+                                                    model: model,
+                                                    language: language,
+                                                    microphoneUID: nil,
+                                                    outputMode: requestedMode))
+        let output = await output(for: raw, configuration: configuration)
+        let attempt = DictationHistoryEntry(
+            createdAt: Date(),
+            duration: entry.duration,
+            provider: provider,
+            model: model,
+            language: language,
+            rawText: raw,
+            enhancedText: output.mode == .enhanced ? output.text : nil,
+            outputMode: output.mode,
+            sourceEntryID: entry.id,
+            audioFileName: nil,
+            processingDuration: Date().timeIntervalSince(started),
+            failure: nil)
+        return try DictationHistoryStore.shared.saveAttempt(attempt, copiedFrom: entry)
+    }
+
+    func importAudio(from url: URL,
+                     provider: DictationProvider,
+                     model: DictationModel,
+                     language: DictationLanguage,
+                     outputMode: DictationOutputMode? = nil) async throws -> DictationHistoryEntry {
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        guard let values = try? url.resourceValues(
+            forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
+              values.isRegularFile == true,
+              values.isSymbolicLink != true,
+              let size = values.fileSize,
+              size > 0,
+              size <= DictationMultipartBody.maximumAudioBytes else {
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            throw size > DictationMultipartBody.maximumAudioBytes
+                ? DictationFailure.audioTooLarge : DictationFailure.noSpeech
+        }
+        let key = try apiKey(for: provider)
+        let started = Date()
+        let raw = try await client.transcribe(file: url,
+                                              provider: provider,
+                                              model: model,
+                                              apiKey: key,
+                                              language: language,
+                                              fileName: url.lastPathComponent,
+                                              mimeType: Self.mimeType(for: url.pathExtension))
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw DictationFailure.noSpeech
+        }
+        let mode = outputMode ?? currentOutputMode
+        let configuration = SessionConfiguration(provider: provider,
+                                                 model: model,
+                                                 apiKey: key,
+                                                 profile: DictationShortcutProfile(
+                                                    slot: .primary,
+                                                    mode: .toggle,
+                                                    provider: provider,
+                                                    model: model,
+                                                    language: language,
+                                                    microphoneUID: nil,
+                                                    outputMode: mode))
+        let output = await output(for: raw, configuration: configuration)
+        let entry = DictationHistoryEntry(
+            createdAt: Date(),
+            duration: Self.audioDuration(url),
+            provider: provider,
+            model: model,
+            language: language,
+            rawText: raw,
+            enhancedText: output.mode == .enhanced ? output.text : nil,
+            outputMode: output.mode,
+            audioFileName: nil,
+            processingDuration: Date().timeIntervalSince(started),
+            failure: nil)
+        return try DictationHistoryStore.shared.save(
+            entry,
+            audioURL: UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio) ? url : nil)
+    }
+
+    private var currentOutputMode: DictationOutputMode {
+        DictationOutputMode(rawValue: UserDefaults.standard.string(
+            forKey: DefaultsKey.dictationOutputMode) ?? "") ?? .raw
+    }
+
+    private func apiKey(for provider: DictationProvider) throws -> String {
+        do {
+            guard let key = try storedKey(for: provider),
+                  !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw DictationFailure.missingKey
+            }
+            return key
+        } catch let failure as DictationFailure {
+            throw failure
+        } catch {
+            throw DictationFailure.keychain
+        }
+    }
+
+    private static func mimeType(for extensionName: String) -> String {
+        switch extensionName.lowercased() {
+        case "wav": return "audio/wav"
+        case "mp3": return "audio/mpeg"
+        case "m4a", "mp4": return "audio/mp4"
+        case "webm": return "audio/webm"
+        case "ogg", "oga": return "audio/ogg"
+        case "flac": return "audio/flac"
+        default: return "application/octet-stream"
+        }
+    }
+
+    private static func audioDuration(_ url: URL) -> TimeInterval {
+        guard let file = try? AVAudioFile(forReading: url), file.fileFormat.sampleRate > 0 else { return 0 }
+        return Double(file.length) / file.fileFormat.sampleRate
+    }
+
+    private func finishSuccessfully() {
+        transcriptionTask = nil
+        sessionID = nil
+        sessionConfiguration = nil
+        microphoneFallbackName = nil
+        lastProviderStatus = nil
+        lastProviderDetail = nil
+        clearGestures()
+        recorder.discardFile()
+        removeEscapeHandlers()
+        state = .idle
+        hud.hide()
+    }
+
+    private func fail(_ failure: DictationFailure,
+                      providerStatus: Int? = nil,
+                      providerDetail: String? = nil) {
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
+        preserveFailedRecordingIfEnabled(failure)
+        recorder.cancel()
+        DictationMediaController.shared.end()
+        DictationOutputMuteController.shared.end()
+        lastProviderStatus = providerStatus
+        lastProviderDetail = providerDetail
+        removeEscapeHandlers()
+        sessionID = nil
+        sessionConfiguration = nil
+        clearGestures()
+        state = .failure(failure)
+        level = 0
+        showHUD(failure: failure)
+        dismissWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.state == .failure(failure) else { return }
+            self.state = .idle
+            self.hud.hide()
+            self.dismissWork = nil
+        }
+        dismissWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
+    }
+
+    private func preserveFailedRecordingIfEnabled(_ failure: DictationFailure) {
+        guard [.network, .rateLimited, .server, .requestRejected].contains(failure),
+              UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistoryEnabled),
+              UserDefaults.standard.bool(forKey: DefaultsKey.dictationHistorySaveAudio),
+              let audioURL = recorder.fileURL,
+              let configuration = sessionConfiguration else { return }
+        let entry = DictationHistoryEntry(
+            createdAt: recorder.lastRecordingStartedAt ?? Date(),
+            duration: recorder.lastRecordingDuration ?? 0,
+            provider: configuration.provider,
+            model: configuration.model,
+            language: configuration.profile.language,
+            rawText: "",
+            audioFileName: nil,
+            processingDuration: nil,
+            failure: String(describing: failure))
+        _ = try? DictationHistoryStore.shared.save(entry, audioURL: audioURL)
+    }
+
+    private func cancel(event: DictationLifecycleEvent) {
+        dismissWork?.cancel()
+        dismissWork = nil
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
+        recorder.cancel()
+        DictationOutputMuteController.shared.end()
+        removeEscapeHandlers()
+        sessionID = nil
+        sessionConfiguration = nil
+        lastProviderStatus = nil
+        lastProviderDetail = nil
+        clearGestures()
+        level = 0
+        state = DictationLifecycle.transition(from: state, event: event).state
+        hud.hide()
+    }
+
+    private func installEscapeHandlers() {
+        let escape = GlobalShortcut(keyCode: Int64(kVK_Escape), modifiers: [])
+        _ = cancelHotkey.sync(enabled: true, shortcut: escape)
+        if localEscapeMonitor == nil {
+            localEscapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
+                [weak self] event in
+                guard event.keyCode == UInt16(kVK_Escape) else { return event }
+                self?.cancel()
+                return nil
+            }
+        }
+        if globalEscapeMonitor == nil {
+            globalEscapeMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) {
+                [weak self] event in
+                guard event.keyCode == UInt16(kVK_Escape) else { return }
+                self?.cancel()
+            }
+        }
+    }
+
+    private func removeEscapeHandlers() {
+        cancelHotkey.unregister()
+        if let localEscapeMonitor { NSEvent.removeMonitor(localEscapeMonitor) }
+        if let globalEscapeMonitor { NSEvent.removeMonitor(globalEscapeMonitor) }
+        localEscapeMonitor = nil
+        globalEscapeMonitor = nil
+    }
+
+    private func showHUD(failure: DictationFailure? = nil) {
+        let strings = FeatureStrings.dictation(L10n.shared.language)
+        let activation = FeatureStrings.dictationActivation(L10n.shared.language)
+        let opensSettings = failure == .microphoneDenied
+            || failure == .accessibilityRequiredCopied
+        var sessionDetail = sessionConfiguration.map {
+            "\(activation.modeName($0.profile.mode)) · "
+                + "\(strings.providerName($0.provider)) · \($0.model.id)"
+                + ($0.profile.language == .automatic ? "" : " · \($0.profile.language.displayName)")
+        }
+        if let microphoneFallbackName {
+            sessionDetail = (sessionDetail ?? "") + " · \(activation.microphone): \(microphoneFallbackName)"
+        }
+        if let lastProviderStatus {
+            sessionDetail = (sessionDetail ?? "") + " · HTTP \(lastProviderStatus)"
+        }
+        if let lastProviderDetail {
+            sessionDetail = (sessionDetail ?? "") + " · \(lastProviderDetail)"
+        }
+        hud.show(state: state,
+                 level: level,
+                 strings: strings,
+                 sessionDetail: sessionDetail,
+                 listeningHint: sessionConfiguration.map {
+                     $0.profile.mode == .toggle
+                         ? strings.stopHint : activation.modeName($0.profile.mode)
+                 },
+                 opensSettings: opensSettings) {
+            if failure == .microphoneDenied {
+                Permissions.shared.openMicrophoneSettings()
+            } else {
+                Permissions.shared.openAccessibilitySettings()
+            }
+        }
+    }
+
+    private func model(for provider: DictationProvider) -> DictationModel {
+        let key = provider == .openAI
+            ? DefaultsKey.dictationOpenAIModel : DefaultsKey.dictationGroqModel
+        return provider.sanitizedModel(UserDefaults.standard.string(forKey: key))
+    }
+
+    private func shortcutKind(for slot: DictationShortcutSlot) -> DictationShortcutKind {
+        let key = slot == .secondary
+            ? DefaultsKey.dictationSecondaryShortcutKind : DefaultsKey.dictationShortcutKind
+        return DictationShortcutKind(rawValue: UserDefaults.standard.string(forKey: key) ?? "")
+            ?? .standard
+    }
+
+    private func modifierKey(for slot: DictationShortcutSlot) -> DictationModifierKey {
+        let key = slot == .secondary
+            ? DefaultsKey.dictationSecondaryModifierShortcut : DefaultsKey.dictationModifierShortcut
+        let fallback: DictationModifierKey = slot == .secondary ? .rightOption : .rightCommand
+        return DictationModifierKey(rawValue: UserDefaults.standard.string(forKey: key) ?? "")
+            ?? fallback
+    }
+
+    private func profile(for slot: DictationShortcutSlot) -> DictationShortcutProfile {
+        let defaults = UserDefaults.standard
+        let secondary = slot == .secondary
+        let providerKey = secondary ? DefaultsKey.dictationSecondaryProvider : DefaultsKey.dictationProvider
+        let provider = DictationProvider(rawValue: defaults.string(forKey: providerKey) ?? "")
+            ?? (secondary ? .groq : .openAI)
+        let modelKey: String
+        if secondary {
+            modelKey = provider == .openAI ? DefaultsKey.dictationSecondaryOpenAIModel
+                : DefaultsKey.dictationSecondaryGroqModel
+        } else {
+            modelKey = provider == .openAI ? DefaultsKey.dictationOpenAIModel
+                : DefaultsKey.dictationGroqModel
+        }
+        let modeKey = secondary ? DefaultsKey.dictationSecondaryMode : DefaultsKey.dictationMode
+        let mode = DictationShortcutMode(rawValue: defaults.string(forKey: modeKey) ?? "") ?? .toggle
+        let languageKey = secondary ? DefaultsKey.dictationSecondaryLanguage : DefaultsKey.dictationLanguage
+        let language = DictationLanguage(rawValue: defaults.string(forKey: languageKey) ?? "") ?? .automatic
+        let microphoneKey = secondary ? DefaultsKey.dictationSecondaryMicrophone : DefaultsKey.dictationMicrophone
+        let microphone = defaults.string(forKey: microphoneKey)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let microphoneUID = microphone?.isEmpty == false ? microphone : nil
+        let outputMode = DictationOutputMode(rawValue: defaults.string(
+            forKey: DefaultsKey.dictationOutputMode) ?? "") ?? .raw
+        return DictationShortcutProfile(slot: slot, mode: mode, provider: provider,
+                                        model: provider.sanitizedModel(defaults.string(forKey: modelKey)),
+                                        language: language,
+                                        microphoneUID: microphoneUID,
+                                        outputMode: outputMode)
+    }
+
+    private func prepareForRegistration(_ slot: DictationShortcutSlot,
+                                        enabled: Bool,
+                                        shortcut: GlobalShortcut,
+                                        profile: DictationShortcutProfile,
+                                        kind: DictationShortcutKind,
+                                        modifierKey: DictationModifierKey) {
+        let wasConfigured = configuredEnabled[slot] != nil
+        let changed = configuredEnabled[slot] != enabled
+            || configuredShortcuts[slot] != shortcut
+            || configuredShortcutKinds[slot] != kind
+            || configuredModifierKeys[slot] != modifierKey
+            || configuredProfiles[slot] != profile
+        if wasConfigured && changed {
+            cancelGesture(slot)
+            if activeSlot == slot { cancel(event: .disable) }
+        }
+        configuredEnabled[slot] = enabled
+        configuredShortcuts[slot] = shortcut
+        configuredShortcutKinds[slot] = kind
+        configuredModifierKeys[slot] = modifierKey
+        configuredProfiles[slot] = profile
+    }
+
+    private func cancelGesture(_ slot: DictationShortcutSlot) {
+        if slot == .primary { primaryGesture.cancel() }
+        else { secondaryGesture.cancel() }
+    }
+
+    private func clearGestures() {
+        primaryGesture.cancel()
+        secondaryGesture.cancel()
+        activeSlot = nil
+    }
+
+    private struct SessionConfiguration {
+        let provider: DictationProvider
+        let model: DictationModel
+        let apiKey: String
+        let profile: DictationShortcutProfile
+    }
+
+}
