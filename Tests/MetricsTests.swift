@@ -12301,6 +12301,30 @@ struct MetricsTests {
             .filter { $0.contains("options: .") }
         expect(windowScopes.count >= 2 && windowScopes.allSatisfy { $0.contains(".optionAll") },
                "the retry's live window list is gathered in the same scope as the snapshot it is compared against")
+        // A switch away from a fullscreen app reaches its target through a hop,
+        // whose arrival pulses raise it for up to a second. They must ask the
+        // same guard before raising, or Command-N in the app just reached is
+        // covered by the target on the next pulse. Comments are stripped, so a
+        // doc comment naming the guard cannot stand in for the call.
+        let hopFocusBody: String = {
+            guard let start = activatorCode.range(of: "static func focusAfterSpaceHop(") else { return "" }
+            let rest = activatorCode[start.upperBound...]
+            let end = rest.range(of: "static func ")?.lowerBound ?? rest.endIndex
+            return String(rest[..<end])
+        }()
+        let hopGuard = hopFocusBody.range(of: "shouldContinueFocusRetry(")
+        let hopRaise = hopFocusBody.range(of: "focusWindow(")
+        expect(hopGuard != nil && hopRaise != nil && hopGuard!.lowerBound < hopRaise!.lowerBound,
+               "the hop's arrival pass consults the retry guard before it raises the target")
+        let spaceHopCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceHop.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(spaceHopCode.contains("state: self.focusState")
+               && spaceHopCode.contains("knownWindowIDs: WindowActivator.focusSnapshot(ownerPID:"),
+               "a hop snapshots the app's windows when it begins and hands that state to every pulse")
         expect(SwitcherSupport.shouldContinueFocusRetry(targetPID: 10,
                                                         sourcePID: 20,
                                                         frontmostPID: 10,
