@@ -366,12 +366,8 @@ final class ScreenshotService: ObservableObject {
         let consumedNumber: Int?
     }
 
-    /// A finished capture goes to the floating preview, or straight into the
-    /// editor when the after-capture action is Edit.
-    ///
-    /// The clipboard copy happens first and independently, so it also reaches
-    /// the captures that open straight in the editor, where no preview button
-    /// exists to reach for.
+    /// Automatic outputs also run when the preview is hidden. Keep an explicit
+    /// editor action and a recovery preview when no automatic output is selected.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
@@ -379,14 +375,20 @@ final class ScreenshotService: ObservableObject {
             forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled) {
             ScreenshotLastCaptureStore.save(capture)
         }
-        if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
-            autoCopy(capture)
+        let copies = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyToClipboard)
+        let configuredAction = ScreenshotDefaultAction.current
+        let defaultAction = configuredAction.automaticOutputAction(copyToClipboard: copies)
+        let showPreview = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotShowPreview)
+        if copies && ![.copy, .saveAndCopy].contains(defaultAction) {
+            autoCopy(capture, recoverOnFailure: !showPreview && defaultAction != .edit)
         }
-        if ScreenshotDefaultAction.current == .edit {
+        if defaultAction == .edit {
             openEditor(with: capture)
             return
         }
-        presentPreview(capture, defaultAction: ScreenshotDefaultAction.current)
+        if !showPreview && defaultAction == .none && copies { return }
+        presentPreview(capture, defaultAction: defaultAction,
+                       showPreview: showPreview || defaultAction == .none)
     }
 
     /// A history item returns to the same floating preview without repeating
@@ -397,7 +399,8 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func presentPreview(_ capture: ScreenshotSelectionController.Capture,
-                                defaultAction: ScreenshotDefaultAction) {
+                                defaultAction: ScreenshotDefaultAction,
+                                showPreview: Bool = true) {
         var saved: SaveOutcome?
         let controller = ScreenshotQuickPreviewController(
             capture: capture,
@@ -444,7 +447,7 @@ final class ScreenshotService: ObservableObject {
             },
             onClose: { [weak self] in self?.preview = nil })
         preview = controller
-        controller.show()
+        controller.show(displayPreview: showPreview)
     }
 
     func openEditor(with capture: ScreenshotSelectionController.Capture) {
@@ -521,13 +524,15 @@ final class ScreenshotService: ObservableObject {
         WindowActivationPolicy.release()
     }
 
-    /// Automatic copy stays quiet on success: the preview or the editor is
-    /// already appearing and says the capture happened, so a HUD on top of it
-    /// would only repeat that. A failure still beeps, since nothing else
-    /// would reveal an empty clipboard before the paste.
-    private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
+    /// Keep automatic copying quiet; recover failed hidden captures in a preview.
+    private func autoCopy(_ capture: ScreenshotSelectionController.Capture,
+                          recoverOnFailure: Bool = false) {
+        let recover = { [weak self] in
+            if recoverOnFailure { self?.restorePreview(capture) }
+        }
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         guard let folder = ScreenshotSupport.copiedFilesDirectory() else {
+            recover()
             NSSound.beep()
             return
         }
@@ -548,7 +553,10 @@ final class ScreenshotService: ObservableObject {
                 return (url, payload)
             }.value
             guard let output else {
-                if !Task.isCancelled { NSSound.beep() }
+                if !Task.isCancelled {
+                    NSSound.beep()
+                    recover()
+                }
                 return
             }
             guard let self, !Task.isCancelled,
@@ -563,6 +571,7 @@ final class ScreenshotService: ObservableObject {
             else {
                 try? FileManager.default.removeItem(at: output.0)
                 NSSound.beep()
+                recover()
                 return
             }
             ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)

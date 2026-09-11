@@ -39,6 +39,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = false
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.screenshotShowPreview) private var showPreview = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
 
@@ -155,8 +156,14 @@ struct ScreenshotCaptureSettings: View {
                     Text(strings.loupeZoomOptionCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    previewPositionRow
-                    previewFocusRow
+                    Toggle(strings.previewToggle, isOn: $showPreview)
+                    if showPreview {
+                        Text(strings.previewEscapeCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        previewPositionRow
+                        previewFocusRow
+                    }
                     defaultActionRow
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
@@ -164,8 +171,12 @@ struct ScreenshotCaptureSettings: View {
             }
 
             Section {
-                Toggle(strings.autoCopyToggle, isOn: $copyToClipboard)
+                Toggle(strings.autoCopyToggle, isOn: automaticCopy)
                 Text(strings.autoCopyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(strings.autoSaveToggle, isOn: automaticSave)
+                Text(strings.autoSaveCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 folderRow
@@ -226,9 +237,41 @@ struct ScreenshotCaptureSettings: View {
         }
     }
 
+    // Keep the existing after-capture action and the output toggles in sync.
+    private var automaticSave: Binding<Bool> {
+        Binding(get: {
+            [.save, .saveAndCopy].contains(ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none)
+        }, set: { enabled in
+            let copies = automaticCopy.wrappedValue
+            copyToClipboard = copies
+            defaultActionRaw = enabled ? ScreenshotDefaultAction.save.rawValue
+                : ScreenshotDefaultAction.none.rawValue
+        })
+    }
+
+    private var automaticCopy: Binding<Bool> {
+        Binding(get: {
+            copyToClipboard || [.copy, .saveAndCopy].contains(
+                ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none)
+        }, set: { enabled in
+            copyToClipboard = enabled
+            if defaultActionRaw == ScreenshotDefaultAction.copy.rawValue {
+                defaultActionRaw = ScreenshotDefaultAction.none.rawValue
+            } else if defaultActionRaw == ScreenshotDefaultAction.saveAndCopy.rawValue {
+                defaultActionRaw = ScreenshotDefaultAction.save.rawValue
+            }
+        })
+    }
+
     private var defaultActionRow: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Picker(strings.defaultActionLabel, selection: $defaultActionRaw) {
+            Picker(strings.defaultActionLabel, selection: Binding(
+                get: { defaultActionRaw },
+                set: { raw in
+                    let action = ScreenshotDefaultAction(rawValue: raw) ?? .none
+                    defaultActionRaw = action.rawValue
+                    copyToClipboard = action == .copy || action == .saveAndCopy
+                })) {
                 Text(strings.defaultActionNone).tag(ScreenshotDefaultAction.none.rawValue)
                 Text(strings.saveButton).tag(ScreenshotDefaultAction.save.rawValue)
                 Text(strings.defaultActionSaveAndCopy).tag(ScreenshotDefaultAction.saveAndCopy.rawValue)

@@ -18294,6 +18294,18 @@ struct MetricsTests {
                 == ["", "topLeft", "topRight", "bottomLeft", "bottomRight"]
                 && ScreenshotSupport.QuickPreviewPosition(rawValue: "bogus") == nil,
                "preview positions keep stable storage values and reject unknown values")
+        expect(ScreenshotDefaultAction.save.automaticOutputAction(copyToClipboard: true) == .saveAndCopy,
+               "automatic save and clipboard use one combined output action")
+        expect(ScreenshotDefaultAction.save.automaticOutputAction(copyToClipboard: false) == .save,
+               "file-only capture does not write the clipboard")
+        expect(ScreenshotDefaultAction.edit.automaticOutputAction(copyToClipboard: true) == .edit,
+               "automatic clipboard output preserves explicit editing")
+        expect(ScreenshotDefaultAction.saveAndCopy.automaticOutputAction(copyToClipboard: false) == .saveAndCopy,
+               "legacy save-and-copy remains enabled independently of the clipboard toggle")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotShowPreview] as? Bool == true,
+               "screenshot preview remains enabled for existing users")
+        expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotShowPreview),
+               "screenshot preview visibility travels with settings backups")
         expect(ScreenshotDefaultAction(rawValue: "") == ScreenshotDefaultAction.none
                 && ScreenshotDefaultAction(rawValue: "saveAndCopy") == .saveAndCopy
                 && ScreenshotDefaultAction(rawValue: "bogus") == nil,

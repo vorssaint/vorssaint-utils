@@ -39,6 +39,7 @@ final class ScreenshotQuickPreviewController {
     private let onClose: () -> Void
     private let model = ScreenshotQuickPreviewModel()
     private var panel: ScreenshotQuickPreviewPanel?
+    private var globalKeyMonitor: Any?
     private var keyMonitor: Any?
     private var dismissWork: DispatchWorkItem?
     private var autoDismissDuration: TimeInterval = 12
@@ -64,8 +65,13 @@ final class ScreenshotQuickPreviewController {
         self.onClose = onClose
     }
 
-    func show() {
+    func show(displayPreview: Bool = true) {
         guard panel == nil, !closed else { return }
+        let actionSucceeded = runDefaultAction(defaultAction)
+        if !displayPreview && actionSucceeded {
+            close()
+            return
+        }
         let content = ScreenshotQuickPreviewView(
             image: Self.thumbnail(for: capture.image),
             strings: strings,
@@ -120,7 +126,7 @@ final class ScreenshotQuickPreviewController {
         }
         // A performed action turns the preview into a short confirmation; a
         // failed one keeps the full stay so the person can still act by hand.
-        autoDismissDuration = runDefaultAction(defaultAction) ? 3 : 12
+        autoDismissDuration = actionSucceeded ? 3 : 12
         scheduleAutoDismiss()
         scanForQR()
     }
@@ -143,7 +149,9 @@ final class ScreenshotQuickPreviewController {
         let performed = action(mapped)
         guard !performed.isEmpty else { return false }
         model.disabledActions = performed.intersection([.save, .copy])
-        return true
+        return mapped == .saveAndCopy
+            ? performed.isSuperset(of: [.save, .copy])
+            : performed.contains(mapped)
     }
 
     /// Scans the full resolution capture off the main thread and reveals the
@@ -198,6 +206,10 @@ final class ScreenshotQuickPreviewController {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+        if let globalKeyMonitor {
+            NSEvent.removeMonitor(globalKeyMonitor)
+            self.globalKeyMonitor = nil
         }
         panel?.orderOut(nil)
         panel = nil
@@ -334,8 +346,20 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func installKeyMonitor(for panel: NSPanel) {
+        globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard event.keyCode == kVK_Escape,
+                  event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+            else { return }
+            self?.close()
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
-            guard let self, let panel, event.window === panel else { return event }
+            guard let self, let panel else { return event }
+            if event.keyCode == kVK_Escape,
+               event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
+                self.close()
+                return nil
+            }
+            guard event.window === panel else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let key = Int(event.keyCode)
             if flags.contains(.command) {
