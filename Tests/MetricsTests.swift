@@ -15625,6 +15625,9 @@ struct MetricsTests {
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderPasteImageAsFile])
                 == [.finderCutPaste, .uninstaller, .quickToggles],
                "pasting copied images as files engages the shared Finder feature")
+        expect(activeSet(.automationFinder, on: [DefaultsKey.finderFolderSpaceGetInfo])
+                == [.finderCutPaste, .uninstaller, .quickToggles],
+               "Space on folders for Get Info engages the shared Finder feature")
         expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
         expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
@@ -21589,6 +21592,40 @@ struct MetricsTests {
                 && !FinderRenameSupport.acceptsFocusedRole(nil),
                "Finder rename only acts outside editable fields with a known focus")
 
+        expect(FinderFolderInfoSupport.shouldClaimSpace(isFinderFrontmost: true,
+                                                         hasModifiers: false,
+                                                         acceptsFocusedRole: true),
+               "Space is claimed in Finder outside text fields with no modifiers")
+        expect(!FinderFolderInfoSupport.shouldClaimSpace(isFinderFrontmost: false,
+                                                          hasModifiers: false,
+                                                          acceptsFocusedRole: true),
+               "Space is left alone when Finder is not frontmost")
+        expect(!FinderFolderInfoSupport.shouldClaimSpace(isFinderFrontmost: true,
+                                                          hasModifiers: true,
+                                                          acceptsFocusedRole: true),
+               "modified Space is left for Finder / the system")
+        expect(!FinderFolderInfoSupport.shouldClaimSpace(isFinderFrontmost: true,
+                                                          hasModifiers: false,
+                                                          acceptsFocusedRole: false),
+               "Space stays with the focused text field while renaming")
+        expect(FinderFolderInfoSupport.action(directoryFlags: [true, true]) == .openGetInfo,
+               "a folder-only selection opens Get Info")
+        expect(FinderFolderInfoSupport.action(directoryFlags: [true, false]) == .forwardQuickLook,
+               "a mixed selection keeps Quick Look")
+        expect(FinderFolderInfoSupport.action(directoryFlags: [false]) == .forwardQuickLook,
+               "a file selection keeps Quick Look")
+        expect(FinderFolderInfoSupport.action(directoryFlags: []) == .forwardQuickLook,
+               "an empty selection re-posts Space instead of swallowing it")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.finderFolderInfo(language)
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            expect(values.count == 2 && values.allSatisfy { !$0.isEmpty },
+                   "every Finder folder Space Get Info string is set for \(language.rawValue)")
+            expect(values.allSatisfy { !$0.contains("—") },
+                   "no em-dash in Finder folder Space Get Info strings (\(language.rawValue))")
+        }
+
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.windowPreviewExclusions(language)
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
@@ -21757,6 +21794,9 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
                 && backupKeys.contains(DefaultsKey.finderPasteImageAsFile),
                "pasting copied images as files is opt-in and travels with settings backup")
+        expect(Defaults.registeredDefaults[DefaultsKey.finderFolderSpaceGetInfo] as? Bool == false
+                && backupKeys.contains(DefaultsKey.finderFolderSpaceGetInfo),
+               "Space on folders for Get Info is opt-in and travels with settings backup")
         expect(Defaults.registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true
                 && backupKeys.contains(DefaultsKey.finderCutPasteShowHUD),
                "the Finder cut and paste floating panel default is on and travels with settings backup")
@@ -26076,6 +26116,7 @@ struct MetricsTests {
                          "Sources/Vorssaint/Services/WindowMaximizer.swift",
                          "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift",
                          "Sources/Vorssaint/Services/Finder/FinderRenameService.swift",
+                         "Sources/Vorssaint/Services/Finder/FinderFolderInfoService.swift",
                          "Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
                          "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift",
                          "Sources/Vorssaint/Services/ShortcutRecordingTap.swift",
