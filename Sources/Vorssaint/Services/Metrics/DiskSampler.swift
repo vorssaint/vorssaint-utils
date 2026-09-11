@@ -37,6 +37,10 @@ final class DiskSampler {
     /// minutes long and still fall outside.
     private static let maxGap: TimeInterval = 15
 
+    func invalidateCache() {
+        metadataCache.removeAll()
+    }
+
     func sample(now: TimeInterval, refreshMetadata: Bool = true) -> DiskReading {
         let counters = Self.readCounters()
         let devices = Self.mountedVolumes().map { volume -> DiskDeviceReading in

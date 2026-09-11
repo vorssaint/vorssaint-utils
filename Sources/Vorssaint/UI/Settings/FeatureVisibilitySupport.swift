@@ -245,7 +245,7 @@ extension AppFeature {
         case .screenRecorder:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
 
-        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower:
+        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower:
             return FeatureSettingsDestination(.monitor)
         case .fanControl:
             return FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl)
@@ -257,7 +257,7 @@ extension AppFeature {
 /// features only disappears when ALL of them are switched off in the hub.
 enum FeatureVisibilitySupport {
     static let monitorFeatures: [AppFeature] = [
-        .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+        .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower,
         .fanControl,
     ]
 

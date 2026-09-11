@@ -112,6 +112,30 @@ final class SMCClient {
         guard output.result == 0 else { throw WriteError.controller(output.result) }
     }
 
+    /// Reads a string value from SMC, e.g. for fan labels (F0ID).
+    func readStringValue(_ key: Key) -> String? {
+        var input = SMCParamStruct()
+        input.key = key.code
+        input.keyInfo.dataSize = key.dataSize
+        input.data8 = Self.cmdReadKey
+        guard let out = call(&input), out.result == 0 else { return nil }
+
+        let bytes = withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
+        guard bytes.count > 2 else {
+            let printable = bytes.filter { $0 >= 32 && $0 <= 126 }
+            return String(bytes: printable, encoding: .ascii)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let stringBytes = bytes[2...]
+        let printable = stringBytes.prefix(while: { $0 >= 32 && $0 <= 126 })
+        if let decoded = String(bytes: printable, encoding: .ascii) {
+            let trimmed = decoded.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
     /// Looks up a single key by its 4-character code, returning its size and type
     /// so `readValue` can decode it. Cheaper than enumerating every key — used to
     /// resolve the power sensors directly.

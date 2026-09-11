@@ -1113,6 +1113,39 @@ struct Strings {
     let switcherCurrentSpaceOnly: String
     let switcherCurrentSpaceOnlyCaption: String
     let shelfFileMissing: String
+    var usbSection: String = "USB Devices"
+    var usbConnectedDevices: String = "Connected USB Devices"
+    var usbNoDevices: String = "No USB devices connected"
+    var usbEject: String = "Eject USB Device"
+    var usbShowTechDetails: String = "Show Technical Details (VID:PID, Serial, BCD)"
+    var usbShowEthernet: String = "Show Ethernet / LAN Adapter"
+    var usbShowPowerCable: String = "Show Charger / Power Supply"
+    var monitorShowConnectedDevices: String = "Connected Devices"
+    var monitorShowDiskCount: String = "External Disks"
+    var usbExcludeChargers: String = "Exclude Power Supplies / Chargers"
+    var usbExcludeHubs: String = "Exclude USB Hubs & Docks"
+    var usbExcludeEthernet: String = "Exclude Network & Ethernet Adapters"
+    var usbExcludeStorage: String = "Exclude External Storage"
+
+    var monitorSysFanSpeeds: String = "Fan speeds"
+    var monitorSysDetailedTemps: String = "Detailed temperatures"
+    var monitorOff: String = "Off"
+    var monitorRPM: String = "RPM"
+    var monitorFansTitle: String = "Fans"
+
+    var tempCPUPerformanceCores: String = "CPU Performance Cores"
+    var tempCPUEfficiencyCores: String = "CPU Efficiency Cores"
+    var tempGraphics: String = "Graphics"
+    var tempSSD: String = "SSD"
+    var tempPalmRest: String = "Palm Rest"
+    var tempAirflow: String = "Airflow"
+    var tempAirPort: String = "AirPort"
+
+    var fanFallbackName: String = "Fan"
+    var fanLeftFallbackName: String = "Left Fan"
+    var fanRightFallbackName: String = "Right Fan"
+    var fanNumberedFallbackNamePattern: String = "Fan %d"
+
     let previewSizeSmall: String
     let mixerSoundEffectsOutputTitle: String
     let mixerSoundEffectsOutputTooltip: String
@@ -2124,6 +2157,22 @@ extension Strings {
         switcherCurrentSpaceOnly: "Mostrar só a Mesa atual",
         switcherCurrentSpaceOnlyCaption: "Mostra no alternador apenas as janelas da Mesa em que você está. Escolher uma janela nunca leva você para outra Mesa.",
         shelfFileMissing: "O arquivo não existe mais",
+        monitorSysFanSpeeds: "Velocidade das ventoinhas",
+        monitorSysDetailedTemps: "Temperaturas detalhadas",
+        monitorOff: "Desligado",
+        monitorRPM: "RPM",
+        monitorFansTitle: "Ventoinhas",
+        tempCPUPerformanceCores: "Núcleos de Performance do CPU",
+        tempCPUEfficiencyCores: "Núcleos de Eficiência do CPU",
+        tempGraphics: "Gráficos",
+        tempSSD: "SSD",
+        tempPalmRest: "Apoio de mãos",
+        tempAirflow: "Fluxo de ar",
+        tempAirPort: "AirPort",
+        fanFallbackName: "Ventoinha",
+        fanLeftFallbackName: "Ventoinha Esquerda",
+        fanRightFallbackName: "Ventoinha Direita",
+        fanNumberedFallbackNamePattern: "Ventoinha %d",
         previewSizeSmall: "Pequeno",
         mixerSoundEffectsOutputTitle: "Sons do sistema",
         mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam",
@@ -3136,6 +3185,22 @@ extension Strings {
         switcherCurrentSpaceOnly: "Show only the current desktop",
         switcherCurrentSpaceOnlyCaption: "Lists only windows from the desktop you are on. Picking a window never moves you to another desktop.",
         shelfFileMissing: "The file no longer exists",
+        monitorSysFanSpeeds: "Fan speeds",
+        monitorSysDetailedTemps: "Detailed temperatures",
+        monitorOff: "Off",
+        monitorRPM: "RPM",
+        monitorFansTitle: "Fans",
+        tempCPUPerformanceCores: "CPU Performance Cores",
+        tempCPUEfficiencyCores: "CPU Efficiency Cores",
+        tempGraphics: "Graphics",
+        tempSSD: "SSD",
+        tempPalmRest: "Palm Rest",
+        tempAirflow: "Airflow",
+        tempAirPort: "AirPort",
+        fanFallbackName: "Fan",
+        fanLeftFallbackName: "Left Fan",
+        fanRightFallbackName: "Right Fan",
+        fanNumberedFallbackNamePattern: "Fan %d",
         previewSizeSmall: "Small",
         mixerSoundEffectsOutputTitle: "System sounds",
         mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play",

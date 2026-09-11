@@ -271,6 +271,7 @@ final class FeatureRuntime: ObservableObject {
         .monitorMemory: { FeatureRuntime.syncMonitor() },
         .monitorNetwork: { FeatureRuntime.syncMonitor() },
         .monitorDisk: { FeatureRuntime.syncMonitor() },
+        .monitorUSB: { FeatureRuntime.syncMonitor() },
         .monitorPower: { FeatureRuntime.syncMonitor() },
         .fanControl: {
             SystemMonitor.shared.planDidChange()

@@ -174,6 +174,31 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        USBMonitorService.shared.$devices
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard MenuBarMetric.anyEnabled(in: .standard) else { return }
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
+        USBMonitorService.shared.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard MenuBarMetric.anyEnabled(in: .standard) else { return }
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)
+            .merge(with: NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard MenuBarMetric.anyEnabled(in: .standard) else { return }
+                self?.refresh()
+            }
+            .store(in: &cancellables)
+
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
                                                                   queue: .main) { [weak self] _ in
@@ -586,7 +611,7 @@ final class StatusItemController {
                                      primary: .battery,
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
-            case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power,
+            case .memory, .network, .diskUsage, .diskActivity, .diskCount, .connectedDevices, .batteryTime, .peripheralBattery, .power,
                  .fanSpeed:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }

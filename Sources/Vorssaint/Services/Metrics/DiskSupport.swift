@@ -72,6 +72,15 @@ struct DiskReading: Equatable {
             return seen.insert(key).inserted
         }
     }
+
+    var externalDisksCount: Int {
+        let external = devices.filter { !$0.isInternal }
+        var seen = Set<String>()
+        return external.filter { dev in
+            let key = dev.wholeDisk ?? dev.bsdName ?? dev.id
+            return seen.insert(key).inserted
+        }.count
+    }
 }
 
 enum DiskSupport {

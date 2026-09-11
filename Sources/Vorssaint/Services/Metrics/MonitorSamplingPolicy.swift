@@ -13,6 +13,7 @@ enum MonitorSamplingKind: String {
     case gpuUsage
     case temperature
     case fanSpeed
+    static var fanSpeeds: MonitorSamplingKind { .fanSpeed }
 }
 
 enum MonitorSamplingPolicy {
