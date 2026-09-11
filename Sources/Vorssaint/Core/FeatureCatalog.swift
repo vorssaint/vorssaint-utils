@@ -31,7 +31,7 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, killProcess
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorUSB, monitorPower, fanControl
 }
 
 /// Hub sections, in display order.
@@ -111,7 +111,7 @@ extension AppFeature {
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .killProcess:
             return .tools
-        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+        case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower,
              .fanControl:
             return .monitor
         }
@@ -177,6 +177,7 @@ extension AppFeature {
         case .monitorMemory: return "memorychip"
         case .monitorNetwork: return "network"
         case .monitorDisk: return "internaldrive"
+        case .monitorUSB: return "cable.connector"
         case .monitorPower: return "bolt.fill"
         case .fanControl: return "fanblades.fill"
         }
@@ -237,7 +238,7 @@ extension AppFeature {
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .killProcess,
-             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
+             .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorUSB, .monitorPower,
              .fanControl:
             return []
         }
@@ -285,7 +286,7 @@ extension AppFeature {
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .monitorGPU, .monitorNetwork, .fanControl, .killProcess:
+             .scratchpad, .monitorGPU, .monitorNetwork, .monitorUSB, .fanControl, .killProcess:
             return []
         }
     }

@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 enum MetricDetailKind: String, Equatable, Identifiable {
-    case cpu, gpu, memory, network, disk, battery, power, fan
+    case cpu, gpu, memory, network, disk, battery, power, fan, usb
 
     var id: String { rawValue }
 
@@ -21,6 +21,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return .power
         case .fan:
             return .fanControl
+        case .usb:
+            return .usb
         }
     }
 
@@ -34,6 +36,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .battery: return "battery.100"
         case .power: return "powerplug.fill"
         case .fan: return "fanblades"
+        case .usb: return "cable.connector"
         }
     }
 
@@ -61,6 +64,8 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return SystemMonitorPanelNeeds(power: true)
         case .fan:
             return SystemMonitorPanelNeeds(fanSpeed: true)
+        case .usb:
+            return .none
         }
     }
 
@@ -74,6 +79,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .battery: return s.batteryLabel
         case .power: return s.powerSection
         case .fan: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
+        case .usb: return s.usbSection
         }
     }
 
@@ -84,7 +90,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .memory: return .memory
         case .power: return .energy
         case .network: return .network
-        case .disk, .battery, .fan: return nil
+        case .disk, .battery, .fan, .usb: return nil
         }
     }
 }
@@ -100,7 +106,7 @@ extension MenuBarMetric {
             return .memory
         case .network:
             return .network
-        case .diskUsage, .diskActivity:
+        case .diskUsage, .diskActivity, .diskCount:
             return .disk
         case .battery, .batteryTemperature, .peripheralBattery:
             return .battery
@@ -108,6 +114,8 @@ extension MenuBarMetric {
             return .power
         case .fanSpeed:
             return .fan
+        case .connectedDevices:
+            return .usb
         }
     }
 }
@@ -141,6 +149,7 @@ struct ActivityMonitorButton: View {
 struct MetricDetailView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
+    @ObservedObject private var usbMonitor = USBMonitorService.shared
     @ObservedObject private var speed = SpeedTest.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
@@ -231,7 +240,7 @@ struct MetricDetailView: View {
             }
         case .power:
             historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor)
-        case .fan:
+        case .fan, .usb:
             EmptyView()
         }
     }
@@ -457,6 +466,24 @@ struct MetricDetailView: View {
                 row(String(format: strings.fanNameFormat, index + 1),
                     String(format: strings.rpmFormat, Int(rpm.rounded())))
             }
+        case .usb:
+            var rows: [MetricDetailRow] = []
+            let devices = USBMonitorService.shared.filteredDevicesForMenuBar
+            if devices.isEmpty {
+                rows.append(row(l10n.s.usbConnectedDevices, l10n.s.usbNoDevices))
+            } else {
+                for dev in devices {
+                    let subtitle: String
+                    if dev.isExternalStorage, let volName = dev.volumeName, !volName.isEmpty, volName != dev.name {
+                        let cap = dev.volumeCapacity.map { " (\($0))" } ?? ""
+                        subtitle = "\(volName)\(cap)"
+                    } else {
+                        subtitle = dev.cleanVendor ?? dev.vendor ?? dev.volumeCapacity ?? dev.speedLabel
+                    }
+                    rows.append(row(dev.name, subtitle))
+                }
+            }
+            return rows
         }
     }
 
@@ -487,6 +514,8 @@ struct MetricDetailView: View {
             let strings = FeatureStrings.fanControl(l10n.language)
             guard let rpm = snapshot.fanSpeeds.first else { return "-" }
             return String(format: strings.rpmFormat, Int(rpm.rounded()))
+        case .usb:
+            return "\(USBMonitorService.shared.menuBarDeviceCount)"
         }
     }
 
@@ -519,6 +548,9 @@ struct MetricDetailView: View {
             return snapshot.fanSpeeds.isEmpty
                 ? strings.menuBarTitle
                 : String(format: strings.fanNameFormat, 1)
+        case .usb:
+            let count = USBMonitorService.shared.menuBarDeviceCount
+            return count == 1 ? "1 connected device" : "\(count) connected devices"
         }
     }
 
@@ -538,6 +570,8 @@ struct MetricDetailView: View {
             return PanelMetricColor.orange(for: colorScheme)
         case .fan:
             return PanelMetricColor.cyan(for: colorScheme)
+        case .usb:
+            return .accentColor
         }
     }
 
