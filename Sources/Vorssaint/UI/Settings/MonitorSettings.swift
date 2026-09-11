@@ -306,6 +306,10 @@ private struct MenuBarMetricOrderEditor: View {
                         NetworkMenuBarOrderOption()
                     }
 
+                    if metric == .diskUsage {
+                        DiskMenuBarOrderOption()
+                    }
+
                     if metric != visibleOrder.last {
                         Divider()
                     }
@@ -380,6 +384,27 @@ private struct MemoryMenuBarOrderOption: View {
                 .onAppear {
                     memoryStyle = Defaults.sanitizedMenuBarMemoryStyle(memoryStyle)
                 }
+        }
+    }
+}
+
+private struct DiskMenuBarOrderOption: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.menuBarDiskUsage) private var menuBarDiskUsage = false
+    @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
+
+    var body: some View {
+        if menuBarDiskUsage {
+            Picker(FeatureStrings.menuBarAppearance(l10n.language).label, selection: $diskStyle) {
+                Text("% \(l10n.s.diskUsed)").tag(DiskMenuBarStyle.percent)
+                Text("\(l10n.s.diskFree)").tag(DiskMenuBarStyle.free)
+                Text("\(l10n.s.diskUsed)").tag(DiskMenuBarStyle.used)
+            }
+            .pickerStyle(.menu)
+            .font(.caption)
+            .padding(.leading, 58)
+            .padding(.trailing, 4)
+            .padding(.bottom, 7)
         }
     }
 }
