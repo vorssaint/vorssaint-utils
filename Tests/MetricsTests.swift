@@ -4234,7 +4234,9 @@ struct MetricsTests {
             expect(gen1Name == "VorssaintMenuBarItem.1",
                    "bumped generation produces numbered autosave name")
             expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.1") == nil,
-                   "bumpPlacementGeneration does not seed any hardcoded preferred position")
+                   "a reset lets macOS place the full item without a machine-specific position")
+            expect(statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem") == nil,
+                   "bumping drops the previous identity's preferred position")
 
             // Recovery keeps the spot the person arranged and only drops the
             // hidden state macOS remembered: an item that starts over with no
@@ -4259,11 +4261,47 @@ struct MetricsTests {
             expect(statusDefaults.object(forKey: gen1Position) == nil
                     || statusDefaults.double(forKey: gen1Position) == 280.0,
                    "only the identity reset gives up a saved position")
+            // Leave orphan keys for older generations the way a long-running
+            // install accumulates them, then confirm a bump sweeps them.
+            statusDefaults.set(11.0, forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem")
+            statusDefaults.set(false, forKey: "NSStatusItem Visible VorssaintMenuBarItem")
+            statusDefaults.set(false, forKey: "NSStatusItem VisibleCC VorssaintMenuBarItem.1")
+            let metricPosition = "NSStatusItem Preferred Position VorssaintMetric.cpu"
+            statusDefaults.set(42.0, forKey: metricPosition)
             StatusItemPlacementSupport.bumpPlacementGeneration(in: statusDefaults)
             expect(statusDefaults.object(forKey: gen1Position) == nil
+                    && statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem") == nil
+                    && statusDefaults.object(forKey: "NSStatusItem Visible VorssaintMenuBarItem") == nil
+                    && statusDefaults.object(forKey: "NSStatusItem VisibleCC VorssaintMenuBarItem.1") == nil
                     && StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults)
-                        == "VorssaintMenuBarItem.2",
-                   "the identity reset does give the saved position up")
+                        == "VorssaintMenuBarItem.2"
+                    && statusDefaults.object(forKey: "NSStatusItem Preferred Position VorssaintMenuBarItem.2") == nil,
+                   "the identity reset gives the saved position up and sweeps orphaned identities")
+            expect(statusDefaults.double(forKey: metricPosition) == 42.0,
+                   "recovering the main item leaves metric-item positions alone")
+            statusDefaults.set(StatusItemPlacementSupport.maxPlacementGeneration,
+                               forKey: DefaultsKey.statusItemPlacementGeneration)
+            statusDefaults.set(false, forKey: "NSStatusItem Visible VorssaintMenuBarItem.9999")
+            StatusItemPlacementSupport.bumpPlacementGeneration(in: statusDefaults)
+            expect(StatusItemPlacementSupport.mainAutosaveName(in: statusDefaults) == "VorssaintMenuBarItem.1"
+                    && statusDefaults.object(forKey: "NSStatusItem Visible VorssaintMenuBarItem.9999") == nil
+                    && statusDefaults.double(forKey: metricPosition) == 42.0,
+                   "generation wrap clears old main-item state without touching metric placements")
+            expect(StatusItemAnchorSupport.isSettlingStatusFrame(CGRect(x: 0, y: 0, width: 36, height: 0)),
+                   "a newborn status window with zero height is still settling")
+            expect(StatusItemAnchorSupport.isSettlingStatusFrame(nil),
+                   "a status item without a window yet is still settling")
+            expect(!StatusItemAnchorSupport.isSettlingStatusFrame(CGRect(x: 2098, y: 1410, width: 36, height: 30)),
+                   "a real on-bar frame is not settling")
+            expect(StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                       isOnScreen: false, isSettling: true, settlingGraceLeft: 3),
+                   "settling frames keep the recovery waiting instead of declaring failure")
+            expect(!StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                        isOnScreen: false, isSettling: true, settlingGraceLeft: 0),
+                   "settling grace eventually ends so recovery can escalate")
+            expect(!StatusItemPlacementSupport.shouldKeepWaitingForSettlement(
+                        isOnScreen: true, isSettling: false, settlingGraceLeft: 3),
+                   "an on-screen icon does not keep waiting")
             statusDefaults.removePersistentDomain(forName: statusPlacementSuite)
         }
         expect(registeredDefaults[DefaultsKey.panelControlAutoQuit] as? Bool == true,
