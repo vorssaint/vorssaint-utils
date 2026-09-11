@@ -397,6 +397,7 @@ private struct DiskMenuBarOrderOption: View {
         if menuBarDiskUsage {
             Picker(FeatureStrings.menuBarAppearance(l10n.language).label, selection: $diskStyle) {
                 Text("% \(l10n.s.diskUsed)").tag(DiskMenuBarStyle.percent)
+                Text("% \(l10n.s.diskFree)").tag(DiskMenuBarStyle.freePercent)
                 Text("\(l10n.s.diskFree)").tag(DiskMenuBarStyle.free)
                 Text("\(l10n.s.diskUsed)").tag(DiskMenuBarStyle.used)
             }

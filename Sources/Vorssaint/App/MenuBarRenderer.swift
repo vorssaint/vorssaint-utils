@@ -601,9 +601,9 @@ enum MenuBarRenderer {
             case .diskUsage:
                 if let disk = primaryDisk(from: snapshot.disk) {
                     let diskStyle = DiskMenuBarStyle.current
-                    if usesBars && diskStyle == .percent {
+                    if usesBars && diskStyle.showsPercentage {
                         groups.append([.usageBarBlock(label: "DSK",
-                                                      fraction: disk.usedFraction,
+                                                      fraction: diskStyle.fraction(for: disk),
                                                       style: style,
                                                       pressure: nil)])
                     } else {
@@ -778,7 +778,7 @@ enum MenuBarRenderer {
         case (_, .network):
             return 15      // down symbol + 1.0G + up symbol + 1.0G
         case (_, .diskUsage):
-            return DiskMenuBarStyle.current == .percent ? 11 : 14
+            return DiskMenuBarStyle.current.showsPercentage ? 11 : 14
         case (_, .diskActivity):
             return 15      // R1.0G + W1.0G
         case (_, .battery), (_, .power):
