@@ -78,7 +78,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return [.keepAwake]
         case .brightness: return [.brightness]
-        case .mixer: return [.mixer]
+        case .mixer: return [.mixer, .audioPriority]
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
         case .network: return [.monitorNetwork]
         case .disk: return [.monitorDisk]

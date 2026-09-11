@@ -286,7 +286,7 @@ struct MenuPanelView: View {
         switch id {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
-        case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
+        case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
@@ -295,6 +295,17 @@ struct MenuPanelView: View {
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
+        }
+    }
+
+    /// Shows the full MixerSection when Volume mixer is installed, or a compact
+    /// AudioPrioritySection when only Audio device priority is installed.
+    @ViewBuilder
+    private func mixerOrPrioritySection(collapsible: Bool) -> some View {
+        if AppFeature.mixer.isAvailable {
+            MixerSection(collapsible: collapsible)
+        } else {
+            AudioPrioritySection(collapsible: collapsible)
         }
     }
 

@@ -240,6 +240,11 @@ enum MixerRoutingSupport {
                                volumes: volumes)
     }
 
+    static func preferencesAfterPriorityOutputSwitch(outputDeviceUIDs: [String: String],
+                                                     volumes: [String: Double]) -> MixerOutputPreferences {
+        MixerOutputPreferences(outputDeviceUIDs: outputDeviceUIDs, volumes: volumes)
+    }
+
     static func nextSelectedOutputDeviceUID(currentUID: String?,
                                             selectedUIDs: [String],
                                             availableUIDs: Set<String>) -> String? {
@@ -539,6 +544,94 @@ enum MixerRoutingSupport {
                                            otherUID: String) -> Bool {
         if isDefault != otherIsDefault { return isDefault }
         return displayOrderedBefore(name: name, id: uid, otherName: otherName, otherID: otherUID)
+    }
+
+    /// Returns the first UID from the ordered priority list that is
+    /// currently available. Nil if none are available or the list is empty.
+    /// Duplicates are skipped (first occurrence wins) and invalid UIDs are
+    /// filtered out — the policy is pure and testable without mocking audio
+    /// hardware.
+    static func firstAvailablePriorityDeviceUID(
+        orderedUIDs: [String],
+        availableUIDs: Set<String>
+    ) -> String? {
+        var seen = Set<String>()
+        for rawUID in orderedUIDs {
+            guard let uid = sanitizedDeviceUID(rawUID),
+                  seen.insert(uid).inserted,
+                  availableUIDs.contains(uid) else { continue }
+            return uid
+        }
+        return nil
+    }
+
+    /// Builds the complete priority editor order without disturbing existing
+    /// choices. The current device leads only an empty first-time list; after
+    /// that, newly discovered devices append below the user's stored order.
+    static func priorityListIncludingAvailableDevices(
+        storedUIDs: [String],
+        availableUIDs: [String],
+        currentUID: String?
+    ) -> [String] {
+        var orderedAvailable = availableUIDs
+        if storedUIDs.isEmpty,
+           let currentUID,
+           orderedAvailable.contains(currentUID) {
+            orderedAvailable = [currentUID] + orderedAvailable.filter { $0 != currentUID }
+        }
+
+        var result: [String] = []
+        var seen = Set<String>()
+        for rawUID in storedUIDs + orderedAvailable {
+            guard let uid = sanitizedDeviceUID(rawUID), seen.insert(uid).inserted else { continue }
+            result.append(uid)
+        }
+        return result
+    }
+
+    /// Whether a CoreAudio write should be requested: only when the target
+    /// exists and differs from the current default. Avoids redundant writes
+    /// when the desired device is already active.
+    static func shouldSwitchToDevice(targetUID: String?, currentUID: String?) -> Bool {
+        guard let targetUID else { return false }
+        guard targetUID != currentUID else { return false }
+        return true
+    }
+
+    /// Identifies one priority write by all observable state that can make the
+    /// attempt meaningful. Keeping a failed attempt suppresses only an
+    /// identical retry; a real default-device, availability, or priority
+    /// change produces a different value and may try again.
+    struct PrioritySwitchAttempt: Equatable {
+        let targetUID: String
+        let currentUID: String?
+        let availableUIDs: Set<String>
+    }
+
+    static func stillRelevantFailedPrioritySwitchAttempt(
+        _ failedAttempt: PrioritySwitchAttempt?,
+        currentUID: String?,
+        availableUIDs: Set<String>
+    ) -> PrioritySwitchAttempt? {
+        guard let failedAttempt,
+              failedAttempt.currentUID == currentUID,
+              failedAttempt.availableUIDs == availableUIDs else { return nil }
+        return failedAttempt
+    }
+
+    static func pendingPrioritySwitchAttempt(
+        targetUID: String?,
+        currentUID: String?,
+        availableUIDs: Set<String>,
+        failedAttempt: PrioritySwitchAttempt?
+    ) -> PrioritySwitchAttempt? {
+        guard shouldSwitchToDevice(targetUID: targetUID, currentUID: currentUID),
+              let targetUID,
+              availableUIDs.contains(targetUID) else { return nil }
+        let attempt = PrioritySwitchAttempt(targetUID: targetUID,
+                                            currentUID: currentUID,
+                                            availableUIDs: availableUIDs)
+        return attempt == failedAttempt ? nil : attempt
     }
 
     static func resolveInputDevice(preferredUID: String?,
