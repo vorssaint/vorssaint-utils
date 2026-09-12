@@ -11810,6 +11810,31 @@ struct MetricsTests {
                && appGroups[0].windowCount == 2
                && appGroups[1].representativeIndex == 2,
                "App Switcher icon-row mode keeps one row entry per app")
+        let windowlessApps = [SwitcherItem.appOnly(appName: "Gamma", pid: 303),
+                              SwitcherItem.appOnly(appName: "Delta", pid: 404)]
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: []) == [],
+               "an empty app row has no windowless divider")
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems) == []
+               && SwitcherSupport.windowlessAppDividerPIDs(items: windowlessApps) == [],
+               "a row with only one kind of app has no divider")
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: groupedSwitcherItems + windowlessApps) == [303],
+               "windowless apps are separated once after all windows of the preceding apps")
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0],
+                                                               windowlessApps[0],
+                                                               groupedSwitcherItems[2],
+                                                               windowlessApps[1]]) == [303, 202, 404],
+               "dividers follow each windowless boundary without changing recent-use order")
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: [windowlessApps[0],
+                                                               groupedSwitcherItems[0]]) == [101],
+               "a leading windowless group has a divider after it, never before the first icon")
+        let dividerHiddenWindow = SwitcherItem.window(id: 4, title: "Hidden", appName: "Hidden", pid: 505,
+                                                      isOnScreen: false, isAppHidden: true, frame: .zero)
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: [groupedSwitcherItems[0].withMinimized(true),
+                                                               dividerHiddenWindow] + windowlessApps) == [303],
+               "minimized and hidden windows still belong to apps with windows")
+        expect(SwitcherSupport.windowlessAppDividerPIDs(items: [SwitcherItem.appOnly(appName: "Alpha", pid: 101)]
+                                                        + groupedSwitcherItems + windowlessApps) == [303],
+               "an app with any real window is never marked windowless by an app-only entry")
         var cappedAppWindows: [SwitcherItem] = []
         var cappedAppRepresentatives: [SwitcherItem] = []
         for appIndex in 1...25 {

@@ -1116,6 +1116,18 @@ enum SwitcherSupport {
         return groups
     }
 
+    static func windowlessAppDividerPIDs(items: [SwitcherItem]) -> Set<pid_t> {
+        let groups = appGroups(items: items)
+        let windowedPIDs = Set(items.filter { !$0.isAppEntry }.map(\.pid))
+        var dividers: Set<pid_t> = []
+        for (previous, current) in zip(groups, groups.dropFirst()) {
+            if windowedPIDs.contains(previous.pid) != windowedPIDs.contains(current.pid) {
+                dividers.insert(current.pid)
+            }
+        }
+        return dividers
+    }
+
     /// Where a session starts. `pids` is the list in display order, one entry
     /// per position the shortcut steps through: one per window in the grid,
     /// one per app in the icon row.
