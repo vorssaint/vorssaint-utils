@@ -401,7 +401,7 @@ enum MenuBarRenderer {
                 }
             case .diskUsage:
                 if let disk = primaryDisk(from: snapshot.disk) {
-                    let text = "DSK " + percent(disk.usedFraction)
+                    let text = "DSK " + DiskMenuBarStyle.current.value(for: disk)
                     items.append(MetricItem(metric: metric,
                                             segments: [.symbol(metric.symbolName), .text(" " + text)],
                                             width: reservedWidth(for: metric, preset: preset)))
@@ -600,15 +600,16 @@ enum MenuBarRenderer {
                 }
             case .diskUsage:
                 if let disk = primaryDisk(from: snapshot.disk) {
-                    if usesBars {
+                    let diskStyle = DiskMenuBarStyle.current
+                    if usesBars && diskStyle.showsPercentage {
                         groups.append([.usageBarBlock(label: "DSK",
-                                                      fraction: disk.usedFraction,
+                                                      fraction: diskStyle.fraction(for: disk),
                                                       style: style,
                                                       pressure: nil)])
                     } else {
                         groups.append([.metricBlock(label: "DSK",
-                                                    value: percent(disk.usedFraction),
-                                                    minimumValue: "100%",
+                                                    value: diskStyle.value(for: disk),
+                                                    minimumValue: diskStyle.minimumValue,
                                                     style: style,
                                                     pressure: nil)])
                     }
@@ -777,7 +778,7 @@ enum MenuBarRenderer {
         case (_, .network):
             return 15      // down symbol + 1.0G + up symbol + 1.0G
         case (_, .diskUsage):
-            return 11      // symbol + " DSK 100%"
+            return DiskMenuBarStyle.current.showsPercentage ? 11 : 14
         case (_, .diskActivity):
             return 15      // R1.0G + W1.0G
         case (_, .battery), (_, .power):

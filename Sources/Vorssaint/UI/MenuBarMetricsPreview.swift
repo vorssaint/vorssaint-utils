@@ -16,6 +16,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarBatteryTemperature) private var batteryTemperature = false
     @AppStorage(DefaultsKey.menuBarNetwork) private var network = false
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
+    @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
@@ -46,6 +47,7 @@ struct MenuBarMetricsPreview: View {
         let _ = labelStyle
         let _ = networkUploadFirst
         let _ = memoryStyle
+        let _ = diskStyle
         let _ = temperatureUnit
         let lines = MenuBarRenderer.lines(for: monitor.snapshot, metrics: activeMetrics)
         let stacked = lines.count > 1
