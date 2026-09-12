@@ -8639,6 +8639,37 @@ struct MetricsTests {
             hasDroppableContent: { fatalError("droppable check must stay lazy") }),
                "an unchanged pasteboard outside the Dock skips the content inspection")
 
+        // MARK: Shelf pasteboard / file promises (#1554)
+        // Promises must activate the shelf before a concrete file exists.
+
+        expect(ShelfPasteboardSupport.isFilePromiseType(
+            "Apple files promise pasteboard type"),
+               "legacy Apple files promise type is a file promise")
+        expect(ShelfPasteboardSupport.isFilePromiseType(
+            "com.apple.pasteboard.promised-file-content-type"),
+               "modern promised-file-content-type is a file promise")
+        expect(ShelfPasteboardSupport.isFilePromiseType(
+            "com.apple.pasteboard.promised-file-url"),
+               "promised-file-url is a file promise")
+        for type in NSFilePromiseReceiver.readableDraggedTypes {
+            expect(ShelfPasteboardSupport.isFilePromiseType(type),
+                   "NSFilePromiseReceiver type \(type) is recognized as a file promise")
+        }
+        expect(!ShelfPasteboardSupport.isFilePromiseType("public.file-url"),
+               "ordinary file URLs are not classified as file promises")
+        expect(ShelfPasteboardSupport.isDroppablePasteboardType(
+            "Apple files promise pasteboard type"),
+               "file promises count as droppable shelf content")
+        expect(ShelfPasteboardSupport.isDroppablePasteboardType("public.file-url"),
+               "file URLs still count as droppable shelf content")
+        expect(ShelfPasteboardSupport.isDroppablePasteboardType(
+            NSPasteboard.PasteboardType.string.rawValue),
+               "plain text still counts as droppable shelf content")
+        expect(!ShelfPasteboardSupport.isDroppablePasteboardType(
+            "com.vorssaint.tests.not-a-real-pasteboard-type"),
+               "unrelated pasteboard types do not activate the shelf")
+        ShelfFilePromiseTests.run { expect($0, $1) }
+
         // MARK: Shelf reveal
 
         let revealChildA = UUID()
@@ -9027,15 +9058,6 @@ struct MetricsTests {
                 && !ShelfPersistenceSupport.needsPersistAfterRestore(
                     restoredIsEmpty: false, liveItemCount: 0),
                "shelf additions made during restore schedule the merged state for persistence")
-
-        expect(ShelfBatchSupport.orderedItems(from: [(Int, String)]()).isEmpty,
-               "shelf batch resolve with nothing resolved produces nothing")
-        expect(ShelfBatchSupport.orderedItems(from: [(0, "a"), (1, "b"), (2, "c")]) == ["a", "b", "c"],
-               "shelf batch resolve keeps drop order when providers finish in order")
-        expect(ShelfBatchSupport.orderedItems(from: [(2, "c"), (0, "a"), (1, "b")]) == ["a", "b", "c"],
-               "shelf batch resolve restores drop order when providers finish out of order")
-        expect(ShelfBatchSupport.orderedItems(from: [(3, "z")]) == ["z"],
-               "shelf batch resolve with a single provider produces that one item")
 
         expect(ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 2)
                    && !ClipboardHistoryBatch.listOwnsCopyShortcut(batchCount: 0),

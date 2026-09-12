@@ -228,6 +228,7 @@ final class ShelfService: ObservableObject {
     /// opening (which uses the ordinary idle-timer auto-hide instead).
     private var edgePeekMatch: ShelfEdgeMatch?
     private var edgePeekEndWork: DispatchWorkItem?
+    private var promiseTransfers: [UUID: (target: UUID?, transfer: ShelfFilePromiseTransfer, additions: [Item])] = [:]
 
     private let tempDir: URL = {
         let id = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
@@ -285,21 +286,31 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    static let tileDropTypes: [NSPasteboard.PasteboardType] = [
-        .fileURL,
-        .URL,
-        .string,
-        .tiff,
-        .png,
-        NSPasteboard.PasteboardType(UTType.gif.identifier),
-        NSPasteboard.PasteboardType("NSFilenamesPboardType"),
-        NSPasteboard.PasteboardType("NSURLPboardType"),
-        NSPasteboard.PasteboardType(UTType.fileURL.identifier),
-        NSPasteboard.PasteboardType(UTType.image.identifier),
-        NSPasteboard.PasteboardType(UTType.url.identifier),
-        NSPasteboard.PasteboardType(UTType.text.identifier),
-        NSPasteboard.PasteboardType(UTType.plainText.identifier),
-    ]
+    static let tileDropTypes: [NSPasteboard.PasteboardType] = {
+        var types: [NSPasteboard.PasteboardType] = [
+            .fileURL,
+            .URL,
+            .string,
+            .tiff,
+            .png,
+            NSPasteboard.PasteboardType(UTType.gif.identifier),
+            NSPasteboard.PasteboardType("NSFilenamesPboardType"),
+            NSPasteboard.PasteboardType("NSURLPboardType"),
+            NSPasteboard.PasteboardType(UTType.fileURL.identifier),
+            NSPasteboard.PasteboardType(UTType.image.identifier),
+            NSPasteboard.PasteboardType(UTType.url.identifier),
+            NSPasteboard.PasteboardType(UTType.text.identifier),
+            NSPasteboard.PasteboardType(UTType.plainText.identifier),
+            // File promises are received only after the drop is accepted.
+            NSPasteboard.PasteboardType("Apple files promise pasteboard type"),
+            NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-url"),
+            NSPasteboard.PasteboardType("com.apple.pasteboard.promised-file-content-type"),
+        ]
+        types.append(contentsOf: NSFilePromiseReceiver.readableDraggedTypes.map {
+            NSPasteboard.PasteboardType($0)
+        })
+        return types
+    }()
 
     // MARK: - Lifecycle
 
@@ -309,6 +320,7 @@ final class ShelfService: ObservableObject {
             syncHotkey()
             syncDragMonitor()
         } else {
+            cancelPendingPromiseDeliveries()
             unregisterHotkey()
             stopDragMonitor()
             hide()
@@ -530,31 +542,9 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
-        guard let items = pasteboard.pasteboardItems, !items.isEmpty else { return false }
-        let directTypes: Set<String> = [
-            NSPasteboard.PasteboardType.fileURL.rawValue,
-            NSPasteboard.PasteboardType.string.rawValue,
-            NSPasteboard.PasteboardType.tiff.rawValue,
-            NSPasteboard.PasteboardType.png.rawValue,
-            UTType.gif.identifier,
-            UTType.fileURL.identifier,
-            UTType.image.identifier,
-            UTType.url.identifier,
-            UTType.text.identifier,
-            UTType.plainText.identifier,
-            "NSFilenamesPboardType",
-            "NSURLPboardType"
-        ]
-        let supportedUTTypes: [UTType] = [.fileURL, .gif, .image, .url, .text, .plainText]
-
-        for item in items {
-            for type in item.types {
-                if directTypes.contains(type.rawValue) { return true }
-                guard let utType = UTType(type.rawValue) else { continue }
-                if supportedUTTypes.contains(where: { utType.conforms(to: $0) }) { return true }
-            }
+        (pasteboard.types ?? []).contains {
+            ShelfPasteboardSupport.isDroppablePasteboardType($0.rawValue)
         }
-        return false
     }
 
     private func eventBelongsToDock(_ event: NSEvent) -> Bool {
@@ -982,7 +972,27 @@ final class ShelfService: ObservableObject {
 
     /// Borderless Shelf panels need key status after a tile click so standard
     /// keyboard selection commands can reach them without activating the app.
-    private final class KeyableShelfPanel: NSPanel {
+    private final class KeyableShelfPanel: NSPanel, NSDraggingDestination {
+        func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+            let shelf = ShelfService.shared
+            let accepts = !shelf.isInternalDragActive && shelf.canAcceptPasteboard(sender.draggingPasteboard)
+            shelf.setDropTargeted(accepts)
+            return accepts ? .copy : []
+        }
+
+        func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { draggingEntered(sender) }
+
+        func draggingExited(_ sender: NSDraggingInfo?) { ShelfService.shared.setDropTargeted(false) }
+
+        func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool { draggingEntered(sender) != [] }
+
+        func concludeDragOperation(_ sender: NSDraggingInfo?) { ShelfService.shared.setDropTargeted(false) }
+
+        func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+            defer { ShelfService.shared.setDropTargeted(false) }
+            return ShelfService.shared.accept(draggingInfo: sender)
+        }
+
         override var canBecomeKey: Bool { true }
 
         override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -1015,6 +1025,7 @@ final class ShelfService: ObservableObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.becomesKeyOnlyIfNeeded = true
+        panel.registerForDraggedTypes(Self.tileDropTypes)
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -1024,100 +1035,6 @@ final class ShelfService: ObservableObject {
     }
 
     // MARK: - Items
-
-    /// Order matters for fidelity: a file is always a file, but a web image
-    /// drag carries both an image and its page URL — prefer the image, and
-    /// only fall back to treating a URL as a link when nothing richer exists.
-    func accept(providers: [NSItemProvider]) -> Bool {
-        let candidateLeaves = providers.reduce(0) { count, provider in
-            count + (canResolveItem(from: provider) ? 1 : 0)
-        }
-        guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
-                                             newLeaves: candidateLeaves) else { return false }
-        acceptMixedBatch(providers: providers)
-        return true
-    }
-
-    /// Whether `resolveItem` has any representation it can turn into an item.
-    /// Kept in sync with `resolveItem`'s own branches by hand, since a
-    /// provider load is async and cannot itself be probed synchronously.
-    private func canResolveItem(from provider: NSItemProvider) -> Bool {
-        provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
-            || provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier)
-            || provider.canLoadObject(ofClass: NSImage.self)
-            || provider.canLoadObject(ofClass: URL.self)
-            || provider.canLoadObject(ofClass: NSString.self)
-    }
-
-    /// Resolves every provider in a drop and adds them together: one pile
-    /// when more than one item survives, a single plain item otherwise. A
-    /// drop is one gesture, so whatever arrives with it belongs together,
-    /// whether it's files, images, GIFs, links or text: the same rule
-    /// `accept(pasteboard:)` already applies to files.
-    private func acceptMixedBatch(providers: [NSItemProvider]) {
-        let group = DispatchGroup()
-        var resolved: [(Int, Item)] = []
-
-        for (index, provider) in providers.enumerated() {
-            group.enter()
-            resolveItem(from: provider) { item in
-                if let item { resolved.append((index, item)) }
-                group.leave()
-            }
-        }
-
-        group.notify(queue: .main) { [weak self] in
-            guard let self else { return }
-            let items = ShelfBatchSupport.orderedItems(from: resolved)
-            guard !items.isEmpty else { return }
-            _ = self.append(items.count == 1 ? items[0] : self.batchItem(children: items))
-        }
-    }
-
-    /// Turns one dropped provider into an item, preferring richer
-    /// representations first: a file on disk, then GIF data, then a plain
-    /// image, then a URL (file or link), then text. Always calls back
-    /// exactly once, on the main queue, so callers can mutate state from it.
-    private func resolveItem(from provider: NSItemProvider, completion: @escaping (Item?) -> Void) {
-        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                DispatchQueue.main.async {
-                    guard let url, url.isFileURL else { return completion(nil) }
-                    completion(self?.fileItem(for: url))
-                }
-            }
-        } else if provider.hasItemConformingToTypeIdentifier(UTType.gif.identifier) {
-            _ = provider.loadDataRepresentation(forTypeIdentifier: UTType.gif.identifier) { [weak self] data, _ in
-                DispatchQueue.main.async {
-                    guard let data, !data.isEmpty else { return completion(nil) }
-                    completion(self?.gifItem(for: data))
-                }
-            }
-        } else if provider.canLoadObject(ofClass: NSImage.self) {
-            _ = provider.loadObject(ofClass: NSImage.self) { [weak self] image, _ in
-                DispatchQueue.main.async {
-                    let item = (image as? NSImage).flatMap { self?.imageItem(for: $0) }
-                    completion(item)
-                }
-            }
-        } else if provider.canLoadObject(ofClass: URL.self) {
-            _ = provider.loadObject(ofClass: URL.self) { [weak self] url, _ in
-                DispatchQueue.main.async {
-                    let item = url.flatMap { url in url.isFileURL ? self?.fileItem(for: url) : self?.linkItem(for: url) }
-                    completion(item)
-                }
-            }
-        } else if provider.canLoadObject(ofClass: NSString.self) {
-            _ = provider.loadObject(ofClass: NSString.self) { [weak self] string, _ in
-                DispatchQueue.main.async {
-                    let item = (string as? String).flatMap { self?.textItem(for: $0) }
-                    completion(item)
-                }
-            }
-        } else {
-            DispatchQueue.main.async { completion(nil) }
-        }
-    }
 
     func removeItem(_ id: UUID) {
         var removed: [Item] = []
@@ -1146,6 +1063,7 @@ final class ShelfService: ObservableObject {
     }
 
     func clear() {
+        cancelPendingPromiseDeliveries()
         let removed = items
         items = []
         selection = []
@@ -1423,7 +1341,10 @@ final class ShelfService: ObservableObject {
         if !activeInternalDragIDs.isEmpty {
             return mergeInternalDrag(into: targetID)
         }
-        let additions = items(from: pasteboard)
+        return mergeExternalItems(items(from: pasteboard), into: targetID)
+    }
+
+    private func mergeExternalItems(_ additions: [Item], into targetID: UUID) -> Bool {
         guard !additions.isEmpty else { return false }
         guard merge(additions, into: targetID) else {
             discardOwnedPayloads(in: additions)
@@ -1442,22 +1363,150 @@ final class ShelfService: ObservableObject {
     }
 
     func canAcceptPasteboard(_ pasteboard: NSPasteboard) -> Bool {
-        pasteboardCanCreateItem(pasteboard)
+        AppFeature.shelf.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && pasteboardCanCreateItem(pasteboard)
     }
 
     func accept(pasteboard: NSPasteboard) -> Bool {
-        let fileURLs = fileURLs(from: pasteboard)
-        if fileURLs.count > 1 {
-            return addFileBatch(fileURLs)
-        }
         let additions = items(from: pasteboard)
         guard !additions.isEmpty else { return false }
-        guard append(additions) else { return false }
-        // The last one is furthest down, so revealing it brings its siblings.
-        lastAddedID = additions.last?.id
-        addSerial &+= 1
-        noteInteraction()
+        return append(additions.count == 1 ? additions[0] : batchItem(children: additions))
+    }
+
+
+    func accept(draggingInfo: NSDraggingInfo) -> Bool {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
+        let pasteboard = draggingInfo.draggingPasteboard
+        let receivers = filePromiseReceivers(from: pasteboard)
+        let accepted = receivers.isEmpty
+            ? accept(pasteboard: pasteboard)
+            : beginPromisedFileReceive(receivers, additions: nonPromisedItems(from: pasteboard), mergeInto: nil)
+        if accepted, draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        return accepted
+    }
+
+    func merge(draggingInfo: NSDraggingInfo, into targetID: UUID) -> Bool {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
+        let pasteboard = draggingInfo.draggingPasteboard
+        let receivers = filePromiseReceivers(from: pasteboard)
+        let accepted = receivers.isEmpty
+            ? mergePasteboard(pasteboard, into: targetID)
+            : beginPromisedFileReceive(receivers, additions: nonPromisedItems(from: pasteboard), mergeInto: targetID)
+        if accepted, draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        return accepted
+    }
+
+    private func filePromiseReceivers(from pasteboard: NSPasteboard) -> [NSFilePromiseReceiver] {
+        pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil)
+            as? [NSFilePromiseReceiver] ?? []
+    }
+
+    private func beginPromisedFileReceive(_ receivers: [NSFilePromiseReceiver], additions: [Item] = [],
+                                          mergeInto targetID: UUID?) -> Bool {
+        // Each receiver promises at least one file. Some legacy receivers
+        // promise more, so the actual count is checked again before adding.
+        let available = ShelfPersistenceSupport.maxLeaves - itemCount - additions.reduce(0) { $0 + $1.leafCount }
+        guard !receivers.isEmpty, receivers.count <= available,
+              targetID.map({ item(withID: $0) != nil }) ?? true else {
+            discardOwnedPayloads(in: additions)
+            return false
+        }
+        let store = Self.storeDirectory ?? tempDir
+        let id = UUID()
+        guard let transfer = ShelfFilePromiseTransfer(temporaryDirectory: tempDir,
+                                                      storeDirectory: store, maximumFiles: available,
+                                                      completion: { [weak self] result in
+            guard let self, self.promiseTransfers.removeValue(forKey: id) != nil else {
+                ShelfFilePromiseTransfer.discard(result.urls, in: store)
+                return
+            }
+            guard AppFeature.shelf.isAvailable,
+                  UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else {
+                ShelfFilePromiseTransfer.discard(result.urls, in: store)
+                self.discardOwnedPayloads(in: additions)
+                return
+            }
+            if let targetID, self.item(withID: targetID) == nil {
+                ShelfFilePromiseTransfer.discard(result.urls, in: store)
+                self.discardOwnedPayloads(in: additions)
+                return
+            }
+            guard ShelfPersistenceSupport.canAdd(existingLeaves: self.itemCount,
+                newLeaves: result.urls.count + additions.reduce(0) { $0 + $1.leafCount })
+                || (result.urls.isEmpty && additions.isEmpty) else {
+                ShelfFilePromiseTransfer.discard(result.urls, in: store)
+                self.discardOwnedPayloads(in: additions)
+                let strings = ShelfPromiseDeliveryStrings.localized(L10n.shared.language)
+                self.reportPromiseDeliveryProblem(title: strings.fullTitle, body: strings.fullBody)
+                return
+            }
+            let receivedItems = additions + result.urls.map { self.fileItem(for: $0, deferImageThumbnail: true) }
+            let added: Bool
+            if receivedItems.isEmpty {
+                added = true
+            } else if let targetID {
+                added = self.mergeExternalItems(receivedItems, into: targetID)
+            } else {
+                added = self.append(receivedItems.count == 1 ? receivedItems[0] : self.batchItem(children: receivedItems))
+            }
+            if !added { ShelfFilePromiseTransfer.discard(result.urls, in: store) }
+            let strings = ShelfPromiseDeliveryStrings.localized(L10n.shared.language)
+            if !added {
+                self.reportPromiseDeliveryProblem(title: strings.fullTitle, body: strings.fullBody)
+            } else if result.failed {
+                self.reportPromiseDeliveryProblem(title: strings.failedTitle, body: strings.failedBody)
+            }
+        }) else {
+            discardOwnedPayloads(in: additions)
+            let strings = ShelfPromiseDeliveryStrings.localized(L10n.shared.language)
+            reportPromiseDeliveryProblem(title: strings.failedTitle, body: strings.failedBody)
+            return false
+        }
+        promiseTransfers[id] = (targetID, transfer, additions)
+        guard transfer.receive(receivers) else {
+            promiseTransfers.removeValue(forKey: id)
+            discardOwnedPayloads(in: additions)
+            return false
+        }
         return true
+    }
+
+    private func cancelPendingPromiseDeliveries() {
+        for entry in promiseTransfers.values {
+            entry.transfer.cancel()
+            discardOwnedPayloads(in: entry.additions)
+        }
+        promiseTransfers.removeAll()
+    }
+
+    private func cancelRemovedPromiseTargets() {
+        let removed = promiseTransfers.filter { entry in
+            entry.value.target.map { item(withID: $0) == nil } ?? false
+        }
+        for (id, entry) in removed {
+            promiseTransfers.removeValue(forKey: id)
+            entry.transfer.cancel()
+            discardOwnedPayloads(in: entry.additions)
+        }
+    }
+
+    private func reportPromiseDeliveryProblem(title: String, body: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = title
+        alert.informativeText = body
+        alert.addButton(withTitle: ShelfPromiseDeliveryStrings.localized(L10n.shared.language).okButton)
+        // A failed background delivery must not steal focus from another app.
+        if let window = panel, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else if let window = dockedPanel, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
     }
 
     /// The pasteboard representation used when dragging an item out of the shelf.
@@ -1479,11 +1528,6 @@ final class ShelfService: ObservableObject {
     /// visibly soft once stretched to fill it. Matches the well's own
     /// declared width for a bit of headroom over its 56pt inset content area.
     private static let contentThumbnailPointSize: CGFloat = 64
-
-    private func addFileBatch(_ urls: [URL]) -> Bool {
-        let children = urls.map { fileItem(for: $0) }
-        return append(batchItem(children: children))
-    }
 
     private enum ContentThumbnailKind {
         case image
@@ -1642,18 +1686,6 @@ final class ShelfService: ObservableObject {
         return true
     }
 
-    private func append(_ additions: [Item]) -> Bool {
-        let leaves = additions.reduce(0) { $0 + $1.leafCount }
-        guard ShelfPersistenceSupport.canAdd(existingLeaves: itemCount,
-                                             newLeaves: leaves) else {
-            discardOwnedPayloads(in: additions)
-            return false
-        }
-        items.append(contentsOf: additions)
-        startContentThumbnails(for: additions)
-        return true
-    }
-
     /// What a pile shows: its first child's icon, and that child's thumbnail
     /// flag along with it. The two travel together because the flag drives
     /// the tile's image inset, and a real thumbnail drawn at the generic-icon
@@ -1673,6 +1705,34 @@ final class ShelfService: ObservableObject {
     }
 
     private func items(from pasteboard: NSPasteboard) -> [Item] {
+        guard let entries = pasteboard.pasteboardItems, entries.count > 1 else {
+            return singlePasteboardItems(from: pasteboard)
+        }
+        return entries.flatMap { items(from: $0) }
+    }
+
+    private func nonPromisedItems(from pasteboard: NSPasteboard) -> [Item] {
+        (pasteboard.pasteboardItems ?? []).filter { item in
+            !item.types.contains { ShelfPasteboardSupport.isFilePromiseType($0.rawValue) }
+        }.flatMap { items(from: $0) }
+    }
+
+    /// Preserve each item's file/image/link/text preference in a mixed drop.
+    /// A short-lived private board lets AppKit decode its existing formats;
+    /// promised items are read from the original drag board, never cloned.
+    private func items(from item: NSPasteboardItem) -> [Item] {
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        let copy = NSPasteboardItem()
+        for type in item.types where ShelfPasteboardSupport.isDroppablePasteboardType(type.rawValue)
+            && !ShelfPasteboardSupport.isFilePromiseType(type.rawValue) {
+            if let data = item.data(forType: type) { copy.setData(data, forType: type) }
+        }
+        guard !copy.types.isEmpty, board.writeObjects([copy]) else { return [] }
+        return singlePasteboardItems(from: board)
+    }
+
+    private func singlePasteboardItems(from pasteboard: NSPasteboard) -> [Item] {
         let fileURLs = fileURLs(from: pasteboard)
         if !fileURLs.isEmpty {
             return fileURLs.map { fileItem(for: $0) }
@@ -1710,6 +1770,9 @@ final class ShelfService: ObservableObject {
     }
 
     private func pasteboardCanCreateItem(_ pasteboard: NSPasteboard) -> Bool {
+        if pasteboard.canReadObject(forClasses: [NSFilePromiseReceiver.self], options: nil) {
+            return ShelfPersistenceSupport.canAdd(existingLeaves: itemCount, newLeaves: 1)
+        }
         if !fileURLs(from: pasteboard).isEmpty {
             return true
         }
@@ -1973,6 +2036,7 @@ final class ShelfService: ObservableObject {
     }
 
     private func cleanSelectionState() {
+        cancelRemovedPromiseTargets()
         let survivingIDs = allIDs(in: items)
         selection.formIntersection(survivingIDs)
         if let selectionAnchor, !survivingIDs.contains(selectionAnchor) {
@@ -1981,12 +2045,15 @@ final class ShelfService: ObservableObject {
         expandedBatches.formIntersection(batchIDs(in: items))
     }
 
-    private func cleanTemporaryFiles(keeping keptPaths: Set<String>) {
+    private func cleanTemporaryFiles(keeping keptPaths: Set<String>, writtenBefore cutoff: Date) {
         let fm = FileManager.default
         guard let entries = try? fm.contentsOfDirectory(at: tempDir,
-                                                        includingPropertiesForKeys: nil) else { return }
-        for url in entries where isShelfOwnedFile(url) && !keptPaths.contains(url.standardizedFileURL.path) {
-            try? fm.removeItem(at: url)
+                                                        includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        for url in entries where isShelfOwnedFile(url)
+            && !ShelfPersistenceSupport.containsKeptFile(under: url.path, keptPaths: keptPaths) {
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+                .contentModificationDate ?? .distantPast
+            if modified < cutoff { try? fm.removeItem(at: url) }
         }
     }
 
@@ -2162,7 +2229,7 @@ final class ShelfService: ObservableObject {
         if let store = Self.storeDirectory,
            let entries = try? fm.contentsOfDirectory(at: store,
                                                      includingPropertiesForKeys: [.contentModificationDateKey]) {
-            for url in entries where !keptPaths.contains(url.standardizedFileURL.path) {
+            for url in entries where !ShelfPersistenceSupport.containsKeptFile(under: url.path, keptPaths: keptPaths) {
                 let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
                     .contentModificationDate ?? .distantPast
                 if modified < cutoff {
@@ -2170,7 +2237,7 @@ final class ShelfService: ObservableObject {
                 }
             }
         }
-        cleanTemporaryFiles(keeping: keptPaths)
+        cleanTemporaryFiles(keeping: keptPaths, writtenBefore: cutoff)
         cleanLegacyTemporaryFiles()
     }
 
@@ -2423,6 +2490,7 @@ final class ShelfService: ObservableObject {
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.becomesKeyOnlyIfNeeded = true
+        panel.registerForDraggedTypes(Self.tileDropTypes)
         panel.hasShadow = false
         // Not movable by background: dragging a tile must start an item drag,
         // not move the whole panel.
