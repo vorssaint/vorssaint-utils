@@ -15502,7 +15502,7 @@ struct MetricsTests {
                "Window Layout does not poll permissions when every snap zone is off")
 
         expect(activeSet(.accessibility)
-                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
+                == [.windowLayout, .nowPlaying, .cleaningMode, .commandBar, .screenRecorder],
                "with nothing enabled only on-demand features use accessibility")
         expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")

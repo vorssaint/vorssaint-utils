@@ -256,6 +256,10 @@ extension AppFeature {
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
+             // Pressing a media key is posting a synthetic event, the same as
+             // the radial menu's media slices: without Accessibility the post
+             // is dropped and the transport silently does nothing.
+             .nowPlaying,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
              .commandBar:
@@ -284,7 +288,7 @@ extension AppFeature {
         case .mixer: return [.audioCapture, .accessibility]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
-             .soundOutputSwitcher, .musicBlock, .nowPlaying,
+             .soundOutputSwitcher, .musicBlock,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
              .scratchpad, .monitorGPU, .monitorNetwork, .fanControl, .killProcess:
             return []
@@ -298,7 +302,7 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute:
+             .micMute, .nowPlaying:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }

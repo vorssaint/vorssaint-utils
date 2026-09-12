@@ -27,6 +27,9 @@ struct NowPlayingSection: View {
                 }
             }
             .onAppear { service.refresh() }
+            .onReceive(NotificationCenter.default.publisher(for: .menuPanelWillShow)) { _ in
+                service.refresh()
+            }
         }
     }
 
@@ -94,6 +97,7 @@ struct NowPlayingSection: View {
                    label: media.mediaPlayPause)
             button(.nextTrack, symbol: "forward.fill", label: media.mediaNext)
         }
+        .frame(maxWidth: .infinity)
     }
 
     private var isPlaying: Bool {
