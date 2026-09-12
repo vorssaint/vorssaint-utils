@@ -2788,6 +2788,19 @@ struct MetricsTests {
                                                               windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
 
+        // MARK: Hidden apps follow the minimized-windows placement (issue #1512)
+        expect(hiddenAppWindow.isMinimizedOrAppHidden
+               && SwitcherItem.appOnly(appName: "Primary", pid: 101,
+                                       isAppHidden: true).isMinimizedOrAppHidden
+               && embeddedWindow.withMinimized(true).isMinimizedOrAppHidden
+               && !embeddedWindow.isMinimizedOrAppHidden,
+               "the minimized-windows placement sets aside an app hidden with Cmd+H exactly as it does a minimized window")
+        let placementCode = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+            encoding: .utf8)) ?? ""
+        expect(placementCode.contains(".isMinimizedOrAppHidden"),
+               "window enumeration decides the minimized-windows placement through the shared predicate")
+
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 
         expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,

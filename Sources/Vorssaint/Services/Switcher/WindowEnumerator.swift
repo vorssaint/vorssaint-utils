@@ -491,7 +491,7 @@ enum WindowEnumerator {
                              appRules: appRules)
         let filtered = windows.filter { item in
             if !showFullscreenWindows, item.isFullscreen { return false }
-            if minimizedPlacement == .hidden, item.isMinimized { return false }
+            if minimizedPlacement == .hidden, item.isMinimizedOrAppHidden { return false }
             return true
         }
         let sourceItems = displayScope.map { _ in orderByUse(filtered, frontToBack: frontToBack) }
@@ -501,8 +501,8 @@ enum WindowEnumerator {
         let groupedBackingWindows = groupByApp && preservingGroupedWindows ? scoped : []
         var ordered: [SwitcherItem]
         if minimizedPlacement == .end {
-            let primary = scoped.filter { !$0.isMinimized }
-            let deferred = scoped.filter { $0.isMinimized }
+            let primary = scoped.filter { !$0.isMinimizedOrAppHidden }
+            let deferred = scoped.filter { $0.isMinimizedOrAppHidden }
             let orderedPrimary = orderByUse(primary, frontToBack: frontToBack)
             let orderedDeferred = orderByUse(deferred, frontToBack: frontToBack)
             let groupedPrimary = groupByApp ? SwitcherSupport.groupWindowsByApp(orderedPrimary) : orderedPrimary
@@ -515,8 +515,8 @@ enum WindowEnumerator {
         let backingOrdered: [SwitcherItem]
         if groupByApp, preservingGroupedWindows {
             if minimizedPlacement == .end {
-                let primary = groupedBackingWindows.filter { !$0.isMinimized }
-                let deferred = groupedBackingWindows.filter { $0.isMinimized }
+                let primary = groupedBackingWindows.filter { !$0.isMinimizedOrAppHidden }
+                let deferred = groupedBackingWindows.filter { $0.isMinimizedOrAppHidden }
                 backingOrdered = orderByUse(primary, frontToBack: frontToBack) + orderByUse(deferred, frontToBack: frontToBack)
             } else {
                 backingOrdered = orderByUse(groupedBackingWindows, frontToBack: frontToBack)
