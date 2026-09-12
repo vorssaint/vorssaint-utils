@@ -9,6 +9,7 @@ struct CommandBarSettings: View {
     @ObservedObject private var service = CommandBarService.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
+    @AppStorage(DefaultsKey.commandBarASCIILayoutEnabled) private var asciiLayoutEnabled = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -95,6 +96,12 @@ struct CommandBarSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+                // Like compact mode this needs no callback: the bar reads the
+                // toggle on every open, so there is no live state to sync.
+                Toggle(text.asciiLayoutToggle, isOn: $asciiLayoutEnabled)
+                Text(text.asciiLayoutCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } header: {
                 Text(text.pageTitle)
             }
