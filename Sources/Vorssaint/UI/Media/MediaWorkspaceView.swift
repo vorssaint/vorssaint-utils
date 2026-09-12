@@ -886,6 +886,7 @@ struct MediaWorkspaceView: View {
                     compressionButton(level, value: value)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -894,15 +895,22 @@ struct MediaWorkspaceView: View {
         return Button {
             value.wrappedValue = level.quality
         } label: {
-            HStack(spacing: 5) {
-                Image(systemName: level.symbolName)
-                    .font(.system(size: compact ? 10 : 11, weight: .semibold))
-                Text(compressionTitle(for: level))
-                    .font(.system(size: compact ? 10 : 11, weight: .semibold))
-                    .lineLimit(1)
+            VStack(spacing: 4) {
+                HStack(spacing: 5) {
+                    Image(systemName: level.symbolName)
+                    Text(compressionTitle(for: level))
+                        .lineLimit(1)
+                }
+                .font(.system(size: compact ? 10 : 11, weight: .semibold))
+                Text(compressionDescription(for: level))
+                    .font(.system(size: compact ? 10 : 11))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: compact ? 28 : 32)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 7)
+            .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .foregroundStyle(selected ? Color.accentColor : Color.primary.opacity(0.78))
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -1145,6 +1153,14 @@ struct MediaWorkspaceView: View {
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
         case .textExtractor: return l10n.s.mediaToolText
+        }
+    }
+
+    private func compressionDescription(for level: MediaCompressionLevel) -> String {
+        switch level {
+        case .low: return l10n.s.mediaCompressionLowDescription
+        case .medium: return l10n.s.mediaCompressionMediumDescription
+        case .high: return l10n.s.mediaCompressionHighDescription
         }
     }
 
