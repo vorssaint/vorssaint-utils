@@ -11,33 +11,75 @@ import Foundation
 import ImageIO
 import VMStatisticsCompat
 
-// Standalone unit tests for pure helpers. Compiled without IOKit or UI by
-// `./build.sh --test`, so they run fast and deterministically on any machine.
-//
-// A tiny @main harness instead of XCTest: the Command Line Tools cannot run
-// `swift test`, and these checks need nothing more than equality assertions.
+// The runner lists every independently selectable suite. A filtered run says
+// exactly which suites ran; an unknown or empty selection is an error.
 @main
 struct MetricsTests {
     static func main() {
-        var failures: [String] = []
-        var checks = 0
+        let suite = TestSuite()
+        let groups: [(String, () -> Void)] = [
+            ("harness", { TestHarnessTests.run(suite) }),
+            ("core", { coreChecks(suite) }),
+            ("keyboard", {
+                assistiveKeyboardChecks { suite.expect($0, $1) }
+                screenshotToolShortcutChecks { suite.expect($0, $1) }
+            }),
+            ("storage", {
+                RecentCaptureStoreTests.run { suite.expect($0, $1) }
+                RecorderPresetImageStoreTests.run { suite.expect($0, $1) }
+                scratchpadStoreChecks { suite.expect($0, $1) }
+            }),
+            ("recording", {
+                RecorderSampleTimingTests.run { suite.expect($0, $1) }
+                RecorderWriterTests.run { suite.expect($0, $1) }
+            }),
+            ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
+            ("localization", { LocalizationTests.run(suite) }),
+            ("launcher", { QuickLauncherContract.run(suite) }),
+        ]
+        var selected = Set<String>()
+        var listOnly = false
+        for argument in CommandLine.arguments.dropFirst() {
+            if argument == "--list" {
+                listOnly = true
+                continue
+            }
+            guard argument.hasPrefix("--suite="),
+                  groups.contains(where: { $0.0 == String(argument.dropFirst(8)) }) else {
+                fputs("Unknown test selection: \(argument)\n", stderr)
+                exit(2)
+            }
+            selected.insert(String(argument.dropFirst(8)))
+        }
+        if listOnly {
+            groups.forEach { print($0.0) }
+            exit(0)
+        }
+        for (name, body) in groups where selected.isEmpty || selected.contains(name) {
+            suite.run(name, body)
+        }
+        suite.finish()
+    }
 
-        func expect(_ condition: Bool, _ message: @autoclosure () -> String) {
-            checks += 1
-            if !condition { failures.append(message()) }
+    private static func coreChecks(_ suite: TestSuite) {
+        func expect(_ condition: Bool, _ message: @autoclosure () -> String,
+                    file: StaticString = #filePath, line: UInt = #line) {
+            suite.expect(condition, message(), file: file, line: line)
         }
-        func expectEqual(_ actual: String, _ expected: String, _ label: String) {
-            checks += 1
-            if actual != expected { failures.append("\(label): got \"\(actual)\", expected \"\(expected)\"") }
+        func expectEqual(_ actual: String, _ expected: String, _ label: String,
+                         file: StaticString = #filePath, line: UInt = #line) {
+            suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
+                         file: file, line: line)
         }
-        func expectClose(_ actual: Double, _ expected: Double, _ label: String, tol: Double = 0.0001) {
-            checks += 1
-            if abs(actual - expected) > tol { failures.append("\(label): got \(actual), expected \(expected)") }
+        func expectClose(_ actual: Double, _ expected: Double, _ label: String,
+                         tol: Double = 0.0001, file: StaticString = #filePath, line: UInt = #line) {
+            suite.expectClose(actual, expected, label, tol: tol, file: file, line: line)
         }
-        func expectFormat(_ format: String, _ expected: [String], _ label: String) {
-            checks += 1
+        func expectFormat(_ format: String, _ expected: [String], _ label: String,
+                          file: StaticString = #filePath, line: UInt = #line) {
             let actual = formatSpecifiers(in: format)
-            if actual != expected { failures.append("\(label): got \(actual), expected \(expected)") }
+            suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
+                         file: file, line: line)
         }
 
         // MARK: Byte / rate formatting
@@ -309,24 +351,6 @@ struct MetricsTests {
                                                                 triggerIsEnabled: false),
                "a queued clear is invalidated when its setting changes before pasteboard access")
 
-        expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("colar no app anterior"),
-               "clipboard shortcut hint exposes row click paste in Portuguese")
-        expect(FeatureStrings.clipboard(.ptBR).shortcutHint.contains("⌘+clique seleciona"),
-               "clipboard shortcut hint exposes command click multi-select in Portuguese")
-        expect(FeatureStrings.clipboard(.ptBR).clickRowShortcut == "Clique na linha",
-               "clipboard visual shortcut exposes row click in Portuguese")
-        expect(FeatureStrings.clipboard(.enUS).shortcutHint.contains("paste it into the previous app"),
-               "clipboard shortcut hint exposes row click paste in English")
-        expect(FeatureStrings.clipboard(.enUS).shortcutHint.contains("⌘-click selects"),
-               "clipboard shortcut hint exposes command click multi-select in English")
-        expect(FeatureStrings.clipboard(.enUS).commandClickShortcut == "⌘ Click",
-               "clipboard visual shortcut exposes command click in English")
-        expect(FeatureStrings.clipboard(.tr).shortcutHint.contains("yapıştırın"),
-               "clipboard shortcut hint exposes row click paste in Turkish")
-        expect(FeatureStrings.clipboard(.tr).shortcutHint.contains("birden çok öğe seçer"),
-               "clipboard shortcut hint exposes command click multi-select in Turkish")
-        expect(FeatureStrings.clipboard(.tr).clickRowShortcut == "Satıra tıkla",
-               "clipboard visual shortcut exposes row click in Turkish")
         let featureTitles: [(AppLanguage, String, String, String, String)] = [
             (.enUS, "Clipboard", "Window layout", "Utilities", "Alerts"),
             (.ptBR, "Clipboard", "Layout de janelas", "Utilitários", "Alertas"),
@@ -7311,11 +7335,6 @@ struct MetricsTests {
 
         for language in AppLanguage.allCases {
             let strings = MediaImageConverterStrings.localized(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 56 && values.allSatisfy { !$0.isEmpty },
-                   "every image converter string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible image converter strings (\(language.rawValue))")
             expect(strings.filesSelectedFormat.contains("%d")
                    && strings.profileDefaultNameFormat.contains("%d")
                    && strings.savedBytesFormat.contains("%@")
@@ -13541,22 +13560,7 @@ struct MetricsTests {
 
         // MARK: Localization format contracts
 
-        let localizedStrings: [(AppLanguage, Strings)] = [
-            (.enUS, .enUS),
-            (.ptBR, .ptBR),
-            (.tr, .tr),
-            (.ru, .ru),
-            (.es, .es),
-            (.de, .de),
-            (.fr, .fr),
-            (.it, .it),
-            (.ja, .ja),
-            (.ko, .ko),
-            (.zhHans, .zhHans),
-            (.zhTW, .zhTW),
-            (.zhHK, .zhHK)
-        ]
-        expect(localizedStrings.count == AppLanguage.allCases.count, "all app languages are covered by tests")
+        let localizedStrings = LocalizationTests.languages
         // Thirty-six feature string sets were held to the no-em-dash rule and
         // the main one never was, so a caption in every language carried a
         // pair of them.
@@ -13704,7 +13708,8 @@ struct MetricsTests {
                 guard let label = left.label, formatFields.contains(label),
                       let english = left.value as? String,
                       let other = right.value as? String else { continue }
-                if placeholderShape(english) != placeholderShape(other) {
+                if TestFormat.parse(english) == nil
+                    || TestFormat.parse(english)?.arguments != TestFormat.parse(other)?.arguments {
                     mismatched.append("\(label)/\(language.rawValue)")
                 }
             }
@@ -13924,8 +13929,6 @@ struct MetricsTests {
             ]
             expect(officialHomebrewIntroStrings.allSatisfy { !$0.isEmpty },
                    "\(prefix) official Homebrew intro is complete")
-            expect(officialHomebrewIntroStrings.allSatisfy { !$0.contains("—") },
-                   "\(prefix) official Homebrew intro has no em dash")
             let supportCommunityStrings = [
                 strings.donateHeading,
                 strings.donateMessage,
@@ -14417,7 +14420,6 @@ struct MetricsTests {
         expect(unexpectedProcessReads == 0,
                "unavailable interface counters never trigger process sampling")
 
-        SpeedTestTests.run { expect($0, $1) }
 
         let nettopCSV = """
         time,,bytes_in,bytes_out,
@@ -15108,24 +15110,11 @@ struct MetricsTests {
         expect(!BluetoothSleepSupport.restores(owesRestore: true, isPoweredOn: true),
                "Bluetooth the user switched on first is left alone")
 
-        for language in AppLanguage.allCases {
-            let strings = FeatureStrings.bluetoothSleep(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 7 && values.allSatisfy { !$0.isEmpty },
-                   "Bluetooth on sleep has every localized field for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "Bluetooth on sleep text uses human punctuation for \(language.rawValue)")
-        }
         expect((Defaults.registeredDefaults[DefaultsKey.panelShowFanControl] as? Bool) == true,
                "installing fan control reveals its panel section by default")
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.diskImageInstaller(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 17 && values.allSatisfy { !$0.isEmpty },
-                   "disk image installer has every localized field for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "disk image installer text uses human punctuation for \(language.rawValue)")
             expectFormat(strings.promptBodyFormat, ["@"],
                          "\(language.rawValue) installer prompt format")
             expectFormat(strings.installedBodyFormat, ["@"],
@@ -15423,11 +15412,6 @@ struct MetricsTests {
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.fanControl(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 42 && values.allSatisfy { !$0.isEmpty },
-                   "fan control has every localized field for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "fan control text uses human punctuation for \(language.rawValue)")
             expectFormat(strings.fanNameFormat, ["d"],
                          "fan name format stays valid for \(language.rawValue)")
             expectFormat(strings.rpmFormat, ["d"],
@@ -15787,107 +15771,21 @@ struct MetricsTests {
 
         for language in AppLanguage.allCases {
             let hub = FeatureStrings.hub(language)
-            let values = Mirror(reflecting: hub).children.compactMap { $0.value as? String }
-            expect(!values.isEmpty && values.allSatisfy { !$0.isEmpty },
-                   "every hub string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible hub strings (\(language.rawValue))")
             expect(hub.activeCountFormat.contains("%1$d") && hub.activeCountFormat.contains("%2$d"),
                    "count format keeps positional specifiers (\(language.rawValue))")
         }
         for language in AppLanguage.allCases {
             let clipboard = FeatureStrings.clipboard(language)
-            let values = Mirror(reflecting: clipboard).children
-                .compactMap { $0.value as? String }
-            expect(values.count == 54 && values.allSatisfy { !$0.isEmpty },
-                   "every clipboard string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible clipboard strings (\(language.rawValue))")
             expectFormat(clipboard.deleteSelectedFormat, ["d"],
                          "\(language.rawValue) clipboard bulk-delete format")
-        }
-        for language in AppLanguage.allCases {
-            let values = Mirror(reflecting: FeatureStrings.mouseButtons(language)).children
-                .compactMap { $0.value as? String }
-            expect(values.count == 32 && values.allSatisfy { !$0.isEmpty },
-                   "every mouse button string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible mouse button strings (\(language.rawValue))")
         }
         expect(FeatureStrings.hub(.ptBR).pageTitle == "Recursos"
                 && FeatureStrings.hub(.enUS).pageTitle == "Features",
                "hub page title reads naturally in the owner languages")
         for language in AppLanguage.allCases {
-            let snippetValues = Mirror(reflecting: FeatureStrings.snippets(language)).children
-                .compactMap { $0.value as? String }
-            expect(!snippetValues.isEmpty && snippetValues.allSatisfy { !$0.isEmpty },
-                   "every snippet string is set for \(language.rawValue)")
-            expect(snippetValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible snippet strings (\(language.rawValue))")
-            let backupValues = Mirror(reflecting: FeatureStrings.backup(language)).children
-                .compactMap { $0.value as? String }
-            expect(!backupValues.isEmpty && backupValues.allSatisfy { !$0.isEmpty },
-                   "every backup string is set for \(language.rawValue)")
-            expect(backupValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible backup strings (\(language.rawValue))")
-            let mixerValues = Mirror(reflecting: FeatureStrings.mixer(language)).children
-                .compactMap { $0.value as? String }
-            expect(!mixerValues.isEmpty && mixerValues.allSatisfy { !$0.isEmpty },
-                   "every mixer feature string is set for \(language.rawValue)")
             expect(FeatureStrings.backup(language).description.contains(
                 FeatureStrings.scratchpad(language).pageTitle),
                    "every backup description accounts for the Scratchpad text (\(language.rawValue))")
-            let guideValues = Mirror(reflecting: FeatureStrings.permissionGuide(language)).children
-                .compactMap { $0.value as? String }
-            expect(!guideValues.isEmpty && guideValues.allSatisfy { !$0.isEmpty },
-                   "every permission guide string is set for \(language.rawValue)")
-            expect(guideValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in permission guide strings (\(language.rawValue))")
-            let brightnessValues = Mirror(reflecting: FeatureStrings.brightness(language)).children
-                .compactMap { $0.value as? String }
-            expect(!brightnessValues.isEmpty && brightnessValues.allSatisfy { !$0.isEmpty },
-                   "every brightness string is set for \(language.rawValue)")
-            expect(brightnessValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible brightness strings (\(language.rawValue))")
-            let quickToggleValues = Mirror(reflecting: FeatureStrings.quickToggles(language)).children
-                .compactMap { $0.value as? String }
-            expect(!quickToggleValues.isEmpty && quickToggleValues.allSatisfy { !$0.isEmpty },
-                   "every quick toggle string is set for \(language.rawValue)")
-            expect(quickToggleValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible quick toggle strings (\(language.rawValue))")
-            let keepAwakeAutomationValues = Mirror(
-                reflecting: FeatureStrings.keepAwakeAutomation(language)
-            ).children.compactMap { $0.value as? String }
-            expect(!keepAwakeAutomationValues.isEmpty
-                    && keepAwakeAutomationValues.allSatisfy { !$0.isEmpty },
-                   "every Keep Awake automation string is set for \(language.rawValue)")
-            expect(keepAwakeAutomationValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in Keep Awake automation strings (\(language.rawValue))")
-            let displaySleepValues = Mirror(
-                reflecting: FeatureStrings.keepAwakeDisplaySleep(language)
-            ).children.compactMap { $0.value as? String }
-            expect(displaySleepValues.count == 2 && displaySleepValues.allSatisfy { !$0.isEmpty },
-                   "every Keep Awake display sleep string is set for \(language.rawValue)")
-            expect(displaySleepValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in Keep Awake display sleep strings (\(language.rawValue))")
-            let batteryTimeValues = Mirror(reflecting: FeatureStrings.batteryTime(language)).children
-                .compactMap { $0.value as? String }
-            expect(!batteryTimeValues.isEmpty && batteryTimeValues.allSatisfy { !$0.isEmpty },
-                   "every battery time string is set for \(language.rawValue)")
-            expect(batteryTimeValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible battery time strings (\(language.rawValue))")
-            let menuBarAppearanceValues = Mirror(reflecting: FeatureStrings.menuBarAppearance(language)).children
-                .compactMap { $0.value as? String }
-            expect(!menuBarAppearanceValues.isEmpty && menuBarAppearanceValues.allSatisfy { !$0.isEmpty },
-                   "every menu bar appearance string is set for \(language.rawValue)")
-            expect(menuBarAppearanceValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible menu bar appearance strings (\(language.rawValue))")
-            let appUpdateValues = Mirror(reflecting: FeatureStrings.appUpdates(language)).children
-                .compactMap { $0.value as? String }
-            expect(appUpdateValues.count == 40 && appUpdateValues.allSatisfy { !$0.isEmpty },
-                   "every app update string is set for \(language.rawValue)")
-            expect(appUpdateValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible app update strings (\(language.rawValue))")
             expect(FeatureStrings.appUpdates(language).updateSelectedFormat.contains("%d")
                     && FeatureStrings.appUpdates(language).lastCheckFormat.contains("%@")
                     && FeatureStrings.appUpdates(language).nextCheckFormat.contains("%@")
@@ -15895,12 +15793,6 @@ struct MetricsTests {
                    "app update formats keep their placeholders (\(language.rawValue))")
             expect(!FeatureStrings.appUpdates(language).notificationBodyOne.contains("%"),
                    "the single-app note carries no placeholder (\(language.rawValue))")
-            let killProcessValues = Mirror(reflecting: FeatureStrings.killProcess(language)).children
-                .compactMap { $0.value as? String }
-            expect(killProcessValues.count == 30 && killProcessValues.allSatisfy { !$0.isEmpty },
-                   "every kill process string is set for \(language.rawValue)")
-            expect(killProcessValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible kill process strings (\(language.rawValue))")
             expect(FeatureStrings.killProcess(language).pidLabelFormat.contains("%d")
                     && FeatureStrings.killProcess(language).processCountFormat.contains("%d")
                     && FeatureStrings.killProcess(language).killAllFormat.contains("%@")
@@ -15956,14 +15848,8 @@ struct MetricsTests {
                "Kill Process reports no descendants for a leaf and never follows a self-parenting row")
 
         for language in AppLanguage.allCases {
-            let categoryValues = Mirror(reflecting: FeatureStrings.settingsCategories(language)).children
-                .compactMap { $0.value as? String }
-            expect(categoryValues.count == 6 && categoryValues.allSatisfy { !$0.isEmpty },
-                   "every Settings category name is set for \(language.rawValue)")
             let superKeyValues = Mirror(reflecting: FeatureStrings.superKey(language)).children
                 .compactMap { $0.value as? String }
-            expect(superKeyValues.count == 20 && superKeyValues.allSatisfy { !$0.isEmpty },
-                   "every super key string is set for \(language.rawValue)")
             let refusals = SuperKeyMappingFailure.allCases.map {
                 FeatureStrings.superKey(language).mappingFailure($0)
             }
@@ -15982,89 +15868,16 @@ struct MetricsTests {
                    "super key strings keep their format and avoid em-dashes (\(language.rawValue))")
             let shortcutValues = Mirror(reflecting: FeatureStrings.shortcuts(language)).children
                 .compactMap { $0.value as? String }
-            expect(shortcutValues.count == 3 && shortcutValues.allSatisfy { !$0.isEmpty },
-                   "every shortcut editor string is set for \(language.rawValue)")
             expect(shortcutValues.allSatisfy { !$0.contains("—") }
                     && FeatureStrings.shortcuts(language).superKeyAlternativeFormat.contains("%@"),
                    "shortcut editor strings keep their format and avoid em-dashes (\(language.rawValue))")
-            let appearanceValues = Mirror(reflecting: FeatureStrings.appearance(language)).children
-                .compactMap { $0.value as? String }
-            expect(appearanceValues.count == 5 && appearanceValues.allSatisfy { !$0.isEmpty },
-                   "every appearance string is set for \(language.rawValue)")
-            expect(appearanceValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible appearance strings (\(language.rawValue))")
-            let screenshotValues = Mirror(reflecting: FeatureStrings.screenshot(language)).children
-                .compactMap { $0.value as? String }
-            expect(!screenshotValues.isEmpty && screenshotValues.allSatisfy { !$0.isEmpty },
-                   "every screenshot string is set for \(language.rawValue)")
-            expect(screenshotValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible screenshot strings (\(language.rawValue))")
-            let recentCaptureValues = Mirror(
-                reflecting: FeatureStrings.recentCaptures(language)).children
-                .compactMap { $0.value as? String }
-            expect(recentCaptureValues.count == 8
-                    && recentCaptureValues.allSatisfy { !$0.isEmpty },
-                   "every recent capture string is set for \(language.rawValue)")
-            expect(recentCaptureValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in recent capture strings (\(language.rawValue))")
-            let feedbackValues = Mirror(reflecting: FeatureStrings.feedback(language)).children
-                .compactMap { $0.value as? String }
-            expect(feedbackValues.count == 29 && feedbackValues.allSatisfy { !$0.isEmpty },
-                   "every feedback string is set for \(language.rawValue)")
-            expect(feedbackValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible feedback strings (\(language.rawValue))")
             expect(FeatureStrings.feedback(language).charactersFormat.contains("%d"),
                    "feedback character format keeps its placeholder (\(language.rawValue))")
-            let cameraPreviewValues = Mirror(reflecting: FeatureStrings.cameraPreview(language)).children
-                .compactMap { $0.value as? String }
-            expect(!cameraPreviewValues.isEmpty && cameraPreviewValues.allSatisfy { !$0.isEmpty },
-                   "every camera preview string is set for \(language.rawValue)")
-            expect(cameraPreviewValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible camera preview strings (\(language.rawValue))")
-            let radialMenuValues = Mirror(reflecting: FeatureStrings.radialMenu(language)).children
-                .compactMap { $0.value as? String }
-            expect(radialMenuValues.count == 97 && radialMenuValues.allSatisfy { !$0.isEmpty },
-                   "every radial menu string is set for \(language.rawValue)")
-            expect(radialMenuValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible radial menu strings (\(language.rawValue))")
             expect(FeatureStrings.radialMenu(language).mediaOpenAppFormat.contains("%@"),
                    "Now Playing keeps the app-name placeholder (\(language.rawValue))")
-            let scratchpadValues = Mirror(reflecting: FeatureStrings.scratchpad(language)).children
-                .compactMap { $0.value as? String }
-            expect(scratchpadValues.count == 32 && scratchpadValues.allSatisfy { !$0.isEmpty },
-                   "every scratchpad string is set for \(language.rawValue)")
-            expect(scratchpadValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible scratchpad strings (\(language.rawValue))")
             expect(FeatureStrings.scratchpad(language).deletePadMessageFormat.contains("%@")
                     && FeatureStrings.scratchpad(language).padLimitFormat.contains("%d"),
                    "scratchpad dialog formats keep their placeholders (\(language.rawValue))")
-            let finderRenameValues = Mirror(
-                reflecting: FeatureStrings.finderRename(language)).children
-                .compactMap { $0.value as? String }
-            expect(finderRenameValues.count == 6
-                    && finderRenameValues.allSatisfy { !$0.isEmpty },
-                   "every Finder rename string is set for \(language.rawValue)")
-            expect(finderRenameValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible Finder rename strings (\(language.rawValue))")
-            let whatsAppValues = Mirror(reflecting: FeatureStrings.whatsAppDownloads(language)).children
-                .compactMap { $0.value as? String }
-            expect(whatsAppValues.count == 40 && whatsAppValues.allSatisfy { !$0.isEmpty },
-                   "every WhatsApp downloads string is set for \(language.rawValue)")
-            expect(whatsAppValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in WhatsApp downloads strings (\(language.rawValue))")
-            let organizerValues = Mirror(
-                reflecting: WhatsAppOrganizerStrings.localized(language)).children
-                .compactMap { $0.value as? String }
-            expect(organizerValues.count == 30 && organizerValues.allSatisfy { !$0.isEmpty },
-                   "every WhatsApp organizer string is set for \(language.rawValue)")
-            expect(organizerValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in WhatsApp organizer strings (\(language.rawValue))")
-            let recorderValues = Mirror(reflecting: FeatureStrings.recorder(language)).children
-                .compactMap { $0.value as? String }
-            expect(recorderValues.count == 135 && recorderValues.allSatisfy { !$0.isEmpty },
-                   "every screen recorder string is set for \(language.rawValue)")
-            expect(recorderValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible screen recorder strings (\(language.rawValue))")
             expect(FeatureStrings.recorder(language).countdownSecondsFormat.contains("%d"),
                    "recorder countdown format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.recorder(language).frameRateFormat.contains("%d"),
@@ -16079,14 +15892,6 @@ struct MetricsTests {
                    "screenshot saved-and-copied format keeps its specifier (\(language.rawValue))")
             expect(FeatureStrings.screenshot(language).fileNumberNextFormat.contains("%d"),
                    "screenshot next-number format keeps its specifier (\(language.rawValue))")
-            let mouseClickDebounceValues = Mirror(
-                reflecting: FeatureStrings.mouseClickDebounce(language)
-            ).children.compactMap { $0.value as? String }
-            expect(mouseClickDebounceValues.count == 5
-                    && mouseClickDebounceValues.allSatisfy { !$0.isEmpty },
-                   "every mouse click debounce string is set for \(language.rawValue)")
-            expect(mouseClickDebounceValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in mouse click debounce strings (\(language.rawValue))")
             let strings: Strings = {
                 switch language {
                 case .enUS: return .enUS
@@ -18097,21 +17902,16 @@ struct MetricsTests {
             overlap: 78,
             fixedBottomRows: 0) == 78..<120,
                "captures without a fixed footer keep the original crop geometry")
-        var scrollingStressPassed = true
-        var scrollingStressFailure: ScreenshotSupport.ScrollingTransition?
-        for iteration in 0..<250 {
-            let offset = [8, 76][iteration % 2]
+        // Each input is independent: repeating the same pure call adds no case.
+        for offset in [8, 76] {
             let transition = ScreenshotSupport.scrollingTransition(
                 previous: firstScrollSample,
                 current: scrollingSample(offset: offset))
-            let passed = transition == .advanced(overlap: 120 - offset,
-                                                 direction: .forward,
-                                                 contentColumns: 0..<16)
-            if !passed, scrollingStressFailure == nil { scrollingStressFailure = transition }
-            scrollingStressPassed = scrollingStressPassed && passed
+            expect(transition == .advanced(overlap: 120 - offset,
+                                            direction: .forward,
+                                            contentColumns: 0..<16),
+                   "scroll matching handles an advance of \(offset) rows: \(transition)")
         }
-        expect(scrollingStressPassed,
-               "scroll matching stays deterministic through repeated short and long advances: \(String(describing: scrollingStressFailure))")
         let retinaScrollStart = scrollingSample(width: 32, height: 900, offset: 0)
         let retinaScrollNext = scrollingSample(width: 32, height: 900, offset: 558)
         expect(ScreenshotSupport.scrollingTransition(previous: retinaScrollStart,
@@ -18756,7 +18556,6 @@ struct MetricsTests {
         expect(ScreenshotSupport.uniqueFileName("a.png",
                                                 exists: { $0 == "a.png" || $0 == "a 2.png" }) == "a 3.png",
                "numbering keeps walking until a free name")
-        RecentCaptureStoreTests.run { expect($0, $1) }
         let recentID = UUID()
         expect(ScreenshotSupport.isRecentCaptureCacheFileName("\(recentID.uuidString).png")
                 && ScreenshotSupport.isRecentCaptureCacheFileName(
@@ -19101,11 +18900,7 @@ struct MetricsTests {
                     enabled: true) == nil,
                "the visible shortcut menu assigns a numbered slot or removes a tool from 1 through 9")
 
-        // MARK: Assistive keyboard click recognition
-        assistiveKeyboardChecks { expect($0, $1) }
-
         // MARK: Remappable screenshot tool shortcuts
-        screenshotToolShortcutChecks { expect($0, $1) }
         do {
             typealias Tool = ScreenshotSupport.Tool
             let text = GlobalShortcut(keyCode: Int64(kVK_ANSI_T), modifiers: [])
@@ -19946,7 +19741,6 @@ struct MetricsTests {
         expect(retainedScratchpads.pads[0].text.isEmpty
                 && retainedScratchpads.pads[1].text == "recent text",
                "retention clears only scratchpads whose own text expired")
-        scratchpadStoreChecks { expect($0, $1) }
         let scratchpadDocumentData = renamedPad?.encoded()
         let decodedScratchpads = ScratchpadDocument.decoded(scratchpadDocumentData,
                                                             defaultName: "Scratchpad")
@@ -21579,32 +21373,14 @@ struct MetricsTests {
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.mouseExceptions(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(!values.isEmpty && values.allSatisfy { !$0.isEmpty },
-                   "every mouse exception string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible mouse exception strings (\(language.rawValue))")
             expect(Set(MouseExceptionScope.allCases.map { strings.caption(for: $0) }).count
                     == MouseExceptionScope.allCases.count,
                    "each list explains its own feature, never the same line twice (\(language.rawValue))")
         }
 
-        for language in AppLanguage.allCases {
-            let strings = FeatureStrings.clipboardIgnoredApps(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 4 && values.allSatisfy { !$0.isEmpty },
-                   "every clipboard skip list string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible clipboard skip list strings (\(language.rawValue))")
-        }
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.switcherAppRules(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 8 && values.allSatisfy { !$0.isEmpty },
-                   "every per-app switcher rule string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in per-app switcher rule strings (\(language.rawValue))")
             expect(Set([strings.showWithoutWindows, strings.windowsOnly, strings.hidden]).count == 3,
                    "each per-app switcher choice is distinct for \(language.rawValue)")
         }
@@ -21615,32 +21391,8 @@ struct MetricsTests {
                 && !FinderRenameSupport.acceptsFocusedRole(nil),
                "Finder rename only acts outside editable fields with a known focus")
 
-        for language in AppLanguage.allCases {
-            let strings = FeatureStrings.windowPreviewExclusions(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 5 && values.allSatisfy { !$0.isEmpty },
-                   "every window preview exclusion string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible window preview exclusion strings (\(language.rawValue))")
-        }
 
-        for language in AppLanguage.allCases {
-            let strings = FeatureStrings.diskExclusions(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 6 && values.allSatisfy { !$0.isEmpty },
-                   "every disk exclusion string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible disk exclusion strings (\(language.rawValue))")
-        }
 
-        for language in AppLanguage.allCases {
-            let strings = WindowDirectionalStrings.localized(language)
-            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            expect(values.count == 2 && values.allSatisfy { !$0.isEmpty },
-                   "every directional layout string is set for \(language.rawValue)")
-            expect(values.allSatisfy { !$0.contains("—") },
-                   "no em-dash in directional layout strings (\(language.rawValue))")
-        }
 
         // MARK: Settings backup
 
@@ -23419,17 +23171,6 @@ struct MetricsTests {
                "the default recording shortcut sits next to the screenshot's own")
         expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityScreenRecorder] as? Bool == true,
                "the screen recorder panel tile ships visible like its siblings")
-        let quickLauncherServiceSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/QuickLauncherService.swift",
-            encoding: .utf8)) ?? ""
-        let quickLauncherViewSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/QuickLauncher/QuickLauncherView.swift",
-            encoding: .utf8)) ?? ""
-        expect(quickLauncherServiceSource.contains("case .screenRecorder: return .screenRecorder")
-                && quickLauncherServiceSource.contains("ScreenRecorderService.shared.toggle()")
-                && quickLauncherViewSource.contains(
-                    "case .screenRecorder: return recorder.isRecording ? \"stop.circle\" : \"record.circle\""),
-               "the screen recorder keeps its quick-panel tile, action and recording state")
         var windowRetention = WindowActivationRetention()
         let firstWindowNeedsPromotion = windowRetention.retain()
         let secondWindowNeedsPromotion = windowRetention.retain()
@@ -23597,8 +23338,6 @@ struct MetricsTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudio),
                "the tap grant this Mac gave stays out of the backup while the sound choice travels")
         var pauseTimeline = RecorderPauseTimeline()
-        RecorderSampleTimingTests.run { expect($0, $1) }
-        RecorderWriterTests.run { expect($0, $1) }
         expect(pauseTimeline.pause(at: 3) && !pauseTimeline.pause(at: 4),
                "a recording enters one pause only once")
         expect(pauseTimeline.elapsed(since: 0, at: 7) == 3
@@ -23960,7 +23699,6 @@ struct MetricsTests {
         expect(appliedPreset.backdrop == "style" && appliedPreset.zoomAmount == 2.4
                 && appliedPreset.texts.count == 2,
                "an editor preset changes the look without touching timeline edits")
-        RecorderPresetImageStoreTests.run { expect($0, $1) }
 
         // MARK: Screen recorder motion
 
@@ -24704,53 +24442,7 @@ struct MetricsTests {
         expect(RecorderSupport.takeID(fromFolderName: "Downloads") == nil,
                "an unrelated folder is never mistaken for a recording")
 
-        // A translated format string whose placeholders drifted from the
-        // English one does not misprint: String(format:) reads the argument
-        // list by the specifiers, so a "%@" where a "%d" belongs walks off the
-        // stack and takes the app with it. This is the one translation mistake
-        // that is a crash rather than a typo, so it is pinned here.
-        func specifiers(of format: String) -> [String] {
-            var found: [String] = []
-            let characters = Array(format)
-            var index = 0
-            while index < characters.count {
-                guard characters[index] == "%" else {
-                    index += 1
-                    continue
-                }
-                var cursor = index + 1
-                // Positional and width flags sit between the % and the letter.
-                while cursor < characters.count,
-                      "0123456789$.-+ #'lhqLzjt".contains(characters[cursor]) {
-                    cursor += 1
-                }
-                guard cursor < characters.count else { break }
-                found.append(String(characters[index...cursor]))
-                index = cursor + 1
-            }
-            return found
-        }
-        var englishFormats: [String: [String]] = [:]
         for language in AppLanguage.allCases {
-            for child in Mirror(reflecting: FeatureStrings.commandBar(language)).children {
-                guard let label = child.label, let value = child.value as? String else { continue }
-                let found = specifiers(of: value)
-                if language == .enUS {
-                    englishFormats[label] = found
-                } else {
-                    expect(englishFormats[label] == found,
-                           "\(label) takes the same arguments in \(language.rawValue) as in en-US")
-                }
-            }
-        }
-
-        for language in AppLanguage.allCases {
-            let commandBarValues = Mirror(reflecting: FeatureStrings.commandBar(language)).children
-                .compactMap { $0.value as? String }
-            expect(commandBarValues.count == 158 && commandBarValues.allSatisfy { !$0.isEmpty },
-                   "every command bar string is set for \(language.rawValue)")
-            expect(commandBarValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in visible command bar strings (\(language.rawValue))")
             // The battery example chip types this word into the bar, and the
             // answer it must reach is titled with it. Two words would not be
             // one typable example, and an empty one would be no example.
@@ -24848,16 +24540,6 @@ struct MetricsTests {
         expect(commandBarSettingsSource.contains("Toggle(text.shortcutToggle,")
                 && !commandBarSettingsSource.contains("l10n.s.quickToolShortcutToggle"),
                "the command bar shortcut toggle says what the shortcut opens")
-        for language in AppLanguage.allCases {
-            let recordingShareValues = Mirror(
-                reflecting: FeatureStrings.recorderShare(language)).children
-                .compactMap { $0.value as? String }
-            expect(recordingShareValues.count == 9
-                    && recordingShareValues.allSatisfy { !$0.isEmpty },
-                   "every recording share string is set for \(language.rawValue)")
-            expect(recordingShareValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in recording share strings (\(language.rawValue))")
-        }
         expect(Set(GlobalShortcutRole.allCases.map(\.defaultShortcut)).count
                 == GlobalShortcutRole.allCases.count,
                "no two shortcut roles share a default combination")
@@ -26495,12 +26177,6 @@ struct MetricsTests {
 
         for language in AppLanguage.allCases {
             let quitProtection = FeatureStrings.quitProtection(language)
-            let quitProtectionValues = Mirror(reflecting: quitProtection).children
-                .compactMap { $0.value as? String }
-            expect(quitProtectionValues.count == 29 && quitProtectionValues.allSatisfy { !$0.isEmpty },
-                   "every quit protection string is set for \(language.rawValue)")
-            expect(quitProtectionValues.allSatisfy { !$0.contains("—") },
-                   "no em-dash in quit protection strings (\(language.rawValue))")
             expectFormat(quitProtection.holdHUDFormat, ["@"],
                          "\(language.rawValue) quit protection hold HUD format")
             expectFormat(quitProtection.doubleHUDFormat, ["@"],
@@ -26717,14 +26393,6 @@ struct MetricsTests {
 
         scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
 
-        if failures.isEmpty {
-            print("TESTS OK (\(checks) checks)")
-            exit(0)
-        } else {
-            print("TESTS FAILED (\(failures.count) of \(checks)):")
-            failures.forEach { print("  - \($0)") }
-            exit(1)
-        }
     }
 
     private static func switcherFocusRetryChecks(_ expect: (Bool, String) -> Void) {
@@ -27015,36 +26683,7 @@ struct MetricsTests {
         }
     }
 
-    /// The placeholders a format string carries, sorted, so two languages can
-    /// be compared without caring about the order they read in.
-    private static func placeholderShape(_ value: String) -> [String] {
-        formatSpecifiers(in: value).sorted()
-    }
-
     private static func formatSpecifiers(in format: String) -> [String] {
-        var specifiers: [String] = []
-        var index = format.startIndex
-        while index < format.endIndex {
-            guard format[index] == "%" else {
-                index = format.index(after: index)
-                continue
-            }
-            index = format.index(after: index)
-            if index < format.endIndex, format[index] == "%" {
-                index = format.index(after: index)
-                continue
-            }
-            while index < format.endIndex {
-                let character = format[index]
-                if character.isLetter || character == "@" {
-                    specifiers.append(String(character))
-                    index = format.index(after: index)
-                    break
-                }
-                index = format.index(after: index)
-            }
-        }
-        return specifiers
+        TestFormat.parse(format)?.conversions ?? ["invalid format"]
     }
-
 }
