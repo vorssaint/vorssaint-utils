@@ -292,7 +292,7 @@ enum RadialNowPlayingApplication {
 /// processes carrying Apple's signature; perl is one, the app is not. A
 /// missing script or library, a failed run, a timeout and malformed output
 /// all read as an empty playback session.
-private final class MediaRemoteNowPlayingBridge {
+final class MediaRemoteNowPlayingBridge {
     private let queue = DispatchQueue(label: "com.vorssaint.radial-now-playing", qos: .userInitiated)
     /// 2 s: a cold perl load measured 500 ms with no session playing, and a
     /// real reply adds the MediaRemote round trip plus up to 16 MB of base64
@@ -302,7 +302,8 @@ private final class MediaRemoteNowPlayingBridge {
     /// second costs nothing on screen.
     private static let replyTimeout: TimeInterval = 2.0
 
-    func fetch(completion: @escaping (RadialNowPlayingSnapshot?) -> Void) {
+    func fetch(includesPaused: Bool = false,
+               completion: @escaping (RadialNowPlayingSnapshot?) -> Void) {
         guard let script = Bundle.main.url(forResource: "now-playing", withExtension: "pl"),
               let library = Bundle.main.privateFrameworksURL?
                 .appendingPathComponent("libVorssaintNowPlaying.dylib"),
@@ -324,7 +325,8 @@ private final class MediaRemoteNowPlayingBridge {
             completion(RadialNowPlayingSupport.snapshot(info: reply.info,
                                                         isPlaying: isPlaying,
                                                         appBundleIdentifier: reply.displayID,
-                                                        appPID: reply.pid))
+                                                        appPID: reply.pid,
+                                                        includesPaused: includesPaused))
         }
     }
 }

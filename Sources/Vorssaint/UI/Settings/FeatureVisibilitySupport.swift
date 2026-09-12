@@ -208,6 +208,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)
         case .musicBlock:
             return FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
+        case .nowPlaying:
+            return FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
 
         case .keepAwake:
             return FeatureSettingsDestination(.energy, sectionAnchor: .keepAwake)

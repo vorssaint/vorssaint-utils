@@ -77,6 +77,7 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.panelShowUtilities) private var showUtilities = true
     @AppStorage(DefaultsKey.panelShowControls) private var showControls = true
     @AppStorage(DefaultsKey.panelShowToggles) private var showToggles = true
+    @AppStorage(DefaultsKey.panelShowNowPlaying) private var showNowPlaying = true
     @AppStorage(DefaultsKey.panelSectionOrder) private var sectionOrderRaw = ""
     @State private var navigableContentHeight: CGFloat = 0
     @State private var metricContentHeight: CGFloat = 0
@@ -256,6 +257,7 @@ struct MenuPanelView: View {
         case .keepAwake: return 250
         case .brightness: return 140
         case .mixer: return 250
+        case .nowPlaying: return 170
         case .system: return 460
         case .network: return 190
         case .disk: return 360
@@ -287,6 +289,7 @@ struct MenuPanelView: View {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { MixerSection(collapsible: collapsible) }
+        case .nowPlaying: if showNowPlaying { NowPlayingSection(collapsible: collapsible) }
         case .system: if showSystem { SystemSection(collapsible: collapsible) }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
@@ -306,6 +309,7 @@ struct MenuPanelView: View {
         // it is switched on in Settings, not from an empty panel screen.
         case .brightness: return showBrightness && brightnessEnabled
         case .mixer: return showMixer
+        case .nowPlaying: return showNowPlaying
         case .system: return showSystem
         case .network: return showNetwork
         case .disk: return showDisk

@@ -844,30 +844,9 @@ final class RadialMenuService: ObservableObject {
         }
     }
 
-    /// Posts the aux-button pair the physical media keys produce, so whatever
-    /// player owns the media keys reacts exactly as if F8 was pressed.
     private static func postMediaKey(_ key: RadialMenuMediaKey) {
         guard let auxKeyType = key.auxKeyType else { return }
-        postAuxKey(auxKeyType, down: true)
-        postAuxKey(auxKeyType, down: false)
-    }
-
-    private static func postAuxKey(_ type: Int32, down: Bool) {
-        let stateFlags: NSEvent.ModifierFlags = down
-            ? NSEvent.ModifierFlags(rawValue: 0xA00)
-            : NSEvent.ModifierFlags(rawValue: 0xB00)
-        let data1 = (Int(type) << 16) | ((down ? 0xA : 0xB) << 8)
-        guard let event = NSEvent.otherEvent(with: .systemDefined,
-                                             location: .zero,
-                                             modifierFlags: stateFlags,
-                                             timestamp: ProcessInfo.processInfo.systemUptime,
-                                             windowNumber: 0,
-                                             context: nil,
-                                             subtype: 8,
-                                             data1: data1,
-                                             data2: -1)
-        else { return }
-        event.cgEvent?.post(tap: .cghidEventTap)
+        MediaKeyInput.post(auxKeyType: auxKeyType)
     }
 
     // MARK: - Panel

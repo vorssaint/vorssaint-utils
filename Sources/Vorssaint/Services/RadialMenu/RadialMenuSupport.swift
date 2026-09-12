@@ -483,10 +483,27 @@ struct RadialNowPlayingSnapshot: Equatable {
     let artworkData: Data?
     let appBundleIdentifier: String?
     let appPID: Int32?
+    /// Whether the session is playing right now. The radial menu never sees a
+    /// paused one, so this is always true there; the panel asks for paused
+    /// sessions too and draws play or pause from it.
+    let isPlaying: Bool
 
     var radialLabel: String? {
         let parts = [title, artist].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: "\n")
+    }
+
+    /// The same session with playback inverted. A transport press flips the
+    /// glyph before the player has answered, because the confirming read costs
+    /// a process launch.
+    var togglingPlayback: RadialNowPlayingSnapshot {
+        RadialNowPlayingSnapshot(title: title,
+                                 artist: artist,
+                                 album: album,
+                                 artworkData: artworkData,
+                                 appBundleIdentifier: appBundleIdentifier,
+                                 appPID: appPID,
+                                 isPlaying: !isPlaying)
     }
 }
 
@@ -552,11 +569,18 @@ enum RadialNowPlayingSupport {
                             isPlaying: fields["isPlaying"] as? Bool)
     }
 
+    /// `includesPaused` is the whole difference between the two callers. The
+    /// radial menu shows a slice only while something plays, so a paused
+    /// session has to read as nothing playing there. A mini player that went
+    /// blank the moment you hit pause would be telling the user the wrong
+    /// thing, so the panel asks for the paused session and draws a play
+    /// button on it.
     static func snapshot(info: [String: Any],
                          isPlaying: Bool,
                          appBundleIdentifier: String?,
-                         appPID: Int32) -> RadialNowPlayingSnapshot? {
-        guard isPlaying else { return nil }
+                         appPID: Int32,
+                         includesPaused: Bool = false) -> RadialNowPlayingSnapshot? {
+        guard isPlaying || includesPaused else { return nil }
         let title = sanitizedText(info[titleKey])
         let artist = sanitizedText(info[artistKey])
         let album = sanitizedText(info[albumKey])
@@ -569,7 +593,8 @@ enum RadialNowPlayingSupport {
                                         album: album,
                                         artworkData: artworkData,
                                         appBundleIdentifier: bundleIdentifier,
-                                        appPID: pid)
+                                        appPID: pid,
+                                        isPlaying: isPlaying)
     }
 
     private static func sanitizedText(_ value: Any?) -> String? {

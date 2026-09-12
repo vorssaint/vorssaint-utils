@@ -287,6 +287,7 @@ enum DefaultsKey {
     static let panelShowUtilities = "panelShowUtilities"
     static let panelShowControls = "panelShowControls"
     static let panelShowToggles = "panelShowToggles"
+    static let panelShowNowPlaying = "panelShowNowPlaying"
     // Quick toggles tab: per-action visibility (the order lives in panelToggleOrder).
     static let panelToggleDarkMode = "panelToggleDarkMode"
     static let panelToggleKeyboardLight = "panelToggleKeyboardLight"
@@ -1105,6 +1106,7 @@ enum Defaults {
         DefaultsKey.panelShowUtilities: true,
         DefaultsKey.panelShowControls: true,
         DefaultsKey.panelShowToggles: true,
+        DefaultsKey.panelShowNowPlaying: true,
         DefaultsKey.panelToggleDarkMode: true,
         DefaultsKey.panelToggleKeyboardLight: true,
         DefaultsKey.panelToggleMicMute: true,
@@ -1829,6 +1831,39 @@ enum Defaults {
             let lower = item.lowercased()
             guard !item.isEmpty, seen.insert(lower).inserted else { continue }
             result.append(item)
+        }
+        return result
+    }
+
+    /// Panel sections added after orders started being saved, and the section
+    /// each one belongs after. Keys are `PanelSectionID` raw values, which are
+    /// the identifiers already persisted in the saved order.
+    static let panelSectionPredecessors: [String: String] = [
+        "disk": "network",
+        "controls": "utilities",
+        "brightness": "keepAwake",
+        "nowPlaying": "mixer",
+    ]
+
+    /// Merges a saved section order with the canonical one. A section that
+    /// saved order predates lands next to the section it belongs after rather
+    /// than at the end, where a user who has reordered their panel once would
+    /// never find it. `after` carries that rule for every section added since
+    /// orders started being saved; four copies of this arithmetic used to sit
+    /// in `PanelLayout.order`, one per section.
+    static func sanitizedSectionOrder(_ raw: String,
+                                      canonical: [String],
+                                      after: [String: String]) -> [String] {
+        let saved = raw.split(separator: ",").map(String.init).filter(canonical.contains)
+        var seen = Set<String>()
+        var result: [String] = []
+        for id in saved where seen.insert(id).inserted { result.append(id) }
+        for id in canonical where seen.insert(id).inserted {
+            if let predecessor = after[id], let index = result.firstIndex(of: predecessor) {
+                result.insert(id, at: index + 1)
+            } else {
+                result.append(id)
+            }
         }
         return result
     }
