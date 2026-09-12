@@ -375,10 +375,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // reaches the arrow.
         popover.hasFullSizeContent = true
         popover.delegate = self
+        AppAppearanceController.shared.follow(panel: popover)
+    }
+
+    private func ensurePopoverContent() {
+        guard popover.contentViewController == nil else { return }
         let host = NSHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
-        AppAppearanceController.shared.follow(panel: popover)
     }
 
     private func togglePopover(anchor button: NSStatusBarButton? = nil) {
@@ -856,6 +860,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // The panel measures itself against this while the popover lays out, so
         // it has to be known before the content is asked for its size.
         PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
+        ensurePopoverContent()
         statusController.setMicBadgeHeld(true)
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         if let window = popover.contentViewController?.view.window {
@@ -902,9 +907,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self.closePopover()
         }
 
-        // Local events cover our own Settings window. Keep Settings + panel open
-        // when they sit side by side for live reordering, but close the panel if it
-        // overlaps Settings and the user clicks Settings to get it out of the way.
+
+
         popoverLocalDismissMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
@@ -938,12 +942,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func shouldDismissPopover(forLocalEvent event: NSEvent) -> Bool {
         guard !PanelInteractionState.shared.preventsPopoverDismissal else { return false }
-        guard event.window === settingsWindow,
-              let settingsFrame = settingsWindow?.frame,
-              let popoverFrame = popover.contentViewController?.view.window?.frame else {
-            return false
-        }
-        return settingsFrame.intersects(popoverFrame)
+        return event.window === settingsWindow
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
