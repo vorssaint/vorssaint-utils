@@ -252,6 +252,7 @@ final class JunkCleaner: ObservableObject {
               url.resolvingSymlinksInPath().standardizedFileURL.path == path else { return false }
         if item.category == .leftovers {
             guard isDirectLeftoverRootChild(url),
+                  !url.lastPathComponent.lowercased().hasSuffix(".localized"),
                   CleanerSupport.bundleIDCandidate(fromEntryName: item.detail) != nil,
                   !CleanerSupport.isProtectedBundleID(item.detail),
                   !hasLivingOwner(item.detail, installed: installed) else { return false }
@@ -451,6 +452,8 @@ final class JunkCleaner: ObservableObject {
     private static func leftoverOwner(entry: String,
                                       url: URL,
                                       usesContainerMetadata: Bool) -> String? {
+        // Finder uses this suffix for display names, not application ownership.
+        guard !entry.lowercased().hasSuffix(".localized") else { return nil }
         if usesContainerMetadata, let owner = containerOwner(at: url) {
             return owner
         }
