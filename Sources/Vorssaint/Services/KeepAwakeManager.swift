@@ -5,6 +5,7 @@ import AppKit
 import Combine
 import IOKit.ps
 import IOKit.pwr_mgt
+import Network
 
 /// Core of the energy feature: manages "keep awake" sessions through IOKit power
 /// assertions, the closed-lid mode (pmset disablesleep, administrator password)
@@ -33,7 +34,7 @@ final class KeepAwakeManager: ObservableObject {
             UserDefaults.standard.set(clamshellPreferred, forKey: DefaultsKey.clamshellPreferred)
             clamshellSetupFailed = false
             if clamshellPreferred {
-                if !sessionPausedForScreenLock { applyClamshellPreference() }
+                syncClamshellWithPolicy()
             } else if clamshellActive {
                 clamshellSetupInProgress = false
                 disableClamshell(synchronous: false)
@@ -60,6 +61,8 @@ final class KeepAwakeManager: ObservableObject {
     private var runningAppsObservers: [NSObjectProtocol] = []
     private var automationEvaluationWorkItem: DispatchWorkItem?
     private var lastExternalDisplayConnected: Bool?
+    private var pathMonitor: NWPathMonitor?
+    private var networkAvailable = false
     private var screenLocked = false
     private var sessionPausedForScreenLock = false
     private var automationSuppressedUntilConditionsClear = false
@@ -169,9 +172,7 @@ final class KeepAwakeManager: ObservableObject {
         }
         if !sessionPausedForScreenLock { startBatteryWatch() }
         syncMouseJiggleTimer()
-        if clamshellPreferred, !sessionPausedForScreenLock {
-            applyClamshellPreference()
-        }
+        syncClamshellWithPolicy()
     }
 
     func activateOnLaunchIfNeeded() {
@@ -221,17 +222,23 @@ final class KeepAwakeManager: ObservableObject {
         if runningAppBundleIDs != selectedApps { runningAppBundleIDs = selectedApps }
         syncScreenLockMonitoring()
         let observeScreens = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
+            && (UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
+                || UserDefaults.standard.bool(forKey: DefaultsKey.clamshellExternalDisplay))
         let observePower = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+            && (UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+                || UserDefaults.standard.bool(forKey: DefaultsKey.clamshellGatePower))
+        let observeNetwork = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.clamshellGateNetwork)
         let observeRunningApps = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
             && !runningAppBundleIDs.isEmpty
 
         setScreenMonitoringEnabled(observeScreens)
         setPowerMonitoringEnabled(observePower)
+        setNetworkMonitoringEnabled(observeNetwork)
         setRunningAppsMonitoringEnabled(observeRunningApps)
         evaluateAutomation()
+        syncClamshellWithPolicy()
     }
 
     private func syncScreenLockMonitoring() {
@@ -302,7 +309,7 @@ final class KeepAwakeManager: ObservableObject {
         guard isActive else { return }
         applyAssertions()
         syncMouseJiggleTimer()
-        if clamshellPreferred { applyClamshellPreference() }
+        syncClamshellWithPolicy()
     }
 
     private func setScreenMonitoringEnabled(_ enabled: Bool) {
@@ -362,11 +369,35 @@ final class KeepAwakeManager: ObservableObject {
         }
     }
 
+    private func setNetworkMonitoringEnabled(_ enabled: Bool) {
+        if enabled {
+            guard pathMonitor == nil else { return }
+            let monitor = NWPathMonitor()
+            networkAvailable = monitor.currentPath.status == .satisfied
+            monitor.pathUpdateHandler = { [weak self] path in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    let available = path.status == .satisfied
+                    guard self.networkAvailable != available else { return }
+                    self.networkAvailable = available
+                    self.scheduleAutomationEvaluation(after: 0.1)
+                }
+            }
+            monitor.start(queue: DispatchQueue(label: "com.vorssaint.utils.clamshell-network"))
+            pathMonitor = monitor
+        } else if let pathMonitor {
+            pathMonitor.cancel()
+            self.pathMonitor = nil
+            networkAvailable = false
+        }
+    }
+
     private func scheduleAutomationEvaluation(after delay: TimeInterval) {
         automationEvaluationWorkItem?.cancel()
         let work = DispatchWorkItem { [weak self] in
             self?.automationEvaluationWorkItem = nil
             self?.evaluateAutomation()
+            self?.syncClamshellWithPolicy()
         }
         automationEvaluationWorkItem = work
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
@@ -377,6 +408,7 @@ final class KeepAwakeManager: ObservableObject {
         automationEvaluationWorkItem = nil
         setScreenMonitoringEnabled(false)
         setPowerMonitoringEnabled(false)
+        setNetworkMonitoringEnabled(false)
         setRunningAppsMonitoringEnabled(false)
         let center = DistributedNotificationCenter.default()
         for observer in screenLockObservers { center.removeObserver(observer) }
@@ -429,15 +461,9 @@ final class KeepAwakeManager: ObservableObject {
 
     private func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
         let externalDisplayEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
-        let externalDisplayConnected: Bool
-        if externalDisplayEnabled {
-            if let current = Self.hasExternalDisplay() {
-                lastExternalDisplayConnected = current
-            }
-            externalDisplayConnected = lastExternalDisplayConnected ?? false
-        } else {
-            externalDisplayConnected = false
-        }
+        let externalDisplayConnected = externalDisplayEnabled
+            ? refreshExternalDisplayConnected()
+            : false
 
         let powerEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
         let connectedToPower = powerEnabled
@@ -463,6 +489,16 @@ final class KeepAwakeManager: ObservableObject {
             runningAppsEnabled: runningAppsEnabled,
             selectedAppsRunning: selectedAppsRunning
         )
+    }
+
+    /// Refreshes the cached external-display reading when either Keep Awake or
+    /// the clamshell gate is watching screens.
+    @discardableResult
+    private func refreshExternalDisplayConnected() -> Bool {
+        if let current = Self.hasExternalDisplay() {
+            lastExternalDisplayConnected = current
+        }
+        return lastExternalDisplayConnected ?? false
     }
 
     private static func hasExternalDisplay() -> Bool? {
@@ -556,12 +592,49 @@ final class KeepAwakeManager: ObservableObject {
 
     // MARK: - Closed lid (pmset disablesleep)
 
+    private func shouldApplyClamshellNow() -> Bool {
+        let defaults = UserDefaults.standard
+        let selected = KeepAwakeAutomationSupport.selectedClamshellGateConditions(
+            externalDisplay: defaults.bool(forKey: DefaultsKey.clamshellExternalDisplay),
+            power: defaults.bool(forKey: DefaultsKey.clamshellGatePower),
+            network: defaults.bool(forKey: DefaultsKey.clamshellGateNetwork)
+        )
+        let mode = Defaults.sanitizedClamshellGateMode(defaults.string(forKey: DefaultsKey.clamshellGateMode))
+        let gatePasses = KeepAwakeAutomationSupport.clamshellGatePasses(
+            selected: selected,
+            mode: mode,
+            externalDisplayConnected: selected.contains(.externalDisplay)
+                ? refreshExternalDisplayConnected()
+                : false,
+            connectedToPower: selected.contains(.power)
+                && (SystemInfo.batterySnapshot().map { !$0.isOnBattery } ?? false),
+            networkAvailable: selected.contains(.network) && networkAvailable
+        )
+        return KeepAwakeAutomationSupport.shouldApplyClamshell(
+            preferred: clamshellPreferred,
+            keepAwakeActive: isActive,
+            sessionPaused: sessionPausedForScreenLock,
+            gatePasses: gatePasses
+        )
+    }
+
+    /// Enables or disables lid-closed mode from the current policy without
+    /// touching the Keep Awake session itself.
+    private func syncClamshellWithPolicy() {
+        let shouldApply = shouldApplyClamshellNow()
+        if shouldApply {
+            if !clamshellActive { applyClamshellPreference() }
+        } else if clamshellActive {
+            disableClamshell(synchronous: false)
+        }
+    }
+
     private func applyClamshellPreference() {
         // A fresh user-driven attempt (toggle on, or a new session) gets one
         // automatic setup retry again.
         clamshellSetupRetried = false
         if passwordlessClamshell {
-            if isActive, !sessionPausedForScreenLock {
+            if shouldApplyClamshellNow() {
                 enableClamshell()
             }
         } else {
@@ -599,7 +672,7 @@ final class KeepAwakeManager: ObservableObject {
             return
         }
 
-        if isActive, clamshellPreferred, !sessionPausedForScreenLock {
+        if shouldApplyClamshellNow() {
             enableClamshell()
         }
     }
@@ -615,8 +688,7 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func enableClamshell() {
-        guard isActive, clamshellPreferred, !sessionPausedForScreenLock,
-              !clamshellActive else { return }
+        guard shouldApplyClamshellNow(), !clamshellActive else { return }
         Sudoers.pmsetDisableSleep(true) { ok in
             DispatchQueue.main.async {
                 guard ok else {
@@ -637,7 +709,7 @@ final class KeepAwakeManager: ObservableObject {
                 }
                 self.passwordlessClamshell = true
                 UserDefaults.standard.set(true, forKey: DefaultsKey.sleepDisabledFlag)
-                if self.isActive, self.clamshellPreferred, !self.sessionPausedForScreenLock {
+                if self.shouldApplyClamshellNow() {
                     self.clamshellActive = true
                 } else {
                     // The session ended (or the preference flipped) while the
@@ -665,6 +737,13 @@ final class KeepAwakeManager: ObservableObject {
                         self.passwordlessClamshell = false
                     }
                     UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                    // disablesleep 0 does not replay a lid-close that happened
+                    // while sleep was blocked. Mid-session only: never sleepnow
+                    // on quit (synchronous), and never when the gate recovered
+                    // or the lid is open (Francesco / #1433).
+                    if !synchronous {
+                        self.requestSleepIfNeededAfterDisablingClamshell()
+                    }
                 }
             }
         }
@@ -673,6 +752,34 @@ final class KeepAwakeManager: ObservableObject {
         } else {
             Sudoers.pmsetDisableSleep(false, completion: finish)
         }
+    }
+
+    /// When closed-lid mode ends because a gate condition dropped while the
+    /// lid is already shut, ask macOS to sleep explicitly.
+    private func requestSleepIfNeededAfterDisablingClamshell() {
+        let policyStillApplies = shouldApplyClamshellNow()
+        guard let lidClosed = Self.readAppleClamshellState() else { return }
+        guard KeepAwakeAutomationSupport.shouldRequestSleepAfterDisablingClamshell(
+            policyStillApplies: policyStillApplies,
+            lidClosed: lidClosed
+        ) else { return }
+        _ = Shell.run("/usr/bin/pmset", ["sleepnow"])
+    }
+
+    /// `AppleClamshellState` on IOPMrootDomain: true while the lid is closed.
+    private static func readAppleClamshellState() -> Bool? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("IOPMrootDomain"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+        guard let raw = IORegistryEntryCreateCFProperty(
+            service,
+            "AppleClamshellState" as CFString,
+            kCFAllocatorDefault,
+            0
+        )?.takeRetainedValue() else { return nil }
+        if let flag = raw as? Bool { return flag }
+        return (raw as? NSNumber)?.boolValue
     }
 
     /// If the app died unexpectedly while sleep was disabled, restores normal

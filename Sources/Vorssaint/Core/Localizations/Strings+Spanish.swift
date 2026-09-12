@@ -78,6 +78,13 @@ extension Strings {
         clamshellNeedsSession: "Se aplica siempre que “Mantener activo” esté activo",
         clamshellReady: "Listo. Se alterna sin contraseña",
         clamshellNeedsPassword: "Pedirá la contraseña de administrador una vez",
+        clamshellExternalDisplayToggle: "Pantalla externa",
+        clamshellExternalDisplayCaption: "Aplica el modo con la tapa cerrada solo mientras se cumplan las condiciones elegidas (cualquiera o todas). “Mantener activo” se queda como lo dejaste.",
+        clamshellGatePowerToggle: "Conectado a la corriente",
+        clamshellGateNetworkToggle: "Red disponible",
+        clamshellGateModeAny: "Cualquiera",
+        clamshellGateModeAll: "Todas",
+        clamshellGateMatchLabel: "Condiciones",
 
         systemSection: "Sistema",
         temperatures: "Temperaturas",
