@@ -99,6 +99,28 @@ enum UninstallerSupport {
         return FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
     }
 
+    /// True only when the path no longer occupies a directory entry and that
+    /// absence can be verified. A dangling symlink still has an entry (`lstat`
+    /// succeeds) even when `fileExists` is false, so it stays a leftover. If
+    /// the parent cannot be listed, absence is confirmed only when the parent
+    /// itself is gone (`ENOENT`); access-denied parents stay unconfirmed.
+    static func isConfirmedAbsent(at url: URL, fileManager fm: FileManager = .default) -> Bool {
+        // lstat sees regular files, directories, and dangling symlinks alike.
+        if fileIdentity(at: url) != nil { return false }
+
+        let parent = url.deletingLastPathComponent()
+        if (try? fm.contentsOfDirectory(atPath: parent.path)) != nil {
+            return fileIdentity(at: url) == nil
+        }
+
+        var info = stat()
+        if lstat(parent.path, &info) == 0 {
+            // Parent entry exists but listing failed — typically access lost.
+            return false
+        }
+        return errno == ENOENT
+    }
+
     /// A removal path must still exist below the root that produced it and no
     /// component from the item through that root may have become a symlink.
     static func removalPathIsSafe(_ url: URL, within root: URL) -> Bool {
