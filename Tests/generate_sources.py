@@ -50,6 +50,16 @@ def main():
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
 
+    cleaner = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
+    write("CleanerEligibilityBodies.swift", "import Foundation\nextension CleanerEligibilityTests {\n"
+          + declaration(cleaner, "    private static func leftoverOwner(")
+          + declaration(cleaner, "    private static func containerOwner(")
+          + declaration(cleaner, "    private static func mayRemove(")
+          + "static func owner(_ url: URL, metadata: Bool = false) -> String? {\n"
+          + "leftoverOwner(entry: url.lastPathComponent, url: url, usesContainerMetadata: metadata)\n}\n"
+          + "static func canRemove(_ item: Item, installed: Set<String> = []) -> Bool {\n"
+          + "mayRemove(item, installed: installed)\n}\n}\n")
+
     factories = []
     pattern = r"static\s+func\s+(\w+)\s*\(\s*_\s+\w+:\s*AppLanguage\s*\)\s*->"
     for path in sorted((ROOT / "Sources/Vorssaint/Core").glob("*Strings.swift")):
