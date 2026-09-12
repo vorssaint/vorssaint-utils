@@ -37,7 +37,9 @@ struct KeyboardDebounceSettings: View {
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
-                Stepper(value: globalWindowBinding, in: Defaults.allowedKeyboardDebounceWindowRange, step: 5) {
+                Stepper(value: globalWindowBinding,
+                        in: Defaults.allowedKeyboardDebounceWindowRange,
+                        step: Defaults.keyboardDebounceWindowStep) {
                     HStack {
                         Text(l10n.s.keyDebounceGlobalWindow)
                         Spacer()
@@ -61,7 +63,9 @@ struct KeyboardDebounceSettings: View {
                         }
                     }
                     .frame(minWidth: 160)
-                    Stepper(value: $selectedWindow, in: Defaults.allowedKeyboardDebounceWindowRange, step: 5) {
+                    Stepper(value: $selectedWindow,
+                            in: Defaults.allowedKeyboardDebounceWindowRange,
+                            step: Defaults.keyboardDebounceWindowStep) {
                         Text("\(selectedWindow) ms")
                             .monospacedDigit()
                     }
@@ -85,7 +89,7 @@ struct KeyboardDebounceSettings: View {
                                 .frame(width: 70, alignment: .leading)
                             Stepper(value: binding(for: row.keyCode),
                                     in: Defaults.allowedKeyboardDebounceWindowRange,
-                                    step: 5) {
+                                    step: Defaults.keyboardDebounceWindowStep) {
                                 Text("\(row.window) ms")
                                     .foregroundStyle(.secondary)
                                     .monospacedDigit()

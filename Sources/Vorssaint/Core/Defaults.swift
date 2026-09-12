@@ -841,6 +841,10 @@ enum Defaults {
     static let allowedMonitorIntervals = [1, 2, 5]
     static let defaultKeyboardDebounceWindowMs = 5
     static let allowedKeyboardDebounceWindowRange = 0...500
+    /// Stepper increment for the keyboard debounce window. Kept at 1 ms so
+    /// magnetic-keyboard users can pick values below the old 5 ms UI step
+    /// without changing the stored range (issue #1551).
+    static let keyboardDebounceWindowStep = 1
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
     static let allowedMenuBarPresets = ["dense"]
