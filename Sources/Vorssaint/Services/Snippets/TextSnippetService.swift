@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 import CoreGraphics
 
@@ -14,6 +15,36 @@ final class TextSnippetService {
 
     /// Marks our own synthetic events so the tap never re-processes them.
     private static let syntheticMarker: Int64 = 0x564F5253 // "VORS"
+
+    /// Whether the field in front is holding a selection the deletes would
+    /// eat. Browsers inline-autocomplete what you type and leave the added
+    /// part selected: typing `gitgra` offers `gitgra[ph]`. A backspace then
+    /// removes that selection instead of a character, so the counted deletes
+    /// clear one character too few and the trigger's first character is left
+    /// stranded in front of the replacement. A selection of the user's own
+    /// cannot be confused with it — typing into one replaces it, so anything
+    /// still standing when a trigger completes was added by the app in front.
+    private static func hasSelection() -> Bool {
+        let system = AXUIElementCreateSystemWide()
+        // A hung AX query must never stall the tap thread: an app that does
+        // not answer is treated as having no selection, which is what the
+        // deletes already assume today.
+        AXUIElementSetMessagingTimeout(system, 0.2)
+        var focused: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(system,
+                                            kAXFocusedUIElementAttribute as CFString,
+                                            &focused) == .success,
+              let candidate = focused,
+              CFGetTypeID(candidate) == AXUIElementGetTypeID() else { return false }
+        let field = candidate as! AXUIElement
+        AXUIElementSetMessagingTimeout(field, 0.2)
+        var selected: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(field,
+                                            kAXSelectedTextAttribute as CFString,
+                                            &selected) == .success,
+              let text = selected as? String else { return false }
+        return !text.isEmpty
+    }
 
     // The tap callback and its mutable text state live off the main thread so
     // demanding foreground apps cannot turn a main-thread stall into queued
@@ -395,13 +426,20 @@ final class TextSnippetService {
                 post(event)
             }
         }
+        // One extra delete consumes an inline completion the app in front
+        // added, so the counted deletes each clear a character the user typed.
+        func postDeletes(_ count: Int) {
+            guard count > 0 else { return }
+            if hasSelection() { postKey(CGKeyCode(kVK_Delete)) }
+            for _ in 0..<count { postKey(CGKeyCode(kVK_Delete)) }
+        }
 
         if TextSnippetSupport.requiresPaste(text) {
             let payload = TextSnippetSupport.pastePayload(text: text, trailingText: trailingText)
             return TransientPaste.shared.paste(
                 payload,
                 willPostShortcut: {
-                    for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
+                    postDeletes(deleteCount)
                 },
                 didFail: {
                     if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
@@ -409,7 +447,7 @@ final class TextSnippetService {
             )
         }
 
-        for _ in 0..<deleteCount { postKey(CGKeyCode(kVK_Delete)) }
+        postDeletes(deleteCount)
 
         // Typed injection instead of pasting: the clipboard stays untouched.
         // Keystroke events carry at most ~20 UTF-16 units reliably.
