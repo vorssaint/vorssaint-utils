@@ -92,7 +92,11 @@ The rest bends the same way: panel sections reorder and hide, the compact layout
 - **Dock clicks.** Click the Dock icon of the active app to minimize its windows, hide the app, or cycle through its windows.
 - **Maximize windows.** The green button fills the screen without creating another Space, and puts the window back on the next click.
 - **Quit on close.** Apps you choose quit when their last window closes.
-- **Quit and close protection.** Protect ⌘Q and ⌘W with a hold, double press or extra modifier, independently and only for the apps you choose.
+- **Quit and close protection.** Protect ⌘Q and ⌘W with a hold, double press or extra modifier, independently and only for the apps you choose. With visual feedback enabled, a progress bar shows the remaining hold-to-confirm wait. Release the shortcut early or press Esc to cancel.
+
+<p align="center">
+  <img src="docs/assets/readme/quit-protection-hold.png" width="300" alt="The hold-to-confirm prompt showing progress below the quit and close shortcut hint">
+</p>
 
 <p align="center">
   <img src="docs/assets/readme/window-switcher.gif" width="540" alt="The window switcher showing live thumbnails of open windows">

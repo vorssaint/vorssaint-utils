@@ -67,6 +67,16 @@ def main():
           + "".join(f'("{name}", {{ FeatureStrings.{name}($0) }}),\n' for name in factories)
           + "]\n}\n")
 
+    # Same-file extensions can exercise the private AppKit content view without
+    # widening the production interface or presenting an application window.
+    hud = "Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift"
+    checks = "Tests/Fixtures/QuitProtectionHUDChecks.swift"
+    write("QuitProtectionHUDBodies.swift",
+          f'#sourceLocation(file: {json.dumps(hud)}, line: 1)\n'
+          + (ROOT / hud).read_text() + "\n"
+          + f'#sourceLocation(file: {json.dumps(checks)}, line: 1)\n'
+          + (ROOT / checks).read_text() + "\n#sourceLocation()\n")
+
 
 if __name__ == "__main__":
     main()

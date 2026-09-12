@@ -514,7 +514,8 @@ final class QuitProtectionService: ObservableObject {
         } else {
             title = String(format: strings.doubleHUDFormat, shortcut.symbol)
         }
-        hud.show(title: title, detail: strings.cancelHint)
+        hud.show(title: title, detail: strings.cancelHint,
+                 holdDeadline: configuration.mode == .hold ? holdTimer?.fireDate : nil)
     }
 
     private func hideHUD() { hud.hide() }
