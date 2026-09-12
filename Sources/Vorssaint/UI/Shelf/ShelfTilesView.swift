@@ -57,7 +57,7 @@ class ShelfPanelMoveView: NSView {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let accepted = acceptsDrops && ShelfService.shared.accept(pasteboard: sender.draggingPasteboard)
+        let accepted = acceptsDrops && ShelfService.shared.accept(draggingInfo: sender)
         ShelfService.shared.setDropTargeted(false)
         return accepted
     }
@@ -648,7 +648,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
-        let merged = ShelfService.shared.mergePasteboard(sender.draggingPasteboard, into: item.id)
+        let merged = ShelfService.shared.merge(draggingInfo: sender, into: item.id)
         setDropTargeted(false)
         pendingRebuildAfterDrag = merged
         return merged
