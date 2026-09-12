@@ -39,6 +39,12 @@ struct ScreenshotFeatureStrings {
     let toolShortcutReserved: String
     let toolSelect: String
     let toolArrow: String
+    let arrowStyleLabel: String
+    let arrowStyleFilled: String
+    let arrowStyleOutline: String
+    let arrowStyleOpen: String
+    let arrowStyleDoubleEnded: String
+    let arrowStyleScribbly: String
     let toolLine: String
     let toolRect: String
     let toolEllipse: String
@@ -211,6 +217,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "This key belongs to the editor.",
         toolSelect: "Select",
         toolArrow: "Arrow",
+        arrowStyleLabel: "Arrow style",
+        arrowStyleFilled: "Solid",
+        arrowStyleOutline: "Outline",
+        arrowStyleOpen: "Open",
+        arrowStyleDoubleEnded: "Double-ended",
+        arrowStyleScribbly: "Scribbly",
         toolLine: "Line",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -362,6 +374,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Esta tecla está reservada para o editor.",
         toolSelect: "Selecionar",
         toolArrow: "Seta",
+        arrowStyleLabel: "Estilo da seta",
+        arrowStyleFilled: "Sólida",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Aberta",
+        arrowStyleDoubleEnded: "Duas pontas",
+        arrowStyleScribbly: "Rabiscada",
         toolLine: "Linha",
         toolRect: "Retângulo",
         toolEllipse: "Elipse",
@@ -513,6 +531,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Bu tuş düzenleyiciye ayrılmıştır.",
         toolSelect: "Seç",
         toolArrow: "Ok",
+        arrowStyleLabel: "Ok stili",
+        arrowStyleFilled: "Dolu",
+        arrowStyleOutline: "Kontur",
+        arrowStyleOpen: "Açık",
+        arrowStyleDoubleEnded: "Çift uçlu",
+        arrowStyleScribbly: "Karalama",
         toolLine: "Çizgi",
         toolRect: "Dikdörtgen",
         toolEllipse: "Elips",
@@ -664,6 +688,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Эта клавиша зарезервирована редактором.",
         toolSelect: "Выбор",
         toolArrow: "Стрелка",
+        arrowStyleLabel: "Стиль стрелки",
+        arrowStyleFilled: "Сплошная",
+        arrowStyleOutline: "Контурная",
+        arrowStyleOpen: "Открытая",
+        arrowStyleDoubleEnded: "Двунаправленная",
+        arrowStyleScribbly: "Набросок",
         toolLine: "Линия",
         toolRect: "Прямоугольник",
         toolEllipse: "Эллипс",
@@ -815,6 +845,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "El editor ya usa esta tecla.",
         toolSelect: "Seleccionar",
         toolArrow: "Flecha",
+        arrowStyleLabel: "Estilo de flecha",
+        arrowStyleFilled: "Sólida",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Abierta",
+        arrowStyleDoubleEnded: "De doble punta",
+        arrowStyleScribbly: "Garabato",
         toolLine: "Línea",
         toolRect: "Rectángulo",
         toolEllipse: "Elipse",
@@ -966,6 +1002,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Diese Taste ist für den Editor reserviert.",
         toolSelect: "Auswählen",
         toolArrow: "Pfeil",
+        arrowStyleLabel: "Pfeilstil",
+        arrowStyleFilled: "Voll",
+        arrowStyleOutline: "Umriss",
+        arrowStyleOpen: "Offen",
+        arrowStyleDoubleEnded: "Beidseitig",
+        arrowStyleScribbly: "Gekritzelt",
         toolLine: "Linie",
         toolRect: "Rechteck",
         toolEllipse: "Ellipse",
@@ -1117,6 +1159,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Cette touche est réservée à l’éditeur.",
         toolSelect: "Sélectionner",
         toolArrow: "Flèche",
+        arrowStyleLabel: "Style de flèche",
+        arrowStyleFilled: "Pleine",
+        arrowStyleOutline: "Contour",
+        arrowStyleOpen: "Ouverte",
+        arrowStyleDoubleEnded: "À deux pointes",
+        arrowStyleScribbly: "Gribouillée",
         toolLine: "Ligne",
         toolRect: "Rectangle",
         toolEllipse: "Ellipse",
@@ -1268,6 +1316,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "Questo tasto è riservato all’editor.",
         toolSelect: "Seleziona",
         toolArrow: "Freccia",
+        arrowStyleLabel: "Stile freccia",
+        arrowStyleFilled: "Piena",
+        arrowStyleOutline: "Contorno",
+        arrowStyleOpen: "Aperta",
+        arrowStyleDoubleEnded: "A doppia punta",
+        arrowStyleScribbly: "Scarabocchio",
         toolLine: "Linea",
         toolRect: "Rettangolo",
         toolEllipse: "Ellisse",
@@ -1419,6 +1473,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "このキーはエディタで使用されています。",
         toolSelect: "選択",
         toolArrow: "矢印",
+        arrowStyleLabel: "矢印のスタイル",
+        arrowStyleFilled: "塗りつぶし",
+        arrowStyleOutline: "アウトライン",
+        arrowStyleOpen: "開いた矢印",
+        arrowStyleDoubleEnded: "両矢印",
+        arrowStyleScribbly: "手描き",
         toolLine: "直線",
         toolRect: "長方形",
         toolEllipse: "楕円",
@@ -1570,6 +1630,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "이 키는 편집기에서 사용 중입니다.",
         toolSelect: "선택",
         toolArrow: "화살표",
+        arrowStyleLabel: "화살표 스타일",
+        arrowStyleFilled: "채움",
+        arrowStyleOutline: "윤곽선",
+        arrowStyleOpen: "열린 화살표",
+        arrowStyleDoubleEnded: "양방향",
+        arrowStyleScribbly: "낙서풍",
         toolLine: "직선",
         toolRect: "사각형",
         toolEllipse: "타원",
@@ -1721,6 +1787,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "此按键已由编辑器使用。",
         toolSelect: "选择",
         toolArrow: "箭头",
+        arrowStyleLabel: "箭头样式",
+        arrowStyleFilled: "实心",
+        arrowStyleOutline: "轮廓",
+        arrowStyleOpen: "开口",
+        arrowStyleDoubleEnded: "双向",
+        arrowStyleScribbly: "涂鸦",
         toolLine: "直线",
         toolRect: "矩形",
         toolEllipse: "椭圆",
@@ -1872,6 +1944,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "此按鍵已由編輯器使用。",
         toolSelect: "選取",
         toolArrow: "箭頭",
+        arrowStyleLabel: "箭頭樣式",
+        arrowStyleFilled: "實心",
+        arrowStyleOutline: "輪廓",
+        arrowStyleOpen: "開口",
+        arrowStyleDoubleEnded: "雙向",
+        arrowStyleScribbly: "塗鴉",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -2023,6 +2101,12 @@ extension ScreenshotFeatureStrings {
         toolShortcutReserved: "此按鍵已由編輯器使用。",
         toolSelect: "選取",
         toolArrow: "箭嘴",
+        arrowStyleLabel: "箭嘴樣式",
+        arrowStyleFilled: "實心",
+        arrowStyleOutline: "輪廓",
+        arrowStyleOpen: "開口",
+        arrowStyleDoubleEnded: "雙向",
+        arrowStyleScribbly: "塗鴉",
         toolLine: "直線",
         toolRect: "矩形",
         toolEllipse: "橢圓",
@@ -2138,4 +2222,16 @@ extension ScreenshotFeatureStrings {
         loupeZoomStepped: "逐步",
         loupeZoomOptionCaption: "撳住 ⌥ 可暫時使用另一個模式。"
     )
+}
+
+extension ScreenshotFeatureStrings {
+    func arrowStyleTitle(_ style: ScreenshotSupport.ArrowStyleID) -> String {
+        switch style {
+        case .filled: return arrowStyleFilled
+        case .outline: return arrowStyleOutline
+        case .open: return arrowStyleOpen
+        case .doubleEnded: return arrowStyleDoubleEnded
+        case .scribbly: return arrowStyleScribbly
+        }
+    }
 }

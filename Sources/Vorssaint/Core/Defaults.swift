@@ -570,6 +570,7 @@ enum DefaultsKey {
     static let screenshotLastTool = "screenshotLastTool"
     static let screenshotLastColor = "screenshotLastColor"
     static let screenshotLastStroke = "screenshotLastStroke"
+    static let screenshotLastArrowStyle = "screenshotLastArrowStyle"
     static let screenshotLastSticker = "screenshotLastSticker"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
     static let screenshotToolOrder = "screenshotToolOrder"
@@ -1354,6 +1355,7 @@ enum Defaults {
         DefaultsKey.screenshotLastTool: "arrow",
         DefaultsKey.screenshotLastColor: "red",
         DefaultsKey.screenshotLastStroke: "medium",
+        DefaultsKey.screenshotLastArrowStyle: "filled",
         DefaultsKey.screenshotLastSticker: "check",
         DefaultsKey.screenshotAnnotationShadows: false,
         DefaultsKey.screenshotToolOrder: ScreenshotSupport.Tool.defaultOrderStorage,
