@@ -365,6 +365,11 @@ struct MixerSection: View {
                     SoundOutputSwitcher.shared.syncWithPreferences()
                 }
 
+            OutputDeviceFeedbackControls()
+                .font(.system(size: 10.5, weight: .medium))
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+
             Text(l10n.s.soundOutputSwitcherCaption)
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)

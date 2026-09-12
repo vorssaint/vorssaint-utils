@@ -573,6 +573,8 @@ extension Strings {
         preciseVolumeRollerCaption: "將音量滾輪和按鍵轉成更小的系統音量級距。",
         preciseVolumeRollerTapFailed: "無法監聽音量鍵。",
         soundOutputSwitcherTitle: "輸出切換器",
+        soundOutputOSDEnable: "顯示輸出裝置",
+        soundOutputConfirmationSound: "確認提示音",
         soundOutputSwitcherEnable: "使用快速鍵切換輸出",
         soundOutputSwitcherCaption: "選擇輸出裝置，然後用快速鍵切換到下一個可用輸出。",
         soundOutputSwitcherDevices: "循環中的輸出",

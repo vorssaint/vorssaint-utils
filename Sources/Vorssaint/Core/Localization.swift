@@ -709,6 +709,8 @@ struct Strings {
     let preciseVolumeRollerCaption: String
     let preciseVolumeRollerTapFailed: String
     let soundOutputSwitcherTitle: String
+    let soundOutputOSDEnable: String
+    let soundOutputConfirmationSound: String
     let soundOutputSwitcherEnable: String
     let soundOutputSwitcherCaption: String
     let soundOutputSwitcherDevices: String
@@ -1739,6 +1741,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Transforma roletes e teclas de volume em passos menores.",
         preciseVolumeRollerTapFailed: "Não foi possível ouvir as teclas de volume.",
         soundOutputSwitcherTitle: "Alternador de saída",
+        soundOutputOSDEnable: "Mostrar dispositivo de saída",
+        soundOutputConfirmationSound: "Som de confirmação",
         soundOutputSwitcherEnable: "Alternar saídas por atalho",
         soundOutputSwitcherCaption: "Escolha as saídas e use o atalho para passar para a próxima disponível.",
         soundOutputSwitcherDevices: "Saídas no ciclo",
@@ -2751,6 +2755,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
         preciseVolumeRollerTapFailed: "Could not listen for volume keys.",
         soundOutputSwitcherTitle: "Output switcher",
+        soundOutputOSDEnable: "Show output device",
+        soundOutputConfirmationSound: "Confirmation sound",
         soundOutputSwitcherEnable: "Switch outputs with shortcut",
         soundOutputSwitcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
         soundOutputSwitcherDevices: "Outputs in cycle",

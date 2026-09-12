@@ -4,123 +4,23 @@
 import AppKit
 import SwiftUI
 
-/// A brief percentage overlay for every brightness route. The disabled
-/// feature owns no window, observer or timer.
 enum BrightnessOSD {
-    private static var panel: NSPanel?
-    private static var host: NSHostingController<BrightnessOSDView>?
-    private static var dismissWork: DispatchWorkItem?
-    private static var generation = 0
+    private static let overlay = TransientOSD<BrightnessOSDView>()
 
     static func show(displayID: CGDirectDisplayID, brightness: Double) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async {
-                show(displayID: displayID, brightness: brightness)
-            }
+            DispatchQueue.main.async { show(displayID: displayID, brightness: brightness) }
             return
         }
         guard let screen = NSScreen.screens.first(where: {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
                 .uint32Value == displayID
         }) else { return }
-
-        // One hosting controller for the panel's lifetime: a slider drag
-        // shows dozens of updates a second, and rebuilding the SwiftUI host
-        // for each would burn CPU for no visual difference.
-        let panel = ensurePanel()
-        let host: NSHostingController<BrightnessOSDView>
-        if let existing = Self.host {
-            existing.rootView = BrightnessOSDView(brightness: brightness)
-            host = existing
-        } else {
-            host = NSHostingController(rootView: BrightnessOSDView(brightness: brightness))
-            Self.host = host
-            panel.contentViewController = host
-        }
-        host.view.layoutSubtreeIfNeeded()
-        let size = host.view.fittingSize
-        panel.setFrame(NSRect(x: screen.frame.midX - size.width / 2,
-                              y: screen.frame.midY - size.height / 2,
-                              width: size.width, height: size.height),
-                       display: true)
-
-        generation += 1
-        if !panel.isVisible {
-            panel.alphaValue = 0
-            panel.orderFrontRegardless()
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0.10
-                panel.animator().alphaValue = 1
-            }
-        } else {
-            // A dismiss fade may be mid-flight; replacing the animation on
-            // the same key is the only way to stop it from dragging the
-            // fresh show back to zero.
-            NSAnimationContext.runAnimationGroup { context in
-                context.duration = 0
-                panel.animator().alphaValue = 1
-            }
-            panel.orderFrontRegardless()
-        }
-
-        dismissWork?.cancel()
-        let work = DispatchWorkItem { dismiss() }
-        dismissWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+        overlay.show(BrightnessOSDView(brightness: brightness), on: screen)
     }
 
-    /// Releases the window entirely; the disabled feature owns no panel.
-    static func teardown() {
-        guard Thread.isMainThread else {
-            DispatchQueue.main.async { teardown() }
-            return
-        }
-        dismissWork?.cancel()
-        dismissWork = nil
-        panel?.orderOut(nil)
-        panel = nil
-        host = nil
-    }
-
-    static func dismiss() {
-        guard Thread.isMainThread else {
-            DispatchQueue.main.async { dismiss() }
-            return
-        }
-        dismissWork?.cancel()
-        dismissWork = nil
-        guard let panel, panel.isVisible else { return }
-        let dismissedGeneration = generation
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.20
-            panel.animator().alphaValue = 0
-        }, completionHandler: {
-            guard generation == dismissedGeneration else { return }
-            panel.orderOut(nil)
-        })
-    }
-
-    private static func ensurePanel() -> NSPanel {
-        if let panel { return panel }
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
-        panel.level = .screenSaver
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = true
-        panel.ignoresMouseEvents = true
-        panel.hidesOnDeactivate = false
-        panel.isReleasedWhenClosed = false
-        panel.animationBehavior = .none
-        panel.sharingType = .none
-        panel.collectionBehavior = [
-            .canJoinAllSpaces, .fullScreenAuxiliary, .canJoinAllApplications,
-            .transient, .ignoresCycle,
-        ]
-        self.panel = panel
-        return panel
-    }
+    static func teardown() { overlay.teardown() }
+    static func dismiss() { overlay.dismiss() }
 }
 
 /// Kept separate from the transient panel so the mandatory UI preview can

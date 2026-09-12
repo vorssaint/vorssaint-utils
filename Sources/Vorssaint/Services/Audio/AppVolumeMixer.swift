@@ -162,6 +162,7 @@ final class AppVolumeMixer: ObservableObject {
     /// The whole mixer follows its hub availability: switched off means no
     /// HAL listeners, no taps and no published state at all.
     func syncWithPreferences() {
+        OutputDeviceFeedback.syncWithPreferences()
         if AppFeature.mixer.isAvailable {
             start()
         } else {
@@ -485,6 +486,7 @@ final class AppVolumeMixer: ObservableObject {
             return false
         }
 
+        let previousUID = Self.defaultOutputDeviceUID()
         let status = Self.setDefaultDevice(device.audioObjectID,
                                            selector: kAudioHardwarePropertyDefaultOutputDevice)
         guard status == noErr else {
@@ -534,6 +536,9 @@ final class AppVolumeMixer: ObservableObject {
         reconcileEngines(with: apps)
         clearPermissionIfNoActiveAdjustments()
         refreshApps()
+        if previousUID != device.uid, Self.defaultOutputDeviceUID() == device.uid {
+            OutputDeviceFeedback.show(device: device)
+        }
         return true
     }
 
