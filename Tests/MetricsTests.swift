@@ -3914,6 +3914,8 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.menuBarUsageBarElevatedColor] as? String == "#FFD60A"
                && registeredDefaults[DefaultsKey.menuBarUsageBarCriticalColor] as? String == "#FF453A",
                "menu bar bars keep visible elevated and critical defaults")
+        expect(registeredDefaults[DefaultsKey.menuBarUsageBarUseSystemColor] as? Bool == false,
+               "menu bar bars keep custom threshold colors by default")
         expect(registeredDefaults[DefaultsKey.menuBarUsageBarMediumThreshold] as? Int == 70
                && registeredDefaults[DefaultsKey.menuBarUsageBarHighThreshold] as? Int == 90,
                "menu bar bar thresholds default to seventy and ninety percent")
@@ -3976,6 +3978,48 @@ struct MetricsTests {
         expectClose(customBarRGB.blue, 32.0 / 255.0, "menu bar color parses blue")
         expect(MenuBarUsageBarSupport.hex(red: 1, green: 0.5, blue: 0) == "#FF8000",
                "menu bar color picker writes stable hex values")
+        let usageBarColorSuite = "com.vorssaint.tests.menuBarUsageBarSystemColor.\(UUID().uuidString)"
+        if let usageBarColorDefaults = UserDefaults(suiteName: usageBarColorSuite) {
+            usageBarColorDefaults.removePersistentDomain(forName: usageBarColorSuite)
+            usageBarColorDefaults.set("#64D2FF", forKey: DefaultsKey.menuBarUsageBarNormalColor)
+            usageBarColorDefaults.set("#FFD60A", forKey: DefaultsKey.menuBarUsageBarElevatedColor)
+            usageBarColorDefaults.set("#FF453A", forKey: DefaultsKey.menuBarUsageBarCriticalColor)
+            usageBarColorDefaults.set(false, forKey: DefaultsKey.menuBarUsageBarUseSystemColor)
+            usageBarColorDefaults.synchronize()
+            expect(!MenuBarUsageBarSupport.usesSystemColor(defaults: usageBarColorDefaults),
+                   "menu bar bars stay on custom colors when the system toggle is off")
+            expect(MenuBarUsageBarSupport.resolvedFillColorMode(for: .normal,
+                                                                defaults: usageBarColorDefaults)
+                   == MenuBarUsageBarSupport.FillColorMode.custom(hex: "#64D2FF"),
+                   "custom mode resolves the normal threshold hex")
+            expect(MenuBarUsageBarSupport.resolvedFillColorMode(for: .elevated,
+                                                                defaults: usageBarColorDefaults)
+                   == MenuBarUsageBarSupport.FillColorMode.custom(hex: "#FFD60A"),
+                   "custom mode resolves the elevated threshold hex")
+            expect(MenuBarUsageBarSupport.resolvedFillColorMode(for: .critical,
+                                                                defaults: usageBarColorDefaults)
+                   == MenuBarUsageBarSupport.FillColorMode.custom(hex: "#FF453A"),
+                   "custom mode resolves the critical threshold hex")
+            usageBarColorDefaults.set(true, forKey: DefaultsKey.menuBarUsageBarUseSystemColor)
+            usageBarColorDefaults.synchronize()
+            expect(MenuBarUsageBarSupport.usesSystemColor(defaults: usageBarColorDefaults),
+                   "menu bar bars switch to system color when the toggle is on")
+            expect(MenuBarUsageBarSupport.resolvedFillColorMode(for: .normal,
+                                                                defaults: usageBarColorDefaults)
+                   == MenuBarUsageBarSupport.FillColorMode.system,
+                   "system mode ignores the normal threshold hex")
+            expect(MenuBarUsageBarSupport.resolvedFillColorMode(for: .elevated,
+                                                                defaults: usageBarColorDefaults)
+                   == MenuBarUsageBarSupport.FillColorMode.system,
+                   "system mode ignores the elevated threshold hex")
+            expect(MenuBarUsageBarSupport.resolvedFillColorMode(for: .critical,
+                                                                defaults: usageBarColorDefaults)
+                   == MenuBarUsageBarSupport.FillColorMode.system,
+                   "system mode ignores the critical threshold hex")
+            usageBarColorDefaults.removePersistentDomain(forName: usageBarColorSuite)
+        } else {
+            expect(false, "menu bar usage bar color defaults suite must open")
+        }
         expect(MenuBarSpacingSupport.digitMatchedReserve(for: "14%") == "88%",
                "compact spacing reserves the current digit count for percentages")
         expect(MenuBarSpacingSupport.digitMatchedReserve(for: "999°") == "888°",

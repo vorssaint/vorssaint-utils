@@ -24,6 +24,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
+    @AppStorage(DefaultsKey.menuBarUsageBarUseSystemColor) private var usageBarUseSystemColor = false
     @AppStorage(DefaultsKey.menuBarUsageBarNormalColor) private var usageBarNormalColor = "#64D2FF"
     @AppStorage(DefaultsKey.menuBarUsageBarElevatedColor) private var usageBarElevatedColor = "#FFD60A"
     @AppStorage(DefaultsKey.menuBarUsageBarCriticalColor) private var usageBarCriticalColor = "#FF453A"
@@ -38,6 +39,7 @@ struct MenuBarMetricsPreview: View {
         let _ = metricOrder
         let _ = combineTemperatures
         let _ = metricAppearance
+        let _ = usageBarUseSystemColor
         let _ = usageBarNormalColor
         let _ = usageBarElevatedColor
         let _ = usageBarCriticalColor
@@ -272,10 +274,14 @@ struct MenuBarMetricsPreview: View {
 
     private func usageBarColor(for fraction: Double) -> Color {
         let level = MenuBarUsageBarSupport.currentLevel(for: fraction)
-        let hex = MenuBarUsageBarSupport.currentColorHex(for: level)
-        let rgb = MenuBarUsageBarSupport.rgb(for: hex,
-                                             fallback: MenuBarUsageBarSupport.defaultNormalColor)
-        return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        switch MenuBarUsageBarSupport.resolvedFillColorMode(for: level) {
+        case .system:
+            return Color(nsColor: .labelColor)
+        case .custom(let hex):
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex,
+                                                 fallback: MenuBarUsageBarSupport.defaultNormalColor)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        }
     }
 
     private func metricValueMinWidth(minimumValue: String, style: MenuBarBlockStyle) -> CGFloat {

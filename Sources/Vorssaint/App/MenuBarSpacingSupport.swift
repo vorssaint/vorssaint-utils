@@ -42,6 +42,13 @@ enum MenuBarUsageBarSupport {
         case normal, elevated, critical
     }
 
+    /// Resolved fill for a usage bar: either the stored threshold hex or the
+    /// macOS label/control color when the system-color toggle is on.
+    enum FillColorMode: Equatable {
+        case system
+        case custom(hex: String)
+    }
+
     struct RGB: Equatable {
         let red: Double
         let green: Double
@@ -103,6 +110,18 @@ enum MenuBarUsageBarSupport {
             return sanitizedColorHex(defaults.string(forKey: DefaultsKey.menuBarUsageBarCriticalColor),
                                      fallback: defaultCriticalColor)
         }
+    }
+
+    static func usesSystemColor(defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.menuBarUsageBarUseSystemColor)
+    }
+
+    static func resolvedFillColorMode(for level: Level,
+                                      defaults: UserDefaults = .standard) -> FillColorMode {
+        if usesSystemColor(defaults: defaults) {
+            return .system
+        }
+        return .custom(hex: currentColorHex(for: level, defaults: defaults))
     }
 
     static func sanitizedColorHex(_ raw: String?, fallback: String) -> String {
