@@ -1864,6 +1864,31 @@ struct MetricsTests {
             platform: .appleM1Family
         )
         expectClose(m1CPU ?? -1, 49.0, "M1 family uses hottest mapped CPU core")
+        let miniSMC = [(key: "Te0a", value: 36.31), (key: "Tp2b", value: 48.04),
+                       (key: "Tp4z", value: 64.61)]
+        expect(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: miniSMC, platform: .appleM1Family
+        ) == nil, "Mac mini issue 1353 dump has no mapped SMC CPU core")
+        let miniHID = [(key: "eACC MTR Temp Sensor0", value: 38.0),
+                       (key: "pACC MTR Temp Sensor0", value: 49.0),
+                       (key: "GPU MTR Temp Sensor0", value: 45.0),
+                       (key: "SOC MTR Temp Sensor0", value: 90.0)]
+        expectClose(TemperatureSensorSelector.hidTemperature(
+            readings: miniHID, cpu: true, platform: .appleM1Family
+        ) ?? -1, 49, "M1 missing SMC cores use hottest named HID CPU sensor")
+        expectClose(TemperatureSensorSelector.hidTemperature(
+            readings: miniHID, cpu: false, platform: .appleM1Family
+        ) ?? -1, 45, "M1 without Tg keys uses named HID GPU sensors, excluding SOC")
+        expect(TemperatureSensorSelector.hidTemperature(
+            readings: miniSMC, cpu: true, platform: .appleM1Family
+        ) == nil, "unknown SMC keys are never relabeled as HID CPU cores")
+        expect(TemperatureSensorSelector.hidTemperature(
+            readings: miniHID, cpu: false, platform: .unmappedAppleSilicon
+        ) == nil, "M1 HID fallback does not broaden unknown chip support")
+        expect(TemperatureSensorSelector.hidTemperature(
+            readings: [("GPU MTR Temp Sensor0", 7), ("GPU MTR Temp Sensor1", .nan),
+                       ("GPU MTR Temp Sensor2", 125)], cpu: false, platform: .appleM1Family
+        ) == nil, "HID fallback rejects invalid and broken low chip readings")
         let m2CPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Tp1h", 7.0), ("Tp0j", 52.0), ("Tp0k", 75.0)],
             platform: .appleM2Family
@@ -15291,6 +15316,35 @@ struct MetricsTests {
         expectClose(m3FanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
                     48.5,
                     "M3 fan curves exclude auxiliary Tf readings from the CPU average")
+        let hidFanReadings = [(key: "eACC MTR Temp Sensor0", value: 38.0),
+                              (key: "pACC MTR Temp Sensor0", value: 49.0),
+                              (key: "GPU MTR Temp Sensor0", value: 45.0)]
+        let miniFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp4z", 64.61)], gpuReadings: [], platform: .appleM1Family,
+            hidReadings: hidFanReadings)
+        expectClose(miniFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    49, "M1 fan curves use named HID CPU temperatures when SMC cores are missing")
+        expectClose(miniFanTemperatures.first { $0.source == .averageCPU }?.celsius ?? -1,
+                    43.5, "HID CPU average includes both clusters")
+        expectClose(miniFanTemperatures.first { $0.source == .hottestGPU }?.celsius ?? -1,
+                    45, "M1 fan GPU source agrees with monitor HID fallback")
+        let preferredSMC = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp01", 41)], gpuReadings: [42], platform: .appleM1Family,
+            hidReadings: hidFanReadings)
+        expectClose(preferredSMC.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    41, "valid SMC CPU reading remains preferred over HID")
+        expectClose(preferredSMC.first { $0.source == .hottestGPU }?.celsius ?? -1,
+                    42, "valid SMC GPU reading remains preferred over HID")
+        let mixedTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp01", 41)], gpuReadings: [7], platform: .appleM1Family,
+            hidReadings: hidFanReadings)
+        expectClose(mixedTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    41, "GPU fallback does not replace a valid SMC CPU source")
+        expectClose(mixedTemperatures.first { $0.source == .hottestGPU }?.celsius ?? -1,
+                    45, "broken low SMC GPU readings allow a valid HID fallback")
+        expect(FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [], gpuReadings: [], platform: .appleM1Family).isEmpty,
+               "missing SMC and HID readings remain unavailable for fan control")
         let unmappedFanTemperatures = FanControlPolicy.aggregatedTemperatures(
             cpuReadings: [("Tp00", 48), ("Tp0W", 113)],
             gpuReadings: [],

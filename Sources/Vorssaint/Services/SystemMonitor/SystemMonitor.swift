@@ -164,6 +164,7 @@ final class SystemMonitor: ObservableObject {
     private var missedGPUUsageSamples = 0
     private var memoryCache: CachedMemoryReading?
     private var cpuTemperatureCache: CachedSensorReading?
+    private let hidTemperatureSampler = HIDTemperatureSampler()
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
     private var lastFanSpeeds: [Double] = []
@@ -738,7 +739,7 @@ final class SystemMonitor: ObservableObject {
             if plan.needCPUTemperature {
                 if take(.temperature) {
                     next.cpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
-                        self.cpuTemperature(),
+                        self.cpuTemperature() ?? self.hidTemperature(cpu: true),
                         cache: &self.cpuTemperatureCache,
                         now: now,
                         maxAge: temperatureBridge,
@@ -753,7 +754,7 @@ final class SystemMonitor: ObservableObject {
             if plan.needGPUTemperature {
                 if take(.temperature) {
                     next.gpuTemperature = TemperatureSensorSelector.stabilizedTemperature(
-                        self.maxTemperature(of: self.gpuKeys),
+                        self.gpuTemperature(),
                         cache: &self.gpuTemperatureCache,
                         now: now,
                         maxAge: temperatureBridge,
@@ -942,6 +943,18 @@ final class SystemMonitor: ObservableObject {
         guard let smc, !fanKeys.isEmpty else { return nil }
         return FanControlPolicy.telemetryReadings(expectedCount: fanKeys.count,
                                                   readings: fanKeys.map { smc.readValue($0) })
+    }
+
+    private func hidTemperature(cpu: Bool) -> Double? {
+        TemperatureSensorSelector.hidTemperature(
+            readings: hidTemperatureSampler.readings(platform: cpuTemperaturePlatform),
+            cpu: cpu, platform: cpuTemperaturePlatform)
+    }
+
+    private func gpuTemperature() -> Double? {
+        if let value = maxTemperature(of: gpuKeys),
+           value >= TemperatureSensorSelector.minimumChipTemperature { return value }
+        return hidTemperature(cpu: false)
     }
 
     private func cpuTemperature() -> Double? {

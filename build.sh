@@ -471,6 +471,8 @@ echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
     Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
     Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
+    "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+    Sources/Vorssaint/Services/SystemMonitor/HIDTemperatureSampler.swift \
     Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
     Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
     Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \

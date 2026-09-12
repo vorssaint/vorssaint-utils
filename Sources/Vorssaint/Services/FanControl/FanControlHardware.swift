@@ -43,6 +43,7 @@ final class FanControlHardware {
     private var didDiscoverForceTestKey = false
     private var activeTargets: [Double] = []
     private var temperatureKeys: TemperatureKeys?
+    private let hidTemperatureSampler = HIDTemperatureSampler()
     private let temperaturePlatform = TemperatureSensorSelector.currentPlatform()
 
     init?() {
@@ -234,11 +235,14 @@ final class FanControlHardware {
     func readTemperatures() -> [FanControlTemperatureReading] {
         let keys = discoverTemperatureKeys()
         let cpuReadings = temperatureReadings(keys.cpu)
+        let gpuReadings = temperatureReadings(keys.gpu).map(\.value)
+        let smcReadings = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: cpuReadings, gpuReadings: gpuReadings, platform: temperaturePlatform)
+        if smcReadings.contains(where: { $0.source == .hottestCPU }),
+           smcReadings.contains(where: { $0.source == .hottestGPU }) { return smcReadings }
         return FanControlPolicy.aggregatedTemperatures(
-            cpuReadings: cpuReadings,
-            gpuReadings: temperatureReadings(keys.gpu).map(\.value),
-            platform: temperaturePlatform
-        )
+            cpuReadings: cpuReadings, gpuReadings: gpuReadings, platform: temperaturePlatform,
+            hidReadings: hidTemperatureSampler.readings(platform: temperaturePlatform))
     }
 
     // MARK: - Discovery

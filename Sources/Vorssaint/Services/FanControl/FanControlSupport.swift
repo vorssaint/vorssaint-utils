@@ -330,7 +330,8 @@ enum FanControlPolicy {
     static func aggregatedTemperatures(
         cpuReadings: [(key: String, value: Double)],
         gpuReadings: [Double],
-        platform: CPUTemperaturePlatform
+        platform: CPUTemperaturePlatform,
+        hidReadings: [(key: String, value: Double)] = []
     ) -> [FanControlTemperatureReading] {
         let validCPU = cpuReadings.filter {
             $0.value >= TemperatureSensorSelector.minimumChipTemperature
@@ -339,7 +340,7 @@ enum FanControlPolicy {
         let preferredCPU = validCPU.filter {
             TemperatureSensorSelector.isCPUCoreKey($0.key, platform: platform)
         }
-        let cpu: [Double]
+        var cpu: [Double]
         if TemperatureSensorSelector.hasCPUCoreSet(platform: platform) {
             cpu = preferredCPU.map(\.value)
         } else if platform == .generic {
@@ -347,8 +348,14 @@ enum FanControlPolicy {
         } else {
             cpu = []
         }
-        let gpu = gpuReadings.filter {
+        if cpu.isEmpty {
+            cpu = TemperatureSensorSelector.hidReadings(hidReadings, cpu: true, platform: platform).map(\.value)
+        }
+        var gpu = gpuReadings.filter {
             $0 >= TemperatureSensorSelector.minimumChipTemperature && validTemperature($0)
+        }
+        if gpu.isEmpty {
+            gpu = TemperatureSensorSelector.hidReadings(hidReadings, cpu: false, platform: platform).map(\.value)
         }
         let soc = cpu + gpu
 
