@@ -9,6 +9,7 @@ import SwiftUI
 struct NowPlayingSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = NowPlayingPanelService.shared
+    @ObservedObject private var permissions = Permissions.shared
     var collapsible = true
 
     private var media: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -58,6 +59,14 @@ struct NowPlayingSection: View {
                 Spacer(minLength: 0)
             }
             transport
+            if !permissions.accessibility {
+                // A press without the grant is dropped by the window server,
+                // so the row says so rather than looking broken.
+                Text("\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+            }
         }
     }
 
@@ -107,6 +116,12 @@ struct NowPlayingSection: View {
 
     private func button(_ key: RadialMenuMediaKey, symbol: String, label: String) -> some View {
         Button {
+            // Posting a media key needs Accessibility. Ask for it at the
+            // moment the control is used, rather than at first run.
+            guard permissions.accessibility else {
+                permissions.requestAccessibility()
+                return
+            }
             service.press(key)
         } label: {
             Image(systemName: symbol)
