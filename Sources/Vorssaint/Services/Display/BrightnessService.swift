@@ -397,7 +397,7 @@ final class BrightnessService: ObservableObject {
         pendingDisplayIDs = []
         displayControlFailure = nil
         brightnessOSDSupported = false
-        BrightnessOSD.teardown()
+        LevelOSD.teardown()
         if !displays.isEmpty { displays = [] }
         if !drawableDisplays.isEmpty { drawableDisplays = [] }
         // Queue on the work queue first so this lands AFTER any operation
@@ -1669,8 +1669,9 @@ final class BrightnessService: ObservableObject {
                     self.stateLock.unlock()
                     guard current == writeGeneration,
                           latestWrite == pending.sequence else { return }
-                    BrightnessOSD.show(displayID: id,
-                                       brightness: osdLevel)
+                    LevelOSD.show(displayID: id,
+                                  level: osdLevel,
+                                  style: .glyph("sun.max.fill"))
                 }
             }
         }

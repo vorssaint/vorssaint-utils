@@ -279,14 +279,57 @@ enum MixerRoutingSupport {
         return directTerms.contains { normalized.contains($0) }
     }
 
+    /// The software master's factor for one row. The master belongs to a single
+    /// output device, so a row playing somewhere else keeps its own volume: the
+    /// factor is 1 for every row that is not routed to that device.
+    static func softwareMasterFactor(masterVolume: Double?,
+                                     masterDeviceUID: String?,
+                                     targetOutputDeviceUID: String?) -> Double {
+        guard let masterVolume, masterVolume.isFinite,
+              let masterDeviceUID,
+              targetOutputDeviceUID == masterDeviceUID else { return 1 }
+        return min(max(masterVolume, 0), 1)
+    }
+
+    /// What a tap renders at. The row's slider and the software master are two
+    /// independent controls: neither moves the other, and what reaches the
+    /// device is their product.
+    static func effectiveGain(appVolume: Double,
+                              masterFactor: Double,
+                              maximum: Double) -> Double {
+        let product = appVolume * masterFactor
+        guard product.isFinite else { return 0 }
+        return min(max(product, 0), maximum)
+    }
+
+    /// macOS moves its own volume in sixteenths, and a quarter of that with
+    /// Option-Shift held. The software master follows the same steps, so the
+    /// keys feel the same on an output macOS can set and one it cannot.
+    static let masterVolumeStep: Double = 1.0 / 16
+    static let fineMasterVolumeStep: Double = 1.0 / 64
+
+    /// One press of a volume key. A level left off the step grid by the
+    /// slider snaps onto it in the direction of travel, so the first press
+    /// after a drag moves by one step rather than a fraction of one.
+    static func steppedMasterVolume(current: Double, up: Bool, fine: Bool) -> Double {
+        let step = fine ? fineMasterVolumeStep : masterVolumeStep
+        guard current.isFinite else { return up ? step : 0 }
+        let grid = (min(max(current, 0), 1) / step).rounded(up ? .down : .up)
+        return min(max((grid + (up ? 1 : -1)) * step, 0), 1)
+    }
+
     static func requiresEngine(hasAudioObjects: Bool = true,
                                volume: Double,
+                               masterFactor: Double = 1,
                                selectedOutputDeviceUID: String?,
                                targetOutputDeviceUID: String?,
                                defaultOutputDeviceUID: String?) -> Bool {
         guard hasAudioObjects else { return false }
         guard let targetOutputDeviceUID else { return false }
         if !isUnity(volume) { return true }
+        // A master below 100% has to be carried by the taps, so every row
+        // routed to that device needs an engine even at its own 100%.
+        if !isUnity(masterFactor) { return true }
         guard let selectedOutputDeviceUID else { return false }
         guard let defaultOutputDeviceUID else { return true }
         return selectedOutputDeviceUID != defaultOutputDeviceUID
@@ -295,12 +338,15 @@ enum MixerRoutingSupport {
 
     /// The last gate before a tap is built: a row is tapped only when the user
     /// actually adjusted it, either to a volume other than 100% or to an output
-    /// other than the system default. An app that is merely listed is never
-    /// part of any tap, so the mixer can neither mute it nor re-render its
-    /// sound.
+    /// other than the system default, or because the software master is
+    /// turned down and the row plays through it. An app that is merely listed
+    /// is never part of any tap, so the mixer can neither mute it nor
+    /// re-render its sound.
     static func rowMayBeTapped(savedVolume: Double?,
                                savedRouteUID: String?,
+                               masterFactor: Double = 1,
                                defaultOutputDeviceUID: String?) -> Bool {
+        if !isUnity(masterFactor) { return true }
         if let savedVolume, !isUnity(savedVolume) { return true }
         guard let savedRouteUID else { return false }
         guard let defaultOutputDeviceUID else { return true }
@@ -324,6 +370,18 @@ enum MixerRoutingSupport {
     }
 
     static let unidentifiedRowPrefix = "process:"
+
+    /// The row the system's alert and interface sounds play through. It owns
+    /// no application, so it never appears in the list the panel draws — it is
+    /// carried only so the software master reaches the sounds macOS itself
+    /// makes, which are part of what the output plays like anything else.
+    static let systemSoundsRowID = "__system_sounds__"
+
+    /// What the audio HAL reports for the process macOS plays those sounds
+    /// from. Not a bundle id, which is why the row lookup misses it.
+    static func isSystemSoundServer(_ bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == "systemsoundserverd"
+    }
 
     /// Window used to fold a row's comings and goings into one decision.
     static let engineChurnCoalescingWindow: Double = 0.2

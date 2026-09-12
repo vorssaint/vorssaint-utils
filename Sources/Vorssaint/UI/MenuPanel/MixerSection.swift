@@ -190,6 +190,19 @@ struct MixerSection: View {
                 }
             }
 
+            // The volume keys reach this slider through an event tap, and
+            // without the permission they stay as dead as macOS leaves them
+            // on an output it cannot set. The slider works either way.
+            if mixer.hasSoftwareMasterOutput, !permissions.accessibility {
+                Button {
+                    permissions.requestAccessibility()
+                } label: {
+                    Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
+                }
+                .buttonStyle(.link)
+                .font(.system(size: 10.5, weight: .medium))
+            }
+
             if universalOutputDevices.isEmpty {
                 inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
             }
@@ -601,10 +614,14 @@ struct MixerSection: View {
 
     private var visibleApps: [MixerApp] {
         mixer.apps.filter { app in
-            MixerRoutingSupport.shouldShowApp(isPlaying: app.isPlaying,
-                                              volume: app.volume,
-                                              selectedOutputDeviceUID: app.selectedOutputDeviceUID,
-                                              hideInactiveApps: hideInactiveApps)
+            // The system sounds row carries the master to macOS' own sounds
+            // and has nothing for the user to set, so it stays out of the list.
+            guard app.id != MixerRoutingSupport.systemSoundsRowID else { return false }
+            return MixerRoutingSupport.shouldShowApp(
+                isPlaying: app.isPlaying,
+                volume: app.volume,
+                selectedOutputDeviceUID: app.selectedOutputDeviceUID,
+                hideInactiveApps: hideInactiveApps)
         }
     }
 
