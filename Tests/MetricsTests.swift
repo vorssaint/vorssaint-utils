@@ -14824,7 +14824,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14833,7 +14833,7 @@ struct MetricsTests {
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
-            "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
+            "mixer", "soundOutputSwitcher", "micMute", "musicBlock", "nowPlaying",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
@@ -14962,9 +14962,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.nowPlaying.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .nowPlaying
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -17145,6 +17146,90 @@ struct MetricsTests {
                     appBundleIdentifier: adapterPaused?.displayID,
                     appPID: adapterPaused?.pid ?? 0) == nil,
                "a paused adapter reply degrades to Nothing Playing through the same path as before")
+        // The panel's Now Playing section asks the same reader a different
+        // question: it keeps a paused session so a mini player does not go
+        // blank the moment playback stops.
+        let pausedPanelInfo: [String: Any] = [
+            RadialNowPlayingSupport.titleKey: "Midnight City",
+            RadialNowPlayingSupport.playbackRateKey: 0.0,
+        ]
+        expect(RadialNowPlayingSupport.snapshot(info: pausedPanelInfo,
+                                                isPlaying: false,
+                                                appBundleIdentifier: "com.apple.Music",
+                                                appPID: 42) == nil,
+               "the default stays what the radial menu needs: paused reads as nothing playing")
+        let pausedPanelSnapshot = RadialNowPlayingSupport.snapshot(info: pausedPanelInfo,
+                                                                  isPlaying: false,
+                                                                  appBundleIdentifier: "com.apple.Music",
+                                                                  appPID: 42,
+                                                                  includesPaused: true)
+        expect(pausedPanelSnapshot?.title == "Midnight City" && pausedPanelSnapshot?.isPlaying == false,
+               "the panel keeps a paused session and records that it is paused")
+        expect(RadialNowPlayingSupport.snapshot(info: pausedPanelInfo,
+                                                isPlaying: true,
+                                                appBundleIdentifier: "com.apple.Music",
+                                                appPID: 42,
+                                                includesPaused: true)?.isPlaying == true,
+               "a playing session still reads as playing when paused sessions are allowed")
+        expect(RadialNowPlayingSupport.snapshot(info: [:],
+                                                isPlaying: false,
+                                                appBundleIdentifier: nil,
+                                                appPID: 0,
+                                                includesPaused: true) == nil,
+               "ownerless metadata is nothing playing whether or not paused sessions are allowed")
+        expect(pausedPanelSnapshot?.togglingPlayback.isPlaying == true
+                && pausedPanelSnapshot?.togglingPlayback.title == pausedPanelSnapshot?.title
+                && pausedPanelSnapshot?.togglingPlayback.artworkData == pausedPanelSnapshot?.artworkData,
+               "the optimistic transport flip changes the playback state and nothing else")
+
+        // One poster for the aux-button pair. A second copy of the event
+        // construction is what #937 is about, so the radial menu has to reach
+        // it through the shared one rather than build its own.
+        let mediaKeyInputSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Media/MediaKeyInput.swift",
+            encoding: .utf8)) ?? ""
+        let mediaKeyRadialCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/RadialMenu/RadialMenuService.swift",
+            encoding: .utf8)) ?? "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(mediaKeyInputSource.contains("NSEvent.otherEvent(with: .systemDefined")
+                && !mediaKeyRadialCode.contains("NSEvent.otherEvent(with: .systemDefined")
+                && mediaKeyRadialCode.contains("MediaKeyInput.post(auxKeyType:"),
+               "the media-key event is built in one place and the radial menu presses it through that")
+
+        // A saved panel order predates the section, so it has to slot in
+        // beside the mixer rather than land after Quick toggles.
+        let panelSections = ["keepAwake", "brightness", "mixer", "nowPlaying", "system", "network",
+                             "disk", "power", "fanControl", "utilities", "controls", "toggles"]
+        // Read from the table the app uses, so dropping the rule goes red here.
+        let panelPredecessors = Defaults.panelSectionPredecessors
+        expect(panelPredecessors["nowPlaying"] == "mixer",
+               "Now Playing is registered as belonging after the mixer")
+        let legacyPanelOrder = panelSections.filter { $0 != "nowPlaying" }.joined(separator: ",")
+        let upgradedPanelOrder = Defaults.sanitizedSectionOrder(legacyPanelOrder,
+                                                               canonical: panelSections,
+                                                               after: panelPredecessors)
+        expect(upgradedPanelOrder.count == panelSections.count
+                && Set(upgradedPanelOrder) == Set(panelSections),
+               "upgrading a saved panel order loses and duplicates nothing")
+        expect(upgradedPanelOrder.firstIndex(of: "nowPlaying")
+                == upgradedPanelOrder.firstIndex(of: "mixer").map { $0 + 1 },
+               "a section a saved order predates joins it after the section it belongs to")
+        // A reordered panel still gets it beside the mixer, wherever that moved to.
+        let reorderedPanel = Defaults.sanitizedSectionOrder("toggles,mixer,keepAwake",
+                                                           canonical: panelSections,
+                                                           after: panelPredecessors)
+        expect(reorderedPanel.firstIndex(of: "nowPlaying")
+                == reorderedPanel.firstIndex(of: "mixer").map { $0 + 1 }
+                && reorderedPanel.prefix(2) == ["toggles", "mixer"],
+               "the rule follows the user's own order rather than the canonical one")
+        expect(Defaults.sanitizedSectionOrder("mixer,bogus,mixer",
+                                              canonical: panelSections,
+                                              after: panelPredecessors).count == panelSections.count,
+               "an unknown or repeated saved id never shrinks or grows the panel")
+
         expect(RadialNowPlayingSupport.adapterReply(from: Data(#"{"error":"MRMediaRemoteGetNowPlayingInfo unavailable"}"#.utf8)) == nil
                 && RadialNowPlayingSupport.adapterReply(from: Data("[1,2]".utf8)) == nil
                 && RadialNowPlayingSupport.adapterReply(from: Data("perl: cannot load".utf8)) == nil

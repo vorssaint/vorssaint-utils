@@ -10,8 +10,8 @@ protocol PanelOrderItem: RawRepresentable, CaseIterable, Hashable where RawValue
 /// stable identifiers persisted in the saved order and the collapsed set, so
 /// renaming a case would orphan a user's stored layout — keep them stable.
 enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
-    case keepAwake, brightness, mixer, system, network, disk, power, fanControl, utilities, controls,
-         toggles
+    case keepAwake, brightness, mixer, nowPlaying, system, network, disk, power, fanControl,
+         utilities, controls, toggles
 
     var id: String { rawValue }
 
@@ -21,6 +21,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .keepAwake: return s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .mixer: return s.mixerSection
+        case .nowPlaying: return FeatureStrings.radialMenu(L10n.shared.language).mediaNowPlaying
         case .system: return s.systemSection
         case .network: return s.networkSection
         case .disk: return s.diskSection
@@ -37,6 +38,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .keepAwake: return "moon.zzz.fill"
         case .brightness: return "display.2"
         case .mixer: return "slider.horizontal.3"
+        case .nowPlaying: return "play.circle"
         case .system: return "cpu"
         case .network: return "network"
         case .disk: return "internaldrive"
@@ -56,6 +58,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .keepAwake: return DefaultsKey.panelShowKeepAwake
         case .brightness: return DefaultsKey.panelShowBrightness
         case .mixer: return DefaultsKey.monitorShowMixer
+        case .nowPlaying: return DefaultsKey.panelShowNowPlaying
         case .system: return DefaultsKey.monitorShowSystem
         case .network: return DefaultsKey.monitorShowNetwork
         case .disk: return DefaultsKey.monitorShowDisk
@@ -79,6 +82,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .keepAwake: return [.keepAwake]
         case .brightness: return [.brightness]
         case .mixer: return [.mixer]
+        case .nowPlaying: return [.nowPlaying]
         case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
         case .network: return [.monitorNetwork]
         case .disk: return [.monitorDisk]
@@ -111,26 +115,14 @@ enum PanelLayout {
     /// The sections in display order: the user's saved order first, then any not
     /// yet listed, in their canonical order.
     static var order: [PanelSectionID] {
-        let saved = (defaults.string(forKey: DefaultsKey.panelSectionOrder) ?? "")
-            .split(separator: ",")
-            .compactMap { PanelSectionID(rawValue: String($0)) }
-        var seen = Set<PanelSectionID>()
-        var result: [PanelSectionID] = []
-        for id in saved where seen.insert(id).inserted { result.append(id) }
-        for id in PanelSectionID.allCases where seen.insert(id).inserted {
-            if id == .disk, let networkIndex = result.firstIndex(of: .network) {
-                result.insert(id, at: networkIndex + 1)
-            } else if id == .controls, let utilitiesIndex = result.firstIndex(of: .utilities) {
-                result.insert(id, at: utilitiesIndex + 1)
-            } else if id == .brightness, let keepAwakeIndex = result.firstIndex(of: .keepAwake) {
-                // New in 3.1.13: saved orders predate it, so it slots in at
-                // its canonical place instead of the end.
-                result.insert(id, at: keepAwakeIndex + 1)
-            } else {
-                result.append(id)
-            }
-        }
-        return result
+        sanitizedOrder(defaults.string(forKey: DefaultsKey.panelSectionOrder) ?? "")
+    }
+
+    static func sanitizedOrder(_ raw: String) -> [PanelSectionID] {
+        Defaults.sanitizedSectionOrder(raw,
+                                       canonical: PanelSectionID.allCases.map(\.rawValue),
+                                       after: Defaults.panelSectionPredecessors)
+            .compactMap(PanelSectionID.init(rawValue:))
     }
 
     static func setOrder(_ ids: [PanelSectionID]) {
