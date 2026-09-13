@@ -9352,6 +9352,67 @@ struct MetricsTests {
         ) == "Pasted_Image_19700101_000000.png",
                "pasted images receive the stable timestamped PNG name")
 
+        // MARK: Move to Trash with the forward delete key (issue #1599)
+
+        expect(FinderTrashKeySupport.claimsKey(
+            enabled: true,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: []),
+               "a bare forward delete is claimed once the preference is on")
+        expect(!FinderTrashKeySupport.claimsKey(
+            enabled: false,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: []),
+               "the key is left alone while the preference is off")
+        // A portable Mac has no dedicated ⌦ and sends the keystroke as Fn+⌫
+        // with the Fn bit still set, so counting Fn among the foreign
+        // modifiers would switch the feature off on every laptop.
+        expect(FinderTrashKeySupport.claimsKey(
+            enabled: true,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: .maskSecondaryFn),
+               "the Fn-produced forward delete of a laptop keyboard still counts")
+        expect(FinderTrashKeySupport.claimsKey(
+            enabled: true,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: .maskNonCoalesced),
+               "incidental event bits do not make the key look modified")
+        for (flag, name) in [(CGEventFlags.maskCommand, "command"),
+                             (.maskControl, "control"),
+                             (.maskAlternate, "option"),
+                             (.maskShift, "shift")] {
+            expect(!FinderTrashKeySupport.claimsKey(
+                enabled: true,
+                keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+                flags: flag),
+                   "forward delete held with \(name) stays with the app that owns it")
+        }
+        // Plain backspace is deliberately never claimed: Finder leaves it
+        // unbound, and issue #1161 asks for it to navigate to the parent
+        // folder instead.
+        expect(!FinderTrashKeySupport.claimsKey(
+            enabled: true, keyCode: Int64(kVK_Delete), flags: []),
+               "plain backspace is never claimed")
+
+        // The substitution swaps the key code, so an unpaired press leaves ⌫
+        // held down as far as the window server is concerned and every later
+        // ⌘⌫ reads as a repeat — the user's own included.
+        var pairing = ForwardDeleteKeyPairing()
+        expect(!pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "a release with no press behind it is left alone")
+        pairing.claimPress()
+        expect(!pairing.claimsRelease(keyCode: Int64(kVK_Delete)),
+               "a claimed press does not swallow the release of a different key")
+        expect(pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "the release matching a claimed press is substituted too")
+        expect(!pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "one press releases once")
+        // Held keys repeat the press before a single release arrives.
+        pairing.claimPress()
+        pairing.claimPress()
+        expect(pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "a repeated press still releases on the one release that follows")
+
         // MARK: Update installer helpers
 
         expect(GlobalShortcutRole.activeRoles(isOn: { _ in false }).isEmpty,
@@ -15609,6 +15670,9 @@ struct MetricsTests {
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderPasteImageAsFile])
                 == [.finderCutPaste, .uninstaller, .quickToggles],
                "pasting copied images as files engages the shared Finder feature")
+        expect(activeSet(.automationFinder, on: [DefaultsKey.finderForwardDeleteTrash])
+                == [.finderCutPaste, .uninstaller, .quickToggles],
+               "trashing with the forward delete key engages the shared Finder feature")
         expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
         expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
@@ -21509,6 +21573,9 @@ struct MetricsTests {
         expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
                 && backupKeys.contains(DefaultsKey.finderPasteImageAsFile),
                "pasting copied images as files is opt-in and travels with settings backup")
+        expect(Defaults.registeredDefaults[DefaultsKey.finderForwardDeleteTrash] as? Bool == false
+                && backupKeys.contains(DefaultsKey.finderForwardDeleteTrash),
+               "trashing with the forward delete key is opt-in and travels with settings backup")
         expect(Defaults.registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true
                 && backupKeys.contains(DefaultsKey.finderCutPasteShowHUD),
                "the Finder cut and paste floating panel default is on and travels with settings backup")

@@ -264,6 +264,8 @@ extension Strings {
         cutPasteEnableCaption: "⌘X でカット、⌘V で Finder のファイルやフォルダを移動できます。",
         cutPasteShowHUD: "フローティングパネルを表示",
         cutPasteShowHUDCaption: "Finder がアクティブなときに、カットしたファイルのフローティング表示を出します。",
+        forwardDeleteTrash: "⌦ キーでゴミ箱に移動",
+        forwardDeleteTrashCaption: "Finder で ⌦ を押すと選択項目をゴミ箱に移動します。⌘⌫ もこれまでどおり使えます。⌦ キーがないキーボードでは fn+⌫ で入力します。",
         cutPasteHowTitle: "使いかた",
         cutPasteStep1: "Finder で項目を選択し、⌘X を押してカットします。",
         cutPasteStep2: "移動先のフォルダを開き、⌘V を押してそこへ移動します。",

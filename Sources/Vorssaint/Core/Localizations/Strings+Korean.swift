@@ -265,6 +265,8 @@ extension Strings {
         cutPasteEnableCaption: "⌘X로 잘라내고 ⌘V로 Finder의 파일과 폴더를 이동합니다.",
         cutPasteShowHUD: "플로팅 패널 표시",
         cutPasteShowHUDCaption: "Finder가 활성화되어 있는 동안 잘라낸 파일이 담긴 플로팅 표시를 띄웁니다.",
+        forwardDeleteTrash: "⌦ 키로 휴지통으로 이동",
+        forwardDeleteTrashCaption: "Finder에서 ⌦를 누르면 선택한 항목을 휴지통으로 옮깁니다. ⌘⌫도 계속 사용할 수 있습니다. ⌦ 키가 없는 키보드에서는 fn+⌫로 입력합니다.",
         cutPasteHowTitle: "사용 방법",
         cutPasteStep1: "Finder에서 항목을 선택하고 ⌘X를 눌러 잘라냅니다.",
         cutPasteStep2: "대상 폴더를 열고 ⌘V를 눌러 그곳으로 이동합니다.",
