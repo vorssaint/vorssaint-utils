@@ -53,6 +53,27 @@ enum WindowLayoutFeatureTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center two thirds starts with no combination of its own")
+        let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
+            (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
+            (.upperCenterQuarter, 58, DefaultsKey.windowLayoutShortcutUpperCenterQuarter),
+            (.lowerCenterQuarter, 59, DefaultsKey.windowLayoutShortcutLowerCenterQuarter),
+            (.bottomQuarter, 60, DefaultsKey.windowLayoutShortcutBottomQuarter),
+            (.topThird, 61, DefaultsKey.windowLayoutShortcutTopThird),
+            (.middleThird, 62, DefaultsKey.windowLayoutShortcutMiddleThird),
+            (.bottomThird, 63, DefaultsKey.windowLayoutShortcutBottomThird),
+            (.topTwoThirds, 64, DefaultsKey.windowLayoutShortcutTopTwoThirds),
+            (.bottomTwoThirds, 65, DefaultsKey.windowLayoutShortcutBottomTwoThirds),
+        ]
+        for (action, shortcutID, defaultsKey) in verticalLayouts {
+            suite.expect(WindowLayoutAction.allCases.contains(action)
+                    && action.shortcutID == shortcutID
+                    && WindowLayoutAction(shortcutID: shortcutID) == action,
+                   "\(action.rawValue) exists and answers to its own shortcut id")
+            suite.expect(action.defaultShortcut == nil
+                    && Defaults.registeredDefaults[defaultsKey] as? String
+                        == WindowLayoutAction.clearedShortcutStorageValue,
+                   "\(action.rawValue) starts with no combination of its own")
+        }
         suite.expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
@@ -61,7 +82,17 @@ enum WindowLayoutFeatureTests {
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
-                    && !layoutStrings.centerTwoThirds.isEmpty,
+                    && !layoutStrings.centerTwoThirds.isEmpty
+                    && !layoutStrings.quarters.isEmpty
+                    && !layoutStrings.topQuarter.isEmpty
+                    && !layoutStrings.upperCenterQuarter.isEmpty
+                    && !layoutStrings.lowerCenterQuarter.isEmpty
+                    && !layoutStrings.bottomQuarter.isEmpty
+                    && !layoutStrings.topThird.isEmpty
+                    && !layoutStrings.middleThird.isEmpty
+                    && !layoutStrings.bottomThird.isEmpty
+                    && !layoutStrings.topTwoThirds.isEmpty
+                    && !layoutStrings.bottomTwoThirds.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         suite.expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -354,6 +385,35 @@ enum WindowLayoutFeatureTests {
                                                visibleFrame: visibleFrame)
                == CGRect(x: 240, y: 40, width: 960, height: 860),
                "window layout center two thirds sits two thirds wide in the middle of the screen")
+        let verticalStripLayouts: [(WindowLayoutAction, CGRect)] = [
+            (.topQuarter, CGRect(x: 0, y: 685, width: 1440, height: 215)),
+            (.upperCenterQuarter, CGRect(x: 0, y: 470, width: 1440, height: 215)),
+            (.lowerCenterQuarter, CGRect(x: 0, y: 255, width: 1440, height: 215)),
+            (.bottomQuarter, CGRect(x: 0, y: 40, width: 1440, height: 215)),
+            (.topThird, CGRect(x: 0, y: 613, width: 1440, height: 287)),
+            (.middleThird, CGRect(x: 0, y: 326, width: 1440, height: 288)),
+            (.bottomThird, CGRect(x: 0, y: 40, width: 1440, height: 287)),
+            (.topTwoThirds, CGRect(x: 0, y: 326, width: 1440, height: 574)),
+            (.bottomTwoThirds, CGRect(x: 0, y: 40, width: 1440, height: 574)),
+        ]
+        for (action, target) in verticalStripLayouts {
+            suite.expect(WindowLayoutGeometry.rect(for: action,
+                                                   current: currentWindow,
+                                                   visibleFrame: visibleFrame) == target,
+                   "\(action.rawValue) targets its full-width vertical strip")
+        }
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .topQuarter,
+                                                       targetRect: CGRect(x: 0, y: 685, width: 1440, height: 215),
+                                                       actualSize: CGSize(width: 1440, height: 400),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 500, width: 1440, height: 400),
+               "top quarter keeps a larger window flush with the top of its strip")
+        suite.expect(WindowLayoutGeometry.anchoredRect(for: .middleThird,
+                                                       targetRect: CGRect(x: 0, y: 326, width: 1440, height: 288),
+                                                       actualSize: CGSize(width: 1440, height: 400),
+                                                       visibleFrame: visibleFrame)
+               == CGRect(x: 0, y: 270, width: 1440, height: 400),
+               "middle third centers a larger window on its strip")
         suite.expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
