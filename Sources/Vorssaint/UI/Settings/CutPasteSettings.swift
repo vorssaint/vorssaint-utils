@@ -12,6 +12,7 @@ struct CutPasteSettings: View {
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
     @AppStorage(DefaultsKey.finderRenameShortcut) private var renameShortcutRaw =
         GlobalShortcut.finderRenameDefault.storageValue
+    @AppStorage(DefaultsKey.finderForwardDeleteTrash) private var forwardDeleteTrash = false
     @State private var renameError: String?
     @State private var recordingRename = false
 
@@ -24,7 +25,7 @@ struct CutPasteSettings: View {
     }
 
     private var needsAccessibility: Bool {
-        (AppFeature.finderCutPaste.isAvailable && enabled)
+        (AppFeature.finderCutPaste.isAvailable && (enabled || forwardDeleteTrash))
             || (AppFeature.finderRename.isAvailable && renameEnabled)
     }
 
@@ -55,6 +56,16 @@ struct CutPasteSettings: View {
                     }
                 }
                 .settingsSectionAnchor(.finderCutPaste)
+
+                Section {
+                    Toggle(l10n.s.forwardDeleteTrash, isOn: $forwardDeleteTrash)
+                        .onChange(of: forwardDeleteTrash) { _, _ in
+                            FinderCutPaste.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.forwardDeleteTrashCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
                 Section(l10n.s.cutPasteHowTitle) {
                     howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
@@ -116,7 +127,7 @@ struct CutPasteSettings: View {
             if needsAccessibility, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
-                    if AppFeature.finderCutPaste.isAvailable, enabled {
+                    if AppFeature.finderCutPaste.isAvailable, enabled || forwardDeleteTrash {
                         Text(l10n.s.cutPasteAutomationNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)

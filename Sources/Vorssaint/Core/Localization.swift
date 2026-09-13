@@ -388,6 +388,8 @@ struct Strings {
     let cutPasteEnableCaption: String
     let cutPasteShowHUD: String
     let cutPasteShowHUDCaption: String
+    let forwardDeleteTrash: String
+    let forwardDeleteTrashCaption: String
     let cutPasteHowTitle: String
     let cutPasteStep1: String
     let cutPasteStep2: String
@@ -1431,6 +1433,8 @@ extension Strings {
         cutPasteEnableCaption: "Use ⌘X para recortar e ⌘V para mover arquivos e pastas no Finder.",
         cutPasteShowHUD: "Mostrar painel flutuante",
         cutPasteShowHUDCaption: "Exibe um indicador com os arquivos recortados enquanto o Finder estiver ativo.",
+        forwardDeleteTrash: "Mover para a Lixeira com a tecla ⌦",
+        forwardDeleteTrashCaption: "No Finder, ⌦ move os itens selecionados para a Lixeira, e ⌘⌫ continua funcionando. Teclados sem uma tecla ⌦ dedicada a produzem com fn+⌫.",
         cutPasteHowTitle: "Como usar",
         cutPasteStep1: "Selecione itens no Finder e pressione ⌘X para recortá-los.",
         cutPasteStep2: "Abra a pasta de destino e pressione ⌘V para movê-los para lá.",
@@ -2443,6 +2447,8 @@ extension Strings {
         cutPasteEnableCaption: "Use ⌘X to cut and ⌘V to move files and folders in Finder.",
         cutPasteShowHUD: "Show floating panel",
         cutPasteShowHUDCaption: "Display a floating indicator with the cut files while Finder is active.",
+        forwardDeleteTrash: "Move to Trash with the ⌦ key",
+        forwardDeleteTrashCaption: "In Finder, ⌦ moves the selected items to the Trash, and ⌘⌫ keeps working. Keyboards without a dedicated ⌦ key produce it with fn+⌫.",
         cutPasteHowTitle: "How to use",
         cutPasteStep1: "Select items in Finder and press ⌘X to cut them.",
         cutPasteStep2: "Open the destination folder and press ⌘V to move them there.",

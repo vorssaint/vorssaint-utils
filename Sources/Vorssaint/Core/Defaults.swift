@@ -128,6 +128,7 @@ enum DefaultsKey {
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
     static let diskImageInstallerRevealsApp = "diskImageInstallerRevealsApp"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
+    static let finderForwardDeleteTrash = "finderForwardDeleteTrash"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
     // Quit/close protection: each shortcut owns its full configuration and app list.
@@ -1254,6 +1255,7 @@ enum Defaults {
         DefaultsKey.clipboardAutoClearOnScreenLock: false,
         DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
+        DefaultsKey.finderForwardDeleteTrash: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.diskEjectExcludedVolumes: [String](),
         DefaultsKey.pastePlainEnabled: false,

@@ -264,6 +264,8 @@ extension Strings {
         cutPasteEnableCaption: "Verwende ⌘X zum Ausschneiden und ⌘V, um Dateien und Ordner im Finder zu bewegen.",
         cutPasteShowHUD: "Schwebendes Fenster anzeigen",
         cutPasteShowHUDCaption: "Zeigt eine schwebende Anzeige mit den ausgeschnittenen Dateien, während der Finder aktiv ist.",
+        forwardDeleteTrash: "Mit der ⌦-Taste in den Papierkorb legen",
+        forwardDeleteTrashCaption: "Im Finder legt ⌦ die ausgewählten Objekte in den Papierkorb, ⌘⌫ funktioniert weiterhin. Tastaturen ohne eigene ⌦-Taste erzeugen sie mit fn+⌫.",
         cutPasteHowTitle: "So geht’s",
         cutPasteStep1: "Wähle Objekte im Finder aus und drücke ⌘X, um sie auszuschneiden.",
         cutPasteStep2: "Öffne den Zielordner und drücke ⌘V, um sie dorthin zu bewegen.",

@@ -76,6 +76,12 @@ final class FinderCutPaste: ObservableObject {
     private var showHUD = true
     private var pasteImageAsFileEnabled = false
     private var imagePasteInProgress = false
+    // Read on the tap thread for every key down and written by the preference
+    // sync on the main thread, so it needs a lock of its own: the tap
+    // lifecycle lock is held across installTap/removeTap.
+    private let routeLock = NSLock()
+    private var forwardDeleteTrashEnabled = false
+    private var forwardDeletePairing = ForwardDeleteKeyPairing()
     private var appObserver: NSObjectProtocol?
 
     private static let finderBundleID = "com.apple.finder"
@@ -87,6 +93,7 @@ final class FinderCutPaste: ObservableObject {
         static let x: Int64 = 7
         static let c: Int64 = 8
         static let v: Int64 = 9
+        static let delete: Int64 = 51
     }
 
     private init() {
@@ -107,7 +114,11 @@ final class FinderCutPaste: ObservableObject {
         showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
         pasteImageAsFileEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
-        if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
+        let trashOnForwardDelete = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.finderForwardDeleteTrash)
+        routeLock.withLock { forwardDeleteTrashEnabled = trashOnForwardDelete }
+        if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled
+                                                   || trashOnForwardDelete,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
             installTap()
@@ -205,6 +216,7 @@ final class FinderCutPaste: ObservableObject {
             }
 
             let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+                | CGEventMask(1 << CGEventType.keyUp.rawValue)
             guard let tap = CGEvent.tapCreate(
                 tap: .cgSessionEventTap,
                 place: .headInsertEventTap,
@@ -251,9 +263,10 @@ final class FinderCutPaste: ObservableObject {
         }
     }
 
-    /// Runs on the tap thread. Every key except plain Command-X/C/V returns
-    /// after reading only the event itself; the rare candidate is handed to
-    /// the main thread where the service's UI and pasteboard state live.
+    /// Runs on the tap thread. Every key except plain Command-X/C/V and the
+    /// forward delete pair returns after reading only the event itself; a
+    /// Command candidate is handed to the main thread where the service's UI
+    /// and pasteboard state live.
     private func route(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             let currentTap = tapLifecycleLock.withLock { shouldStopTapThread ? nil : tap }
@@ -264,12 +277,23 @@ final class FinderCutPaste: ObservableObject {
             }
             return Unmanaged.passUnretained(event)
         }
-        guard type == .keyDown,
+        guard type == .keyDown || type == .keyUp,
               event.getIntegerValueField(.eventSourceUserData) != Self.syntheticPasteMarker
         else { return Unmanaged.passUnretained(event) }
 
         let flags = event.flags
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        if type == .keyUp {
+            guard routeLock.withLock({ forwardDeletePairing.claimsRelease(keyCode: keyCode) }),
+                  let replacement = Self.trashShortcut(from: event)
+            else { return Unmanaged.passUnretained(event) }
+            return replacement
+        }
+        if FinderTrashKeySupport.claimsKey(enabled: routeLock.withLock { forwardDeleteTrashEnabled },
+                                           keyCode: keyCode,
+                                           flags: flags) {
+            return trashSelection(event: event)
+        }
         guard flags.contains(.maskCommand),
               !flags.contains(.maskControl), !flags.contains(.maskAlternate),
               keyCode == Key.x || keyCode == Key.c || keyCode == Key.v
@@ -280,6 +304,34 @@ final class FinderCutPaste: ObservableObject {
             verdict = self.handle(event: event)
         }
         return verdict
+    }
+
+    /// Turns a bare forward delete into the ⌘⌫ Finder already implements,
+    /// rather than trashing the files here: that keeps undo, Put Back, the
+    /// locked-item and authentication prompts and the Trash sound, all of
+    /// which belong to Finder's own move-to-trash.
+    ///
+    /// Stays on the tap thread. The main thread holds nothing this needs, and
+    /// a forward delete is an ordinary typing key everywhere else, so it must
+    /// not queue behind whatever the app happens to be doing.
+    private func trashSelection(event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard AXIsProcessTrusted(),
+              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == Self.finderBundleID,
+              !isEditingText(),
+              let replacement = Self.trashShortcut(from: event)
+        else { return Unmanaged.passUnretained(event) }
+
+        routeLock.withLock { forwardDeletePairing.claimPress() }
+        return replacement
+    }
+
+    /// The same substitution for both halves of the keystroke, so the press
+    /// and the release can never disagree about which key they belong to.
+    private static func trashShortcut(from event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard let replacement = event.copy() else { return nil }
+        replacement.setIntegerValueField(.keyboardEventKeycode, value: Key.delete)
+        replacement.flags = .maskCommand
+        return Unmanaged.passRetained(replacement)
     }
 
     /// Runs on the main thread, so reading `marked` and the pasteboard here is
@@ -431,8 +483,10 @@ final class FinderCutPaste: ObservableObject {
         }
     }
 
-    /// True when the keyboard focus is in an editable text control, so cut/copy/
-    /// paste shortcuts must be left to the system (e.g. renaming a file).
+    /// True when the keyboard focus is in an editable text control, so the
+    /// shortcuts claimed here must be left to the system: renaming a file
+    /// inline wants ⌘V and forward delete to edit the name, not to move the
+    /// file anywhere.
     private func isEditingText() -> Bool {
         let system = AXUIElementCreateSystemWide()
         // No cap here: on the system-wide element a timeout is the default for
