@@ -196,10 +196,14 @@ final class ScreenCaptureService: ObservableObject {
             includePointer: policy.includePointer,
             showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
             hideVorssaintWindows: policy.hideVorssaintWindows,
-            protectedWindowIDs: {
-                AppFeature.screenshot.isAvailable
-                    ? ScreenshotService.shared.protectedWindowIDsForCapture
-                    : []
+            protectedWindowIDs: { [weak options] in
+                guard AppFeature.screenshot.isAvailable else { return [] }
+                // The tool can still change while the selection is up, so it
+                // is read here rather than captured. A session on its way out
+                // leaves no tool, and keeps both kinds out.
+                let tool = options?.selectedTool
+                return ScreenshotService.shared.protectedWindowIDsForCapture(
+                    honoursVisibilityPreference: tool != nil && tool != .recording)
             },
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
             mode: policy.usesGeometry ? .geometry : .image,

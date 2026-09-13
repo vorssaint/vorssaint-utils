@@ -43,13 +43,13 @@ final class ScreenshotService: ObservableObject {
         UserDefaults.standard.bool(forKey: DefaultsKey.screenshotHideVorssaintWindows)
     }
 
-    private var protectedWindowIDs: Set<CGWindowID> {
+    /// The surfaces that make up the act of capturing. The quick preview is
+    /// here rather than with the content windows because it dismisses itself
+    /// after a few seconds: back-to-back captures would otherwise photograph
+    /// the previous capture's toast.
+    private var workflowWindowIDs: Set<CGWindowID> {
         var ids = session?.protectedWindowIDs ?? []
         ids.formUnion(preview?.protectedWindowIDs ?? [])
-        for editor in editors {
-            ids.formUnion(editor.protectedWindowIDs)
-        }
-        ids.formUnion(ScreenshotPinController.shared.protectedWindowIDs)
         ids.formUnion(ScreenCaptureService.shared.protectedWindowIDs)
         if let number = QuickToolHUD.currentWindowNumber, number > 0 {
             ids.insert(CGWindowID(number))
@@ -60,7 +60,27 @@ final class ScreenshotService: ObservableObject {
         return ids
     }
 
-    var protectedWindowIDsForCapture: Set<CGWindowID> { protectedWindowIDs }
+    /// Ordinary windows somebody left on screen, which the "Hide Vorssaint
+    /// windows" preference owns.
+    private var contentWindowIDs: Set<CGWindowID> {
+        var ids: Set<CGWindowID> = []
+        for editor in editors {
+            ids.formUnion(editor.protectedWindowIDs)
+        }
+        ids.formUnion(ScreenshotPinController.shared.protectedWindowIDs)
+        return ids
+    }
+
+    private var protectedWindowIDs: Set<CGWindowID> {
+        protectedWindowIDsForCapture(honoursVisibilityPreference: true)
+    }
+
+    func protectedWindowIDsForCapture(honoursVisibilityPreference: Bool) -> Set<CGWindowID> {
+        ScreenshotCapturePolicy.protectedWindowIDs(
+            workflowWindowIDs: workflowWindowIDs,
+            contentWindowIDs: contentWindowIDs,
+            honoursVisibilityPreference: honoursVisibilityPreference)
+    }
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(L10n.shared.language)
