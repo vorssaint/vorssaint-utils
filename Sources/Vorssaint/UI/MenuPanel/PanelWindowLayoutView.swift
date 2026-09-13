@@ -32,7 +32,13 @@ struct PanelWindowLayoutView: View {
             header
             intro
             actionGroup(title: text.halves, actions: [.leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf])
-            actionGroup(title: text.thirds, actions: [.leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds])
+            actionGroup(title: text.thirds, actions: [
+                .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+                .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
+            ])
+            actionGroup(title: text.quarters, actions: [
+                .topQuarter, .secondQuarter, .thirdQuarter, .bottomQuarter,
+            ])
             actionGroup(title: text.sixths, actions: [
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,

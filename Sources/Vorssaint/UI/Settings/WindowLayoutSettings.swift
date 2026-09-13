@@ -167,6 +167,18 @@ struct WindowLayoutSettings: View {
                 actionRow(.rightThird)
                 actionRow(.leftTwoThirds)
                 actionRow(.rightTwoThirds)
+                actionRow(.topThird)
+                actionRow(.middleThird)
+                actionRow(.bottomThird)
+                actionRow(.topTwoThirds)
+                actionRow(.bottomTwoThirds)
+            }
+
+            Section(text.quarters) {
+                actionRow(.topQuarter)
+                actionRow(.secondQuarter)
+                actionRow(.thirdQuarter)
+                actionRow(.bottomQuarter)
             }
 
             Section(text.sixths) {
@@ -264,35 +276,7 @@ struct WindowLayoutSettings: View {
     }
 
     private func symbol(for action: WindowLayoutAction) -> String {
-        switch action {
-        case .leftHalf: return "rectangle.leftthird.inset.filled"
-        case .rightHalf: return "rectangle.rightthird.inset.filled"
-        case .topHalf: return "rectangle.topthird.inset.filled"
-        case .bottomHalf: return "rectangle.bottomthird.inset.filled"
-        case .centerHalf: return "rectangle.center.inset.filled"
-        case .leftThird: return "rectangle.leftthird.inset.filled"
-        case .centerThird: return "rectangle.center.inset.filled"
-        case .rightThird: return "rectangle.rightthird.inset.filled"
-        case .leftTwoThirds: return "rectangle.leadinghalf.filled"
-        case .rightTwoThirds: return "rectangle.trailinghalf.filled"
-        case .topLeftSixth: return "arrow.up.left"
-        case .topCenterSixth: return "arrow.up"
-        case .topRightSixth: return "arrow.up.right"
-        case .bottomLeftSixth: return "arrow.down.left"
-        case .bottomCenterSixth: return "arrow.down"
-        case .bottomRightSixth: return "arrow.down.right"
-        case .topLeft: return "arrow.up.left"
-        case .topRight: return "arrow.up.right"
-        case .bottomLeft: return "arrow.down.left"
-        case .bottomRight: return "arrow.down.right"
-        case .maximize: return "arrow.up.left.and.arrow.down.right"
-        case .marginMaximize: return "rectangle.inset.filled"
-        case .fullScreen: return "rectangle.fill"
-        case .center: return "scope"
-        case .previousDisplay: return "arrow.left.to.line"
-        case .nextDisplay: return "arrow.right.to.line"
-        case .restore: return "arrow.uturn.backward"
-        }
+        action.symbolName
     }
 
     private var resultMessage: String? {

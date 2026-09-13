@@ -599,6 +599,8 @@ final class WindowLayoutService: ObservableObject {
         switch action {
         case .leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf,
                 .leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds,
+                .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
+                .topQuarter, .secondQuarter, .thirdQuarter, .bottomQuarter,
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
                 .topLeft, .topRight, .bottomLeft, .bottomRight, .marginMaximize:
