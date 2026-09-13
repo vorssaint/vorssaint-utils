@@ -1041,6 +1041,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                     editorWindowNumber: window.windowNumber,
                     editorIsKey: window.isKeyWindow)
             else { return event }
+            // The recorder owns every key, including editor commands.
+            if ShortcutCapture.isCapturing { return event }
             // While a text field edits, every key belongs to it.
             if window.firstResponder is NSText || self.model.editingTextID != nil {
                 return event
@@ -1067,6 +1069,18 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     private func handleKey(_ event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
         let key = Int(event.keyCode)
+
+        let orderRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder)
+        let bindingsRaw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolShortcuts)
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotToolShortcutsEnabled)
+        let number = event.characters?.first.flatMap { Int(String($0)) }
+        if let tool = ScreenshotSupport.Tool.shortcutTool(
+            keyCode: Int64(key), modifiers: GlobalShortcutModifiers(eventFlags: flags),
+            number: number, orderRaw: orderRaw, bindingsRaw: bindingsRaw, enabled: enabled,
+            capsLockOn: flags.contains(.capsLock)) {
+            model.tool = tool
+            return true
+        }
 
         if flags.contains(.command) {
             switch key {
@@ -1122,16 +1136,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             return true
         default:
-            guard let character = event.characters?.first,
-                  let number = Int(String(character)),
-                  let tool = ScreenshotSupport.Tool.shortcutTool(
-                    number: number,
-                    orderRaw: UserDefaults.standard.string(forKey: DefaultsKey.screenshotToolOrder),
-                    enabled: UserDefaults.standard.bool(
-                        forKey: DefaultsKey.screenshotToolShortcutsEnabled))
-            else { return false }
-            model.tool = tool
-            return true
+            return false
         }
     }
 

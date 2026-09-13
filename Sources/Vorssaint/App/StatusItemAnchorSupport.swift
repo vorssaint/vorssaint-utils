@@ -63,6 +63,15 @@ enum StatusItemAnchorSupport {
         }
     }
 
+    /// A freshly created status item is born with a zero-height window and
+    /// only settles into the menu bar a moment later (issue #1394). Treating
+    /// that birth frame as "hidden" makes recovery race macOS placement.
+    static func isSettlingStatusFrame(_ frame: CGRect?) -> Bool {
+        guard let frame else { return true }
+        if frame.width <= 0, frame.height <= 0 { return true }
+        return frame.width > 0 && frame.height <= 0
+    }
+
     /// Where an open panel belongs for a cached anchor: centered on the
     /// anchor's horizontal middle with its top edge held, so content that
     /// grows or shrinks (switching panel tabs) extends downward instead of

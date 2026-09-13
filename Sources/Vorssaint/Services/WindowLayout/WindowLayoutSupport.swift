@@ -10,6 +10,21 @@ enum WindowLayoutTargetCapability: Equatable {
     case fullScreen
 }
 
+enum WindowLayoutShortcutConflict: Equatable {
+    case directional
+    case action(WindowLayoutAction)
+
+    static func find(_ shortcut: GlobalShortcut, directional: GlobalShortcut?,
+                     excluding excluded: WindowLayoutAction? = nil,
+                     actionShortcut: (WindowLayoutAction) -> GlobalShortcut?) -> Self? {
+        if directional == shortcut { return .directional }
+        guard let action = WindowLayoutAction.shortcutActions.first(where: {
+            $0 != excluded && actionShortcut($0) == shortcut
+        }) else { return nil }
+        return .action(action)
+    }
+}
+
 enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case leftHalf, rightHalf, topHalf, bottomHalf, centerHalf
     case leftThird, centerThird, rightThird, leftTwoThirds, rightTwoThirds

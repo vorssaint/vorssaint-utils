@@ -55,13 +55,14 @@ enum CleanerPolicy {
         "com.apple.FontRegistry", "com.apple.ATS",
         "com.apple.akd", "com.apple.AuthKit",
         "com.paceap.", "com.native-instruments", "com.fabfilter",
+        // This cache also holds installed customizations that cannot be rebuilt.
+        "com.spotify.client",
     ]
 
     /// Third party caches whose content the user paid bandwidth or setup
     /// for (offline media, model and browser downloads): shown, never pre
     /// checked.
     private static let sensitiveCachePrefixes = [
-        "com.spotify.client",
         "ms-playwright",
     ]
 
@@ -85,6 +86,7 @@ enum CleanerPolicy {
     /// checked unless they hold content worth keeping, and plain named
     /// folders only when they are known download or build caches.
     static func precheckCacheEntry(_ name: String) -> Bool {
+        guard !isExcludedCacheEntry(name) else { return false }
         let lowered = name.lowercased()
         if sensitiveCachePrefixes.contains(where: { lowered.hasPrefix($0.lowercased()) }) { return false }
         if CleanerSupport.looksLikeBundleID(name) {

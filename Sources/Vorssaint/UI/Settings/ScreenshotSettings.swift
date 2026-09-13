@@ -37,6 +37,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
+    @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = false
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
@@ -155,6 +156,7 @@ struct ScreenshotCaptureSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     previewPositionRow
+                    previewFocusRow
                     defaultActionRow
                 } label: {
                     Text(FeatureStrings.recorder(l10n.language).moreOptions)
@@ -234,6 +236,15 @@ struct ScreenshotCaptureSettings: View {
                 Text(strings.editButton).tag(ScreenshotDefaultAction.edit.rawValue)
             }
             Text(strings.defaultActionCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var previewFocusRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle(strings.previewFocusToggle, isOn: $previewTakesFocus)
+            Text(strings.previewFocusCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
