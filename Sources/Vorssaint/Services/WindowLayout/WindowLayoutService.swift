@@ -240,13 +240,15 @@ final class WindowLayoutService: ObservableObject {
             frameHistory.discardLatest(for: target.key)
             return finish(.failure(.failed))
         }
-        if let crossing = WindowLayoutGeometry.displayCrossing(for: action,
-                                                               previousAction: lastActions[target.key]),
-           accepted(actual: target.frame,
-                    targetRect: placement(for: action,
-                                          current: target.frame,
-                                          visibleFrame: screen.visibleFrame).rect,
-                    action: action),
+        let repeatedMode = WindowLayoutRepeatedAction.current
+        if shouldCrossDisplays(for: action,
+                               target: target,
+                               screen: screen,
+                               screens: screens,
+                               mode: repeatedMode),
+           let crossing = displayCrossing(for: action,
+                                          previousAction: lastActions[target.key],
+                                          mode: repeatedMode),
            let destination = sidewaysScreen(to: screen,
                                             screens: screens,
                                             movingRight: crossing.movingRight) {
@@ -283,13 +285,42 @@ final class WindowLayoutService: ObservableObject {
                                 cyclesRepeatedAction: Bool = true) -> WindowLayoutResult {
         let currentRect = appKitFrame(fromAX: target.frame)
         let previousAction = cyclesRepeatedAction ? lastActions[target.key] : nil
-        let effectiveAction = WindowLayoutGeometry.effectiveAction(for: action,
+        let repeatedMode = WindowLayoutRepeatedAction.current
+
+        var targetFraction: CGFloat? = nil
+        var effectiveAction = action
+
+        if let fractions = WindowLayoutGeometry.cycleFractions(for: action, mode: repeatedMode) {
+            if cyclesRepeatedAction && previousAction == action {
+                let currentIdx = WindowLayoutGeometry.currentFractionIndex(
+                    for: action,
+                    current: currentRect,
+                    visibleFrame: visibleFrame,
+                    fractions: fractions,
+                    windowGap: WindowLayoutGaps.windowGap,
+                    screenGap: WindowLayoutGaps.screenGap
+                )
+                if let currentIdx {
+                    let nextIdx = (currentIdx + 1) % fractions.count
+                    targetFraction = fractions[nextIdx]
+                } else {
+                    targetFraction = fractions[0]
+                }
+            } else {
+                targetFraction = fractions[0]
+            }
+        } else {
+            effectiveAction = WindowLayoutGeometry.effectiveAction(for: action,
                                                                    current: currentRect,
                                                                    visibleFrame: visibleFrame,
-                                                                   previousAction: previousAction)
+                                                                   previousAction: previousAction,
+                                                                   repeatedAction: repeatedMode)
+        }
+
         let placement = placement(for: effectiveAction,
                                   current: target.frame,
-                                  visibleFrame: visibleFrame)
+                                  visibleFrame: visibleFrame,
+                                  fraction: targetFraction)
         if placement.frame == target.frame {
             lastActions[target.key] = effectiveAction
             return finish(.success(restored: false))
@@ -306,6 +337,57 @@ final class WindowLayoutService: ObservableObject {
         }
         frameHistory.discardLatest(for: target.key)
         return finish(.failure(.failed))
+    }
+
+    private func shouldCrossDisplays(for action: WindowLayoutAction,
+                                     target: WindowLayoutTarget,
+                                     screen: NSScreen,
+                                     screens: [NSScreen],
+                                     mode: WindowLayoutRepeatedAction) -> Bool {
+        guard screens.count > 1 else { return false }
+        guard let previousAction = lastActions[target.key] else { return false }
+        switch mode {
+        case .acrossDisplays:
+            guard action == previousAction else { return false }
+            return accepted(actual: target.frame,
+                            targetRect: placement(for: action,
+                                                  current: target.frame,
+                                                  visibleFrame: screen.visibleFrame).rect,
+                            action: action)
+        case .cycleAcrossDisplays:
+            guard action == previousAction else { return false }
+            guard let fractions = WindowLayoutGeometry.cycleFractions(for: action, mode: mode),
+                  let lastFraction = fractions.last else { return false }
+            let currentRect = appKitFrame(fromAX: target.frame)
+            let lastTargetRect = WindowLayoutGeometry.rect(for: action,
+                                                           current: currentRect,
+                                                           visibleFrame: screen.visibleFrame,
+                                                           fraction: lastFraction,
+                                                           windowGap: WindowLayoutGaps.windowGap,
+                                                           screenGap: WindowLayoutGaps.screenGap)
+            return WindowLayoutGeometry.matchesCycleRect(actual: currentRect,
+                                                         candidate: lastTargetRect,
+                                                         action: action,
+                                                         tolerance: 36)
+        default:
+            return false
+        }
+    }
+
+    private func displayCrossing(for action: WindowLayoutAction,
+                                 previousAction: WindowLayoutAction?,
+                                 mode: WindowLayoutRepeatedAction) -> (action: WindowLayoutAction, movingRight: Bool)? {
+        if mode == .acrossDisplays {
+            return WindowLayoutGeometry.displayCrossing(for: action, previousAction: previousAction)
+        }
+        switch action {
+        case .leftHalf, .leftThird, .leftTwoThirds:
+            return (.rightHalf, false)
+        case .rightHalf, .rightThird, .rightTwoThirds:
+            return (.leftHalf, true)
+        default:
+            return nil
+        }
     }
 
     private func focusedTarget(for action: WindowLayoutAction) -> WindowLayoutTarget? {
@@ -438,10 +520,12 @@ final class WindowLayoutService: ObservableObject {
 
     private func placement(for action: WindowLayoutAction,
                            current: WindowLayoutFrame,
-                           visibleFrame: NSRect) -> WindowLayoutPlacement {
+                           visibleFrame: NSRect,
+                           fraction: CGFloat? = nil) -> WindowLayoutPlacement {
         let rect = WindowLayoutGeometry.rect(for: action,
                                              current: appKitFrame(fromAX: current),
                                              visibleFrame: visibleFrame,
+                                             fraction: fraction,
                                              windowGap: WindowLayoutGaps.windowGap,
                                              screenGap: WindowLayoutGaps.screenGap)
         let integral = rect.integral
@@ -520,6 +604,14 @@ final class WindowLayoutService: ObservableObject {
             scheduleSettle(context, attempt: 1)
             return
         }
+        guard let actual = frame(of: context.window) else {
+            concludeSettle(context, success: false)
+            return
+        }
+        if let original = context.original, !actual.isClose(to: original, tolerance: 4) {
+            concludeSettle(context, success: true)
+            return
+        }
         if let original = context.original, shouldUseMaximizeFallback(for: context.action) {
             // An ungapped scratch frame that coaxes a stubborn window into
             // resizing; the gapped target is re-applied right after.
@@ -541,8 +633,17 @@ final class WindowLayoutService: ObservableObject {
 
     private func verified(_ context: SettleContext) -> Bool {
         guard let actual = frame(of: context.window) else { return false }
-        return actual.isClose(to: context.frame, tolerance: frameTolerance)
-            || accepted(actual: actual, targetRect: context.targetRect, action: context.action)
+        if actual.isClose(to: context.frame, tolerance: frameTolerance)
+            || accepted(actual: actual, targetRect: context.targetRect, action: context.action) {
+            return true
+        }
+        if WindowLayoutGeometry.matchesCycleRect(actual: appKitFrame(fromAX: actual),
+                                                 candidate: context.targetRect,
+                                                 action: context.action,
+                                                 tolerance: 36) {
+            return true
+        }
+        return false
     }
 
     // The action already reported success while the window was settling, so a
@@ -551,7 +652,9 @@ final class WindowLayoutService: ObservableObject {
     private func concludeSettle(_ context: SettleContext, success: Bool) {
         assistiveModeSuspensions.removeValue(forKey: context.windowID)?.resume()
         guard !success else { return }
-        if let original = context.original {
+        if let original = context.original,
+           let actual = frame(of: context.window),
+           actual.isClose(to: original, tolerance: 4) {
             applyFrame(original, on: context.window)
         }
         if context.action == .restore {

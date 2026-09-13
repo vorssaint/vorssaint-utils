@@ -410,6 +410,7 @@ enum DefaultsKey {
     static let windowLayoutHiddenActions = "windowLayoutHiddenActions" // comma-separated action ids hidden from the grid
     static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
+    static let windowLayoutRepeatedAction = "windowLayoutRepeatedAction" // cycle mode for repeated directional commands
     static let panelCollapsedSections = "panelCollapsedSections"
     static let panelCollapsedResetVersion = "panelCollapsedResetVersion"
 
@@ -1140,6 +1141,7 @@ enum Defaults {
         DefaultsKey.windowLayoutHiddenActions: "",
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,
+        DefaultsKey.windowLayoutRepeatedAction: "disabled",
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,

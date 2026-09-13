@@ -4719,6 +4719,19 @@ struct MetricsTests {
                     && !layoutStrings.centerHalf.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
+        expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutRepeatedAction] as? String
+                == WindowLayoutRepeatedAction.disabled.rawValue,
+               "repeated window layout action defaults to disabled")
+        expect(WindowLayoutRepeatedAction.allCases.count == 8,
+               "window layout repeated action defines eight choices")
+        for mode in WindowLayoutRepeatedAction.allCases {
+            expect(WindowLayoutRepeatedAction(rawValue: mode.rawValue) == mode,
+                   "repeated action \(mode.rawValue) round trips through raw value")
+            for language in AppLanguage.allCases {
+                expect(!mode.localizedTitle(language).isEmpty,
+                       "\(language.rawValue) titles repeated action \(mode.rawValue)")
+            }
+        }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
                                             action: .fullScreen, anchorTolerance: 10) == false,
                "full screen never joins the frame-based gesture acceptance")
@@ -6649,8 +6662,124 @@ struct MetricsTests {
                "window layout only crosses displays when the same side is used twice in a row")
         expect(WindowLayoutGeometry.displayCrossing(for: .topHalf, previousAction: .topHalf) == nil
                 && WindowLayoutGeometry.displayCrossing(for: .bottomHalf, previousAction: .bottomHalf) == nil
-                && WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
+                  && WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
                "window layout keeps top, bottom and thirds on their own display")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [.leftHalf, .leftThird]
+                && WindowLayoutGeometry.cycleSequence(for: .rightHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [.rightHalf, .rightThird],
+               "window layout cycles half then third for cycleHalfOneThirdOneSixth sequence")
+        expect(WindowLayoutGeometry.cycleFractions(for: .leftHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [0.5, 1.0 / 3.0, 1.0 / 6.0]
+                && WindowLayoutGeometry.cycleFractions(for: .rightHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [0.5, 1.0 / 3.0, 1.0 / 6.0]
+                && WindowLayoutGeometry.cycleFractions(for: .topHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [0.5, 1.0 / 3.0, 1.0 / 6.0]
+                && WindowLayoutGeometry.cycleFractions(for: .bottomHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [0.5, 1.0 / 3.0, 1.0 / 6.0]
+                && WindowLayoutGeometry.cycleFractions(for: .centerHalf, mode: .cycleHalfOneThirdOneSixth)
+                == [0.5, 1.0 / 3.0, 1.0 / 6.0],
+               "window layout cycles 1/2, 1/3, 1/6 fractions for all directional actions")
+        let fractionTestList: [CGFloat] = [0.5, 1.0 / 3.0, 1.0 / 6.0]
+        let leftH = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame, fraction: 0.5)
+        let leftT = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame, fraction: 1.0 / 3.0)
+        let leftS = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame, fraction: 1.0 / 6.0)
+        expect(WindowLayoutGeometry.currentFractionIndex(for: .leftHalf, current: leftH, visibleFrame: visibleFrame, fractions: fractionTestList) == 0
+                && WindowLayoutGeometry.currentFractionIndex(for: .leftHalf, current: leftT, visibleFrame: visibleFrame, fractions: fractionTestList) == 1
+                && WindowLayoutGeometry.currentFractionIndex(for: .leftHalf, current: leftS, visibleFrame: visibleFrame, fractions: fractionTestList) == 2,
+               "currentFractionIndex correctly identifies 1/2, 1/3, and 1/6 horizontal frames")
+        let bottomH = WindowLayoutGeometry.rect(for: .bottomHalf, current: currentWindow, visibleFrame: visibleFrame, fraction: 0.5)
+        let bottomT = WindowLayoutGeometry.rect(for: .bottomHalf, current: currentWindow, visibleFrame: visibleFrame, fraction: 1.0 / 3.0)
+        let bottomS = WindowLayoutGeometry.rect(for: .bottomHalf, current: currentWindow, visibleFrame: visibleFrame, fraction: 1.0 / 6.0)
+        expect(WindowLayoutGeometry.currentFractionIndex(for: .bottomHalf, current: bottomH, visibleFrame: visibleFrame, fractions: fractionTestList) == 0
+                && WindowLayoutGeometry.currentFractionIndex(for: .bottomHalf, current: bottomT, visibleFrame: visibleFrame, fractions: fractionTestList) == 1
+                && WindowLayoutGeometry.currentFractionIndex(for: .bottomHalf, current: bottomS, visibleFrame: visibleFrame, fractions: fractionTestList) == 2,
+               "currentFractionIndex correctly identifies 1/2, 1/3, and 1/6 vertical bottom frames")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .cycleHalfTwoThirdsOneThird)
+                == [.leftHalf, .leftTwoThirds, .leftThird]
+                && WindowLayoutGeometry.cycleSequence(for: .leftThird, mode: .cycleHalfTwoThirdsOneThird)
+                == [.leftHalf, .leftTwoThirds, .leftThird]
+                && WindowLayoutGeometry.cycleSequence(for: .leftTwoThirds, mode: .cycleHalfTwoThirdsOneThird)
+                == [.leftHalf, .leftTwoThirds, .leftThird],
+               "window layout left cycles half then two thirds then one third by default")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .cycleHalfOneThirdTwoThirds)
+                == [.leftHalf, .leftThird, .leftTwoThirds],
+               "window layout left cycles half then one third then two thirds")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .cycleHalfTwoThirds)
+                == [.leftHalf, .leftTwoThirds],
+               "window layout left cycles half then two thirds")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .cycleHalfOneThird)
+                == [.leftHalf, .leftThird],
+               "window layout left cycles half then one third")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .cycleAcrossDisplays)
+                == [.leftHalf, .leftTwoThirds, .leftThird],
+               "window layout left cycles sizes before crossing displays")
+        expect(WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .acrossDisplays) == nil
+                && WindowLayoutGeometry.cycleSequence(for: .leftHalf, mode: .disabled) == nil,
+               "window layout left does not cycle sizes when cycling is disabled or only crosses")
+        expect(WindowLayoutGeometry.cycleSequence(for: .rightHalf, mode: .cycleHalfTwoThirdsOneThird)
+                == [.rightHalf, .rightTwoThirds, .rightThird],
+               "window layout right cycles half then two thirds then one third")
+        expect(WindowLayoutGeometry.cycleSequence(for: .centerHalf, mode: .cycleHalfTwoThirdsOneThird)
+                == [.centerHalf, .centerThird],
+               "window layout center half cycles half and one third")
+        expect(WindowLayoutGeometry.cycleSequence(for: .topHalf, mode: .cycleHalfTwoThirdsOneThird) == nil
+                && WindowLayoutGeometry.cycleSequence(for: .bottomHalf, mode: .cycleHalfTwoThirdsOneThird) == nil,
+               "window layout top and bottom halves do not cycle widths")
+        let leftTwoThirdsWindow = WindowLayoutGeometry.rect(for: .leftTwoThirds,
+                                                            current: currentWindow,
+                                                            visibleFrame: visibleFrame)
+        let leftThirdWindow = WindowLayoutGeometry.rect(for: .leftThird,
+                                                        current: currentWindow,
+                                                        visibleFrame: visibleFrame)
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftHalf,
+                                                    repeatedAction: .cycleHalfTwoThirdsOneThird) == .leftTwoThirds,
+               "window layout left half cycles to two thirds when already at left half")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftTwoThirdsWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftTwoThirds,
+                                                    repeatedAction: .cycleHalfTwoThirdsOneThird) == .leftThird,
+               "window layout left half cycles from two thirds to one third")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftThirdWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftThird,
+                                                    repeatedAction: .cycleHalfTwoThirdsOneThird) == .leftHalf,
+               "window layout left half wraps from one third back to left half")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftHalf,
+                                                    repeatedAction: .cycleHalfOneThirdTwoThirds) == .leftThird,
+               "window layout left half cycles to one third under one third first mode")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftThirdWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftThird,
+                                                    repeatedAction: .cycleHalfOneThirdTwoThirds) == .leftTwoThirds,
+               "window layout left half cycles from one third to two thirds")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftHalf,
+                                                    repeatedAction: .disabled) == .leftHalf,
+               "window layout left half stays left half when cycling is disabled")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: leftWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftHalf,
+                                                    repeatedAction: .acrossDisplays) == .leftHalf,
+               "window layout left half does not resize when configured only to cross displays")
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: currentWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .leftHalf,
+                                                    repeatedAction: .cycleHalfTwoThirdsOneThird) == .leftHalf,
+               "window layout left half resets to left half if window moved away from its position")
         let leftTarget = WindowLayoutGeometry.rect(for: .leftHalf,
                                                    current: currentWindow,
                                                    visibleFrame: visibleFrame)
