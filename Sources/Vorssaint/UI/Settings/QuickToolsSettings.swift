@@ -22,6 +22,10 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+    @AppStorage(DefaultsKey.eyeGuardEnabled) private var eyeGuardEnabled = false
+    @AppStorage(DefaultsKey.eyeGuardPreset) private var eyeGuardPreset = EyeGuardPreset.twentyTwentyTwenty.rawValue
+    @AppStorage(DefaultsKey.eyeGuardWorkMinutes) private var eyeGuardWorkMinutes = 20
+    @AppStorage(DefaultsKey.eyeGuardBreakSeconds) private var eyeGuardBreakSeconds = 20
 
     var body: some View {
         Form {
@@ -240,8 +244,75 @@ struct QuickToolsSettings: View {
                 }
                 .settingsSectionAnchor(.cleaningMode)
             }
+
+            if AppFeature.eyeGuard.isAvailable {
+                Section {
+                    Toggle(eyeGuardStrings.enableToggle, isOn: $eyeGuardEnabled)
+                        .onChange(of: eyeGuardEnabled) { _, _ in
+                            EyeGuardService.shared.syncWithPreferences()
+                        }
+                    Text(eyeGuardStrings.enableCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Picker(eyeGuardStrings.scheduleLabel, selection: $eyeGuardPreset) {
+                        ForEach(EyeGuardPreset.allCases) { preset in
+                            Text(eyeGuardStrings.name(for: preset)).tag(preset.rawValue)
+                        }
+                    }
+                    .disabled(!eyeGuardEnabled)
+                    .onChange(of: eyeGuardPreset) { _, _ in
+                        EyeGuardService.shared.syncWithPreferences()
+                    }
+
+                    if EyeGuardPreset.sanitized(eyeGuardPreset) == .custom {
+                        Stepper(value: workMinutesBinding,
+                                in: EyeGuardSchedule.workMinutesRange) {
+                            Text("\(eyeGuardStrings.workLabel): \(workMinutesBinding.wrappedValue)")
+                        }
+                        .disabled(!eyeGuardEnabled)
+                        Stepper(value: breakSecondsBinding,
+                                in: EyeGuardSchedule.breakSecondsRange,
+                                step: 5) {
+                            Text("\(eyeGuardStrings.breakLabel): \(breakSecondsBinding.wrappedValue)")
+                        }
+                        .disabled(!eyeGuardEnabled)
+                    } else {
+                        Text(eyeGuardStrings.presetCaption)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                } header: {
+                    Text(eyeGuardStrings.pageTitle)
+                }
+                .settingsSectionAnchor(.eyeGuard)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    private var eyeGuardStrings: EyeGuardStrings { FeatureStrings.eyeGuard(l10n.language) }
+
+    /// Clamped on the way in as well as the way out, so a value already on disk
+    /// from an earlier version cannot sit outside the stepper's range.
+    private var workMinutesBinding: Binding<Int> {
+        Binding(
+            get: { EyeGuardSchedule.clampWorkMinutes(eyeGuardWorkMinutes) },
+            set: {
+                eyeGuardWorkMinutes = EyeGuardSchedule.clampWorkMinutes($0)
+                EyeGuardService.shared.syncWithPreferences()
+            }
+        )
+    }
+
+    private var breakSecondsBinding: Binding<Int> {
+        Binding(
+            get: { EyeGuardSchedule.clampBreakSeconds(eyeGuardBreakSeconds) },
+            set: {
+                eyeGuardBreakSeconds = EyeGuardSchedule.clampBreakSeconds($0)
+                EyeGuardService.shared.syncWithPreferences()
+            }
+        )
     }
 
     private var scratchpadBackgroundOpacityBinding: Binding<Double> {

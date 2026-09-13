@@ -47,6 +47,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case cameraPreview
     case scratchpad
     case cleaningMode
+    case eyeGuard
     case soundOutputSwitcher
     case fanControl
 
@@ -60,7 +61,8 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .switcher, .dock, .dockClick: return .switcher
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
-        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode:
+        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .scratchpad, .cleaningMode,
+             .eyeGuard:
             return .quickTools
         case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
@@ -228,6 +230,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenOCR)
         case .cleaningMode:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode)
+        case .eyeGuard:
+            return FeatureSettingsDestination(.quickTools, sectionAnchor: .eyeGuard)
         case .mediaTools: return FeatureSettingsDestination(.media)
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
@@ -278,7 +282,7 @@ enum FeatureVisibilitySupport {
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .micMute,
-                                  .cameraPreview, .scratchpad, .cleaningMode]
+                                  .cameraPreview, .scratchpad, .cleaningMode, .eyeGuard]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]
         case .homebrew: return [.homebrew]

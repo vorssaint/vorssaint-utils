@@ -235,6 +235,10 @@ enum DefaultsKey {
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
+    static let eyeGuardEnabled = "eyeGuardEnabled"
+    static let eyeGuardPreset = "eyeGuardPreset"            // EyeGuardPreset.rawValue
+    static let eyeGuardWorkMinutes = "eyeGuardWorkMinutes"  // custom preset only
+    static let eyeGuardBreakSeconds = "eyeGuardBreakSeconds" // custom preset only
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
@@ -1055,6 +1059,10 @@ enum Defaults {
         DefaultsKey.keyboardDebounceKeyWindows: "",
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,
+        DefaultsKey.eyeGuardEnabled: false,
+        DefaultsKey.eyeGuardPreset: EyeGuardPreset.twentyTwentyTwenty.rawValue,
+        DefaultsKey.eyeGuardWorkMinutes: 20,
+        DefaultsKey.eyeGuardBreakSeconds: 20,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.killProcessCommandBarEnabled: true,
