@@ -114,7 +114,10 @@ extension AppFeature {
                 ? .idle : .mouse
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
-             .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorNetwork, .monitorDisk, .monitorPower,
+             // Ticks once a second while the schedule runs, with a second of
+             // tolerance so the wakeups coalesce.
+             .eyeGuard:
             return .periodic
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)

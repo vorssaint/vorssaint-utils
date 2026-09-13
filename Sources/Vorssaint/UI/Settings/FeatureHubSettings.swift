@@ -743,6 +743,7 @@ extension AppFeature {
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
+        case .eyeGuard: return FeatureStrings.eyeGuard(L10n.shared.language).pageTitle
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
@@ -807,6 +808,7 @@ extension AppFeature {
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
+        case .eyeGuard: return FeatureStrings.eyeGuard(L10n.shared.language).hubDescription
         case .mediaTools: return hub.descMediaTools
         case .cleaner:
             let description = hub.descCleaner

@@ -14770,6 +14770,112 @@ struct MetricsTests {
         let unrelatedSystemEvent = CleaningSystemKeyEvent.decode(subtype: 99, data1: 0)
         expect(unrelatedSystemEvent == nil, "unrelated system-defined events do not count as unlock keys")
 
+        // MARK: Eye-Guard schedule
+
+        // Derived from the shipped preset rather than retyped, so changing the
+        // preset moves the fixture with it.
+        let eyeGuardTiming = EyeGuardSchedule.timing(preset: .twentyTwentyTwenty,
+                                                     customWorkMinutes: 0,
+                                                     customBreakSeconds: 0)
+        let eyeGuardWork = eyeGuardTiming.work
+        let eyeGuardBreak = eyeGuardTiming.breakLength
+        let eyeGuardLead = EyeGuardSchedule.warningLead
+
+        func eyeGuardPhase(_ elapsed: TimeInterval) -> EyeGuardPhase {
+            EyeGuardSchedule.phase(elapsed: elapsed, work: eyeGuardWork, breakLength: eyeGuardBreak)
+        }
+
+        expect(eyeGuardPhase(0) == .working, "a fresh cycle starts working, with nothing on screen")
+        expect(eyeGuardPhase(eyeGuardWork - eyeGuardLead - 1) == .working,
+               "the screen stays clear until one warning lead before the break")
+        expect(eyeGuardPhase(eyeGuardWork - eyeGuardLead) == .warning(secondsLeft: Int(eyeGuardLead)),
+               "the warning opens exactly one lead before the break, counting the whole lead")
+        expect(eyeGuardPhase(eyeGuardWork - 0.5) == .warning(secondsLeft: 1),
+               "a part second left rounds up, so the warning never shows a zero it then sits on")
+        expect(eyeGuardPhase(eyeGuardWork) == .onBreak(secondsLeft: Int(eyeGuardBreak)),
+               "the break starts the moment work time is up, showing its full length")
+        expect(eyeGuardPhase(eyeGuardWork + eyeGuardBreak - 1) == .onBreak(secondsLeft: 1),
+               "the last second of the break is still the break")
+
+        // #3 of the three disagreement shapes: `phase` and `cycleIsComplete`
+        // answer the same boundary, and nothing but this makes them agree. If
+        // they drift, a break either never ends or ends before it is drawn.
+        var eyeGuardDisagreements: [String] = []
+        var eyeGuardStep = 0.0
+        while eyeGuardStep <= eyeGuardWork + eyeGuardBreak + 5 {
+            let complete = EyeGuardSchedule.cycleIsComplete(elapsed: eyeGuardStep,
+                                                            work: eyeGuardWork,
+                                                            breakLength: eyeGuardBreak)
+            var onBreak = false
+            if case .onBreak = eyeGuardPhase(eyeGuardStep) { onBreak = true }
+            // Past work time the cycle is either still on break or finished,
+            // never both and never neither: "neither" is a second the service
+            // sits in with no break drawn and no new cycle started.
+            let expectedComplete = eyeGuardStep >= eyeGuardWork && !onBreak
+            if complete != expectedComplete {
+                eyeGuardDisagreements.append("\(eyeGuardStep)")
+            }
+            eyeGuardStep += 0.5
+        }
+        expect(eyeGuardDisagreements.isEmpty,
+               "the break and the cycle end agree at every second: \(eyeGuardDisagreements)")
+
+        // A cycle shorter than the lead has no clear working phase; the warning
+        // covers what work time there is instead of reaching back into the
+        // previous break with a negative boundary.
+        let eyeGuardShortWork = eyeGuardLead / 2
+        expect(EyeGuardSchedule.phase(elapsed: 0, work: eyeGuardShortWork, breakLength: 5)
+                == .warning(secondsLeft: Int(eyeGuardShortWork.rounded(.up))),
+               "a cycle shorter than the warning lead warns from its first second")
+
+        expect(EyeGuardSchedule.clampWorkMinutes(0) == EyeGuardSchedule.workMinutesRange.lowerBound
+                && EyeGuardSchedule.clampWorkMinutes(Int.max) == EyeGuardSchedule.workMinutesRange.upperBound
+                && EyeGuardSchedule.clampBreakSeconds(0) == EyeGuardSchedule.breakSecondsRange.lowerBound
+                && EyeGuardSchedule.clampBreakSeconds(Int.max) == EyeGuardSchedule.breakSecondsRange.upperBound,
+               "custom timings clamp into the range the steppers offer, at both ends")
+
+        // The upgrade path: a zero (or a hand-edited value) already on disk must
+        // not produce a zero-length cycle that fires on every tick.
+        let eyeGuardStale = EyeGuardSchedule.timing(preset: .custom,
+                                                    customWorkMinutes: 0,
+                                                    customBreakSeconds: 0)
+        expect(eyeGuardStale.work == TimeInterval(EyeGuardSchedule.workMinutesRange.lowerBound * 60)
+                && eyeGuardStale.breakLength == TimeInterval(EyeGuardSchedule.breakSecondsRange.lowerBound),
+               "a stale zero on disk is clamped rather than firing a break every tick")
+
+        var eyeGuardOutOfRange: [String] = []
+        for preset in EyeGuardPreset.allCases {
+            guard let timing = preset.timing else { continue }
+            if EyeGuardSchedule.clampWorkMinutes(timing.workMinutes) != timing.workMinutes
+                || EyeGuardSchedule.clampBreakSeconds(timing.breakSeconds) != timing.breakSeconds {
+                eyeGuardOutOfRange.append(preset.rawValue)
+            }
+        }
+        expect(eyeGuardOutOfRange.isEmpty,
+               "every preset sits inside the range a custom value is clamped to: \(eyeGuardOutOfRange)")
+
+        // The preset is named after a published rule, so its numbers are a
+        // claim to the user rather than an implementation detail.
+        expect(EyeGuardPreset.twentyTwentyTwenty.timing?.workMinutes == 20
+                && EyeGuardPreset.twentyTwentyTwenty.timing?.breakSeconds == 20,
+               "the 20-20-20 preset keeps the timing its name claims")
+
+        expect(EyeGuardSchedule.idleCountsAsBreak(idle: eyeGuardBreak, breakLength: eyeGuardBreak)
+                && !EyeGuardSchedule.idleCountsAsBreak(idle: eyeGuardBreak - 0.1,
+                                                       breakLength: eyeGuardBreak),
+               "a full break spent away from the keyboard counts, a shorter absence does not")
+
+        // The lead is a tunable, but it has to stay shorter than the shortest
+        // cycle the steppers can produce, or a one-minute custom schedule would
+        // be warning from the first second and never show a clear screen.
+        expect(EyeGuardSchedule.warningLead
+                < TimeInterval(EyeGuardSchedule.workMinutesRange.lowerBound * 60),
+               "the warning lead is shorter than the shortest work period on offer")
+
+        expect(EyeGuardPreset.sanitized(nil) == .twentyTwentyTwenty
+                && EyeGuardPreset.sanitized("not-a-preset") == .twentyTwentyTwenty,
+               "an unreadable stored preset falls back to the published default")
+
         // MARK: Music launch blocker
 
         func musicKeyData(keyCode: Int, state: Int = 10, repeatFlag: Bool = false) -> Int {
@@ -14824,7 +14930,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 57, "feature catalog has 57 features")
+        expect(AppFeature.allCases.count == 58, "feature catalog has 58 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14837,7 +14943,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "eyeGuard",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -14962,9 +15068,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.eyeGuard.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .eyeGuard
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
