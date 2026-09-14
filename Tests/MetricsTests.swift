@@ -37,6 +37,7 @@ struct MetricsTests {
             ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
             ("app-updates", { AppUpdatesContract.run(suite) }),
             ("localization", { LocalizationTests.run(suite) }),
+            ("cleaner", { CleanerEligibilityTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("switcher", { SwitcherScrollContract.run(suite) }),
         ]

@@ -36,6 +36,20 @@ def write(name, text):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    cleaner = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
+    write("CleanerEligibilityBodies.swift", "import Foundation\nextension CleanerEligibilityTests {\n"
+          + "".join(declaration(cleaner, "    private static func " + name)
+                    .replace("private static func", "static func", 1)
+                    for name in ["appendLeftovers(", "scanCaches(", "scanLogs(",
+                                 "directorySize(", "fileSize(", "sorted("])
+          + declaration(cleaner, "    private static func leftoverOwner(")
+          + declaration(cleaner, "    private static func containerOwner(")
+          + declaration(cleaner, "    private static func mayRemove(")
+          + "static func owner(_ url: URL, metadata: Bool = false) -> String? {\n"
+          + "leftoverOwner(entry: url.lastPathComponent, url: url, usesContainerMetadata: metadata)\n}\n"
+          + "static func canRemove(_ item: Item, installed: Set<String> = []) -> Bool {\n"
+          + "mayRemove(item, installed: installed)\n}\n}\n")
+
     updates = "Sources/Vorssaint/Services/AppUpdates/AppUpdatesService.swift"
     loader = "Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedLoader.swift"
     # Only the network configuration, clock and declaration visibility change.
