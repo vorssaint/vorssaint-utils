@@ -255,6 +255,33 @@ if (( TEST )); then
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
+        Sources/Vorssaint/Core/NotchStrings.swift
+        Sources/Vorssaint/Core/NotchTourStrings.swift
+        Sources/Vorssaint/Core/NotchEditorStrings.swift
+        Sources/Vorssaint/Core/NotchActivityStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
+        Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
+        Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
+        Sources/Vorssaint/Core/NotchFilesStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchDownloadProgressObserver.swift
+        Sources/Vorssaint/Core/NotchCalendarStrings.swift
+        Sources/Vorssaint/Core/NotchNotificationStrings.swift
+        Sources/Vorssaint/Core/NotchGestureStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
+        Sources/Vorssaint/Services/Notch/NotchNotificationSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchNotificationReaderCore.swift
+        Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
@@ -337,6 +364,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift
+        Sources/Vorssaint/Services/Shelf/ShelfFilePromiseTransfer.swift
+        Sources/Vorssaint/Core/ShelfPromiseDeliveryStrings.swift
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift
         Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift
@@ -412,6 +441,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
         Sources/Vorssaint/Services/Metrics/SpeedTest.swift
+        Sources/Vorssaint/Services/Metrics/PeripheralBatterySampler.swift
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift
@@ -483,6 +513,8 @@ echo "▸ Compiling Now Playing adapter…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -module-name VorssaintNowPlaying \
     Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
+    Sources/NowPlayingAdapter/NowPlayingQueue.swift \
+    Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
     -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"

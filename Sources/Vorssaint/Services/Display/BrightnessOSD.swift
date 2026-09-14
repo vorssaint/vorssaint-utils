@@ -19,6 +19,9 @@ enum BrightnessOSD {
             }
             return
         }
+        if NotchSupport.routes(.brightness), NotchService.shared.showBrightness(brightness) {
+            return
+        }
         guard let screen = NSScreen.screens.first(where: {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
                 .uint32Value == displayID

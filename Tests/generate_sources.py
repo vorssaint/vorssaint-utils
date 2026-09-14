@@ -36,6 +36,74 @@ def write(name, text):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    updates = "Sources/Vorssaint/Services/AppUpdates/AppUpdatesService.swift"
+    loader = "Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedLoader.swift"
+    # Only the network configuration, clock and declaration visibility change.
+    # The loader, batch loop, catalog matching and fallback resolution stay verbatim.
+    write("AppUpdates.swift", "import Foundation\nimport Darwin\nextension AppUpdatesContract {\n"
+          + declaration(loader, "final class AppUpdateFeedLoader:")
+          + "final class Service {\nlet workQueue = DispatchQueue(label: \"app-updates.contract\")\n"
+          + "let clock = Clock()\nstatic let ownPackageTokens: Set<String> = [\"vorssaint\", \"vorssaint@beta\", \"vorssaint-beta\"]\n"
+          + "static let onlineCatalogCacheLifetime: TimeInterval = 60 * 60\n"
+          + "var onlineCatalogCache: (loadedAt: Foundation.Date, entries: [AppUpdatesSupport.CatalogEntry])?\n"
+          + "lazy var catalogSession = URLSession(configuration: URLSessionConfiguration.ephemeral)\n"
+          + declaration(updates, "    private struct SourceResult {").replace("private struct", "struct", 1)
+          + declaration(updates, "    private func publisherFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
+          + declaration(updates, "    private func onlineCatalogFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
+          + declaration(updates, "    private func onlineResult(").replace("private func", "func", 1)
+          + "}\n}\n")
+    write("NotchActivationButton.swift", "import AppKit\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
+    shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
+    write("ShelfDragCompletion.swift", "import Foundation\n\nextension ShelfDragCompletionContract {\n"
+          + "final class Service {\nvar activeInternalDragIDs: [UUID] = []\n"
+          + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
+          + "var panel: NSWindow?\nvar dockedPanel: NSWindow?\n"
+          + "var isPinned = false\nvar isVisible = false\nvar dockedVisible = false\n"
+          + "var removed: [UUID] = []\nvar floatingClosures = 0\nvar dockedClosures = 0\n"
+          + "func endInteraction() {}\nfunc removeItems(_ ids: [UUID]) { removed += ids }\n"
+          + "func hide() { floatingClosures += 1; isVisible = false }\n"
+          + "func collapseDocked() { dockedClosures += 1; dockedVisible = false }\n"
+          + declaration(shelf, "    func beginInternalDrag(")
+          + declaration(shelf, "    func finishInternalDrag(")
+          + declaration(shelf, "    func completeInternalDrag(")
+          + "}\n}\n")
+    notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
+    canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
+    write("ShelfDropRouting.swift", "import AppKit\n\nextension ShelfDropRoutingContract {\n"
+          + declaration(canvas, "struct NotchFileDropActions {")
+          + "final class ShelfService: ShelfState {\nstatic var shared = ShelfService()\n"
+          + declaration(shelf, "    func acceptDrop(pasteboard:")
+          + declaration(shelf, "    func accept(draggingInfo:")
+          + "}\nfinal class Notch: NotchState {\n"
+          + declaration(notch, "    var canAcceptFileDrop:")
+          + declaration(notch, "    func accept(_ pasteboard:")
+          + "}\nfinal class Canvas {\nvar acceptingDrag = false\n"
+          + "var dropActions: NotchFileDropActions?\n"
+          + declaration(canvas, "    func beginDrop(")
+          + declaration(canvas, "    func finishDrop(")
+          + "}\n}\n")
+    switcher = "Sources/Vorssaint/UI/Switcher/SwitcherView.swift"
+    switcher_service = "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift"
+    write("SwitcherScroll.swift", "import AppKit\nimport SwiftUI\n"
+          + "extension SwitcherScrollContract {\nstruct Strip: View {\n"
+          + "@ObservedObject var switcher: Model\n"
+          + "var iconRowContentWidth: CGFloat { switcher.iconRowLayout.contentWidth(simpleMode: true, windowRow: false) }\n"
+          + "var body: some View {\nif selectedWindow != nil {\nlet appWindows = selectedAppWindows\n"
+          + "if switcher.simple {\nGroup {\n"
+          + declaration(switcher, "                ScrollViewReader { proxy in")
+          + "}\n.frame(width: iconRowContentWidth - 2 * SwitcherIconRowLayout.simpleTitlePanelPadding, "
+          + "height: 25 * SwitcherIconRowLayout.scale)\n} else {\n"
+          + declaration(switcher, "                    ScrollViewReader { proxy in")
+          + "}\n}\n}\n"
+          + declaration(switcher, "    private var selectedWindow:")
+          + declaration(switcher, "    private var selectedAppWindows:")
+          + declaration(switcher, "    private func revealSelection(")
+          + "}\n}\nextension SwitcherScrollContract.Model {\n"
+          + "func search(_ query: String) { searchQuery = query; applySearchFilter(preferredItemID: selectedItemID) }\n"
+          + declaration(switcher_service, "    private var selectedItemID:")
+          + declaration(switcher_service, "    private func applySearchFilter(")
+          + "}\n")
     service = "Sources/Vorssaint/Services/QuickTools/QuickLauncherService.swift"
     view = "Sources/Vorssaint/UI/QuickLauncher/QuickLauncherView.swift"
     panel_layout = (ROOT / "Sources/Vorssaint/UI/MenuPanel/PanelLayout.swift").read_text()
@@ -49,6 +117,79 @@ def main():
           + declaration(view, "    private func icon(for item: QuickLauncherItem)")
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
+
+    preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
+    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
+    write("NotchCaptureKeyboard.swift", "import Foundation\nimport Carbon.HIToolbox\n\nextension NotchCaptureKeyboardContract {\n"
+          + "final class NotchService {\nstatic var shared = NotchService()\n"
+          + "var presentationWindow: NSPanel? = NSPanel()\nvar acceptsSystemFeedback = true\n"
+          + "var expanded = true\nvar selected = NotchModule.captures\nvar showingAppPanel = false\n"
+          + "var showingSections = false\nvar selectedMetric: Int?\nvar captureControls: Int?\n"
+          + "var captureID: UUID?\nvar captureContent: Bool? = true\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    func isCaptureVisible(")
+          + "}\nfinal class Preview {\n"
+          + declaration(preview, "    enum Action {")
+          + "var keyMonitor: Any?\nvar closed = false\nvar shownInNotch = true\nlet presentationID = UUID()\n"
+          + "var actions: [Action] = []\nfunc perform(_ action: Action) { actions.append(action) }\n"
+          + "func close() { closed = true }\nfunc attach(_ panel: NSPanel) { installKeyMonitor(for: panel) }\n"
+          + declaration(preview, "    private func installKeyMonitor(for panel:")
+          + "}\nfinal class Selection {\n"
+          + "final class Options { var controlsInNotch = true; var hasFocusedControl = false }\n"
+          + "enum Outcome { case cancelled }\nvar screenCaptureOptions: Options? = Options()\n"
+          + "var keyMonitor: Any?\nvar globalKeyMonitor: Any?\nvar spaceIsDown = false\n"
+          + "var acceptsWindowClick = true\nvar loupeAcceptsKeyboardActions = false\n"
+          + "var actions: [String] = []\nvar draggingPanel: ScreenshotOverlayPanel?\n"
+          + 'func finish(_ outcome: Outcome) { actions.append("cancel") }\n'
+          + 'func captureFullDisplayUnderMouse() { actions.append("fullDisplay") }\n'
+          + "func panelUnderMouse() -> ScreenshotOverlayPanel? { draggingPanel }\n"
+          + 'func repeatLastRegion() { actions.append("repeat") }\n'
+          + "func selectCaptureTool(for event: NSEvent) -> Bool { false }\n"
+          + "static func isScrollingCaptureKey(_ event: NSEvent) -> Bool { false }\n"
+          + "static func isLoupeKey(_ event: NSEvent) -> Bool { false }\n"
+          + "static func isCopyColorKey(_ event: NSEvent) -> Bool { false }\n"
+          + "static func isNudgeKey(_ event: NSEvent) -> Bool { false }\n"
+          + "func toggleScrollingCapture() {}\nfunc toggleLoupe() {}\nfunc copyLoupeColor() {}\n"
+          + "func nudgePointer(keyCode: Int, fast: Bool) {}\nfunc attach() { installKeyMonitor() }\n"
+          + declaration(selection, "    private func installKeyMonitor()")
+          + "}\n}\n")
+
+    lyrics = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
+    write("NotchLyricsLifecycle.swift", "import Foundation\nimport UniformTypeIdentifiers\n\nextension NotchLyricsContract {\n"
+          + "final class Service {\nvar memory = NotchLyricsMemory()\n"
+          + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
+          + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
+          + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
+          + declaration(lyrics, "    func update(playback:")
+          + declaration(lyrics, "    func playbackChanged(")
+          + declaration(lyrics, "    func hide()")
+          + declaration(lyrics, "    func stop()")
+          + declaration(lyrics, "    private func cancel()")
+          + declaration(lyrics, "    func importLyrics()")
+          + declaration(lyrics, "    private func canReturnToLyrics(")
+          + "}\n}\n")
+
+    music = "Sources/Vorssaint/Services/Notch/NotchMusicService.swift"
+    write("NotchQueueSelection.swift", "import Foundation\n\nextension NotchQueueContract {\n"
+          + "final class Service {\nvar queueVisible = true\nvar queueRequest: UUID?\n"
+          + "var upcoming: NotchQueueSnapshot?\nvar playback: NotchPlayback?\n"
+          + "var queueActionFailed = false\nvar queueActionPending = false\nvar sendAllowed = true\n"
+          + "var commands: [NotchPlaybackCommand] = []\n"
+          + "func send(_ command: NotchPlaybackCommand) -> Bool { commands.append(command); return sendAllowed && command.message != nil }\n"
+          + declaration(music, "    func playQueued(")
+          + "}\n}\n")
+
+    downloads = "Sources/Vorssaint/Services/Notch/NotchDownloadService.swift"
+    write("NotchDownloadFolderChoice.swift", "import Foundation\n\nextension NotchDownloadFolderChoiceContract {\n"
+          + "final class Service {\nvar chooser: NSOpenPanel?\nvar chooserID = UUID()\n"
+          + "var folderUnavailable = false\nvar syncs = 0\nvar stops = 0\n"
+          + "func syncWithPreferences() { syncs += 1 }\n"
+          + "func stop() { stops += 1; cancelFolderChoice() }\n"
+          + declaration(downloads, "    func chooseFolder()")
+          + declaration(downloads, "    private func folderPickerParent()")
+          + declaration(downloads, "    private func canReturnToDownloads(")
+          + declaration(downloads, "    private func cancelFolderChoice()")
+          + "}\n}\n")
 
     factories = []
     pattern = r"static\s+func\s+(\w+)\s*\(\s*_\s+\w+:\s*AppLanguage\s*\)\s*->"

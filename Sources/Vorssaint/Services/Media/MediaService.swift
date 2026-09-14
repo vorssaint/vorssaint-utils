@@ -3,6 +3,7 @@
 
 import AppKit
 import AVFoundation
+import Darwin
 import ImageIO
 import UniformTypeIdentifiers
 import Vision
@@ -125,6 +126,17 @@ private final class MediaCancellationToken {
     }
 }
 
+/// A workspace can outlive its visible panel while its requested export runs.
+final class MediaWorkspaceSelection: ObservableObject {
+    @Published var inputURLs: [URL] = []
+    @Published var inputImageSize: CGSize?
+    @Published var outputURL: URL?
+    @Published var outputWasChosenManually = false
+    @Published var tool: MediaTool?
+    var loadedInitialInputs = false
+    var durationLoading = MediaDurationLoading()
+}
+
 final class MediaService: ObservableObject {
     static let shared = MediaService()
 
@@ -137,17 +149,24 @@ final class MediaService: ObservableObject {
     private var activeProcess: Process?
     private var activeVisionRequest: VNRequest?
 
-    private init() {}
+    private let replacesExistingOutputs: Bool
+
+    init(replacesExistingOutputs: Bool = true) {
+        self.replacesExistingOutputs = replacesExistingOutputs
+    }
 
     func reset() {
         cancel()
         publish(.idle)
     }
 
-    func cancel() {
+    func cancel(immediately: Bool = false) {
         lock.lock()
         token?.cancel()
-        activeProcess?.terminate()
+        if let activeProcess, activeProcess.isRunning {
+            if immediately { kill(activeProcess.processIdentifier, SIGKILL) }
+            else { activeProcess.terminate() }
+        }
         activeVisionRequest?.cancel()
         operationID = nil
         activeProcess = nil
@@ -742,7 +761,8 @@ final class MediaService: ObservableObject {
         guard self.operationID == operationID, !token.isCancelled else {
             throw MediaFailureBox(.cancelled)
         }
-        try MediaSupport.installStagedOutput(stagedURL, at: outputURL)
+        try MediaSupport.installStagedOutput(stagedURL, at: outputURL,
+                                             replacingExisting: replacesExistingOutputs)
     }
 
     private func resize(_ image: CGImage, maxDimension: Int) -> CGImage? {
