@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Combine
 import CoreGraphics
 
@@ -14,25 +15,34 @@ import CoreGraphics
 /// flagged continuous are wheels only when they carry no gesture phase at all.
 /// Toggling takes effect immediately. Requires Accessibility.
 ///
-/// Apps on this feature's own exception list (issue #358) keep the direction
-/// macOS gives them. The list is separate from the smooth scrolling one on
-/// purpose, so excepting an app from the glide never leaves it scrolling
-/// backwards; when both features are on, the flip happens inside the smooth
-/// scrolling tap and honors this same list.
+/// Apps on the shared scrolling exception list (issue #358) keep the direction
+/// macOS gives them and receive no glide. When both features are on, this HID
+/// tap flips first and the later smooth-scroll tap coasts those final deltas
+/// without inverting them again.
+///
+/// The tap is served by `PointerTapRunLoop` so ordinary wheel events never wait
+/// on the main run loop. Axis preferences are snapshotted under a lock so the
+/// callback never reads UserDefaults.
 final class ScrollInverter: ObservableObject {
     static let shared = ScrollInverter()
 
     /// True while the event tap is installed and inverting.
     @Published private(set) var isRunning = false
 
-    /// This process's own id, compared against the one every event carries.
     private static let ownProcessID = Int64(getpid())
+    private static let maxTapTimeoutsPerWindow = 3
+    private static let tapTimeoutWindow: TimeInterval = 60
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     /// Guards the two above: the callback runs on the pointer thread while the
     /// main thread arms and tears the tap down.
     private let tapStateLock = NSLock()
+    private let configLock = NSLock()
+    private var invertVertical = false
+    private var invertHorizontal = false
+    private var tapTimeoutCount = 0
+    private var tapTimeoutWindowStart: TimeInterval = 0
     /// Timestamp (ns, event clock) of the last event carrying a gesture phase —
     /// only touch devices emit those. Read/written solely on the tap callback,
     /// which is the pointer thread and nothing else.
@@ -50,16 +60,31 @@ final class ScrollInverter: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
+        refreshPreferences()
         let defaults = UserDefaults.standard
         let wanted = AppFeature.scrollInverter.isAvailable
             && (defaults.bool(forKey: DefaultsKey.scrollInverterEnabled)
                 || defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled))
+        // Live trust: a cached Permissions flag can lag a System Settings revoke.
+        // Session must be on console too, or a switched-away login keeps a live
+        // filter tap and stalls the account on screen (issue #1075).
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
-                                               accessibilityGranted: Permissions.shared.accessibility,
+                                               accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
             start()
         } else {
             stop()
+        }
+    }
+
+    /// Pushes axis toggles into the tap thread without tearing the tap down.
+    func refreshPreferences() {
+        let defaults = UserDefaults.standard
+        let vertical = defaults.bool(forKey: DefaultsKey.scrollInverterEnabled)
+        let horizontal = defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+        configLock.withLock {
+            invertVertical = vertical
+            invertHorizontal = horizontal
         }
     }
 
@@ -69,6 +94,7 @@ final class ScrollInverter: ObservableObject {
     func suspend() { stop() }
 
     private func start() {
+        refreshPreferences()
         if let port = tapStateLock.withLock({ tap }) {
             CGEvent.tapEnable(tap: port, enable: true)
             MouseAppExceptions.shared.setSourceTracking(true, for: .scrollDirection)
@@ -90,16 +116,7 @@ final class ScrollInverter: ObservableObject {
         ) else {
             MouseAppExceptions.shared.setSourceTracking(false, for: .scrollDirection)
             isRunning = false
-            // A create that fails during the session handoff gets one more look once the switch settles.
-            guard !tapCreationRetryUsed else { return }
-            tapCreationRetryUsed = true
-            let work = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                self.tapCreationRetryWork = nil
-                self.syncWithPreferences()
-            }
-            tapCreationRetryWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+            scheduleTapCreationRetry()
             return
         }
 
@@ -110,6 +127,8 @@ final class ScrollInverter: ObservableObject {
         tapStateLock.withLock {
             self.tap = tap
             runLoopSource = source
+            tapTimeoutCount = 0
+            tapTimeoutWindowStart = 0
         }
         if let source {
             PointerTapRunLoop.add(source)
@@ -141,22 +160,33 @@ final class ScrollInverter: ObservableObject {
         isRunning = false
     }
 
+    private func scheduleTapCreationRetry() {
+        // A create that fails during the session handoff gets one more look once the switch settles.
+        guard !tapCreationRetryUsed else { return }
+        tapCreationRetryUsed = true
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.tapCreationRetryWork = nil
+            self.syncWithPreferences()
+        }
+        tapCreationRetryWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // macOS disables taps that stall or when the session locks; re-arm,
-        // unless this session is the one that was switched away from, where
-        // the stall is the reason the tap was disabled and re-arming feeds it.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if SessionActivity.shared.isActive, let port = tapStateLock.withLock({ tap }) {
-                CGEvent.tapEnable(tap: port, enable: true)
+            // Do not re-arm into a switched-away session: the stall is why the
+            // tap was disabled, and feeding it stalls the account on screen.
+            guard SessionActivity.shared.isActive else {
+                return Unmanaged.passUnretained(event)
             }
-            return Unmanaged.passUnretained(event)
+            return handleTapDisabled(event)
         }
         guard type == .scrollWheel else { return Unmanaged.passUnretained(event) }
-        // Smooth scrolling swallows the wheel before this tap and already
-        // turned its glide around, so flipping the glide here would cancel
-        // that out and inverting would look broken while both are on. The
-        // process id is checked too: the only scroll events this app posts
-        // are those glide frames.
+        // Smooth Scroll runs later at the annotated-session tap, so ordinary
+        // wheel events are inverted here before it turns them into a glide.
+        // Its synthetic frames normally cannot reach this HID tap; the tag and
+        // process id remain a defensive recursion guard.
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag,
               sourceProcessID != Self.ownProcessID else {
@@ -177,12 +207,17 @@ final class ScrollInverter: ObservableObject {
             lastGesturePhaseTimestamp = timestamp
         }
 
+        let targetProcessID = event.getIntegerValueField(.eventTargetUnixProcessID)
+        let config = configLock.withLock {
+            (vertical: invertVertical, horizontal: invertHorizontal)
+        }
         if ScrollWheelSupport.isMouseWheel(traits,
                                            secondsSinceLastGesturePhase: secondsSinceGesturePhase),
            !MouseAppExceptions.shared.excludesPointerTarget(
                 .scrollDirection,
                 at: event.location,
-                sourceProcessID: sourceProcessID) {
+                sourceProcessID: sourceProcessID,
+                targetProcessID: targetProcessID) {
             // Capture both axes before any set: writing a line delta makes the
             // system rederive its point and fixed-point fields.
             let verticalLine = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
@@ -191,7 +226,6 @@ final class ScrollInverter: ObservableObject {
             let horizontalLine = event.getIntegerValueField(.scrollWheelEventDeltaAxis2)
             let horizontalPoint = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)
             let horizontalFixedPoint = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)
-            let defaults = UserDefaults.standard
             let hasVerticalMovement = verticalLine != 0 || verticalPoint != 0 || verticalFixedPoint != 0
             let hasHorizontalMovement = horizontalLine != 0
                 || horizontalPoint != 0
@@ -200,8 +234,8 @@ final class ScrollInverter: ObservableObject {
                 hasVerticalMovement: hasVerticalMovement,
                 hasHorizontalMovement: hasHorizontalMovement,
                 shiftRedirectsVertical: !traits.isContinuous && event.flags.contains(.maskShift),
-                invertVertical: defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
-                invertHorizontal: defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+                invertVertical: config.vertical,
+                invertHorizontal: config.horizontal
             )
             if plan.vertical {
                 event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: -verticalLine)
@@ -217,6 +251,37 @@ final class ScrollInverter: ObservableObject {
                     event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -horizontalFixedPoint)
                 }
             }
+        }
+        return Unmanaged.passUnretained(event)
+    }
+
+    private func handleTapDisabled(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard AXIsProcessTrusted() else {
+            DispatchQueue.main.async { [weak self] in self?.stop() }
+            return Unmanaged.passUnretained(event)
+        }
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let decision = tapStateLock.withLock { () -> (rearm: Bool, rebuild: Bool, tap: CFMachPort?) in
+            if tapTimeoutWindowStart == 0 || now - tapTimeoutWindowStart >= Self.tapTimeoutWindow {
+                tapTimeoutWindowStart = now
+                tapTimeoutCount = 0
+            }
+            tapTimeoutCount += 1
+            if tapTimeoutCount > Self.maxTapTimeoutsPerWindow {
+                return (false, true, tap)
+            }
+            return (true, false, tap)
+        }
+
+        if decision.rebuild {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.stop()
+                self.syncWithPreferences()
+            }
+        } else if decision.rearm, SessionActivity.shared.isActive, let tap = decision.tap {
+            CGEvent.tapEnable(tap: tap, enable: true)
         }
         return Unmanaged.passUnretained(event)
     }

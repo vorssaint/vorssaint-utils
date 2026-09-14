@@ -92,6 +92,11 @@ enum SettingsBackup {
         for (key, value) in settings {
             defaults.set(value, forKey: key)
         }
+        // Fold legacy scroll lists into the shared key while it is still
+        // absent. Re-adding carried paths first would create that key with
+        // only the path, and launch migration would then skip the union —
+        // dropping every bundle id an older backup still carries.
+        Defaults.migrateMouseScrollingExceptions(in: defaults)
         if let restored = settings[DefaultsKey.recorderEditorPresets] as? Data {
             defaults.set(SettingsBackupSupport.preservingLocalPresetImages(
                 restored: restored, local: localRecorderPresets), forKey: DefaultsKey.recorderEditorPresets)
