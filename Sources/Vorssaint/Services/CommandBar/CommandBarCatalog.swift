@@ -1526,6 +1526,22 @@ enum CommandBarCatalog {
             run: { _ in NSWorkspace.shared.open(url) })
     }
 
+    /// Last in the list, so a file or an app still leads and Return still
+    /// runs that. With nothing else to pick, Return searches the web.
+    static func webSearchEntry(for query: String,
+                               engine: CommandBarWebSearch.Engine,
+                               bar: CommandBarFeatureStrings) -> CommandBarEntry? {
+        guard let url = CommandBarWebSearch.url(for: query, engine: engine) else { return nil }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CommandBarEntry(
+            id: CommandBarWebSearch.rowID,
+            title: String(format: bar.webSearchTitleFormat, trimmed),
+            subtitle: engine.title,
+            icon: .symbol("globe"),
+            countsUsage: false,
+            run: { _ in NSWorkspace.shared.open(url) })
+    }
+
     // MARK: - Clipboard history
 
     /// Rows for history items matching the query, capped so pasted text never

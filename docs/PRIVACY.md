@@ -65,6 +65,8 @@ Feedback is delivered to private support channels visible to the service owner. 
 
 8. **Online lyrics, only after you enable the separate lookup option.** While the lyrics view is open, a lookup sends the current song's title, artist, album and duration over HTTPS to `lrclib.net`. Audio, artwork, local paths, accounts and listening history are not included. The provider receives ordinary request data, including your public IP address, under its own policies. Requests use an ephemeral session without stored cookies, reject redirects and stop when you hide the view or disable lookup. Lyrics are kept only in memory for the current song. Local lyric import works without this connection.
 
+9. **A Command Bar web search, only when you choose that row.** Return on the web-search row opens your default browser at a search for what you typed, DuckDuckGo unless you pick another engine in Command Bar settings. Vorssaint does not send the query itself; the browser does, under that search engine's own policy. The row can also be switched off under Command Bar settings.
+
 That is the entire list. There are no hidden beacons or background uploads.
 
 ## Changes to this document

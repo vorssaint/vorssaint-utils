@@ -43,6 +43,88 @@ enum CommandBarHome {
     }
 }
 
+/// Spotlight and Raycast's last row: search the web for what was typed.
+enum CommandBarWebSearch {
+    static let rowID = "websearch.fallback"
+    static let defaultEngine: Engine = .duckDuckGo
+
+    /// Stored ids for the engine the person picked. DuckDuckGo is the
+    /// setting out of the box; the rest are there if they want them.
+    enum Engine: String, CaseIterable, Identifiable {
+        case duckDuckGo = "duckduckgo"
+        case kagi
+        case google
+        case bing
+        case yahoo
+        case ecosia
+
+        var id: String { rawValue }
+
+        /// Brand names, left as the engine writes them.
+        var title: String {
+            switch self {
+            case .duckDuckGo: return "DuckDuckGo"
+            case .kagi: return "Kagi"
+            case .google: return "Google"
+            case .bing: return "Bing"
+            case .yahoo: return "Yahoo"
+            case .ecosia: return "Ecosia"
+            }
+        }
+
+        var endpoint: String {
+            switch self {
+            case .duckDuckGo: return "https://duckduckgo.com/"
+            case .kagi: return "https://kagi.com/search"
+            case .google: return "https://www.google.com/search"
+            case .bing: return "https://www.bing.com/search"
+            case .yahoo: return "https://search.yahoo.com/search"
+            case .ecosia: return "https://www.ecosia.org/search"
+            }
+        }
+
+        /// Yahoo's search form still names the field `p`.
+        var queryParameter: String {
+            switch self {
+            case .yahoo: return "p"
+            default: return "q"
+            }
+        }
+    }
+
+    static func engine(from raw: String?) -> Engine {
+        if let raw, let engine = Engine(rawValue: raw) { return engine }
+        return defaultEngine
+    }
+
+    static func shouldOffer(query: String, inCategory: Bool) -> Bool {
+        guard !inCategory else { return false }
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if CommandBarSearch.emojiQuery(from: query) != nil { return false }
+        if CommandBarLinks.typedURL(trimmed) != nil { return false }
+        return true
+    }
+
+    static func url(for query: String, engine: Engine) -> URL? {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        var components = URLComponents(string: engine.endpoint)
+        components?.queryItems = [URLQueryItem(name: engine.queryParameter, value: trimmed)]
+        return components?.url
+    }
+
+    /// The fallback is built while you type, so it never enters the catalog
+    /// index. It is still the same row every time, which is what ⌘K needs.
+    static func offersActions(forRowID id: String) -> Bool {
+        id == rowID
+    }
+
+    static func engineActionID(_ engine: Engine) -> String {
+        "websearch.engine.\(engine.rawValue)"
+    }
+}
+
 /// The bar can be visible before home has finished preparing, but only the
 /// presentation that asked for that work may receive it.
 struct CommandBarPresentationLifecycle {
