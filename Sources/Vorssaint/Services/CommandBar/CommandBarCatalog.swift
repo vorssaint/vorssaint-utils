@@ -456,21 +456,17 @@ enum CommandBarCatalog {
                 icon: .symbol(awake.isActive ? "bolt.fill" : "bolt"),
                 shortcut: roleShortcut(.keepAwake),
                 isActive: awake.isActive,
-                // A typed number is a duration in minutes; without one the row
-                // is the plain on and off switch.
-                numericRange: 1...480,
-                numericIsOptional: true,
-                run: { minutes in
-                    if let minutes {
-                        KeepAwakeManager.shared.activate(minutes: minutes)
-                    } else {
-                        KeepAwakeManager.shared.toggle()
-                    }
-                }))
+                // Keep awake only honours the preset durations and turns any
+                // other number into an indefinite session, so the plain row
+                // takes no number and each preset has a row of its own.
+                run: { _ in KeepAwakeManager.shared.toggle() }))
             let durations: [(String, String, Int)] = [
+                ("action.keepAwake.15", s.minutes15, 15),
                 ("action.keepAwake.30", s.minutes30, 30),
                 ("action.keepAwake.60", s.hour1, 60),
                 ("action.keepAwake.120", s.hours2, 120),
+                ("action.keepAwake.240", s.hours4, 240),
+                ("action.keepAwake.480", s.hours8, 480),
             ]
             for (id, label, minutes) in durations {
                 entries.append(CommandBarEntry(
