@@ -28,7 +28,7 @@ final class RecentCaptureService: ObservableObject {
     private var panelKeyMonitor: Any?
     private var panelLocalClickMonitor: Any?
     private var panelGlobalClickMonitor: Any?
-    private var panelDeactivateObserver: NSObjectProtocol?
+    private var panelActivationObserver: NSObjectProtocol?
 
     private init() {
         thumbnailCache.countLimit = ScreenshotSupport.recentCaptureLimit
@@ -98,7 +98,9 @@ final class RecentCaptureService: ObservableObject {
         panel.title = FeatureStrings.recentCaptures(L10n.shared.language).title
         panel.isReleasedWhenClosed = false
         panel.isMovableByWindowBackground = true
-        panel.hidesOnDeactivate = true
+        // The palette is summoned from other apps. A panel that hides on deactivate
+        // stays off screen until this app activates, so it would appear late.
+        panel.hidesOnDeactivate = false
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.backgroundColor = .clear
@@ -163,10 +165,15 @@ final class RecentCaptureService: ObservableObject {
             matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 self?.hideHistoryWindow()
             }
-        panelDeactivateObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didResignActiveNotification,
+        panelActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
-            queue: .main) { [weak self] _ in
+            queue: .main) { [weak self] notification in
+                guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication,
+                      app.bundleIdentifier != Bundle.main.bundleIdentifier,
+                      app.bundleIdentifier != AssistiveKeyboard.bundleID
+                else { return }
                 self?.hideHistoryWindow()
             }
     }
@@ -175,13 +182,13 @@ final class RecentCaptureService: ObservableObject {
         if let panelKeyMonitor { NSEvent.removeMonitor(panelKeyMonitor) }
         if let panelLocalClickMonitor { NSEvent.removeMonitor(panelLocalClickMonitor) }
         if let panelGlobalClickMonitor { NSEvent.removeMonitor(panelGlobalClickMonitor) }
-        if let panelDeactivateObserver {
-            NotificationCenter.default.removeObserver(panelDeactivateObserver)
+        if let panelActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(panelActivationObserver)
         }
         panelKeyMonitor = nil
         panelLocalClickMonitor = nil
         panelGlobalClickMonitor = nil
-        panelDeactivateObserver = nil
+        panelActivationObserver = nil
     }
 
     private var root: URL? {
