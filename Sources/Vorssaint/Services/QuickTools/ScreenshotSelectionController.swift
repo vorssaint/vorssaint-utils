@@ -162,6 +162,8 @@ final class ScreenshotSelectionController {
             freeze: freeze,
             includePointer: includePointer,
             hideVorssaintWindows: hideVorssaintWindows,
+            keepsContentWindowsOut: hideVorssaintWindows
+                || screenCaptureOptions?.selectedTool == .recording,
             usesGeometry: mode == .geometry)
         defaults.set(Double(loupeZoom), forKey: DefaultsKey.screenshotLoupeLastZoom)
     }

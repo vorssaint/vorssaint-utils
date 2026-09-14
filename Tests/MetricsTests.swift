@@ -18405,12 +18405,15 @@ struct MetricsTests {
             screenshotHideVorssaintWindows: true)
         expect(liveScreenshotPolicy == .init(freeze: false, includePointer: true,
                                              hideVorssaintWindows: true,
+                                             keepsContentWindowsOut: true,
                                              usesGeometry: false)
                 && recorderPolicy == .init(freeze: true, includePointer: false,
                                            hideVorssaintWindows: false,
+                                           keepsContentWindowsOut: true,
                                            usesGeometry: true)
                 && textPolicy == .init(freeze: true, includePointer: false,
                                        hideVorssaintWindows: true,
+                                       keepsContentWindowsOut: true,
                                        usesGeometry: false),
                "switching capture mode rebuilds the frozen frame, pointer and window policy")
         let colorPolicy = ScreenshotSupport.unifiedCapturePolicy(
@@ -18422,6 +18425,44 @@ struct MetricsTests {
                 && !textPolicy.sharesSource(with: recorderPolicy)
                 && !textPolicy.sharesSource(with: liveScreenshotPolicy),
                "only freeze, pointer and window policy decide whether a mode needs its own photograph")
+        // With "Hide Vorssaint windows" off, freeze on and the pointer off,
+        // every tool wants the same pixels except for the editors and pins
+        // recording keeps out, so switching to or from recording has to
+        // re-photograph and re-list the pickable windows (issue #780).
+        let shownWindowPolicies = Dictionary(uniqueKeysWithValues: ScreenCaptureTool.allCases.map {
+            ($0, ScreenshotSupport.unifiedCapturePolicy(
+                for: $0,
+                screenshotFreeze: true,
+                screenshotIncludePointer: false,
+                screenshotHideVorssaintWindows: false))
+        })
+        expect(shownWindowPolicies[.recording]?.keepsContentWindowsOut == true
+                && shownWindowPolicies[.screenshot]?.keepsContentWindowsOut == false
+                && shownWindowPolicies[.text]?.keepsContentWindowsOut == false
+                && shownWindowPolicies[.color]?.keepsContentWindowsOut == false,
+               "only recording keeps editors and pins out while Vorssaint windows are shown")
+        expect(shownWindowPolicies[.recording].map { recording in
+            [ScreenCaptureTool.screenshot, .text, .color].allSatisfy { tool in
+                guard let other = shownWindowPolicies[tool] else { return false }
+                return !recording.sharesSource(with: other) && !other.sharesSource(with: recording)
+            }
+        } == true,
+               "switching between recording and screenshot, text or color refreshes the picture and pickable windows both ways")
+        expect(shownWindowPolicies[.screenshot].map { screenshot in
+            [ScreenCaptureTool.text, .color].allSatisfy {
+                shownWindowPolicies[$0].map(screenshot.sharesSource(with:)) == true
+            }
+        } == true,
+               "tools that show the same windows keep the picture they already have")
+        let hiddenWindowPolicies = ScreenCaptureTool.allCases.map {
+            ScreenshotSupport.unifiedCapturePolicy(
+                for: $0,
+                screenshotFreeze: true,
+                screenshotIncludePointer: false,
+                screenshotHideVorssaintWindows: true)
+        }
+        expect(hiddenWindowPolicies.allSatisfy(\.keepsContentWindowsOut),
+               "hiding Vorssaint windows keeps editors and pins out of every tool")
         expect(ScreenshotSupport.captureGuideIsVisible(pointerOnDisplay: true,
                                                        selectionInProgress: false,
                                                        capturePending: false)
