@@ -7004,6 +7004,15 @@ struct MetricsTests {
         expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 160, y: 160)) == .bottomLeft,
                "moving down-left triggers bottom left")
 
+        // MARK: Media compression labels (#1501)
+        let mediaCompressionEnglish = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/Localization.swift",
+            encoding: .utf8)) ?? ""
+        expect(mediaCompressionEnglish.contains("mediaCompressionLow: \"Low (high quality)\"")
+                && mediaCompressionEnglish.contains("mediaCompressionMedium: \"Medium (balanced)\"")
+                && mediaCompressionEnglish.contains("mediaCompressionHigh: \"High (small file)\""),
+               "compression buttons name the quality / size trade-off")
+
         expect(MediaImageFormat.sanitized("pdf") == .pdf,
                "Image converter accepts the PDF format")
         expect(MediaImageFormat.pdf.fileExtension == "pdf",

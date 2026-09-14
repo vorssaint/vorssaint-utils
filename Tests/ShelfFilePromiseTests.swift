@@ -120,7 +120,8 @@ enum ShelfFilePromiseTests {
         let queuedReceiver = Receiver(["queued.txt"])
         queuedTransfer.receive([queuedReceiver])
         queuedReceiver.send(0)
-        queuedReceiver.drain()
+        // drain() on main can deliver the already-queued completion before cancel.
+        DispatchQueue.global().sync { queuedReceiver.drain() }
         queuedTransfer.cancel(); pump(); queuedReceiver.drain()
         expect(queuedResults == 0 && entries(queuedStore).isEmpty, "cancel wins over an already queued main-thread completion")
 
