@@ -140,14 +140,24 @@ struct PowerSection: View {
             peripheralBatteryRows
         case .system:
             if pwrSystem, let watts = power?.systemWatts {
-                row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
-                    label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
-                    visible: $pwrSystem, editing: editing)
                 if showGraph, monitor.snapshot.systemPowerHistory.count >= 2 {
-                    Sparkline(values: monitor.snapshot.systemPowerHistory,
-                              color: PanelMetricColor.orange(for: colorScheme),
-                              showsZeroBaseline: true)
-                        .frame(height: 26)
+                    HStack(spacing: 8) {
+                        row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
+                            label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
+                            visible: $pwrSystem, editing: false)
+                            .fixedSize(horizontal: true, vertical: false)
+                        Sparkline(values: monitor.snapshot.systemPowerHistory,
+                                  color: PanelMetricColor.orange(for: colorScheme),
+                                  showsZeroBaseline: true)
+                            .frame(height: 26)
+                        if editing {
+                            PanelInlineHideButton(isVisible: $pwrSystem)
+                        }
+                    }
+                } else {
+                    row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
+                        label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
+                        visible: $pwrSystem, editing: editing)
                 }
             } else if editing && !pwrSystem {
                 PanelHiddenItemRow(title: l10n.s.powerSystem,
