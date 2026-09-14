@@ -41,6 +41,7 @@ struct MetricsTests {
                 OneTimePasswordTests.run { suite.expect($0, $1) }
                 GoogleMigrationTests.run { suite.expect($0, $1) }
                 AuthenticatorStoreTests.run { suite.expect($0, $1) }
+                AuthenticatorInterchangeTests.run { suite.expect($0, $1) }
             }),
             ("switcher", { SwitcherScrollContract.run(suite) }),
         ]
