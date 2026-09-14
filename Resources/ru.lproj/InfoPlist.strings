@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете.";
 "NSNetworkVolumesUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете.";
+"NSCalendarsFullAccessUsageDescription" = "Показывает предстоящие встречи в верхней части экрана. События календаря остаются на этом Mac.";

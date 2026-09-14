@@ -212,6 +212,11 @@ enum SettingsDirectory {
                                       keywords: ["force quit", "process", "cpu", "memory", "kill"]),
             ]),
             (categories.utilities, [
+                SettingsDirectoryItem(page: .notch,
+                                      title: FeatureStrings.notch(language).title,
+                                      icon: "macbook",
+                                      keywords: [FeatureStrings.notch(language).description,
+                                                 "notch", "camera", "music", "clipboard"]),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",

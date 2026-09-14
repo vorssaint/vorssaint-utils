@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";
 "NSNetworkVolumesUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";
 "NSRemovableVolumesUsageDescription" = "Vorssaint 會將已確認的 WhatsApp 下載項目整理到你明確選擇的目標資料夾。";
+"NSCalendarsFullAccessUsageDescription" = "在螢幕頂部顯示即將到來的行程。行事曆行程只會保留在這部 Mac 上。";

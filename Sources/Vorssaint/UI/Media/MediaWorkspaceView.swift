@@ -51,7 +51,7 @@ private enum MediaCompressionLevel: String, CaseIterable, Identifiable {
 
 struct MediaWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var media = MediaService.shared
+    @ObservedObject private var media: MediaService
     @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
 
@@ -94,10 +94,23 @@ struct MediaWorkspaceView: View {
 
     @AppStorage(DefaultsKey.mediaTextAccurate) private var textAccurate = true
 
-    @State private var inputURLs: [URL] = []
-    @State private var inputImageSize: CGSize?
-    @State private var outputURL: URL?
-    @State private var outputWasChosenManually = false
+    @StateObject private var workspace: MediaWorkspaceSelection
+    private var inputURLs: [URL] {
+        get { workspace.inputURLs }
+        nonmutating set { workspace.inputURLs = newValue }
+    }
+    private var inputImageSize: CGSize? {
+        get { workspace.inputImageSize }
+        nonmutating set { workspace.inputImageSize = newValue }
+    }
+    private var outputURL: URL? {
+        get { workspace.outputURL }
+        nonmutating set { workspace.outputURL = newValue }
+    }
+    private var outputWasChosenManually: Bool {
+        get { workspace.outputWasChosenManually }
+        nonmutating set { workspace.outputWasChosenManually = newValue }
+    }
     @State private var isDropTargeted = false
     @State private var localMessage: String?
     @State private var mediaDefaultsTask: Task<Void, Never>?
@@ -112,7 +125,23 @@ struct MediaWorkspaceView: View {
     @State private var watermarkLogo: NSImage?
 
     var compact: Bool
-    var onClose: (() -> Void)? = nil
+    var onClose: (() -> Void)?
+    private let initialInputs: [URL]
+    private let initialTool: MediaTool?
+    private let preservesServiceState: Bool
+
+    init(compact: Bool, onClose: (() -> Void)? = nil,
+         media: MediaService = .shared, initialInputs: [URL] = [],
+         initialTool: MediaTool? = nil, preservesServiceState: Bool = false,
+         workspace: MediaWorkspaceSelection? = nil) {
+        self.compact = compact
+        self.onClose = onClose
+        self.media = media
+        self.initialInputs = initialInputs
+        self.initialTool = initialTool
+        self.preservesServiceState = preservesServiceState
+        _workspace = StateObject(wrappedValue: workspace ?? MediaWorkspaceSelection())
+    }
 
     private var inputURL: URL? { inputURLs.first }
     private var imageText: MediaImageConverterStrings {
@@ -124,10 +153,11 @@ struct MediaWorkspaceView: View {
     }
 
     private var selectedTool: MediaTool {
-        get { MediaSupport.sanitizedTool(toolRaw) }
+        get { workspace.tool ?? MediaSupport.sanitizedTool(toolRaw) }
         nonmutating set {
             cancelVideoImport()
-            toolRaw = newValue.rawValue
+            if preservesServiceState { workspace.tool = newValue }
+            else { toolRaw = newValue.rawValue }
             inputImageSize = newValue == .imageCompressor
                 ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
                 : nil
@@ -160,7 +190,19 @@ struct MediaWorkspaceView: View {
                 content
                     .padding(.trailing, 1)
             }
-            .frame(maxHeight: compact ? 430 : .infinity)
+            .frame(maxHeight: compact && !preservesServiceState ? 430 : .infinity)
+        }
+        .onAppear {
+            if !workspace.loadedInitialInputs {
+                workspace.loadedInitialInputs = true
+                if let initialTool {
+                    if preservesServiceState { workspace.tool = initialTool }
+                    else { selectedTool = initialTool }
+                }
+                if !initialInputs.isEmpty { setInputs(initialInputs, resetsMedia: !preservesServiceState) }
+            } else {
+                applyMediaDefaults(for: inputURL, tool: selectedTool, replacingInput: false)
+            }
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
@@ -178,10 +220,15 @@ struct MediaWorkspaceView: View {
         }
         .onDisappear {
             mediaDefaultsTask?.cancel()
+            workspace.durationLoading.cancel()
             cancelVideoImport()
         }
         .onChange(of: featureRuntime.revision) {
-            if !AppFeature.mediaTools.isAvailable { cancelVideoImport() }
+            if !AppFeature.mediaTools.isAvailable {
+                mediaDefaultsTask?.cancel()
+                workspace.durationLoading.cancel()
+                cancelVideoImport()
+            }
         }
     }
 
@@ -1266,7 +1313,7 @@ struct MediaWorkspaceView: View {
         setInputs([url])
     }
 
-    private func setInputs(_ urls: [URL]) {
+    private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {
         cancelVideoImport()
         inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor
@@ -1276,11 +1323,12 @@ struct MediaWorkspaceView: View {
         outputWasChosenManually = false
         applyMediaDefaults(for: inputURL, tool: selectedTool)
         localMessage = nil
-        media.reset()
+        if resetsMedia { media.reset() }
     }
 
     private func clearInput() {
         mediaDefaultsTask?.cancel()
+        workspace.durationLoading.reset()
         cancelVideoImport()
         inputURLs = []
         inputImageSize = nil
@@ -1290,14 +1338,25 @@ struct MediaWorkspaceView: View {
         media.reset()
     }
 
-    private func applyMediaDefaults(for url: URL?, tool: MediaTool) {
+    private func applyMediaDefaults(for url: URL?, tool: MediaTool, replacingInput: Bool = true) {
         mediaDefaultsTask?.cancel()
-        guard let url, tool == .videoCompressor || tool == .gifMaker else { return }
+        workspace.durationLoading.cancel()
+        if replacingInput {
+            workspace.durationLoading.reset()
+            // Zero means the full recording until its actual duration arrives.
+            // Never leave a previous input's saved trim on a newly chosen file.
+            if tool == .videoCompressor { videoStart = 0; videoEnd = 0 }
+            else if tool == .gifMaker { gifStart = 0; gifEnd = 0 }
+        }
+        guard AppFeature.mediaTools.isAvailable,
+              let request = workspace.durationLoading.start(url: url, tool: tool) else { return }
         mediaDefaultsTask = Task {
-            guard let duration = await Self.mediaDuration(for: url),
-                  !Task.isCancelled else { return }
+            let duration = await Self.mediaDuration(for: request.url)
+            guard !Task.isCancelled else { return }
             await MainActor.run {
-                guard inputURL == url, selectedTool == tool else { return }
+                guard inputURL == request.url, selectedTool == request.tool,
+                      AppFeature.mediaTools.isAvailable,
+                      let duration = workspace.durationLoading.finish(request, duration: duration) else { return }
                 switch tool {
                 case .videoCompressor:
                     videoStart = 0
@@ -1315,7 +1374,7 @@ struct MediaWorkspaceView: View {
     private static func mediaDuration(for url: URL) async -> Double? {
         guard let duration = try? await AVURLAsset(url: url).load(.duration).seconds else { return nil }
         guard duration.isFinite, duration > 0 else { return nil }
-        return (duration * 10).rounded() / 10
+        return duration
     }
 
     @MainActor

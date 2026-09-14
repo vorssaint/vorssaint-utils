@@ -541,7 +541,14 @@ enum RadialNowPlayingSupport {
         for key in [titleKey, artistKey, albumKey] {
             if let value = fields[key] as? String { info[key] = value }
         }
-        if let rate = fields[playbackRateKey] as? NSNumber { info[playbackRateKey] = rate }
+        for key in [playbackRateKey, "kMRMediaRemoteNowPlayingInfoDuration",
+                    "kMRMediaRemoteNowPlayingInfoElapsedTime"] {
+            if let value = fields[key] as? NSNumber { info[key] = value }
+        }
+        if fields["artworkUnchanged"] as? Bool == true { info["artworkUnchanged"] = true }
+        if let canSeek = fields["canSeek"] as? Bool { info["canSeek"] = canSeek }
+        if let identifier = fields["itemIdentifier"] as? String, !identifier.isEmpty,
+           identifier.utf8.count <= 512, !identifier.contains("\0") { info["itemIdentifier"] = identifier }
         if let artwork = fields["artworkBase64"] as? String,
            let bytes = Data(base64Encoded: artwork), !bytes.isEmpty {
             info[artworkDataKey] = bytes

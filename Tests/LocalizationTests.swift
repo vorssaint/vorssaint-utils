@@ -47,6 +47,7 @@ enum LocalizationTests {
                 ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
                 ("repeatedActionLayout", { WindowLayoutRepeatedActionStrings.localized($0) }),
                 ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
+                ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
             ]
             for (name, factory) in factories + additional {
                 check(factory(language), against: factory(.enUS),
