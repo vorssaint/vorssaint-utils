@@ -113,7 +113,7 @@ struct PanelUninstallerView: View {
         } onSelect: { url in
             showingAppPicker = false
             uninstaller.select(appURL: url)
-        }
+        } loadApps: { UninstallerSupport.offeredApplications() }
         .panelCard()
     }
 
@@ -410,8 +410,7 @@ struct PanelUninstallerView: View {
         guard let app = urls.first(where: { $0.pathExtension == "app" }) ?? urls.first else {
             return false
         }
-        uninstaller.select(appURL: app)
-        return true
+        return uninstaller.select(appURL: app)
     }
 
     private func choose() {

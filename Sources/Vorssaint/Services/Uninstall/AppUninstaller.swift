@@ -97,22 +97,13 @@ final class AppUninstaller: ObservableObject {
     // MARK: - Selection & scan
 
     /// Reads an app bundle and starts scanning for its leftovers.
-    func select(appURL: URL) {
-        guard let bundle = Bundle(url: appURL) else { return }
-        // System apps are SIP-protected and their support data is live OS
-        // state; removing either would be wrong, so refuse the selection.
-        guard !InstalledApps.isSystemApplication(at: appURL) else { return }
-        // Only a verified bundle identifier becomes a path component. A
-        // display name is presentation only and can never claim user data.
-        guard let bundleID = UninstallerSupport.verifiedBundleID(bundle.bundleIdentifier) else { return }
-        let selectedURL = appURL.standardizedFileURL
-        guard selectedURL == selectedURL.resolvingSymlinksInPath() else { return }
-        guard selectedURL != Bundle.main.bundleURL.standardizedFileURL else { return }
-        guard !UninstallerSupport.isSymbolicLink(appURL) else { return }
-        guard let selectedIdentity = UninstallerSupport.fileIdentity(at: selectedURL) else { return }
-        let infoURL = selectedURL.appendingPathComponent("Contents/Info.plist")
-        guard let selectedInfoIdentity = UninstallerSupport.fileIdentity(at: infoURL),
-              UninstallerSupport.removalPathIsSafe(infoURL, within: selectedURL) else { return }
+    @discardableResult
+    func select(appURL: URL) -> Bool {
+        guard let selection = UninstallerSupport.selection(for: appURL) else { return false }
+        let bundleID = selection.bundleID
+        let selectedURL = selection.url
+        let selectedIdentity = selection.identity
+        let selectedInfoIdentity = selection.infoIdentity
         var name = FileManager.default.displayName(atPath: appURL.path)
         if name.hasSuffix(".app") { name.removeLast(4) }
         let icon = NSWorkspace.shared.icon(forFile: appURL.path)
@@ -178,6 +169,7 @@ final class AppUninstaller: ObservableObject {
                 }
             }
         }
+        return true
     }
 
     func setInclude(_ include: Bool, for id: UUID) {

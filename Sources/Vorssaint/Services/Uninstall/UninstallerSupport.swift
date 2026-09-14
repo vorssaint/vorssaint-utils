@@ -17,6 +17,16 @@ enum UninstallerSupport {
         let inode: UInt64
     }
 
+    /// An app the uninstaller has agreed to take: its verified bundle
+    /// identifier, its standardized path, and the identities that later
+    /// prove the bundle on disk is still the one that was selected.
+    struct Selection {
+        let bundleID: String
+        let url: URL
+        let identity: FileIdentity
+        let infoIdentity: FileIdentity
+    }
+
     /// Tokens that identify one selected app. Bundle identifiers stay exact;
     /// display names are compared after stripping punctuation so "App Name"
     /// and "AppName.plist" can meet without turning the name into a path.
@@ -91,6 +101,34 @@ enum UninstallerSupport {
               CleanerSupport.looksLikeBundleID(rawValue),
               !CleanerSupport.isProtectedBundleID(rawValue) else { return nil }
         return rawValue
+    }
+
+    /// The one answer for "will the uninstaller take this app": the picker
+    /// offers only what this accepts, and a drop of anything else is refused.
+    static func selection(for appURL: URL) -> Selection? {
+        guard let bundle = Bundle(url: appURL) else { return nil }
+        // System apps are SIP-protected and their support data is live OS
+        // state; removing either would be wrong, so refuse the selection.
+        guard !InstalledApps.isSystemApplication(at: appURL) else { return nil }
+        // Only a verified bundle identifier becomes a path component. A
+        // display name is presentation only and can never claim user data.
+        guard let bundleID = verifiedBundleID(bundle.bundleIdentifier) else { return nil }
+        let selectedURL = appURL.standardizedFileURL
+        guard selectedURL == selectedURL.resolvingSymlinksInPath() else { return nil }
+        guard selectedURL != Bundle.main.bundleURL.standardizedFileURL else { return nil }
+        guard !isSymbolicLink(appURL) else { return nil }
+        guard let selectedIdentity = fileIdentity(at: selectedURL) else { return nil }
+        let infoURL = selectedURL.appendingPathComponent("Contents/Info.plist")
+        guard let selectedInfoIdentity = fileIdentity(at: infoURL),
+              removalPathIsSafe(infoURL, within: selectedURL) else { return nil }
+        return Selection(bundleID: bundleID, url: selectedURL,
+                         identity: selectedIdentity, infoIdentity: selectedInfoIdentity)
+    }
+
+    /// What the pickers list. An app that selection(for:) would refuse is
+    /// left out rather than offered and then silently turned down.
+    static func offeredApplications() -> [InstalledApps.InstalledApp] {
+        InstalledApps.installedApplications().filter { selection(for: $0.url) != nil }
     }
 
     static func fileIdentity(at url: URL) -> FileIdentity? {
