@@ -257,6 +257,8 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.delete)
                 Spacer()
+                ClipboardKindCapsule(entry: entry, text: text)
+                    .frame(maxWidth: 96)
                 Text(entry.copiedAt, style: .time)
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
