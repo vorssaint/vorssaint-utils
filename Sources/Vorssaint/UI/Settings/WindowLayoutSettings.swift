@@ -190,6 +190,7 @@ struct WindowLayoutSettings: View {
                 actionRow(.marginMaximize)
                 actionRow(.fullScreen)
                 actionRow(.center)
+                actionRow(.center80)
                 actionRow(.previousDisplay)
                 actionRow(.nextDisplay)
                 actionRow(.restore)
@@ -289,6 +290,7 @@ struct WindowLayoutSettings: View {
         case .marginMaximize: return "rectangle.inset.filled"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
+        case .center80: return "viewfinder"
         case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
         case .restore: return "arrow.uturn.backward"

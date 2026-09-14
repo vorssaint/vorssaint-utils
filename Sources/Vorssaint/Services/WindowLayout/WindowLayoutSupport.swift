@@ -31,7 +31,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case topLeftSixth, topCenterSixth, topRightSixth
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
-    case maximize, marginMaximize, fullScreen, center
+    case maximize, marginMaximize, fullScreen, center, center80
     case previousDisplay, nextDisplay, restore
 
     var id: String { rawValue }
@@ -42,7 +42,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .topLeftSixth, .topCenterSixth, .topRightSixth,
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
-        .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        .maximize, .marginMaximize, .fullScreen, .center, .center80, .restore,
         .previousDisplay, .nextDisplay,
     ]
 
@@ -90,6 +90,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .previousDisplay: return 54
         case .marginMaximize: return 55
         case .centerHalf: return 57
+        case .center80: return 58
         }
     }
 
@@ -111,6 +112,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRight: return DefaultsKey.windowLayoutShortcutBottomRight
         case .maximize: return DefaultsKey.windowLayoutShortcutMaximize
         case .marginMaximize: return DefaultsKey.windowLayoutShortcutMarginMaximize
+        case .center80: return DefaultsKey.windowLayoutShortcutCenter80
         case .fullScreen: return DefaultsKey.windowLayoutShortcutFullScreen
         case .center: return DefaultsKey.windowLayoutShortcutCenter
         case .restore: return DefaultsKey.windowLayoutShortcutRestore
@@ -154,7 +156,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .nextDisplay: return .windowLayoutNextDisplayDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
-                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf:
+                .marginMaximize, .fullScreen, .previousDisplay, .centerHalf, .center80:
             // New actions must never claim a system-wide combination unasked.
             return nil
         }
@@ -209,6 +211,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRight: return text.bottomRight
         case .maximize: return text.maximize
         case .marginMaximize: return text.marginMaximize
+        case .center80: return text.center80
         case .fullScreen: return text.fullScreen
         case .center: return text.center
         case .restore: return text.restore
@@ -249,6 +252,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRightSixth, .bottomRight: return "arrow.down.right"
         case .maximize: return "arrow.up.left.and.arrow.down.right"
         case .marginMaximize: return "rectangle.inset.filled"
+        case .center80: return "viewfinder"
         case .fullScreen: return "rectangle.fill"
         case .center: return "scope"
         case .previousDisplay: return "arrow.left.to.line"
@@ -340,7 +344,7 @@ enum WindowLayoutGeometry {
         // actions that return the current frame.
         let frame: CGRect
         switch action {
-        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
+        case .marginMaximize, .center80, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
             frame = visibleFrame
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
@@ -371,7 +375,7 @@ enum WindowLayoutGeometry {
                                      windowGap: CGFloat) -> CGRect {
         guard windowGap > 0 else { return rect }
         switch action {
-        case .maximize, .marginMaximize, .fullScreen, .center, .restore,
+        case .maximize, .marginMaximize, .center80, .fullScreen, .center, .restore,
                 .previousDisplay, .nextDisplay:
             return rect
         default:
@@ -471,6 +475,9 @@ enum WindowLayoutGeometry {
         case .marginMaximize:
             return visibleFrame.insetBy(dx: visibleFrame.width * 0.05,
                                         dy: visibleFrame.height * 0.05).integral
+        case .center80:
+            return visibleFrame.insetBy(dx: visibleFrame.width * 0.10,
+                                        dy: visibleFrame.height * 0.10).integral
         case .center:
             let width = min(current.width, visibleFrame.width)
             let height = min(current.height, visibleFrame.height)
@@ -519,6 +526,9 @@ enum WindowLayoutGeometry {
         case .centerThird, .centerHalf:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.minY
+        case .center80:
+            origin.x = targetRect.midX - size.width / 2
+            origin.y = targetRect.midY - size.height / 2
         case .rightThird, .rightTwoThirds:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
@@ -657,7 +667,7 @@ enum WindowLayoutGeometry {
                 && overlap > 0.35
         case .maximize:
             return overlap > 0.90
-        case .marginMaximize:
+        case .marginMaximize, .center80:
             return abs(actualRect.midX - targetRect.midX) <= anchorTolerance
                 && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
                 && overlap > 0.82

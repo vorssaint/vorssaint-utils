@@ -4709,6 +4709,14 @@ struct MetricsTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterHalf] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center half starts with no combination of its own")
+        expect(WindowLayoutAction.allCases.contains(.center80)
+                && WindowLayoutAction.center80.shortcutID == 58
+                && WindowLayoutAction(shortcutID: 58) == .center80,
+               "center 80 exists and answers to its own shortcut id")
+        expect(WindowLayoutAction.center80.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenter80] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "center 80 starts with no combination of its own")
         expect(Set(WindowLayoutAction.allCases.map(\.shortcutID)).count
                 == WindowLayoutAction.allCases.count,
                "every layout action keeps a distinct shortcut id")
@@ -4716,7 +4724,8 @@ struct MetricsTests {
             let layoutStrings = FeatureStrings.windowLayout(language)
             expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
-                    && !layoutStrings.centerHalf.isEmpty,
+                    && !layoutStrings.centerHalf.isEmpty
+                    && !layoutStrings.center80.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
         expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
@@ -6309,6 +6318,9 @@ struct MetricsTests {
         expect(WindowLayoutGeometry.rect(for: .centerHalf, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 360, y: 40, width: 720, height: 860),
                "window layout center half sits half wide in the middle of the screen")
+        expect(WindowLayoutGeometry.rect(for: .center80, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 144, y: 126, width: 1152, height: 688),
+               "window layout center 80 sits centered taking 80% width and height")
         expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
                                          windowGap: 16)
                == CGRect(x: 0, y: 40, width: 712, height: 860),
