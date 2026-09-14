@@ -340,11 +340,15 @@ final class BrightnessService: ObservableObject {
         let decrease = GlobalShortcutRole.displayBrightnessDecrease.savedShortcut
         let increase = GlobalShortcutRole.displayBrightnessIncrease.savedShortcut
         let decreaseConflicts = enabled && decrease.conflictsWithSystemShortcut
+            && !SystemShortcutTakeover.isTakenOver(GlobalShortcutRole.displayBrightnessDecrease.storageKey)
         let increaseConflicts = enabled && increase.conflictsWithSystemShortcut
+            && !SystemShortcutTakeover.isTakenOver(GlobalShortcutRole.displayBrightnessIncrease.storageKey)
         let decreaseRegistered = displayBrightnessDecreaseHotkey.sync(
-            enabled: enabled && !decreaseConflicts, shortcut: decrease)
+            enabled: enabled && !decreaseConflicts, shortcut: decrease,
+            storageKey: GlobalShortcutRole.displayBrightnessDecrease.storageKey)
         let increaseRegistered = displayBrightnessIncreaseHotkey.sync(
-            enabled: enabled && !increaseConflicts, shortcut: increase)
+            enabled: enabled && !increaseConflicts, shortcut: increase,
+            storageKey: GlobalShortcutRole.displayBrightnessIncrease.storageKey)
         displayBrightnessShortcutRegistrationFailed = decreaseConflicts || increaseConflicts
             || !(decreaseRegistered && increaseRegistered)
     }
@@ -373,11 +377,15 @@ final class BrightnessService: ObservableObject {
         let decreaseShortcut = GlobalShortcutRole.keyboardBrightnessDecrease.savedShortcut
         let increaseShortcut = GlobalShortcutRole.keyboardBrightnessIncrease.savedShortcut
         let decreaseConflicts = enabled && decreaseShortcut.conflictsWithSystemShortcut
+            && !SystemShortcutTakeover.isTakenOver(GlobalShortcutRole.keyboardBrightnessDecrease.storageKey)
         let increaseConflicts = enabled && increaseShortcut.conflictsWithSystemShortcut
+            && !SystemShortcutTakeover.isTakenOver(GlobalShortcutRole.keyboardBrightnessIncrease.storageKey)
         let decreaseRegistered = keyboardBrightnessDecreaseHotkey.sync(
-            enabled: enabled && !decreaseConflicts, shortcut: decreaseShortcut)
+            enabled: enabled && !decreaseConflicts, shortcut: decreaseShortcut,
+            storageKey: GlobalShortcutRole.keyboardBrightnessDecrease.storageKey)
         let increaseRegistered = keyboardBrightnessIncreaseHotkey.sync(
-            enabled: enabled && !increaseConflicts, shortcut: increaseShortcut)
+            enabled: enabled && !increaseConflicts, shortcut: increaseShortcut,
+            storageKey: GlobalShortcutRole.keyboardBrightnessIncrease.storageKey)
         keyboardBrightnessShortcutRegistrationFailed = decreaseConflicts || increaseConflicts
             || !(decreaseRegistered && increaseRegistered)
     }
