@@ -105,6 +105,9 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                             frameRate: frameRate,
                                             capturesSystemAudio: capturesSystemAudio,
                                             excludedWindowNumbers: excludedWindowNumbers,
+                                            willStartCapture: { [writerQueue, writer] time in
+                                                writerQueue.sync { writer.beginSession(at: time) }
+                                            },
                                             isCancelled: { [weak self] in
                                                 self?.startGate.isAuthorized != true
                                             }) {
@@ -119,7 +122,8 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         }
         // The tap starts before the microphone so the Mac's sound has the
         // shortest possible gap at the head of the file while it comes up.
-        if let tap, let clock = engine.synchronizationClock {
+        let clock = CMClockGetHostTimeClock()
+        if let tap {
             let started = await tap.start(synchronizingTo: clock)
             // A trusted tap that could not build a reader this time (no output
             // device, or a permission just revoked) would otherwise leave the
@@ -131,7 +135,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             await engine.stop()
             return .streamFailed
         }
-        if let microphone, let clock = engine.synchronizationClock {
+        if let microphone {
             if await microphone.start(synchronizingTo: clock) == false {
                 onMicrophoneUnavailable?()
             }
@@ -170,6 +174,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// Stops the stream first and waits for it, so the file is closed knowing
     /// no further frame can arrive.
     func stop() async -> Bool {
+        let end = CMClockGetTime(CMClockGetHostTimeClock())
         let ownsFinalization = startGate.cancelAndClaimStop()
         await startGate.waitUntilFinished()
         guard ownsFinalization else { return false }
@@ -193,7 +198,6 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                 forKey: DefaultsKey.recorderSystemAudioTapVerified)
         }
         let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
-        let end = CMClockGetTime(CMClockGetHostTimeClock())
         writerQueue.sync {}
         let written = await writer.finish(at: end)
         if written, !track.isEmpty {

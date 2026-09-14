@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
 "NSNetworkVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
 "NSRemovableVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。";
+"NSCalendarsFullAccessUsageDescription" = "画面上部に今後の予定を表示します。カレンダーの予定がこのMacの外に送信されることはありません。";

@@ -153,6 +153,10 @@ final class AppVolumeMixer: ObservableObject {
     /// Deliberately not `buildQueue`: creating a tap and its aggregate device
     /// takes far longer than reading a property, and the panel must never wait
     /// behind one to learn which devices exist.
+    private var pendingOutputVolume: Double?
+    private var pendingOutputMute: Bool?
+    private var pendingOutputCompletion: ((Bool) -> Void)?
+    private var outputWriteInFlight = false
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
     private init() {}
@@ -363,7 +367,8 @@ final class AppVolumeMixer: ObservableObject {
                     guard let self,
                           self.listenerInstalled,
                           self.outputControlListenerDevice == device,
-                          self.outputControlRefreshGeneration == generation else { return }
+                          self.outputControlRefreshGeneration == generation,
+                          !self.outputWriteInFlight else { return }
                     if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
                     if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
                 }
@@ -428,14 +433,72 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Volume API (panel)
 
-    func setCurrentOutputVolume(_ volume: Double) {
+    /// UI feedback is immediate; one HAL write runs at a time and a burst
+    /// retains only its newest requested level. Device changes never inherit
+    /// a write intended for the previous output.
+    func requestOutputAdjustment(volume: Double? = nil, muted: Bool? = nil,
+                                 completion: @escaping (Bool) -> Void = { _ in }) {
+        guard outputControlListenerDevice != nil,
+              volume?.isFinite != false,
+              volume == nil || systemOutputVolume != nil,
+              muted == nil || systemOutputMuted != nil else { completion(false); return }
+        outputControlRefreshGeneration &+= 1
+        pendingOutputCompletion?(true)
+        pendingOutputCompletion = completion
+        if let volume {
+            let value = min(1, max(0, volume))
+            pendingOutputVolume = value
+            systemOutputVolume = value
+            if value > 0, systemOutputMuted != nil {
+                pendingOutputMute = false
+                systemOutputMuted = false
+            }
+        }
+        if let muted { pendingOutputMute = muted; systemOutputMuted = muted }
+        drainOutputAdjustment()
+    }
+
+    private func drainOutputAdjustment() {
+        guard !outputWriteInFlight, let completion = pendingOutputCompletion else { return }
+        guard let device = outputControlListenerDevice else {
+            pendingOutputCompletion = nil; pendingOutputVolume = nil; pendingOutputMute = nil
+            completion(false); return
+        }
+        let volume = pendingOutputVolume
+        let muted = pendingOutputMute
+        pendingOutputVolume = nil; pendingOutputMute = nil; pendingOutputCompletion = nil
+        outputWriteInFlight = true
+        halQueue.async { [weak self] in
+            var success = Self.defaultOutputDeviceID() == device
+            if success, let volume { success = Self.setOutputVolume(Float(volume), for: device) }
+            if success, let muted { success = Self.setOutputMuted(muted, for: device) }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.outputWriteInFlight = false
+                // A new output invalidates queued values from the old device.
+                if self.outputControlListenerDevice != device {
+                    self.pendingOutputVolume = nil; self.pendingOutputMute = nil
+                    self.pendingOutputCompletion = nil
+                    self.scheduleListenerRefresh()
+                    return
+                }
+                completion(success)
+                if self.pendingOutputCompletion != nil { self.drainOutputAdjustment() }
+                else { self.scheduleOutputControlRefresh(for: device) }
+            }
+        }
+    }
+
+    @discardableResult
+    func setCurrentOutputVolume(_ volume: Double) -> Bool {
         let clamped = min(max(volume, 0), 1)
         guard Self.setSystemOutputVolume(clamped) else {
             scheduleListenerRefresh()
-            return
+            return false
         }
         if systemOutputVolume != clamped { systemOutputVolume = clamped }
         if clamped > 0, systemOutputMuted == true { systemOutputMuted = false }
+        return true
     }
 
     /// 100% means bit-perfect passthrough (no tap). A value the UI would round to
@@ -851,10 +914,10 @@ final class AppVolumeMixer: ObservableObject {
             outputDevices = snapshot.outputDevices
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
-        if systemOutputVolume != snapshot.systemOutputVolume {
+        if !outputWriteInFlight, systemOutputVolume != snapshot.systemOutputVolume {
             systemOutputVolume = snapshot.systemOutputVolume
         }
-        if systemOutputMuted != snapshot.systemOutputMuted {
+        if !outputWriteInFlight, systemOutputMuted != snapshot.systemOutputMuted {
             systemOutputMuted = snapshot.systemOutputMuted
         }
 

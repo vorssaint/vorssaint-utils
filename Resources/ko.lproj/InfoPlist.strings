@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
 "NSNetworkVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint는 확인된 WhatsApp 다운로드를 사용자가 명시적으로 선택한 대상 폴더에 정리합니다.";
+"NSCalendarsFullAccessUsageDescription" = "화면 상단에 예정된 일정을 표시합니다. 캘린더 일정은 이 Mac에만 보관됩니다.";

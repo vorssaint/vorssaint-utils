@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";
 "NSNetworkVolumesUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint organise les téléchargements WhatsApp confirmés dans un dossier de destination que vous choisissez explicitement.";
+"NSCalendarsFullAccessUsageDescription" = "Affiche vos prochains rendez-vous en haut de l’écran. Les événements du calendrier restent sur ce Mac.";

@@ -226,15 +226,23 @@ final class ScreenshotSelectionController {
             if showLastRegion, let last = Self.lastRegion, last.displayID == displayID {
                 panel.overlayView.ghostRect = last.viewRect
             }
+            // Populate the retained backing store before a full-screen
+            // opaque panel can expose its black background for one frame.
+            panel.contentView?.layoutSubtreeIfNeeded()
+            panel.display()
             panels.append(panel)
-            panel.orderFrontRegardless()
         }
         guard !panels.isEmpty else {
             finish(.failed)
             return
         }
-        keyPanelUnderMouse()?.makeKey()
         installKeyMonitor()
+        // Give key ownership to only one destination. Opening and immediately
+        // resigning a full-screen key panel can flash the surrounding chrome.
+        screenCaptureOptions?.onPresentationReady?()
+        guard !finished else { return }
+        panels.forEach { $0.orderFrontRegardless() }
+        if screenCaptureOptions?.controlsInNotch != true { keyPanelUnderMouse()?.makeKey() }
         if isPickingColor
             || UserDefaults.standard.bool(forKey: DefaultsKey.screenshotLoupeStartsOn) {
             // Opt-in: the session opens with the magnifier already up,
@@ -340,9 +348,21 @@ final class ScreenshotSelectionController {
 
     private func installKeyMonitor() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .keyUp]) { [weak self] event in
-            guard let self, event.window is ScreenshotOverlayPanel else { return event }
+            guard let self else { return event }
+            let inNotch = self.screenCaptureOptions?.controlsInNotch == true
+                && event.window === NotchService.shared.presentationWindow
+            guard event.window is ScreenshotOverlayPanel || inNotch else { return event }
+            if inNotch {
+                guard event.window?.attachedSheet == nil, !(event.window?.firstResponder is NSText),
+                      !ShortcutCapture.isCapturing else { return event }
+                let movesSelection = event.keyCode == UInt16(kVK_Space)
+                    && (self.spaceIsDown || self.panelUnderMouse()?.overlayView.isDragging == true)
+                if self.screenCaptureOptions?.hasFocusedControl == true,
+                   event.keyCode != UInt16(kVK_Escape), !movesSelection { return event }
+            }
             if event.type == .keyUp {
-                if event.keyCode == UInt16(kVK_Space) { self.spaceIsDown = false }
+                guard event.keyCode == UInt16(kVK_Space), self.spaceIsDown else { return event }
+                self.spaceIsDown = false
                 return nil
             }
             switch Int(event.keyCode) {
@@ -356,7 +376,7 @@ final class ScreenshotSelectionController {
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
                     self.spaceIsDown = true
-                }
+                } else { return event }
             case kVK_ANSI_R:
                 self.repeatLastRegion()
             case _ where self.selectCaptureTool(for: event):
@@ -373,7 +393,7 @@ final class ScreenshotSelectionController {
                 self.nudgePointer(keyCode: Int(event.keyCode),
                                   fast: event.modifierFlags.contains(.shift))
             default:
-                break
+                return event
             }
             return nil
         }
@@ -831,6 +851,7 @@ private final class ScreenshotOverlayPanel: NSPanel {
 /// and the magnifier; owns all mouse interaction. Flipped so
 /// geometry matches image pixels (top-left origin) with no sign juggling.
 private final class ScreenshotOverlayView: NSView {
+    private var pointerHasMoved = false
     private var frozenImage: CGImage?
     fileprivate var loupeImage: CGImage?
     private var windows: [ScreenshotSupport.PickableWindow]
@@ -1011,6 +1032,7 @@ private final class ScreenshotOverlayView: NSView {
     // MARK: Mouse
 
     override func mouseMoved(with event: NSEvent) {
+        pointerHasMoved = true
         controller?.currentPointerLocation = nil
         pointerIsInside = true
         hoverPoint = convert(event.locationInWindow, from: nil)
@@ -1134,7 +1156,7 @@ private final class ScreenshotOverlayView: NSView {
     }
 
     func refreshGuideVisibility() {
-        guard let panel else {
+        guard screenCaptureOptions?.controlsInNotch != true, let panel else {
             guideHost.isHidden = true
             return
         }
@@ -1152,7 +1174,11 @@ private final class ScreenshotOverlayView: NSView {
               let controller,
               let panel
         else { return }
-        let dimAlpha: CGFloat = frozenImage == nil ? 0.18 : 0.22
+        // Opening controls in the notch should not darken the whole desktop.
+        // Keep selection feedback, without the initial full-screen dim/tint.
+        let notchChooser = screenCaptureOptions?.controlsInNotch == true
+        let dimAlpha = ScreenshotSupport.selectionDimAlpha(notchControls: notchChooser,
+                                                          isFrozen: frozenImage != nil, isDragging: isDragging)
         context.setFillColor(CGColor(gray: 0, alpha: dimAlpha))
         if selection.width > 0, selection.height > 0 {
             context.beginPath()
@@ -1169,7 +1195,7 @@ private final class ScreenshotOverlayView: NSView {
                 context.addRect(bounds)
                 context.addRect(hovered.frame)
                 context.fillPath(using: .evenOdd)
-                drawWindowHighlight(context, rect: hovered.frame)
+                if !notchChooser || pointerHasMoved { drawWindowHighlight(context, rect: hovered.frame) }
             } else {
                 context.fill(bounds)
             }

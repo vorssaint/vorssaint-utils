@@ -45,6 +45,7 @@ final class ScreenshotService: ObservableObject {
 
     private var protectedWindowIDs: Set<CGWindowID> {
         var ids = session?.protectedWindowIDs ?? []
+        if NotchSupport.isEnabled() { ids.formUnion(NotchService.shared.protectedWindowIDs) }
         ids.formUnion(preview?.protectedWindowIDs ?? [])
         for editor in editors {
             ids.formUnion(editor.protectedWindowIDs)

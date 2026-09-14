@@ -46,6 +46,17 @@ enum PanelMetricColor {
     }
 }
 
+private struct NotchPresentationKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var notchPresentation: Bool {
+        get { self[NotchPresentationKey.self] }
+        set { self[NotchPresentationKey.self] = newValue }
+    }
+}
+
 enum PanelSurface {
     static func baseFill(for scheme: ColorScheme) -> Color {
         scheme == .light ? Color.white.opacity(0.68) : Color.black.opacity(0.42)
@@ -113,15 +124,20 @@ extension View {
 
     /// A restrained glass base for the menu panel: still translucent, but with a
     /// stable tint so text and controls do not depend too much on the wallpaper.
-    func panelGlassSurface(cornerRadius: CGFloat = 18) -> some View {
-        background(PanelGlassSurface(cornerRadius: cornerRadius))
+    /// It reaches the popover's arrow; see PanelGlassSurface.
+    func panelGlassSurface() -> some View {
+        background(PanelGlassSurface())
     }
 }
 
 private struct PanelCardModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.notchPresentation) private var notchPresentation
 
     func body(content: Content) -> some View {
+        if notchPresentation {
+            content.padding(12).modifier(NotchControlSurface(cornerRadius: 18))
+        } else {
         content
             .padding(10)
             .background(
@@ -132,28 +148,41 @@ private struct PanelCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.7)
             )
+        }
     }
 }
 
 private struct PanelGlassSurface: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.notchPresentation) private var notchPresentation
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
-    let cornerRadius: CGFloat
 
     var body: some View {
+        // AppKit hands the hosted panel a safe area for the popover's border and
+        // arrow, so a surface that stopped at the panel would leave the tip in the
+        // plain system material. The panel content keeps that inset and never sits
+        // under the arrow; only this background bleeds into it. The popover clips
+        // it to its own balloon, so the surface is a plain rectangle: rounding would
+        // expose the system material at the corners, while stroking would duplicate
+        // the outline AppKit already draws.
+        if notchPresentation {
+            Rectangle().fill(.black)
+        } else {
+            surface.ignoresSafeArea()
+        }
+    }
+
+    @ViewBuilder
+    private var surface: some View {
 #if compiler(>=6.2)
         if #available(macOS 26.0, *), liquidGlassEnabled, !reduceTransparency {
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            Rectangle()
                 .fill(Color.clear)
-                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .glassEffect(.regular, in: Rectangle())
                 .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    Rectangle()
                         .fill(PanelSurface.baseFill(for: colorScheme).opacity(colorScheme == .light ? 0.35 : 0.45))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
                 )
         } else {
             standardSurface
@@ -165,16 +194,9 @@ private struct PanelGlassSurface: View {
 
     @ViewBuilder
     private var standardSurface: some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        Rectangle()
             .fill(.regularMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(PanelSurface.baseFill(for: colorScheme))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
-            )
+            .overlay(Rectangle().fill(PanelSurface.baseFill(for: colorScheme)))
     }
 }
 
