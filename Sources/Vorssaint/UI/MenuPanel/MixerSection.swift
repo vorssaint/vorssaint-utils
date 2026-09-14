@@ -9,6 +9,7 @@ import SwiftUI
 /// 100% is untouched passthrough; below it attenuates and above it (up to 200%)
 /// boosts, with the slider and percentage turning amber in the boost range.
 struct MixerSection: View {
+    @Environment(\.notchPresentation) private var inNotch
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
@@ -185,7 +186,7 @@ struct MixerSection: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     } onCommit: {
-                        mixer.setCurrentOutputVolume($0)
+                        setSystemOutputVolume($0)
                     }
                 }
             }
@@ -258,10 +259,15 @@ struct MixerSection: View {
         )
     }
 
+    private func setSystemOutputVolume(_ value: Double) {
+        if inNotch { mixer.requestOutputAdjustment(volume: value) }
+        else { mixer.setCurrentOutputVolume(value) }
+    }
+
     private var systemOutputVolumeBinding: Binding<Double> {
         Binding(
             get: { mixer.systemOutputVolume ?? 0 },
-            set: { mixer.setCurrentOutputVolume($0) }
+            set: { setSystemOutputVolume($0) }
         )
     }
 

@@ -49,6 +49,7 @@ final class ScreenshotService: ObservableObject {
     /// the previous capture's toast.
     private var workflowWindowIDs: Set<CGWindowID> {
         var ids = session?.protectedWindowIDs ?? []
+        if NotchSupport.isEnabled() { ids.formUnion(NotchService.shared.protectedWindowIDs) }
         ids.formUnion(preview?.protectedWindowIDs ?? [])
         ids.formUnion(ScreenCaptureService.shared.protectedWindowIDs)
         if let number = QuickToolHUD.currentWindowNumber, number > 0 {

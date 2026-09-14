@@ -46,6 +46,17 @@ enum PanelMetricColor {
     }
 }
 
+private struct NotchPresentationKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var notchPresentation: Bool {
+        get { self[NotchPresentationKey.self] }
+        set { self[NotchPresentationKey.self] = newValue }
+    }
+}
+
 enum PanelSurface {
     static func baseFill(for scheme: ColorScheme) -> Color {
         scheme == .light ? Color.white.opacity(0.68) : Color.black.opacity(0.42)
@@ -121,8 +132,12 @@ extension View {
 
 private struct PanelCardModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.notchPresentation) private var notchPresentation
 
     func body(content: Content) -> some View {
+        if notchPresentation {
+            content.padding(12).modifier(NotchControlSurface(cornerRadius: 18))
+        } else {
         content
             .padding(10)
             .background(
@@ -133,11 +148,13 @@ private struct PanelCardModifier: ViewModifier {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.7)
             )
+        }
     }
 }
 
 private struct PanelGlassSurface: View {
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.notchPresentation) private var notchPresentation
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
 
@@ -149,7 +166,11 @@ private struct PanelGlassSurface: View {
         // it to its own balloon, so the surface is a plain rectangle: rounding would
         // expose the system material at the corners, while stroking would duplicate
         // the outline AppKit already draws.
-        surface.ignoresSafeArea()
+        if notchPresentation {
+            Rectangle().fill(.black)
+        } else {
+            surface.ignoresSafeArea()
+        }
     }
 
     @ViewBuilder

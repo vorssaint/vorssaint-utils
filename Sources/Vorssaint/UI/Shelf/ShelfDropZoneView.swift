@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The shelf docked under the menu bar icon. It is a single thing in one place:
 /// a small pill when idle, the full shelf card when opened or when a drag needs
@@ -20,7 +19,6 @@ struct DockedShelfView: View {
                 ShelfView(dismissSystemImage: "chevron.up",
                           dismissHelp: l10n.s.shelfCollapse,
                           onDismiss: { shelf.collapseDocked() },
-                          onAccept: { _ in shelf.dockDidAccept() },
                           brandWatermark: true)
             } else {
                 ShelfPill()
@@ -36,10 +34,9 @@ private struct ShelfPill: View {
     @EnvironmentObject private var shelf: ShelfService
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.colorScheme) private var colorScheme
-    @State private var targeted = false
+    private var targeted: Bool { shelf.dropTargeted }
     @State private var hovered = false
 
-    private static let dropTypes: [UTType] = [.fileURL, .image, .url, .text, .plainText]
 
     var body: some View {
         HStack(spacing: 7) {
@@ -74,11 +71,7 @@ private struct ShelfPill: View {
         .animation(.easeOut(duration: 0.13), value: targeted)
         .animation(.easeOut(duration: 0.15), value: shelf.dockedJustCaught)
         .padding(8)
-        .onDrop(of: Self.dropTypes, isTargeted: $targeted) { providers in
-            let accepted = shelf.accept(providers: providers)
-            if accepted { shelf.dockDidAccept() }
-            return accepted
-        }
+
     }
 
     /// The Vorssaint mark, quiet, so the pill is unmistakably the app's; it

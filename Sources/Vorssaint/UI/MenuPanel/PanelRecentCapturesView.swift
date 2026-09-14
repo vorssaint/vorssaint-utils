@@ -23,6 +23,7 @@ struct RecentCapturesView: View {
     @State private var confirmingClear = false
 
     var onClose: (() -> Void)?
+    var notchHeight: CGFloat? = nil
 
     private var text: RecentCaptureStrings {
         FeatureStrings.recentCaptures(l10n.language)
@@ -38,7 +39,7 @@ struct RecentCapturesView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            header
+            if notchHeight == nil { header }
             content
         }
         .onAppear { history.reload() }
@@ -100,7 +101,7 @@ struct RecentCapturesView: View {
                     }
                 }
             }
-            .frame(maxHeight: 300)
+            .frame(maxHeight: notchHeight ?? 300)
         }
     }
 

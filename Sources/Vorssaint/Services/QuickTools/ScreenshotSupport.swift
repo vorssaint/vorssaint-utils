@@ -90,6 +90,11 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    /// Only the recorder writes sound, so its microphone and system-audio
+    /// choices are the only tool controls that belong under the chooser.
+    /// Every other mode leaves them out entirely, reserving no space for them.
+    var capturesAudio: Bool { self == .recording }
+
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
@@ -149,6 +154,11 @@ enum ScreenshotSupport {
         isAvailable: (AppFeature) -> Bool = { $0.isAvailable }
     ) -> Bool {
         isAvailable(selected.feature)
+    }
+
+    static func selectionDimAlpha(notchControls: Bool, isFrozen: Bool, isDragging: Bool) -> CGFloat {
+        if notchControls { return isDragging ? 0.18 : 0 }
+        return isFrozen ? 0.22 : 0.18
     }
 
     static func captureGuideIsVisible(pointerOnDisplay: Bool,

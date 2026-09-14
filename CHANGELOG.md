@@ -7,9 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-App Switcher opens more smoothly, keeps more apps available, filters by display, excludes hidden helper windows and preserves focus; on-screen keyboard input keeps panels open. Brightness, Screenshot and Scratchpad gain shortcuts, Screenshot gains preview focus, menu bar recovery waits for placement, its panel keeps a continuous background, Cleaner protects customizations, Quit on close preserves incoming calls, and screen recordings keep video and audio aligned.
+Dynamic Island puts music and everyday controls on its home surface with configurable focus cycles, alongside a visual settings editor, draggable shortcuts, predictable opening, safe keyboard navigation, responsive downloads, searchable sections, camera and file tools. App Switcher gains smoother opening, steadier previews, display filtering and better focus; other improvements cover update checks, shortcuts, attachment delivery, capture previews, menu bar recovery, incoming calls, cleaning, uninstall results and recording synchronization.
 
 ### Added
+- Shelf accepts attachments dragged from other apps, preserving complete files and original names. Thanks to @Borisserz.
+- Optional Dynamic Island puts playback, sound, brightness, configurable focus cycles and calendar first, with customizable shortcuts, notifications, downloads and file tools.
 - Display brightness gains optional custom shortcuts for the primary display or the display under the pointer. Thanks to @EugeneCarldotme.
 - App Switcher can show only windows on the display under the pointer, staying closed on empty displays. Thanks to @EugeneCarldotme.
 - Scratchpad tabs can be created with Command-T and closed with Command-W, keeping confirmation for notes with text. Thanks to @Borisserz.
@@ -19,6 +21,9 @@ App Switcher opens more smoothly, keeps more apps available, filters by display,
 - The App Switcher opens more smoothly when many windows are open. Thanks to @bebricoOOOOOOf.
 
 ### Fixed
+- App Updates clears missing-source warnings only when the catalog can verify the app, preserving incomplete checks otherwise. Thanks to @iltonandrew.
+- App Switcher keeps its icon row steady and selected windows visible during searches and window closures. Thanks to @shlok1806.
+- Uninstaller reports completed removals accurately, counts recovered space once and keeps real failures visible. Thanks to @Borisserz.
 - Screen recordings keep video, system sound and microphone audio aligned through pauses, with no blank opening. Thanks to @EugeneCarldotme and @fakepooh.
 - Menu bar icon recovery waits for placement, preserves full-size content and avoids overlapping attempts. Thanks to @Borisserz.
 - Panels and App Switcher stay open when typing with the Accessibility Keyboard, including the first use. Thanks to @fermincasagrande.

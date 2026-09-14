@@ -21,3 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
 "NSNetworkVolumesUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst.";
+"NSCalendarsFullAccessUsageDescription" = "Zeige deine anstehenden Termine im oberen Bildschirmbereich. Kalenderereignisse bleiben auf diesem Mac.";
