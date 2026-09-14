@@ -17,6 +17,17 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 MUTATIONS = [
+    ("missing feed loses fallback requirement", "app-updates", "Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedSupport.swift",
+     "return Findings(catalogFallbackPaths: Set(apps.map(\\.path)))", "return Findings()",
+     "manifest 404 missing: only usable catalog coverage clears a missing-feed warning"),
+    ("current catalog app loses coverage", "app-updates", "Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift",
+     "if !isUncomparable(app.version) { checkedPaths.insert(app.path) }",
+     "if isNewer(versionCore(entry.version), than: app.version) { checkedPaths.insert(app.path) }",
+     "manifest 404 current: only usable catalog coverage clears a missing-feed warning"),
+    ("ambiguous catalog claims coverage", "app-updates", "Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift",
+     "guard matches.count == 1, let entry = matches.first else { return nil }",
+     "guard !matches.isEmpty, let entry = matches.first else { return nil }",
+     "manifest 404 ambiguous: only usable catalog coverage clears a missing-feed warning"),
     ("switcher reveal before resize", "switcher", "Sources/Vorssaint/UI/Switcher/SwitcherView.swift",
      "                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { _ in\n"
      "                            DispatchQueue.main.async {\n"

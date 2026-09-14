@@ -34,6 +34,7 @@ struct MetricsTests {
                 RecorderWriterTests.run { suite.expect($0, $1) }
             }),
             ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
+            ("app-updates", { AppUpdatesContract.run(suite) }),
             ("localization", { LocalizationTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("switcher", { SwitcherScrollContract.run(suite) }),
@@ -22253,6 +22254,14 @@ struct MetricsTests {
         let publisherFeed = AppUpdateFeedSupport.feed(
             info: ["SUFeedURL": "https://updates.example.com/feed.xml"], configuration: nil)
         expect(publisherFeed?.format == .appcast, "the app's declared feed is a supported source")
+        expect(AppUpdateFeedSupport.feedIsAbsent(statusCode: 404)
+                && AppUpdateFeedSupport.feedIsAbsent(statusCode: 410)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 200)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 403)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 500)
+                && !AppUpdateFeedSupport.feedIsAbsent(statusCode: 503)
+               && !AppUpdateFeedSupport.feedIsAbsent(statusCode: nil),
+               "only missing publisher responses can use catalog coverage")
         let packagedFeed = AppUpdateFeedSupport.feed(info: [:], configuration:
             "provider: generic\nurl: 'https://updates.example.com/stable'\n")
         expect(packagedFeed?.url.absoluteString == "https://updates.example.com/stable/latest-mac.yml",
@@ -22322,6 +22331,42 @@ struct MetricsTests {
         let manifestReleases = AppUpdateFeedSupport.releases(data: manifest, format: .manifest) ?? []
         expect(feedUpdate(manifestReleases, format: .manifest)?.latestVersion == "1.2",
                "Mac manifests compare visible app versions and use the kernel version for their OS requirement")
+        let absentFindings = AppUpdateFeedSupport.findings(
+            loadResult: .absent, format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(absentFindings.complete && absentFindings.checkedPaths.isEmpty
+                && absentFindings.uncheckedPaths.isEmpty
+                && absentFindings.catalogFallbackPaths == [feedApp.path],
+               "an absent publisher manifest requires catalog coverage before clearing its warning")
+        let failedFindings = AppUpdateFeedSupport.findings(
+            loadResult: .failed, format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(!failedFindings.complete && failedFindings.checkedPaths.isEmpty
+                && failedFindings.uncheckedPaths == [feedApp.path],
+               "a failed publisher manifest remains incomplete and names the app")
+        let successfulFindings = AppUpdateFeedSupport.findings(
+            loadResult: .data(manifest), format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(successfulFindings.complete && successfulFindings.checkedPaths == [feedApp.path]
+                && successfulFindings.uncheckedPaths.isEmpty
+               && successfulFindings.items.first?.latestVersion == "1.2",
+               "a readable publisher manifest still reports its newer release")
+        let unparseableFindings = AppUpdateFeedSupport.findings(
+            loadResult: .data(Data("not a manifest".utf8)), format: .manifest, apps: [feedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(!unparseableFindings.complete && unparseableFindings.checkedPaths.isEmpty
+                && unparseableFindings.uncheckedPaths == [feedApp.path]
+                && unparseableFindings.items.isEmpty,
+               "an unreadable publisher manifest stays a failure and is not treated as absent")
+        let unstableFeedApp = AppUpdatesSupport.InstalledApp(
+            name: "Preview", bundleID: "com.example.preview", path: "/Applications/Preview.app",
+            version: "1.2b", isFromAppStore: false)
+        let unstableFindings = AppUpdateFeedSupport.findings(
+            loadResult: .data(manifest), format: .manifest, apps: [unstableFeedApp],
+            operatingSystemVersion: "15.7", kernelVersion: "24.6.0", architecture: "arm64")
+        expect(!unstableFindings.complete && unstableFindings.checkedPaths.isEmpty
+                && unstableFindings.uncheckedPaths == [unstableFeedApp.path],
+               "a publisher feed cannot check an app with an unstable installed version")
         expect(feedUpdate([.init(version: "1.2", displayVersion: "1.2", minimumOS: "25.0.0", hasDownload: true)],
                           format: .manifest) == nil,
                "a manifest requiring a newer kernel cannot be offered")
@@ -22382,9 +22427,9 @@ struct MetricsTests {
                                            path: "/Applications/Own.app", version: "1.0",
                                            isFromAppStore: false),
         ]
-        let onlineRows = AppUpdatesSupport.onlineCatalogUpdates(
+        let onlineRows = AppUpdatesSupport.onlineCatalogFindings(
             apps: onlineApps, catalog: onlineCatalog, operatingSystemVersion: "15.7",
-            ignoredTokens: ["own-tool"])
+            ignoredTokens: ["own-tool"]).items
         expect(Set(onlineRows.map(\.name)) == ["Notes", "Writer", "Exact"]
                 && onlineRows.allSatisfy { $0.source == .onlineCatalog && !$0.isSelectable },
                "online matching requires an exact unique bundle name, uses an explicit ID to resolve ambiguity and keeps rows action-only")
@@ -22407,15 +22452,15 @@ struct MetricsTests {
             AppUpdatesSupport.InstalledApp(name: "Unrelated", bundleID: "com.example.unrelated",
                 path: "/Applications/Unrelated.app", version: "1.0", isFromAppStore: false),
         ]
-        let expandedRows = AppUpdatesSupport.onlineCatalogUpdates(
-            apps: expandedApps, catalog: expandedCatalog, operatingSystemVersion: "15.7")
+        let expandedRows = AppUpdatesSupport.onlineCatalogFindings(
+            apps: expandedApps, catalog: expandedCatalog, operatingSystemVersion: "15.7").items
         expect(Set(expandedRows.map(\.name)) == ["Installer", "Renamed"],
                "identity matching finds installer-based and renamed apps without accepting a conflicting same-name app")
         expect(expandedRows.allSatisfy { $0.latestVersion == "2.0" },
                "a companion app's quit list cannot take over another app's identity")
-        expect(AppUpdatesSupport.onlineCatalogUpdates(
+        expect(AppUpdatesSupport.onlineCatalogFindings(
             apps: expandedApps, catalog: expandedCatalog + expandedCatalog,
-            operatingSystemVersion: "15.7").isEmpty,
+            operatingSystemVersion: "15.7").items.isEmpty,
                "multiple catalog entries claiming the same identity cannot choose an update by guesswork")
         expect(!onlineRows.contains { $0.name == "Duplicate" || $0.name == "Future"
                 || $0.name == "Rolling" || $0.name == "Case" || $0.name == "Older"

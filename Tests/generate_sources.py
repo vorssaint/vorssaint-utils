@@ -36,6 +36,22 @@ def write(name, text):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    updates = "Sources/Vorssaint/Services/AppUpdates/AppUpdatesService.swift"
+    loader = "Sources/Vorssaint/Services/AppUpdates/AppUpdateFeedLoader.swift"
+    # Only the network configuration, clock and declaration visibility change.
+    # The loader, batch loop, catalog matching and fallback resolution stay verbatim.
+    write("AppUpdates.swift", "import Foundation\nimport Darwin\nextension AppUpdatesContract {\n"
+          + declaration(loader, "final class AppUpdateFeedLoader:")
+          + "final class Service {\nlet workQueue = DispatchQueue(label: \"app-updates.contract\")\n"
+          + "let clock = Clock()\nstatic let ownPackageTokens: Set<String> = [\"vorssaint\", \"vorssaint@beta\", \"vorssaint-beta\"]\n"
+          + "static let onlineCatalogCacheLifetime: TimeInterval = 60 * 60\n"
+          + "var onlineCatalogCache: (loadedAt: Foundation.Date, entries: [AppUpdatesSupport.CatalogEntry])?\n"
+          + "lazy var catalogSession = URLSession(configuration: URLSessionConfiguration.ephemeral)\n"
+          + declaration(updates, "    private struct SourceResult {").replace("private struct", "struct", 1)
+          + declaration(updates, "    private func publisherFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
+          + declaration(updates, "    private func onlineCatalogFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
+          + declaration(updates, "    private func onlineResult(").replace("private func", "func", 1)
+          + "}\n}\n")
     write("NotchActivationButton.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
