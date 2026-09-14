@@ -29,6 +29,7 @@ struct MetricsTests {
                 RecorderPresetImageStoreTests.run { suite.expect($0, $1) }
                 scratchpadStoreChecks { suite.expect($0, $1) }
             }),
+            ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
             ("recording", {
                 RecorderSampleTimingTests.run { suite.expect($0, $1) }
                 RecorderWriterTests.run { suite.expect($0, $1) }
@@ -36,7 +37,6 @@ struct MetricsTests {
             ("network", { SpeedTestTests.run { suite.expect($0, $1) } }),
             ("localization", { LocalizationTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
-            ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
         ]
         var selected = Set<String>()
         var listOnly = false
