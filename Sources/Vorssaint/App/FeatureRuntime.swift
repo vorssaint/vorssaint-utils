@@ -288,6 +288,10 @@ final class FeatureRuntime: ObservableObject {
             else { NotchCalendarService.shared.stop() }
         },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
+        .authenticator: {
+            AuthenticatorService.shared.syncWithPreferences()
+            AuthenticatorPaletteService.shared.syncWithPreferences()
+        },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {
             CleanerScheduler.shared.syncWithPreferences()

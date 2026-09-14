@@ -14958,7 +14958,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 66, "feature catalog has 66 features")
+        expect(AppFeature.allCases.count == 67, "feature catalog has 67 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14971,7 +14971,8 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchDownloads",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "authenticator",
+            "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchDownloads",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -15096,9 +15097,10 @@ struct MetricsTests {
                 && (AppFeature.availabilityDefaults[AppFeature.diskImageInstaller.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.killProcess.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.authenticator.availabilityKey] as? Bool) == false
                 && AppFeature.allCases.filter {
                     $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                        && $0 != .killProcess
+                        && $0 != .killProcess && $0 != .authenticator
                 }.allSatisfy {
                     (AppFeature.availabilityDefaults[$0.availabilityKey] as? Bool) == true
                 },
@@ -15635,7 +15637,7 @@ struct MetricsTests {
                "Window Layout does not poll permissions when every snap zone is off")
 
         expect(activeSet(.accessibility)
-                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
+                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder, .authenticator],
                "with nothing enabled only on-demand features use accessibility")
         expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
@@ -15681,11 +15683,11 @@ struct MetricsTests {
                "mixer without precise volume roller does not use accessibility")
 
         expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
-                == [.switcher, .screenOCR, .screenshot, .screenRecorder],
+                == [.switcher, .screenOCR, .screenshot, .screenRecorder, .authenticator],
                "switcher with previews uses screen recording; OCR, screenshots and recordings are on demand")
         expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode])
-                == [.screenOCR, .screenshot, .screenRecorder],
+                == [.screenOCR, .screenshot, .screenRecorder, .authenticator],
                "simple-mode switcher stops using screen recording")
         expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
@@ -15758,10 +15760,11 @@ struct MetricsTests {
         expect(activeSet(.microphone).isEmpty
                 && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder],
                "the recorder uses microphone access only when that optional source is on")
-        expect(activeSet(.camera) == [.cameraPreview],
-               "the camera preview is the only on-demand camera user")
-        expect(activeSet(.camera, available: Set(AppFeature.allCases).subtracting([.cameraPreview])) == [],
-               "the camera reads as unused once the preview is off in the hub")
+        expect(activeSet(.camera) == [.cameraPreview, .authenticator],
+               "the preview and the authenticator's QR scan are the on-demand camera users")
+        expect(activeSet(.camera,
+                         available: Set(AppFeature.allCases).subtracting([.cameraPreview, .authenticator])) == [],
+               "the camera reads as unused once both are off in the hub")
         expect(AppFeature.cameraPreview.permissions == [.camera]
                 && AppFeature.cameraPreview.enabledKeys.isEmpty,
                "the camera preview works on demand and only ever asks for the camera")

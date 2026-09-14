@@ -28,7 +28,8 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, killProcess, notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics, notchQueue, notchDownloads
+         commandBar, screenRecorder, killProcess, authenticator,
+         notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics, notchQueue, notchDownloads
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, fanControl
@@ -77,7 +78,7 @@ extension AppFeature {
                     && !WindowEdgeSnapZone.enabledZones(
                         from: edgeSnapDisabledZones
                     ).isEmpty)
-        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder:
+        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .authenticator:
             return false
         default:
             return true
@@ -109,7 +110,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .killProcess, .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads:
+             .scratchpad, .commandBar, .screenRecorder, .killProcess, .authenticator, .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads:
             return .tools
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
@@ -181,6 +182,7 @@ extension AppFeature {
         case .scratchpad: return "note.text"
         case .commandBar: return "command"
         case .killProcess: return "xmark.octagon"
+        case .authenticator: return "key.horizontal"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -258,7 +260,7 @@ extension AppFeature {
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .killProcess,
+             .commandBar, .screenRecorder, .killProcess, .authenticator,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .fanControl:
             return []
@@ -296,6 +298,9 @@ extension AppFeature {
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
+        // Typing a code needs Accessibility; scanning a QR off the screen
+        // asks for Screen Recording at that moment, like Screen OCR.
+        case .authenticator: return [.accessibility, .screenRecording, .camera]
         case .screenshot: return [.screenRecording]
         // The sound of the Mac is read through an audio grant of its own.
         // Microphone access stays contextual, and Accessibility only keeps
@@ -326,7 +331,7 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute:
+             .micMute, .authenticator:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }
@@ -343,7 +348,7 @@ extension AppFeature {
         Dictionary(uniqueKeysWithValues: allCases.map {
             ($0.availabilityKey,
              $0 != .focusFollowsMouse && $0 != .fanControl && $0 != .diskImageInstaller
-                && $0 != .killProcess)
+                && $0 != .killProcess && $0 != .authenticator)
         })
     }
 
