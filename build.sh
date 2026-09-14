@@ -458,6 +458,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
+        Sources/Vorssaint/Services/Authenticator/GoogleMigration.swift
+        Sources/Vorssaint/Services/Authenticator/OneTimePassword.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )

@@ -37,6 +37,10 @@ struct MetricsTests {
             ("app-updates", { AppUpdatesContract.run(suite) }),
             ("localization", { LocalizationTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
+            ("authenticator", {
+                OneTimePasswordTests.run { suite.expect($0, $1) }
+                GoogleMigrationTests.run { suite.expect($0, $1) }
+            }),
             ("switcher", { SwitcherScrollContract.run(suite) }),
         ]
         var selected = Set<String>()
