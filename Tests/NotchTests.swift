@@ -6,6 +6,7 @@ import CoreGraphics
 
 enum NotchTests {
     static func run(expect: (Bool, String) -> Void) {
+        NotchPresentationRefreshContract.run(expect: expect)
         NotchCaptureKeyboardTests.run(expect: expect)
         NotchDownloadProgressTests.run(expect: expect)
         NotchSliderEditingTests.run(expect: expect)
@@ -611,6 +612,24 @@ enum NotchTests {
                    "a fallback on a screen without a notch lives entirely below its menus, in every screen coordinate quadrant")
         }
         let mediaGeometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180)
+        for layout in NotchSize.allCases {
+            for customHeight in [400.0, 640.0] {
+                let geometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
+                                             layout: layout, customHeight: customHeight)
+                let history = geometry.expandedSize(module: .captures)
+                let preview = geometry.expandedSize(module: .captures, capturePreviewHeight: 210)
+                let shared = geometry.expandedSize(module: .captures, capturePreviewHeight: 268)
+                expect(geometry.contentSize(for: preview).height == 214 && preview.height < history.height,
+                       "a single capture reserves its preview and scroll inset instead of the larger history area in every layout")
+                expect(shared.height - preview.height == 58,
+                       "sharing adds only the link row and removing it restores the compact preview height")
+                expect(geometry.expandedSize(module: .timer, capturePreviewHeight: 210)
+                       == geometry.expandedSize(module: .timer),
+                       "a retained capture preview does not change another section's height")
+                expect(menuScreen.contains(geometry.frame(for: shared)) && shared.height <= customHeight,
+                       "the capture preview preserves the screen edge and respects the custom height limit")
+            }
+        }
         let regularFiles = mediaGeometry.expandedSize(module: .files)
         let fileMedia = mediaGeometry.expandedSize(module: .files, fileMediaVisible: true)
         expect(mediaGeometry.contentSize(for: fileMedia).height == 600 && fileMedia.height > regularFiles.height,

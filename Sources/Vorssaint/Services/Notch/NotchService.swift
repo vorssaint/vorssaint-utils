@@ -41,6 +41,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var modules: [NotchModule] = []
     @Published private(set) var notice: NotchNotice?
     @Published private(set) var captureContent: AnyView?
+    @Published private var captureContentHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
 
@@ -142,6 +143,7 @@ final class NotchService: ObservableObject {
                                      fileMediaVisible: AppFeature.mediaTools.isAvailable && NotchFileToolsService.shared.mediaSession != nil,
                                      systemRows: (NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery)
                                         + geometry.systemColumns - 1) / geometry.systemColumns,
+                                     capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
                                      timerHasSession: NotchTimerService.shared.session.hasSession,
                                      timerShowsPomodoro: NotchTimerService.shared.session.hasSession
                                         ? NotchTimerService.shared.session.mode == .pomodoro
@@ -694,11 +696,12 @@ final class NotchService: ObservableObject {
 
     private var noticeCanPresent: Bool { !expanded && !dragPlaceholder && captureControls == nil }
 
-    func presentCapture(id: UUID, content: AnyView, fallback: @escaping () -> Void,
+    func presentCapture(id: UUID, content: AnyView, height: CGFloat, fallback: @escaping () -> Void,
                         close: @escaping () -> Void, hover: @escaping (Bool) -> Void) -> Bool {
         guard running, !suspended, panel != nil, NotchSupport.routes(.capture) else { return false }
         let keepOpen = expanded && pinned
         captureID = id
+        captureContentHeight = height
         captureContent = content
         captureFallback = fallback
         captureClose = close
@@ -707,6 +710,13 @@ final class NotchService: ObservableObject {
              takeFocus: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus), feedback: false)
         captureHover?(inside)
         return true
+    }
+
+    func updateCaptureHeight(id: UUID, height: CGFloat) {
+        guard captureID == id, captureContent != nil, height.isFinite, height > 0,
+              captureContentHeight != height else { return }
+        captureContentHeight = height
+        refreshPresentation()
     }
 
     func isCaptureVisible(id: UUID) -> Bool {
@@ -718,12 +728,16 @@ final class NotchService: ObservableObject {
     func removeCapture(id: UUID) {
         guard captureID == id else { return }
         clearCapture()
-        if expanded, selected == .captures, !showingSections, !pinned { collapse() }
+        if expanded, selected == .captures, !showingSections {
+            if pinned { refreshPresentation() }
+            else { collapse() }
+        }
     }
 
     private func clearCapture() {
         captureID = nil
         captureContent = nil
+        captureContentHeight = nil
         captureFallback = nil
         captureClose = nil
         captureHover = nil
@@ -743,12 +757,16 @@ final class NotchService: ObservableObject {
             return
         }
         let access = NotchQuickAccessConfiguration.current()
-        windowHost?.present(size: surfaceSize, geometry: presentationGeometry, animated: animated,
+        let size = surfaceSize
+        // Preferences can change computed dimensions without publishing a
+        // service property. Update SwiftUI's layout along with the native host.
+        if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
+        windowHost?.present(size: size, geometry: presentationGeometry, animated: animated,
                             transitionContent: transitionContent,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil)
         let activationRect = captureControls != nil || notice != nil || dragPlaceholder ? CGRect.zero
             : (compactActivityIsVisible ? compactActivityGeometry : geometry)
-                .activationArea(in: surfaceSize, hasHeader: expanded || peeking, compactActivity: compactActivityIsVisible)
+                .activationArea(in: size, hasHeader: expanded || peeking, compactActivity: compactActivityIsVisible)
         let text = FeatureStrings.notch(L10n.shared.language)
         windowHost?.setActivationArea(activationRect, title: expanded ? text.collapse : text.open,
             willPress: { [weak self] in

@@ -732,6 +732,7 @@ struct NotchGeometry: Equatable {
     func expandedSize(module: NotchModule, detail: Bool = false, controlRows: Int = 2,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = false, musicHasContent: Bool = true, musicExtraHeight: CGFloat = 0,
                       fileMediaVisible: Bool = false, systemRows: Int = 3,
+                      capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerShowsPomodoro: Bool = false) -> CGSize {
         let contentHeight: CGFloat
         switch module {
@@ -752,15 +753,17 @@ struct NotchGeometry: Equatable {
             contentHeight = NotchLayout.chromeHeight
                 + (rows == 0 ? 160 : CGFloat(rows) * 96 + CGFloat(rows - 1) * 10)
         case .files: contentHeight = fileMediaVisible ? NotchLayout.chromeHeight + 600 : 336
-        case .clipboard, .captures: contentHeight = 340
+        case .clipboard: contentHeight = 340
+        case .captures: contentHeight = capturePreviewHeight.map { NotchLayout.chromeHeight + $0 + 4 } ?? 340
         case .timer: contentHeight = NotchLayout.chromeHeight
                 + (timerHasSession ? (timerShowsPomodoro ? 118 : 96) : (timerShowsPomodoro ? 370 : 202))
         case .camera: contentHeight = NotchLayout.chromeHeight + (expandedWidth - NotchLayout.horizontalInset * 2) * 0.75 + 50
         case .tools, .calendar, .notifications, .downloads: contentHeight = 400
         }
-        let fillsHeight = detail || [.mixer, .clipboard, .captures, .tools].contains(module)
+        let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
+        let fillsHeight = detail || (!showsCapturePreview && [.mixer, .clipboard, .captures, .tools].contains(module))
         var preferredHeight = safeContentTop + (detail ? 440 : contentHeight)
-            + (layout == .spacious && module != .controls && module != .music && module != .timer ? 40 : 0)
+            + (layout == .spacious && module != .controls && module != .music && module != .timer && !showsCapturePreview ? 40 : 0)
         if layout == .custom {
             preferredHeight = fillsHeight ? customHeight : min(preferredHeight, customHeight)
         }

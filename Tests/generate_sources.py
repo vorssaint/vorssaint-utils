@@ -70,6 +70,13 @@ def main():
           + "}\n}\n")
     notch = "Sources/Vorssaint/Services/Notch/NotchService.swift"
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
+    write("NotchPresentationRefresh.swift", "import Foundation\nimport Combine\n"
+          + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
+          + declaration(notch, "    func refreshPresentation(")
+          + declaration(notch, "    func updateCaptureHeight(")
+          + declaration(notch, "    func removeCapture(")
+          + declaration(notch, "    private func clearCapture(")
+          + "}\n}\n")
     write("ShelfDropRouting.swift", "import AppKit\n\nextension ShelfDropRoutingContract {\n"
           + declaration(canvas, "struct NotchFileDropActions {")
           + "final class ShelfService: ShelfState {\nstatic var shared = ShelfService()\n"
@@ -120,6 +127,25 @@ def main():
 
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
     selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
+    refresh_methods = [
+        "    private func screenCaptureToolDidChange()",
+        "    private func adoptCapturePolicy(",
+        "    private func applySource(",
+        "    private func loadLiveLoupeImages()",
+        "    private func markCapturePending()",
+        "    private func captureFullDisplayUnderMouse()",
+        "    private func repeatLastRegion()",
+        "    fileprivate func confirmWindow(",
+        "    fileprivate func confirmRegion(",
+        "    fileprivate func confirmColor(",
+    ]
+    write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\n"
+          + "extension ScreenshotSelectionRefreshContract.Chooser {\n"
+          + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
+          + "".join(declaration(selection, prefix).replace("fileprivate func", "func", 1)
+                    .replace("private func", "func", 1).replace("UserDefaults.standard", "ReviewDefaults.current")
+                    for prefix in refresh_methods)
+          + "}\n")
     write("NotchCaptureKeyboard.swift", "import Foundation\nimport Carbon.HIToolbox\n\nextension NotchCaptureKeyboardContract {\n"
           + "final class NotchService {\nstatic var shared = NotchService()\n"
           + "var presentationWindow: NSPanel? = NSPanel()\nvar acceptsSystemFeedback = true\n"

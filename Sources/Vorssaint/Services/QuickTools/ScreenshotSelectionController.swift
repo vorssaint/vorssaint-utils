@@ -68,6 +68,12 @@ final class ScreenshotSelectionController {
     /// Bumped whenever the source is re-photographed, so a capture that a
     /// later tool change already replaced never reaches the panels.
     private var sourceGeneration = 0
+    private var sourceRefreshPending = false
+    /// Old pixels and window choices remain visible during refresh, but cannot
+    /// be used by either pointer actions or keyboard confirmations.
+    fileprivate var acceptsCaptureInput: Bool {
+        !finished && !sourceRefreshPending
+    }
     fileprivate let requiresDraggedRegion: Bool
     private var finished = false
     /// Read by the overlays so a late event finds a session that is over.
@@ -88,7 +94,7 @@ final class ScreenshotSelectionController {
         supportsScrollingCapture && activeTool == .screenshot && activeMode == .image
     }
     fileprivate var acceptsWindowClick: Bool {
-        activeMode != .color && !requiresDraggedRegion && !scrollingCaptureEnabled
+        acceptsCaptureInput && activeMode != .color && !requiresDraggedRegion && !scrollingCaptureEnabled
     }
     fileprivate var isPickingColor: Bool { activeMode == .color }
     fileprivate var loupeEnabled = false {
@@ -282,6 +288,7 @@ final class ScreenshotSelectionController {
         freeze = policy.freeze
         includePointer = policy.includePointer
         hideVorssaintWindows = policy.hideVorssaintWindows
+        sourceRefreshPending = true
         sourceGeneration += 1
         let generation = sourceGeneration
         guard policy.freeze else {
@@ -299,20 +306,26 @@ final class ScreenshotSelectionController {
         }
     }
 
-    /// A display whose new photograph is missing keeps the one it has, so a
-    /// failed capture leaves the surface intact instead of see-through.
+    /// All visible displays must belong to the current tool before selection
+    /// resumes. A missing frame cannot safely fall back to the previous tool.
     private func applySource(frozenImages: [CGDirectDisplayID: CGImage]) {
+        guard !freeze || panels.allSatisfy({ frozenImages[$0.displayID] != nil }) else {
+            finish(.failed)
+            return
+        }
         let pickable = ScreenshotCaptureEngine.pickableWindows(
             hideVorssaintWindows: hideVorssaintWindows,
             protectedWindowIDs: captureExcludedWindowIDs)
         let mainHeight = NSScreen.screens.first?.frame.height ?? 0
         for panel in panels {
-            let image = freeze ? (frozenImages[panel.displayID] ?? panel.frozenImage) : nil
+            let image = freeze ? frozenImages[panel.displayID] : nil
             panel.update(frozenImage: image,
                          windows: Self.pickableWindows(pickable,
                                                        on: panel.screenFrame,
                                                        mainScreenHeight: mainHeight))
         }
+        sourceRefreshPending = false
+        panels.forEach { $0.overlayView.refreshPointerState() }
     }
 
     private static func pickableWindows(_ entries: [(id: CGWindowID, bounds: CGRect)],
@@ -332,6 +345,7 @@ final class ScreenshotSelectionController {
     /// pixels. Capture them once after the overlays exist; ScreenCaptureKit
     /// excludes this app's own panels, so the screen itself remains live.
     private func loadLiveLoupeImages() {
+        let generation = sourceGeneration
         let hideWindows = hideVorssaintWindows
         let excludedIDs = captureExcludedWindowIDs
         Task { @MainActor [weak self] in
@@ -339,7 +353,7 @@ final class ScreenshotSelectionController {
                 includePointer: false,
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: excludedIDs)
-            guard let self, !self.finished else { return }
+            guard let self, !self.finished, self.sourceGeneration == generation else { return }
             for panel in self.panels {
                 panel.overlayView.updateLoupeImage(images[panel.displayID])
             }
@@ -476,7 +490,7 @@ final class ScreenshotSelectionController {
     }
 
     private var loupeAcceptsKeyboardActions: Bool {
-        loupeEnabled && !panels.contains(where: { $0.overlayView.isDragging })
+        acceptsCaptureInput && loupeEnabled && !panels.contains(where: { $0.overlayView.isDragging })
     }
 
     private func copyLoupeColor() {
@@ -571,8 +585,8 @@ final class ScreenshotSelectionController {
     }
 
     fileprivate func confirmRegion(_ viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
-        guard viewRect.width >= 1, viewRect.height >= 1 else { return }
-        guard activeMode != .color else { return }
+        guard acceptsCaptureInput, activeMode != .color,
+              viewRect.width >= 1, viewRect.height >= 1 else { return }
         markCapturePending()
         Self.lastRegion = (panel.displayID, viewRect)
         if activeMode == .geometry {
@@ -611,7 +625,7 @@ final class ScreenshotSelectionController {
     fileprivate func confirmWindow(_ windowID: CGWindowID,
                                    frame: CGRect,
                                    on panel: ScreenshotOverlayPanel) {
-        guard activeMode != .color else { return }
+        guard acceptsCaptureInput, activeMode != .color else { return }
         markCapturePending()
         if activeMode == .geometry {
             finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
@@ -638,7 +652,7 @@ final class ScreenshotSelectionController {
     }
 
     private func captureFullDisplayUnderMouse() {
-        guard activeMode != .color else { return }
+        guard acceptsCaptureInput, activeMode != .color else { return }
         guard let panel = panelUnderMouse() else { return }
         markCapturePending()
         if activeMode == .geometry {
@@ -667,7 +681,7 @@ final class ScreenshotSelectionController {
     }
 
     fileprivate func confirmColor(at viewPoint: CGPoint, on panel: ScreenshotOverlayPanel) {
-        guard activeMode == .color,
+        guard acceptsCaptureInput, activeMode == .color,
               let image = panel.frozenImage ?? panel.overlayView.loupeImage else { return }
         let point = ScreenshotSupport.imagePixelPoint(
             fromView: viewPoint,
@@ -891,7 +905,7 @@ private final class ScreenshotOverlayView: NSView {
     /// gesture can neither reach a controller that is gone nor start a second
     /// capture behind the one already running.
     private var acceptsPointerInput: Bool {
-        ScreenshotSupport.selectionAcceptsPointerInput(
+        controller?.acceptsCaptureInput == true && ScreenshotSupport.selectionAcceptsPointerInput(
             sessionIsOver: controller?.isOver ?? true,
             capturePending: isCapturePending)
     }

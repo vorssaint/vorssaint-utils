@@ -10,7 +10,6 @@ struct NotchFilesView: View {
     @ObservedObject private var shelf = ShelfService.shared
     @ObservedObject private var l10n = L10n.shared
     @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
-    @State private var confirmingClear = false
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var archives = NotchFileToolsService.shared
     @ObservedObject private var media = NotchFileToolsService.shared.media
@@ -60,8 +59,7 @@ struct NotchFilesView: View {
                     }
                     .background(ShelfSharePickerAnchor(anchor: shareAnchor))
                     .disabled(!shelf.hasFilesForActions)
-                    NotchIconButton(symbol: "trash", title: l10n.s.shelfClearAll) { confirmingClear = true }
-                        .disabled(archives.isRunning)
+                    clearMenu
                 }
             }
             if archives.mediaSession == nil, AppFeature.mediaTools.isAvailable { archiveStatus }
@@ -82,10 +80,27 @@ struct NotchFilesView: View {
                 outputPanel?.cancel(nil)
             }
         }
-        .confirmationDialog(l10n.s.shelfClearAll, isPresented: $confirmingClear, titleVisibility: .visible) {
+    }
+
+    // A sheet dims the window's transparent margins. A native menu keeps the
+    // explicit confirmation beside its trigger and uses the existing menu tracking.
+    private var clearMenu: some View {
+        Menu {
             Button(l10n.s.shelfClearAll, role: .destructive) { shelf.clear() }
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
+        } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 28, height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .disabled(archives.isRunning)
+        .help(l10n.s.shelfClearAll)
+        .accessibilityLabel(l10n.s.shelfClearAll)
     }
 
     private var fileActions: some View {

@@ -20,6 +20,7 @@ struct MetricsTests {
         let groups: [(String, () -> Void)] = [
             ("harness", { TestHarnessTests.run(suite) }),
             ("core", { coreChecks(suite) }),
+            ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 assistiveKeyboardChecks { suite.expect($0, $1) }
                 screenshotToolShortcutChecks { suite.expect($0, $1) }
