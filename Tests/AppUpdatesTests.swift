@@ -101,7 +101,91 @@ enum AppUpdatesContract {
         return reply.value ?? .init(items: [], available: false, uncheckedApps: apps)
     }
 
+    enum UserDefaults {
+        static let suiteName = "com.vorssaint.tests.app-updates.\(UUID().uuidString)"
+        static var standard: Foundation.UserDefaults {
+            Foundation.UserDefaults(suiteName: suiteName)!
+        }
+    }
+
     static func run(_ suite: TestSuite) {
+        defer { UserDefaults.standard.removePersistentDomain(forName: UserDefaults.suiteName) }
+        func item(_ source: AppUpdatesSupport.Source, version: String = "2.0") -> AppUpdatesSupport.Item {
+            .init(id: "\(source.rawValue):editor", source: source, name: "Editor",
+                  installedVersion: "1.0", latestVersion: version,
+                  token: source == .packageManager ? "editor" : nil,
+                  bundlePath: "/Applications/Editor.app", storePage: nil)
+        }
+        let releases = [item(.packageManager), item(.appStore), item(.onlineCatalog)]
+        let ignoredService = Service()
+        ignoredService.items = releases
+        ignoredService.selection = Set(releases.filter(\.isSelectable).map(\.id))
+        ignoredService.knownIDs = Set(releases.map(\.id))
+        Service.saveAnnouncedIDs(ignoredService.knownIDs)
+        for release in releases {
+            ignoredService.ignore(release)
+            suite.expect(!ignoredService.items.contains(release)
+                         && !ignoredService.selection.contains(release.id)
+                         && !ignoredService.knownIDs.contains(release.id)
+                         && !Service.announcedIDs().contains(release.id),
+                         "ignoring removes the release from the list and bulk selection for every source")
+            suite.expect(UserDefaults.standard.integer(forKey: DefaultsKey.appUpdatesLastCount)
+                         == ignoredService.items.count,
+                         "ignoring updates the stored visible count immediately")
+        }
+        suite.expect(Service.visibleItems(releases).isEmpty,
+                     "a fresh defaults instance keeps ignored releases hidden on subsequent scans")
+        let nextReleases = [item(.packageManager, version: "3.0"), item(.appStore, version: "3.0"),
+                            item(.onlineCatalog, version: "3.0")]
+        suite.expect(Service.visibleItems(nextReleases).isEmpty,
+                     "new versions remain ignored for every source until manually restored")
+        let other = AppUpdatesSupport.Item(id: "other", source: .onlineCatalog, name: "Other",
+            installedVersion: "1.0", latestVersion: "2.0", token: nil, bundlePath: nil, storePage: nil)
+        suite.expect(Service.visibleItems(releases + [other]) == [other],
+                     "ignoring one app never hides another app with the same version")
+        ignoredService.ignore(other)
+        suite.expect(Service.visibleItems([other]) == [other],
+                     "a stale row cannot ignore an update outside the current list")
+        let relaunched = Service()
+        suite.expect(relaunched.ignoredItems.count == releases.count
+                     && relaunched.ignoredItems.allSatisfy {
+                         $0.name == "Editor" && $0.version == "2.0" && $0.bundlePath == "/Applications/Editor.app"
+                     } && Service.visibleItems(nextReleases).isEmpty,
+                     "ignored apps, names and icon paths survive a new service instance")
+        let restored = relaunched.ignoredItems.first { $0.id == releases[0].id }!
+        relaunched.restore(restored)
+        suite.expect(Service.visibleItems(releases) == [releases[0]]
+                     && Service.visibleItems(nextReleases) == [nextReleases[0]]
+                     && relaunched.ignoredItems.count == 2 && relaunched.refreshRequests == 1,
+                     "restore removes only one ignore rule and requests fresh releases")
+        suite.expect(UserDefaults.standard.dictionary(forKey: DefaultsKey.appUpdatesIgnoredNames)?[restored.id] == nil
+                     && UserDefaults.standard.dictionary(forKey: DefaultsKey.appUpdatesIgnoredPaths)?[restored.id] == nil,
+                     "restore removes stored display metadata too")
+        relaunched.restore(restored)
+        suite.expect(relaunched.refreshRequests == 1, "restoring a stale row is harmless")
+        let legacyID = "onlineCatalog:/Applications/Legacy.app"
+        var versions = UserDefaults.standard.dictionary(forKey: DefaultsKey.appUpdatesIgnoredVersions) as! [String: String]
+        versions[legacyID] = "4.0"
+        UserDefaults.standard.set(versions, forKey: DefaultsKey.appUpdatesIgnoredVersions)
+        let legacy = Service().ignoredItems.first { $0.id == legacyID }!
+        suite.expect(legacy.name == "Legacy" && legacy.version == "4.0"
+                     && legacy.bundlePath == "/Applications/Legacy.app",
+                     "previous ignore preferences remain visible without stored display names")
+        let legacyUpdate = AppUpdatesSupport.Item(id: legacyID, source: .onlineCatalog, name: "Legacy",
+            installedVersion: "4.0", latestVersion: "5.0", token: nil,
+            bundlePath: "/Applications/Legacy.app", storePage: nil)
+        suite.expect(Service.visibleItems([legacyUpdate]).isEmpty,
+                     "existing ignore preferences also hide future versions")
+        relaunched.restore(legacy)
+        suite.expect(!Service().ignoredItems.contains { $0.id == legacyID },
+                     "previous ignore preferences can also be restored")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.appUpdates(language)
+            suite.expect(!strings.ignoreVersion.isEmpty && strings.ignoreVersionHintFormat.contains("%@")
+                         && !strings.availableTab.isEmpty && !strings.ignoredTab.isEmpty
+                         && !strings.restoreVersion.isEmpty && !strings.noIgnoredUpdates.isEmpty,
+                         "ignore controls have localized labels and version hints")
+        }
         let app = AppUpdatesSupport.InstalledApp(name: "Editor", bundleID: "com.example.editor",
             path: "/Applications/Editor.app", version: "1.0", isFromAppStore: false)
         func entry(version: String = "2.0", name: String = "Editor.app", ids: [String] = ["com.example.editor"],

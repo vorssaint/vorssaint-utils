@@ -15,6 +15,7 @@ struct AppUpdatesListView: View {
     @AppStorage(DefaultsKey.appUpdatesIncludeAppStore)
     private var includeAppStore = true
     @State private var showOperationDetails = false
+    @State private var showingIgnored = false
     var compact = false
 
     private var text: AppUpdateStrings { FeatureStrings.appUpdates(l10n.language) }
@@ -31,14 +32,30 @@ struct AppUpdatesListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 12) {
             summaryRow
-            if updates.items.isEmpty {
+            Picker(text.pageTitle, selection: $showingIgnored) {
+                Text("\(text.availableTab) (\(updates.items.count))").tag(false)
+                Text("\(text.ignoredTab) (\(updates.ignoredItems.count))").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            if showingIgnored {
+                if updates.ignoredItems.isEmpty {
+                    Text(text.noIgnoredUpdates)
+                        .font(.system(size: compact ? 11 : 12))
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 12)
+                } else {
+                    list
+                }
+            } else if updates.items.isEmpty {
                 emptyState
             } else {
                 if updates.selectableCount > 0 { selectionBar }
                 list
                 if updates.selectableCount > 0 { updateButton }
             }
-            if coverageIncomplete {
+            if !showingIgnored && coverageIncomplete {
                 incompleteCheck
             }
             if let status = homebrew.operationStatus {
@@ -171,8 +188,14 @@ struct AppUpdatesListView: View {
     @ViewBuilder
     private var list: some View {
         let rows = LazyVStack(alignment: .leading, spacing: Self.compactRowSpacing) {
-            ForEach(updates.items) { item in
-                row(item)
+            if showingIgnored {
+                ForEach(updates.ignoredItems) { item in
+                    ignoredRow(item)
+                }
+            } else {
+                ForEach(updates.items) { item in
+                    row(item)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -181,7 +204,7 @@ struct AppUpdatesListView: View {
             // Height lands on whole rows, so the list never ends with half a
             // row peeking out of the panel.
             ScrollView { rows }
-                .frame(height: Self.compactHeight(rowCount: updates.items.count))
+                .frame(height: Self.compactHeight(rowCount: showingIgnored ? updates.ignoredItems.count : updates.items.count))
         } else {
             rows
         }
@@ -207,13 +230,9 @@ struct AppUpdatesListView: View {
                 .labelsHidden()
                 .toggleStyle(.checkbox)
                 .accessibilityLabel(item.name)
-            } else {
-                Color.clear
-                    .frame(width: 14, height: 14)
-                    .accessibilityHidden(true)
             }
 
-            Image(nsImage: icon(for: item))
+            Image(nsImage: icon(at: item.bundlePath))
                 .resizable()
                 .frame(width: compact ? 22 : 26, height: compact ? 22 : 26)
 
@@ -234,19 +253,33 @@ struct AppUpdatesListView: View {
                     .font(.system(size: compact ? 9.5 : 10.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .help(item.versionSummary)
             }
             Spacer(minLength: 0)
 
-            Button {
-                updates.update(item)
-            } label: {
-                Text(actionTitle(for: item))
-                    .font(.system(size: compact ? 10 : 11, weight: .medium))
+            HStack(spacing: 5) {
+                Button { updates.ignore(item) } label: {
+                    Image(systemName: "eye.slash")
+                        .font(.system(size: compact ? 10 : 11))
+                        .frame(width: 16)
+                }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .help(String(format: text.ignoreVersionHintFormat, item.name))
+                    .accessibilityLabel("\(text.ignoreVersion): \(item.name)")
+
+                Button {
+                    updates.update(item)
+                } label: {
+                    Text(actionTitle(for: item))
+                        .font(.system(size: compact ? 10 : 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(actionHint(for: item))
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .fixedSize()
             .disabled(isBusy)
-            .help(actionHint(for: item))
         }
         .padding(.horizontal, 7)
         .padding(.vertical, 5)
@@ -257,8 +290,43 @@ struct AppUpdatesListView: View {
         )
     }
 
-    private func icon(for item: AppUpdatesSupport.Item) -> NSImage {
-        guard let path = item.bundlePath, FileManager.default.fileExists(atPath: path) else {
+    private func ignoredRow(_ item: AppUpdatesService.IgnoredItem) -> some View {
+        HStack(spacing: 9) {
+            Image(nsImage: icon(at: item.bundlePath))
+                .resizable()
+                .frame(width: compact ? 22 : 26, height: compact ? 22 : 26)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.name)
+                    .font(.system(size: compact ? 11.5 : 12.5, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(item.name)
+                Text(item.version)
+                    .font(.system(size: compact ? 9.5 : 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .help(item.version)
+            }
+            Spacer(minLength: 0)
+            Button(text.restoreVersion) { updates.restore(item) }
+                .font(.system(size: compact ? 10 : 11, weight: .medium))
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .fixedSize()
+                .disabled(isBusy)
+                .accessibilityLabel("\(text.restoreVersion): \(item.name), \(item.version)")
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
+        .frame(height: compact ? Self.compactRowHeight : nil)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
+        )
+    }
+
+    private func icon(at path: String?) -> NSImage {
+        guard let path, FileManager.default.fileExists(atPath: path) else {
             return NSWorkspace.shared.icon(for: .applicationBundle)
         }
         return NSWorkspace.shared.icon(forFile: path)

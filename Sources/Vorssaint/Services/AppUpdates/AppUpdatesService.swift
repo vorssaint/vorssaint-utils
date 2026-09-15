@@ -18,6 +18,7 @@ final class AppUpdatesService: ObservableObject {
     static let shared = AppUpdatesService()
 
     @Published private(set) var items: [AppUpdatesSupport.Item] = []
+    @Published private(set) var ignoredItems = AppUpdatesService.loadIgnoredItems()
     @Published private(set) var isChecking = false
     @Published private(set) var lastCheck: Date?
     @Published private(set) var nextCheck: Date?
@@ -248,6 +249,7 @@ final class AppUpdatesService: ObservableObject {
             check(automatic: shouldFinishAutomatically)
             return
         }
+        let newItems = Self.visibleItems(newItems)
         // What was already announced survives relaunches, unlike knownIDs:
         // otherwise the first background check of every launch would speak up
         // about the same pending update again. Findings that are gone drop out,
@@ -542,6 +544,75 @@ final class AppUpdatesService: ObservableObject {
 
     var selectedCount: Int { selection.count }
     var selectableCount: Int { items.filter(\.isSelectable).count }
+
+    func ignore(_ item: AppUpdatesSupport.Item) {
+        guard items.contains(item) else { return }
+        var ignored = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredVersions) as? [String: String] ?? [:]
+        ignored[item.id] = item.latestVersion
+        UserDefaults.standard.set(ignored, forKey: DefaultsKey.appUpdatesIgnoredVersions)
+        var names = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredNames) as? [String: String] ?? [:]
+        var paths = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredPaths) as? [String: String] ?? [:]
+        paths[item.id] = item.bundlePath
+        UserDefaults.standard.set(paths, forKey: DefaultsKey.appUpdatesIgnoredPaths)
+        names[item.id] = item.name
+        UserDefaults.standard.set(names, forKey: DefaultsKey.appUpdatesIgnoredNames)
+        ignoredItems = Self.loadIgnoredItems()
+        items = Self.visibleItems(items)
+        selection.formIntersection(items.map(\.id))
+        knownIDs = Set(items.map(\.id))
+        Self.saveAnnouncedIDs(Self.announcedIDs().intersection(knownIDs))
+        UserDefaults.standard.set(items.count, forKey: DefaultsKey.appUpdatesLastCount)
+    }
+
+    struct IgnoredItem: Identifiable {
+        let id: String
+        let name: String
+        let version: String
+        let bundlePath: String?
+    }
+
+    private static func loadIgnoredItems() -> [IgnoredItem] {
+        let versions = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredVersions) as? [String: String] ?? [:]
+        let names = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredNames) as? [String: String] ?? [:]
+        let paths = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredPaths) as? [String: String] ?? [:]
+        return versions.map { id, version in
+            let identity = id.split(separator: ":", maxSplits: 1).last.map(String.init) ?? id
+            let fallback = identity.hasPrefix("/")
+                ? URL(fileURLWithPath: identity).deletingPathExtension().lastPathComponent : identity
+            let path = paths[id] ?? (identity.hasPrefix("/") ? identity : nil)
+            return IgnoredItem(id: id, name: names[id] ?? fallback, version: version, bundlePath: path)
+        }.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    func restore(_ item: IgnoredItem) {
+        var versions = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredVersions) as? [String: String] ?? [:]
+        guard versions[item.id] != nil else { return }
+        versions.removeValue(forKey: item.id)
+        UserDefaults.standard.set(versions, forKey: DefaultsKey.appUpdatesIgnoredVersions)
+        var names = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredNames) as? [String: String] ?? [:]
+        var paths = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredPaths) as? [String: String] ?? [:]
+        paths.removeValue(forKey: item.id)
+        UserDefaults.standard.set(paths, forKey: DefaultsKey.appUpdatesIgnoredPaths)
+        names.removeValue(forKey: item.id)
+        UserDefaults.standard.set(names, forKey: DefaultsKey.appUpdatesIgnoredNames)
+        ignoredItems = Self.loadIgnoredItems()
+        sourceSelectionDidChange()
+    }
+
+    private static func visibleItems(_ items: [AppUpdatesSupport.Item]) -> [AppUpdatesSupport.Item] {
+        let ignored = UserDefaults.standard.dictionary(
+            forKey: DefaultsKey.appUpdatesIgnoredVersions) as? [String: String] ?? [:]
+        return items.filter { ignored[$0.id] == nil }
+    }
 
     func selectAll() {
         selection = Set(items.filter(\.isSelectable).map(\.id))

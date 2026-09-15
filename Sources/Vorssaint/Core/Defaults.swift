@@ -254,6 +254,9 @@ enum DefaultsKey {
     // Findings already announced once, so a pending update nobody installs
     // does not speak up again after every relaunch.
     static let appUpdatesNotifiedIDs = "appUpdatesNotifiedIDs"
+    static let appUpdatesIgnoredVersions = "appUpdatesIgnoredVersions"
+    static let appUpdatesIgnoredNames = "appUpdatesIgnoredNames"
+    static let appUpdatesIgnoredPaths = "appUpdatesIgnoredPaths"
     static let panelUtilityMedia = "panelUtilityMedia"
     static let panelUtilityClipboard = "panelUtilityClipboard"
     static let panelUtilityWindowLayout = "panelUtilityWindowLayout"

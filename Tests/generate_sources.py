@@ -98,6 +98,16 @@ def main():
           + declaration(updates, "    private func publisherFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
           + declaration(updates, "    private func onlineCatalogFindings(").replace("private func", "func", 1).replace("Date()", "self.clock.now()")
           + declaration(updates, "    private func onlineResult(").replace("private func", "func", 1)
+          + "var items: [AppUpdatesSupport.Item] = []\nvar selection: Set<String> = []\nvar knownIDs: Set<String> = []\n"
+          + "var ignoredItems = Service.loadIgnoredItems()\nvar refreshRequests = 0\n"
+          + "func sourceSelectionDidChange() { refreshRequests += 1 }\n"
+          + declaration(updates, "    struct IgnoredItem:")
+          + declaration(updates, "    private static func loadIgnoredItems(").replace("private static func", "static func", 1)
+          + declaration(updates, "    func restore(")
+          + declaration(updates, "    func ignore(")
+          + declaration(updates, "    private static func announcedIDs(").replace("private static func", "static func", 1)
+          + declaration(updates, "    private static func saveAnnouncedIDs(").replace("private static func", "static func", 1)
+          + declaration(updates, "    private static func visibleItems(").replace("private static func", "static func", 1)
           + "}\n}\n")
     playback_adapter = "Sources/NowPlayingAdapter/NowPlayingSelection.swift"
     write("NotchPlaybackRouting.swift", "import Foundation\nimport ObjectiveC\nextension NotchPlaybackRoutingContract {\n"
