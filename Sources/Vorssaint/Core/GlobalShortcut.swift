@@ -218,6 +218,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // same free control-option-command layer.
     static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
                                                       modifiers: [.control, .option, .command])
+    // O for one-time password, on the same free control-option-command layer.
+    static let authenticatorPaletteDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
+                                                            modifiers: [.control, .option, .command])
     // Option-Space, the combination mature launchers settled on: one thumb
     // and one finger, mirroring the system search's Command-Space without
     // fighting it for the key. Registered as a hotkey it never types the
@@ -706,6 +709,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case radialMenu
     case scratchpad
     case snippetLibrary
+    case authenticatorPalette
     case commandBar
     case screenRecorder
     case displayBrightnessDecrease
@@ -738,6 +742,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return DefaultsKey.radialMenuShortcut
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
+        case .authenticatorPalette: return DefaultsKey.authenticatorPaletteShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
         case .displayBrightnessDecrease: return DefaultsKey.displayBrightnessDecreaseShortcut
@@ -770,6 +775,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenuDefault
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
+        case .authenticatorPalette: return .authenticatorPaletteDefault
         case .commandBar: return .commandBarDefault
         case .screenRecorder: return .screenRecorderDefault
         case .displayBrightnessDecrease: return .displayBrightnessDecreaseDefault
@@ -826,6 +832,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
+        case .authenticatorPalette: return FeatureStrings.authenticator(L10n.shared.language).paletteTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .displayBrightnessDecrease:
@@ -879,6 +886,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
+        case .authenticatorPalette: return [DefaultsKey.authenticatorPaletteEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .displayBrightnessDecrease, .displayBrightnessIncrease:
@@ -911,6 +919,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
+        case .authenticatorPalette: return .authenticator
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness

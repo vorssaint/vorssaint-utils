@@ -177,6 +177,7 @@ enum CommandBarCatalog {
         entries.append(contentsOf: systemAnswerEntries(s, bar: bar))
         entries.append(contentsOf: settingsEntries(s, language: language, bar: bar))
         entries.append(contentsOf: snippetEntries(bar))
+        entries.append(contentsOf: authenticatorEntries(language))
         entries.append(contentsOf: linkEntries(
             CommandBarLinks.decode(UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks)),
             bar: bar))
@@ -404,6 +405,22 @@ enum CommandBarCatalog {
                 icon: .symbol("note.text"),
                 shortcut: roleShortcut(.scratchpad),
                 run: { _ in afterBeat { ScratchpadService.shared.show() } }))
+        }
+        if AppFeature.authenticator.isAvailable {
+            let strings = FeatureStrings.authenticator(language)
+            entries.append(CommandBarEntry(
+                id: "action.authenticatorPalette",
+                title: strings.paletteTitle,
+                subtitle: area(.authenticator, under: strings.pageTitle),
+                icon: .symbol("key.horizontal"),
+                shortcut: roleShortcut(.authenticatorPalette),
+                run: { _ in afterBeat { AuthenticatorPaletteService.shared.show() } }))
+            entries.append(CommandBarEntry(
+                id: "action.authenticatorScan",
+                title: strings.scanScreen,
+                subtitle: area(.authenticator, under: strings.scanScreen),
+                icon: .symbol("qrcode.viewfinder"),
+                run: { _ in afterBeat { AuthenticatorService.shared.scanScreen() } }))
         }
         if AppFeature.cameraPreview.isAvailable {
             entries.append(CommandBarEntry(
@@ -908,6 +925,28 @@ enum CommandBarCatalog {
                         SnippetLibraryService.shared.insert(snippet)
                     })
             }
+    }
+
+    // MARK: - Authenticator
+
+    /// One row per account; the code is computed when the list is built,
+    /// which is on every open, and Return copies the code current at that
+    /// moment rather than the one displayed.
+    private static func authenticatorEntries(_ language: AppLanguage) -> [CommandBarEntry] {
+        guard AppFeature.authenticator.isAvailable else { return [] }
+        let strings = FeatureStrings.authenticator(language)
+        return AuthenticatorService.shared.accounts.map { account in
+            CommandBarEntry(
+                id: "authenticator.\(account.id.uuidString)",
+                title: account.displayName,
+                subtitle: account.secondaryName.isEmpty
+                    ? strings.commandBarKind
+                    : account.secondaryName + " · " + strings.commandBarKind,
+                keywords: account.issuer + " " + account.label + " 2fa otp totp",
+                icon: .symbol("key.horizontal"),
+                answerValue: AuthenticatorService.shared.groupedCode(for: account.id),
+                run: { _ in AuthenticatorService.shared.copyCode(for: account.id) })
+        }
     }
 
     // MARK: - Installed apps

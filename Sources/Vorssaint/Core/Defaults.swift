@@ -529,6 +529,7 @@ enum DefaultsKey {
     static let panelUtilityScreenOCR = "panelUtilityScreenOCR"
     static let panelUtilityCameraPreview = "panelUtilityCameraPreview"
     static let panelUtilityScratchpad = "panelUtilityScratchpad"
+    static let panelUtilityAuthenticator = "panelUtilityAuthenticator"
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
     // Mode chooser visibility for dedicated capture shortcuts.
@@ -650,6 +651,13 @@ enum DefaultsKey {
     static let textSnippets = "textSnippets"              // Data: [TextSnippet] JSON
     static let snippetLibraryEnabled = "snippetLibraryEnabled"
     static let snippetLibraryShortcut = "snippetLibraryShortcut"
+    static let authenticatorPaletteEnabled = "authenticatorPaletteEnabled"
+    static let authenticatorPaletteShortcut = "authenticatorPaletteShortcut"
+    static let authenticatorTypesCodes = "authenticatorTypesCodes"
+    static let authenticatorClearsClipboard = "authenticatorClearsClipboard"
+    static let authenticatorClipboardClearDelay = "authenticatorClipboardClearDelay"
+    static let authenticatorPressesReturn = "authenticatorPressesReturn"
+    static let authenticatorRequiresUnlock = "authenticatorRequiresUnlock"
 
     // Optional top-of-screen workspace and activity presentations.
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
@@ -1095,6 +1103,13 @@ enum Defaults {
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,
+        DefaultsKey.authenticatorPaletteEnabled: true,
+        DefaultsKey.authenticatorPaletteShortcut: GlobalShortcut.authenticatorPaletteDefault.storageValue,
+        DefaultsKey.authenticatorTypesCodes: true,
+        DefaultsKey.authenticatorClearsClipboard: true,
+        DefaultsKey.authenticatorClipboardClearDelay: 30,
+        DefaultsKey.authenticatorPressesReturn: false,
+        DefaultsKey.authenticatorRequiresUnlock: false,
         DefaultsKey.notchShowPlayingMusic: true,
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
@@ -1401,6 +1416,7 @@ enum Defaults {
         DefaultsKey.panelUtilityScreenOCR: true,
         DefaultsKey.panelUtilityCameraPreview: true,
         DefaultsKey.panelUtilityScratchpad: true,
+        DefaultsKey.panelUtilityAuthenticator: true,
         DefaultsKey.clipboardHistoryShortcutEnabled: true,
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
         DefaultsKey.recorderShortcutEnabled: false,

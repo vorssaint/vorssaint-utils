@@ -291,6 +291,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SettingsBackupSupport.swift
         Sources/Vorssaint/Core/BackupStrings.swift
         Sources/Vorssaint/Core/SnippetStrings.swift
+        Sources/Vorssaint/Core/AuthenticatorStrings.swift
         Sources/Vorssaint/Core/BrightnessStrings.swift
         Sources/Vorssaint/Core/MediaImageStrings.swift
         Sources/Vorssaint/Core/QuickToggleStrings.swift
@@ -461,6 +462,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
+        Sources/Vorssaint/Services/Authenticator/OneTimePassword.swift
+        Sources/Vorssaint/Services/Authenticator/GoogleMigration.swift
+        Sources/Vorssaint/Services/Authenticator/AuthenticatorStore.swift
+        Sources/Vorssaint/Services/Authenticator/AuthenticatorInterchange.swift
         Tests/*.swift
         build/generated-tests/*.swift
     )
