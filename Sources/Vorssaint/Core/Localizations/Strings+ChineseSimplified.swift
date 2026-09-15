@@ -1008,6 +1008,9 @@ extension Strings {
         smoothScrollResponseLabel: "响应",
         mouseAccelerationName: "关闭鼠标加速",
         mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
+        linearScrollName: "线性滚动",
+        linearScrollCaption: "无论转动多快，鼠标滚轮每一格都滚动相同的距离。触控板不受影响。",
+        linearScrollLinesLabel: "每格行数",
         shelfClearOnClose: "关闭时清空",
         shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。"
     )

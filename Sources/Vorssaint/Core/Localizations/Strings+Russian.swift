@@ -1009,6 +1009,9 @@ extension Strings {
         smoothScrollResponseLabel: "Отклик",
         mouseAccelerationName: "Отключить ускорение мыши",
         mouseAccelerationCaption: "Отключает ускорение указателя для подключённых мышей. Прежняя настройка вернётся после выключения функции или выхода из Vorssaint.",
+        linearScrollName: "Линейная прокрутка",
+        linearScrollCaption: "Каждый щелчок колёсика мыши прокручивает одно и то же расстояние независимо от скорости вращения. Трекпад не меняется.",
+        linearScrollLinesLabel: "Строк на щелчок",
         shelfClearOnClose: "Очищать при закрытии",
         shelfClearOnCloseCaption: "Очищает полку только при нажатии кнопки закрытия. Автоматическое скрытие и сворачивание сохраняют элементы."
     )

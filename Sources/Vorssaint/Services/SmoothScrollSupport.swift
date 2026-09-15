@@ -116,6 +116,20 @@ enum SmoothScrollSupport {
         return pixels * (step / Double(defaultStep))
     }
 
+    /// The same distance once linear scrolling has settled what the event is
+    /// worth: its notch count in lines, capped and multiplied out, converted
+    /// the way a fixed-point delta is.
+    static func linearContinuousDistance(fixedPointDelta: Double,
+                                         pointDelta: Double,
+                                         step: Double,
+                                         linesPerNotch: Int) -> Double {
+        let lines = ScrollWheelSupport.linearLines(
+            ticks: ScrollWheelSupport.continuousTicks(fixedPointDelta: fixedPointDelta,
+                                                      pointDelta: pointDelta),
+            linesPerNotch: linesPerNotch)
+        return continuousDistance(fixedPointDelta: lines, pointDelta: 0, step: step)
+    }
+
     /// Splits a frame's distance into whole pixels to post and the fraction
     /// to carry into the next one. Rounding each frame on its own would drop
     /// up to half a pixel every time, which a fine-grained wheel feels as

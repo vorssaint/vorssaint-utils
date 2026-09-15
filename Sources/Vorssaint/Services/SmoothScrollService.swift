@@ -16,8 +16,8 @@ import QuartzCore
 /// #267) glide too; trackpads, Magic Mouse and momentum
 /// are passed through untouched. The tap sits at the head, so the original
 /// tick is swallowed before the inverter (appended at the tail) can see it
-/// and the flip is applied here instead; the glide carries a mark that keeps
-/// the inverter off it. Nothing (tap or timer)
+/// and the flip, like linear scrolling's cap, is applied here instead; the
+/// glide carries a mark that keeps the inverter off it. Nothing (tap or timer)
 /// exists while the feature is off. Requires Accessibility.
 final class SmoothScrollService: ObservableObject {
     static let shared = SmoothScrollService()
@@ -272,6 +272,13 @@ final class SmoothScrollService: ObservableObject {
                 at: event.location,
                 sourceProcessID: sourceProcessID)
         let defaults = UserDefaults.standard
+        // Linear scrolling is applied here for the same reason the flip is:
+        // this tap swallows the tick before the wheel tap can see it.
+        let linearLinesPerNotch: Int? = AppFeature.linearScroll.isAvailable
+            && defaults.bool(forKey: DefaultsKey.linearScrollEnabled)
+            ? ScrollWheelSupport.sanitizedLinesPerNotch(
+                defaults.integer(forKey: DefaultsKey.linearScrollLines))
+            : nil
         let invertVertical = invertHere
             && defaults.bool(forKey: DefaultsKey.scrollInverterEnabled) ? -1.0 : 1.0
         let invertHorizontal = invertHere
@@ -288,27 +295,46 @@ final class SmoothScrollService: ObservableObject {
             // Shift flag.
             let userStep = Double(SmoothScrollSupport.sanitizedStep(
                 defaults.integer(forKey: DefaultsKey.smoothScrollStep)))
-            vertical = SmoothScrollSupport.continuousDistance(
-                fixedPointDelta: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1),
-                pointDelta: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)),
-                step: userStep) * invertVertical
-            horizontal = SmoothScrollSupport.continuousDistance(
-                fixedPointDelta: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2),
-                pointDelta: Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)),
-                step: userStep) * invertHorizontal
+            let verticalFixedPoint = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)
+            let verticalPoint = Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1))
+            let horizontalFixedPoint = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)
+            let horizontalPoint = Double(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2))
+            if let linearLinesPerNotch {
+                vertical = SmoothScrollSupport.linearContinuousDistance(
+                    fixedPointDelta: verticalFixedPoint, pointDelta: verticalPoint,
+                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertVertical
+                horizontal = SmoothScrollSupport.linearContinuousDistance(
+                    fixedPointDelta: horizontalFixedPoint, pointDelta: horizontalPoint,
+                    step: userStep, linesPerNotch: linearLinesPerNotch) * invertHorizontal
+            } else {
+                vertical = SmoothScrollSupport.continuousDistance(
+                    fixedPointDelta: verticalFixedPoint, pointDelta: verticalPoint,
+                    step: userStep) * invertVertical
+                horizontal = SmoothScrollSupport.continuousDistance(
+                    fixedPointDelta: horizontalFixedPoint, pointDelta: horizontalPoint,
+                    step: userStep) * invertHorizontal
+            }
             // The distance is already in pixels; the budget must not scale it
             // a second time.
             step = 1
         } else {
             // The fixed-point field carries the fractional ticks that
             // high-resolution wheels report while the integer field reads 0.
+            var verticalTicks = SmoothScrollSupport.ticks(
+                line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)),
+                fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1))
+            var horizontalTicks = SmoothScrollSupport.ticks(
+                line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
+                fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2))
+            if let linearLinesPerNotch {
+                verticalTicks = ScrollWheelSupport.linearLines(
+                    ticks: verticalTicks, linesPerNotch: linearLinesPerNotch)
+                horizontalTicks = ScrollWheelSupport.linearLines(
+                    ticks: horizontalTicks, linesPerNotch: linearLinesPerNotch)
+            }
             let axes = SmoothScrollSupport.axes(
-                vertical: SmoothScrollSupport.ticks(
-                    line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis1)),
-                    fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)),
-                horizontal: SmoothScrollSupport.ticks(
-                    line: Double(event.getIntegerValueField(.scrollWheelEventDeltaAxis2)),
-                    fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)),
+                vertical: verticalTicks,
+                horizontal: horizontalTicks,
                 shiftPressed: shiftPressed
             )
             vertical = axes.vertical * invertVertical

@@ -1407,6 +1407,74 @@ struct MetricsTests {
                "high-resolution wheels keep their fractional ticks when the integer field truncates to zero")
         expect(SmoothScrollSupport.ticks(line: -2, fixedPoint: 0) == -2,
                "a zero fixed-point field falls back to the integer line delta")
+
+        // MARK: Linear scrolling
+
+        expect(ScrollWheelSupport.linesPerNotchRange.contains(ScrollWheelSupport.defaultLinesPerNotch)
+                && ScrollWheelSupport.sanitizedLinesPerNotch(0) == ScrollWheelSupport.defaultLinesPerNotch
+                && ScrollWheelSupport.sanitizedLinesPerNotch(-4)
+                    == ScrollWheelSupport.linesPerNotchRange.lowerBound
+                && ScrollWheelSupport.sanitizedLinesPerNotch(500)
+                    == ScrollWheelSupport.linesPerNotchRange.upperBound,
+               "lines per notch clamps to its range and an unset value means the default")
+        expect(ScrollWheelSupport.linearLines(ticks: 1, linesPerNotch: 3) == 3
+                && ScrollWheelSupport.linearLines(ticks: 5, linesPerNotch: 3) == 3
+                && ScrollWheelSupport.linearLines(ticks: -4, linesPerNotch: 3) == -3,
+               "an accelerated wheel event is capped at one notch, whichever way it turns")
+        expect(ScrollWheelSupport.linearLines(ticks: 0.25, linesPerNotch: 4) == 1
+                && ScrollWheelSupport.linearLines(ticks: 0, linesPerNotch: 3) == 0
+                && ScrollWheelSupport.linearLines(ticks: .nan, linesPerNotch: 3) == 0,
+               "a high-resolution fraction of a notch keeps its share and nothing invents movement")
+        expect(ScrollWheelSupport.continuousTicks(fixedPointDelta: 2, pointDelta: 30) == 3
+                && ScrollWheelSupport.continuousTicks(fixedPointDelta: 2, pointDelta: 0) == 2,
+               "a continuous wheel's notch count reads from the points apps see, then the fixed-point lines")
+        let fastNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 3, point: 30, fixedPoint: 3),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        let slowNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: -1, point: -10, fixedPoint: -1),
+            isContinuous: false, linesPerNotch: 3, carry: 0)
+        expect(fastNotch.delta.line == 3 && fastNotch.carry == 0 && slowNotch.delta.line == -3,
+               "a fast discrete notch and a slow one are written back as the same lines")
+        var fractionCarry = 0.0
+        var fractionLines: Int64 = 0
+        for _ in 0..<4 {
+            let part = ScrollWheelSupport.linearDelta(
+                ScrollWheelAxisDelta(line: 0, point: 0, fixedPoint: 0.25),
+                isContinuous: false, linesPerNotch: 3, carry: fractionCarry)
+            fractionCarry = part.carry
+            fractionLines += part.delta.line
+        }
+        expect(fractionLines == 3 && fractionCarry == 0,
+               "four quarter-notch events from a high-resolution wheel add up to exactly one notch")
+        let reversedNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: -1, point: 0, fixedPoint: -1),
+            isContinuous: false, linesPerNotch: 3, carry: 0.75)
+        expect(reversedNotch.delta.line == -3 && reversedNotch.carry == 0,
+               "a reversal drops the fraction the other direction left behind")
+        let continuousNotch = ScrollWheelSupport.linearDelta(
+            ScrollWheelAxisDelta(line: 0, point: 40, fixedPoint: 4),
+            isContinuous: true, linesPerNotch: 3, carry: 0)
+        expect(continuousNotch.delta == ScrollWheelAxisDelta(line: 3, point: 30, fixedPoint: 3)
+                && continuousNotch.carry == 0,
+               "a continuous wheel event gets all three fields, measured in whole points")
+        expect(SmoothScrollSupport.linearContinuousDistance(
+                fixedPointDelta: 4, pointDelta: 40,
+                step: Double(SmoothScrollSupport.defaultStep), linesPerNotch: 3)
+                == SmoothScrollSupport.continuousDistance(
+                    fixedPointDelta: 3, pointDelta: 0, step: Double(SmoothScrollSupport.defaultStep)),
+               "the glide measures a linear notch as its lines, not the driver's accelerated points")
+        let wheelTapSources = ["Sources/Vorssaint/Services/ScrollInverter.swift",
+                               "Sources/Vorssaint/Services/SmoothScrollService.swift"]
+            .map { (try? String(contentsOfFile: $0, encoding: .utf8)) ?? "" }
+        expect(wheelTapSources.allSatisfy {
+                   $0.contains("DefaultsKey.linearScrollEnabled") && $0.contains("ScrollWheelSupport.linear")
+               },
+               "both wheel taps consult linear scrolling, so the glide and the raw wheel agree")
+        expect(((try? String(contentsOfFile: "Sources/Vorssaint/App/FeatureRuntime.swift",
+                             encoding: .utf8)) ?? "")
+                .contains(".linearScroll: { ScrollInverter.shared.syncWithPreferences() }"),
+               "linear scrolling rides the wheel tap's lifecycle")
         var smoothEngine = SmoothScrollSupport.Engine()
         smoothEngine.add(vertical: 40, horizontal: 0)
         expect(smoothEngine.remainingVertical == 40,
@@ -3836,6 +3904,11 @@ struct MetricsTests {
         expect(registeredDefaults[DefaultsKey.mouseAccelerationDisabled] as? Bool == false
                 && registeredDefaults[DefaultsKey.panelControlMouseAcceleration] as? Bool == true,
                "mouse acceleration control is opt-in and visible in the panel when installed")
+        expect(registeredDefaults[DefaultsKey.linearScrollEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.linearScrollLines] as? Int
+                    == ScrollWheelSupport.defaultLinesPerNotch
+                && registeredDefaults[DefaultsKey.panelControlLinearScroll] as? Bool == true,
+               "linear scrolling is opt-in, starts at the default notch and shows in the panel when installed")
         expect(registeredDefaults[DefaultsKey.mouseClickDebounceEnabled] as? Bool == false,
                "mouse click debounce is opt-in")
         expect(registeredDefaults[DefaultsKey.mouseClickDebounceWindowMs] as? Int
@@ -14958,12 +15031,12 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 66, "feature catalog has 66 features")
+        expect(AppFeature.allCases.count == 67, "feature catalog has 67 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit",
-            "scrollInverter", "focusFollowsMouse", "smoothScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",

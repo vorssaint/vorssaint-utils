@@ -5,10 +5,11 @@ import AppKit
 import Combine
 import CoreGraphics
 
-/// Inverts the scroll direction of mouse wheels only, leaving the trackpad on
-/// macOS natural scrolling: a modifying tap at the HID level (before the window
-/// server derives pixel deltas from the
-/// wheel ticks), appended at the tail, flipping the selected axis deltas.
+/// Rewrites mouse wheel events only, leaving the trackpad on macOS natural
+/// scrolling: a modifying tap at the HID level (before the window server
+/// derives pixel deltas from the wheel ticks), appended at the tail. It flips
+/// the selected axis deltas for the scroll inverter and caps every event at
+/// one notch for linear scrolling; either feature keeps the tap alive.
 ///
 /// Wheel detection: discrete events (`isContinuous == 0`) are wheels; events
 /// flagged continuous are wheels only when they carry no gesture phase at all.
@@ -37,6 +38,10 @@ final class ScrollInverter: ObservableObject {
     /// only touch devices emit those. Read/written solely on the tap callback,
     /// which is the pointer thread and nothing else.
     private var lastGesturePhaseTimestamp: UInt64?
+    /// Fractions of a line linear scrolling has yet to deliver, one per axis.
+    /// Tap callback only, like the timestamp above.
+    private var linearCarryVertical: Double = 0
+    private var linearCarryHorizontal: Double = 0
     private var tapCreationRetryUsed = false
     private var tapCreationRetryWork: DispatchWorkItem?
 
@@ -51,9 +56,11 @@ final class ScrollInverter: ObservableObject {
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
         let defaults = UserDefaults.standard
-        let wanted = AppFeature.scrollInverter.isAvailable
+        let wanted = (AppFeature.scrollInverter.isAvailable
             && (defaults.bool(forKey: DefaultsKey.scrollInverterEnabled)
-                || defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled))
+                || defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled)))
+            || (AppFeature.linearScroll.isAvailable
+                && defaults.bool(forKey: DefaultsKey.linearScrollEnabled))
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: Permissions.shared.accessibility,
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -138,6 +145,8 @@ final class ScrollInverter: ObservableObject {
         if let source {
             PointerTapRunLoop.remove(source, invalidating: port)
         }
+        linearCarryVertical = 0
+        linearCarryHorizontal = 0
         isRunning = false
     }
 
@@ -177,45 +186,85 @@ final class ScrollInverter: ObservableObject {
             lastGesturePhaseTimestamp = timestamp
         }
 
-        if ScrollWheelSupport.isMouseWheel(traits,
-                                           secondsSinceLastGesturePhase: secondsSinceGesturePhase),
+        guard ScrollWheelSupport.isMouseWheel(traits,
+                                              secondsSinceLastGesturePhase: secondsSinceGesturePhase)
+        else { return Unmanaged.passUnretained(event) }
+
+        // Capture both axes before any set: writing a line delta makes the
+        // system rederive its point and fixed-point fields.
+        let rawVertical = ScrollWheelAxisDelta(
+            line: event.getIntegerValueField(.scrollWheelEventDeltaAxis1),
+            point: event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1),
+            fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1))
+        let rawHorizontal = ScrollWheelAxisDelta(
+            line: event.getIntegerValueField(.scrollWheelEventDeltaAxis2),
+            point: event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2),
+            fixedPoint: event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2))
+        var vertical = rawVertical
+        var horizontal = rawHorizontal
+        let defaults = UserDefaults.standard
+
+        if AppFeature.linearScroll.isAvailable,
+           defaults.bool(forKey: DefaultsKey.linearScrollEnabled) {
+            let linesPerNotch = ScrollWheelSupport.sanitizedLinesPerNotch(
+                defaults.integer(forKey: DefaultsKey.linearScrollLines))
+            let linearVertical = ScrollWheelSupport.linearDelta(
+                rawVertical, isContinuous: traits.isContinuous,
+                linesPerNotch: linesPerNotch, carry: linearCarryVertical)
+            let linearHorizontal = ScrollWheelSupport.linearDelta(
+                rawHorizontal, isContinuous: traits.isContinuous,
+                linesPerNotch: linesPerNotch, carry: linearCarryHorizontal)
+            linearCarryVertical = linearVertical.carry
+            linearCarryHorizontal = linearHorizontal.carry
+            vertical = linearVertical.delta
+            horizontal = linearHorizontal.delta
+            // A fraction of a notch is carried into the next event rather
+            // than delivered as an event that moves nothing.
+            if rawVertical.hasMovement || rawHorizontal.hasMovement,
+               !vertical.hasMovement, !horizontal.hasMovement {
+                return nil
+            }
+        }
+
+        // The inverter's keys survive the hub uninstalling it, and linear
+        // scrolling may be what keeps this tap alive, so its availability is
+        // read here rather than assumed from the tap running.
+        let invertVertical = defaults.bool(forKey: DefaultsKey.scrollInverterEnabled)
+        let invertHorizontal = defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+        var plan = ScrollWheelInversionPlan(vertical: false, horizontal: false)
+        if AppFeature.scrollInverter.isAvailable, invertVertical || invertHorizontal,
            !MouseAppExceptions.shared.excludesPointerTarget(
                 .scrollDirection,
                 at: event.location,
                 sourceProcessID: sourceProcessID) {
-            // Capture both axes before any set: writing a line delta makes the
-            // system rederive its point and fixed-point fields.
-            let verticalLine = event.getIntegerValueField(.scrollWheelEventDeltaAxis1)
-            let verticalPoint = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
-            let verticalFixedPoint = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1)
-            let horizontalLine = event.getIntegerValueField(.scrollWheelEventDeltaAxis2)
-            let horizontalPoint = event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)
-            let horizontalFixedPoint = event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)
-            let defaults = UserDefaults.standard
-            let hasVerticalMovement = verticalLine != 0 || verticalPoint != 0 || verticalFixedPoint != 0
-            let hasHorizontalMovement = horizontalLine != 0
-                || horizontalPoint != 0
-                || horizontalFixedPoint != 0
-            let plan = ScrollWheelSupport.inversionPlan(
-                hasVerticalMovement: hasVerticalMovement,
-                hasHorizontalMovement: hasHorizontalMovement,
+            plan = ScrollWheelSupport.inversionPlan(
+                hasVerticalMovement: rawVertical.hasMovement,
+                hasHorizontalMovement: rawHorizontal.hasMovement,
                 shiftRedirectsVertical: !traits.isContinuous && event.flags.contains(.maskShift),
-                invertVertical: defaults.bool(forKey: DefaultsKey.scrollInverterEnabled),
-                invertHorizontal: defaults.bool(forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+                invertVertical: invertVertical,
+                invertHorizontal: invertHorizontal
             )
-            if plan.vertical {
-                event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: -verticalLine)
-                if traits.isContinuous {
-                    event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: -verticalPoint)
-                    event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: -verticalFixedPoint)
-                }
+        }
+
+        // A discrete event only ever has its line written; the rest follows.
+        let verticalChanged = traits.isContinuous
+            ? vertical != rawVertical : vertical.line != rawVertical.line
+        let horizontalChanged = traits.isContinuous
+            ? horizontal != rawHorizontal : horizontal.line != rawHorizontal.line
+        if plan.vertical || verticalChanged {
+            let out = plan.vertical ? vertical.negated : vertical
+            event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: out.line)
+            if traits.isContinuous {
+                event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: out.point)
+                event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: out.fixedPoint)
             }
-            if plan.horizontal {
-                event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: -horizontalLine)
-                if traits.isContinuous {
-                    event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: -horizontalPoint)
-                    event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -horizontalFixedPoint)
-                }
+        }
+        if plan.horizontal || horizontalChanged {
+            let out = plan.horizontal ? horizontal.negated : horizontal
+            event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: out.line)
+            if traits.isContinuous {
+                event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: out.point)
+                event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: out.fixedPoint)
             }
         }
         return Unmanaged.passUnretained(event)

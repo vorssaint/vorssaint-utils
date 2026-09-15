@@ -915,6 +915,9 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
+    @AppStorage(DefaultsKey.linearScrollEnabled) private var linearScrollEnabled = false
+    @AppStorage(DefaultsKey.linearScrollLines) private var linearScrollLines =
+        ScrollWheelSupport.defaultLinesPerNotch
     @AppStorage(DefaultsKey.smoothScrollResponse) private var smoothScrollResponse =
         SmoothScrollSupport.defaultResponse
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
@@ -1034,6 +1037,33 @@ struct MouseSettings: View {
                 }
                 .settingsSectionAnchor(.smoothScroll)
             }
+            if AppFeature.linearScroll.isAvailable {
+                Section(l10n.s.linearScrollName) {
+                    Toggle(l10n.s.linearScrollName, isOn: $linearScrollEnabled)
+                        .onChange(of: linearScrollEnabled) { _, enabled in
+                            ScrollInverter.shared.syncWithPreferences()
+                            if enabled { permissions.requestAccessibility() }
+                        }
+                    Text(l10n.s.linearScrollCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if linearScrollEnabled {
+                        HStack {
+                            Slider(value: linearScrollLinesBinding,
+                                   in: Double(ScrollWheelSupport.linesPerNotchRange.lowerBound)
+                                       ... Double(ScrollWheelSupport.linesPerNotchRange.upperBound),
+                                   step: 1) {
+                                Text(l10n.s.linearScrollLinesLabel)
+                            }
+                            Text("\(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollLines))")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
+                    }
+                }
+                .settingsSectionAnchor(.linearScroll)
+            }
             if AppFeature.mouseAcceleration.isAvailable {
                 Section(l10n.s.mouseAccelerationName) {
                     Toggle(l10n.s.mouseAccelerationName, isOn: $mouseAccelerationDisabled)
@@ -1151,6 +1181,7 @@ struct MouseSettings: View {
         let anyEngaged = (scrollDirectionEnabled && AppFeature.scrollInverter.isAvailable)
             || (focusFollowsMouseEnabled && AppFeature.focusFollowsMouse.isAvailable)
             || (smoothScrollEnabled && AppFeature.smoothScroll.isAvailable)
+            || (linearScrollEnabled && AppFeature.linearScroll.isAvailable)
             || (mouseNavigationEnabled && AppFeature.mouseNavigation.isAvailable)
             || ((mouseButtonShortcutsEnabled || spacesEnabled)
                 && AppFeature.mouseButtonShortcuts.isAvailable)
@@ -1174,6 +1205,13 @@ struct MouseSettings: View {
         Binding(
             get: { Double(SmoothScrollSupport.sanitizedResponse(smoothScrollResponse)) },
             set: { smoothScrollResponse = Int($0) }
+        )
+    }
+
+    private var linearScrollLinesBinding: Binding<Double> {
+        Binding(
+            get: { Double(ScrollWheelSupport.sanitizedLinesPerNotch(linearScrollLines)) },
+            set: { linearScrollLines = Int($0) }
         )
     }
 

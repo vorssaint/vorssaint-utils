@@ -1009,6 +1009,9 @@ extension Strings {
         smoothScrollResponseLabel: "반응 속도",
         mouseAccelerationName: "마우스 가속 끄기",
         mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
+        linearScrollName: "선형 스크롤",
+        linearScrollCaption: "마우스 휠을 얼마나 빨리 돌리든 한 칸마다 항상 같은 거리만큼 스크롤합니다. 트랙패드는 변경되지 않습니다.",
+        linearScrollLinesLabel: "한 칸당 줄 수",
         shelfClearOnClose: "닫을 때 항목 지우기",
         shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다."
     )
