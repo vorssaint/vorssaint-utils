@@ -266,6 +266,16 @@ enum MetricFormat {
         return -batteryWatts
     }
 
+    static func batteryIsCharging(systemReported: Bool?,
+                                  registryReported: Bool?,
+                                  amperageMilliamps: Int?,
+                                  externalConnected: Bool) -> Bool {
+        guard externalConnected else { return false }
+        if let registryReported { return registryReported }
+        if let systemReported { return systemReported }
+        return amperageMilliamps.map { $0 > 0 } ?? false
+    }
+
     /// A 0...1 fraction as a rounded percentage, e.g. "12%".
     static func percent(_ fraction: Double) -> String {
         "\(Int((max(0, min(1, fraction)) * 100).rounded()))%"

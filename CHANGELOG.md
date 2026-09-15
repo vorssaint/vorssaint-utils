@@ -28,6 +28,8 @@ Dynamic Island is the focus of this update, bringing music, timers, calendar, no
 - Online lyric lookup needs separate consent and sends only the title, artist, album and duration, never audio.
 
 ### Added
+- Charge Limit adds charge controls and accurate battery status, with a native macOS 27 charging backend (80–100% in 5% steps), Top Up to 100%, and manual Discharge independent of the saved limit or cable connection. Discharge controls adapter input without shutting down USB ports; connected USB devices remained enumerated in testing. Earlier supported hardware retains its existing charge limits and Sailing mode.
+- The menu bar battery icon shows live charge fill, charging and holding states, and improved charging-bolt contrast.
 - Dynamic Island brings music, timers, calendar, notifications, downloads, files and controls beside the camera, off until you turn it on in Settings.
 - Shelf accepts attachments dragged from other apps, preserving complete files and original names. Thanks to @Borisserz.
 - Display brightness gains optional custom shortcuts for the primary display or the display under the pointer. Thanks to @EugeneCarldotme.

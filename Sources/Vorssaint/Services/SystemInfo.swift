@@ -3,12 +3,14 @@
 
 import Darwin
 import Foundation
+import IOKit
 import IOKit.ps
 
 struct BatteryInfo: Equatable {
     let percent: Int
     let isCharging: Bool
     let isOnBattery: Bool
+    let externalConnected: Bool
 }
 
 /// Point-in-time system facts that need no special permissions.
@@ -41,11 +43,37 @@ enum SystemInfo {
         let current = desc["Current Capacity"] as? Int ?? 0
         let max = desc["Max Capacity"] as? Int ?? 100
         let percent = max > 0 ? Int((Double(current) / Double(max) * 100).rounded()) : current
-        let charging = desc["Is Charging"] as? Bool ?? false
-        let state = desc["Power Source State"] as? String ?? ""
+        let state = desc[kIOPSPowerSourceStateKey] as? String ?? ""
+        let externalConnected = state == kIOPSACPowerValue
+        let charging = externalConnected && (desc[kIOPSIsChargingKey] as? Bool ?? false)
         return BatteryInfo(percent: percent,
                            isCharging: charging,
-                           isOnBattery: state == "Battery Power")
+                           isOnBattery: state == kIOPSBatteryPowerValue,
+                           externalConnected: externalConnected)
+    }
+
+    /// Reads the battery driver directly, bypassing the cached IOPS snapshot.
+    static func batteryRegistrySnapshot() -> BatteryInfo? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault,
+                                                  IOServiceMatching("AppleSmartBattery"))
+        guard service != 0 else { return nil }
+        defer { IOObjectRelease(service) }
+
+        var properties: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0)
+                == kIOReturnSuccess,
+              let values = properties?.takeRetainedValue() as? [String: Any],
+              let externalConnected = values["ExternalConnected"] as? Bool,
+              let isCharging = values["IsCharging"] as? Bool else { return nil }
+        let current = values["CurrentCapacity"] as? Int ?? 0
+        let maximum = values["MaxCapacity"] as? Int ?? 100
+        let percent = maximum > 0
+            ? Int((Double(current) / Double(maximum) * 100).rounded())
+            : current
+        return BatteryInfo(percent: percent,
+                           isCharging: externalConnected && isCharging,
+                           isOnBattery: !externalConnected,
+                           externalConnected: externalConnected)
     }
 
     static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, compressed: UInt64, cached: UInt64, swapUsed: UInt64?)? {

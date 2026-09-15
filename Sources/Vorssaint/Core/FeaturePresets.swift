@@ -38,7 +38,7 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
         case .battery:
             // The lean monitor: battery, memory pressure and the processor,
             // with nothing that listens to input events.
-            return [.monitorCPU, .monitorMemory, .monitorPower]
+            return [.monitorCPU, .monitorMemory, .monitorPower, .chargeControl]
         }
     }
 
@@ -117,7 +117,7 @@ extension AppFeature {
         case .notch, .notchCalendar, .notchLyrics: return .periodic
         case .clipboardHistory, .urlCleaner, .extraBrightness,
              .monitorCPU, .monitorGPU, .monitorMemory,
-             .monitorNetwork, .monitorDisk, .monitorPower:
+             .monitorNetwork, .monitorDisk, .monitorPower, .chargeControl:
             return .periodic
         case .mixer:
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)

@@ -24,6 +24,12 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
+    @AppStorage(DefaultsKey.menuBarCPUAppearance) private var cpuAppearance = ""
+    @AppStorage(DefaultsKey.menuBarGPUAppearance) private var gpuAppearance = ""
+    @AppStorage(DefaultsKey.menuBarMemoryAppearance) private var memoryAppearance = ""
+    @AppStorage(DefaultsKey.menuBarDiskUsageAppearance) private var diskUsageAppearance = ""
+    @AppStorage(DefaultsKey.menuBarBatteryAppearance) private var batteryAppearance = ""
+    @AppStorage(DefaultsKey.menuBarPeripheralBatteryAppearance) private var peripheralBatteryAppearance = ""
     @AppStorage(DefaultsKey.menuBarUsageBarNormalColor) private var usageBarNormalColor = "#64D2FF"
     @AppStorage(DefaultsKey.menuBarUsageBarElevatedColor) private var usageBarElevatedColor = "#FFD60A"
     @AppStorage(DefaultsKey.menuBarUsageBarCriticalColor) private var usageBarCriticalColor = "#FF453A"
@@ -38,6 +44,12 @@ struct MenuBarMetricsPreview: View {
         let _ = metricOrder
         let _ = combineTemperatures
         let _ = metricAppearance
+        let _ = cpuAppearance
+        let _ = gpuAppearance
+        let _ = memoryAppearance
+        let _ = diskUsageAppearance
+        let _ = batteryAppearance
+        let _ = peripheralBatteryAppearance
         let _ = usageBarNormalColor
         let _ = usageBarElevatedColor
         let _ = usageBarCriticalColor
@@ -164,17 +176,19 @@ struct MenuBarMetricsPreview: View {
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
                    alignment: .center)
-        case let .batteryBlock(percent, isCharging, style):
-            HStack(spacing: style == .readable ? 5 : 4) {
-                Image(systemName: MenuBarRenderer.batterySymbol(for: percent, isCharging: isCharging))
-                    .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
+        case let .batteryBlock(percent, isCharging, isPluggedIn, lowPowerMode, _):
+            HStack(spacing: 3) {
                 Text("\(max(0, min(100, percent)))%")
-                    .font(.system(size: style == .readable ? 13 : 12,
-                                  weight: .semibold,
-                                  design: .monospaced))
-                    .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.white)
+                Image(nsImage: MenuBarBatterySupport.glyphImage(percent: percent,
+                                                                isCharging: isCharging,
+                                                                isPluggedIn: isPluggedIn,
+                                                                lowPowerMode: lowPowerMode,
+                                                                tint: .white))
+                    .frame(width: MenuBarBatterySupport.glyphSize.width,
+                           height: MenuBarBatterySupport.glyphSize.height)
             }
-            .foregroundStyle(.white)
             .fixedSize(horizontal: true, vertical: true)
         case let .dot(pressure):
             Circle()

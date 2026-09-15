@@ -98,9 +98,15 @@ enum SettingsDirectory {
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
                                                            FeatureStrings.bluetoothSleep(language).enable]),
+                                        (.chargeControl, [FeatureStrings.chargeControl(language).title,
+                                                          FeatureStrings.chargeControl(language)
+                                                            .calibrationTitle]),
                                        ]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle],
+                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
+                                                  FeatureStrings.menuBarAppearance(language).label,
+                                                  FeatureStrings.menuBarAppearance(language).values,
+                                                  FeatureStrings.menuBarAppearance(language).bars],
                                        featureKeywords: [
                                         (.monitorMemory, [s.monitorMemoryPressureDot]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),

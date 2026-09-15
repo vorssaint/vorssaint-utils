@@ -17,6 +17,12 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
+    @AppStorage(DefaultsKey.menuBarCPUAppearance) private var cpuAppearance = ""
+    @AppStorage(DefaultsKey.menuBarGPUAppearance) private var gpuAppearance = ""
+    @AppStorage(DefaultsKey.menuBarMemoryAppearance) private var memoryAppearance = ""
+    @AppStorage(DefaultsKey.menuBarDiskUsageAppearance) private var diskUsageAppearance = ""
+    @AppStorage(DefaultsKey.menuBarBatteryAppearance) private var batteryAppearance = ""
+    @AppStorage(DefaultsKey.menuBarPeripheralBatteryAppearance) private var peripheralBatteryAppearance = ""
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
@@ -35,27 +41,25 @@ struct MonitorSettings: View {
         Form {
             Section(l10n.s.monitorMenuBarSection) {
                 let appearanceStrings = FeatureStrings.menuBarAppearance(l10n.language)
-                let appearance = MenuBarMetricAppearance(
-                    rawValue: Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
-                ) ?? .values
+                let _ = cpuAppearance
+                let _ = gpuAppearance
+                let _ = memoryAppearance
+                let _ = diskUsageAppearance
+                let _ = batteryAppearance
+                let _ = peripheralBatteryAppearance
+                let _ = metricAppearance
                 MenuBarMetricsPreview()
                     .padding(.vertical, 4)
-                Picker(appearanceStrings.label, selection: $metricAppearance) {
-                    Text(appearanceStrings.values).tag("values")
-                    Text(appearanceStrings.bars).tag("bars")
-                }
-                .pickerStyle(.segmented)
                 Text(appearanceStrings.caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if appearance == .bars {
+                if MenuBarMetricAppearance.anyUsesBars() {
                     MenuBarUsageBarSettings(strings: appearanceStrings)
-                } else {
-                    Toggle(l10n.s.monitorCombineTemperatures, isOn: $combineTemperatures)
-                    Text(l10n.s.monitorCombineTemperaturesCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
+                Toggle(l10n.s.monitorCombineTemperatures, isOn: $combineTemperatures)
+                Text(l10n.s.monitorCombineTemperaturesCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Picker(l10n.s.menuBarSpacingLabel, selection: $metricSpacing) {
                     Text(l10n.s.menuBarSpacingStandard).tag("standard")
                     Text(l10n.s.menuBarSpacingCompact).tag("compact")
@@ -66,11 +70,9 @@ struct MonitorSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle(l10n.s.monitorSeparateMenuBarMetrics, isOn: $separateMetrics)
-                if appearance.allowsCombinedTemperatures {
-                    Text(l10n.s.monitorSeparateMenuBarMetricsCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text(l10n.s.monitorSeparateMenuBarMetricsCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 MenuBarMetricOrderEditor()
                 Text(l10n.s.monitorMenuBarCaption)
                     .font(.caption)
@@ -156,6 +158,12 @@ struct MonitorSettings: View {
         .onAppear {
             interval = Defaults.sanitizedMonitorInterval(interval)
             metricAppearance = Defaults.sanitizedMenuBarMetricAppearance(metricAppearance)
+            cpuAppearance = Defaults.sanitizedMenuBarMetricItemAppearance(cpuAppearance)
+            gpuAppearance = Defaults.sanitizedMenuBarMetricItemAppearance(gpuAppearance)
+            memoryAppearance = Defaults.sanitizedMenuBarMetricItemAppearance(memoryAppearance)
+            diskUsageAppearance = Defaults.sanitizedMenuBarMetricItemAppearance(diskUsageAppearance)
+            batteryAppearance = Defaults.sanitizedMenuBarMetricItemAppearance(batteryAppearance)
+            peripheralBatteryAppearance = Defaults.sanitizedMenuBarMetricItemAppearance(peripheralBatteryAppearance)
             if TemperatureUnit(rawValue: temperatureUnit) == nil {
                 temperatureUnit = TemperatureUnit.celsius.rawValue
             }
@@ -294,6 +302,9 @@ private struct MenuBarMetricOrderEditor: View {
                                                                          order: $order,
                                                                          dragging: $dragging))
 
+                        if metric.supportsUsageBars {
+                            MenuBarMetricAppearanceOption(metric: metric)
+                        }
                         MenuBarMetricVisibilityToggle(metric: metric)
                     }
                     .frame(height: 32)
@@ -363,6 +374,76 @@ private struct MetricRowOptionToggle: View {
         .padding(.leading, 58)
         .padding(.trailing, 4)
         .padding(.bottom, 7)
+    }
+}
+
+
+/// Values or bars for one percentage-based metric. A native Picker is not
+/// used because the reorderable row's drag handling swallows it; plain
+/// Buttons receive the click, matching the visibility eye and the memory
+/// pressure switch.
+private struct MenuBarMetricAppearanceOption: View {
+    let metric: MenuBarMetric
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage private var appearance: String
+
+    init(metric: MenuBarMetric) {
+        self.metric = metric
+        _appearance = AppStorage(wrappedValue: "",
+                                 metric.appearanceDefaultsKey ?? DefaultsKey.menuBarMetricAppearance)
+    }
+
+    var body: some View {
+        let strings = FeatureStrings.menuBarAppearance(l10n.language)
+        MetricRowAppearancePicker(
+            label: strings.label,
+            valuesLabel: strings.values,
+            barsLabel: strings.bars,
+            appearance: Binding(
+                get: { metric.usageAppearance().rawValue },
+                set: { appearance = Defaults.sanitizedMenuBarMetricAppearance($0) }
+            )
+        )
+    }
+}
+
+private struct MetricRowAppearancePicker: View {
+    let label: String
+    let valuesLabel: String
+    let barsLabel: String
+    @Binding var appearance: String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            segment(valuesLabel, tag: "values")
+            segment(barsLabel, tag: "bars")
+        }
+        .padding(2)
+        .background(
+            Capsule().fill(Color.secondary.opacity(0.18))
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(label)
+    }
+
+    private func segment(_ title: String, tag: String) -> some View {
+        let selected = appearance == tag
+        return Button {
+            appearance = tag
+        } label: {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .foregroundStyle(selected ? Color.white : Color.secondary)
+                .background(
+                    Capsule().fill(selected ? Color.accentColor : Color.clear)
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

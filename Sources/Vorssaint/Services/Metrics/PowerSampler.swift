@@ -19,6 +19,7 @@ struct PowerReading {
     var isCharging = false
     var externalConnected = false
     var hasBattery = false
+    var isLowPowerMode = false
 
     var isEmpty: Bool {
         systemWatts == nil && adapterWatts == nil && adapterMaxWatts == nil
@@ -62,8 +63,13 @@ final class PowerSampler {
         }
     }
 
+    static var isLowPowerModeEnabled: Bool {
+        ProcessInfo.processInfo.isLowPowerModeEnabled
+    }
+
     func sample() -> PowerReading {
         var reading = PowerReading()
+        reading.isLowPowerMode = Self.isLowPowerModeEnabled
 
         if let smc {
             if !resolvedKeys {
@@ -77,16 +83,24 @@ final class PowerSampler {
 
         if let props = batteryProperties() {
             reading.hasBattery = true
-            reading.externalConnected = (props["ExternalConnected"] as? Bool) ?? false
-            reading.isCharging = (props["IsCharging"] as? Bool) ?? false
+            let systemBattery = SystemInfo.batterySnapshot()
+            reading.externalConnected = (props["ExternalConnected"] as? Bool)
+                ?? systemBattery?.externalConnected
+                ?? false
+            let reportedCharging = props["IsCharging"] as? Bool
+
+            let voltageMv = (props["Voltage"] as? Int) ?? 0
+            let amperageMa = intValue(props["InstantAmperage"]) ?? intValue(props["Amperage"])
+            reading.isCharging = MetricFormat.batteryIsCharging(
+                systemReported: systemBattery?.isCharging,
+                registryReported: reportedCharging,
+                amperageMilliamps: amperageMa,
+                externalConnected: reading.externalConnected)
             reading.timeRemainingSeconds = BatteryTimeSupport.remainingSeconds(
                 timeToEmptyMinutes: timeToEmptyMinutes(),
                 externalConnected: reading.externalConnected,
                 isCharging: reading.isCharging)
-
-            let voltageMv = (props["Voltage"] as? Int) ?? 0
-            let amperageMa = (props["Amperage"] as? Int) ?? (props["InstantAmperage"] as? Int) ?? 0
-            if voltageMv > 0, amperageMa != 0 {
+            if voltageMv > 0, let amperageMa, amperageMa != 0 {
                 // Power = V x I, signed by the amperage (negative while discharging).
                 reading.batteryWatts = (Double(voltageMv) / 1000.0) * (Double(amperageMa) / 1000.0)
             }
