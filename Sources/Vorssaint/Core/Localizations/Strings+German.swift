@@ -572,6 +572,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Macht aus Lautstärkerädern und -tasten kleinere Systemschritte.",
         preciseVolumeRollerTapFailed: "Lautstärketasten konnten nicht überwacht werden.",
         soundOutputSwitcherTitle: "Ausgabeumschalter",
+        soundOutputOSDEnable: "Ausgabegerät anzeigen",
+        soundOutputConfirmationSound: "Bestätigungston",
         soundOutputSwitcherEnable: "Ausgaben per Kurzbefehl wechseln",
         soundOutputSwitcherCaption: "Wähle Ausgaben und nutze den Kurzbefehl für die nächste verfügbare.",
         soundOutputSwitcherDevices: "Ausgaben im Wechsel",

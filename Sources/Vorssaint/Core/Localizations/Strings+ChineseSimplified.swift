@@ -572,6 +572,8 @@ extension Strings {
         preciseVolumeRollerCaption: "将音量滚轮和按键转换为更小的系统音量步进。",
         preciseVolumeRollerTapFailed: "无法监听音量键。",
         soundOutputSwitcherTitle: "输出切换器",
+        soundOutputOSDEnable: "显示输出设备",
+        soundOutputConfirmationSound: "确认提示音",
         soundOutputSwitcherEnable: "用快捷键切换输出",
         soundOutputSwitcherCaption: "选择输出设备，然后用快捷键切到下一个可用输出。",
         soundOutputSwitcherDevices: "循环中的输出",

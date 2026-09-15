@@ -50,6 +50,7 @@ struct ShortcutsSettings: View {
                         } else if feature == .soundOutputSwitcher {
                             featureRows(feature, in: group)
                                 .settingsSectionAnchor(.soundOutputSwitcher)
+                            OutputDeviceFeedbackControls()
                         } else {
                             featureRows(feature, in: group)
                         }

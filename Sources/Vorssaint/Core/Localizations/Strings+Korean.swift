@@ -573,6 +573,8 @@ extension Strings {
         preciseVolumeRollerCaption: "볼륨 휠과 키를 더 작은 시스템 볼륨 단계로 바꿉니다.",
         preciseVolumeRollerTapFailed: "볼륨 키를 감지할 수 없습니다.",
         soundOutputSwitcherTitle: "출력 전환",
+        soundOutputOSDEnable: "출력 기기 표시",
+        soundOutputConfirmationSound: "확인 소리",
         soundOutputSwitcherEnable: "단축키로 출력 전환",
         soundOutputSwitcherCaption: "출력을 선택하고 단축키로 다음 사용 가능한 출력으로 전환합니다.",
         soundOutputSwitcherDevices: "전환할 출력",

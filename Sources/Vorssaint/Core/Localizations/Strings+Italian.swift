@@ -572,6 +572,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Trasforma rotelle e tasti volume in passi di sistema più piccoli.",
         preciseVolumeRollerTapFailed: "Impossibile ascoltare i tasti volume.",
         soundOutputSwitcherTitle: "Selettore uscita",
+        soundOutputOSDEnable: "Mostra dispositivo di uscita",
+        soundOutputConfirmationSound: "Suono di conferma",
         soundOutputSwitcherEnable: "Cambia uscite con scorciatoia",
         soundOutputSwitcherCaption: "Scegli le uscite e usa la scorciatoia per passare alla prossima disponibile.",
         soundOutputSwitcherDevices: "Uscite nel ciclo",

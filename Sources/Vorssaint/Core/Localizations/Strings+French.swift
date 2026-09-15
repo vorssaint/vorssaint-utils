@@ -572,6 +572,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Transforme molettes et touches de volume en pas système plus petits.",
         preciseVolumeRollerTapFailed: "Impossible d’écouter les touches de volume.",
         soundOutputSwitcherTitle: "Sélecteur de sortie",
+        soundOutputOSDEnable: "Afficher le périphérique de sortie",
+        soundOutputConfirmationSound: "Son de confirmation",
         soundOutputSwitcherEnable: "Changer de sortie avec un raccourci",
         soundOutputSwitcherCaption: "Choisissez les sorties et utilisez le raccourci pour passer à la suivante disponible.",
         soundOutputSwitcherDevices: "Sorties du cycle",
