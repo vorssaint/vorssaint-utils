@@ -27,6 +27,43 @@ private final class BoundedProcessOutput: @unchecked Sendable {
     }
 }
 
+/// Cancellation owns one process launch; the lock closes the gap between
+/// cancelling a queued request and that request launching its child.
+final class BoundedProcessCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    private var process: Process?
+
+    var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return cancelled }
+
+    func cancel() {
+        lock.lock()
+        guard !cancelled else { lock.unlock(); return }
+        cancelled = true
+        let child = process
+        lock.unlock()
+        guard let child, child.isRunning else { return }
+        child.terminate()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.5) {
+            if child.isRunning { kill(child.processIdentifier, SIGKILL) }
+        }
+    }
+
+    fileprivate func launch(_ child: Process) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !cancelled, process == nil else { throw CancellationError() }
+        try child.run()
+        process = child
+    }
+
+    fileprivate func release(_ child: Process) {
+        lock.lock()
+        defer { lock.unlock() }
+        if process === child { process = nil }
+    }
+}
+
 enum BoundedProcessRunner {
     struct Result {
         let status: Int32
@@ -37,7 +74,8 @@ enum BoundedProcessRunner {
     static func run(_ path: String,
                     _ arguments: [String],
                     timeout: TimeInterval,
-                    maxOutputBytes: Int) -> Result {
+                    maxOutputBytes: Int,
+                    cancellation: BoundedProcessCancellation? = nil) -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
@@ -71,8 +109,10 @@ enum BoundedProcessRunner {
         let finished = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in finished.signal() }
 
+        defer { cancellation?.release(process) }
         do {
-            try process.run()
+            if let cancellation { try cancellation.launch(process) }
+            else { try process.run() }
         } catch {
             reader.readabilityHandler = nil
             try? reader.close()

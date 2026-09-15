@@ -8,6 +8,8 @@ import SwiftUI
 /// appears on hover when more than one camera is around. Esc, a click
 /// anywhere else or switching to the meeting app closes it.
 struct CameraPreviewView: View {
+    var size = CGSize(width: 320, height: 240)
+    var showsCameraMenu = false
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CameraPreviewService.shared
     @State private var hovering = false
@@ -21,7 +23,7 @@ struct CameraPreviewView: View {
             Color.black
             content
         }
-        .frame(width: 320, height: 240)
+        .frame(width: size.width, height: size.height)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -40,7 +42,7 @@ struct CameraPreviewView: View {
             if let session = service.session {
                 CameraLayerView(session: session)
                     .overlay(alignment: .bottom) {
-                        if hovering, service.devices.count > 1 {
+                        if (hovering || showsCameraMenu), service.devices.count > 1 {
                             cameraMenu
                                 .padding(.bottom, 10)
                                 .transition(.opacity)
@@ -58,6 +60,11 @@ struct CameraPreviewView: View {
                     Permissions.shared.openCameraSettings()
                 }
                 .controlSize(.small)
+            }
+        case .unavailable:
+            statusMessage(icon: "video.slash", text: FeatureStrings.notchActivities(l10n.language).cameraUnavailable) {
+                Button(FeatureStrings.notchActivities(l10n.language).startCamera, action: service.retryCapture)
+                    .controlSize(.small)
             }
         case .noCamera:
             statusMessage(icon: "web.camera", text: strings.noCameraMessage) { EmptyView() }

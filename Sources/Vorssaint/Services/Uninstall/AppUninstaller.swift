@@ -239,7 +239,7 @@ final class AppUninstaller: ObservableObject {
                     infoIdentity: expectedInfoIdentity)
             } ?? false
             let targetWasRemovedByPackageManager = packageRemovedApplication
-                && targetURL.map { !fm.fileExists(atPath: $0.path) } == true
+                && targetURL.map { UninstallerSupport.isConfirmedAbsent(at: $0) } == true
             let mayClaimSharedData = targetIsOriginal || targetWasRemovedByPackageManager
             let lookupBundleIDs = candidateBundleIDs.union(evidenceBundleIDs)
             // Only the shared-data claims below read this roster, and building
@@ -295,14 +295,27 @@ final class AppUninstaller: ObservableObject {
                                               expectedIdentity: item.fileIdentity,
                                               allowedPaths: allowedPaths,
                                               targetURL: targetURL) else {
-                    failed.append(item)
+                    // The package manager or another pass may have taken the path.
+                    // Only a confirmed absence counts as success; a still-present
+                    // path, or one we can no longer read, stays a failure.
+                    if UninstallerSupport.isConfirmedAbsent(at: item.url) {
+                        freed += item.size
+                    } else {
+                        failed.append(item)
+                    }
                     continue
                 }
                 do {
                     try fm.trashItem(at: item.url, resultingItemURL: nil)
                     freed += item.size
                 } catch {
-                    stubborn.append(item)
+                    if UninstallerSupport.isConfirmedAbsent(at: item.url) {
+                        freed += item.size
+                    } else if fm.fileExists(atPath: item.url.path) {
+                        stubborn.append(item)
+                    } else {
+                        failed.append(item)
+                    }
                 }
             }
 
@@ -322,10 +335,10 @@ final class AppUninstaller: ObservableObject {
                 })
                 Self.trashViaFinder(stillSafe.map(\.url))
                 for item in stillSafe {
-                    if fm.fileExists(atPath: item.url.path) {
-                        failed.append(item)
-                    } else {
+                    if UninstallerSupport.isConfirmedAbsent(at: item.url) {
                         freed += item.size
+                    } else {
+                        failed.append(item)
                     }
                 }
             }
@@ -367,14 +380,28 @@ final class AppUninstaller: ObservableObject {
               homebrewPackage?.id == package.id,
               let app = items.first(where: { $0.category == .app && $0.include }),
               let targetURL = target?.url else { return }
-        if FileManager.default.fileExists(atPath: targetURL.path) {
-            homebrewPackage = nil
-            removeSelected()
+        // Completion is published before the stored status stops reading as
+        // active. Clear the package before changing the guarded selection,
+        // and credit the app only after its absence is confirmed.
+        homebrewRemovedApplication = true
+        homebrewPackage = nil
+        setInclude(false, for: app.id)
+        if UninstallerSupport.isConfirmedAbsent(at: targetURL) {
+            homebrewRemovalSize = app.size
+        } else if FileManager.default.fileExists(atPath: targetURL.path) {
+            // Package removal succeeded but left the bundle. Re-select only the
+            // app so removeSelected can finish it under the package flag,
+            // counting size once when it is actually gone.
+            homebrewRemovalSize = 0
+            setInclude(true, for: app.id)
+        } else {
+            // A failed lookup is not proof of removal. Keep the failure visible.
+            homebrewRemovalSize = 0
+            homebrewRemovedApplication = false
+            setInclude(true, for: app.id)
+            phase = .done(freed: 0, failed: [app])
             return
         }
-        homebrewRemovalSize = app.size
-        homebrewRemovedApplication = true
-        setInclude(false, for: app.id)
         if items.contains(where: \.include) {
             removeSelected()
         } else {

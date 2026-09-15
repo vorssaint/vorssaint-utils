@@ -6,6 +6,7 @@ import ApplicationServices
 import AVFoundation
 import Combine
 import CoreGraphics
+import EventKit
 import UserNotifications
 
 /// Central place to check, request and watch the TCC permissions the app uses.
@@ -26,6 +27,16 @@ final class Permissions: ObservableObject {
     /// Camera access for the preview mirror. The status read is free, so it
     /// rides the same refresh() moments as the rest.
     @Published private(set) var camera: CameraPermissionState = .unknown
+    @Published private(set) var calendarAccess = EKEventStore.authorizationStatus(for: .event)
+    @Published private(set) var requestingCalendar = false
+    @Published private(set) var calendarRequestFailed = false
+    private var calendarPermissionResolution: TimeInterval?
+
+    var keepsCalendarPrompt: Bool {
+        NotchSupport.keepsPermissionSurface(requesting: requestingCalendar,
+                                            resolvedAt: calendarPermissionResolution,
+                                            now: ProcessInfo.processInfo.systemUptime)
+    }
     /// Optional microphone access, used only while a recording that asked for
     /// it is active.
     @Published private(set) var microphone: MicrophonePermissionState = .unknown
@@ -124,6 +135,7 @@ final class Permissions: ObservableObject {
         refreshActivePermissions()
         refreshNotificationPermission()
         refreshCameraPermission()
+        calendarAccess = EKEventStore.authorizationStatus(for: .event)
         refreshMicrophonePermission()
         // Checking Full Disk Access means asking the system about protected
         // folders, and every refused answer costs time. Doing that where the
@@ -332,8 +344,28 @@ final class Permissions: ObservableObject {
         }
     }
 
-    /// Shows the system camera prompt on first use; afterwards the state can
-    /// only change in System Settings.
+    /// Reading calendar events requires full access even though the app never writes them.
+    func requestCalendar() {
+        guard !requestingCalendar else { return }
+        requestingCalendar = true
+        calendarRequestFailed = false
+        let store = EKEventStore()
+        store.requestFullAccessToEvents { [weak self, store] _, error in
+            _ = store
+            DispatchQueue.main.async {
+                self?.calendarPermissionResolution = ProcessInfo.processInfo.systemUptime
+                self?.requestingCalendar = false
+                let status = EKEventStore.authorizationStatus(for: .event)
+                self?.calendarRequestFailed = NotchCalendarSupport.requestFailed(status: status, hasError: error != nil)
+                self?.calendarAccess = status
+            }
+        }
+    }
+
+    func openCalendarSettings() {
+        open(pane: "Privacy_Calendars")
+    }
+
     func requestCamera() {
         AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
             DispatchQueue.main.async { self?.refresh() }

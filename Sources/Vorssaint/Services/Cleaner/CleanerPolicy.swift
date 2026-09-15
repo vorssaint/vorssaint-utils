@@ -68,6 +68,9 @@ enum CleanerPolicy {
 
     static func isExcludedCacheEntry(_ name: String) -> Bool {
         let lowered = name.lowercased()
+        // A localization name is not evidence of disposable data. Keep the
+        // leftover exclusion when the same entry is visited as caches or logs.
+        if lowered.hasSuffix(".localized") { return true }
         return hiddenCachePrefixes.contains { lowered.hasPrefix($0.lowercased()) }
     }
 

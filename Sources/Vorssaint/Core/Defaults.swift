@@ -651,6 +651,63 @@ enum DefaultsKey {
     static let snippetLibraryEnabled = "snippetLibraryEnabled"
     static let snippetLibraryShortcut = "snippetLibraryShortcut"
 
+    // Optional top-of-screen workspace and activity presentations.
+    static let notchShowPlayingMusic = "notchShowPlayingMusic"
+    static let notchIdleContent = "notchIdleContent"
+    static let notchHiddenControls = "notchHiddenControls"
+    static let notchControlOrder = "notchControlOrder"
+    static let notchSize = "notchSize"
+    static let notchCustomWidth = "notchCustomWidth"
+    static let notchCustomHeight = "notchCustomHeight"
+    static let notchHapticFeedback = "notchHapticFeedback"
+    static let notchShelf = "notchShelf"
+    static let notchDragReveal = "notchDragReveal"
+    static let notchCaptureControls = "notchCaptureControls"
+    static let notchQuickPanel = "notchQuickPanel"
+    static let notchAppPanel = "notchAppPanel"
+    static let notchHoverExpands = "notchHoverExpands"
+    static let notchGesturesEnabled = "notchGesturesEnabled"
+    static let notchKeyboardLight = "notchKeyboardLight"
+    static let notchNotificationsEnabled = "notchNotificationsEnabled"
+    static let notchDismissNativeNotifications = "notchDismissNativeNotifications"
+    static let notchTimerEnabled = "notchTimerEnabled"
+    static let notchTimerMode = "notchTimerMode"
+    static let notchTimerSoundEnabled = "notchTimerSoundEnabled"
+    static let notchPomodoroFocusMinutes = "notchPomodoroFocusMinutes"
+    static let notchPomodoroShortBreakMinutes = "notchPomodoroShortBreakMinutes"
+    static let notchPomodoroLongBreakMinutes = "notchPomodoroLongBreakMinutes"
+    static let notchPomodoroLongBreakInterval = "notchPomodoroLongBreakInterval"
+    static let notchPomodoroTotalSessions = "notchPomodoroTotalSessions"
+    static let notchCameraEnabled = "notchCameraEnabled"
+    static let notchAccessoriesEnabled = "notchAccessoriesEnabled"
+    static let notchLyricsEnabled = "notchLyricsEnabled"
+    static let notchLyricsOnline = "notchLyricsOnline"
+    static let notchQueueEnabled = "notchQueueEnabled"
+    static let notchDownloadsEnabled = "notchDownloadsEnabled"
+    static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
+    static let notchCalendarEnabled = "notchCalendarEnabled"
+    static let notchEnabled = "notchEnabled"
+    static let notchDisplay = "notchDisplay"
+    static let notchOpenOnHover = "notchOpenOnHover"
+    static let notchHiddenModules = "notchHiddenModules"
+    static let notchModuleOrder = "notchModuleOrder"
+    static let notchQuickAccessLayout = "notchQuickAccessLayout"
+    static let notchQuickAccessSide = "notchQuickAccessSide"
+    static let notchQuickAccessSecond = "notchQuickAccessSecond"
+    static let notchQuickAccessThird = "notchQuickAccessThird"
+    static let notchVolume = "notchVolume"
+    static let notchBrightness = "notchBrightness"
+    static let notchBattery = "notchBattery"
+    static let notchClipboard = "notchClipboard"
+    static let notchClipboardWindow = "notchClipboardWindow"
+    static let notchCapture = "notchCapture"
+    // Legacy backup key. Resting content is now selected explicitly by notchIdleContent.
+    static let notchMusicActivity = "notchMusicActivity"
+    static let notchShowInCaptures = "notchShowInCaptures"
+    // Legacy inverse preference; the explicit visibility switch supersedes it.
+    static let notchHideInCaptures = "notchHideInCaptures"
+    static let panelControlNotch = "panelControlNotch"
+
     // Radial menu: a wheel of actions on a shortcut.
     static let radialMenuEnabled = "radialMenuEnabled"
     static let radialMenuShortcut = "radialMenuShortcut"
@@ -682,26 +739,20 @@ enum OnboardingInfo {
 /// update. Each row deep links to the exact Settings page or opens the tool
 /// itself, so a new feature is one click from being tried instead of buried.
 enum UpdateHighlightsInfo {
-    /// The release whose first launch shows the tour. A patch of that release
-    /// shows the same tour to whoever skipped it and to nobody who already saw
-    /// it; any other version never shows it. Bump deliberately for releases
-    /// with headline features worth a tour.
-    static let releaseVersion = "3.3.3"
+    /// One tour shared by the betas of this release.
+    static let releaseVersion = "3.4.0-beta.1"
 
-    static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
-        let matches = appVersion == releaseVersion
-            || appVersion.hasPrefix("\(releaseVersion)-")
-            || (AppInfo.isDeveloperBuild && appVersion.hasPrefix(releaseVersion))
-            || isPatch(appVersion, of: releaseVersion)
-        return matches && lastSeenVersion != releaseVersion
+    static func matchesRelease(_ appVersion: String) -> Bool {
+        guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
+              let release = UpdateServiceSupport.SemanticVersion(raw: releaseVersion),
+              (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch),
+              version.prerelease.count == 2, version.prerelease[0].description == "beta",
+              let number = Int(version.prerelease[1].description) else { return false }
+        return number >= 1
     }
 
-    /// Same major and minor with a later patch: 3.3.4 patches 3.3.3, 3.4.0 does not.
-    private static func isPatch(_ version: String, of release: String) -> Bool {
-        guard let version = UpdateServiceSupport.SemanticVersion(raw: version),
-              let release = UpdateServiceSupport.SemanticVersion(raw: release) else { return false }
-        return (version.major, version.minor) == (release.major, release.minor)
-            && version.patch > release.patch
+    static func shouldShow(appVersion: String, lastSeenVersion: String?) -> Bool {
+        matchesRelease(appVersion) && lastSeenVersion != releaseVersion
     }
 }
 
@@ -1044,6 +1095,55 @@ enum Defaults {
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,
+        DefaultsKey.notchShowPlayingMusic: true,
+        DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
+        DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
+        DefaultsKey.notchControlOrder: "",
+        DefaultsKey.notchSize: NotchSize.spacious.rawValue,
+        DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
+        DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
+        DefaultsKey.notchHapticFeedback: true,
+        DefaultsKey.notchShelf: true,
+        DefaultsKey.notchDragReveal: true,
+        DefaultsKey.notchCaptureControls: true,
+        DefaultsKey.notchQuickPanel: true,
+        DefaultsKey.notchAppPanel: true,
+        DefaultsKey.notchHoverExpands: true,
+        DefaultsKey.notchGesturesEnabled: true,
+        DefaultsKey.notchKeyboardLight: false,
+        DefaultsKey.notchNotificationsEnabled: false,
+        DefaultsKey.notchDismissNativeNotifications: false,
+        DefaultsKey.notchTimerEnabled: true,
+        DefaultsKey.notchTimerMode: NotchTimerMode.timer.rawValue,
+        DefaultsKey.notchTimerSoundEnabled: true,
+        DefaultsKey.notchPomodoroFocusMinutes: 25,
+        DefaultsKey.notchPomodoroShortBreakMinutes: 5,
+        DefaultsKey.notchPomodoroLongBreakMinutes: 15,
+        DefaultsKey.notchPomodoroLongBreakInterval: 4,
+        DefaultsKey.notchPomodoroTotalSessions: 4,
+        DefaultsKey.notchCameraEnabled: false,
+        DefaultsKey.notchAccessoriesEnabled: false,
+        DefaultsKey.notchCalendarEnabled: true,
+        DefaultsKey.notchLyricsEnabled: false,
+        DefaultsKey.notchLyricsOnline: false,
+        DefaultsKey.notchQueueEnabled: false,
+        DefaultsKey.notchDownloadsEnabled: false,
+        DefaultsKey.notchEnabled: false,
+        DefaultsKey.notchDisplay: NotchDisplay.automatic.rawValue,
+        DefaultsKey.notchOpenOnHover: true,
+        DefaultsKey.notchHiddenModules: "",
+        DefaultsKey.notchModuleOrder: "",
+        DefaultsKey.notchQuickAccessLayout: Data(),
+        DefaultsKey.notchVolume: true,
+        DefaultsKey.notchBrightness: true,
+        DefaultsKey.notchBattery: true,
+        DefaultsKey.notchClipboard: false,
+        DefaultsKey.notchClipboardWindow: true,
+        DefaultsKey.notchCapture: false,
+        DefaultsKey.notchMusicActivity: false,
+        DefaultsKey.notchShowInCaptures: true,
+        DefaultsKey.notchHideInCaptures: false,
+        DefaultsKey.panelControlNotch: true,
         DefaultsKey.radialMenuEnabled: false,
         DefaultsKey.radialMenuShortcut: GlobalShortcut.radialMenuDefault.storageValue,
         DefaultsKey.radialMenuAtPointer: true,

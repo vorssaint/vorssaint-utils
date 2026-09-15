@@ -90,6 +90,11 @@ enum ScreenCaptureTool: String, CaseIterable {
         }
     }
 
+    /// Only the recorder writes sound, so its microphone and system-audio
+    /// choices are the only tool controls that belong under the chooser.
+    /// Every other mode leaves them out entirely, reserving no space for them.
+    var capturesAudio: Bool { self == .recording }
+
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
@@ -115,15 +120,20 @@ enum ScreenshotSupport {
         let freeze: Bool
         let includePointer: Bool
         let hideVorssaintWindows: Bool
+        /// Whether editors and pinned captures stay out of the picture and the
+        /// pickable windows. Recording keeps them out even while "Hide
+        /// Vorssaint windows" is off, which that flag alone cannot tell apart.
+        let keepsContentWindowsOut: Bool
         let usesGeometry: Bool
 
         /// Two tools can want the same photograph and still do different
         /// things with it, so only the fields that decide which pixels are
-        /// taken force a new one.
+        /// taken, and which windows can be picked, force a new one.
         func sharesSource(with other: UnifiedCapturePolicy) -> Bool {
             freeze == other.freeze
                 && includePointer == other.includePointer
                 && hideVorssaintWindows == other.hideVorssaintWindows
+                && keepsContentWindowsOut == other.keepsContentWindowsOut
         }
     }
 
@@ -136,6 +146,7 @@ enum ScreenshotSupport {
             freeze: tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
+            keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
             usesGeometry: tool == .recording)
     }
 
@@ -149,6 +160,11 @@ enum ScreenshotSupport {
         isAvailable: (AppFeature) -> Bool = { $0.isAvailable }
     ) -> Bool {
         isAvailable(selected.feature)
+    }
+
+    static func selectionDimAlpha(notchControls: Bool, isFrozen: Bool, isDragging: Bool) -> CGFloat {
+        if notchControls { return isDragging ? 0.18 : 0 }
+        return isFrozen ? 0.22 : 0.18
     }
 
     static func captureGuideIsVisible(pointerOnDisplay: Bool,

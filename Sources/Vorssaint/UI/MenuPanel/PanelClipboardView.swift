@@ -238,7 +238,11 @@ struct PanelClipboardView: View {
                     // the write instead of announcing one still queued behind
                     // a stalled pasteboard provider.
                     history.copy(entry) { copied in
-                        if copied { copiedID = entry.id }
+                        if copied {
+                            copiedID = entry.id
+                        } else {
+                            NSSound.beep()
+                        }
                     }
                 } label: {
                     Label(copiedID == entry.id ? text.copied : text.copy,

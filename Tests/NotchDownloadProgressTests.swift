@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// Exercise the real native observer and filesystem reader against disposable
+/// files, including callback bursts, renames and cancellation behind a busy lane.
+enum NotchDownloadProgressTests {
+    private final class Results: @unchecked Sendable {
+        private let lock = NSLock()
+        private var updates: [([NotchDownloadItem], [NotchDownloadItem])] = []
+        private var onlyWorker = true
+        let arrived = DispatchSemaphore(value: 0)
+        func receive(_ items: [NotchDownloadItem], _ completed: [NotchDownloadItem]) {
+            lock.lock()
+            onlyWorker = onlyWorker && !Thread.isMainThread
+            updates.append((items, completed))
+            lock.unlock()
+            arrived.signal()
+        }
+        var snapshot: (updates: [([NotchDownloadItem], [NotchDownloadItem])], onlyWorker: Bool) {
+            lock.lock(); defer { lock.unlock() }
+            return (updates, onlyWorker)
+        }
+        func wait() -> Bool { arrived.wait(timeout: .now() + 3) == .success }
+    }
+
+    static func run(expect: (Bool, String) -> Void) {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("notch-progress-\(UUID().uuidString)")
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            try progressAndCompletion(folder: folder, expect: expect)
+            cancellation(folder: folder, expect: expect)
+            capacity(folder: folder, expect: expect)
+        } catch { expect(false, "download progress fixture failed: \(error)") }
+    }
+
+    private static func progressAndCompletion(folder: URL, expect: (Bool, String) -> Void) throws {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-progress")
+        let results = Results()
+        let observer = NotchDownloadProgressObserver(folder: folder, queue: queue, changed: results.receive)
+        defer { observer.stop(); queue.sync {} }
+        let partial = folder.appendingPathComponent("transfer.part")
+        let final = folder.appendingPathComponent("transfer")
+        try Data([1, 2, 3]).write(to: partial)
+        let progress = Progress(totalUnitCount: 2000)
+        progress.kind = .file
+        progress.fileOperationKind = .downloading
+        progress.fileURL = partial
+        progress.completedUnitCount = 1
+        let initial = NotchDownloadProgressSnapshot(progress)
+        let id = UUID()
+        observer.add(progress, id: id)
+        expect(results.wait(), "published progress becomes visible without running its reads on main")
+        expect(results.snapshot.updates.last?.0.first?.fraction == 1.0 / 2000,
+               "initial progress retains its real percentage")
+        let before = results.snapshot.updates.count
+        queue.suspend()
+        for completed in 2...1001 { progress.completedUnitCount = Int64(completed) }
+        queue.resume()
+        expect(results.wait(), "a burst delivers the latest progress")
+        let burst = results.snapshot
+        expect(burst.updates.count == before + 1 && burst.updates.last?.0.first?.fraction == 1001.0 / 2000,
+               "one thousand native changes coalesce into one file-read batch with the final value")
+        expect(initial.completedUnitCount == 1 && initial.fractionCompleted == 1.0 / 2000,
+               "a captured native snapshot cannot change while file validation is queued")
+
+        try FileManager.default.moveItem(at: partial, to: final)
+        progress.fileURL = final
+        progress.completedUnitCount = 2000
+        observer.remove(id)
+        expect(results.wait(), "unpublication delivers final evidence without waiting for a pending refresh")
+        let completion = results.snapshot.updates.flatMap(\.1)
+        expect(completion.count == 1 && completion[0].url == final && completion[0].completed,
+               "a proven final rename survives completion and immediate unpublication")
+        expect(results.snapshot.onlyWorker, "every publication read and result callback stays on the download worker")
+
+        let invalid = Progress(totalUnitCount: 10)
+        invalid.kind = .file
+        invalid.fileOperationKind = .receiving
+        invalid.fileURL = folder.appendingPathComponent("incoming")
+        let invalidID = UUID()
+        observer.add(invalid, id: invalidID)
+        // Flush the earlier delayed refresh before inspecting this publication.
+        let ready = DispatchSemaphore(value: 0)
+        queue.asyncAfter(deadline: .now() + 0.12) { ready.signal() }
+        expect(ready.wait(timeout: .now() + 3) == .success, "the publication queue drains")
+        invalid.fileURL = folder.deletingLastPathComponent().appendingPathComponent("outside")
+        let checked = DispatchSemaphore(value: 0)
+        queue.asyncAfter(deadline: .now() + 0.12) { checked.signal() }
+        expect(checked.wait(timeout: .now() + 3) == .success, "changed destination validation completes")
+        expect(results.snapshot.updates.last?.0.isEmpty == true,
+               "a publication moved outside the authorized folder disappears instead of retaining stale progress")
+    }
+
+    private static func cancellation(folder: URL, expect: (Bool, String) -> Void) {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-cancel")
+        let results = Results()
+        let observer = NotchDownloadProgressObserver(folder: folder, queue: queue, changed: results.receive)
+        let progress = Progress(totalUnitCount: 10)
+        progress.kind = .file
+        progress.fileOperationKind = .downloading
+        progress.fileURL = folder.appendingPathComponent("cancelled.part")
+        queue.suspend()
+        observer.add(progress, id: UUID())
+        for _ in 0..<1000 { observer.requestRefresh() }
+        observer.stop()
+        queue.resume()
+        let drained = DispatchSemaphore(value: 0)
+        queue.asyncAfter(deadline: .now() + 0.1) { drained.signal() }
+        expect(drained.wait(timeout: .now() + 3) == .success, "stopping does not block behind a paused file queue")
+        expect(results.snapshot.updates.isEmpty,
+               "queued publication and refresh callbacks cannot repopulate downloads after stop")
+    }
+
+    private static func capacity(folder: URL, expect: (Bool, String) -> Void) {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-capacity")
+        let results = Results()
+        let observer = NotchDownloadProgressObserver(folder: folder, queue: queue, changed: results.receive)
+        defer { observer.stop(); queue.sync {} }
+        queue.suspend()
+        for i in 0...NotchDownloadSupport.maximumObservedFiles {
+            let progress = Progress(totalUnitCount: 10)
+            progress.fileOperationKind = .downloading
+            progress.fileURL = folder.appendingPathComponent("capacity-\(i).part")
+            observer.add(progress, id: UUID())
+        }
+        queue.resume()
+        expect(results.wait(), "bounded progress publications are read")
+        expect(results.snapshot.updates.last?.0.count == NotchDownloadSupport.maximumObservedFiles,
+               "moving observation off-main preserves the limit on live publishers")
+    }
+}

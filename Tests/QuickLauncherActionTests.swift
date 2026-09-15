@@ -7,6 +7,7 @@ import Foundation
 /// methods. Only their environment is replaced: no windows, taps or capture.
 enum QuickLauncherContract {
     static var events: [String] = []
+    static var cameraInNotch = false
 
     struct State {
         var isActive = false
@@ -39,6 +40,11 @@ enum QuickLauncherContract {
         func capture() { events.append(name + ".capture") }
         func pick() { events.append(name + ".pick") }
         func show() { events.append(name + ".show") }
+        func showInNotchIfEnabled() -> Bool {
+            guard name == "camera", cameraInNotch else { return false }
+            events.append("camera.notch")
+            return true
+        }
         func showHistoryWindow() { events.append(name + ".showHistoryWindow") }
         func activate() { events.append(name + ".activate") }
     }
@@ -54,6 +60,7 @@ enum QuickLauncherContract {
     enum CleaningModeManager { static let shared = Spy(name: "cleaning") }
 
     static func run(_ suite: TestSuite) {
+        cameraInNotch = false
         let cases: [(QuickLauncherItem, AppFeature, String?, Double?)] = [
             (.keepAwake, .keepAwake, "keepAwake.toggle", nil),
             (.micMute, .micMute, "micMute.toggle", nil),
@@ -106,6 +113,13 @@ enum QuickLauncherContract {
             suite.expect(events.isEmpty && launcher.activeUtility == nil,
                          "editing \(item) never activates it")
         }
+        events.removeAll()
+        DispatchQueue.main.jobs.removeAll()
+        cameraInNotch = true
+        Launcher().run(.cameraPreview)
+        suite.expect(events == ["camera.notch", "hide"] && DispatchQueue.main.jobs.isEmpty,
+                     "an embedded camera switches the notch before hiding the launcher, without a close-and-reopen delay")
+        cameraInNotch = false
         var tile = Tile()
         suite.expect(tile.display(.screenRecorder) == ("record.circle", false),
                      "an idle recording tile offers recording")
