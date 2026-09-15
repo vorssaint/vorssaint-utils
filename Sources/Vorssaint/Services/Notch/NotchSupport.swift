@@ -677,7 +677,10 @@ struct NotchGeometry: Equatable {
     func compactTimerGeometry(showsDownloads: Bool) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        compact.compactSideRoom = room.isFinite ? min(showsDownloads ? 64 : 52, max(0, room)) : 0
+        compact.compactSideRoom = room.isFinite && room >= 72 ? min(showsDownloads ? 80 : 72, room) : 0
+        // Menu changes, including full-screen transitions, must not push the
+        // timer below the camera. Its expanded view remains available by click.
+        compact.allowsActivityFooter = !isNotched
         return compact
     }
     var musicStrip: CGSize {

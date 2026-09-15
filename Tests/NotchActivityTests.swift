@@ -304,25 +304,36 @@ enum NotchActivityTests {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for notched in [false, true] {
             for layout in NotchSize.allCases {
-                for room: CGFloat in [0, 27, 43, 44, 52, 64, 100, 200, .nan, .infinity] {
+                for room: CGFloat in [0, 27, 36, 43, 44, 52, 64, 71, 72, 79, 80, 100, 200, .nan, .infinity] {
                     let original = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
                                                  cameraWidth: notched ? 180 : 0, layout: layout,
                                                  compactSideRoom: room)
                     for downloads in [false, true] {
                         let compact = original.compactTimerGeometry(showsDownloads: downloads)
-                        if room.isFinite && room >= 44 {
+                        if room.isFinite && room >= 72 {
                             expect(!compact.compactActivityUsesFooter
-                                   && compact.compactActivityWingWidth == min(room, downloads ? 64 : 52),
+                                   && compact.compactActivityWingWidth == min(room, downloads ? 80 : 72),
                                    "timer wings reserve only a small readable width, including simultaneous downloads")
                             expect(compact.compactActivityCameraGap == original.cameraWidth
                                    && compact.compactActivityContentHeight == original.menuBarHeight,
                                    "narrower timer wings still clear the camera and preserve the menu bar height")
+                        } else if notched {
+                            expect(!compact.compactActivityUsesFooter && compact.compactActivityWingWidth == 0,
+                                   "unavailable menu space retracts timer wings without drawing over adjacent menus")
+                            expect(compact.activationArea(in: compact.compactActivitySize, hasHeader: false,
+                                                         compactActivity: true).size == compact.compactActivitySize,
+                                   "a retracted timer keeps the whole camera region available to open its controls")
                         } else {
                             expect(compact.compactActivityUsesFooter,
                                    "insufficient or unknown menu space keeps the timer readable in its existing footer")
                         }
                         let positioned = compact.compactActivityGeometry.frame(for: compact.compactActivitySize)
                         expect(screen.contains(positioned), "compact timer placement stays within the screen")
+                        if notched {
+                            expect(positioned.maxY == screen.maxY && positioned.height == original.menuBarHeight
+                                   && compact.compactActivityTopPadding == 0,
+                                   "timer and simultaneous downloads stay beside the camera through menu-space changes")
+                        }
                     }
                 }
             }

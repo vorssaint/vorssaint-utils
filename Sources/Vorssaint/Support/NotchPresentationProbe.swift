@@ -319,7 +319,37 @@ enum NotchPresentationProbe {
         if bubbles.panel.isVisible || bubbles.quickAccessProbeInteractive || bubbles.quickAccessProbeTrackingAreas != 0 {
             failures.append("closing left a floating control alive")
         }
-        print("NOTCH PROBE \(failures.isEmpty ? "OK" : "FAILED") samples=\(samples) openingNativeResizes=\(openingResizes) repeatedUpdates=1000 fileDrops=\(accepted) topError=\(maxAnchorError) contentError=\(maxContentError)")
+        var timerTransitions = 0
+        for barHeight: CGFloat in [32, 40, 64] {
+            for downloads in [false, true] {
+                var timerGeometry = NotchGeometry(screen: screen.frame, safeAreaTop: 32, cameraWidth: 179,
+                                                  menuBarHeight: barHeight, compactSideRoom: 100)
+                let initial = timerGeometry.compactTimerGeometry(showsDownloads: downloads)
+                let timerHost = NotchWindowHost(content: AnyView(Color.black), geometry: initial,
+                                                size: initial.compactActivitySize)
+                timerHost.panel.alphaValue = 0
+                timerHost.panel.ignoresMouseEvents = true
+                timerHost.panel.orderFrontRegardless()
+                for room: CGFloat? in [100, 27, nil, 80, 0, 72, 100] {
+                    timerGeometry.compactSideRoom = room
+                    let next = timerGeometry.compactTimerGeometry(showsDownloads: downloads).compactActivityGeometry
+                    timerHost.present(size: next.compactActivitySize, geometry: next, animated: true)
+                    let deadline = Date().addingTimeInterval(0.07)
+                    while Date() < deadline {
+                        RunLoop.current.run(until: Date().addingTimeInterval(0.008))
+                        if abs(timerHost.panel.frame.maxY - screen.frame.maxY) > 0.5
+                            || abs(timerHost.panel.frame.height - barHeight) > 0.5
+                            || abs(timerHost.contentTopOnScreen - screen.frame.maxY) > 0.5 {
+                            failures.append("compact timer moved below the camera during a menu-space transition")
+                            break
+                        }
+                    }
+                    timerTransitions += 1
+                }
+                timerHost.close()
+            }
+        }
+        print("NOTCH PROBE \(failures.isEmpty ? "OK" : "FAILED") samples=\(samples) openingNativeResizes=\(openingResizes) repeatedUpdates=1000 fileDrops=\(accepted) topError=\(maxAnchorError) contentError=\(maxContentError) timerTransitions=\(timerTransitions)")
         failures.forEach { print($0) }
         exit(failures.isEmpty ? 0 : 1)
     }

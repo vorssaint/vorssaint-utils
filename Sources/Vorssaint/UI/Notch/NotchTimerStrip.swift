@@ -10,6 +10,11 @@ struct NotchTimerStrip: View {
     @ObservedObject private var l10n = L10n.shared
 
     private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var outerInset: CGFloat {
+        guard !geometry.compactActivityUsesFooter else { return 0 }
+        let shoulder = geometry.isNotched ? min(NotchLayout.shoulder, geometry.compactActivityContentHeight * 0.28) : 0
+        return shoulder + 6
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -25,6 +30,8 @@ struct NotchTimerStrip: View {
                         }
                     }
                 }
+                .padding(.leading, outerInset)
+                .padding(.trailing, geometry.compactActivityUsesFooter ? 0 : 8)
                 .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight)
                 .contentShape(Rectangle())
             }
@@ -43,9 +50,11 @@ struct NotchTimerStrip: View {
                             Text(remaining)
                                 .font(.system(size: min(16, geometry.compactActivityContentHeight - 6), weight: .medium)).monospacedDigit()
                                 .foregroundStyle(.orange)
-                                .lineLimit(1).minimumScaleFactor(0.7)
+                                .lineLimit(1).minimumScaleFactor(0.65)
                         }
                     }
+                    .padding(.leading, geometry.compactActivityUsesFooter ? 0 : 8)
+                    .padding(.trailing, outerInset)
                     .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight)
                     .contentShape(Rectangle())
                 }
@@ -63,7 +72,7 @@ struct NotchTimerStrip: View {
     private var downloadIndicator: some View {
         HStack(spacing: 5) {
             Image(systemName: "arrow.down.circle.fill").font(.system(size: 13))
-            if geometry.compactActivityWingWidth >= 64,
+            if geometry.compactActivityWingWidth >= 80,
                let fraction = downloads.items.first(where: { $0.active && !$0.completed })?.fraction {
                 Text(fraction, format: .percent.precision(.fractionLength(0)))
                     .font(.system(size: 10, weight: .medium)).monospacedDigit()
