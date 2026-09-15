@@ -5213,6 +5213,8 @@ struct MetricsTests {
             return app
         }
         let editorApp = selectionBundle("Editor.app", bundleID: "com.vendor.editor")
+        expect(UninstallerSupport.selection(for: URL(string: "https://example.com/App.app")!) == nil,
+               "a web address is refused before loading an app bundle")
         let editorSelection = UninstallerSupport.selection(for: editorApp)
         expect(editorSelection?.bundleID == "com.vendor.editor"
                && editorSelection?.url == editorApp.standardizedFileURL,
@@ -5239,6 +5241,21 @@ struct MetricsTests {
         expect(uninstallerSelectionCode.contains("UninstallerSupport.selection(for:")
                && uninstallerSelectionCode.contains("func select(appURL: URL) -> Bool"),
                "the uninstaller reports whether its shared selection checks accepted an app")
+        let commandBarUninstallerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? ""
+        let commandBarUninstallerCode = commandBarUninstallerSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(commandBarUninstallerCode.range(
+            of: #"if AppFeature\.uninstaller\.isAvailable,\s*UninstallerSupport\.selection\(for:\s*app\.url\) != nil \{\s*actions\.append\(RowAction\(id: "uninstallApp""#,
+            options: .regularExpression) != nil
+               && commandBarUninstallerCode.range(
+                   of: #"if AppFeature\.uninstaller\.isAvailable,\s*!app\.isSystem \{\s*actions\.append\(RowAction\(id: "uninstallApp""#,
+                   options: .regularExpression) == nil,
+               "the command bar offers uninstall only for apps the shared selection checks accept")
+        expect(commandBarUninstallerCode.contains("guard AppUninstaller.shared.select(appURL: url) else { return }"),
+               "the command bar opens uninstaller settings only after accepting the app")
         let uninstallerViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",
             encoding: .utf8)) ?? ""

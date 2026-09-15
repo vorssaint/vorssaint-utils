@@ -106,6 +106,8 @@ enum UninstallerSupport {
     /// The one answer for "will the uninstaller take this app": the picker
     /// offers only what this accepts, and a drop of anything else is refused.
     static func selection(for appURL: URL) -> Selection? {
+        // Browser links are not bundles on disk and must be refused before loading one.
+        guard appURL.isFileURL else { return nil }
         guard let bundle = Bundle(url: appURL) else { return nil }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
