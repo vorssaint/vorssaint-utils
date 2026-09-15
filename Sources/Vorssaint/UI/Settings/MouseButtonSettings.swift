@@ -280,8 +280,7 @@ struct MouseButtonShortcutsSection: View {
             captureFeedback = text.captureUnsupported
         } else if RadialMenuSupport.claimsMouseButton(seen) {
             captureFeedback = text.captureWheel
-        } else if mappings[seen] != nil || pendingButton == seen
-                    || (spacesEnabled && Int64(spacesButton) == seen) {
+        } else if mappings[seen] != nil || pendingButton == seen {
             captureFeedback = text.captureExists
         } else {
             pendingButton = seen
@@ -307,16 +306,18 @@ struct MouseButtonShortcutsSection: View {
         MouseButtonShortcutService.shared.setCapturing(false)
     }
 
-    /// The drag needs a button that can be held and moved, and one no other
-    /// mouse feature is already answering for. A refusal explains itself
-    /// instead of leaving the press looking ignored.
+    /// The drag needs a button that can be held and moved. The radial menu
+    /// keeps its summoner, and a button mid-way through becoming a shortcut
+    /// stays spoken for; an already-mapped short-click shortcut is fine to
+    /// share (issue #1507). A refusal explains itself instead of leaving the
+    /// press looking ignored.
     private func handleSpacesCapture(_ seen: Int64?) {
         guard spacesCapturing, let seen else { return }
         if !MouseSpacesGestureSupport.canBind(seen) {
             spacesFeedback = text.spacesCaptureUnsupported
         } else if RadialMenuSupport.claimsMouseButton(seen) {
             spacesFeedback = text.captureWheel
-        } else if mappings[seen] != nil || pendingButton == seen {
+        } else if pendingButton == seen {
             spacesFeedback = text.spacesCaptureExists
         } else {
             // Set before the capture ends, so the sync that ends it already

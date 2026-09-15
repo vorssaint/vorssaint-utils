@@ -155,15 +155,14 @@ enum MouseButtonShortcutSupport {
     }
 
     /// The button the Spaces and Mission Control drag is bound to right now,
-    /// or nil when the gesture is off, unbound, or the button already belongs
-    /// to a shortcut or to the radial menu. Defaults reads only, so both taps
-    /// can ask on the hot path.
+    /// or nil when the gesture is off, unbound, or the radial menu already
+    /// owns it. The same button may also carry a short-click shortcut (issue
+    /// #1507). Defaults reads only, so both taps can ask on the hot path.
     static func spacesGestureButton(_ defaults: UserDefaults = .standard) -> Int64? {
         MouseSpacesGestureSupport.boundButton(
             isAvailable: defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
             isEnabled: defaults.bool(forKey: DefaultsKey.mouseSpacesGestureEnabled),
             button: Int64(defaults.integer(forKey: DefaultsKey.mouseSpacesGestureButton)),
-            hasShortcut: { hasActiveShortcut($0, defaults) },
             claimedByWheel: RadialMenuSupport.claimsMouseButton)
     }
 

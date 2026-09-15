@@ -152,17 +152,28 @@ enum MouseSpacesGestureSupport {
     }
 
     /// The bound button, or nil when the gesture is off, unavailable, has no
-    /// button yet, or the button belongs to another mouse feature. Pure
-    /// defaults reads, so asking never wakes a service; the radial menu keeps
-    /// its summoner and an existing shortcut keeps its button, exactly the way
-    /// the shortcut feature already yields to the wheel.
+    /// button yet, or the radial menu already owns it. A mouse-button shortcut
+    /// on the same button is allowed (issue #1507): the drag arms on press, and
+    /// a still release may fire that shortcut instead of a native click.
     static func boundButton(isAvailable: Bool,
                             isEnabled: Bool,
                             button: Int64,
-                            hasShortcut: (Int64) -> Bool,
                             claimedByWheel: (Int64) -> Bool) -> Int64? {
         guard isAvailable, isEnabled, canBind(button),
-              !hasShortcut(button), !claimedByWheel(button) else { return nil }
+              !claimedByWheel(button) else { return nil }
         return button
+    }
+
+    /// What a Spaces-bound release becomes when the press never fired a drag
+    /// (issue #1507). Movement that crossed a threshold already consumed the
+    /// gesture; only a still press reaches this choice.
+    enum ShortClick: Equatable {
+        case fireShortcut(GlobalShortcut)
+        case replayNativeClick
+    }
+
+    static func shortClick(activeShortcut: GlobalShortcut?) -> ShortClick {
+        if let activeShortcut { return .fireShortcut(activeShortcut) }
+        return .replayNativeClick
     }
 }
