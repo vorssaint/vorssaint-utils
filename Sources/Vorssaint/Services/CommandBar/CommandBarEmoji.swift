@@ -16,6 +16,35 @@ enum CommandBarEmoji {
         let keywords: String
     }
 
+    /// The five skin tones variants Unicode offers, and the yellow default.
+    /// Raw values are the stored preference, so they never change.
+    enum SkinTone: String, CaseIterable, Identifiable {
+        case none = ""
+        case light
+        case mediumLight
+        case medium
+        case mediumDark
+        case dark
+
+        var id: String { rawValue }
+
+        /// The modifier that carries this tone, or nothing for the default.
+        var modifier: Unicode.Scalar? {
+            switch self {
+            case .none: return nil
+            case .light: return Unicode.Scalar(0x1F3FB)
+            case .mediumLight: return Unicode.Scalar(0x1F3FC)
+            case .medium: return Unicode.Scalar(0x1F3FD)
+            case .mediumDark: return Unicode.Scalar(0x1F3FE)
+            case .dark: return Unicode.Scalar(0x1F3FF)
+            }
+        }
+
+        /// The same raised hand in each tone. A picker of these shows what the
+        /// choice changes.
+        var swatch: String { CommandBarEmoji.applying(self, to: "✋") }
+    }
+
     /// The emoji people reach for most, in the order they are usually wanted.
     /// They lead browsing and break equally good search ties; the Unicode set
     /// below supplies the long tail without displacing these familiar rows.
@@ -125,6 +154,24 @@ enum CommandBarEmoji {
               scalar.properties.isEmoji,
               !scalar.properties.isEmojiPresentation else { return character }
         return character + "\u{FE0F}"
+    }
+
+    /// Whether Unicode allows a tone on this emoji at all. The property is the
+    /// whole answer, so there is no list of bases to keep in step with it. A
+    /// sequence of more than one scalar is refused rather than guessed at:
+    /// where the modifier belongs in one is a question per sequence.
+    static func acceptsSkinTone(_ character: String) -> Bool {
+        let base = canonicalCharacter(character).unicodeScalars
+        guard base.count == 1, let scalar = base.first else { return false }
+        return scalar.properties.isEmojiModifierBase
+    }
+
+    /// The emoji wearing a tone. The variation selector goes with it, because
+    /// a modifier already means emoji presentation and the pickers on the Mac
+    /// produce the sequence without it.
+    static func applying(_ tone: SkinTone, to character: String) -> String {
+        guard let modifier = tone.modifier, acceptsSkinTone(character) else { return character }
+        return canonicalCharacter(character) + String(modifier)
     }
 
     /// Variation selectors change presentation, not identity. Folding them

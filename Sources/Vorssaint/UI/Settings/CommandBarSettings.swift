@@ -9,6 +9,7 @@ struct CommandBarSettings: View {
     @ObservedObject private var service = CommandBarService.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
+    @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -80,6 +81,17 @@ struct CommandBarSettings: View {
                 Text(text.compactModeCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if CommandBarPreferences.isEnabled(.emoji, disabledRaw: disabledSources) {
+                    Picker(text.emojiSkinToneLabel, selection: $emojiSkinTone) {
+                        ForEach(CommandBarEmoji.SkinTone.allCases) { tone in
+                            Text(tone.swatch).tag(tone.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text(text.emojiSkinToneCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 // Not the shared "Global shortcut" label the other feature
                 // pages use: this page already has an "open the bar" button at
                 // the top, so the toggle has to say which of the two it arms.

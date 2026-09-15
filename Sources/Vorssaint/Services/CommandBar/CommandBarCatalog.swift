@@ -1206,18 +1206,23 @@ enum CommandBarCatalog {
     // MARK: - Emoji
 
     /// Emoji rows, which type themselves at the caret the way a snippet does.
-    /// Built once and reused: the names come from Unicode and never change.
+    /// The names come from Unicode and never change.
+    /// The tone is read here, because the bar has to rebuild this on every
+    /// opening and a chosen tone has to arrive with it.
     static func emojiEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        CommandBarEmoji.emoji.map { emoji in
-            CommandBarEntry(
-                id: "emoji.\(emoji.identity)",
-                title: emoji.character + "  " + emoji.name,
+        let tone = CommandBarPreferences.skinTone(
+            from: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "")
+        return CommandBarEmoji.emoji.map { emoji in
+            let character = CommandBarEmoji.applying(tone, to: emoji.character)
+            return CommandBarEntry(
+                id: CommandBarPreferences.emojiRowID(identity: emoji.identity),
+                title: character + "  " + emoji.name,
                 subtitle: bar.kindEmoji,
                 keywords: emoji.name + " " + emoji.keywords + " " + bar.kindEmoji,
                 icon: .symbol("face.smiling"),
                 trouble: Permissions.shared.accessibility ? nil : .needsPermission,
                 matchTitle: emoji.name,
-                run: { _ in typeAtCursor(emoji.character) })
+                run: { _ in typeAtCursor(character) })
         }
     }
 

@@ -105,6 +105,22 @@ enum CommandBarPreferences {
         sources.filter { !$0.isAlwaysOn }.map(\.rawValue).sorted().joined(separator: ",")
     }
 
+    static func emojiRowID(identity: String) -> String {
+        (CommandBarSource.emoji.idPrefix ?? "") + identity
+    }
+
+    static func emojiIdentity(fromRowID id: String) -> String? {
+        guard let prefix = CommandBarSource.emoji.idPrefix, id.hasPrefix(prefix),
+              id.count > prefix.count else { return nil }
+        return String(id.dropFirst(prefix.count))
+    }
+
+    /// The tone the person chose for emoji that can carry one. An unknown
+    /// value reads as the default.
+    static func skinTone(from raw: String) -> CommandBarEmoji.SkinTone {
+        CommandBarEmoji.SkinTone(rawValue: raw) ?? .none
+    }
+
     static func isEnabled(_ source: CommandBarSource, disabledRaw: String) -> Bool {
         source.isAlwaysOn || !disabledSources(from: disabledRaw).contains(source)
     }
