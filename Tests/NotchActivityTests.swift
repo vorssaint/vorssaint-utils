@@ -111,6 +111,15 @@ enum NotchActivityTests {
         expect(session.duration == 10_800, "corrupt duration input stays within three hours")
         expect(NotchTimerSupport.clockText(0.01) == "00:01" && NotchTimerSupport.clockText(-1) == "00:00"
                && NotchTimerSupport.clockText(.nan) == "00:00", "display rounds up and safely handles invalid remaining time")
+        let clockCases: [(TimeInterval, String)] = [
+            (59, "00:59"), (60, "01:00"), (3599, "59:59"), (3599.01, "1:00:00"),
+            (3600, "1:00:00"), (3601, "1:00:01"), (8580, "2:23:00"),
+            (10800, "3:00:00"), (.greatestFiniteMagnitude, "3:00:00"), (.infinity, "00:00")
+        ]
+        for (seconds, expected) in clockCases {
+            expect(NotchTimerSupport.clockText(seconds) == expected,
+                   "timer clocks show hours at the hour boundary while preserving seconds: \(seconds)")
+        }
         let locale = Locale(identifier: "en_US")
         expect(NotchTimerSupport.compactText(870, locale: locale) == "14m"
                && NotchTimerSupport.compactText(60, locale: locale) == "1m",
@@ -118,15 +127,25 @@ enum NotchActivityTests {
         expect(NotchTimerSupport.compactText(59, locale: locale) == "59s"
                && NotchTimerSupport.compactText(0.01, locale: locale) == "1s",
                "compact timers switch to seconds for the final minute and never finish early")
+        let compactCases: [(TimeInterval, String)] = [
+            (3599, "59m"), (3599.01, "1h"), (3600, "1h"), (3659, "1h"),
+            (3660, "1h 1m"), (8580, "2h 23m"), (10800, "3h")
+        ]
+        for (seconds, expected) in compactCases {
+            expect(NotchTimerSupport.compactText(seconds, locale: locale) == expected,
+                   "compact timers and focus durations show hours and whole minutes: \(seconds)")
+        }
         for invalid in [Double.nan, .infinity, -1, 0] {
             expect(NotchTimerSupport.compactText(invalid, locale: locale) == "0s",
                    "invalid or expired compact times remain safe to display")
         }
-        expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "180m",
+        expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "3h",
                "compact duration formatting preserves the timer's upper limit")
         for language in AppLanguage.allCases {
             expect(!NotchTimerSupport.compactText(870, locale: Locale(identifier: language.rawValue)).isEmpty,
                    "remaining time has a compact unit in every supported language")
+            expect(!NotchTimerSupport.compactText(8580, locale: Locale(identifier: language.rawValue)).isEmpty,
+                   "hour and minute units are available in every supported language")
         }
         for width: CGFloat in [320, 480, 560] {
             for notched in [false, true] {
@@ -248,6 +267,11 @@ enum NotchActivityTests {
     }
 
     private static func rulerContracts(expect: (Bool, String) -> Void) {
+        for (minute, expected) in [(1, "1"), (55, "55"), (60, "1:00"), (65, "1:05"),
+                                   (140, "2:20"), (143, "2:23"), (180, "3:00")] {
+            expect(NotchTimerRulerScale.label(for: minute) == expected,
+                   "ruler labels show hours and minutes for selections of an hour or more")
+        }
         for minute in [1, 15, 90, 180] {
             expect(NotchTimerRulerScale.offset(of: minute, selected: minute) == 0,
                    "the chosen minute stays under the center pointer, including the initial value and both endpoints")

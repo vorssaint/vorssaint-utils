@@ -33,7 +33,10 @@ struct NotchTimerStrip: View {
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             TimelineView(.animation(minimumInterval: 1, paused: !timer.session.isRunning)) { _ in
                 let seconds = timer.session.remaining(at: timer.now)
-                let remaining = NotchTimerSupport.compactText(seconds, locale: Locale(identifier: l10n.language.rawValue))
+                let locale = Locale(identifier: l10n.language.rawValue)
+                let remaining = seconds >= 3600
+                    ? Duration.seconds(seconds).formatted(.time(pattern: .hourMinute(padHourToLength: 1, roundSeconds: .down)).locale(locale))
+                    : NotchTimerSupport.compactText(seconds, locale: locale)
                 Button { service.open(.timer) } label: {
                     Group {
                         if geometry.compactActivityWingWidth >= 42 {

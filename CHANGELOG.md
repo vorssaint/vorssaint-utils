@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Longer timers are easier to read with hours and minutes throughout their controls.
+
+### Changed
+- Timers show hours and minutes in the duration ruler, countdown, compact view and focus settings.
+
 ## [3.4.0-beta.1] - 2026-09-15
 
 ### Summary

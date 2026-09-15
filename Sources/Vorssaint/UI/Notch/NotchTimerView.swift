@@ -37,7 +37,8 @@ struct NotchTimerView: View {
             .labelsHidden()
             .frame(maxWidth: 260)
             if mode == .timer {
-                NotchTimerRuler(minutes: $minutes, label: text.minutes)
+                NotchTimerRuler(minutes: $minutes, label: text.timer,
+                                locale: Locale(identifier: l10n.language.rawValue))
                     .frame(height: 82)
             } else {
                 pomodoroOptions
