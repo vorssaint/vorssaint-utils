@@ -241,6 +241,8 @@ extension Strings {
         dockPreviewOpenDelayCaption: "Cuánto tiempo debe reposar el puntero sobre un icono antes de que se abra el panel.",
         dockPreviewQuitAppOnClose: "Salir de la app con el botón ×",
         dockPreviewQuitAppOnCloseCaption: "En Dock Preview, × cierra toda la app en lugar de cerrar solo esa ventana.",
+        dockPreviewOrderByCreation: "Ordenar ventanas por creación",
+        dockPreviewOrderByCreationCaption: "Muestra primero las ventanas más antiguas en lugar de las usadas más recientemente.",
         dockClickMinimize: "Clic en el Dock para minimizar",
         dockClickMinimizeCaption: "Las ventanas de la app activa se minimizan al hacer clic en su icono del Dock. Vuelve a hacer clic para recuperarlas.",
         dockClickCycleWindows: "Clic en el Dock para alternar ventanas",
