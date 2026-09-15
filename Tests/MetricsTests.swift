@@ -5202,6 +5202,87 @@ struct MetricsTests {
                && UninstallerSupport.verifiedBundleID("com.vorssaint.utils") == nil
                && UninstallerSupport.verifiedBundleID("com.apple.system") == nil,
                "malformed, protected and current app identifiers never enter uninstall paths")
+        let selectionFixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-uninstaller-selection-\(UUID().uuidString)",
+                                    isDirectory: true)
+        try? FileManager.default.createDirectory(at: selectionFixture, withIntermediateDirectories: true)
+        func selectionBundle(_ name: String, bundleID: String) -> URL {
+            let app = selectionFixture.appendingPathComponent(name, isDirectory: true)
+            let info = app.appendingPathComponent("Contents/Info.plist")
+            try? FileManager.default.createDirectory(at: info.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
+            let plist: [String: Any] = ["CFBundleIdentifier": bundleID]
+            if let data = try? PropertyListSerialization.data(fromPropertyList: plist,
+                                                               format: .xml, options: 0) {
+                try? data.write(to: info)
+            }
+            return app
+        }
+        let editorApp = selectionBundle("Editor.app", bundleID: "com.vendor.editor")
+        expect(UninstallerSupport.selection(for: URL(string: "https://example.com/App.app")!) == nil,
+               "a web address is refused before loading an app bundle")
+        let editorSelection = UninstallerSupport.selection(for: editorApp)
+        expect(editorSelection?.bundleID == "com.vendor.editor"
+               && editorSelection?.url == editorApp.standardizedFileURL,
+               "a complete third party app bundle is accepted with its standardized path")
+        let appleEditorApp = selectionBundle("AppleEditor.app", bundleID: "com.apple.editor")
+        expect(UninstallerSupport.selection(for: appleEditorApp) == nil,
+               "an Apple bundle identifier is refused before it can claim uninstall paths")
+        let aliasApp = selectionFixture.appendingPathComponent("Alias.app")
+        try? FileManager.default.createSymbolicLink(at: aliasApp, withDestinationURL: editorApp)
+        expect(UninstallerSupport.selection(for: aliasApp) == nil,
+               "an app symlink is refused instead of selecting its destination")
+        let bareApp = selectionFixture.appendingPathComponent("Bare.app", isDirectory: true)
+        try? FileManager.default.createDirectory(at: bareApp, withIntermediateDirectories: true)
+        expect(UninstallerSupport.selection(for: bareApp) == nil,
+               "a bundle without Info.plist is refused before a scan starts")
+        try? FileManager.default.removeItem(at: selectionFixture)
+
+        let uninstallerSelectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift",
+            encoding: .utf8)) ?? ""
+        let uninstallerSelectionCode = uninstallerSelectionSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(uninstallerSelectionCode.contains("UninstallerSupport.selection(for:")
+               && uninstallerSelectionCode.contains("func select(appURL: URL) -> Bool"),
+               "the uninstaller reports whether its shared selection checks accepted an app")
+        let commandBarUninstallerSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? ""
+        let commandBarUninstallerCode = commandBarUninstallerSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(commandBarUninstallerCode.range(
+            of: #"if AppFeature\.uninstaller\.isAvailable,\s*UninstallerSupport\.selection\(for:\s*app\.url\) != nil \{\s*actions\.append\(RowAction\(id: "uninstallApp""#,
+            options: .regularExpression) != nil
+               && commandBarUninstallerCode.range(
+                   of: #"if AppFeature\.uninstaller\.isAvailable,\s*!app\.isSystem \{\s*actions\.append\(RowAction\(id: "uninstallApp""#,
+                   options: .regularExpression) == nil,
+               "the command bar offers uninstall only for apps the shared selection checks accept")
+        expect(commandBarUninstallerCode.contains("guard AppUninstaller.shared.select(appURL: url) else { return }"),
+               "the command bar opens uninstaller settings only after accepting the app")
+        let uninstallerViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",
+            encoding: .utf8)) ?? ""
+        let uninstallerViewCode = uninstallerViewSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(uninstallerViewCode.contains("AppPickerView")
+               && uninstallerViewCode.contains("UninstallerSupport.offeredApplications()")
+               && uninstallerViewCode.contains("return uninstaller.select(appURL:"),
+               "the settings uninstaller offers and accepts only apps its selection checks allow")
+        let panelUninstallerViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/PanelUninstallerView.swift",
+            encoding: .utf8)) ?? ""
+        let panelUninstallerViewCode = panelUninstallerViewSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(panelUninstallerViewCode.contains("AppPickerView")
+               && panelUninstallerViewCode.contains("UninstallerSupport.offeredApplications()")
+               && panelUninstallerViewCode.contains("return uninstaller.select(appURL:")
+               && panelUninstallerViewCode.contains("let selected = selectFirstApp(from: urls)"),
+               "the panel uninstaller offers only eligible apps and refuses a rejected drop")
         let uninstallAppURL = URL(fileURLWithPath: "/Applications/Editor.app")
         expect(UninstallerSupport.isNestedBundle(
                    URL(fileURLWithPath: "/Applications/Editor.app/Contents/Library/LoginItems/Background.app"),
