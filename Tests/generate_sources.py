@@ -254,6 +254,14 @@ def main():
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
           + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
 
+    screenshot = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
+    write("ScreenshotOutput.swift", "import Foundation\nextension ScreenshotOutputContract {\n"
+          + declaration(screenshot, "    private func recoverFailedCapture(").replace("private func", "func", 1)
+          + declaration(screenshot, "    private func showNextRecoveryPreview(").replace("private func", "func", 1)
+          + declaration(screenshot, "    private func saveAndCopyDirect(")
+            .replace("private func", "func", 1)
+          + "}\n")
+
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
     selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     refresh_methods = [
@@ -284,7 +292,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    func isCaptureVisible(")
           + "}\nfinal class Preview {\n"
           + declaration(preview, "    enum Action {")
-          + "var keyMonitor: Any?\nvar closed = false\nvar shownInNotch = true\nlet presentationID = UUID()\n"
+          + "var keyMonitor: Any?\nvar globalKeyMonitor: Any?\nvar panel: NSPanel?\nvar closed = false\nvar shownInNotch = true\nlet presentationID = UUID()\n"
           + "var actions: [Action] = []\nfunc perform(_ action: Action) { actions.append(action) }\n"
           + "func close() { closed = true }\nfunc attach(_ panel: NSPanel) { installKeyMonitor(for: panel) }\n"
           + declaration(preview, "    private func installKeyMonitor(for panel:")

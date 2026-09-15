@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Carbon.HIToolbox
 import SwiftUI
 
@@ -39,6 +40,7 @@ final class ScreenshotQuickPreviewController {
     private let onClose: () -> Void
     private let model = ScreenshotQuickPreviewModel()
     private var panel: ScreenshotQuickPreviewPanel?
+    private var globalKeyMonitor: Any?
     private var keyMonitor: Any?
     private var dismissWork: DispatchWorkItem?
     private var autoDismissDuration: TimeInterval = 12
@@ -68,8 +70,18 @@ final class ScreenshotQuickPreviewController {
         self.onClose = onClose
     }
 
-    func show(inNotch: Bool = true) {
+    func show(displayPreview: Bool = true, inNotch: Bool = true) {
         guard panel == nil, !shownInNotch, !closed else { return }
+        if !didRunDefaultAction {
+            didRunDefaultAction = true
+            let actionSucceeded = runDefaultAction(defaultAction)
+            if !displayPreview && actionSucceeded {
+                close()
+                return
+            }
+            autoDismissDuration = actionSucceeded ? 3 : 12
+            scanForQR()
+        }
         let wantsNotch = inNotch && NotchSupport.routes(.capture)
             && NotchService.shared.acceptsSystemFeedback
         let content = ScreenshotQuickPreviewView(
@@ -97,6 +109,10 @@ final class ScreenshotQuickPreviewController {
                 self.pointerInside = false
                 if let keyMonitor = self.keyMonitor { NSEvent.removeMonitor(keyMonitor) }
                 self.keyMonitor = nil
+                if let globalKeyMonitor = self.globalKeyMonitor {
+                    NSEvent.removeMonitor(globalKeyMonitor)
+                }
+                self.globalKeyMonitor = nil
                 self.show(inNotch: false)
             },
             close: { [weak self] in self?.close() },
@@ -141,11 +157,6 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func finishShowing() {
-        if !didRunDefaultAction {
-            didRunDefaultAction = true
-            autoDismissDuration = runDefaultAction(defaultAction) ? 3 : 12
-            scanForQR()
-        }
         scheduleAutoDismiss()
     }
 
@@ -156,8 +167,8 @@ final class ScreenshotQuickPreviewController {
         if !inside { scheduleAutoDismiss() }
     }
 
-    /// Runs the Settings-configured action once, right after the preview
-    /// appears, and reports whether anything happened. Only the halves that
+    /// Runs the Settings-configured action once, before presenting the preview,
+    /// and reports whether anything happened. Only the halves that
     /// actually succeeded gray their buttons out, so a failed copy leaves
     /// Copy available. Unlike `perform(_:)` this never closes the panel: it
     /// stays up as confirmation, and the person can still edit or discard
@@ -174,7 +185,9 @@ final class ScreenshotQuickPreviewController {
         let performed = action(mapped)
         guard !performed.isEmpty else { return false }
         model.disabledActions = performed.intersection([.save, .copy])
-        return true
+        return mapped == .saveAndCopy
+            ? performed.isSuperset(of: [.save, .copy])
+            : performed.contains(mapped)
     }
 
     /// Scans the full resolution capture off the main thread and reveals the
@@ -229,6 +242,10 @@ final class ScreenshotQuickPreviewController {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+        if let globalKeyMonitor {
+            NSEvent.removeMonitor(globalKeyMonitor)
+            self.globalKeyMonitor = nil
         }
         panel?.orderOut(nil)
         panel = nil
@@ -373,11 +390,33 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func installKeyMonitor(for panel: NSPanel) {
+        // Global key events require Accessibility. Local dismissal and capture
+        // remain available without it; never prompt from the capture path.
+        if AXIsProcessTrusted() {
+            globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, !self.closed, let panel = self.panel ?? NotchService.shared.presentationWindow,
+                      panel.isVisible,
+                      !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
+                      panel.attachedSheet == nil, !(panel.firstResponder is NSText),
+                      !ShortcutCapture.isCapturing,
+                      event.keyCode == kVK_Escape,
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty
+                else { return }
+                self.close()
+            }
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
-            guard let self, !self.closed, let panel, panel.isVisible, event.window === panel,
+            guard let self, !self.closed, let panel, panel.isVisible,
                   !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
                   panel.attachedSheet == nil, !(panel.firstResponder is NSText),
                   !ShortcutCapture.isCapturing else { return event }
+            if event.keyCode == kVK_Escape,
+               event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty {
+                self.close()
+                // Dismiss our preview without swallowing another window's Escape.
+                return event.window === panel ? nil : event
+            }
+            guard event.window === panel else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let key = Int(event.keyCode)
             if flags.contains(.command) {
