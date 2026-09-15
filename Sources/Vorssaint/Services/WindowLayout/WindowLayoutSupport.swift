@@ -272,20 +272,154 @@ enum WindowLayoutGaps {
     }
 }
 
+/// What repeated executions of directional window layout actions do.
+enum WindowLayoutRepeatedAction: String, CaseIterable, Identifiable {
+    case disabled = "disabled"
+    case cycleHalfOneThirdOneSixth = "cycleHalfOneThirdOneSixth"
+    case cycleHalfTwoThirdsOneThird = "cycleHalfTwoThirdsOneThird"
+    case cycleHalfOneThirdTwoThirds = "cycleHalfOneThirdTwoThirds"
+    case cycleHalfTwoThirds = "cycleHalfTwoThirds"
+    case cycleHalfOneThird = "cycleHalfOneThird"
+    case cycleAcrossDisplays = "cycleAcrossDisplays"
+    case acrossDisplays = "acrossDisplays"
+
+    var id: String { rawValue }
+
+    static var current: WindowLayoutRepeatedAction {
+        guard let raw = UserDefaults.standard.string(forKey: DefaultsKey.windowLayoutRepeatedAction),
+              let mode = WindowLayoutRepeatedAction(rawValue: raw) else {
+            return .disabled
+        }
+        return mode
+    }
+
+    func localizedTitle(_ language: AppLanguage) -> String {
+        let text = WindowLayoutRepeatedActionStrings.localized(language)
+        switch self {
+        case .disabled: return text.disabled
+        case .cycleHalfOneThirdOneSixth: return text.cycleHalfOneThirdOneSixth
+        case .cycleHalfTwoThirdsOneThird: return text.cycleHalfTwoThirdsOneThird
+        case .cycleHalfOneThirdTwoThirds: return text.cycleHalfOneThirdTwoThirds
+        case .cycleHalfTwoThirds: return text.cycleHalfTwoThirds
+        case .cycleHalfOneThird: return text.cycleHalfOneThird
+        case .cycleAcrossDisplays: return text.cycleAcrossDisplays
+        case .acrossDisplays: return text.acrossDisplays
+        }
+    }
+}
+
 enum WindowLayoutGeometry {
     /// Points the settle path allows a window to miss its target by. Display
     /// transfer uses the same value to treat a window as filling the source
     /// or flush with an edge, so tuning settle cannot split those checks.
     static let frameTolerance: CGFloat = 8
 
+    static func cycleFractions(for action: WindowLayoutAction,
+                               mode: WindowLayoutRepeatedAction) -> [CGFloat]? {
+        switch action {
+        case .leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf:
+            switch mode {
+            case .cycleHalfOneThirdOneSixth, .cycleAcrossDisplays:
+                return [0.5, 1.0 / 3.0, 1.0 / 6.0]
+            case .cycleHalfTwoThirdsOneThird:
+                return [0.5, 2.0 / 3.0, 1.0 / 3.0]
+            case .cycleHalfOneThirdTwoThirds:
+                return [0.5, 1.0 / 3.0, 2.0 / 3.0]
+            case .cycleHalfTwoThirds:
+                return [0.5, 2.0 / 3.0]
+            case .cycleHalfOneThird:
+                return [0.5, 1.0 / 3.0]
+            case .acrossDisplays, .disabled:
+                return nil
+            }
+        default:
+            return nil
+        }
+    }
+
+    static func cycleSequence(for action: WindowLayoutAction,
+                              mode: WindowLayoutRepeatedAction) -> [WindowLayoutAction]? {
+        switch action {
+        case .leftHalf, .leftThird, .leftTwoThirds:
+            switch mode {
+            case .cycleHalfOneThirdOneSixth:
+                return [.leftHalf, .leftThird]
+            case .cycleHalfTwoThirdsOneThird, .cycleAcrossDisplays:
+                return [.leftHalf, .leftTwoThirds, .leftThird]
+            case .cycleHalfOneThirdTwoThirds:
+                return [.leftHalf, .leftThird, .leftTwoThirds]
+            case .cycleHalfTwoThirds:
+                return [.leftHalf, .leftTwoThirds]
+            case .cycleHalfOneThird:
+                return [.leftHalf, .leftThird]
+            case .acrossDisplays, .disabled:
+                return nil
+            }
+        case .rightHalf, .rightThird, .rightTwoThirds:
+            switch mode {
+            case .cycleHalfOneThirdOneSixth:
+                return [.rightHalf, .rightThird]
+            case .cycleHalfTwoThirdsOneThird, .cycleAcrossDisplays:
+                return [.rightHalf, .rightTwoThirds, .rightThird]
+            case .cycleHalfOneThirdTwoThirds:
+                return [.rightHalf, .rightThird, .rightTwoThirds]
+            case .cycleHalfTwoThirds:
+                return [.rightHalf, .rightTwoThirds]
+            case .cycleHalfOneThird:
+                return [.rightHalf, .rightThird]
+            case .acrossDisplays, .disabled:
+                return nil
+            }
+        case .centerHalf, .centerThird:
+            switch mode {
+            case .acrossDisplays, .disabled:
+                return nil
+            default:
+                return [.centerHalf, .centerThird]
+            }
+        default:
+            return nil
+        }
+    }
+
     static func effectiveAction(for action: WindowLayoutAction,
-                                current _: CGRect,
-                                visibleFrame _: CGRect,
-                                previousAction: WindowLayoutAction? = nil) -> WindowLayoutAction {
+                                current: CGRect,
+                                visibleFrame: CGRect,
+                                previousAction: WindowLayoutAction? = nil,
+                                repeatedAction: WindowLayoutRepeatedAction = .disabled) -> WindowLayoutAction {
         if action == .topHalf, previousAction == .topHalf {
             return .maximize
         }
-        return action
+        if action == .topHalf, previousAction == .maximize {
+            return .topHalf
+        }
+        guard repeatedAction != .disabled && repeatedAction != .acrossDisplays else {
+            return action
+        }
+        guard let cycle = cycleSequence(for: action, mode: repeatedAction) else {
+            return action
+        }
+        guard let previousAction else {
+            let targetRect = rect(for: action, current: current, visibleFrame: visibleFrame)
+            if accepts(actualRect: current, targetRect: targetRect, action: action, anchorTolerance: 36),
+               let idx = cycle.firstIndex(of: action) {
+                let nextIdx = (idx + 1) % cycle.count
+                return cycle[nextIdx]
+            }
+            return action
+        }
+        guard cycle.contains(previousAction) else {
+            return action
+        }
+        let prevTarget = rect(for: previousAction, current: current, visibleFrame: visibleFrame)
+        guard accepts(actualRect: current, targetRect: prevTarget, action: previousAction, anchorTolerance: 36) else {
+            return action
+        }
+        guard let idx = cycle.firstIndex(of: previousAction) else {
+            return action
+        }
+        let nextIdx = (idx + 1) % cycle.count
+        return cycle[nextIdx]
     }
 
     /// Where a repeated side action goes: asking for the same side again keeps
@@ -329,9 +463,73 @@ enum WindowLayoutGeometry {
             }
     }
 
+    static func matchesCycleRect(actual: CGRect,
+                                 candidate: CGRect,
+                                 action: WindowLayoutAction,
+                                 tolerance: CGFloat = 36) -> Bool {
+        guard actual.width > 40, actual.height > 40 else { return false }
+        switch action {
+        case .leftHalf:
+            return abs(actual.minX - candidate.minX) <= tolerance
+                && (abs(actual.height - candidate.height) <= tolerance || actual.height >= candidate.height * 0.82)
+                && abs(actual.width - candidate.width) <= tolerance
+        case .rightHalf:
+            return abs(actual.maxX - candidate.maxX) <= tolerance
+                && (abs(actual.height - candidate.height) <= tolerance || actual.height >= candidate.height * 0.82)
+                && abs(actual.width - candidate.width) <= tolerance
+        case .topHalf:
+            return abs(actual.maxY - candidate.maxY) <= tolerance
+                && (abs(actual.width - candidate.width) <= tolerance || actual.width >= candidate.width * 0.82)
+                && abs(actual.height - candidate.height) <= tolerance
+        case .bottomHalf:
+            return abs(actual.minY - candidate.minY) <= tolerance
+                && (abs(actual.width - candidate.width) <= tolerance || actual.width >= candidate.width * 0.82)
+                && abs(actual.height - candidate.height) <= tolerance
+        case .centerHalf:
+            return abs(actual.midX - candidate.midX) <= tolerance
+                && (abs(actual.height - candidate.height) <= tolerance || actual.height >= candidate.height * 0.82)
+                && abs(actual.width - candidate.width) <= tolerance
+        default:
+            return false
+        }
+    }
+
+    static func currentFractionIndex(for action: WindowLayoutAction,
+                                     current: CGRect,
+                                     visibleFrame: CGRect,
+                                     fractions: [CGFloat],
+                                     windowGap: CGFloat = 0,
+                                     screenGap: CGFloat = 0) -> Int? {
+        var bestIndex: Int?
+        var bestDistance: CGFloat = .greatestFiniteMagnitude
+        for (idx, fraction) in fractions.enumerated() {
+            let candidate = rect(for: action,
+                                 current: current,
+                                 visibleFrame: visibleFrame,
+                                 fraction: fraction,
+                                 windowGap: windowGap,
+                                 screenGap: screenGap)
+            if matchesCycleRect(actual: current, candidate: candidate, action: action, tolerance: 36) {
+                let dist: CGFloat
+                switch action {
+                case .topHalf, .bottomHalf:
+                    dist = abs(current.height - candidate.height)
+                default:
+                    dist = abs(current.width - candidate.width)
+                }
+                if dist < bestDistance {
+                    bestDistance = dist
+                    bestIndex = idx
+                }
+            }
+        }
+        return bestIndex
+    }
+
     static func rect(for action: WindowLayoutAction,
                      current: CGRect,
                      visibleFrame: CGRect,
+                     fraction: CGFloat? = nil,
                      windowGap: CGFloat = 0,
                      screenGap: CGFloat = 0) -> CGRect {
         // Only placements that tile against the screen edge take the screen
@@ -345,7 +543,7 @@ enum WindowLayoutGeometry {
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
         }
-        let rect = ungappedRect(for: action, current: current, visibleFrame: frame)
+        let rect = ungappedRect(for: action, current: current, visibleFrame: frame, fraction: fraction)
         return windowGapped(rect, for: action, in: frame, windowGap: windowGap)
     }
 
@@ -400,9 +598,10 @@ enum WindowLayoutGeometry {
 
     private static func ungappedRect(for action: WindowLayoutAction,
                                      current: CGRect,
-                                     visibleFrame: CGRect) -> CGRect {
-        let halfWidth = visibleFrame.width / 2
-        let halfHeight = visibleFrame.height / 2
+                                     visibleFrame: CGRect,
+                                     fraction: CGFloat? = nil) -> CGRect {
+        let halfWidth = fraction.map { visibleFrame.width * $0 } ?? (visibleFrame.width / 2)
+        let halfHeight = fraction.map { visibleFrame.height * $0 } ?? (visibleFrame.height / 2)
         let thirdWidth = visibleFrame.width / 3
         let twoThirdsWidth = thirdWidth * 2
         switch action {
@@ -410,10 +609,10 @@ enum WindowLayoutGeometry {
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
                           width: halfWidth, height: visibleFrame.height).integral
         case .rightHalf:
-            return CGRect(x: visibleFrame.midX, y: visibleFrame.minY,
+            return CGRect(x: visibleFrame.maxX - halfWidth, y: visibleFrame.minY,
                           width: halfWidth, height: visibleFrame.height).integral
         case .topHalf:
-            return CGRect(x: visibleFrame.minX, y: visibleFrame.midY,
+            return CGRect(x: visibleFrame.minX, y: visibleFrame.maxY - halfHeight,
                           width: visibleFrame.width, height: halfHeight).integral
         case .bottomHalf:
             return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,

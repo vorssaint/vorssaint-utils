@@ -45,6 +45,7 @@ enum LocalizationTests {
             let additional: [(String, (AppLanguage) -> Any)] = [
                 ("imageConverter", { MediaImageConverterStrings.localized($0) }),
                 ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
+                ("repeatedActionLayout", { WindowLayoutRepeatedActionStrings.localized($0) }),
                 ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
                 ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
             ]
