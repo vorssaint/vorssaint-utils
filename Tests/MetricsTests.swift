@@ -18229,6 +18229,25 @@ struct MetricsTests {
             expect(ScreenshotSupport.expandSaveSubfolder("../up//./%y", date: patternDate)
                    == "up/26",
                    "dot, dot-dot and empty components never escape the base folder")
+            expect(ScreenshotSupport.expandSaveSubfolder("%app/%y", date: patternDate, appName: "Safari")
+                   == "Safari/26",
+                   "%app becomes a subfolder from the app in front at capture")
+            expect(ScreenshotSupport.expandSaveSubfolder("%app", date: patternDate, appName: "My/App:Notes")
+                   == "My-App-Notes",
+                   "slashes and colons in an app name stay one path component")
+            expect(ScreenshotSupport.expandSaveSubfolder("%app", date: patternDate, appName: "") == "",
+                   "a missing app name drops the %app component instead of creating a folder")
+            expect(ScreenshotSupport.expandFileNamePattern("%app-%#", date: patternDate, number: 3, appName: "Notes")
+                   == "Notes-3",
+                   "file names can include the same %app token")
+            expect(ScreenshotSupport.captureAppName(frontmostBundleID: "com.apple.Safari",
+                                                    frontmostName: "Safari",
+                                                    ownBundleID: "com.vorssaint.utils") == "Safari",
+                   "a foreign frontmost app is kept")
+            expect(ScreenshotSupport.captureAppName(frontmostBundleID: "com.vorssaint.utils",
+                                                    frontmostName: "Vorssaint",
+                                                    ownBundleID: "com.vorssaint.utils") == "",
+                   "this app's own overlay is not stamped as the capture app")
             expect(ScreenshotSupport.expandFileNamePattern("Shot %d at %h.%mi.%s",
                                                            date: patternDate, number: 0)
                    == "Shot 24 at 15.04.09",

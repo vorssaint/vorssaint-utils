@@ -235,6 +235,7 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func beginCapture(_ mode: CaptureMode) {
+        rememberCaptureApp()
         if mode == .fullScreen {
             beginFullScreenCapture()
         } else {
@@ -747,7 +748,8 @@ final class ScreenshotService: ObservableObject {
             ?? manager.urls(for: .desktopDirectory, in: .userDomainMask).first
             ?? manager.homeDirectoryForCurrentUser
         let subfolderPattern = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveSubfolder) ?? ""
-        let subfolder = ScreenshotSupport.expandSaveSubfolder(subfolderPattern, date: Date())
+        let appName = captureAppNameForSave
+        let subfolder = ScreenshotSupport.expandSaveSubfolder(subfolderPattern, date: Date(), appName: appName)
         if !subfolder.isEmpty {
             let dated = destination.appendingPathComponent(subfolder, isDirectory: true)
             // Only descend into the dated subfolder if we can actually create
@@ -778,13 +780,26 @@ final class ScreenshotService: ObservableObject {
 
         if ScreenshotSupport.fileNamePatternUsesNumber(pattern) {
             let number = defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext)
-            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: number)
+            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: number, appName: captureAppNameForSave)
             defaults.set(number + 1, forKey: DefaultsKey.screenshotFileNumberNext)
             return (expanded + ".png", number)
         } else {
-            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: 0)
+            let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: 0, appName: captureAppNameForSave)
             return (expanded + ".png", nil)
         }
+    }
+
+    /// Frontmost app when the capture gesture started. Saved before the
+    /// overlay takes focus, and ignored when that app is Vorssaint itself.
+    private static var captureAppNameForSave = ""
+
+    private func rememberCaptureApp() {
+        let own = Bundle.main.bundleIdentifier ?? "com.vorssaint.utils"
+        let app = NSWorkspace.shared.frontmostApplication
+        Self.captureAppNameForSave = ScreenshotSupport.captureAppName(
+            frontmostBundleID: app?.bundleIdentifier,
+            frontmostName: app?.localizedName,
+            ownBundleID: own)
     }
 
     /// Gives a consumed "%#" number back after its save failed or was
