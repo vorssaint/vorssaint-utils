@@ -48,4 +48,35 @@ enum MicMuteSupport {
         let wanted = Set(recorded)
         return present.filter { wanted.contains($0) }
     }
+
+    /// Which still-silenced devices to release when the app believes nothing is
+    /// muted. A device this app has silenced before, which is silent now, and
+    /// which nothing currently claims, is a mute of this app's own making that
+    /// lost its record: a voice processing session clears the mute switch for
+    /// its own duration and restores the value it found when it ends, so a mute
+    /// released while such a session was open comes back with the claim already
+    /// dropped (issue #1568). The empty claim list cannot say which of the two
+    /// it is, which is why the record of ever having muted a device is what
+    /// decides.
+    ///
+    /// This can also open a microphone the user silenced in System Settings, if
+    /// this app had muted that same device at some earlier point. That is the
+    /// trade `restoreTargets` already makes for a missing record: leaving
+    /// someone muted with no way back is the worse failure.
+    static func orphanedMuteTargets(touched: [String],
+                                    claimed: [String]?,
+                                    silenced: [String]) -> [String] {
+        let owned = Set(claimed ?? [])
+        let seen = Set(touched)
+        return silenced.filter { seen.contains($0) && !owned.contains($0) }
+    }
+
+    /// The running record of devices this app has silenced, newest last and
+    /// bounded so a laptop that meets many interfaces does not grow it forever.
+    static func updatedTouchedDevices(_ stored: [String], adding: [String], limit: Int = 16) -> [String] {
+        var updated = stored.filter { !adding.contains($0) }
+        updated.append(contentsOf: adding)
+        if updated.count > limit { updated.removeFirst(updated.count - limit) }
+        return updated
+    }
 }

@@ -4,6 +4,7 @@
 import AppKit
 import CoreAudio
 import Foundation
+import os
 
 /// Global microphone mute: one click or shortcut cuts every microphone the Mac
 /// has, in any app. Muting only the system default is not enough, because an
@@ -21,6 +22,11 @@ final class MicMuteService: ObservableObject {
     @Published private(set) var shortcutRegistrationFailed = false
 
     private let hotkey = QuickToolHotkey(id: 12)
+    private var didReleaseOrphanedMutes = false
+    /// A mute nobody can see is the whole difficulty of issue #1568, so the
+    /// one sweep that changes hardware state without a click says so.
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                    category: "micmute")
     private var installedListeners: [AudioObjectPropertySelector] = []
     /// Reading or writing a device property can block for as long as the audio
     /// daemon holds the device (a headset connecting, an interface waking),
@@ -78,6 +84,33 @@ final class MicMuteService: ObservableObject {
             isMuted = false
         }
         syncListeners()
+        releaseOrphanedMutesOnce()
+    }
+
+    /// Runs once per launch, and only while the app believes nothing is muted:
+    /// a mute left behind by a previous run is invisible to the normal unmute,
+    /// whose record was already cleared. Only the mute switch is reconciled, as
+    /// that is the path a voice processing session interferes with; a level left
+    /// at zero keeps its saved value and is restored the usual way.
+    private func releaseOrphanedMutesOnce() {
+        guard !didReleaseOrphanedMutes else { return }
+        didReleaseOrphanedMutes = true
+        guard !isMuted else { return }
+        let defaults = UserDefaults.standard
+        let touched = defaults.stringArray(forKey: DefaultsKey.micMuteTouchedDevices) ?? []
+        guard !touched.isEmpty else { return }
+        let claimed = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
+        halQueue.async {
+            let devices = Self.inputDevices()
+            let silenced = devices.filter { Self.muteSwitchValue(of: $0.id) == 1 }.map(\.uid)
+            let targets = Set(MicMuteSupport.orphanedMuteTargets(touched: touched,
+                                                                claimed: claimed,
+                                                                silenced: silenced))
+            for device in devices where targets.contains(device.uid) {
+                let released = Self.setMuteSwitch(false, of: device.id)
+                Self.log.log("released orphaned mic mute on \(device.uid, privacy: .public) ok \(released)")
+            }
+        }
     }
 
     /// The listeners only exist to keep an active mute true while devices come
@@ -169,6 +202,13 @@ final class MicMuteService: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
         defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
+        if muted, !outcome.mutedDevices.isEmpty {
+            let stored = defaults.stringArray(forKey: DefaultsKey.micMuteTouchedDevices) ?? []
+            let updated = MicMuteSupport.updatedTouchedDevices(stored, adding: outcome.mutedDevices)
+            if updated != stored {
+                defaults.set(updated, forKey: DefaultsKey.micMuteTouchedDevices)
+            }
+        }
 
         if isMuted != muted { isMuted = muted }
         defaults.set(muted, forKey: DefaultsKey.micMuteActive)
