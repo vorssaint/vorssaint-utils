@@ -2286,6 +2286,57 @@ struct MetricsTests {
             sessionActive: true,
             automaticSessionActive: false
         ) == .none, "clearing automatic conditions does not end a manual session")
+        // Match mode over the automation conditions (issue #1587).
+        let bothDockConditions = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: true, powerEnabled: true, runningAppsEnabled: false)
+        expect(bothDockConditions == [.externalDisplay, .power],
+               "enabled conditions are collected whether or not they hold")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: false
+        ), "Any keeps today's behavior: one matching condition is enough")
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.externalDisplay], enabled: bothDockConditions, requireAll: true
+        ), "All refuses a session while one enabled condition is unmet")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: bothDockConditions, enabled: bothDockConditions, requireAll: true
+        ), "All starts a session once every enabled condition is met")
+        expect(!KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [], enabled: [], requireAll: true
+        ), "All never treats an empty selection as satisfied")
+        let powerPlusUnnamedApps = KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: false, powerEnabled: true,
+            runningAppsEnabled: true, hasSelectedApps: false)
+        expect(powerPlusUnnamedApps == [.power],
+               "an app condition with no app named is not a condition All has to satisfy")
+        expect(KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: [.power], enabled: powerPlusUnnamedApps, requireAll: true
+        ), "All stays usable while the app list is still empty")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.externalDisplay],
+            enabledConditions: bothDockConditions,
+            requireAll: true,
+            sessionActive: false,
+            automaticSessionActive: false
+        ) == .none, "a monitor on battery does not start an All session")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.runningApps],
+            enabledConditions: KeepAwakeAutomationSupport.enabledConditions(
+                externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: true),
+            requireAll: true,
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .deactivate, "unplugging power ends an All session the running app alone would hold open")
+        expect(KeepAwakeAutomationSupport.action(
+            featureAvailable: true,
+            matchingConditions: [.runningApps],
+            enabledConditions: KeepAwakeAutomationSupport.enabledConditions(
+                externalDisplayEnabled: false, powerEnabled: true, runningAppsEnabled: true),
+            requireAll: false,
+            sessionActive: true,
+            automaticSessionActive: true
+        ) == .none, "the same unplug leaves an Any session running, which is why All exists")
         expect(KeepAwakeAutomationSupport.isScreenLocked(
             sessionDictionary: ["CGSSessionScreenIsLocked": true]
         ), "the Keep Awake lock guard reads a locked session")

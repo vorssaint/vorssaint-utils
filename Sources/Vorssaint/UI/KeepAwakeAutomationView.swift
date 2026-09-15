@@ -9,6 +9,7 @@ struct KeepAwakeAutomationEditor: View {
     @AppStorage(DefaultsKey.keepAwakeExternalDisplay) private var externalDisplay = false
     @AppStorage(DefaultsKey.keepAwakeConnectedToPower) private var connectedToPower = false
     @AppStorage(DefaultsKey.keepAwakeRunningApps) private var runningApps = false
+    @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var requireAll = false
 
     var compact = false
 
@@ -40,6 +41,19 @@ struct KeepAwakeAutomationEditor: View {
                     awake.automationPreferencesDidChange()
                 }
             }
+            // One condition cannot be combined with anything, so the mode
+            // would be a control with no effect (issue #1587).
+            if selectedConditionCount > 1 {
+                Picker(selection: $requireAll) {
+                    Text(strings.matchAny).tag(false)
+                    Text(strings.matchAll).tag(true)
+                } label: { EmptyView() }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .onChange(of: requireAll) { _, _ in
+                    awake.automationPreferencesDidChange()
+                }
+            }
             if runningApps {
                 AppBundleList(title: strings.runningAppsListTitle,
                               caption: strings.runningAppsListCaption,
@@ -50,6 +64,10 @@ struct KeepAwakeAutomationEditor: View {
                               onRemove: { id in saveRunningApps(awake.runningAppBundleIDs.filter { $0 != id }) })
             }
         }
+    }
+
+    private var selectedConditionCount: Int {
+        [externalDisplay, connectedToPower, runningApps].filter { $0 }.count
     }
 
     private var strings: KeepAwakeAutomationStrings {

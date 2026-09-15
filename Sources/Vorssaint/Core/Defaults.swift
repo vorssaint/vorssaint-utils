@@ -27,6 +27,10 @@ enum DefaultsKey {
     static let keepAwakeConnectedToPower = "keepAwakeConnectedToPower"
     static let keepAwakeRunningApps = "keepAwakeRunningApps"
     static let keepAwakeRunningAppBundleIDs = "keepAwakeRunningAppBundleIDs"
+    // Match mode over the automation conditions: false is Any (one matching
+    // condition starts a session), true is All (every enabled condition has
+    // to match, and losing one ends the session). Issue #1587.
+    static let keepAwakeAutomationRequireAll = "keepAwakeAutomationRequireAll"
     static let keepAwakePauseWhenLocked = "keepAwakePauseWhenLocked"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
@@ -926,6 +930,7 @@ enum Defaults {
         DefaultsKey.keepAwakeConnectedToPower: false,
         DefaultsKey.keepAwakeRunningApps: false,
         DefaultsKey.keepAwakeRunningAppBundleIDs: [String](),
+        DefaultsKey.keepAwakeAutomationRequireAll: false,
         DefaultsKey.keepAwakePauseWhenLocked: false,
         DefaultsKey.keepAwakeMouseJiggleEnabled: false,
         DefaultsKey.keepAwakeMouseJiggleInterval: 5,

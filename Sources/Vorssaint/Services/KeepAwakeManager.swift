@@ -107,7 +107,7 @@ final class KeepAwakeManager: ObservableObject {
 
     func toggle() {
         if isActive {
-            if sessionTrigger == .automation || !currentMatchingAutomationConditions().isEmpty {
+            if sessionTrigger == .automation || automationConditionsHold() {
                 automationSuppressedUntilConditionsClear = true
             }
             deactivate(reason: .manual)
@@ -294,7 +294,7 @@ final class KeepAwakeManager: ObservableObject {
             if !continueAutomaticallyAfterTimerIfNeeded() { deactivate(reason: .timer) }
             return
         }
-        if sessionTrigger == .automation, currentMatchingAutomationConditions().isEmpty {
+        if sessionTrigger == .automation, !automationConditionsHold() {
             deactivate(reason: .manual)
             return
         }
@@ -389,9 +389,13 @@ final class KeepAwakeManager: ObservableObject {
     private func evaluateAutomation() {
         guard recoveryCompleted else { return }
         let matches = currentMatchingAutomationConditions()
+        let enabled = currentEnabledAutomationConditions()
+        let requireAll = automationRequiresAllConditions()
+        let satisfied = KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: matches, enabled: enabled, requireAll: requireAll)
 
         if automationSuppressedUntilConditionsClear {
-            if matches.isEmpty {
+            if !satisfied {
                 automationSuppressedUntilConditionsClear = false
             }
             if sessionTrigger == .automation {
@@ -412,6 +416,8 @@ final class KeepAwakeManager: ObservableObject {
         let action = KeepAwakeAutomationSupport.action(
             featureAvailable: AppFeature.keepAwake.isAvailable,
             matchingConditions: matches,
+            enabledConditions: enabled,
+            requireAll: requireAll,
             sessionActive: isActive,
             automaticSessionActive: isActive && sessionTrigger == .automation
         )
@@ -425,6 +431,30 @@ final class KeepAwakeManager: ObservableObject {
         case .deactivate:
             deactivate(reason: .manual)
         }
+    }
+
+    private func automationRequiresAllConditions() -> Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutomationRequireAll)
+    }
+
+    private func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
+        KeepAwakeAutomationSupport.enabledConditions(
+            externalDisplayEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay),
+            powerEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower),
+            runningAppsEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps),
+            hasSelectedApps: !runningAppBundleIDs.isEmpty
+        )
+    }
+
+    /// Whether the automation currently asks for a session, in either match
+    /// mode. Every caller that used to read "any condition matches" has to ask
+    /// this instead: under All, a session that stops being wanted still has a
+    /// non-empty matching set (issue #1587).
+    private func automationConditionsHold() -> Bool {
+        KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: currentMatchingAutomationConditions(),
+            enabled: currentEnabledAutomationConditions(),
+            requireAll: automationRequiresAllConditions())
     }
 
     private func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> {

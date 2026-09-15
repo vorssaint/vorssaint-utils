@@ -649,6 +649,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
     @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
+    @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var keepAwakeAutomationRequireAll = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
     @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
@@ -684,7 +685,7 @@ struct EnergySettings: View {
                 }
                 .settingsSectionAnchor(.keepAwake)
                 Section(automationStrings.automationSection) {
-                    SettingsCaptionText(automationStrings.automationCaption)
+                    SettingsCaptionText(automationStrings.caption(requireAll: keepAwakeAutomationRequireAll))
                     KeepAwakeAutomationEditor()
                 }
                 Section {
