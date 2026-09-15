@@ -63,4 +63,68 @@ enum KeepAwakeAutomationSupport {
         }
         return sessionActive ? .none : .activate
     }
+
+    /// Conditions that can gate closed-lid mode independently of Keep Awake automation.
+    enum ClamshellGateCondition: String, CaseIterable, Hashable {
+        case externalDisplay
+        case power
+        case network
+    }
+
+    /// How selected closed-lid gate conditions combine.
+    enum ClamshellGateMode: String, CaseIterable {
+        case any
+        case all
+    }
+
+    static func selectedClamshellGateConditions(externalDisplay: Bool,
+                                                power: Bool,
+                                                network: Bool) -> Set<ClamshellGateCondition> {
+        var selected = Set<ClamshellGateCondition>()
+        if externalDisplay { selected.insert(.externalDisplay) }
+        if power { selected.insert(.power) }
+        if network { selected.insert(.network) }
+        return selected
+    }
+
+    /// Empty selection means no gate (always passes). Otherwise Any needs one
+    /// currently-true selected condition; All needs every selected condition true.
+    static func clamshellGatePasses(selected: Set<ClamshellGateCondition>,
+                                    mode: ClamshellGateMode,
+                                    externalDisplayConnected: Bool,
+                                    connectedToPower: Bool,
+                                    networkAvailable: Bool) -> Bool {
+        guard !selected.isEmpty else { return true }
+        var satisfied = Set<ClamshellGateCondition>()
+        if selected.contains(.externalDisplay), externalDisplayConnected {
+            satisfied.insert(.externalDisplay)
+        }
+        if selected.contains(.power), connectedToPower {
+            satisfied.insert(.power)
+        }
+        if selected.contains(.network), networkAvailable {
+            satisfied.insert(.network)
+        }
+        switch mode {
+        case .any: return !satisfied.isEmpty
+        case .all: return selected.isSubset(of: satisfied)
+        }
+    }
+
+    /// Whether closed-lid mode should be active right now. Keep Awake itself is
+    /// left alone either way; `gatePasses` is the result of `clamshellGatePasses`.
+    static func shouldApplyClamshell(preferred: Bool,
+                                     keepAwakeActive: Bool,
+                                     sessionPaused: Bool,
+                                     gatePasses: Bool) -> Bool {
+        preferred && keepAwakeActive && !sessionPaused && gatePasses
+    }
+
+    /// After `pmset disablesleep 0`, macOS does not replay a lid-close that
+    /// arrived while sleep was blocked. Request `sleepnow` only when the gate
+    /// still does not apply and the lid is still closed (PR #1433 review).
+    static func shouldRequestSleepAfterDisablingClamshell(policyStillApplies: Bool,
+                                                          lidClosed: Bool) -> Bool {
+        !policyStillApplies && lidClosed
+    }
 }

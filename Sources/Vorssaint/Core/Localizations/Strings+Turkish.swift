@@ -78,6 +78,13 @@ extension Strings {
         clamshellNeedsSession: "“Uyanık tut” etkinken uygulanır",
         clamshellReady: "Hazır. Parola istemeden açılıp kapanır",
         clamshellNeedsPassword: "Yönetici parolasını bir kez isteyecek",
+        clamshellExternalDisplayToggle: "Harici ekran",
+        clamshellExternalDisplayCaption: "Kapak kapalı modunu yalnızca seçilen koşullar varken uygular (herhangi biri veya tümü). “Uyanık tut” bıraktığınız gibi kalır.",
+        clamshellGatePowerToggle: "Güç bağlıyken",
+        clamshellGateNetworkToggle: "Ağ kullanılabilir",
+        clamshellGateModeAny: "Herhangi",
+        clamshellGateModeAll: "Tümü",
+        clamshellGateMatchLabel: "Koşullar",
 
         systemSection: "Sistem",
         temperatures: "Sıcaklıklar",
