@@ -47,12 +47,20 @@ final class SpaceHop {
     static func beginIfNeeded(windowID: CGWindowID,
                               appPID: pid_t,
                               windowOwnerPID: pid_t,
+                              sourcePID: pid_t?,
                               app: NSRunningApplication) -> Bool {
         guard let topology = SpaceWindowBridge.topology(),
               SpaceWindowBridge.isParkedOnHiddenSpace(windowID, visibleSpaces: topology.visibleSpaces)
         else { return false }
         cancelPending()
-        let hop = SpaceHop(windowID: windowID, appPID: appPID, windowOwnerPID: windowOwnerPID, app: app)
+        // The app's windows before anything moves: a window it opens during the
+        // hop is the user's, and the arrival pulses must leave it in front.
+        let focusState = SwitcherWindowFocusRetryState(
+            targetWindowID: windowID,
+            targetStartedMinimized: false,
+            knownWindowIDs: WindowActivator.focusSnapshot(ownerPID: windowOwnerPID))
+        let hop = SpaceHop(windowID: windowID, appPID: appPID, windowOwnerPID: windowOwnerPID,
+                           sourcePID: sourcePID, focusState: focusState, app: app)
         current = hop
         hop.start()
         return true
@@ -67,16 +75,22 @@ final class SpaceHop {
     private let windowID: CGWindowID
     private let appPID: pid_t
     private let windowOwnerPID: pid_t
+    private let sourcePID: pid_t?
+    private let focusState: SwitcherWindowFocusRetryState
     private let app: NSRunningApplication
     private var cancelled = false
     private var arrowPressesLeft = SpaceHopSupport.maximumArrowSteps
     private var originalCursorLocation: CGPoint?
     private var warpedCursorLocation: CGPoint?
 
-    private init(windowID: CGWindowID, appPID: pid_t, windowOwnerPID: pid_t, app: NSRunningApplication) {
+    private init(windowID: CGWindowID, appPID: pid_t, windowOwnerPID: pid_t,
+                 sourcePID: pid_t?, focusState: SwitcherWindowFocusRetryState,
+                 app: NSRunningApplication) {
         self.windowID = windowID
         self.appPID = appPID
         self.windowOwnerPID = windowOwnerPID
+        self.sourcePID = sourcePID
+        self.focusState = focusState
         self.app = app
     }
 
@@ -223,7 +237,9 @@ final class SpaceHop {
                 guard !self.cancelled, !self.app.isTerminated else { return }
                 WindowActivator.focusAfterSpaceHop(windowID: self.windowID,
                                                    appPID: self.appPID,
-                                                   windowOwnerPID: self.windowOwnerPID)
+                                                   windowOwnerPID: self.windowOwnerPID,
+                                                   sourcePID: self.sourcePID,
+                                                   state: self.focusState)
             }
         }
         schedule(after: 1.0) { self.finish() }
