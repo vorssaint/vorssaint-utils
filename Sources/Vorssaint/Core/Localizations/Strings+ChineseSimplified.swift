@@ -385,6 +385,7 @@ extension Strings {
         homebrewCancelOperation: "取消",
         homebrewClearLog: "清空日志",
         homebrewLogTitle: "日志",
+        homebrewViewLastLog: "查看上次日志",
         homebrewVersion: "版本",
         homebrewDescription: "类型",
         homebrewHomepage: "打开网站",

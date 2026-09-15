@@ -385,6 +385,7 @@ extension Strings {
         homebrewCancelOperation: "İptal",
         homebrewClearLog: "Günlüğü temizle",
         homebrewLogTitle: "Günlük",
+        homebrewViewLastLog: "Son günlüğü göster",
         homebrewVersion: "Sürüm",
         homebrewDescription: "Tür",
         homebrewHomepage: "Web sitesini aç",

@@ -386,6 +386,7 @@ extension Strings {
         homebrewCancelOperation: "Отмена",
         homebrewClearLog: "Очистить лог",
         homebrewLogTitle: "Лог",
+        homebrewViewLastLog: "Показать последний лог",
         homebrewVersion: "Версия",
         homebrewDescription: "Тип",
         homebrewHomepage: "Открыть сайт",
