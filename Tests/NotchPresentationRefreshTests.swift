@@ -51,7 +51,7 @@ enum NotchPresentationRefreshContract {
         var pinned = false
         var showingSections = false
         var expanded = true
-        let peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
+        var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
         let notice: Bool? = nil
         let captureControls: Bool? = nil
         var hoverWork: DispatchWorkItem?
@@ -60,8 +60,9 @@ enum NotchPresentationRefreshContract {
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
-        var compactActivityGeometry: NotchGeometry { geometry }
+        var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
+            if !expanded, compactActivityIsVisible { return compactActivityGeometry.compactActivitySize }
             if !expanded { return geometry.collapsed }
             return geometry.expandedSize(module: selected, capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
                                          timerHasSession: session.hasSession,
@@ -69,8 +70,9 @@ enum NotchPresentationRefreshContract {
         }
         func toggle() { expanded.toggle() }
         func collapse() { expanded = false }
-        func syncScreenEdgeClicks() {}
-        func removeScreenEdgeClickMonitors() {}
+        var edgeClicksEnabled = false
+        func syncScreenEdgeClicks() { edgeClicksEnabled = true }
+        func removeScreenEdgeClickMonitors() { edgeClicksEnabled = false }
     }
 
     static func run(expect: (Bool, String) -> Void) {
@@ -145,16 +147,47 @@ enum NotchPresentationRefreshContract {
         simulated.geometry = NotchGeometry(screen: CGRect(x: -1440, y: 900, width: 1440, height: 900),
                                           safeAreaTop: 0, cameraWidth: 0)
         simulated.refreshPresentation(animated: false)
-        expect(simulated.panel?.isVisible == true && simulated.geometry.compactSideRoom == nil
+        expect(simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
+               "an unmeasured simulated cutout does not cover a menu or receive screen-edge clicks")
+        simulated.applyMenuSpace(0)
+        expect(simulated.panel?.isVisible == true && simulated.edgeClicksEnabled
                && simulated.windowHost?.frame == simulated.geometry.frame(for: simulated.surfaceSize),
-               "the idle simulated island appears at the screen edge without Accessibility or a menu-space measurement")
-        let simulatedTop = simulated.windowHost?.frame.maxY
+               "a confirmed free center can show the simulated cutout without side room")
+        let bareSize = simulated.surfaceSize
+        let occupied = [CGRect(x: simulated.geometry.screen.midX - 15, y: simulated.geometry.screen.maxY - 24,
+                               width: 90, height: 24)]
+        let blocked = NotchMenuBarLayout.sideRoom(screen: simulated.geometry.screen, cameraWidth: simulated.geometry.cameraWidth,
+                                                 barHeight: simulated.geometry.menuBarHeight, occupied: occupied)
+        expect(blocked == nil, "a real center collision is distinct from zero-width free wings")
+        simulated.applyMenuSpace(blocked)
+        expect(simulated.surfaceSize == bareSize && simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
+               "a center collision hides even an unchanged bare simulated cutout")
+        for active in [false, true] {
+            simulated.compactActivityIsVisible = active
+            simulated.applyMenuSpace(64)
+            expect(simulated.panel?.isVisible == true && simulated.edgeClicksEnabled,
+                   "free menu space restores idle and active simulated content")
+            simulated.applyMenuSpace(nil)
+            expect(simulated.panel?.isVisible == false && !simulated.edgeClicksEnabled,
+                   "idle and active simulated content both release menus when clearance is lost")
+            simulated.refreshPresentation(animated: false)
+            expect(simulated.panel?.isVisible == false,
+                   "a later refresh cannot redisplay compact activity over an occupied center")
+        }
         simulated.expanded = true
         simulated.refreshPresentation()
+        expect(simulated.panel?.isVisible == true && simulated.windowHost?.frame.maxY == simulated.geometry.screen.maxY,
+               "explicitly opening tools remains available without a menu measurement")
         simulated.expanded = false
         simulated.refreshPresentation()
-        expect(simulated.panel?.isVisible == true && simulated.windowHost?.frame.maxY == simulatedTop
-               && simulatedTop == simulated.geometry.screen.maxY,
-               "opening and closing a simulated island preserves its anchor and never hides it for lack of menu access")
+        expect(simulated.panel?.isVisible == false,
+               "closing tools withdraws their simulated cutout if the center is still unverified")
+
+        let physical = Service()
+        physical.expanded = false
+        physical.compactActivityIsVisible = true
+        physical.refreshPresentation(animated: false)
+        expect(physical.panel?.isVisible == true && physical.compactActivityGeometry.compactActivityUsesFooter,
+               "an active timer on a physical camera keeps its footer without a menu measurement")
     }
 }

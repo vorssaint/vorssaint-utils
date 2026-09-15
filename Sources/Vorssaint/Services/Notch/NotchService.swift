@@ -764,6 +764,12 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
+        guard open || geometry.isNotched || geometry.compactSideRoom != nil else {
+            panel?.orderOut(nil)
+            removeScreenEdgeClickMonitors()
+            return
+        }
         let access = NotchQuickAccessConfiguration.current()
         let size = surfaceSize
         // Preferences can change computed dimensions without publishing a
@@ -867,7 +873,7 @@ final class NotchService: ObservableObject {
             return
         }
         let wanted = running && !suspended && !expanded && captureControls == nil
-            && (idleContent != .none || compactActivity != nil)
+            && (idleContent != .none || compactActivity != nil || !geometry.isNotched)
         guard wanted else { stopMenuSpaceMonitoring(); return }
         guard menuSpaceTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.readMenuSpace() }
@@ -877,10 +883,14 @@ final class NotchService: ObservableObject {
         readMenuSpace()
     }
 
-    private func invalidateMenuSpace() {
+    private func invalidateMenuSpace(clearMeasurement: Bool = false) {
         menuSpaceGeneration += 1
-        // Keep the last measured layout until its replacement arrives. Clearing
-        // it for a brightness notification makes the compact content flicker.
+        // Another app can have menus across the simulated camera. Screen
+        // notifications alone can retain the measure to avoid brightness flicker.
+        if clearMeasurement, !geometry.isNotched, geometry.compactSideRoom != nil {
+            geometry.compactSideRoom = nil
+            refreshPresentation(animated: false)
+        }
         readMenuSpace()
     }
 
@@ -918,17 +928,19 @@ final class NotchService: ObservableObject {
                       NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
                     self.readMenuSpace(); return
                 }
-                if self.geometry.compactSideRoom != room {
-                    let previousSize = self.surfaceSize
-                    let grows = (room ?? 0) > (self.geometry.compactSideRoom ?? 0)
-                    self.geometry.compactSideRoom = room
-                    // Shrink immediately to protect new menus. Growing into
-                    // confirmed free room can retain the normal smooth motion.
-                    if previousSize != self.surfaceSize || self.panel?.isVisible != true {
-                        self.refreshPresentation(animated: grows)
-                    }
-                }
+                self.applyMenuSpace(room)
             }
+        }
+    }
+
+    private func applyMenuSpace(_ room: CGFloat?) {
+        guard geometry.compactSideRoom != room else { return }
+        let previousSize = surfaceSize
+        let grows = (room ?? 0) > (geometry.compactSideRoom ?? 0)
+        geometry.compactSideRoom = room
+        // Losing a safe center must also hide an unchanged bare cutout.
+        if previousSize != surfaceSize || panel?.isVisible != true || room == nil {
+            refreshPresentation(animated: grows)
         }
     }
 
@@ -950,9 +962,9 @@ final class NotchService: ObservableObject {
                                  cameraWidth: cameraWidth,
                                  layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .compact,
                                  menuBarHeight: NSStatusBar.system.thickness,
-                                 compactSideRoom: screen.frame == geometry.screen ? geometry.compactSideRoom : nil,
                                  customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
                                  customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight))
+        if next.hasSameMenuBar(as: geometry) { next.compactSideRoom = geometry.compactSideRoom }
         next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
         if windowHost == nil {
@@ -997,7 +1009,7 @@ final class NotchService: ObservableObject {
         let workspace = NSWorkspace.shared.notificationCenter
         observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in
             guard let self, !self.suspended else { return }
-            self.invalidateMenuSpace()
+            self.invalidateMenuSpace(clearMeasurement: true)
             let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             guard identifier != Bundle.main.bundleIdentifier, identifier != AssistiveKeyboard.bundleID else { return }
             self.panel?.resignKey()

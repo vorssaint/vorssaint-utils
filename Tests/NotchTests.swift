@@ -89,9 +89,29 @@ enum NotchTests {
         }
     }
 
+    private static func menuSpaceReuseContracts(expect: (Bool, String) -> Void) {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let previous = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, compactSideRoom: 0)
+        let largerBar = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 32)
+        let menu = CGRect(x: screen.midX + previous.cameraWidth / 2 + 4, y: screen.maxY - 24, width: 80, height: 24)
+        expect(NotchMenuBarLayout.sideRoom(screen: screen, cameraWidth: previous.cameraWidth, barHeight: 24, occupied: [menu]) != nil
+               && NotchMenuBarLayout.sideRoom(screen: screen, cameraWidth: largerBar.cameraWidth, barHeight: 32, occupied: [menu]) == nil,
+               "a taller simulated cutout can occupy a menu that was clear before the bar changed")
+        expect(!largerBar.hasSameMenuBar(as: previous),
+               "a changed menu bar cannot reuse clearance from a narrower simulated camera")
+        let moved = NotchGeometry(screen: screen.offsetBy(dx: -1440, dy: 900), safeAreaTop: 0, cameraWidth: 0)
+        expect(!moved.hasSameMenuBar(as: previous), "another display cannot reuse the previous menu measurement")
+        for layout in NotchSize.allCases {
+            let resized = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: layout)
+            expect(resized.hasSameMenuBar(as: previous),
+                   "changing the expanded size preserves valid menu clearance without flicker")
+        }
+    }
+
     static func run(expect: (Bool, String) -> Void) {
         simulatedMenuBoundsContracts(expect: expect)
         simulatedDisplayContracts(expect: expect)
+        menuSpaceReuseContracts(expect: expect)
         NotchScreenEdgeClickTests.run(expect: expect)
         NotchPresentationRefreshContract.run(expect: expect)
         NotchScreenRefreshContract.run(expect: expect)

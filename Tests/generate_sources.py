@@ -138,7 +138,7 @@ def main():
           + "}\n}\n")
     write("NotchScreenRefresh.swift", "import Foundation\n\nextension NotchScreenRefreshContract {\nfinal class Service: State {\n"
           + declaration(notch, "    private func screenParametersDidChange()").replace("private func", "func", 1)
-          + declaration(notch, "    private func invalidateMenuSpace()")
+          + declaration(notch, "    private func invalidateMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    private func stopMenuSpaceMonitoring()")
           + declaration(notch, "    private func syncMenuSpaceMonitoring()").replace("private func", "func", 1)
               .replace("AXIsProcessTrusted()", "accessibilityGranted")
@@ -146,6 +146,7 @@ def main():
     write("NotchPresentationRefresh.swift", "import Foundation\nimport Combine\n"
           + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
           + declaration(notch, "    func refreshPresentation(")
+          + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    func updateCaptureHeight(")
           + declaration(notch, "    func removeCapture(")
           + declaration(notch, "    private func clearCapture(")

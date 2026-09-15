@@ -645,6 +645,11 @@ struct NotchGeometry: Equatable {
         self.compactSideRoom = compactSideRoom
     }
 
+    func hasSameMenuBar(as other: NotchGeometry) -> Bool {
+        screen == other.screen && cameraWidth == other.cameraWidth
+            && menuBarHeight == other.menuBarHeight && isNotched == other.isNotched
+    }
+
     var safeContentTop: CGFloat { cameraHeight + 10 }
     func activationArea(in size: CGSize, hasHeader: Bool, compactActivity: Bool) -> CGRect {
         let width = compactActivity ? cameraWidth : size.width

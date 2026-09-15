@@ -140,11 +140,35 @@ enum NotchScreenRefreshContract {
         simulated.accessibilityGranted = true
         simulated.idleContent = .none
         simulated.syncMenuSpaceMonitoring()
-        expect(simulated.menuSpaceTimer == nil && simulated.reads == 1,
-               "a bare simulated cutout needs no recurring menu reads")
+        expect(simulated.menuSpaceTimer != nil && simulated.reads == 2,
+               "a bare simulated cutout still checks that its center does not cover menus")
         simulated.compactActivity = true
         simulated.syncMenuSpaceMonitoring()
         expect(simulated.menuSpaceTimer != nil && simulated.reads == 2,
-               "starting compact activity resumes menu measurements for the simulated notch")
+               "starting compact activity reuses the simulated notch's existing menu reader")
+
+        simulated.geometry.compactSideRoom = 64
+        let beforeChange = simulated.menuSpaceGeneration
+        let beforePresentation = simulated.presentations
+        simulated.invalidateMenuSpace(clearMeasurement: true)
+        expect(simulated.geometry.compactSideRoom == nil && simulated.menuSpaceGeneration > beforeChange
+               && simulated.presentations == beforePresentation + 1,
+               "switching apps withdraws a simulated cutout before the new menu read completes")
+        simulated.syncMenuSpaceMonitoring()
+        expect(simulated.geometry.compactSideRoom == nil,
+               "another preference sync cannot restore a previous app's menu clearance")
+        simulated.geometry.compactSideRoom = 64
+        simulated.invalidateMenuSpace()
+        expect(simulated.geometry.compactSideRoom == 64,
+               "screen notifications retain a simulated layout until actual geometry changes")
+
+        let physical = Service()
+        physical.idleContent = .none
+        physical.syncMenuSpaceMonitoring()
+        expect(physical.menuSpaceTimer == nil && physical.reads == 0,
+               "an empty physical camera does not need a menu reader")
+        physical.invalidateMenuSpace(clearMeasurement: true)
+        expect(physical.geometry.compactSideRoom == 64 && physical.presentations == 0,
+               "the physical camera retains its existing presentation during app changes")
     }
 }
