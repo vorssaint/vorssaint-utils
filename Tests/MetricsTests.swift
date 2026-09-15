@@ -7009,6 +7009,18 @@ struct MetricsTests {
                "moving down-right triggers bottom right")
         expect(WindowDirectionalGestureSupport.action(from: dirOrigin, to: CGPoint(x: 160, y: 160)) == .bottomLeft,
                "moving down-left triggers bottom left")
+        expect(!WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(
+                    keyCode: 49, triggerKeyCode: 49, isAutorepeat: false),
+               "the held trigger key itself does not force maximize")
+        expect(!WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(
+                    keyCode: 49, triggerKeyCode: 15, isAutorepeat: true),
+               "auto-repeat never forces a manual maximize/minimize override")
+        expect(WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(
+                    keyCode: 49, triggerKeyCode: 15, isAutorepeat: false),
+               "a distinct Space tap still maximizes while the ring is open")
+        expect(WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(
+                    keyCode: 36, triggerKeyCode: 49, isAutorepeat: false),
+               "Return still maximizes when Space is the hold trigger")
 
         expect(MediaImageFormat.sanitized("pdf") == .pdf,
                "Image converter accepts the PDF format")
