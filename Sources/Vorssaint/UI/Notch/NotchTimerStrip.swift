@@ -12,7 +12,7 @@ struct NotchTimerStrip: View {
     private var geometry: NotchGeometry { service.compactActivityGeometry }
     private var outerInset: CGFloat {
         guard !geometry.compactActivityUsesFooter else { return 0 }
-        let shoulder = geometry.isNotched ? min(NotchLayout.shoulder, geometry.compactActivityContentHeight * 0.28) : 0
+        let shoulder = min(NotchLayout.shoulder, geometry.compactActivityContentHeight * 0.28)
         return shoulder + 6
     }
 

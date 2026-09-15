@@ -127,10 +127,6 @@ final class NotchService: ObservableObject {
         }
     }
 
-    private var presentationGeometry: NotchGeometry {
-        compactActivityIsVisible ? compactActivityGeometry.compactActivityGeometry : geometry
-    }
-
     var expandedSize: CGSize {
         if showingSections {
             return geometry.sectionPickerSize(count: filteredSections.count, searching: !sectionQuery.isEmpty)
@@ -398,7 +394,7 @@ final class NotchService: ObservableObject {
             let work = DispatchWorkItem { [weak self] in
                 guard let self, self.inside, !self.hoverState.suppressed, !self.expanded, !self.peeking,
                       self.captureControls == nil,
-                      self.presentationGeometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
+                      self.geometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
                     self.open(self.compactActivity?.module, takeFocus: false)
                 } else {
@@ -768,8 +764,8 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
-        let active = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil || compactActivityIsVisible
-        guard active || geometry.isNotched || geometry.compactSideRoom != nil else {
+        let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
+        guard open || geometry.isNotched || geometry.compactSideRoom != nil else {
             panel?.orderOut(nil)
             removeScreenEdgeClickMonitors()
             return
@@ -779,7 +775,7 @@ final class NotchService: ObservableObject {
         // Preferences can change computed dimensions without publishing a
         // service property. Update SwiftUI's layout along with the native host.
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
-        windowHost?.present(size: size, geometry: presentationGeometry, animated: animated,
+        windowHost?.present(size: size, geometry: geometry, animated: animated,
                             transitionContent: transitionContent,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil)
         let activationRect = captureControls != nil || notice != nil || dragPlaceholder ? CGRect.zero
@@ -799,7 +795,6 @@ final class NotchService: ObservableObject {
         guard running, !suspended, !expanded, captureControls == nil, notice == nil,
               !dragPlaceholder, !heldDrag, let panel, panel.isVisible, !panel.ignoresMouseEvents else { return nil }
         let geometry = compactActivityIsVisible ? compactActivityGeometry : self.geometry
-        guard geometry.topInset == 0 else { return nil }
         let area = geometry.activationArea(in: surfaceSize, hasHeader: peeking, compactActivity: compactActivityIsVisible)
         guard !area.isEmpty else { return nil }
         let frame = geometry.frame(for: surfaceSize)
@@ -888,10 +883,14 @@ final class NotchService: ObservableObject {
         readMenuSpace()
     }
 
-    private func invalidateMenuSpace() {
+    private func invalidateMenuSpace(clearMeasurement: Bool = false) {
         menuSpaceGeneration += 1
-        // Keep the last measured layout until its replacement arrives. Clearing
-        // it for a brightness notification makes the compact content flicker.
+        // Another app can have menus across the simulated camera. Screen
+        // notifications alone can retain the measure to avoid brightness flicker.
+        if clearMeasurement, !geometry.isNotched, geometry.compactSideRoom != nil {
+            geometry.compactSideRoom = nil
+            refreshPresentation(animated: false)
+        }
         readMenuSpace()
     }
 
@@ -929,17 +928,19 @@ final class NotchService: ObservableObject {
                       NSWorkspace.shared.frontmostApplication?.processIdentifier == pid else {
                     self.readMenuSpace(); return
                 }
-                if self.geometry.compactSideRoom != room {
-                    let previousSize = self.surfaceSize
-                    let grows = (room ?? 0) > (self.geometry.compactSideRoom ?? 0)
-                    self.geometry.compactSideRoom = room
-                    // Shrink immediately to protect new menus. Growing into
-                    // confirmed free room can retain the normal smooth motion.
-                    if previousSize != self.surfaceSize || self.panel?.isVisible != true {
-                        self.refreshPresentation(animated: grows)
-                    }
-                }
+                self.applyMenuSpace(room)
             }
+        }
+    }
+
+    private func applyMenuSpace(_ room: CGFloat?) {
+        guard geometry.compactSideRoom != room else { return }
+        let previousSize = surfaceSize
+        let grows = (room ?? 0) > (geometry.compactSideRoom ?? 0)
+        geometry.compactSideRoom = room
+        // Losing a safe center must also hide an unchanged bare cutout.
+        if previousSize != surfaceSize || panel?.isVisible != true || room == nil {
+            refreshPresentation(animated: grows)
         }
     }
 
@@ -961,13 +962,13 @@ final class NotchService: ObservableObject {
                                  cameraWidth: cameraWidth,
                                  layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .compact,
                                  menuBarHeight: NSStatusBar.system.thickness,
-                                 compactSideRoom: screen.frame == geometry.screen ? geometry.compactSideRoom : nil,
                                  customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
                                  customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight))
+        if next.hasSameMenuBar(as: geometry) { next.compactSideRoom = geometry.compactSideRoom }
         next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
         if windowHost == nil {
-            windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: presentationGeometry, size: surfaceSize,
+            windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: geometry, size: surfaceSize,
                                         quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0)) })
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title
@@ -1008,7 +1009,7 @@ final class NotchService: ObservableObject {
         let workspace = NSWorkspace.shared.notificationCenter
         observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in
             guard let self, !self.suspended else { return }
-            self.invalidateMenuSpace()
+            self.invalidateMenuSpace(clearMeasurement: true)
             let identifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
             guard identifier != Bundle.main.bundleIdentifier, identifier != AssistiveKeyboard.bundleID else { return }
             self.panel?.resignKey()

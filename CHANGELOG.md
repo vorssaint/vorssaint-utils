@@ -7,11 +7,14 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Longer timers are easier to read with hours and minutes throughout their controls, with better spacing and stable placement beside the camera.
+Dynamic Island recreates a notebook's camera cutout on displays without one. Longer timers show hours and minutes throughout their controls, with better spacing and stable placement beside the camera.
 
 ### Changed
 - Timers show hours and minutes in the duration ruler, countdown, compact view and focus settings.
 - Compact timers have more breathing room and stay beside the camera when menu space changes, including in full screen.
+
+### Fixed
+- Dynamic Island simulates a camera cutout within the menu bar on displays without one, preserving its shape and expansion. Thanks to @Yahddyyp.
 
 ## [3.4.0-beta.1] - 2026-09-15
 

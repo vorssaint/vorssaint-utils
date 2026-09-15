@@ -24,6 +24,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var quickAccessNotchSize = CGSize.zero
     private var quickAccessAnimate = false
     private var currentGeometry: NotchGeometry
+    private var appliedFrame = CGRect.zero
     private var animationGeneration = 0
     private var isAnimating = false
     private var settledActions: [() -> Void] = []
@@ -37,7 +38,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         panel = NotchPanel(contentRect: geometry.frame(for: size),
                            styleMask: [.borderless, .nonactivatingPanel],
                            backing: .buffered, defer: false)
-        let mainCanvas = NotchCanvas(content: content, size: size, attached: geometry.isNotched)
+        let mainCanvas = NotchCanvas(content: content, size: size)
         canvas = mainCanvas
         quickAccessContainer = quickAccess.map { NotchQuickAccessContainer(canvas: mainCanvas, content: $0) }
         super.init()
@@ -53,6 +54,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
                                     .transient, .ignoresCycle]
         panel.contentView = quickAccessContainer ?? canvas
         canvas.layoutSubtreeIfNeeded()
+        appliedFrame = panel.frame
     }
 
     func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition = .none,
@@ -70,8 +72,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let gutter = quickAccessConfiguration == nil ? 0 : NotchQuickAccessLayout.gutter
         let bottom: CGFloat = quickAccessConfiguration?.hasBottom == true ? NotchQuickAccessLayout.gutter : 0
         let frame = geometry.frame(for: CGSize(width: size.width + gutter * 2, height: size.height + bottom))
-        let changesFrame = geometry.isNotched != currentGeometry.isNotched || size != targetSize
-            || frame != previousFrame || (!isAnimating && panel.frame != frame)
+        let changesFrame = size != targetSize
+            || frame != previousFrame || (!isAnimating && panel.frame != appliedFrame)
         guard changesFrame || transitionContent != .none else {
             currentGeometry = geometry
             configureQuickAccess()
@@ -83,8 +85,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         guard changesFrame else { configureQuickAccess(); return }
         let previousPath = canvas.visiblePath
         let previousWidth = canvas.bounds.width
-        let sameScreen = geometry.screen == currentGeometry.screen && geometry.isNotched == currentGeometry.isNotched
-            && geometry.topInset == currentGeometry.topInset
+        let sameScreen = geometry.screen == currentGeometry.screen
         animationGeneration += 1
         isAnimating = false
         canvas.stopMotion()
@@ -101,7 +102,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let reservedBottom = max(quickAccessContainer?.bottomInset ?? 0, bottom)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        canvas.setContentSize(size, attached: geometry.isNotched)
+        canvas.setContentSize(size)
         setFrame(mainSize: envelope, gutter: reservedGutter, bottom: reservedBottom)
         configureQuickAccess()
         canvas.layoutSubtreeIfNeeded()
@@ -140,7 +141,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.stopMotion()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        canvas.setContentSize(targetSize, attached: currentGeometry.isNotched)
+        canvas.setContentSize(targetSize)
         setFrame(mainSize: targetSize, gutter: quickAccessConfiguration == nil ? 0 : NotchQuickAccessLayout.gutter,
                  bottom: quickAccessConfiguration?.hasBottom == true ? NotchQuickAccessLayout.gutter : 0)
         configureQuickAccess()
@@ -155,6 +156,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         quickAccessContainer?.bottomInset = bottom
         panel.setFrame(currentGeometry.frame(for: CGSize(width: mainSize.width + gutter * 2, height: mainSize.height + bottom)), display: false)
         panel.contentView?.layoutSubtreeIfNeeded()
+        // AppKit aligns the backing window to pixels; its accepted frame is
+        // the baseline for detecting a later move by the window server.
+        appliedFrame = panel.frame
     }
 
     private func configureQuickAccess() {
@@ -164,8 +168,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             container.setHoverRects([])
             return
         }
-        // Attached shapes have a 14-point shoulder outside their vertical body.
-        let shoulder: CGFloat = currentGeometry.isNotched ? min(NotchLayout.shoulder, targetSize.height * 0.28) : 0
+        // The silhouette's shoulders sit outside its vertical body.
+        let shoulder = min(NotchLayout.shoulder, targetSize.height * 0.28)
         let body = CGRect(x: (panel.frame.width - quickAccessNotchSize.width) / 2 + shoulder, y: 0,
                           width: quickAccessNotchSize.width - shoulder * 2, height: quickAccessNotchSize.height)
         container.motion.configure(configuration, body: body,
@@ -348,13 +352,11 @@ private final class NotchCanvas: NSView {
     private var dropActions: NotchFileDropActions?
     private var acceptingDrag = false
     private var contentSize: CGSize
-    private var attached: Bool
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
 
-    init(content: AnyView, size: CGSize, attached: Bool) {
+    init(content: AnyView, size: CGSize) {
         contentSize = size
-        self.attached = attached
         host = NotchHostingView(rootView: content)
         host.sizingOptions = []
         host.wantsLayer = true
@@ -382,15 +384,14 @@ private final class NotchCanvas: NSView {
         contentCover.opacity = 0
         contentCover.zPosition = 1
         layer?.addSublayer(contentCover)
-        setContentSize(size, attached: attached)
+        setContentSize(size)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
-    func setContentSize(_ size: CGSize, attached: Bool) {
+    func setContentSize(_ size: CGSize) {
         contentSize = size
-        self.attached = attached
         needsLayout = true
     }
 
@@ -551,7 +552,7 @@ private final class NotchCanvas: NSView {
         edge.frame = bounds
         contentCover.frame = bounds
         var translation = CGAffineTransform(translationX: (bounds.width - contentSize.width) / 2, y: 0)
-        silhouette.path = NotchShape(attached: attached, radius: min(28, contentSize.height / 2))
+        silhouette.path = NotchShape(attached: true, radius: min(28, contentSize.height / 2))
             .path(in: CGRect(origin: .zero, size: contentSize)).cgPath.copy(using: &translation)
         edge.path = silhouette.path
         edge.opacity = contentSize.height > 64 ? 1 : 0

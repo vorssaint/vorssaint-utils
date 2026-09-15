@@ -29,7 +29,7 @@ struct NotchView: View {
     }
 
     private var shape: NotchShape {
-        NotchShape(attached: service.geometry.isNotched,
+        NotchShape(attached: true,
                    radius: min(28, service.surfaceSize.height / 2))
     }
 
