@@ -70,6 +70,11 @@ final class BrightnessService: ObservableObject {
     /// answering (issue #969).
     @Published private(set) var drawableDisplays = Set<CGDirectDisplayID>()
     @Published private(set) var pendingDisplayIDs = Set<CGDirectDisplayID>()
+    /// Displays a person has told this app to dim in software. A channel that
+    /// accepts writes and answers no reads is indistinguishable on the bus
+    /// from one that swallows them, so the only witness is someone watching
+    /// the panel (issue #1589).
+    @Published private(set) var softwareDimmingPreferred = Set<CGDirectDisplayID>()
     @Published private(set) var displayControlFailure: DisplayControlFailure?
     @Published private(set) var brightnessOSDSupported = false
     @Published private(set) var keyboardLightEnabled: Bool?
@@ -1469,6 +1474,8 @@ final class BrightnessService: ObservableObject {
         // Whatever ends up without a live DDC channel falls back to gamma
         // dimming, so every real display keeps a working slider.
         var softwareIndices = Set(ddcCandidates.map(\.index))
+        var forcedSoftwareIDs = Set<CGDirectDisplayID>()
+        var softwarePathKeys: [CGDirectDisplayID: String] = [:]
         if !ddcCandidates.isEmpty, BrightnessBridge.ddcAvailable {
             let services = Self.externalServices()
             var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
@@ -1497,6 +1504,14 @@ final class BrightnessService: ObservableObject {
                 let pathKey = BrightnessSupport.ddcPathKey(
                     displayFingerprint: Self.displayFingerprint(id),
                     ioDisplayLocation: ioDisplayLocation)
+                if let pathKey, forcedSoftwarePaths().contains(pathKey) {
+                    // Chosen by hand: leave the display in `softwareIndices`
+                    // so it takes the gamma route below, and do not spend a
+                    // probe on a channel whose answer was already rejected.
+                    forcedSoftwareIDs.insert(id)
+                    softwarePathKeys[id] = pathKey
+                    continue
+                }
                 let rememberedWriteOnly = !BrightnessSupport.shouldProbeDDC(
                     pathKey: pathKey, writeOnlyPaths: writeOnlyDDCPaths())
                 let probe: DDCProbe
@@ -1582,7 +1597,8 @@ final class BrightnessService: ObservableObject {
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
                 method: .software, isActive: true, brightness: value, readable: true)
-            newRoutes[id] = Route(method: .software, service: nil, maximum: 100)
+            newRoutes[id] = Route(method: .software, service: nil, maximum: 100,
+                                  ddcPathKey: softwarePathKeys[id])
             if value < 0.999 { _ = applySoftwareDim(id, value: value) }
         }
         var resolved: [BrightnessDisplay] = []
@@ -1641,6 +1657,9 @@ final class BrightnessService: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, generation == self.rebuildGeneration else { return }
             if self.displays != resolved { self.displays = resolved }
+            if self.softwareDimmingPreferred != forcedSoftwareIDs {
+                self.softwareDimmingPreferred = forcedSoftwareIDs
+            }
             if self.drawableDisplays != drawableIDs { self.drawableDisplays = drawableIDs }
             if self.brightnessOSDSupported != supportsBrightnessOSD {
                 self.brightnessOSDSupported = supportsBrightnessOSD
@@ -1809,6 +1828,33 @@ final class BrightnessService: ObservableObject {
         case replied(current: UInt16, maximum: UInt16)
         case writeOnly
         case dead
+    }
+
+    private func forcedSoftwarePaths() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(
+            forKey: DefaultsKey.brightnessForcedSoftwarePaths
+        ) ?? [])
+    }
+
+    /// Moves one display between the DDC and the gamma route by hand. Clearing
+    /// the cached write-only verdict matters as much as the preference itself:
+    /// turning the choice back off has to let the channel be probed again
+    /// rather than reuse the answer that pinned the display here.
+    func setSoftwareDimmingPreferred(_ preferred: Bool, for id: CGDirectDisplayID) {
+        stateLock.lock()
+        let pathKey = routes[id]?.ddcPathKey
+        stateLock.unlock()
+        guard let pathKey else { return }
+        let defaults = UserDefaults.standard
+        let stored = defaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths) ?? []
+        let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
+            stored, path: pathKey, isWriteOnly: preferred)
+        if updated != stored {
+            defaults.set(updated, forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+        }
+        forgetWriteOnlyDDCPath(pathKey)
+        Self.log.log("display \(id) software dimming preferred \(preferred)")
+        refresh(force: true)
     }
 
     private func writeOnlyDDCPaths() -> Set<String> {

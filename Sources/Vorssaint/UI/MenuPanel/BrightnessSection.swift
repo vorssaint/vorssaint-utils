@@ -136,7 +136,37 @@ struct BrightnessSection: View {
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
             }
+            if showsSoftwareDimmingChoice(display) {
+                softwareDimmingButton(display)
+            }
         }
+    }
+
+    /// Offered only where the routing is genuinely ambiguous: a channel that
+    /// takes writes and answers no reads either drives the panel or swallows
+    /// everything, and the bus cannot tell which (issue #1589). Stays visible
+    /// once chosen, or there would be no way back to DDC.
+    private func showsSoftwareDimmingChoice(_ display: BrightnessDisplay) -> Bool {
+        guard display.isActive, !display.isBuiltIn else { return false }
+        if service.softwareDimmingPreferred.contains(display.id) { return true }
+        return display.method == .ddc && !display.readable
+    }
+
+    private func softwareDimmingButton(_ display: BrightnessDisplay) -> some View {
+        let on = service.softwareDimmingPreferred.contains(display.id)
+        return Button {
+            service.setSoftwareDimmingPreferred(!on, for: display.id)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: on ? "checkmark.circle.fill" : "circle.lefthalf.filled")
+                    .font(.system(size: 9.5, weight: .semibold))
+                Text(strings.softwareDimming)
+                    .font(.system(size: 10, weight: .medium))
+            }
+            .foregroundStyle(on ? Color.accentColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(service.isDisplayPending(display.id))
     }
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
