@@ -65,6 +65,7 @@ final class WindowLayoutService: ObservableObject {
     private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
     private var settleTimers: [CGWindowID: Timer] = [:]
     private var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
+    private var ignoredAppsActivationObserver: NSObjectProtocol?
     /// Stamped on the press this service gives back to the system so none of
     /// our own taps mistake it for a fresh one.
     private static let syntheticEventMarker: Int64 = 0x564F5253
@@ -85,32 +86,57 @@ final class WindowLayoutService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        WindowLayoutIgnoredApps.shared.reload()
         let available = AppFeature.windowLayout.isAvailable
+        syncIgnoredAppsActivationObserver(available: available)
+        let inputAllowed = !WindowLayoutIgnoredApps.shared.contains(
+            NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         let trusted = SessionActivitySupport.tapShouldRun(
             featureWanted: available,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
         let wantsShortcuts = available
+            && inputAllowed
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled)
             && trusted
         wantsShortcuts ? registerHotkeys() : unregisterHotkeys()
 
         let wantsDirectional = available
+            && inputAllowed
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
             && trusted
         wantsDirectional ? registerDirectionalHotkey() : unregisterDirectionalHotkey()
 
         let wantsGesture = available
+            && inputAllowed
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
             && trusted
         wantsGesture ? startGestureTap() : stopGestureTap()
 
         let wantsEdgeSnap = available
+            && inputAllowed
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
             && !enabledEdgeSnapZones.isEmpty
             && !WindowEdgeSnapSupport.isSystemTilingEnabled
             && trusted
         wantsEdgeSnap ? startEdgeSnapTap() : stopEdgeSnapTap()
+    }
+
+    private func syncIgnoredAppsActivationObserver(available: Bool) {
+        let shouldObserve = available && !WindowLayoutIgnoredApps.shared.apps.isEmpty
+        if shouldObserve {
+            guard ignoredAppsActivationObserver == nil else { return }
+            ignoredAppsActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: NSWorkspace.didActivateApplicationNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.syncWithPreferences()
+            }
+        } else if let ignoredAppsActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(ignoredAppsActivationObserver)
+            self.ignoredAppsActivationObserver = nil
+        }
     }
 
     /// Stops every Window Layout input hook before Accessibility is revoked or
@@ -121,6 +147,10 @@ final class WindowLayoutService: ObservableObject {
         unregisterDirectionalHotkey()
         stopGestureTap()
         stopEdgeSnapTap()
+        if let ignoredAppsActivationObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(ignoredAppsActivationObserver)
+            self.ignoredAppsActivationObserver = nil
+        }
         for timer in settleTimers.values { timer.invalidate() }
         settleTimers.removeAll()
         let suspensions = assistiveModeSuspensions.values
@@ -167,6 +197,10 @@ final class WindowLayoutService: ObservableObject {
     func apply(_ action: WindowLayoutAction) -> WindowLayoutResult {
         guard AXIsProcessTrusted() else {
             return finish(.failure(.missingAccessibility))
+        }
+        guard !WindowLayoutIgnoredApps.shared.contains(
+            NSWorkspace.shared.frontmostApplication?.bundleIdentifier) else {
+            return finish(.failure(.noWindow))
         }
         guard let target = focusedTarget(for: action) else {
             return finish(.failure(.noWindow))
