@@ -60,6 +60,36 @@ struct DiskDeviceReading: Identifiable, Equatable {
     }
 }
 
+enum DiskMenuBarStyle: String, CaseIterable {
+    case percent, freePercent, free, used
+
+    static let defaultsKey = "menuBarDiskStyle"
+
+    static var current: DiskMenuBarStyle {
+        DiskMenuBarStyle(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .percent
+    }
+
+    var showsPercentage: Bool { self == .percent || self == .freePercent }
+
+    var minimumValue: String { showsPercentage ? "100%" : "1000 GB" }
+
+    func fraction(for disk: DiskDeviceReading) -> Double {
+        if self == .freePercent || self == .free {
+            guard disk.totalBytes > 0 else { return 0 }
+            return min(1, max(0, Double(disk.freeBytes) / Double(disk.totalBytes)))
+        }
+        return disk.usedFraction
+    }
+
+    func value(for disk: DiskDeviceReading) -> String {
+        switch self {
+        case .percent, .freePercent: return MetricFormat.percent(fraction(for: disk))
+        case .free: return MetricFormat.diskBytes(disk.freeBytes)
+        case .used: return MetricFormat.diskBytes(disk.usedBytes)
+        }
+    }
+}
+
 struct DiskReading: Equatable {
     var devices: [DiskDeviceReading] = []
 
