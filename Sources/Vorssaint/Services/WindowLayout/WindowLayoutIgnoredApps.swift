@@ -39,6 +39,10 @@ final class WindowLayoutIgnoredApps: ObservableObject {
     }
 
     func contains(_ bundleID: String?) -> Bool {
+        Self.contains(bundleID, in: apps)
+    }
+
+    static func contains(_ bundleID: String?, in apps: [String]) -> Bool {
         guard let bundleID else { return false }
         return apps.contains(bundleID)
     }

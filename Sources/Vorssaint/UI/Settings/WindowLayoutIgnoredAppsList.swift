@@ -17,7 +17,13 @@ struct WindowLayoutIgnoredAppsList: View {
                       addTitle: text.addButton,
                       removeLabel: text.removeButton,
                       bundleIDs: ignored.apps,
-                      onAdd: { ignored.add($0) },
-                      onRemove: { ignored.remove($0) })
+                      onAdd: {
+                          ignored.add($0)
+                          WindowLayoutService.shared.syncWithPreferences()
+                      },
+                      onRemove: {
+                          ignored.remove($0)
+                          WindowLayoutService.shared.syncWithPreferences()
+                      })
     }
 }

@@ -4484,6 +4484,10 @@ struct MetricsTests {
                "window gestures do not change app focus unless requested")
         expect(registeredDefaults[DefaultsKey.windowLayoutIgnoredApps] as? [String] == [],
                "window layout ignores no apps by default")
+        expect(WindowLayoutIgnoredApps.contains("com.example.game", in: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.contains("com.example.editor", in: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.contains(nil, in: ["com.example.game"]),
+               "window layout only pauses for the focused app on its list")
         let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,
