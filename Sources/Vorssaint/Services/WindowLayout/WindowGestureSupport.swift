@@ -354,7 +354,7 @@ enum WindowEdgeSnapZone: String, CaseIterable {
     var action: WindowLayoutAction {
         switch self {
         case .topLeft: return .topLeft
-        case .top: return .maximize
+        case .top: return .topHalf
         case .topRight: return .topRight
         case .left: return .leftHalf
         case .right: return .rightHalf
@@ -387,7 +387,7 @@ struct WindowEdgeSnapTarget: Equatable {
     let frame: CGRect
     let visibleFrame: CGRect
 
-    var action: WindowLayoutAction { zone.action }
+    let action: WindowLayoutAction
 }
 
 enum WindowEdgeSnapSupport {
@@ -502,7 +502,8 @@ enum WindowEdgeSnapSupport {
     /// Resolves the hot zone under an AppKit-coordinate pointer. Screen frames
     /// choose the reachable edge; visible frames keep the result clear of the
     /// menu bar and Dock. A seam shared by two displays is not an edge, so a
-    /// window can cross it without being caught halfway through.
+    /// window can cross it without being caught halfway through. Top-center
+    /// contact selects the upper half; pushing farther upward maximizes.
     static func target(at point: CGPoint,
                        screens: [WindowEdgeSnapScreen],
                        distance: CGFloat = activationDistance,
@@ -579,7 +580,9 @@ enum WindowEdgeSnapSupport {
             }
             guard enabledZones.contains(zone) else { return nil }
 
-            let action = zone.action
+            let action = zone == .top
+                ? topCenterAction(pointY: point.y, visibleTop: visibleTop, physicalTop: frame.maxY)
+                : zone.action
             let targetFrame = WindowLayoutGeometry.rect(for: action,
                                                         current: screen.visibleFrame,
                                                         visibleFrame: screen.visibleFrame,
@@ -587,9 +590,23 @@ enum WindowEdgeSnapSupport {
                                                         screenGap: WindowLayoutGaps.screenGap)
             return WindowEdgeSnapTarget(zone: zone,
                                         frame: targetFrame.integral,
-                                        visibleFrame: screen.visibleFrame)
+                                        visibleFrame: screen.visibleFrame,
+                                        action: action)
         }
         return nil
+    }
+
+    /// Split the menu bar into a top-half band and a maximize band. Without
+    /// a visible menu bar, maximize only at the physical edge so the approach
+    /// still offers the upper half. Corner zones never use this split.
+    static func topCenterAction(pointY: CGFloat,
+                                visibleTop: CGFloat,
+                                physicalTop: CGFloat) -> WindowLayoutAction {
+        let menuBar = max(physicalTop - visibleTop, 0)
+        let promoteFrom = menuBar >= activationDistance
+            ? physicalTop - menuBar / 2
+            : physicalTop
+        return pointY >= promoteFrom ? .maximize : .topHalf
     }
 
     private enum Edge {

@@ -47,6 +47,9 @@ Dynamic Island is the focus of this update, bringing music, timers, calendar, no
 - The App Switcher no longer shows blank entries for hidden helper windows that apps keep out of window cycling. Thanks to @EugeneCarldotme.
 - The menu bar panel keeps one continuous background up to the small arrow at its top. Thanks to @iltonandrew.
 
+### Changed
+- Dragging a window to the top edge first previews the upper half; pushing farther upward fills the screen.
+
 ## [3.3.5] - 2026-09-06
 
 ### Summary
