@@ -279,8 +279,46 @@ final class CleaningModeManager: ObservableObject {
     }
 
     private func hideOverlays() {
-        overlays.forEach { $0.orderOut(nil) }
+        // Inspect whether any mouse button was down while the cleaning screen was up.
+        // Recovery must strictly be limited to presses that belonged to the cleaning screen,
+        // leaving any new clicks or drags initiated after teardown completely untouched.
+        let isLeftDown = (NSEvent.pressedMouseButtons & 1) != 0
+            || CGEventSource.buttonState(.combinedSessionState, button: .left)
+        let isRightDown = (NSEvent.pressedMouseButtons & 2) != 0
+            || CGEventSource.buttonState(.combinedSessionState, button: .right)
+
+        let panels = overlays
         overlays = []
+        panels.forEach { $0.ignoresMouseEvents = true }
+
+        if isLeftDown || isRightDown {
+            ensureMouseButtonsReleased(left: isLeftDown, right: isRightDown)
+        }
+
+        DispatchQueue.main.async {
+            panels.forEach { $0.orderOut(nil) }
+        }
+    }
+
+    /// Releases mouse buttons that were held down on the cleaning screen when teardown began,
+    /// preventing WindowServer from stranding them in the down state once the overlay unmaps.
+    private func ensureMouseButtonsReleased(left: Bool, right: Bool) {
+        let location = CGEvent(source: nil)?.location ?? .zero
+        let source = CGEventSource(stateID: .hidSystemState)
+        if left, let upEvent = CGEvent(mouseEventSource: source,
+                                       mouseType: .leftMouseUp,
+                                       mouseCursorPosition: location,
+                                       mouseButton: .left) {
+            upEvent.setIntegerValueField(.mouseEventClickState, value: 1)
+            upEvent.post(tap: .cghidEventTap)
+        }
+        if right, let upEvent = CGEvent(mouseEventSource: source,
+                                        mouseType: .rightMouseUp,
+                                        mouseCursorPosition: location,
+                                        mouseButton: .right) {
+            upEvent.setIntegerValueField(.mouseEventClickState, value: 1)
+            upEvent.post(tap: .cghidEventTap)
+        }
     }
 
     private func installScreenObserver() {

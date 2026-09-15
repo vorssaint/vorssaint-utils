@@ -42,7 +42,11 @@ struct CleaningOverlayView: View {
             fullProgressDots
                 .padding(.top, 2)
 
-            Button(action: { manager.deactivate() }) {
+            Button(action: {
+                DispatchQueue.main.async {
+                    manager.deactivate()
+                }
+            }) {
                 Text(l10n.s.cleaningOverlayUnlock)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.black)
@@ -91,7 +95,11 @@ struct CleaningOverlayView: View {
                     }
                 }
 
-                Button(action: { manager.deactivate() }) {
+                Button(action: {
+                    DispatchQueue.main.async {
+                        manager.deactivate()
+                    }
+                }) {
                     Text(l10n.s.cleaningOverlayUnlock)
                         .font(.system(size: 11, weight: .semibold))
                 }
