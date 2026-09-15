@@ -98,6 +98,7 @@ struct WindowLayoutSettings: View {
                         .foregroundStyle(.secondary)
                     Toggle(text.gestureRaiseWindow, isOn: $gestureRaiseWindow)
                 }
+                WindowLayoutIgnoredAppsList()
             }
 
             Section(text.gapsSection) {
