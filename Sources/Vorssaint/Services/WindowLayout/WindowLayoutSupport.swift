@@ -273,6 +273,10 @@ enum WindowLayoutGaps {
 }
 
 enum WindowLayoutGeometry {
+    enum DisplayDirection {
+        case left, right, up, down
+    }
+
     /// Points the settle path allows a window to miss its target by. Display
     /// transfer uses the same value to treat a window as filling the source
     /// or flush with an edge, so tuning settle cannot split those checks.
@@ -288,43 +292,69 @@ enum WindowLayoutGeometry {
         return action
     }
 
-    /// Where a repeated side action goes: asking for the same side again keeps
+    /// Where a repeated half action goes: asking for the same half again keeps
     /// pushing that way, so the window leaves through that edge and lands
-    /// against the opposite one on the display beside it. Top and bottom keep
-    /// promoting to maximize instead.
+    /// against the opposite one on the neighbouring display.
     static func displayCrossing(
         for action: WindowLayoutAction,
         previousAction: WindowLayoutAction?
-    ) -> (action: WindowLayoutAction, movingRight: Bool)? {
+    ) -> (action: WindowLayoutAction, direction: DisplayDirection)? {
         guard action == previousAction else { return nil }
         switch action {
-        case .leftHalf: return (.rightHalf, false)
-        case .rightHalf: return (.leftHalf, true)
+        case .leftHalf: return (.rightHalf, .left)
+        case .rightHalf: return (.leftHalf, .right)
+        case .topHalf: return (.bottomHalf, .up)
+        case .bottomHalf: return (.topHalf, .down)
         default: return nil
         }
     }
 
-    /// The display sitting on one side of this one. Only a display that starts
-    /// further along that side counts, so one stacked above or below never
-    /// answers a sideways push, and the nearest one wins when several share an
-    /// edge. Next and previous display keep their own order, which cycles
-    /// through every screen.
-    static func horizontalNeighbourIndex(currentIndex: Int,
-                                         frames: [CGRect],
-                                         movingRight: Bool) -> Int? {
+    /// The display in one physical direction. Only a display starting further
+    /// along that axis counts; the nearest one wins, then the closest center
+    /// on the other axis breaks ties. Next and previous display keep their own
+    /// order, which cycles through every screen.
+    static func neighbourIndex(currentIndex: Int,
+                               frames: [CGRect],
+                               direction: DisplayDirection) -> Int? {
         guard frames.indices.contains(currentIndex) else { return nil }
         let current = frames[currentIndex]
         return frames.indices
-            .filter { movingRight ? frames[$0].minX > current.minX : frames[$0].minX < current.minX }
+            .filter {
+                switch direction {
+                case .left: frames[$0].minX < current.minX
+                case .right: frames[$0].minX > current.minX
+                case .up: frames[$0].minY > current.minY
+                case .down: frames[$0].minY < current.minY
+                }
+            }
             .min { lhs, rhs in
                 let lhsFrame = frames[lhs]
                 let rhsFrame = frames[rhs]
-                if lhsFrame.minX != rhsFrame.minX {
-                    return movingRight ? lhsFrame.minX < rhsFrame.minX : lhsFrame.minX > rhsFrame.minX
+                let lhsPosition: CGFloat
+                let rhsPosition: CGFloat
+                let lhsCenterDistance: CGFloat
+                let rhsCenterDistance: CGFloat
+                switch direction {
+                case .left, .right:
+                    lhsPosition = lhsFrame.minX
+                    rhsPosition = rhsFrame.minX
+                    lhsCenterDistance = abs(lhsFrame.midY - current.midY)
+                    rhsCenterDistance = abs(rhsFrame.midY - current.midY)
+                case .up, .down:
+                    lhsPosition = lhsFrame.minY
+                    rhsPosition = rhsFrame.minY
+                    lhsCenterDistance = abs(lhsFrame.midX - current.midX)
+                    rhsCenterDistance = abs(rhsFrame.midX - current.midX)
                 }
-                let lhsDistance = abs(lhsFrame.midY - current.midY)
-                let rhsDistance = abs(rhsFrame.midY - current.midY)
-                if lhsDistance != rhsDistance { return lhsDistance < rhsDistance }
+                if lhsPosition != rhsPosition {
+                    return switch direction {
+                    case .right, .up: lhsPosition < rhsPosition
+                    case .left, .down: lhsPosition > rhsPosition
+                    }
+                }
+                if lhsCenterDistance != rhsCenterDistance {
+                    return lhsCenterDistance < rhsCenterDistance
+                }
                 return lhs < rhs
             }
     }
