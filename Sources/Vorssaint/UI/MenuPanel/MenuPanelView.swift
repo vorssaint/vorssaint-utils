@@ -529,7 +529,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder
+         commandBar, screenRecorder, portManager
 
     var id: String { rawValue }
 
@@ -554,6 +554,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
+        case .portManager: return .portManager
         }
     }
 }
@@ -571,6 +572,7 @@ struct UtilitiesSection: View {
     @State private var showClipboardPanel = false
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
+    @State private var showPortManagerPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -588,6 +590,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
+    @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -641,6 +644,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showAppUpdatesPanel = false
                 }
+            } else if showPortManagerPanel {
+                PortManagerView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    showPortManagerPanel = false
+                }
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(items(editing: editing)) { item in
@@ -682,6 +690,7 @@ struct UtilitiesSection: View {
         if showRecentCapturesPanel { return .screenshot }
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
+        if showPortManagerPanel { return .portManager }
         return nil
     }
 
@@ -691,7 +700,7 @@ struct UtilitiesSection: View {
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -746,6 +755,7 @@ struct UtilitiesSection: View {
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
+        case .portManager: return showPortManager
         }
     }
 
@@ -980,6 +990,14 @@ struct UtilitiesSection: View {
                                         CommandBarService.shared.show()
                                     }
                                 })
+        case .portManager:
+            UtilityActionButton(title: FeatureStrings.portManager(l10n.language).title,
+                                caption: FeatureStrings.portManager(l10n.language).listeningCaption,
+                                systemImage: "network",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showPortManager,
+                                action: { showPortManagerPanel = true })
         }
     }
 
@@ -1056,6 +1074,7 @@ struct UtilitiesSection: View {
         showScratchpad = true
         showQuickLauncher = true
         showCommandBar = true
+        showPortManager = true
     }
 
     private func grantAccessibility() {

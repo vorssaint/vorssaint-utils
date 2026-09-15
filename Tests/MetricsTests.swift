@@ -86,6 +86,27 @@ struct MetricsTests {
                          file: file, line: line)
         }
 
+        // MARK: Port manager parser
+
+        let lsofFixture = """
+        p123
+        cExample Server
+        PTCP
+        n127.0.0.1:3000
+        n127.0.0.1:3000
+        n[::1]:3000
+        n*:3001
+        p456
+        cOther Server
+        PTCP
+        n*:3000
+        """
+        let parsedPorts = PortManagerSupport.parseLsof(lsofFixture)
+        expect(parsedPorts.map(\.port) == [3000, 3000, 3000, 3001],
+               "port parser keeps every distinct listening endpoint and removes exact duplicates")
+        expect(parsedPorts.filter { $0.pid == 123 }.count == 3,
+               "port parser keeps multiple ports and address families for one process")
+
         NotchTests.run { expect($0, $1) }
         NotchVolumeKeyTests.run { expect($0, $1) }
         MixerOutputAdjustmentContract.run(suite)
@@ -14958,7 +14979,7 @@ struct MetricsTests {
 
         // MARK: Features hub catalog
 
-        expect(AppFeature.allCases.count == 66, "feature catalog has 66 features")
+        expect(AppFeature.allCases.count == 67, "feature catalog has 67 features")
         expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         expect(AppFeature.allCases.map(\.rawValue) == [
@@ -14971,7 +14992,7 @@ struct MetricsTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchDownloads",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchDownloads",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")

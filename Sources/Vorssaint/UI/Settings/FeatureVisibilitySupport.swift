@@ -8,13 +8,13 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, notch
+    case mouse, switcher, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch
     case shortcuts, advanced, about, releaseNotes, support
 }
 
 /// Stable, non-localized identities for destinations inside shared Settings
 /// pages. Raw values may be persisted or used by UI identifiers, so cases can
-/// be added but should not be renamed.
+/// be added but never renamed.
 enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case panelConfiguration
     case musicBlocking
@@ -232,6 +232,7 @@ extension AppFeature {
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
         case .killProcess: return FeatureSettingsDestination(.killProcess)
+        case .portManager: return FeatureSettingsDestination(.portManager)
         case .homebrew: return FeatureSettingsDestination(.homebrew)
         case .appUpdates: return FeatureSettingsDestination(.appUpdates)
         case .screenshot:
@@ -286,6 +287,7 @@ enum FeatureVisibilitySupport {
         case .appUpdates: return [.appUpdates]
         case .uninstaller: return [.uninstaller]
         case .killProcess: return [.killProcess]
+        case .portManager: return [.portManager]
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
