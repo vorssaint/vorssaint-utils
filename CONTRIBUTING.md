@@ -97,9 +97,12 @@ tests.
 
 ## Sensors on new chips
 
-Temperature mapping lives in `SystemMonitor.prepareSensorsIfNeeded()`. CPU keys
+Temperature mapping lives in `TemperatureSensorSelector`. SMC CPU keys usually
 look like `Tp…` and `Te…`, GPU is `Tg…`, and battery runs from `TB0T` to
-`TB2T`. If a new Apple Silicon generation renames the keys, run this
+`TB2T`. On M1, missing CPU or GPU readings fall back to named HID temperature
+sensors. The diagnostic includes these with type `HID`; unknown SMC keys stay
+auxiliary until their identity is established. If a new Apple Silicon generation
+renames the keys, run this
 
 ```sh
 ./build/Vorssaint --sensors

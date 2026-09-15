@@ -132,6 +132,22 @@ enum TemperatureSensorSelector {
         return platform == .appleM3Family && key.hasPrefix("Tf")
     }
 
+    static func hidTemperature(readings: [(key: String, value: Double)],
+                               cpu: Bool, platform: CPUTemperaturePlatform) -> Double? {
+        hidReadings(readings, cpu: cpu, platform: platform).map(\.value).max()
+    }
+
+    static func hidReadings(_ readings: [(key: String, value: Double)],
+                            cpu: Bool, platform: CPUTemperaturePlatform) -> [(key: String, value: Double)] {
+        guard platform == .appleM1Family else { return [] }
+        return readings.filter {
+            let matches = cpu
+                ? ($0.key.hasPrefix("pACC MTR Temp") || $0.key.hasPrefix("eACC MTR Temp"))
+                : $0.key.hasPrefix("GPU MTR Temp")
+            return matches && isPlausibleTemperature($0.value)
+        }
+    }
+
     static func stabilizedTemperature(_ reading: Double?,
                                       cache: inout CachedSensorReading?,
                                       now: TimeInterval,

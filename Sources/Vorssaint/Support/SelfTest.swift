@@ -197,6 +197,15 @@ enum SensorDump {
                          locale: Locale(identifier: "en_US_POSIX"),
                          component as NSString, key.name, key.dataType, value))
         }
+        let hidReadings = HIDTemperatureSampler().readings(platform: cpuPlatform)
+        for cpu in [true, false] {
+            for reading in TemperatureSensorSelector.hidReadings(hidReadings, cpu: cpu, platform: cpuPlatform)
+                .sorted(by: { $0.key < $1.key }) {
+                print(String(format: "%@  %@  HID  %6.2f",
+                             locale: Locale(identifier: "en_US_POSIX"),
+                             cpu ? "cpu-core" : "gpu", reading.key, reading.value))
+            }
+        }
         exit(0)
     }
 }
