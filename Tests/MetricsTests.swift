@@ -6723,6 +6723,113 @@ struct MetricsTests {
                 && WindowLayoutGeometry.displayCrossing(for: .bottomHalf, previousAction: .bottomHalf) == nil
                 && WindowLayoutGeometry.displayCrossing(for: .leftThird, previousAction: .leftThird) == nil,
                "window layout keeps top, bottom and thirds on their own display")
+        for (side, twoThirds, third) in [(WindowLayoutAction.leftHalf, WindowLayoutAction.leftTwoThirds, WindowLayoutAction.leftThird),
+                                         (.rightHalf, .rightTwoThirds, .rightThird)] {
+            expect(WindowLayoutGeometry.effectiveAction(for: side,
+                                                        current: currentWindow,
+                                                        visibleFrame: visibleFrame,
+                                                        previousAction: side,
+                                                        sideRepeatCyclesThirds: true) == twoThirds
+                    && WindowLayoutGeometry.effectiveAction(for: side,
+                                                            current: currentWindow,
+                                                            visibleFrame: visibleFrame,
+                                                            previousAction: twoThirds,
+                                                            sideRepeatCyclesThirds: true) == third
+                    && WindowLayoutGeometry.effectiveAction(for: side,
+                                                            current: currentWindow,
+                                                            visibleFrame: visibleFrame,
+                                                            previousAction: third,
+                                                            sideRepeatCyclesThirds: true) == side,
+                   "window layout \(side.rawValue) repeated cycles half, two thirds, third on the same display")
+            expect(WindowLayoutGeometry.effectiveAction(for: side,
+                                                        current: currentWindow,
+                                                        visibleFrame: visibleFrame,
+                                                        previousAction: nil,
+                                                        sideRepeatCyclesThirds: true) == side
+                    && WindowLayoutGeometry.effectiveAction(for: side,
+                                                            current: currentWindow,
+                                                            visibleFrame: visibleFrame,
+                                                            previousAction: .topHalf,
+                                                            sideRepeatCyclesThirds: true) == side,
+                   "window layout \(side.rawValue) cycle starts from the half after any other action")
+            expect(WindowLayoutGeometry.effectiveAction(for: side,
+                                                        current: currentWindow,
+                                                        visibleFrame: visibleFrame,
+                                                        previousAction: side) == side
+                    && WindowLayoutGeometry.effectiveAction(for: side,
+                                                            current: currentWindow,
+                                                            visibleFrame: visibleFrame,
+                                                            previousAction: twoThirds,
+                                                            sideRepeatCyclesThirds: false) == side,
+                   "window layout \(side.rawValue) repeated keeps the half unless the cycle is on")
+            expect(WindowLayoutGeometry.displayCrossing(for: side,
+                                                        previousAction: side,
+                                                        sideRepeatCyclesThirds: true) == nil
+                    && WindowLayoutGeometry.displayCrossing(for: side,
+                                                            previousAction: side,
+                                                            sideRepeatCyclesThirds: false) != nil,
+                   "window layout \(side.rawValue) repeated stays on its display while the cycle is on")
+        }
+        expect(WindowLayoutGeometry.effectiveAction(for: .leftHalf,
+                                                    current: currentWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .rightThird,
+                                                    sideRepeatCyclesThirds: true) == .leftHalf,
+               "window layout left cycle ignores sizes reached from the other side")
+        expect(WindowLayoutGeometry.effectiveAction(for: .topHalf,
+                                                    current: currentWindow,
+                                                    visibleFrame: visibleFrame,
+                                                    previousAction: .topHalf,
+                                                    sideRepeatCyclesThirds: true) == .maximize,
+               "window layout top twice still maximizes while the side cycle is on")
+        expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutSideRepeatCyclesThirds] as? Bool == false,
+               "window layout side repeat cycling stays off by default")
+        let sideRepeatSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/WindowLayoutSettings.swift",
+            encoding: .utf8)) ?? ""
+        let sideRepeatSettingsCode = sideRepeatSettingsSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        expect(sideRepeatSettingsCode.contains("DefaultsKey.windowLayoutSideRepeatCyclesThirds")
+                && sideRepeatSettingsCode.contains("text.sideRepeatCycle")
+                && sideRepeatSettingsCode.contains("text.sideRepeatCycleCaption"),
+               "window layout settings expose the side repeat cycle toggle with its caption")
+        let sideRepeatServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/WindowLayout/WindowLayoutService.swift",
+            encoding: .utf8)) ?? ""
+        let sideRepeatPlacement = sideRepeatServiceSource.components(separatedBy: "private func applyPlacement")
+            .dropFirst().first?.components(separatedBy: "WindowLayoutGeometry.effectiveAction").first ?? ""
+        expect(sideRepeatServiceSource.contains("WindowLayoutSideRepeat.cyclesThirds")
+                && sideRepeatPlacement.contains("WindowLayoutGeometry.sideCycleContinues(")
+                && sideRepeatPlacement.contains("settledFrames[target.key]")
+                && !sideRepeatPlacement.contains("accepted(actual: target.frame"),
+               "window layout service advances the side cycle only from the frame the previous step actually settled at")
+        expect(sideRepeatServiceSource.contains("settledFrames[windowKey] = ")
+                && sideRepeatServiceSource.contains("settledFrames[context.windowKey] = ")
+                && sideRepeatServiceSource.contains("settledFrames.removeValue(forKey: context.windowKey)"),
+               "window layout service records the settled frame after immediate and delayed placements and drops it on a refusal")
+        let settledHalf = WindowLayoutFrame(origin: CGPoint(x: 0, y: 40), size: CGSize(width: 720, height: 860))
+        let widenedHalf = WindowLayoutFrame(origin: settledHalf.origin, size: CGSize(width: 1080, height: 860))
+        let nudgedHalf = WindowLayoutFrame(origin: CGPoint(x: 2, y: 41), size: CGSize(width: 719, height: 858))
+        let clampedHalf = WindowLayoutFrame(origin: settledHalf.origin, size: CGSize(width: 900, height: 860))
+        expect(WindowLayoutGeometry.sideCycleContinues(current: widenedHalf, settled: settledHalf, tolerance: 4) == false,
+               "window layout side cycle restarts after the half was widened by hand")
+        expect(WindowLayoutGeometry.sideCycleContinues(current: settledHalf, settled: settledHalf, tolerance: 4)
+                && WindowLayoutGeometry.sideCycleContinues(current: nudgedHalf, settled: settledHalf, tolerance: 4),
+               "window layout side cycle continues from a window still at the settled frame, within tolerance")
+        expect(WindowLayoutGeometry.sideCycleContinues(current: clampedHalf, settled: clampedHalf, tolerance: 4)
+                && WindowLayoutGeometry.sideCycleContinues(current: settledHalf, settled: nil, tolerance: 4) == false,
+               "window layout side cycle honours an app minimum size once settled and never starts without a settled frame")
+        let leftHalfRect = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame)
+        expect(WindowLayoutGeometry.accepts(actualRect: leftHalfRect.offsetBy(dx: 200, dy: 0),
+                                            targetRect: leftHalfRect,
+                                            action: .leftHalf,
+                                            anchorTolerance: 36) == false
+                && WindowLayoutGeometry.accepts(actualRect: leftHalfRect,
+                                                targetRect: leftHalfRect,
+                                                action: .leftHalf,
+                                                anchorTolerance: 36),
+               "a window dragged away from its half no longer counts as sitting at the previous placement")
         let leftTarget = WindowLayoutGeometry.rect(for: .leftHalf,
                                                    current: currentWindow,
                                                    visibleFrame: visibleFrame)

@@ -260,6 +260,15 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
 
 /// The configurable spacing around snapped windows (issue #1068). Values are
 /// in pixels, offering standard spacing presets (0 to 128 px).
+/// Whether a repeated Left or Right cycles the window through half, two thirds
+/// and one third of the same display (the way Rectangle does) instead of
+/// pushing it onto the display beside it.
+enum WindowLayoutSideRepeat {
+    static var cyclesThirds: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.windowLayoutSideRepeatCyclesThirds)
+    }
+}
+
 enum WindowLayoutGaps {
     static let presets: [Int] = [0, 8, 16, 32, 64, 128]
 
@@ -281,22 +290,54 @@ enum WindowLayoutGeometry {
     static func effectiveAction(for action: WindowLayoutAction,
                                 current _: CGRect,
                                 visibleFrame _: CGRect,
-                                previousAction: WindowLayoutAction? = nil) -> WindowLayoutAction {
+                                previousAction: WindowLayoutAction? = nil,
+                                sideRepeatCyclesThirds: Bool = false) -> WindowLayoutAction {
         if action == .topHalf, previousAction == .topHalf {
             return .maximize
         }
+        if sideRepeatCyclesThirds, let next = sideCycleAction(for: action, previousAction: previousAction) {
+            return next
+        }
         return action
+    }
+
+    /// The Rectangle-style size cycle for a repeated side action: half, then
+    /// two thirds, then one third, then back to the half. Only sizes reached
+    /// from the same side count, so a left after a right third starts over.
+    static func sideCycleAction(for action: WindowLayoutAction,
+                                previousAction: WindowLayoutAction?) -> WindowLayoutAction? {
+        let cycle: [WindowLayoutAction]
+        switch action {
+        case .leftHalf: cycle = [.leftHalf, .leftTwoThirds, .leftThird]
+        case .rightHalf: cycle = [.rightHalf, .rightTwoThirds, .rightThird]
+        default: return nil
+        }
+        guard let previousAction, let index = cycle.firstIndex(of: previousAction) else { return nil }
+        return cycle[(index + 1) % cycle.count]
+    }
+
+    /// Whether the size cycle may advance: only from a window still sitting at
+    /// the frame the previous step actually settled at. That frame already
+    /// reflects an app's minimum size, so a clamped half still cycles, while a
+    /// window widened or dragged by hand in between starts over at the half.
+    static func sideCycleContinues(current: WindowLayoutFrame,
+                                   settled: WindowLayoutFrame?,
+                                   tolerance: CGFloat) -> Bool {
+        guard let settled else { return false }
+        return current.isClose(to: settled, tolerance: tolerance)
     }
 
     /// Where a repeated side action goes: asking for the same side again keeps
     /// pushing that way, so the window leaves through that edge and lands
     /// against the opposite one on the display beside it. Top and bottom keep
-    /// promoting to maximize instead.
+    /// promoting to maximize instead. With the size cycle on, the repeat is
+    /// spent on the same display and never crosses.
     static func displayCrossing(
         for action: WindowLayoutAction,
-        previousAction: WindowLayoutAction?
+        previousAction: WindowLayoutAction?,
+        sideRepeatCyclesThirds: Bool = false
     ) -> (action: WindowLayoutAction, movingRight: Bool)? {
-        guard action == previousAction else { return nil }
+        guard !sideRepeatCyclesThirds, action == previousAction else { return nil }
         switch action {
         case .leftHalf: return (.rightHalf, false)
         case .rightHalf: return (.leftHalf, true)

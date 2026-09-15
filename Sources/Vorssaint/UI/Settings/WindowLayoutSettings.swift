@@ -18,6 +18,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
@@ -159,6 +160,11 @@ struct WindowLayoutSettings: View {
                 actionRow(.topHalf)
                 actionRow(.bottomHalf)
                 actionRow(.centerHalf)
+                Divider()
+                Toggle(text.sideRepeatCycle, isOn: $sideRepeatCyclesThirds)
+                Text(text.sideRepeatCycleCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section(text.thirds) {
