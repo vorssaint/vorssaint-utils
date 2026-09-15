@@ -30,6 +30,7 @@ struct MetricsTests {
                 RecorderPresetImageStoreTests.run { suite.expect($0, $1) }
                 scratchpadStoreChecks { suite.expect($0, $1) }
             }),
+            ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
             ("recording", {
                 RecorderSampleTimingTests.run { suite.expect($0, $1) }
                 RecorderWriterTests.run { suite.expect($0, $1) }
