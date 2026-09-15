@@ -195,11 +195,14 @@ struct MenuBarMetricsPreview: View {
                              minimumValue: String,
                              style: MenuBarBlockStyle,
                              pressure: MemoryPressure?) -> some View {
-        VStack(spacing: -1) {
+        let showsDot = MenuBarRenderer.showsPressureDot(pressure: pressure,
+                                                        styleShowsDot: MemoryMenuBarStyle.current.showsDot)
+        let tint = blockTint(pressure)
+        return VStack(spacing: -1) {
             Text(label)
                 .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
-            HStack(spacing: pressure == nil || value.isEmpty ? 0 : 4) {
-                if let pressure {
+            HStack(spacing: !showsDot || value.isEmpty ? 0 : 4) {
+                if showsDot, let pressure {
                     Circle()
                         .fill(dotColor(pressure))
                         .frame(width: style == .readable ? 5.2 : 4.8,
@@ -215,7 +218,7 @@ struct MenuBarMetricsPreview: View {
                 }
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(tint)
         .fixedSize(horizontal: true, vertical: true)
     }
 
@@ -223,7 +226,10 @@ struct MenuBarMetricsPreview: View {
                                fraction: Double?,
                                style: MenuBarBlockStyle,
                                pressure: MemoryPressure?) -> some View {
-        let size = MenuBarRenderer.usageBarSize(style: style, showsPressure: pressure != nil)
+        let showsDot = MenuBarRenderer.showsPressureDot(pressure: pressure,
+                                                        styleShowsDot: MemoryMenuBarStyle.current.showsDot)
+        let tint = blockTint(pressure)
+        let size = MenuBarRenderer.usageBarSize(style: style, showsPressure: showsDot)
         let barWidth: CGFloat = style == .readable ? 10 : 9
         let barHeight: CGFloat = style == .readable ? 20 : 18
         let innerHeight = barHeight - 4.2
@@ -240,7 +246,7 @@ struct MenuBarMetricsPreview: View {
             }
             .frame(width: style == .readable ? 6.5 : 6)
 
-            if let pressure {
+            if showsDot, let pressure {
                 Circle()
                     .fill(dotColor(pressure))
                     .frame(width: style == .readable ? 4.8 : 4.4,
@@ -250,7 +256,7 @@ struct MenuBarMetricsPreview: View {
 
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 2.2, style: .continuous)
-                    .stroke(Color.white, lineWidth: 1.15)
+                    .stroke(tint, lineWidth: 1.15)
                 if let clamped, clamped > 0 {
                     RoundedRectangle(cornerRadius: 1.2, style: .continuous)
                         .fill(usageBarColor(for: clamped))
@@ -265,7 +271,7 @@ struct MenuBarMetricsPreview: View {
             }
             .frame(width: barWidth, height: barHeight)
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(tint)
         .frame(width: size.width, height: size.height)
         .fixedSize(horizontal: true, vertical: true)
     }
@@ -290,6 +296,14 @@ struct MenuBarMetricsPreview: View {
             return style == .readable ? 50 : 46
         default:
             return 0
+        }
+    }
+
+    private func blockTint(_ pressure: MemoryPressure?) -> Color {
+        switch pressure {
+        case .warning: return .yellow
+        case .critical: return .red
+        case .normal, .unknown, .none: return .white
         }
     }
 
