@@ -42,7 +42,7 @@ enum NotchScreenEdgeClickTests {
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
-        var compactActivityGeometry: NotchGeometry { geometry.compactActivityGeometry }
+        var compactActivityGeometry: NotchGeometry { geometry }
         var surfaceSize: CGSize { peeking ? geometry.expanded : compactActivityIsVisible ? geometry.compactActivitySize : geometry.collapsed }
         var screenEdgeClickMonitors: [Any] = []
         var screenEdgePressArea: CGRect?
@@ -116,7 +116,13 @@ enum NotchScreenEdgeClickTests {
         service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
         service.compactActivityIsVisible = true
         service.syncScreenEdgeClicks()
-        expect(service.screenEdgeClickArea == nil && service.screenEdgeClickMonitors.isEmpty,
-               "an activity below the menu bar does not listen for screen-edge clicks")
+        expect(service.screenEdgeClickArea?.width == service.geometry.cameraWidth
+               && service.screenEdgeClickArea?.maxY == service.geometry.screen.maxY,
+               "the simulated camera retains the same screen-edge activation area as a physical cutout")
+        let point = CGPoint(x: service.geometry.screen.midX, y: service.geometry.screen.maxY)
+        service.handleScreenEdgeClick(.leftMouseDown, at: point, isNotchWindow: false)
+        service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
+        expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
+               "clicking the top edge opens a simulated notch exactly once and stops its closed-state monitors")
     }
 }

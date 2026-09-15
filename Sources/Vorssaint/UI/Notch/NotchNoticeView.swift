@@ -3,7 +3,7 @@
 
 import SwiftUI
 
-/// Transient feedback shares the menu bar's height, leaving the camera clear.
+/// Feedback keeps the central camera area clear on physical and simulated notches.
 struct NotchNoticeView: View {
     let notice: NotchNotice
     let geometry: NotchGeometry

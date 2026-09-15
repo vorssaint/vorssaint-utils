@@ -628,7 +628,6 @@ struct NotchGeometry: Equatable {
     let menuBarHeight: CGFloat
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
-    private var presentationTopInset: CGFloat = 0
     private var allowsActivityFooter = true
 
     init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
@@ -638,15 +637,15 @@ struct NotchGeometry: Equatable {
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
         self.customHeight = NotchSize.clamped(customHeight, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
+        let barHeight = menuBarHeight.isFinite ? min(64, max(16, menuBarHeight)) : 24
         isNotched = safeAreaTop.isFinite && safeAreaTop > 0 && cameraWidth.isFinite && cameraWidth > 0
-        self.cameraWidth = isNotched ? min(cameraWidth, screen.width * 0.7) : 100
-        cameraHeight = isNotched ? min(safeAreaTop, 64) : 0
-        self.menuBarHeight = max(cameraHeight, menuBarHeight.isFinite ? min(64, max(16, menuBarHeight)) : 24)
+        self.cameraWidth = min(isNotched ? cameraWidth : 180 * barHeight / 32, screen.width * 0.7)
+        cameraHeight = isNotched ? min(safeAreaTop, 64) : barHeight
+        self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
     }
 
-    var topInset: CGFloat { presentationTopInset }
-    var safeContentTop: CGFloat { isNotched ? cameraHeight + 10 : 14 }
+    var safeContentTop: CGFloat { cameraHeight + 10 }
     func activationArea(in size: CGSize, hasHeader: Bool, compactActivity: Bool) -> CGRect {
         let width = compactActivity ? cameraWidth : size.width
         let height = hasHeader ? min(safeContentTop, size.height)
@@ -662,7 +661,7 @@ struct NotchGeometry: Equatable {
         CGSize(width: min(screen.width - 24, cameraWidth + restingWingWidth * 2), height: menuBarHeight)
     }
     func restingSize(showsContent: Bool) -> CGSize {
-        showsContent ? collapsed : CGSize(width: cameraWidth, height: isNotched ? cameraHeight : menuBarHeight)
+        showsContent ? collapsed : CGSize(width: cameraWidth, height: cameraHeight)
     }
     /// Music remains one row high, with the physical camera between its wings.
     /// Insufficient menu space hides the wings instead of growing below the camera.
@@ -681,20 +680,19 @@ struct NotchGeometry: Equatable {
         return compact
     }
     var musicStrip: CGSize {
-        let preferred = min(layout == .spacious ? 520 : 440, screen.width - 24)
+        let preferred = min(max(layout == .spacious ? 520 : 440, cameraWidth + 88), screen.width - 24)
         let measuredRoom = compactSideRoom ?? 0
         let room = measuredRoom.isFinite ? max(0, measuredRoom).rounded(.down) : 0
-        let wings = room >= 36 ? room * 2 : 0
-        return CGSize(width: max(cameraWidth, min(preferred, cameraWidth + wings)), height: menuBarHeight)
+        let wings = min(max(0, preferred - cameraWidth), room * 2)
+        return CGSize(width: cameraWidth + (wings >= 88 ? wings : 0), height: menuBarHeight)
     }
     var musicWingWidth: CGFloat { max(0, (musicStrip.width - musicCameraGap) / 2) }
 
-    /// Active content must remain readable even before menu geometry is known.
-    /// On a notched screen the fallback uses only the camera's existing width;
-    /// on other screens its whole window sits below the menu bar.
-    var compactActivityUsesFooter: Bool { allowsActivityFooter && musicWingWidth < 44 }
+    /// Only a physical camera may need a footer. A simulated cutout and all
+    /// of its compact activity stay within the real menu bar's height.
+    var compactActivityUsesFooter: Bool { isNotched && allowsActivityFooter && musicWingWidth < 44 }
     var compactActivityContentHeight: CGFloat { compactActivityUsesFooter ? 32 : menuBarHeight }
-    var compactActivityTopPadding: CGFloat { compactActivityUsesFooter && isNotched ? menuBarHeight : 0 }
+    var compactActivityTopPadding: CGFloat { compactActivityUsesFooter ? menuBarHeight : 0 }
     var compactActivityHorizontalPadding: CGFloat { compactActivityUsesFooter ? 4 : 0 }
     var compactActivityCameraGap: CGFloat { compactActivityUsesFooter ? 0 : musicCameraGap }
     var compactActivitySize: CGSize {
@@ -705,15 +703,10 @@ struct NotchGeometry: Equatable {
     var compactActivityWingWidth: CGFloat {
         max(0, (compactActivitySize.width - compactActivityCameraGap - compactActivityHorizontalPadding * 2) / 2)
     }
-    var compactActivityGeometry: NotchGeometry {
-        var placed = self
-        placed.presentationTopInset = compactActivityUsesFooter && !isNotched ? menuBarHeight : 0
-        return placed
-    }
     var notice: CGSize {
         noticeSize(notification: false)
     }
-    var noticeCameraGap: CGFloat { isNotched ? cameraWidth : 0 }
+    var noticeCameraGap: CGFloat { cameraWidth }
 
     func noticeSize(notification: Bool) -> CGSize {
         let wing: CGFloat = notification ? 190 : 112
@@ -780,7 +773,7 @@ struct NotchGeometry: Equatable {
             preferredHeight = fillsHeight ? customHeight : min(preferredHeight, customHeight)
         }
         return CGSize(width: expandedWidth,
-                      height: min(preferredHeight, screen.height - topInset - 48 - quickAccessBottomInset))
+                      height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }
     var sectionColumns: Int { expandedWidth >= 440 ? 4 : 2 }
 
@@ -793,7 +786,7 @@ struct NotchGeometry: Equatable {
         let content = NotchLayout.sectionSearchHeight + results + 38
         let desiredHeight = safeContentTop + NotchLayout.chromeHeight + content
         let limit = layout == .custom ? customHeight : 580
-        return CGSize(width: expandedWidth, height: min(desiredHeight, limit, screen.height - topInset - 48 - quickAccessBottomInset))
+        return CGSize(width: expandedWidth, height: min(desiredHeight, limit, screen.height - 48 - quickAccessBottomInset))
     }
 
     func contentSize(for size: CGSize) -> CGSize {
@@ -803,7 +796,7 @@ struct NotchGeometry: Equatable {
     var appPanelSize: CGSize { contentSize(for: expandedSize(module: .tools)) }
     func frame(for size: CGSize) -> CGRect {
         CGRect(x: screen.midX - size.width / 2,
-               y: screen.maxY - topInset - size.height,
+               y: screen.maxY - size.height,
                width: size.width, height: size.height)
     }
 

@@ -27,11 +27,13 @@ enum NotchPresentationRefreshContract {
     }
     final class Host {
         var targetSize: CGSize = .zero
+        var frame: CGRect = .zero
         var onPresent: ((CGSize) -> Void)?
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
                      transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?) {
             onPresent?(size)
             targetSize = size
+            frame = geometry.frame(for: size)
         }
         func setActivationArea(_ rect: CGRect, title: String, willPress: () -> Void, activate: () -> Void) {}
     }
@@ -56,9 +58,8 @@ enum NotchPresentationRefreshContract {
         var hoverState = NotchHoverState()
         var panel: Panel? = Panel()
         var windowHost: Host? = Host()
-        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+        var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
-        var presentationGeometry: NotchGeometry { geometry }
         var compactActivityGeometry: NotchGeometry { geometry }
         var surfaceSize: CGSize {
             if !expanded { return geometry.collapsed }
@@ -137,5 +138,23 @@ enum NotchPresentationRefreshContract {
                && contentSize == service.geometry.expandedSize(module: .captures)
                && service.windowHost?.targetSize == contentSize,
                "dismissing a pinned capture clears the preview size and restores the full recent-captures area")
+
+        let simulated = Service()
+        simulated.expanded = false
+        simulated.panel?.isVisible = false
+        simulated.geometry = NotchGeometry(screen: CGRect(x: -1440, y: 900, width: 1440, height: 900),
+                                          safeAreaTop: 0, cameraWidth: 0)
+        simulated.refreshPresentation(animated: false)
+        expect(simulated.panel?.isVisible == true && simulated.geometry.compactSideRoom == nil
+               && simulated.windowHost?.frame == simulated.geometry.frame(for: simulated.surfaceSize),
+               "the idle simulated island appears at the screen edge without Accessibility or a menu-space measurement")
+        let simulatedTop = simulated.windowHost?.frame.maxY
+        simulated.expanded = true
+        simulated.refreshPresentation()
+        simulated.expanded = false
+        simulated.refreshPresentation()
+        expect(simulated.panel?.isVisible == true && simulated.windowHost?.frame.maxY == simulatedTop
+               && simulatedTop == simulated.geometry.screen.maxY,
+               "opening and closing a simulated island preserves its anchor and never hides it for lack of menu access")
     }
 }

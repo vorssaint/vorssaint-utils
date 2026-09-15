@@ -318,10 +318,15 @@ enum NotchActivityTests {
                                    && compact.compactActivityContentHeight == original.menuBarHeight,
                                    "narrower timer wings still clear the camera and preserve the menu bar height")
                         } else {
-                            expect(compact.compactActivityUsesFooter,
-                                   "insufficient or unknown menu space keeps the timer readable in its existing footer")
+                            expect(compact.compactActivityUsesFooter == notched,
+                                   "only a physical cutout uses the existing timer footer when menu space is unavailable")
+                            if !notched {
+                                expect(compact.compactActivityWingWidth == 0
+                                       && compact.compactActivitySize.height == original.menuBarHeight,
+                                       "a simulated timer with no side room keeps only the camera profile within the menu bar")
+                            }
                         }
-                        let positioned = compact.compactActivityGeometry.frame(for: compact.compactActivitySize)
+                        let positioned = compact.frame(for: compact.compactActivitySize)
                         expect(screen.contains(positioned), "compact timer placement stays within the screen")
                     }
                 }

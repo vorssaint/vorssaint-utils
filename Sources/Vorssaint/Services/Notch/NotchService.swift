@@ -127,10 +127,6 @@ final class NotchService: ObservableObject {
         }
     }
 
-    private var presentationGeometry: NotchGeometry {
-        compactActivityIsVisible ? compactActivityGeometry.compactActivityGeometry : geometry
-    }
-
     var expandedSize: CGSize {
         if showingSections {
             return geometry.sectionPickerSize(count: filteredSections.count, searching: !sectionQuery.isEmpty)
@@ -398,7 +394,7 @@ final class NotchService: ObservableObject {
             let work = DispatchWorkItem { [weak self] in
                 guard let self, self.inside, !self.hoverState.suppressed, !self.expanded, !self.peeking,
                       self.captureControls == nil,
-                      self.presentationGeometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
+                      self.geometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
                     self.open(self.compactActivity?.module, takeFocus: false)
                 } else {
@@ -768,18 +764,12 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
-        let active = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil || compactActivityIsVisible
-        guard active || geometry.isNotched || geometry.compactSideRoom != nil else {
-            panel?.orderOut(nil)
-            removeScreenEdgeClickMonitors()
-            return
-        }
         let access = NotchQuickAccessConfiguration.current()
         let size = surfaceSize
         // Preferences can change computed dimensions without publishing a
         // service property. Update SwiftUI's layout along with the native host.
         if let windowHost, windowHost.targetSize != size { objectWillChange.send() }
-        windowHost?.present(size: size, geometry: presentationGeometry, animated: animated,
+        windowHost?.present(size: size, geometry: geometry, animated: animated,
                             transitionContent: transitionContent,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil)
         let activationRect = captureControls != nil || notice != nil || dragPlaceholder ? CGRect.zero
@@ -799,7 +789,6 @@ final class NotchService: ObservableObject {
         guard running, !suspended, !expanded, captureControls == nil, notice == nil,
               !dragPlaceholder, !heldDrag, let panel, panel.isVisible, !panel.ignoresMouseEvents else { return nil }
         let geometry = compactActivityIsVisible ? compactActivityGeometry : self.geometry
-        guard geometry.topInset == 0 else { return nil }
         let area = geometry.activationArea(in: surfaceSize, hasHeader: peeking, compactActivity: compactActivityIsVisible)
         guard !area.isEmpty else { return nil }
         let frame = geometry.frame(for: surfaceSize)
@@ -878,7 +867,7 @@ final class NotchService: ObservableObject {
             return
         }
         let wanted = running && !suspended && !expanded && captureControls == nil
-            && (idleContent != .none || compactActivity != nil || !geometry.isNotched)
+            && (idleContent != .none || compactActivity != nil)
         guard wanted else { stopMenuSpaceMonitoring(); return }
         guard menuSpaceTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.readMenuSpace() }
@@ -967,7 +956,7 @@ final class NotchService: ObservableObject {
         next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
         if windowHost == nil {
-            windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: presentationGeometry, size: surfaceSize,
+            windowHost = NotchWindowHost(content: AnyView(NotchView(service: self)), geometry: geometry, size: surfaceSize,
                                         quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0)) })
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title

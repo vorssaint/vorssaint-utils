@@ -10,6 +10,7 @@ import QuartzCore
 /// clipboard, keyboard input or hardware controls. The test window is invisible.
 enum NotchPresentationProbe {
     static func runAndExit() -> Never {
+        if CommandLine.arguments.contains("--profile-only") { runProfileAndExit() }
         let app = NSApplication.shared
         app.setActivationPolicy(.prohibited)
         guard let screen = NSScreen.main else { print("NOTCH PROBE FAILED: no display"); exit(1) }
@@ -24,7 +25,7 @@ enum NotchPresentationProbe {
             || host.panel.level.rawValue >= NSWindow.Level.popUpMenu.rawValue {
             failures.append("top-edge activation must outrank status items while leaving native menus above the island")
         }
-        if geometry.isNotched, let mask = host.panel.contentView?.layer?.mask as? CAShapeLayer,
+        if let mask = host.panel.contentView?.layer?.mask as? CAShapeLayer,
            let path = mask.path {
             if !path.contains(CGPoint(x: 12, y: 1))
                 || path.contains(CGPoint(x: 12, y: geometry.collapsed.height - 1)) {
@@ -45,11 +46,12 @@ enum NotchPresentationProbe {
         var noticeHeightLimit: CGFloat?
         var lostStationaryHover = false
         var hoverHosts = [host]
-        let stationaryPointer = CGPoint(x: screen.frame.midX - geometry.cameraWidth / 4, y: screen.frame.maxY)
+        let stationaryPointer = CGPoint(x: screen.frame.midX - geometry.cameraWidth / 4,
+                                        y: screen.frame.maxY)
         func sample() {
             samples += 1
             if host.contentCanvasSize != host.panel.frame.size { canvasChangedSize = true }
-            maxAnchorError = max(maxAnchorError, abs(host.panel.frame.maxY - (screen.frame.maxY - geometry.topInset)))
+            maxAnchorError = max(maxAnchorError, abs(host.panel.frame.maxY - (screen.frame.maxY)))
             maxContentError = max(maxContentError, abs(host.contentTopOnScreen - host.panel.frame.maxY))
             if abs(host.visibleFrame.maxY - host.panel.frame.maxY) > 0.5 {
                 failures.append("visible silhouette detached from window top")
@@ -140,7 +142,7 @@ enum NotchPresentationProbe {
         }
         advance(0.60)
         if host.panel.frame != geometry.frame(for: geometry.collapsed) { failures.append("interrupted motion did not settle") }
-        noticeHeightLimit = geometry.menuBarHeight
+        noticeHeightLimit = geometry.notice.height
         for notification in [false, true] {
             let size = geometry.noticeSize(notification: notification)
             host.present(size: size, geometry: geometry, animated: true, transitionContent: .reveal)
@@ -321,6 +323,103 @@ enum NotchPresentationProbe {
         }
         print("NOTCH PROBE \(failures.isEmpty ? "OK" : "FAILED") samples=\(samples) openingNativeResizes=\(openingResizes) repeatedUpdates=1000 fileDrops=\(accepted) topError=\(maxAnchorError) contentError=\(maxContentError)")
         failures.forEach { print($0) }
+        exit(failures.isEmpty ? 0 : 1)
+    }
+
+    /// Checks native layout and animation only, without input or screen capture.
+    private static func runProfileAndExit() -> Never {
+        NSApplication.shared.setActivationPolicy(.prohibited)
+        guard let screen = NSScreen.main else { print("NOTCH PROFILE PROBE FAILED: no display"); exit(1) }
+        var failures = Set<String>()
+        var samples = 0
+        var transitions = 0
+        for barHeight: CGFloat in [16, 22, 24, 32, 40, 64] {
+            for physical in [false, true] {
+                var geometry = NotchGeometry(screen: screen.frame, safeAreaTop: physical ? 32 : 0, cameraWidth: physical ? 180 : 0,
+                                             menuBarHeight: barHeight, compactSideRoom: 64)
+                geometry.quickAccessBottomInset = NotchQuickAccessLayout.gutter
+                let host = NotchWindowHost(content: AnyView(Color.black), geometry: geometry, size: geometry.collapsed,
+                                          quickAccess: { _ in AnyView(Color.clear) })
+                host.panel.alphaValue = 0
+                host.panel.ignoresMouseEvents = true
+                host.panel.orderFrontRegardless()
+                let music = geometry.compactMusicGeometry
+                let timer = geometry.compactTimerGeometry(showsDownloads: true)
+                let states: [(CGSize, Bool)] = [(geometry.collapsed, true), (music.compactActivitySize, true), (geometry.notice, true),
+                    (geometry.expanded, false), (geometry.noticeSize(notification: true), true),
+                    (timer.compactActivitySize, true), (geometry.peek, false), (geometry.restingSize(showsContent: false), true)]
+                let shortcuts = NotchQuickAccessConfiguration(buttons: [
+                    NotchQuickButton(action: .explore, side: .left),
+                    NotchQuickButton(action: .settings, side: .right),
+                    NotchQuickButton(action: .module(.timer), side: .bottom)])
+                var previouslyCompact = true
+                for animated in [false, true] {
+                    for (size, compact) in states {
+                        transitions += 1
+                        let access = size == geometry.expanded ? shortcuts : nil
+                        host.present(size: size, geometry: geometry, animated: animated, quickAccess: access)
+                        var settled = false
+                        host.whenSettled { settled = true }
+                        let deadline = Date().addingTimeInterval(3)
+                        repeat {
+                            RunLoop.current.run(until: Date().addingTimeInterval(0.008))
+                            samples += 1
+                            let visible = host.visibleFrame
+                            if !physical && compact && previouslyCompact && visible.height > barHeight + 0.5 {
+                                failures.insert("a compact simulated transition grew below the menu bar")
+                            }
+                            if abs(visible.maxY - screen.frame.maxY) > 0.5 {
+                                failures.insert("an opening, feedback or collapse frame detached from the screen edge")
+                            }
+                            if !screen.frame.insetBy(dx: -0.5, dy: -0.5).contains(host.panel.frame)
+                                || !host.panel.frame.insetBy(dx: -0.5, dy: -0.5).contains(visible) {
+                                failures.insert("an animated island or its shortcuts escaped the screen or backing window")
+                            }
+                            if abs(host.contentTopOnScreen - host.panel.frame.maxY) > 0.5
+                                || !host.containsHover(CGPoint(x: screen.frame.midX, y: visible.maxY - 1)) {
+                                failures.insert("resizing displaced content or lost a stationary pointer inside the notch")
+                            }
+                        } while !settled && Date() < deadline
+                        let gutter = access == nil ? 0 : NotchQuickAccessLayout.gutter
+                        let expected = geometry.frame(for: CGSize(width: size.width + gutter * 2,
+                                                                   height: size.height + gutter))
+                        let actual = host.panel.frame
+                        if !settled || host.targetSize != size
+                            || abs(actual.midX - expected.midX) > 0.5 || abs(actual.maxY - expected.maxY) > 0.5
+                            || abs(actual.width - expected.width) > 1 || abs(actual.height - expected.height) > 1 {
+                            failures.insert("a transition did not settle at its requested size and screen-edge position")
+                        }
+                        let resizes = host.resizeCount
+                        for _ in 0..<10 {
+                            host.present(size: size, geometry: geometry, animated: false, quickAccess: access)
+                        }
+                        if host.resizeCount != resizes {
+                            failures.insert("pixel alignment caused unchanged presentations to resize repeatedly")
+                        }
+                        let visible = host.visibleFrame
+                        if !physical && compact && visible.minY < screen.frame.maxY - barHeight - 0.5 {
+                            failures.insert("a closed or compact simulated notch escaped the actual menu bar")
+                        }
+                        previouslyCompact = compact
+                        let shoulder = min(NotchLayout.shoulder, visible.height * 0.28)
+                        if !host.contains(CGPoint(x: visible.minX + shoulder, y: visible.maxY - 0.25))
+                            || host.contains(CGPoint(x: visible.minX + shoulder, y: visible.minY + 0.25)) {
+                            failures.insert("a physical or simulated notch lost its attached shoulders or rounded lower corners")
+                        }
+                    }
+                }
+                let position = host.panel.frame
+                host.panel.setFrameOrigin(CGPoint(x: position.minX + 20, y: position.minY - 10))
+                host.present(size: geometry.restingSize(showsContent: false), geometry: geometry, animated: false)
+                if host.panel.frame != position {
+                    failures.insert("an external window move was not restored to the notch's screen-edge position")
+                }
+                host.close()
+                if host.panel.isVisible { failures.insert("closing left the test window visible") }
+            }
+        }
+        print("NOTCH PROFILE PROBE \(failures.isEmpty ? "OK" : "FAILED") samples=\(samples) transitions=\(transitions) menuHeights=6")
+        failures.sorted().forEach { print($0) }
         exit(failures.isEmpty ? 0 : 1)
     }
 }

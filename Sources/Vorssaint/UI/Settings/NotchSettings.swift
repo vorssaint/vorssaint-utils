@@ -12,7 +12,6 @@ struct NotchSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
-    @ObservedObject private var notch = NotchService.shared
     @AppStorage(DefaultsKey.notchGesturesEnabled) private var gesturesEnabled = true
     @AppStorage(DefaultsKey.notchKeyboardLight) private var keyboardLight = false
     @AppStorage(DefaultsKey.notchNotificationsEnabled) private var notificationsEnabled = false
@@ -86,14 +85,6 @@ struct NotchSettings: View {
                 Spacer(minLength: 12)
                 Toggle(text.enable, isOn: $enabled).labelsHidden().toggleStyle(.switch)
                     .disabled(!AppFeature.notch.isAvailable).accessibilityLabel(text.enable)
-            }
-            if enabled, AppFeature.notch.isAvailable, !notch.geometry.isNotched, !permissions.accessibility {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(text.menuBarAccessHint)
-                        .font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    PermissionRow(kind: .accessibility)
-                }
             }
             HStack {
                 Picker(text.title, selection: $tab) {
