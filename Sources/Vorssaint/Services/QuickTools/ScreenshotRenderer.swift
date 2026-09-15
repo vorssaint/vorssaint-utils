@@ -79,11 +79,11 @@ enum ScreenshotRenderer {
                     context.strokeEllipse(in: annotation.rect)
                 }
             case .line:
-                drawLine(annotation, in: context, scale: scale, arrow: false,
+                drawLine(annotation, in: context, scale: scale,
                          shadowsEnabled: annotationShadowsEnabled)
             case .arrow:
-                drawLine(annotation, in: context, scale: scale, arrow: true,
-                         shadowsEnabled: annotationShadowsEnabled)
+                drawArrow(annotation, in: context, scale: scale,
+                          shadowsEnabled: annotationShadowsEnabled)
             case .freehand:
                 drawFreehand(annotation, in: context, scale: scale,
                              shadowsEnabled: annotationShadowsEnabled)
@@ -122,7 +122,6 @@ enum ScreenshotRenderer {
     private static func drawLine(_ annotation: ScreenshotSupport.Annotation,
                                  in context: CGContext,
                                  scale: CGFloat,
-                                 arrow: Bool,
                                  shadowsEnabled: Bool) {
         guard annotation.points.count >= 2 else { return }
         let start = annotation.points[0]
@@ -130,25 +129,104 @@ enum ScreenshotRenderer {
         let width = annotation.stroke.width * scale
         context.saveGState()
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
-
-        guard arrow else {
-            context.setStrokeColor(color(annotation.color))
-            context.setLineWidth(width)
-            context.setLineCap(.round)
-            context.beginPath()
-            context.move(to: start)
-            context.addLine(to: end)
-            context.strokePath()
-            context.restoreGState()
-            return
-        }
-
-        context.setFillColor(color(annotation.color))
-        context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
-                                                          to: end,
-                                                          strokeWidth: width))
-        context.fillPath()
+        context.setStrokeColor(color(annotation.color))
+        context.setLineWidth(width)
+        context.setLineCap(.round)
+        context.beginPath()
+        context.move(to: start)
+        context.addLine(to: end)
+        context.strokePath()
         context.restoreGState()
+    }
+
+    private static func drawArrow(_ annotation: ScreenshotSupport.Annotation,
+                                  in context: CGContext,
+                                  scale: CGFloat,
+                                  shadowsEnabled: Bool) {
+        guard annotation.points.count >= 2 else { return }
+        let start = annotation.points[0]
+        let end = annotation.points[1]
+        let width = annotation.stroke.width * scale
+        let head = ScreenshotSupport.arrowHead(from: start, to: end, strokeWidth: width)
+
+        context.saveGState()
+        applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setStrokeColor(color(annotation.color))
+        context.setFillColor(color(annotation.color))
+        context.setLineWidth(width)
+        context.setLineJoin(.round)
+        context.setLineCap(.round)
+
+        switch annotation.arrowStyle {
+        case .filled:
+            context.addPath(ScreenshotSupport.arrowSilhouette(from: start,
+                                                              to: end,
+                                                              strokeWidth: width))
+            context.fillPath()
+        case .outline:
+            drawArrowShaft(context, from: start, to: end, base: arrowBase(head))
+            context.beginPath()
+            context.move(to: head.left)
+            context.addLine(to: end)
+            context.addLine(to: head.right)
+            context.closePath()
+            context.strokePath()
+        case .open:
+            drawArrowShaft(context, from: start, to: end, base: end)
+            drawOpenArrowHead(context, tip: end, head: head)
+        case .doubleEnded:
+            let tailHead = ScreenshotSupport.arrowHead(from: end,
+                                                       to: start,
+                                                       strokeWidth: width)
+            drawArrowShaft(context, from: start, to: end, base: end)
+            drawOpenArrowHead(context, tip: end, head: head)
+            drawOpenArrowHead(context, tip: start, head: tailHead)
+        case .scribbly:
+            let geometry = ScreenshotSupport.scribblyArrowGeometry(
+                from: start,
+                to: end,
+                strokeWidth: width,
+                seed: annotation.scribbleSeed)
+            drawPolyline(context, points: geometry.shaft)
+            drawPolyline(context, points: geometry.leftWing)
+            drawPolyline(context, points: geometry.rightWing)
+        }
+        context.restoreGState()
+    }
+
+    private static func arrowBase(_ head: (left: CGPoint, right: CGPoint)) -> CGPoint {
+        CGPoint(x: (head.left.x + head.right.x) / 2,
+                y: (head.left.y + head.right.y) / 2)
+    }
+
+    private static func drawArrowShaft(_ context: CGContext,
+                                       from start: CGPoint,
+                                       to end: CGPoint,
+                                       base: CGPoint) {
+        context.beginPath()
+        context.move(to: start)
+        context.addLine(to: base)
+        context.strokePath()
+    }
+
+    private static func drawOpenArrowHead(_ context: CGContext,
+                                          tip: CGPoint,
+                                          head: (left: CGPoint, right: CGPoint)) {
+        context.beginPath()
+        context.move(to: head.left)
+        context.addLine(to: tip)
+        context.addLine(to: head.right)
+        context.strokePath()
+    }
+
+    private static func drawPolyline(_ context: CGContext, points: [CGPoint]) {
+        guard let first = points.first else { return }
+        context.beginPath()
+        context.move(to: first)
+        for point in points.dropFirst() {
+            context.addLine(to: point)
+        }
+        context.strokePath()
     }
 
     private static func drawFreehand(_ annotation: ScreenshotSupport.Annotation,
