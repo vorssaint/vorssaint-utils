@@ -416,6 +416,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
         Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift

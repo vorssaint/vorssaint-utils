@@ -80,6 +80,7 @@ final class ScreenshotQuickPreviewController {
             dragItem: { [weak self] in
                 guard let self else { return NSItemProvider() }
                 return ScreenshotService.dragItemProvider(image: self.capture.image,
+                                                          scale: self.capture.scale,
                                                           strings: self.strings)
                     ?? NSItemProvider()
             },

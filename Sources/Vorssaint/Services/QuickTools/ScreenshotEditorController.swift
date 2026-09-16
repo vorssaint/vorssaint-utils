@@ -934,7 +934,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Output
 
-    func exportImage(withBackdrop: Bool = true) -> CGImage? {
+    func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
         if annotations.contains(where: { $0.tool == .pixelate }) {
             ensurePixelated()
         }
@@ -1146,7 +1146,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// the editor. The view presents the owner controls after it succeeds.
     func share(duration: ScreenshotShareDuration,
                completion: @escaping (ScreenshotShareRecord?) -> Void) {
-        guard let image = model.exportImage() else {
+        guard let export = model.exportImage() else {
             QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
             completion(nil)
             return
@@ -1157,7 +1157,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                 return
             }
             let data = await Task.detached(priority: .userInitiated) {
-                ScreenshotRenderer.pngData(from: image)
+                ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
             }.value
             guard let data else {
                 QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
@@ -1185,8 +1185,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
-        guard let image = model.exportImage() else { return }
-        guard Self.copyImage(image, fileNamePrefix: strings.fileNamePrefix) else {
+        guard let export = model.exportImage() else { return }
+        guard Self.copyImage(export, fileNamePrefix: strings.fileNamePrefix) else {
             NSSound.beep()
             return
         }
@@ -1196,8 +1196,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyImage(_ image: CGImage, fileNamePrefix: String) -> Bool {
-        guard let data = ScreenshotRenderer.pngData(from: image),
+    static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String) -> Bool {
+        guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale),
               let base = FileManager.default.urls(for: .cachesDirectory,
                                                   in: .userDomainMask).first,
               let bundleID = Bundle.main.bundleIdentifier
@@ -1209,7 +1209,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                          directory: folder) else {
             return false
         }
-        guard copyFile(url, payload: clipboardPayload(from: image, png: data)) else {
+        guard copyFile(url, payload: clipboardPayload(from: export, png: data)) else {
             try? FileManager.default.removeItem(at: url)
             return false
         }
@@ -1237,13 +1237,15 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         let tiff: Data?
     }
 
-    static func clipboardPayload(from image: CGImage) -> ClipboardPayload {
-        clipboardPayload(from: image, png: ScreenshotRenderer.pngData(from: image))
+    static func clipboardPayload(from export: ScreenshotRenderer.Export) -> ClipboardPayload {
+        clipboardPayload(from: export,
+                         png: ScreenshotRenderer.pngData(from: export.image, scale: export.scale))
     }
 
-    static func clipboardPayload(from image: CGImage, png: Data?) -> ClipboardPayload {
-        let bitmap = NSBitmapImageRep(cgImage: image)
-        return ClipboardPayload(png: png, tiff: bitmap.tiffRepresentation)
+    static func clipboardPayload(from export: ScreenshotRenderer.Export,
+                                 png: Data?) -> ClipboardPayload {
+        ClipboardPayload(png: png,
+                         tiff: ScreenshotRenderer.tiffData(from: export.image, scale: export.scale))
     }
 
     @discardableResult
@@ -1261,8 +1263,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func save() {
-        guard let image = model.exportImage(),
-              let data = ScreenshotRenderer.pngData(from: image)
+        guard let export = model.exportImage(),
+              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return }
         let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
         do {
@@ -1288,8 +1290,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             prefix: strings.fileNamePrefix, date: Date())
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
-            guard let image = self.model.exportImage(),
-                  let data = ScreenshotRenderer.pngData(from: image)
+            guard let export = self.model.exportImage(),
+                  let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
             else { return }
             do {
                 try data.write(to: url, options: .atomic)
@@ -1303,8 +1305,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     /// Pinning snapshots the current export and leaves the editor open.
     func pin() {
-        guard let image = model.exportImage(withBackdrop: false) else { return }
-        ScreenshotPinController.shared.pin(image: image, scale: model.scale)
+        guard let export = model.exportImage(withBackdrop: false) else { return }
+        ScreenshotPinController.shared.pin(image: export.image, scale: export.scale)
         model.markExported()
     }
 

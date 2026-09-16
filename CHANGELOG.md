@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island adds configurable reopening and hover behavior, media drop choices and smoother tool and desktop transitions. Improvements also cover music, display fit, alerts, recording audio and image conversion.
+Dynamic Island adds configurable reopening and hover behavior, media drop choices and smoother tool and desktop transitions. Improvements also cover music, display fit, alerts, recording audio, image conversion and the sharpness of screenshots and recordings.
 
 ### Added
 - Image conversion adds a naming menu and an optional subfolder for batch results. Thanks to @ruvelro.
@@ -18,9 +18,11 @@ Dynamic Island adds configurable reopening and hover behavior, media drop choice
 - Timers show hours and minutes in the duration ruler, countdown, compact view and focus settings.
 - Compact timers have more breathing room and stay beside the camera when menu space changes, including in full screen.
 - Dynamic Island follows each display's menu bar height and shows track names on screens without a camera cutout. Thanks to @ruvelro.
+- Screen recordings exported with the Balanced quality keep the full resolution of the screen, so text stays as sharp as in the system recorder; only Small file reduces the picture.
 
 ### Fixed
 - Image conversion respects logo watermark opacity and centers previews. Thanks to @ruvelro.
+- Screenshots saved, copied, dragged or shared now carry their display density, so Retina captures open in Preview, Quick Look and documents at their real size and as sharp as system screenshots instead of doubled and softened.
 - Dynamic Island stays anchored when revealing the desktop after hover expansion.
 - Dynamic Island shows recognizable headset icons, keeps device alerts readable and avoids false volume alerts when switching audio outputs.
 - Screen recordings no longer fail to save when microphone or system audio changes format during recording.

@@ -18975,6 +18975,53 @@ struct MetricsTests {
         expect(ScreenshotSupport.downscaledSize(pixelSize: CGSize(width: 800, height: 600), scale: 1)
                 == CGSize(width: 800, height: 600),
                "a 1x capture never downscales")
+
+        // Every picture the app writes says how big it is on screen, the way
+        // a system screenshot does, so Preview and a paste show a Retina
+        // capture at its own size instead of doubled and softened.
+        func encodedDensity(_ data: Data?) -> (width: Int, dpi: Double)? {
+            guard let data,
+                  let source = CGImageSourceCreateWithData(data as CFData, nil),
+                  let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?,
+                  let width = properties[kCGImagePropertyPixelWidth] as? NSNumber,
+                  let dpi = properties[kCGImagePropertyDPIWidth] as? NSNumber
+            else { return nil }
+            return (width.intValue, dpi.doubleValue)
+        }
+        let retinaContext = CGContext(data: nil, width: 8, height: 6, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        retinaContext?.setFillColor(CGColor(gray: 0.5, alpha: 1))
+        retinaContext?.fill(CGRect(x: 0, y: 0, width: 8, height: 6))
+        let retinaCapture = retinaContext?.makeImage()
+        expect(retinaCapture != nil, "a Retina test capture can be drawn")
+        if let retinaCapture {
+            let plain = ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0)
+            let full = ScreenshotRenderer.renderExport(baseImage: retinaCapture, annotations: [],
+                                                       pixelated: nil, scale: 2,
+                                                       annotationShadowsEnabled: false,
+                                                       style: plain, fill: .none,
+                                                       downscaleTo1x: false)
+            expect(full?.scale == 2 && full?.image.width == 8,
+                   "a Retina export keeps its pixels and its density")
+            let halved = ScreenshotRenderer.renderExport(baseImage: retinaCapture, annotations: [],
+                                                         pixelated: nil, scale: 2,
+                                                         annotationShadowsEnabled: false,
+                                                         style: plain, fill: .none,
+                                                         downscaleTo1x: true)
+            expect(halved?.scale == 1 && halved?.image.width == 4,
+                   "the 1x option halves the pixels and reports 1x density")
+            let png = encodedDensity(ScreenshotRenderer.pngData(from: retinaCapture, scale: 2))
+            expect(png?.width == 8 && png?.dpi == 144,
+                   "a Retina PNG carries 144 DPI over every pixel")
+            let tiff = encodedDensity(ScreenshotRenderer.tiffData(from: retinaCapture, scale: 2))
+            expect(tiff?.width == 8 && tiff?.dpi == 144,
+                   "the pasteboard TIFF carries the same density as the PNG")
+            expect(encodedDensity(ScreenshotRenderer.pngData(from: retinaCapture, scale: 1))?.dpi == 72,
+                   "a 1x picture stays at 72 DPI")
+            expect(ScreenshotSupport.captureScale(fromDPI: png?.dpi) == 2,
+                   "the stored density reads back as the capture scale")
+        }
         expect(ScreenshotSupport.backdropPadding(for: CGSize(width: 100, height: 100), factor: 0.5) == 24,
                "backdrop padding keeps a floor for tiny captures")
         expect(ScreenshotSupport.backdropPadding(for: CGSize(width: 4000, height: 4000), factor: 1)
@@ -23652,12 +23699,17 @@ struct MetricsTests {
         expect(RecorderSupport.outputSize(source: CGSize(width: 2940, height: 1912), quality: .high)
                 == CGSize(width: 2940, height: 1912),
                "the high preset keeps every pixel")
+        expect(RecorderSupport.outputSize(source: CGSize(width: 2940, height: 1912), quality: .balanced)
+                == CGSize(width: 2940, height: 1912),
+               "the default preset keeps every pixel too, so text stays as sharp as on screen")
         let highRate = RecorderSupport.averageBitRate(width: 2940, height: 1912, fps: 60,
                                                       quality: .high)
+        let balancedRate = RecorderSupport.averageBitRate(width: 2940, height: 1912, fps: 60,
+                                                          quality: .balanced)
         let smallRate = RecorderSupport.averageBitRate(width: 1470, height: 956, fps: 60,
                                                        quality: .small)
-        expect(highRate > smallRate,
-               "a bigger picture at a higher preset asks the encoder for more")
+        expect(highRate > balancedRate && balancedRate > smallRate,
+               "the presets differ by bits, and only the small one by pixels")
         expect(RecorderSupport.averageBitRate(width: 64, height: 64, fps: 30, quality: .small)
                 >= 800_000,
                "even a tiny area gets a usable stream")

@@ -1191,9 +1191,10 @@ struct ScreenshotEditorView: View {
             .contentShape(Rectangle())
             .onDrag {
                 commitEditingTextIfNeeded()
-                guard let image = model.exportImage(),
+                guard let export = model.exportImage(),
                       let provider = ScreenshotService.dragItemProvider(
-                          image: image,
+                          image: export.image,
+                          scale: export.scale,
                           strings: strings
                       )
                 else { return NSItemProvider() }

@@ -349,6 +349,16 @@ enum ScreenshotRenderer {
         case image(CGImage)
     }
 
+    /// A finished picture together with the pixels per point it was rendered
+    /// at, so every file and pasteboard item it becomes can say how big it is
+    /// on screen: a Retina capture then opens at its own size in Preview,
+    /// Quick Look and documents, the way a system screenshot does, instead of
+    /// twice as large and softened by the upscale.
+    struct Export {
+        let image: CGImage
+        let scale: CGFloat
+    }
+
     /// Flattens the base image and annotations, rounds the card's corners,
     /// optionally composes the padded backdrop fill behind it, optionally
     /// downscaled to 1x.
@@ -359,7 +369,7 @@ enum ScreenshotRenderer {
                              annotationShadowsEnabled: Bool,
                              style: ScreenshotSupport.BackdropStyle,
                              fill: BackdropFill,
-                             downscaleTo1x: Bool) -> CGImage? {
+                             downscaleTo1x: Bool) -> Export? {
         let imageSize = CGSize(width: baseImage.width, height: baseImage.height)
         guard let flattened = renderFlattened(baseImage: baseImage,
                                               annotations: annotations,
@@ -389,10 +399,10 @@ enum ScreenshotRenderer {
             let target = ScreenshotSupport.downscaledSize(
                 pixelSize: CGSize(width: result.width, height: result.height), scale: scale)
             if let smaller = resized(result, to: target) {
-                result = smaller
+                return Export(image: smaller, scale: 1)
             }
         }
-        return result
+        return Export(image: result, scale: scale)
     }
 
     private static func roundedAlpha(_ image: CGImage, corner: CGFloat) -> CGImage? {
@@ -560,22 +570,29 @@ enum ScreenshotRenderer {
 
     // MARK: - Encoding
 
-    static func pngData(from image: CGImage, scale: CGFloat? = nil) -> Data? {
+    /// PNG carrying the picture's pixels per point as standard DPI, the same
+    /// convention the system screenshot tool writes and the store reads back.
+    static func pngData(from image: CGImage, scale: CGFloat) -> Data? {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(
             data, UTType.png.identifier as CFString, 1, nil)
         else { return nil }
-        let properties: CFDictionary?
-        if let scale {
-            properties = [
-                kCGImagePropertyDPIWidth: Double(scale) * 72,
-                kCGImagePropertyDPIHeight: Double(scale) * 72,
-            ] as CFDictionary
-        } else {
-            properties = nil
-        }
+        let properties = [
+            kCGImagePropertyDPIWidth: Double(scale) * 72,
+            kCGImagePropertyDPIHeight: Double(scale) * 72,
+        ] as CFDictionary
         CGImageDestinationAddImage(destination, image, properties)
         guard CGImageDestinationFinalize(destination) else { return nil }
         return data as Data
+    }
+
+    /// TIFF for the pasteboard with the same density as the PNG: the point
+    /// size is what the TIFF stores as its resolution, so a paste lands at
+    /// the capture's on-screen size.
+    static func tiffData(from image: CGImage, scale: CGFloat) -> Data? {
+        let bitmap = NSBitmapImageRep(cgImage: image)
+        bitmap.size = NSSize(width: CGFloat(image.width) / scale,
+                             height: CGFloat(image.height) / scale)
+        return bitmap.tiffRepresentation
     }
 }
