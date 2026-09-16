@@ -311,7 +311,8 @@ enum SettingsSearchSupport {
                                recorder.systemAudioToggle, recorder.microphoneToggle,
                                recorder.qualityLabel, recorder.frameRateLabel]),
             (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle, strings.ocrQRToggle]),
-            (.colorPicker, [strings.colorPickerName, strings.colorPickerFormatLabel]),
+            (.colorPicker, [strings.colorPickerName, strings.colorPickerFormatLabel,
+                            strings.colorPickerMenuBarIconToggle, strings.colorPickerPanelName]),
         ]
     }
 

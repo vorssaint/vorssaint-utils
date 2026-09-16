@@ -190,6 +190,8 @@ extension Strings {
         colorPickerCaption: "Ekrandaki herhangi bir pikselin rengini alın ve istediğiniz biçimde kopyalayın.",
         colorPickerFormatLabel: "Kopyalama biçimi",
         colorPickerBareHexToggle: "# öneki olmadan kopyala",
+        colorPickerMenuBarIconToggle: "Menü çubuğunda palet simgesini göster",
+        colorPickerPanelName: "Renk panelini aç",
         colorPickerPickNow: "Renk seç",
         micMuteName: "Mikrofonu sessize al",
         micUnmuteName: "Mikrofonu aç",

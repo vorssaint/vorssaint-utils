@@ -3951,6 +3951,8 @@ struct MetricsTests {
                "panel cut and paste control is visible by default")
         expect(registeredDefaults[DefaultsKey.colorPickerBareHex] as? Bool == false,
                "color picker keeps the # prefix by default")
+        expect(registeredDefaults[DefaultsKey.colorPickerMenuBarIcon] as? Bool == false,
+               "color panel menu bar icon is opt-in")
         expect(registeredDefaults[DefaultsKey.screenOCRRemoveLineBreaks] as? Bool == false,
                "copy text from screen keeps line breaks by default")
         expect(registeredDefaults[DefaultsKey.screenOCRDetectQRCodes] as? Bool == true,

@@ -190,6 +190,8 @@ extension Strings {
         colorPickerCaption: "画面上の任意のピクセルの色を取得し、好みの形式でコピーします。",
         colorPickerFormatLabel: "コピー形式",
         colorPickerBareHexToggle: "先頭の # を付けずにコピー",
+        colorPickerMenuBarIconToggle: "メニューバーにパレットアイコンを表示",
+        colorPickerPanelName: "カラーパネルを開く",
         colorPickerPickNow: "色を取得",
         micMuteName: "マイクを消音",
         micUnmuteName: "マイクを再開",

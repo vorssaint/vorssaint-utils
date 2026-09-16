@@ -311,6 +311,8 @@ struct Strings {
     let colorPickerCaption: String
     let colorPickerFormatLabel: String
     let colorPickerBareHexToggle: String
+    let colorPickerMenuBarIconToggle: String
+    let colorPickerPanelName: String
     let colorPickerPickNow: String
     let micMuteName: String
     let micUnmuteName: String
@@ -1357,6 +1359,8 @@ extension Strings {
         colorPickerCaption: "Capture a cor de qualquer pixel da tela e copie no formato que preferir.",
         colorPickerFormatLabel: "Formato copiado",
         colorPickerBareHexToggle: "Copiar sem o prefixo #",
+        colorPickerMenuBarIconToggle: "Mostrar ícone da paleta na barra de menus",
+        colorPickerPanelName: "Abrir painel de cores",
         colorPickerPickNow: "Capturar cor",
         micMuteName: "Silenciar microfone",
         micUnmuteName: "Reativar microfone",
@@ -2370,6 +2374,8 @@ extension Strings {
         colorPickerCaption: "Grab the color of any pixel on screen and copy it in your favorite format.",
         colorPickerFormatLabel: "Copied format",
         colorPickerBareHexToggle: "Copy without the # prefix",
+        colorPickerMenuBarIconToggle: "Show palette icon in the menu bar",
+        colorPickerPanelName: "Open color panel",
         colorPickerPickNow: "Pick color",
         micMuteName: "Mute microphone",
         micUnmuteName: "Unmute microphone",

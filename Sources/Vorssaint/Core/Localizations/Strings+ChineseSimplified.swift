@@ -190,6 +190,8 @@ extension Strings {
         colorPickerCaption: "获取屏幕上任意像素的颜色，并以你喜欢的格式拷贝。",
         colorPickerFormatLabel: "拷贝格式",
         colorPickerBareHexToggle: "拷贝时不带 # 前缀",
+        colorPickerMenuBarIconToggle: "在菜单栏显示调色板图标",
+        colorPickerPanelName: "打开颜色面板",
         colorPickerPickNow: "拾取颜色",
         micMuteName: "静音麦克风",
         micUnmuteName: "取消静音麦克风",

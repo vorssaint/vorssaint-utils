@@ -190,6 +190,8 @@ extension Strings {
         colorPickerCaption: "화면의 모든 픽셀 색상을 가져와 원하는 형식으로 복사합니다.",
         colorPickerFormatLabel: "복사 형식",
         colorPickerBareHexToggle: "앞의 # 없이 복사",
+        colorPickerMenuBarIconToggle: "메뉴 막대에 팔레트 아이콘 표시",
+        colorPickerPanelName: "색상 패널 열기",
         colorPickerPickNow: "색상 가져오기",
         micMuteName: "마이크 음소거",
         micUnmuteName: "마이크 음소거 해제",

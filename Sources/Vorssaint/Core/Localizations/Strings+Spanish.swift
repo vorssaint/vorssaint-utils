@@ -190,6 +190,8 @@ extension Strings {
         colorPickerCaption: "Captura el color de cualquier píxel de la pantalla y cópialo en tu formato preferido.",
         colorPickerFormatLabel: "Formato copiado",
         colorPickerBareHexToggle: "Copiar sin el prefijo #",
+        colorPickerMenuBarIconToggle: "Mostrar el icono de paleta en la barra de menús",
+        colorPickerPanelName: "Abrir el panel de colores",
         colorPickerPickNow: "Capturar color",
         micMuteName: "Silenciar micrófono",
         micUnmuteName: "Reactivar micrófono",

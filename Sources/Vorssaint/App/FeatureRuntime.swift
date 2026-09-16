@@ -242,6 +242,7 @@ final class FeatureRuntime: ObservableObject {
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
         .colorPicker: {
             ScreenCaptureService.shared.syncWithPreferences()
+            ColorSamplerService.shared.syncWithPreferences()
         },
         .screenOCR: {
             ScreenCaptureService.shared.syncWithPreferences()

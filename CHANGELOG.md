@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- The color picker can add a palette icon to the menu bar that opens the macOS color panel, with its color wheel and your own color palettes.
+
 ## [3.4.0-beta.2] - 2026-09-16
 
 ### Summary

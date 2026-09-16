@@ -210,6 +210,7 @@ private struct ColorCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.colorPickerFormat) private var format = "hex"
     @AppStorage(DefaultsKey.colorPickerBareHex) private var usesBareHex = false
+    @AppStorage(DefaultsKey.colorPickerMenuBarIcon) private var showsMenuBarIcon = false
 
     var body: some View {
         Section {
@@ -229,6 +230,15 @@ private struct ColorCaptureSettings: View {
             .pickerStyle(.segmented)
             if format == ColorCopyFormat.hex.rawValue {
                 Toggle(l10n.s.colorPickerBareHexToggle, isOn: $usesBareHex)
+            }
+            Toggle(l10n.s.colorPickerMenuBarIconToggle, isOn: $showsMenuBarIcon)
+                .onChange(of: showsMenuBarIcon) { _, _ in
+                    ColorSamplerService.shared.syncWithPreferences()
+                }
+            Button {
+                ColorSamplerService.shared.showPanel()
+            } label: {
+                Label(l10n.s.colorPickerPanelName, systemImage: "paintpalette")
             }
         } header: {
             Text(l10n.s.colorPickerName)
