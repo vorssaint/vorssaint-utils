@@ -15,6 +15,13 @@ enum NotchPresentationRefreshContract {
         var hasFocusedControl = false
         var onSelectionProgressChange: ((Bool) -> Void)?
     }
+    enum UserDefaults {
+        static var standard = Preferences()
+        struct Preferences {
+            var hides = false
+            func bool(forKey key: String) -> Bool { key == DefaultsKey.notchHideUntilHover ? hides : true }
+        }
+    }
     enum NotchContentTransition { case none }
     struct NotchQuickAccessConfiguration {
         let buttons: [Int] = []
@@ -59,6 +66,7 @@ enum NotchPresentationRefreshContract {
     }
     class State: ObservableObject {
         let objectWillChange = ObservableObjectPublisher()
+        var running = true, suspended = false
         var mode = NotchTimerMode.timer
         var session = NotchTimerSession()
         var selected = NotchModule.timer
@@ -72,7 +80,7 @@ enum NotchPresentationRefreshContract {
         var showingSections = false
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
-        let notice: Bool? = nil
+        var notice: Bool?
         var captureControls: CaptureOptions?
         var captureControlsCollapsed = false, captureSelectionInProgress = false
         var inside = false, trackingMenu = false
@@ -81,7 +89,7 @@ enum NotchPresentationRefreshContract {
         var captureControlsCancel: (() -> Void)?
         var monitorRemovals = 0
         func removeCaptureControlsClickThrough() { monitorRemovals += 1 }
-        func syncMenuSpaceMonitoring() {}
+        func syncVisibleConsumers() {}
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var panel: Panel? = Panel()
@@ -97,6 +105,7 @@ enum NotchPresentationRefreshContract {
                                          timerHasSession: session.hasSession,
                                          timerShowsPomodoro: (session.hasSession ? session.mode : mode) == .pomodoro)
         }
+        func syncHiddenHoverMonitoring() {}
         func toggle() { expanded.toggle() }
         func collapse() { expanded = false }
         var edgeClicksEnabled = false
@@ -105,6 +114,8 @@ enum NotchPresentationRefreshContract {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        UserDefaults.standard.hides = false
+        defer { UserDefaults.standard.hides = false }
         captureControlsChecks(expect: expect)
         let service = Service()
         var contentSize = service.surfaceSize
@@ -213,6 +224,32 @@ enum NotchPresentationRefreshContract {
         expect(simulated.panel?.isVisible == false,
                "closing tools withdraws their simulated cutout if the center is still unverified")
 
+        UserDefaults.standard.hides = true
+        for isPhysical in [false, true] {
+            let hidden = Service()
+            if !isPhysical { hidden.geometry = simulated.geometry }
+            hidden.expanded = false
+            hidden.compactActivityIsVisible = true
+            hidden.notice = true
+            hidden.refreshPresentation()
+            expect(hidden.panel?.isVisible == false && !hidden.edgeClicksEnabled && !hidden.showsSystemFeedback,
+                   "hidden mode withdraws the entire window, including compact activity and an existing notice")
+            hidden.expanded = true
+            hidden.refreshPresentation()
+            expect(hidden.panel?.isVisible == true && hidden.showsSystemFeedback, "explicit openings remain visible in hidden mode")
+            hidden.expanded = false
+            hidden.captureControls = CaptureOptions()
+            hidden.refreshPresentation()
+            expect(hidden.panel?.isVisible == true, "capture controls remain visible until dismissed")
+            hidden.captureControls = nil
+            hidden.dragPlaceholder = true
+            hidden.refreshPresentation()
+            expect(hidden.panel?.isVisible == true, "an explicit file drag can still reveal its destination")
+            hidden.dragPlaceholder = false
+            hidden.refreshPresentation()
+            expect(hidden.panel?.isVisible == false, "ending the interaction hides the window again")
+        }
+        UserDefaults.standard.hides = false
         let physical = Service()
         physical.expanded = false
         physical.compactActivityIsVisible = true
