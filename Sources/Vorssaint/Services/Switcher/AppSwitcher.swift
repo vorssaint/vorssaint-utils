@@ -1727,6 +1727,7 @@ final class AppSwitcher: ObservableObject {
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: usesWindowRow ? items.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: items),
+            maximumWindowCount: usesWindowRow ? 1 : appGroups.map(\.windowCount).max() ?? 1,
             screenVisibleFrame: screen.visibleFrame,
             showsShortcutHints: showsShortcutHints,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
@@ -1740,6 +1741,7 @@ final class AppSwitcher: ObservableObject {
         iconRowLayout = SwitcherIconRowLayout.compute(
             appCount: usesWindowRow ? windows.count : appGroups.count,
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
+            maximumWindowCount: usesWindowRow ? 1 : appGroups.map(\.windowCount).max() ?? 1,
             screenVisibleFrame: placementVisibleFrame,
             showsShortcutHints: showsShortcutHints,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth

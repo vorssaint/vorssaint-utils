@@ -12213,16 +12213,42 @@ struct MetricsTests {
         expect(groupedIconLayout.appRowContentWidth
                >= CGFloat(appGroups.count) * SwitcherIconRowLayout.appTileWidth,
                "App Switcher icon-row layout uses full app tile width")
-        // The viewport used to be sized to hold every card of the selected app,
-        // which is what made the panel widen and re-centre on each step (#783).
-        // It now stops at the icon row and scrolls past it, while still holding
-        // one whole card whatever the row is doing.
-        expect(groupedIconLayout.previewContentWidth >= SwitcherIconRowLayout.previewCardWidth
-               && groupedIconLayout.previewSurfaceWidth
-                    <= max(groupedIconLayout.appRowSurfaceWidth,
-                           SwitcherIconRowLayout.previewCardWidth
-                               + SwitcherIconRowLayout.previewPanelPadding * 2),
-               "App Switcher icon-row preview stays inside the icon row instead of widening the panel")
+        expect(groupedIconLayout.previewFitsWithoutScrolling(cardCount: 2),
+               "App Switcher shows a pair of windows even with a short icon row")
+        do {
+            let savedPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+            defer {
+                if let savedPreviewSize {
+                    UserDefaults.standard.set(savedPreviewSize, forKey: DefaultsKey.previewSize)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+                }
+            }
+            for size in Defaults.allowedPreviewSizes {
+                UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                for width in [640.0, 800.0, 1440.0] {
+                    for hints in [false, true] {
+                        let frame = CGRect(x: 0, y: 0, width: width, height: 900)
+                        let pair = SwitcherIconRowLayout.compute(appCount: 2, selectedWindowCount: 2,
+                            maximumWindowCount: 8, screenVisibleFrame: frame, showsShortcutHints: hints)
+                        let single = SwitcherIconRowLayout.compute(appCount: 2, selectedWindowCount: 1,
+                            maximumWindowCount: 8, screenVisibleFrame: frame, showsShortcutHints: hints)
+                        let many = SwitcherIconRowLayout.compute(appCount: 2, selectedWindowCount: 8,
+                            maximumWindowCount: 8, screenVisibleFrame: frame, showsShortcutHints: hints)
+                        expect(pair.previewFitsWithoutScrolling(cardCount: 2),
+                               "App Switcher keeps two windows visible at every preview size")
+                        expect(pair.panelSize.width == single.panelSize.width
+                               && pair.panelSize.width == many.panelSize.width,
+                               "App Switcher keeps short icon rows stationary when changing apps")
+                        expect(pair.panelSize.width <= width * 0.96
+                               && !many.previewFitsWithoutScrolling(cardCount: 8),
+                               "App Switcher bounds multi-window previews to the display and keeps overflow scrollable")
+                        expect(single.previewContentWidth == SwitcherIconRowLayout.previewCardWidth,
+                               "App Switcher keeps single-window surfaces compact within the stable panel")
+                    }
+                }
+            }
+        }
         // A capped viewport can hold fewer cards than it looks like, because the
         // row puts spacing between them. Counting by card width alone reports a
         // fit while the last card is still clipped, and the scroll view then

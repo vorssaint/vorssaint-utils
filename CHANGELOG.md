@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+App Switcher makes multiple windows easier to see with large icons.
+
+### Fixed
+- App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
+
 ## [3.4.0-beta.2.1] - 2026-09-16
 
 ### Summary
