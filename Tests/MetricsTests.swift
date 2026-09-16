@@ -2800,6 +2800,29 @@ struct MetricsTests {
                                                               windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
 
+        // A visible sibling in Accessibility must not hide this app's other
+        // desktop. The same acceptance rule feeds Dock Preview and Switcher.
+        for visibleSpaces: Set<UInt64> in [[1], [2]] {
+            let hidden = SpaceHopSupport.isParkedOnHiddenSpace(
+                windowSpaces: [visibleSpaces.contains(1) ? 2 : 1], visibleSpaces: visibleSpaces)
+            expect(SwitcherSupport.keepsUnmatchedWindow(
+                isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: false,
+                isExcludedFromWindowCycle: false),
+                   "an ordinary window on the other desktop survives a partial Accessibility list in either direction")
+            expect(!SwitcherSupport.keepsUnmatchedWindow(
+                isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: false,
+                isExcludedFromWindowCycle: true),
+                   "an off-desktop helper excluded from window cycling stays out")
+        }
+        expect(!SwitcherSupport.keepsUnmatchedWindow(
+            isOnHiddenSpace: false, isConfirmedHiddenAppWindow: false,
+            isExcludedFromWindowCycle: false),
+               "an unmatched surface without a hidden desktop or hidden app remains excluded")
+        expect(SwitcherSupport.keepsUnmatchedWindow(
+            isOnHiddenSpace: false, isConfirmedHiddenAppWindow: true,
+            isExcludedFromWindowCycle: false),
+               "a confirmed hidden app window remains available")
+
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 
         expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,
@@ -3511,6 +3534,21 @@ struct MetricsTests {
                "hidden preview cards cannot close a window")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
+        expect(registeredDefaults[DefaultsKey.dockPreviewCurrentSpaceOnly] as? Bool == false,
+               "Dock Preview shows all desktops by default")
+        for currentDesktopOnly in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                switch key {
+                case DefaultsKey.dockPreviewCurrentSpaceOnly: return currentDesktopOnly
+                case DefaultsKey.switcherCurrentSpaceOnly: return !currentDesktopOnly
+                default: return nil
+                }
+            }
+            let restored = SettingsBackupSupport.sanitizedSettings(from: backup)
+            expect(restored?[DefaultsKey.dockPreviewCurrentSpaceOnly] as? Bool == currentDesktopOnly
+                   && restored?[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == !currentDesktopOnly,
+                   "backup preserves independent Dock Preview and Switcher desktop choices")
+        }
         expect(registeredDefaults[DefaultsKey.dockPreviewBackgroundOpacity] as? Double == 1.0,
                "the Dock Preview panel starts fully solid")
         expect(registeredDefaults[DefaultsKey.dockPreviewQuitAppOnClose] as? Bool == false,
@@ -13962,6 +14000,10 @@ struct MetricsTests {
             expect(!strings.dockPreviewBackgroundOpacityCaption.isEmpty
                    && !strings.dockPreviewBackgroundOpacityCaption.contains("—"),
                    "\(prefix) Dock Preview background caption is present without em dash")
+            expect(!strings.dockPreviewCurrentSpaceOnlyCaption.isEmpty
+                   && !strings.dockPreviewCurrentSpaceOnlyCaption.contains("—")
+                   && strings.dockPreviewCurrentSpaceOnlyCaption != strings.switcherCurrentSpaceOnlyCaption,
+                   "\(prefix) Dock Preview explains its own desktop scope")
             expect(!strings.dockPreviewOpenDelay.isEmpty
                    && !strings.dockPreviewOpenDelay.contains("—"),
                    "\(prefix) Dock Preview open delay title is present without em dash")

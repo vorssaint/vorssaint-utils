@@ -235,6 +235,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock’tan pencereleri önizle",
         dockPreviewEnableCaption: "Pencerelerini görmek için Dock’taki açık bir uygulamanın üzerine gel, ardından açmak istediğin pencereye tıkla.",
+        dockPreviewCurrentSpaceOnlyCaption: "Kapalıyken tüm masaüstlerindeki pencereleri gösterir. Başka bir masaüstündeki pencereyi seçtiğinizde o masaüstüne geçersiniz.",
         dockPreviewBackgroundOpacity: "Panel arka planı",
         dockPreviewBackgroundOpacityCaption: "Panelin arkasındakileri daha çok görmek için azalt.",
         dockPreviewOpenDelay: "Açılma gecikmesi",

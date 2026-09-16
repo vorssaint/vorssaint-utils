@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Summary
+Dock Preview gains its own desktop filter and dismisses cleanly when switching desktops. Windows on other desktops remain available in Dock Preview and App Switcher.
+
+### Added
+- Dock Preview can show only the current desktop, with windows from all desktops shown by default.
+
+### Fixed
+- Dock Preview no longer flashes an empty panel when switching desktops.
+- Dock Preview and App Switcher keep windows on other desktops available when the same app also has a window on the current desktop.
+
 ## [3.4.0-beta.2] - 2026-09-16
 
 ### Summary

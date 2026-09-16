@@ -851,6 +851,14 @@ enum SwitcherSupport {
         appIsHidden && !windowSpaces.isEmpty
     }
 
+    /// A partial Accessibility list cannot veto windows on another desktop.
+    /// Still reject unmatched visible surfaces and helpers excluded from cycling.
+    static func keepsUnmatchedWindow(isOnHiddenSpace: Bool,
+                                     isConfirmedHiddenAppWindow: Bool,
+                                     isExcludedFromWindowCycle: Bool) -> Bool {
+        !isExcludedFromWindowCycle && (isOnHiddenSpace || isConfirmedHiddenAppWindow)
+    }
+
     /// Whether a WindowServer surface whose owner never answered Accessibility
     /// is a stale leftover instead of a real window (issue #807). The ghost
     /// veto normally comes from the Accessibility cross-check, but a busy or

@@ -236,6 +236,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "在 Dock 中預覽視窗",
         dockPreviewEnableCaption: "將指標停在 Dock 中已開啟的 App 上查看視窗，然後點按要開啟的視窗。",
+        dockPreviewCurrentSpaceOnlyCaption: "關閉時顯示所有桌面的視窗。選擇其他桌面上的視窗時，會切換至該桌面。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "調低後可以看到更多面板後面的內容。",
         dockPreviewOpenDelay: "開啟延遲",

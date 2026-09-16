@@ -236,6 +236,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Показывать окна из Dock",
         dockPreviewEnableCaption: "Наведите указатель на открытое приложение в Dock, чтобы увидеть его окна, затем нажмите нужное.",
+        dockPreviewCurrentSpaceOnlyCaption: "Когда выключено, показываются окна со всех рабочих столов. Выбор окна на другом рабочем столе переключает вас на него.",
         dockPreviewBackgroundOpacity: "Фон панели",
         dockPreviewBackgroundOpacityCaption: "Уменьшите, чтобы видеть больше того, что находится за панелью.",
         dockPreviewOpenDelay: "Задержка открытия",

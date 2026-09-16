@@ -235,6 +235,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Prévisualiser les fenêtres dans le Dock",
         dockPreviewEnableCaption: "Survolez une app ouverte dans le Dock pour voir ses fenêtres, puis cliquez sur celle à ouvrir.",
+        dockPreviewCurrentSpaceOnlyCaption: "Lorsque cette option est désactivée, les fenêtres de tous les bureaux sont affichées. Choisir une fenêtre sur un autre bureau vous y emmène.",
         dockPreviewBackgroundOpacity: "Fond du panneau",
         dockPreviewBackgroundOpacityCaption: "Baissez-le pour voir davantage ce qui se trouve derrière le panneau.",
         dockPreviewOpenDelay: "Délai d’ouverture",

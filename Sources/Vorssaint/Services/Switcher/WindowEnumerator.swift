@@ -172,15 +172,19 @@ enum WindowEnumerator {
                            isCancelled: isCancelled)
     }
 
-    static func listWindows(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
-        // The current-desktop choice belongs to the switcher alone (issue
-        // #337): its caption promises it trims the switcher list, nothing
-        // else. Dock previews keep showing windows from every desktop, the
-        // behavior issue #339 made first-class; honoring the toggle here
-        // would leave an empty preview with no setting anywhere near the
-        // Dock to explain it.
-        // An entry for the app itself belongs to the switcher alone for the
-        // same reason: a Dock preview is opened by pointing at one app's icon,
+    /// Dock Preview has its own scope; Dock click actions keep the default
+    /// all-desktop list and never inherit either preview or switcher settings.
+    static func listWindowsForDockPreview(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
+        listWindows(for: pid, maximumCount: maximumCount,
+                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+                    marksHiddenSpaces: true)
+    }
+
+    static func listWindows(for pid: pid_t, maximumCount: Int = 12,
+                            currentSpaceOnly: Bool = false,
+                            marksHiddenSpaces: Bool = false) -> [SwitcherItem] {
+        // An entry for the app itself belongs to the switcher alone. A
+        // Dock preview is opened by pointing at one app's icon,
         // so a card naming that app says nothing the pointer did not, and
         // picking it would only repeat the Dock click.
         listWindows(filterPID: pid,
@@ -191,8 +195,8 @@ enum WindowEnumerator {
                     minimizedPlacement: .normal,
                     showFullscreenWindows: true,
                     preservingGroupedWindows: false,
-                    currentSpaceOnly: false,
-                    marksHiddenSpaces: false,
+                    currentSpaceOnly: currentSpaceOnly,
+                    marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
                     snapshot: snapshot()).items
     }
 
@@ -302,8 +306,8 @@ enum WindowEnumerator {
 
         // Accessibility cannot describe windows parked on a Space that is not
         // visible, so the ghost veto below needs the window server as a second
-        // witness. A stale surface can retain an old Space assignment, so
-        // membership alone is not proof that it is still a real window.
+        // witness. Combine membership with window-cycle eligibility below
+        // rather than treating a partial Accessibility list as complete.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
         var topologyResolved = false
@@ -386,22 +390,15 @@ enum WindowEnumerator {
                     windowSpaces: spaces(of: CGWindowID(windowID)))
             let axSnapshot = accessibilityWindows[windowOwnerPID]
             let axWindow = axSnapshot?.byID[CGWindowID(windowID)]
-            // A stale dialog can keep an old ordinary-Space tag indefinitely.
-            // Trust an unmatched hidden surface only when Accessibility could
-            // not describe any window for that owner, or when the window
-            // server puts this exact surface on a native fullscreen Space.
+            // Accessibility may list only the owner's visible-Space windows.
+            // A sibling in that list says nothing about this window's existence.
             let hiddenSpaceSurfaceIsWitnessed = isOnHiddenSpace(CGWindowID(windowID))
-                && ((axSnapshot?.ordered.isEmpty ?? true)
-                    || isOnFullscreenSpace(CGWindowID(windowID)))
             if axSnapshot != nil, axWindow == nil {
-                // WindowServer kept a surface Accessibility does not vouch for:
-                // a stale leftover from a closed tab or window. Windows parked
-                // on a hidden Space and confirmed hidden-app windows are real,
-                // so they survive this veto.
-                if (!hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow)
-                    || SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)) {
-                    continue
-                }
+                guard SwitcherSupport.keepsUnmatchedWindow(
+                    isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
+                    isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
+                    isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))
+                ) else { continue }
             } else if axSnapshot == nil,
                       SwitcherSupport.unwitnessedSurfaceIsLeftover(
                         isOnScreen: isOnScreen,

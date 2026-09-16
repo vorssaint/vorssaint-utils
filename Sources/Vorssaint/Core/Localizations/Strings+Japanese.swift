@@ -235,6 +235,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
         dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねてウインドウを確認し、開きたいウインドウをクリックします。",
+        dockPreviewCurrentSpaceOnlyCaption: "オフにすると、すべてのデスクトップのウインドウを表示します。別のデスクトップのウインドウを選ぶと、そのデスクトップに移動します。",
         dockPreviewBackgroundOpacity: "パネルの背景",
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
         dockPreviewOpenDelay: "表示までの待ち時間",
