@@ -194,16 +194,51 @@ private struct ExtraBrightnessPanelToggle: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ExtraBrightnessService.shared
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.extraBrightnessLevel) private var level = 100
+
+    private var levelBinding: Binding<Double> {
+        Binding(
+            get: { Double(level) },
+            set: { newValue in
+                level = Int(newValue)
+                service.levelDidChange()
+            }
+        )
+    }
+
+    private var multiplierText: String {
+        let mult = min(2.0, max(1.0, 1.0 + (Double(level) / 100.0)))
+        return String(format: "%.2fx", locale: Locale(identifier: "en_US_POSIX"), mult)
+    }
 
     var body: some View {
-        Toggle(l10n.s.extraBrightnessName, isOn: $enabled)
-            .font(.system(size: 10.5, weight: .medium))
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .disabled(!service.supported && !enabled)
-            .help(service.supported ? l10n.s.extraBrightnessCaption : l10n.s.extraBrightnessUnsupported)
-            .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
-            .onAppear { service.syncWithPreferences() }
+        HStack(spacing: 8) {
+            Text(l10n.s.extraBrightnessName)
+                .font(.system(size: 10.5, weight: .medium))
+
+            Spacer(minLength: 4)
+
+            if enabled && service.supported {
+                Slider(value: levelBinding, in: 10...100, step: 5)
+                    .tint(.orange)
+                    .controlSize(.mini)
+                    .frame(width: 80)
+
+                Text(multiplierText)
+                    .font(.system(size: 9.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.orange)
+                    .frame(width: 36, alignment: .trailing)
+            }
+
+            Toggle("", isOn: $enabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .disabled(!service.supported && !enabled)
+                .help(service.supported ? l10n.s.extraBrightnessCaption : l10n.s.extraBrightnessUnsupported)
+                .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
+                .onAppear { service.syncWithPreferences() }
+        }
     }
 }
 
