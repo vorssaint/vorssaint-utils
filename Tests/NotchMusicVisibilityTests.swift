@@ -33,13 +33,16 @@ enum NotchMusicVisibilityTests {
     struct CaptureControls {
         struct Tool { let capturesAudio = false }
         let selectedTool = Tool()
+        var onSelectionProgressChange: ((Bool) -> Void)?
     }
     enum NotchContentTransition { case none, dismiss }
     struct Host { func containsHover(_ point: CGPoint) -> Bool { false } }
     struct Panel {
         var acceptsKeyFocus = false
+        var level = 0
         func resignKey() {}
     }
+    enum NotchPanel { static let normalLevel = 0 }
     enum NSEvent { static let mouseLocation = CGPoint.zero }
 
     class State {
@@ -53,6 +56,11 @@ enum NotchMusicVisibilityTests {
         var selectedMetric: Metric?
         var modules: [NotchModule] = []
         var captureControls: CaptureControls?
+        var captureControlsCollapsed = false
+        var captureSelectionInProgress = false
+        var captureControlsWork: DispatchWorkItem?
+        var captureControlsSubscription: Bool?
+        var captureControlsCancel: (() -> Void)?
         var notice: NotchNotice?
         var dragPlaceholder = false
         var hasTimerActivity = false
@@ -71,6 +79,8 @@ enum NotchMusicVisibilityTests {
                                      safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
         var expandedSize: CGSize { geometry.expanded }
         func syncMenuSpaceMonitoring() {}
+        func removeCaptureControlsClickThrough() {}
+        func refreshPresentation() {}
         func removeEventMonitors() {}
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change() }
     }
@@ -149,6 +159,35 @@ enum NotchMusicVisibilityTests {
                        && (service.surfaceSize == closed) == !playing,
                        "re-enabling music detects resume while paused playback occupies no wings")
             }
+            defaults.set(true, forKey: DefaultsKey.notchOpenOnHover)
+            defaults.set(true, forKey: DefaultsKey.notchHideUntilHover)
+            service.syncVisibleConsumers()
+            expect(!reader.running && service.hiddenUntilHover,
+                   "hidden mode stops the resting music reader even with cached playing metadata")
+            service.selected = .music
+            service.expanded = true
+            service.syncVisibleConsumers()
+            expect(reader.running, "revealing hidden music controls starts their reader on demand")
+            service.collapse()
+            expect(!reader.running && service.hiddenUntilHover,
+                   "closing hidden music controls releases their reader again")
+            // The capture presenter sets this state and synchronizes consumers;
+            // cancellation below executes the production teardown method.
+            service.captureControls = CaptureControls()
+            service.syncVisibleConsumers()
+            expect(reader.running, "visible capture controls can retain enabled resting music")
+            service.endCaptureControls()
+            expect(service.captureControls == nil && service.hiddenUntilHover && !reader.running,
+                   "canceling capture returns hidden mode to rest without retaining the music reader")
+            service.endCaptureControls()
+            expect(!reader.running, "a repeated capture cleanup cannot restart hidden music")
+            defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
+            service.syncVisibleConsumers()
+            expect(reader.running, "returning to a visible mode resumes the resting music reader")
+            service.captureControls = CaptureControls()
+            service.syncVisibleConsumers()
+            service.endCaptureControls()
+            expect(reader.running, "ending capture in a visible mode preserves enabled resting music")
             defaults.set(NotchIdleContent.battery.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
             service.syncVisibleConsumers()

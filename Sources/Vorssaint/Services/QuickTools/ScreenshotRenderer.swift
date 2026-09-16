@@ -289,6 +289,81 @@ enum ScreenshotRenderer {
                           color: CGColor(gray: 0, alpha: 0.38))
     }
 
+    // MARK: - Watermark
+
+    /// Draws the mark over the finished annotations, so a redaction or an
+    /// arrow can never erase it, and inside the capture, so a backdrop's
+    /// margin stays clean. The picture of an image mark is loaded by the
+    /// editor; nil draws nothing, the way a vanished backdrop file does.
+    static func drawWatermark(_ style: ScreenshotSupport.WatermarkStyle,
+                              image: CGImage?,
+                              in context: CGContext,
+                              imageSize: CGSize,
+                              scale: CGFloat,
+                              shadowsEnabled: Bool,
+                              cornerRadius: CGFloat = 0) {
+        let style = style.sanitized()
+        let contentSize: CGSize
+        let draw: (CGRect) -> Void
+        switch style.kind {
+        case .none:
+            return
+        case .text:
+            let font = NSFont.systemFont(
+                ofSize: ScreenshotSupport.watermarkFontSize(for: imageSize,
+                                                            factor: CGFloat(style.size)),
+                weight: .semibold)
+            let color = ScreenshotSupport.ColorID(rawValue: style.color) ?? .white
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: nsColor(color),
+            ]
+            let measured = style.text.size(withAttributes: attributes)
+            contentSize = CGSize(width: ceil(measured.width), height: ceil(measured.height))
+            draw = { rect in
+                // NSAttributedString draws in an unflipped space; flip locally.
+                let previous = NSGraphicsContext.current
+                NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: true)
+                style.text.draw(at: rect.origin, withAttributes: attributes)
+                NSGraphicsContext.current = previous
+            }
+        case .image:
+            guard let image, image.width > 0, image.height > 0 else { return }
+            let width = ScreenshotSupport.watermarkImageWidth(for: imageSize,
+                                                              factor: CGFloat(style.size))
+            contentSize = CGSize(width: width,
+                                 height: width * CGFloat(image.height) / CGFloat(image.width))
+            draw = { rect in
+                // CGContext.draw expects an unflipped space; flip around the
+                // mark's center, which is the origin by now.
+                context.scaleBy(x: 1, y: -1)
+                context.interpolationQuality = .high
+                context.draw(image, in: rect)
+            }
+        }
+        guard let placement = ScreenshotSupport.watermarkPlacement(contentSize: contentSize,
+                                                                   rotation: style.rotation,
+                                                                   anchor: style.anchor,
+                                                                   in: imageSize,
+                                                                   cornerRadius: cornerRadius)
+        else { return }
+
+        context.saveGState()
+        // One layer for the whole mark: its opacity and shadow then apply to
+        // the composite rather than to every glyph on its own.
+        applyShadow(context, scale: scale, enabled: shadowsEnabled)
+        context.setAlpha(CGFloat(style.opacity))
+        context.beginTransparencyLayer(auxiliaryInfo: nil)
+        context.translateBy(x: placement.center.x, y: placement.center.y)
+        // The context is flipped, where a positive angle turns clockwise.
+        context.rotate(by: -CGFloat(style.rotation) * .pi / 180)
+        context.scaleBy(x: placement.fit, y: placement.fit)
+        draw(CGRect(x: -contentSize.width / 2, y: -contentSize.height / 2,
+                    width: contentSize.width, height: contentSize.height))
+        context.endTransparencyLayer()
+        context.restoreGState()
+    }
+
     // MARK: - Pixelation source
 
     /// A low-resolution mosaic with per-block color variation.
@@ -359,26 +434,31 @@ enum ScreenshotRenderer {
         let scale: CGFloat
     }
 
-    /// Flattens the base image and annotations, rounds the card's corners,
-    /// optionally composes the padded backdrop fill behind it, optionally
-    /// downscaled to 1x.
+    /// Flattens the base image, annotations and watermark, rounds the card's
+    /// corners, optionally composes the padded backdrop fill behind it,
+    /// optionally downscaled to 1x.
     static func renderExport(baseImage: CGImage,
                              annotations: [ScreenshotSupport.Annotation],
                              pixelated: CGImage?,
                              scale: CGFloat,
                              annotationShadowsEnabled: Bool,
+                             watermark: ScreenshotSupport.WatermarkStyle,
+                             watermarkImage: CGImage?,
                              style: ScreenshotSupport.BackdropStyle,
                              fill: BackdropFill,
                              downscaleTo1x: Bool) -> Export? {
         let imageSize = CGSize(width: baseImage.width, height: baseImage.height)
+        let corner = ScreenshotSupport.cardCornerRadius(for: imageSize,
+                                                        factor: style.cornerRadius)
         guard let flattened = renderFlattened(baseImage: baseImage,
                                               annotations: annotations,
                                               pixelated: pixelated,
                                               scale: scale,
-                                              annotationShadowsEnabled: annotationShadowsEnabled)
+                                              annotationShadowsEnabled: annotationShadowsEnabled,
+                                              watermark: watermark,
+                                              watermarkImage: watermarkImage,
+                                              cornerRadius: corner)
         else { return nil }
-        let corner = ScreenshotSupport.cardCornerRadius(for: imageSize,
-                                                        factor: style.cornerRadius)
 
         var result = flattened
         if case .none = fill {
@@ -426,7 +506,10 @@ enum ScreenshotRenderer {
                                         annotations: [ScreenshotSupport.Annotation],
                                         pixelated: CGImage?,
                                         scale: CGFloat,
-                                        annotationShadowsEnabled: Bool) -> CGImage? {
+                                        annotationShadowsEnabled: Bool,
+                                        watermark: ScreenshotSupport.WatermarkStyle,
+                                        watermarkImage: CGImage?,
+                                        cornerRadius: CGFloat) -> CGImage? {
         let width = baseImage.width
         let height = baseImage.height
         guard let context = CGContext(data: nil,
@@ -447,6 +530,13 @@ enum ScreenshotRenderer {
                         imageSize: CGSize(width: width, height: height),
                         scale: scale,
                         annotationShadowsEnabled: annotationShadowsEnabled)
+        drawWatermark(watermark,
+                      image: watermarkImage,
+                      in: context,
+                      imageSize: CGSize(width: width, height: height),
+                      scale: scale,
+                      shadowsEnabled: annotationShadowsEnabled,
+                      cornerRadius: cornerRadius)
         return context.makeImage()
     }
 

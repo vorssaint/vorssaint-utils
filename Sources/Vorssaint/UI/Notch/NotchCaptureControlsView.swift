@@ -4,7 +4,7 @@
 import SwiftUI
 
 private enum NotchCaptureControl: Hashable {
-    case close, tool(ScreenCaptureTool), systemAudio, microphone
+    case collapse, close, tool(ScreenCaptureTool), systemAudio, microphone
 }
 
 /// The same selection model drives keyboard shortcuts and the screen overlay.
@@ -21,6 +21,9 @@ struct NotchCaptureControlsView: View {
                 Text(FeatureStrings.screenshot(l10n.language).screenCaptureTitle)
                     .font(.system(size: 12, weight: .semibold))
                 Spacer()
+                NotchIconButton(symbol: "chevron.up", title: FeatureStrings.notch(l10n.language).collapse,
+                                action: service.collapseCaptureControls)
+                    .focused($focusedControl, equals: .collapse)
                 NotchIconButton(symbol: "xmark", title: l10n.s.menuClose, action: service.cancelCaptureControls)
                     .focused($focusedControl, equals: .close)
             }
@@ -37,7 +40,10 @@ struct NotchCaptureControlsView: View {
             }
         }
         .foregroundStyle(.white)
-        .onChange(of: focusedControl) { options.hasFocusedControl = focusedControl != nil }
+        .onChange(of: focusedControl) {
+            options.hasFocusedControl = focusedControl != nil
+            service.scheduleCaptureControlsCollapse()
+        }
         .onDisappear { options.hasFocusedControl = false }
     }
 }

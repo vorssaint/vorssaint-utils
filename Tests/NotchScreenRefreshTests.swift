@@ -42,6 +42,7 @@ enum NotchScreenRefreshContract {
         var running = true
         var suspended = false
         var expanded = false
+        var hiddenUntilHover = false
         var captureControls: Bool?
         var idleContent = NotchIdleContent.music
         var compactActivity: Bool?
@@ -105,9 +106,16 @@ enum NotchScreenRefreshContract {
                "missing Accessibility does not leave a timer polling unavailable menu geometry")
         virtual.accessibilityGranted = true
         virtual.syncMenuSpaceMonitoring()
-        let timer = virtual.menuSpaceTimer
+        var timer = virtual.menuSpaceTimer
         expect(timer != nil && virtual.reads == 1,
                "granting Accessibility starts the existing menu reader without restarting the app")
+        virtual.hiddenUntilHover = true
+        virtual.syncMenuSpaceMonitoring()
+        expect(virtual.menuSpaceTimer == nil && timer?.invalidated == true,
+               "hidden mode stops menu polling while no window occupies the menu bar")
+        virtual.hiddenUntilHover = false
+        virtual.syncMenuSpaceMonitoring()
+        timer = virtual.menuSpaceTimer
         virtual.geometry.compactSideRoom = 64
         virtual.accessibilityGranted = false
         virtual.syncMenuSpaceMonitoring()
@@ -117,7 +125,7 @@ enum NotchScreenRefreshContract {
         virtual.accessibilityGranted = true
         virtual.running = false
         virtual.syncMenuSpaceMonitoring()
-        expect(virtual.menuSpaceTimer == nil && virtual.reads == 1,
+        expect(virtual.menuSpaceTimer == nil && virtual.reads == 2,
                "permission alone cannot start menu polling for a disabled island")
 
         let simulated = Service()
