@@ -228,6 +228,7 @@ public final class XDRBoostService: ObservableObject {
         private var metalLayer: CAMetalLayer?
         public private(set) var currentMultiplier: Double = 1.0
         private var fadeTimer: Timer?
+        private var heartbeatTimer: Timer?
         public let displayID: CGDirectDisplayID
 
         public init?(displayID: CGDirectDisplayID, initialMultiplier: Double = 1.0, animated: Bool = true) {
@@ -240,20 +241,25 @@ public final class XDRBoostService: ObservableObject {
             self.device = dev
             self.commandQueue = queue
 
-            let frame = NSRect(x: screen.frame.minX, y: screen.frame.minY, width: 1, height: 1)
+            let frame = NSRect(x: screen.frame.maxX - 1, y: screen.frame.minY, width: 1, height: 1)
             let win = NSWindow(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
+            win.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
             win.isOpaque = false
             win.backgroundColor = .clear
             win.hasShadow = false
             win.ignoresMouseEvents = true
-            win.level = .normal
-            win.collectionBehavior = [.canJoinAllSpaces, .stationary]
+            win.isReleasedWhenClosed = false
+            win.animationBehavior = .none
+            win.sharingType = .none
+            win.collectionBehavior = [.ignoresCycle, .fullScreenAuxiliary, .canJoinAllApplications, .canJoinAllSpaces, .stationary]
 
             let metal = CAMetalLayer()
             metal.device = dev
             metal.pixelFormat = .rgba16Float
             metal.wantsExtendedDynamicRangeContent = true
             metal.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)
+            metal.drawableSize = CGSize(width: 1, height: 1)
+            metal.frame = CGRect(x: 0, y: 0, width: 1, height: 1)
 
             let view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
             view.wantsLayer = true
@@ -262,7 +268,7 @@ public final class XDRBoostService: ObservableObject {
 
             self.window = win
             self.metalLayer = metal
-            win.orderFront(nil)
+            win.orderFrontRegardless()
 
             let clamped = min(XDRBoostService.maxBoost, max(XDRBoostService.minBoost, initialMultiplier))
             if animated && clamped > 1.0 {
@@ -274,6 +280,7 @@ public final class XDRBoostService: ObservableObject {
                 renderPrimer(multiplier: clamped)
                 XDRBoostService.applyGammaRamp(boost: clamped, for: displayID)
             }
+            startHeartbeat()
         }
 
         public func renderPrimer(multiplier: Double = 2.0) {
@@ -285,7 +292,7 @@ public final class XDRBoostService: ObservableObject {
             passDesc.colorAttachments[0].texture = drawable.texture
             passDesc.colorAttachments[0].loadAction = .clear
             let val = Float(multiplier)
-            passDesc.colorAttachments[0].clearColor = MTLClearColor(red: Double(val), green: Double(val), blue: Double(val), alpha: 0.01)
+            passDesc.colorAttachments[0].clearColor = MTLClearColor(red: Double(val), green: Double(val), blue: Double(val), alpha: 1.0)
             passDesc.colorAttachments[0].storeAction = .store
 
             guard let buffer = queue.makeCommandBuffer(),
@@ -294,6 +301,40 @@ public final class XDRBoostService: ObservableObject {
             buffer.present(drawable)
             buffer.commit()
             self.currentMultiplier = multiplier
+        }
+
+        private func startHeartbeat() {
+            guard heartbeatTimer == nil else { return }
+            let timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.presentHeartbeat()
+                }
+            }
+            timer.tolerance = 0.05
+            RunLoop.main.add(timer, forMode: .common)
+            self.heartbeatTimer = timer
+        }
+
+        private func stopHeartbeat() {
+            heartbeatTimer?.invalidate()
+            heartbeatTimer = nil
+        }
+
+        private func presentHeartbeat() {
+            guard let metal = metalLayer,
+                  let drawable = metal.nextDrawable(),
+                  let queue = commandQueue else { return }
+            let passDesc = MTLRenderPassDescriptor()
+            passDesc.colorAttachments[0].texture = drawable.texture
+            passDesc.colorAttachments[0].loadAction = .clear
+            passDesc.colorAttachments[0].storeAction = .store
+            let val = Float(currentMultiplier)
+            passDesc.colorAttachments[0].clearColor = MTLClearColor(red: Double(val), green: Double(val), blue: Double(val), alpha: 1.0)
+            guard let buffer = queue.makeCommandBuffer(),
+                  let encoder = buffer.makeRenderCommandEncoder(descriptor: passDesc) else { return }
+            encoder.endEncoding()
+            buffer.present(drawable)
+            buffer.commit()
         }
 
         public func fadeIn(to targetMultiplier: Double, duration: TimeInterval = 0.25, completion: (() -> Void)? = nil) {
@@ -343,6 +384,7 @@ public final class XDRBoostService: ObservableObject {
         }
 
         public func pause() {
+            stopHeartbeat()
             fadeTimer?.invalidate()
             fadeTimer = nil
         }
@@ -350,9 +392,11 @@ public final class XDRBoostService: ObservableObject {
         public func resume(multiplier: Double) {
             renderPrimer(multiplier: multiplier)
             XDRBoostService.applyGammaRamp(boost: multiplier, for: displayID)
+            startHeartbeat()
         }
 
         public func stop() {
+            stopHeartbeat()
             fadeTimer?.invalidate()
             fadeTimer = nil
             window?.orderOut(nil)

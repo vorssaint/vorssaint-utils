@@ -80,6 +80,13 @@ final class ExtraBrightnessService: ObservableObject {
     /// Re-applies a level change immediately instead of waiting for the poll.
     /// The slider is user feedback, so it bypasses the smoothing ramp.
     func levelDidChange() {
+        if let id = overlayDisplayID ?? (Self.builtInXDRScreen().flatMap { Self.displayID(of: $0) }) {
+            let level = Double(UserDefaults.standard.integer(forKey: DefaultsKey.extraBrightnessLevel)) / 100.0
+            let targetBoost = min(XDRBoostService.maxBoost, max(XDRBoostService.minBoost, 1.0 + level * 1.0))
+            Task { @MainActor in
+                XDRBoostService.shared.setMultiplier(targetBoost, for: id)
+            }
+        }
         guard pollTimer != nil else { return }
         renderIfNeeded(immediate: true)
     }
@@ -137,6 +144,13 @@ final class ExtraBrightnessService: ObservableObject {
     private func start() {
         guard pollTimer == nil else { return }
         guard let screen = Self.builtInXDRScreen() else { return }
+        if let id = Self.displayID(of: screen) {
+            let level = Double(UserDefaults.standard.integer(forKey: DefaultsKey.extraBrightnessLevel)) / 100.0
+            let targetBoost = min(XDRBoostService.maxBoost, max(XDRBoostService.minBoost, 1.0 + level * 1.0))
+            Task { @MainActor in
+                XDRBoostService.shared.setEDRBoost(displayID: id, enabled: true, multiplier: targetBoost)
+            }
+        }
         showOverlay(on: screen)
         installObserver()
         // Four presents a second: the headroom grant follows recent extended
@@ -160,6 +174,11 @@ final class ExtraBrightnessService: ObservableObject {
 
     private func stop(preservingObservers: Bool) {
         guard pollTimer != nil || overlayWindow != nil || screenObserver != nil else { return }
+        if let overlayDisplayID {
+            Task { @MainActor in
+                XDRBoostService.shared.setEDRBoost(displayID: overlayDisplayID, enabled: false)
+            }
+        }
         pollTimer?.invalidate()
         pollTimer = nil
         if !preservingObservers { removeObserver() }
