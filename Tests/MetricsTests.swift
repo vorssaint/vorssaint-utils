@@ -2800,28 +2800,42 @@ struct MetricsTests {
                                                               windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
 
-        // A visible sibling in Accessibility must not hide this app's other
-        // desktop. The same acceptance rule feeds Dock Preview and Switcher.
+        // Real parked windows remain ordered in; a dismissed surface can
+        // retain the same desktop assignment but is explicitly ordered out.
         for visibleSpaces: Set<UInt64> in [[1], [2]] {
             let hidden = SpaceHopSupport.isParkedOnHiddenSpace(
                 windowSpaces: [visibleSpaces.contains(1) ? 2 : 1], visibleSpaces: visibleSpaces)
-            expect(SwitcherSupport.keepsUnmatchedWindow(
-                isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: false,
-                isExcludedFromWindowCycle: false),
-                   "an ordinary window on the other desktop survives a partial Accessibility list in either direction")
-            expect(!SwitcherSupport.keepsUnmatchedWindow(
-                isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: false,
-                isExcludedFromWindowCycle: true),
-                   "an off-desktop helper excluded from window cycling stays out")
+            for ordered in [true, false] {
+                for fallback in [true, false] {
+                    expect(SwitcherSupport.keepsUnmatchedWindow(
+                        isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: false,
+                        isExcludedFromWindowCycle: false, isOrderedIn: ordered,
+                        allowsUnverifiedHiddenSpace: fallback) == (ordered || fallback),
+                           "ordering recovers parked siblings without removing the earlier minimized or fullscreen exceptions")
+                }
+            }
         }
-        expect(!SwitcherSupport.keepsUnmatchedWindow(
-            isOnHiddenSpace: false, isConfirmedHiddenAppWindow: false,
-            isExcludedFromWindowCycle: false),
-               "an unmatched surface without a hidden desktop or hidden app remains excluded")
-        expect(SwitcherSupport.keepsUnmatchedWindow(
-            isOnHiddenSpace: false, isConfirmedHiddenAppWindow: true,
-            isExcludedFromWindowCycle: false),
-               "a confirmed hidden app window remains available")
+        for hidden in [true, false] {
+            for hiddenApp in [true, false] {
+                for excluded in [true, false] {
+                    for ordered: Bool? in [true, false, nil] {
+                        for fallback in [true, false] {
+                            let keep = SwitcherSupport.keepsUnmatchedWindow(
+                                isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: hiddenApp,
+                                isExcludedFromWindowCycle: excluded, isOrderedIn: ordered,
+                                allowsUnverifiedHiddenSpace: fallback)
+                            if excluded { expect(!keep, "cycle-excluded helpers never reappear") }
+                            else if hiddenApp { expect(keep, "hiding an app is not closing its windows") }
+                            else if !hidden { expect(!keep, "an unmatched visible-desktop surface is not a parked window") }
+                            else if ordered == nil {
+                                expect(keep == fallback, "an unavailable ordering query preserves the earlier desktop fallback")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        DockPreviewScopeTests.run { expect($0, $1) }
 
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 

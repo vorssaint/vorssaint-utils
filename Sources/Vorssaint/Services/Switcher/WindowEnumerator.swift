@@ -180,6 +180,13 @@ enum WindowEnumerator {
                     marksHiddenSpaces: true)
     }
 
+    /// A desktop can change after enumeration, including between pinned refreshes.
+    static func dockPreviewMayActivate(_ item: SwitcherItem) -> Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+              let windowID = item.windowID else { return true }
+        return !SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
+    }
+
     static func listWindows(for pid: pid_t, maximumCount: Int = 12,
                             currentSpaceOnly: Bool = false,
                             marksHiddenSpaces: Bool = false) -> [SwitcherItem] {
@@ -306,8 +313,9 @@ enum WindowEnumerator {
 
         // Accessibility cannot describe windows parked on a Space that is not
         // visible, so the ghost veto below needs the window server as a second
-        // witness. Combine membership with window-cycle eligibility below
-        // rather than treating a partial Accessibility list as complete.
+        // witness. A partial Accessibility list cannot veto a sibling, but a
+        // dismissed surface can retain its desktop assignment. Check whether
+        // an unmatched window is still ordered in as well as cycle-eligible.
         // Resolved lazily and cached, so fully Accessibility-confirmed lists
         // pay nothing.
         var topologyResolved = false
@@ -397,7 +405,11 @@ enum WindowEnumerator {
                 guard SwitcherSupport.keepsUnmatchedWindow(
                     isOnHiddenSpace: hiddenSpaceSurfaceIsWitnessed,
                     isConfirmedHiddenAppWindow: isConfirmedHiddenAppWindow,
-                    isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID))
+                    isExcludedFromWindowCycle: SpaceWindowBridge.isExcludedFromWindowCycle(CGWindowID(windowID)),
+                    isOrderedIn: hiddenSpaceSurfaceIsWitnessed && !isConfirmedHiddenAppWindow
+                        ? SpaceWindowBridge.isWindowOrderedIn(CGWindowID(windowID)) : nil,
+                    allowsUnverifiedHiddenSpace: axSnapshot?.ordered.isEmpty == true
+                        || isOnFullscreenSpace(CGWindowID(windowID))
                 ) else { continue }
             } else if axSnapshot == nil,
                       SwitcherSupport.unwitnessedSurfaceIsLeftover(

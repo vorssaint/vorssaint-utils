@@ -68,6 +68,7 @@ final class DockPreviewService: ObservableObject {
     private var dockPIDCache: pid_t?
     private var cachedPreferences: DockPreviewPreferences?
     private var currentSpaceOnly = false
+    private var spaceChangeObserver: NSObjectProtocol?
 
     private init() {}
 
@@ -119,6 +120,31 @@ final class DockPreviewService: ObservableObject {
         }
 
         startTap()
+        syncSpaceObservation()
+    }
+
+    private func syncSpaceObservation() {
+        guard isRunning, currentSpaceOnly else {
+            stopSpaceObservation()
+            return
+        }
+        guard spaceChangeObserver == nil else { return }
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isRunning, self.currentSpaceOnly,
+                  !self.isDraggingWindow else { return }
+            // Invalidate both the open list and a hover prefetched on the old
+            // desktop. Pinned panels keep their existing refresh cycle.
+            self.endSession()
+        }
+    }
+
+    private func stopSpaceObservation() {
+        if let spaceChangeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(spaceChangeObserver)
+        }
+        spaceChangeObserver = nil
     }
 
     func stop() {
@@ -173,6 +199,7 @@ final class DockPreviewService: ObservableObject {
     func commit(_ item: SwitcherItem) {
         guard windows.contains(item) else { return }
         endSession()
+        guard WindowEnumerator.dockPreviewMayActivate(item) else { return }
         WindowActivator.activate(item)
     }
 
@@ -354,6 +381,7 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func stopTap() {
+        stopSpaceObservation()
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
@@ -1478,6 +1506,10 @@ final class DockPreviewPinnedPanel: ObservableObject, Identifiable {
 
     func commit(_ item: SwitcherItem) {
         guard windows.contains(item) else { return }
+        guard WindowEnumerator.dockPreviewMayActivate(item) else {
+            refreshWindows()
+            return
+        }
         selectedWindowID = item.windowID
         WindowActivator.activate(item)
     }

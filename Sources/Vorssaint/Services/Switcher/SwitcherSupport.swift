@@ -855,8 +855,17 @@ enum SwitcherSupport {
     /// Still reject unmatched visible surfaces and helpers excluded from cycling.
     static func keepsUnmatchedWindow(isOnHiddenSpace: Bool,
                                      isConfirmedHiddenAppWindow: Bool,
-                                     isExcludedFromWindowCycle: Bool) -> Bool {
-        !isExcludedFromWindowCycle && (isOnHiddenSpace || isConfirmedHiddenAppWindow)
+                                     isExcludedFromWindowCycle: Bool,
+                                     isOrderedIn: Bool?,
+                                     allowsUnverifiedHiddenSpace: Bool) -> Bool {
+        guard !isExcludedFromWindowCycle else { return false }
+        // Hiding an app orders its windows out without closing them.
+        if isConfirmedHiddenAppWindow { return true }
+        guard isOnHiddenSpace else { return false }
+        // Preserve the earlier empty-Accessibility and fullscreen exceptions:
+        // ordering out can also mean minimized, not closed. Only broaden that
+        // fallback when the native query positively witnesses a live window.
+        return allowsUnverifiedHiddenSpace || isOrderedIn == true
     }
 
     /// Whether a WindowServer surface whose owner never answered Accessibility
