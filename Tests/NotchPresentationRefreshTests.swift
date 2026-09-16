@@ -8,6 +8,13 @@ import Combine
 /// starting the island's hardware consumers. Mode changes model AppStorage:
 /// they alter computed geometry without publishing a service property.
 enum NotchPresentationRefreshContract {
+    typealias DispatchQueue = NotchScreenRefreshContract.DispatchQueue
+    enum NSEvent { static var mouseLocation = CGPoint.zero }
+    enum NotchPanel { static let normalLevel = 0 }
+    final class CaptureOptions {
+        var hasFocusedControl = false
+        var onSelectionProgressChange: ((Bool) -> Void)?
+    }
     enum NotchContentTransition { case none }
     struct NotchQuickAccessConfiguration {
         let buttons: [Int] = []
@@ -22,12 +29,22 @@ enum NotchPresentationRefreshContract {
     }
     final class Panel {
         var isVisible = true
+        var ignoresMouseEvents = false, acceptsKeyFocus = true, acceptsMouseMovedEvents = false
+        var attachedSheet: Bool?
+        var level = 1, keyRequests = 0
+        func makeKey() { keyRequests += 1 }
+        func resignKey() {}
         func orderOut(_ sender: Any?) { isVisible = false }
         func orderFrontRegardless() { isVisible = true }
     }
     final class Host {
         var targetSize: CGSize = .zero
         var frame: CGRect = .zero
+        var animatingFrame: CGRect?
+        var activationRect = CGRect.zero
+        var activate: (() -> Void)?
+        func containsHover(_ point: CGPoint) -> Bool { frame.contains(point) }
+        func contains(_ point: CGPoint) -> Bool { (animatingFrame ?? frame).contains(point) }
         var onPresent: ((CGSize) -> Void)?
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
                      transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?) {
@@ -35,7 +52,10 @@ enum NotchPresentationRefreshContract {
             targetSize = size
             frame = geometry.frame(for: size)
         }
-        func setActivationArea(_ rect: CGRect, title: String, willPress: () -> Void, activate: () -> Void) {}
+        func setActivationArea(_ rect: CGRect, title: String, willPress: @escaping () -> Void, activate: @escaping () -> Void) {
+            activationRect = rect
+            self.activate = activate
+        }
     }
     class State: ObservableObject {
         let objectWillChange = ObservableObjectPublisher()
@@ -53,7 +73,15 @@ enum NotchPresentationRefreshContract {
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
         let notice: Bool? = nil
-        let captureControls: Bool? = nil
+        var captureControls: CaptureOptions?
+        var captureControlsCollapsed = false, captureSelectionInProgress = false
+        var inside = false, trackingMenu = false
+        var captureControlsWork: DispatchWorkItem?
+        var captureControlsSubscription: AnyCancellable?
+        var captureControlsCancel: (() -> Void)?
+        var monitorRemovals = 0
+        func removeCaptureControlsClickThrough() { monitorRemovals += 1 }
+        func syncMenuSpaceMonitoring() {}
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var panel: Panel? = Panel()
@@ -62,6 +90,7 @@ enum NotchPresentationRefreshContract {
                                      safeAreaTop: 32, cameraWidth: 210)
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
+            if captureControls != nil { return captureControlsCollapsed ? geometry.collapsed : geometry.peek }
             if !expanded, compactActivityIsVisible { return compactActivityGeometry.compactActivitySize }
             if !expanded { return geometry.collapsed }
             return geometry.expandedSize(module: selected, capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
@@ -76,6 +105,7 @@ enum NotchPresentationRefreshContract {
     }
 
     static func run(expect: (Bool, String) -> Void) {
+        captureControlsChecks(expect: expect)
         let service = Service()
         var contentSize = service.surfaceSize
         service.windowHost?.targetSize = contentSize

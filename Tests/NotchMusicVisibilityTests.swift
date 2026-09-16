@@ -53,6 +53,7 @@ enum NotchMusicVisibilityTests {
         var selectedMetric: Metric?
         var modules: [NotchModule] = []
         var captureControls: CaptureControls?
+        var captureControlsCollapsed = false
         var notice: NotchNotice?
         var dragPlaceholder = false
         var hasTimerActivity = false

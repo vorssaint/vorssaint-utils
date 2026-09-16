@@ -40,6 +40,7 @@ enum NotchHoverTests {
         var hoverState = NotchHoverState()
         var hoverWork: DispatchWorkItem?
         var captureHover: ((Bool) -> Void)?
+        func updateCaptureControlsHover(wasInside: Bool) {}
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: -1920, y: 900, width: 1920, height: 1080),
                                      safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 22, compactSideRoom: 64)

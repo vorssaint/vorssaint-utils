@@ -80,7 +80,12 @@ final class ScreenshotSelectionController {
     fileprivate var isOver: Bool { finished }
     fileprivate var spaceIsDown = false
     fileprivate var selectionInProgress = false {
-        didSet { panels.forEach { $0.overlayView.refreshGuideVisibility() } }
+        didSet {
+            panels.forEach { $0.overlayView.refreshGuideVisibility() }
+            if selectionInProgress != oldValue {
+                screenCaptureOptions?.onSelectionProgressChange?(selectionInProgress)
+            }
+        }
     }
     fileprivate var scrollingCaptureEnabled = false {
         didSet {

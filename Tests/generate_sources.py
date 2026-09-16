@@ -168,6 +168,14 @@ def main():
           + "}\n}\n")
     write("NotchPresentationRefresh.swift", "import Foundation\nimport Combine\n"
           + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
+          + "func hover(_ entered: Bool) {\nlet wasInside = inside\n"
+          + "inside = windowHost?.containsHover(NSEvent.mouseLocation) == true\n"
+          + "hoverState.update(pointerInside: inside)\nupdateCaptureControlsHover(wasInside: wasInside)\n}\n"
+          + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    func collapseCaptureControls()", "    func expandCaptureControls()",
+              "    private func setCaptureSelectionInProgress(", "    func scheduleCaptureControlsCollapse()",
+              "    private func updateCaptureControlsHover(", "    private func updateCaptureControlsClickThrough()",
+              "    func endCaptureControls()"])
           + declaration(notch, "    func refreshPresentation(")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    func updateCaptureHeight(")
