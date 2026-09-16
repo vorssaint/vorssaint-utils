@@ -36,7 +36,7 @@ public struct DisplayResolutionMode: Identifiable, Hashable, Sendable {
         self.modeNumber = modeNumber
         let hidpi = isHiDPI ?? (pixelWidth > width)
         self.isHiDPI = hidpi
-        self.id = id ?? "\(width)x\(height)@\(String(format: "%.2f", refreshRate))-\(pixelWidth)x\(pixelHeight)-\(hidpi ? "hidpi" : "std")-\(modeNumber ?? -1)"
+        self.id = id ?? "\(width)x\(height)@\(String(format: "%.2f", locale: Locale(identifier: "en_US_POSIX"), refreshRate))-\(pixelWidth)x\(pixelHeight)-\(hidpi ? "hidpi" : "std")-\(modeNumber ?? -1)"
     }
 
     public init(cgMode: CGDisplayMode) {
@@ -66,7 +66,7 @@ public struct DisplayResolutionMode: Identifiable, Hashable, Sendable {
     public var refreshLabel: String {
         if refreshRate > 0 {
             let rounded = (refreshRate * 100).rounded() / 100
-            return String(format: "%g Hz", rounded)
+            return String(format: "%g Hz", locale: Locale(identifier: "en_US_POSIX"), rounded)
         } else {
             return "动态"
         }
