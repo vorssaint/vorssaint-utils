@@ -675,7 +675,7 @@ final class NotchService: ObservableObject {
         panel?.acceptsKeyFocus = false
         panel?.resignKey()
         refreshPresentation()
-        syncMenuSpaceMonitoring()
+        syncVisibleConsumers()
     }
 
     func cancelCaptureControls() { captureControlsCancel?() }
