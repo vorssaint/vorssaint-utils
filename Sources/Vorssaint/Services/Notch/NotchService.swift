@@ -43,6 +43,8 @@ final class NotchService: ObservableObject {
     @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
     @Published private(set) var captureControls: ScreenCaptureSelectionOptions?
+    @Published private(set) var captureControlsCollapsed = false
+    @Published private(set) var captureSelectionInProgress = false
     @Published var pinned = false
     @Published private(set) var selected: NotchModule = .controls
     @Published private(set) var showingAppPanel = false
@@ -60,6 +62,7 @@ final class NotchService: ObservableObject {
     private var panel: NotchPanel? { windowHost?.panel }
     private var captureControlsCancel: (() -> Void)?
     private var captureControlsSubscription: AnyCancellable?
+    private var captureControlsWork: DispatchWorkItem?
     private var heldDrag = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
@@ -67,6 +70,7 @@ final class NotchService: ObservableObject {
     private var screenEdgeClickMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
+    private var hiddenHoverMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
     private var powerSource: CFRunLoopSource?
@@ -105,6 +109,12 @@ final class NotchService: ObservableObject {
     private let menuSpaceQueue = DispatchQueue(label: "com.vorssaint.notch-menu-space", qos: .utility)
 
     private init() {}
+
+    private var hiddenUntilHover: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)
+            && !expanded && !peeking && !dragPlaceholder && captureControls == nil
+    }
 
     var idleContent: NotchIdleContent {
         NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
@@ -167,6 +177,9 @@ final class NotchService: ObservableObject {
     var contentSize: CGSize { geometry.contentSize(for: expandedSize) }
     var surfaceSize: CGSize {
         if let captureControls {
+            if captureControlsCollapsed {
+                return CGSize(width: geometry.cameraWidth + 56, height: geometry.menuBarHeight)
+            }
             return CGSize(width: geometry.expanded.width,
                           height: geometry.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16
                             + (captureControls.selectedTool.capturesAudio ? 40 : 0))
@@ -180,7 +193,12 @@ final class NotchService: ObservableObject {
     }
 
     var presentationWindow: NSPanel? { panel }
-    var acceptsSystemFeedback: Bool { running && !suspended && panel != nil }
+    var acceptsSystemFeedback: Bool {
+        running && !suspended && panel != nil
+    }
+    var showsSystemFeedback: Bool {
+        acceptsSystemFeedback && !hiddenUntilHover
+    }
 
     var protectedWindowIDs: Set<CGWindowID> {
         guard !NotchSupport.showsInCaptures(),
@@ -286,6 +304,7 @@ final class NotchService: ObservableObject {
 
     private func tearDownPresentation() {
         screenRefreshWork?.cancel(); screenRefreshWork = nil
+        captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
         panel?.handleScroll = nil
         gesture = NotchGestureSupport()
@@ -321,6 +340,7 @@ final class NotchService: ObservableObject {
         removeEventMonitors()
         removeScreenEdgeClickMonitors()
         removeCaptureControlsClickThrough()
+        removeHiddenHoverMonitors()
         releaseMonitor()
         windowHost?.close()
         windowHost = nil
@@ -404,10 +424,15 @@ final class NotchService: ObservableObject {
         guard running, !suspended else { return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
-        inside = windowHost?.containsHover(point) == true
+        inside = hiddenUntilHover ? geometry.contains(point, in: geometry.collapsed)
+            : windowHost?.containsHover(point) == true
         hoverState.update(pointerInside: inside)
         captureHover?(entered)
-        guard !pinned, captureControls == nil, !heldDrag, !keepsWorkingSurface else {
+        if captureControls != nil {
+            updateCaptureControlsHover(wasInside: wasInside)
+            return
+        }
+        guard !pinned, !heldDrag, !keepsWorkingSurface else {
             hoverWork?.cancel(); hoverWork = nil
             return
         }
@@ -416,7 +441,7 @@ final class NotchService: ObservableObject {
         if inside == wasInside, let hoverWork, !hoverWork.isCancelled { return }
         hoverWork?.cancel(); hoverWork = nil
         if inside {
-            guard !hoverState.suppressed, notice == nil, !expanded, !peeking, !dragPlaceholder,
+            guard !hoverState.suppressed, (notice == nil || hiddenUntilHover), !expanded, !peeking, !dragPlaceholder,
                   UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) else { return }
             if compactActivity != nil, compactActivityGeometry.compactActivityWingWidth > 0,
                !UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) { return }
@@ -425,9 +450,9 @@ final class NotchService: ObservableObject {
                 self.hoverWork = nil
                 guard self.running, !self.suspended, self.inside, !self.hoverState.suppressed,
                       !self.expanded, !self.peeking, !self.pinned, !self.heldDrag, !self.keepsWorkingSurface,
-                      self.captureControls == nil, self.notice == nil, !self.dragPlaceholder,
+                      self.captureControls == nil, (self.notice == nil || self.hiddenUntilHover), !self.dragPlaceholder,
                       UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
-                      self.geometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
+                      self.geometry.contains(NSEvent.mouseLocation, in: self.hiddenUntilHover ? self.geometry.collapsed : self.surfaceSize) else { return }
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
                     self.open(takeFocus: false)
                 } else {
@@ -596,11 +621,19 @@ final class NotchService: ObservableObject {
         pinned = false
         captureControlsCancel = cancel
         captureControls = options
+        captureControlsCollapsed = false
+        captureSelectionInProgress = false
+        hoverState.open()
+        options.onSelectionProgressChange = { [weak self, weak options] active in
+            guard let self, let options, self.captureControls === options else { return }
+            self.setCaptureSelectionInProgress(active)
+        }
         captureControlsSubscription = options.$selectedTool.dropFirst()
             .receive(on: DispatchQueue.main).sink { [weak self] _ in
                 self?.objectWillChange.send()
                 self?.refreshPresentation()
                 self?.updateCaptureControlsClickThrough()
+                self?.scheduleCaptureControlsCollapse()
             }
         expanded = false
         showingSections = false
@@ -617,26 +650,110 @@ final class NotchService: ObservableObject {
         syncVisibleConsumers()
     }
 
+    func collapseCaptureControls() {
+        guard captureControls != nil else { return }
+        captureControlsWork?.cancel(); captureControlsWork = nil
+        hoverWork?.cancel(); hoverWork = nil
+        hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
+        captureControls?.hasFocusedControl = false
+        captureControlsCollapsed = true
+        refreshPresentation(animated: !captureSelectionInProgress)
+        updateCaptureControlsClickThrough()
+    }
+
+    func expandCaptureControls() {
+        guard captureControls != nil, !captureSelectionInProgress else { return }
+        hoverWork?.cancel(); hoverWork = nil
+        hoverState.open()
+        captureControlsCollapsed = false
+        refreshPresentation()
+        panel?.makeKey()
+        updateCaptureControlsClickThrough()
+    }
+
+    private func setCaptureSelectionInProgress(_ active: Bool) {
+        guard captureControls != nil else { return }
+        captureSelectionInProgress = active
+        if active { collapseCaptureControls() }
+        else {
+            refreshPresentation()
+            updateCaptureControlsClickThrough()
+        }
+    }
+
+    func scheduleCaptureControlsCollapse() {
+        captureControlsWork?.cancel(); captureControlsWork = nil
+        guard let options = captureControls, !captureControlsCollapsed, !captureSelectionInProgress,
+              !options.hasFocusedControl, !inside else { return }
+        let work = DispatchWorkItem { [weak self, weak options] in
+            guard let self, let options, self.captureControls === options else { return }
+            self.captureControlsWork = nil
+            guard !self.captureControlsCollapsed, !self.captureSelectionInProgress,
+                  !options.hasFocusedControl, !self.trackingMenu,
+                  self.panel?.attachedSheet == nil,
+                  self.windowHost?.containsHover(NSEvent.mouseLocation) != true else { return }
+            self.collapseCaptureControls()
+        }
+        captureControlsWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: work)
+    }
+
+    private func updateCaptureControlsHover(wasInside: Bool) {
+        guard let options = captureControls, !captureSelectionInProgress else { return }
+        if !captureControlsCollapsed {
+            if inside {
+                captureControlsWork?.cancel(); captureControlsWork = nil
+            } else if wasInside || captureControlsWork == nil {
+                scheduleCaptureControlsCollapse()
+            }
+            return
+        }
+        if inside == wasInside, let hoverWork, !hoverWork.isCancelled { return }
+        hoverWork?.cancel(); hoverWork = nil
+        guard inside, !hoverState.suppressed else { return }
+        let work = DispatchWorkItem { [weak self, weak options] in
+            guard let self, let options, self.captureControls === options else { return }
+            self.hoverWork = nil
+            guard self.captureControlsCollapsed, !self.captureSelectionInProgress,
+                  !self.hoverState.suppressed,
+                  self.windowHost?.containsHover(NSEvent.mouseLocation) == true else { return }
+            self.expandCaptureControls()
+        }
+        hoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
+    }
+
     /// The capture-controls window covers the top center of the screen, over
     /// the selection surface. Only its visible controls should catch the
     /// mouse; everywhere else the click falls through to the selection beneath,
     /// so a region under the notch can still be dragged or a window clicked.
     private func updateCaptureControlsClickThrough() {
         guard let panel, captureControls != nil else { return }
-        let overControls = windowHost?.contains(NSEvent.mouseLocation) == true
+        let point = NSEvent.mouseLocation
+        // A collapsing animation still reserves the old window frame. Only
+        // the compact target should own clicks while that space is released.
+        let overControls = !captureSelectionInProgress && windowHost?.contains(point) == true
+            && (!captureControlsCollapsed || windowHost?.containsHover(point) == true)
         if panel.ignoresMouseEvents != !overControls { panel.ignoresMouseEvents = !overControls }
+        // While the panel catches the mouse it is the window under the pointer
+        // across its whole frame, transparent parts included, so it must be the
+        // one reporting the move that leaves the controls; otherwise the next
+        // click there would be swallowed. Away from the controls the selection
+        // surface reports every move itself, and the panel stays quiet.
+        if panel.acceptsMouseMovedEvents != overControls { panel.acceptsMouseMovedEvents = overControls }
+        hover(overControls)
     }
 
     private func installCaptureControlsClickThrough() {
         guard captureControlsMonitors.isEmpty else { return }
-        // Posting moved events lets the click-through state settle before the
-        // pointer reaches a control, so the controls stay clickable.
-        panel?.acceptsMouseMovedEvents = true
+        // The selection surface below is this app's own window and already
+        // tracks the pointer, so a local monitor sees every move that could
+        // reach a control. A global monitor would add a second, system-wide
+        // stream of every move at the mouse's full rate, and asking the key
+        // panel for moved events on top of that starved the selector: with
+        // both installed it received fewer events and trailed the pointer.
         let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged,
                                             .rightMouseDragged, .otherMouseDragged]
-        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
-            self?.updateCaptureControlsClickThrough()
-        }) { captureControlsMonitors.append(token) }
         if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
             self?.updateCaptureControlsClickThrough(); return event
         }) { captureControlsMonitors.append(token) }
@@ -652,8 +769,13 @@ final class NotchService: ObservableObject {
 
     func endCaptureControls() {
         guard captureControls != nil else { return }
+        captureControlsWork?.cancel(); captureControlsWork = nil
+        hoverWork?.cancel(); hoverWork = nil
+        captureControls?.onSelectionProgressChange = nil
         geometry.compactSideRoom = nil
         captureControls = nil
+        captureControlsCollapsed = false
+        captureSelectionInProgress = false
         captureControlsSubscription = nil
         captureControlsCancel = nil
         removeCaptureControlsClickThrough()
@@ -661,7 +783,7 @@ final class NotchService: ObservableObject {
         panel?.acceptsKeyFocus = false
         panel?.resignKey()
         refreshPresentation()
-        syncMenuSpaceMonitoring()
+        syncVisibleConsumers()
     }
 
     func cancelCaptureControls() { captureControlsCancel?() }
@@ -729,7 +851,7 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func show(_ incoming: NotchNotice) -> Bool {
-        guard running, !suspended, panel != nil, NotchSupport.routes(incoming.event),
+        guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event) else { return false }
         noticeWork?.cancel()
         // Slider and key bursts only replace the displayed value. They never
@@ -838,6 +960,12 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        syncHiddenHoverMonitoring()
+        if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
+            panel?.orderOut(nil)
+            removeScreenEdgeClickMonitors()
+            return
+        }
         let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
         guard open || geometry.isNotched || geometry.compactSideRoom != nil else {
             panel?.orderOut(nil)
@@ -852,17 +980,49 @@ final class NotchService: ObservableObject {
         windowHost?.present(size: size, geometry: geometry, animated: animated,
                             transitionContent: transitionContent,
                             quickAccess: expanded && captureControls == nil && !access.buttons.isEmpty ? access : nil)
-        let activationRect = captureControls != nil || notice != nil || dragPlaceholder ? CGRect.zero
-            : (compactActivityIsVisible ? compactActivityGeometry : geometry)
+        let activationRect: CGRect
+        if captureControls != nil {
+            activationRect = captureControlsCollapsed ? CGRect(origin: .zero, size: size) : .zero
+        } else if notice != nil || dragPlaceholder {
+            activationRect = .zero
+        } else {
+            activationRect = (compactActivityIsVisible ? compactActivityGeometry : geometry)
                 .activationArea(in: size, hasHeader: expanded || peeking, compactActivity: compactActivityIsVisible)
+        }
         let text = FeatureStrings.notch(L10n.shared.language)
         windowHost?.setActivationArea(activationRect, title: expanded ? text.collapse : text.open,
             willPress: { [weak self] in
                 self?.hoverWork?.cancel()
                 self?.hoverState.close(pointerInside: true)
-            }, activate: { [weak self] in self?.toggle() })
+            }, activate: { [weak self] in
+                guard let self else { return }
+                if self.captureControls != nil { self.expandCaptureControls() }
+                else { self.toggle() }
+            })
         if panel?.isVisible != true { panel?.orderFrontRegardless() }
         syncScreenEdgeClicks()
+    }
+
+    private func syncHiddenHoverMonitoring() {
+        guard running, !suspended, hiddenUntilHover, windowHost != nil else {
+            removeHiddenHoverMonitors()
+            return
+        }
+        guard hiddenHoverMonitors.isEmpty else { return }
+        // The window is ordered out, so native tracking areas cannot see entry.
+        // Observe movement without intercepting the menu bar or polling at rest.
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: .mouseMoved, handler: { [weak self] _ in
+            self?.hover(true)
+        }) { hiddenHoverMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: .mouseMoved, handler: { [weak self] event in
+            self?.hover(true)
+            return event
+        }) { hiddenHoverMonitors.append(token) }
+    }
+
+    private func removeHiddenHoverMonitors() {
+        hiddenHoverMonitors.forEach(NSEvent.removeMonitor)
+        hiddenHoverMonitors.removeAll()
     }
 
     private var screenEdgeClickArea: CGRect? {
@@ -946,7 +1106,7 @@ final class NotchService: ObservableObject {
             }
             return
         }
-        let wanted = running && !suspended && !expanded && captureControls == nil
+        let wanted = running && !suspended && !hiddenUntilHover && !expanded && captureControls == nil
             && (idleContent != .none || compactActivity != nil || !geometry.isNotched)
         guard wanted else { stopMenuSpaceMonitoring(); return }
         guard menuSpaceTimer == nil else { return }
@@ -1410,7 +1570,7 @@ final class NotchService: ObservableObject {
         }
         let musicWanted = modules.contains(.music) && ((expanded && (selected == .music || (selected == .controls && NotchSupport.controls().contains(.music)))
             && !showingAppPanel && !showingSections)
-            || NotchSupport.watchesMusicActivity())
+            || (!hiddenUntilHover && NotchSupport.watchesMusicActivity()))
         if musicWanted { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel && !showingSections
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none

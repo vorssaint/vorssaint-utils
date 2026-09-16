@@ -2211,7 +2211,8 @@ enum ScreenshotSupport {
     static func watermarkPlacement(contentSize: CGSize,
                                    rotation: Double,
                                    anchor: WatermarkStyle.Anchor,
-                                   in imageSize: CGSize) -> WatermarkPlacement? {
+                                   in imageSize: CGSize,
+                                   cornerRadius: CGFloat = 0) -> WatermarkPlacement? {
         guard contentSize.width.isFinite, contentSize.height.isFinite,
               contentSize.width > 0, contentSize.height > 0,
               imageSize.width > 0, imageSize.height > 0, rotation.isFinite
@@ -2220,7 +2221,14 @@ enum ScreenshotSupport {
         let bounds = CGSize(
             width: abs(contentSize.width * cos(radians)) + abs(contentSize.height * sin(radians)),
             height: abs(contentSize.width * sin(radians)) + abs(contentSize.height * cos(radians)))
-        let margin = min(imageSize.width, imageSize.height) * 0.05
+        let shortSide = min(imageSize.width, imageSize.height)
+        // The inset rectangle must lie entirely inside the rounded capture.
+        // At the diagonal of a quarter circle the inset is r * (1 - sqrt(0.5)).
+        // A pixel of breathing room avoids clipping antialiased edges. Keep
+        // positive space even after cropping down to only a few pixels.
+        let radius = cornerRadius.isFinite ? max(0, min(shortSide / 2, cornerRadius)) : 0
+        let roundedInset = radius > 0 ? ceil(radius * (1 - sqrt(0.5))) + 1 : 0
+        let margin = min(shortSide * 0.45, max(shortSide * 0.05, roundedInset))
         let available = CGSize(width: imageSize.width - margin * 2,
                                height: imageSize.height - margin * 2)
         let fit = min(1, min(available.width / bounds.width, available.height / bounds.height))

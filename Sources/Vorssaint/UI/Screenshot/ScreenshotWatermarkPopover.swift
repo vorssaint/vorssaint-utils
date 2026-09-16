@@ -98,7 +98,7 @@ struct ScreenshotWatermarkPopover: View {
             .frame(width: 24, height: 24)
         }
         .buttonStyle(.borderless)
-        .accessibilityLabel(strings.colorLabel)
+        .accessibilityLabel(strings.watermarkColorName(colorID))
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -229,11 +229,13 @@ struct ScreenshotWatermarkPopover: View {
                 sliderLabel(strings.watermarkSizeLabel)
                 Slider(value: sizeBinding, in: 0...1)
                     .controlSize(.small)
+                    .accessibilityLabel(strings.watermarkSizeLabel)
             }
             HStack(spacing: 8) {
                 sliderLabel(strings.watermarkOpacityLabel)
                 Slider(value: opacityBinding, in: ScreenshotSupport.WatermarkStyle.opacityRange)
                     .controlSize(.small)
+                    .accessibilityLabel(strings.watermarkOpacityLabel)
             }
             HStack(spacing: 8) {
                 sliderLabel(strings.watermarkRotationLabel)
@@ -241,6 +243,8 @@ struct ScreenshotWatermarkPopover: View {
                        in: ScreenshotSupport.WatermarkStyle.rotationRange,
                        step: 1)
                     .controlSize(.small)
+                    .accessibilityLabel(strings.watermarkRotationLabel)
+                    .accessibilityValue("\(Int(model.watermarkStyle.rotation.rounded()))°")
                 Text("\(Int(model.watermarkStyle.rotation.rounded()))°")
                     .font(.system(size: 11).monospacedDigit())
                     .foregroundStyle(.secondary)
@@ -284,7 +288,7 @@ struct ScreenshotWatermarkPopover: View {
                                 .frame(width: 22, height: 15)
                         }
                         .buttonStyle(.borderless)
-                        .accessibilityLabel(strings.watermarkPositionLabel)
+                        .accessibilityLabel(strings.watermarkPositionName(anchor))
                         .accessibilityAddTraits(selected ? .isSelected : [])
                     }
                 }

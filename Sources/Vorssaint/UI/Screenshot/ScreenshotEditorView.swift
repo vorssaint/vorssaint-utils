@@ -303,7 +303,8 @@ struct ScreenshotEditorView: View {
                                          in: cg,
                                          imageSize: model.imageSize,
                                          scale: model.scale,
-                                         shadowsEnabled: model.annotationShadowsEnabled)
+                                         shadowsEnabled: model.annotationShadowsEnabled,
+                                         cornerRadius: model.cardCornerPixels)
         drawTextSelection(cg)
         drawSelectionChrome(cg)
         drawCropChrome(cg, canvasSize: size, zoom: zoom)

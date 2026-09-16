@@ -161,6 +161,50 @@ struct ScreenshotFeatureStrings {
     let watermarkOpacityLabel: String
     let watermarkRotationLabel: String
     let watermarkSavePreset: String
+    let watermarkColorRed: String
+    let watermarkColorOrange: String
+    let watermarkColorYellow: String
+    let watermarkColorGreen: String
+    let watermarkColorBlue: String
+    let watermarkColorPurple: String
+    let watermarkColorBlack: String
+    let watermarkColorWhite: String
+    let watermarkPositionTopLeading: String
+    let watermarkPositionTop: String
+    let watermarkPositionTopTrailing: String
+    let watermarkPositionLeading: String
+    let watermarkPositionCenter: String
+    let watermarkPositionTrailing: String
+    let watermarkPositionBottomLeading: String
+    let watermarkPositionBottom: String
+    let watermarkPositionBottomTrailing: String
+
+    func watermarkColorName(_ color: ScreenshotSupport.ColorID) -> String {
+        switch color {
+        case .red: return watermarkColorRed
+        case .orange: return watermarkColorOrange
+        case .yellow: return watermarkColorYellow
+        case .green: return watermarkColorGreen
+        case .blue: return watermarkColorBlue
+        case .purple: return watermarkColorPurple
+        case .black: return watermarkColorBlack
+        case .white: return watermarkColorWhite
+        }
+    }
+
+    func watermarkPositionName(_ anchor: ScreenshotSupport.WatermarkStyle.Anchor) -> String {
+        switch anchor {
+        case .topLeading: return watermarkPositionTopLeading
+        case .top: return watermarkPositionTop
+        case .topTrailing: return watermarkPositionTopTrailing
+        case .leading: return watermarkPositionLeading
+        case .center: return watermarkPositionCenter
+        case .trailing: return watermarkPositionTrailing
+        case .bottomLeading: return watermarkPositionBottomLeading
+        case .bottom: return watermarkPositionBottom
+        case .bottomTrailing: return watermarkPositionBottomTrailing
+        }
+    }
 }
 
 extension FeatureStrings {
@@ -340,7 +384,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Size",
         watermarkOpacityLabel: "Opacity",
         watermarkRotationLabel: "Rotation",
-        watermarkSavePreset: "Save watermark"
+        watermarkSavePreset: "Save watermark",
+        watermarkColorRed: "Red",
+        watermarkColorOrange: "Orange",
+        watermarkColorYellow: "Yellow",
+        watermarkColorGreen: "Green",
+        watermarkColorBlue: "Blue",
+        watermarkColorPurple: "Purple",
+        watermarkColorBlack: "Black",
+        watermarkColorWhite: "White",
+        watermarkPositionTopLeading: "Top left",
+        watermarkPositionTop: "Top center",
+        watermarkPositionTopTrailing: "Top right",
+        watermarkPositionLeading: "Center left",
+        watermarkPositionCenter: "Center",
+        watermarkPositionTrailing: "Center right",
+        watermarkPositionBottomLeading: "Bottom left",
+        watermarkPositionBottom: "Bottom center",
+        watermarkPositionBottomTrailing: "Bottom right"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -499,7 +560,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Tamanho",
         watermarkOpacityLabel: "Opacidade",
         watermarkRotationLabel: "Rotação",
-        watermarkSavePreset: "Salvar marca d’água"
+        watermarkSavePreset: "Salvar marca d’água",
+        watermarkColorRed: "Vermelho",
+        watermarkColorOrange: "Laranja",
+        watermarkColorYellow: "Amarelo",
+        watermarkColorGreen: "Verde",
+        watermarkColorBlue: "Azul",
+        watermarkColorPurple: "Roxo",
+        watermarkColorBlack: "Preto",
+        watermarkColorWhite: "Branco",
+        watermarkPositionTopLeading: "Superior esquerdo",
+        watermarkPositionTop: "Superior central",
+        watermarkPositionTopTrailing: "Superior direito",
+        watermarkPositionLeading: "Centro à esquerda",
+        watermarkPositionCenter: "Centro",
+        watermarkPositionTrailing: "Centro à direita",
+        watermarkPositionBottomLeading: "Inferior esquerdo",
+        watermarkPositionBottom: "Inferior central",
+        watermarkPositionBottomTrailing: "Inferior direito"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -658,7 +736,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Boyut",
         watermarkOpacityLabel: "Opaklık",
         watermarkRotationLabel: "Döndürme",
-        watermarkSavePreset: "Filigranı kaydet"
+        watermarkSavePreset: "Filigranı kaydet",
+        watermarkColorRed: "Kırmızı",
+        watermarkColorOrange: "Turuncu",
+        watermarkColorYellow: "Sarı",
+        watermarkColorGreen: "Yeşil",
+        watermarkColorBlue: "Mavi",
+        watermarkColorPurple: "Mor",
+        watermarkColorBlack: "Siyah",
+        watermarkColorWhite: "Beyaz",
+        watermarkPositionTopLeading: "Sol üst",
+        watermarkPositionTop: "Üst orta",
+        watermarkPositionTopTrailing: "Sağ üst",
+        watermarkPositionLeading: "Orta sol",
+        watermarkPositionCenter: "Orta",
+        watermarkPositionTrailing: "Orta sağ",
+        watermarkPositionBottomLeading: "Sol alt",
+        watermarkPositionBottom: "Alt orta",
+        watermarkPositionBottomTrailing: "Sağ alt"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -817,7 +912,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Размер",
         watermarkOpacityLabel: "Непрозрачность",
         watermarkRotationLabel: "Поворот",
-        watermarkSavePreset: "Сохранить водяной знак"
+        watermarkSavePreset: "Сохранить водяной знак",
+        watermarkColorRed: "Красный",
+        watermarkColorOrange: "Оранжевый",
+        watermarkColorYellow: "Жёлтый",
+        watermarkColorGreen: "Зелёный",
+        watermarkColorBlue: "Синий",
+        watermarkColorPurple: "Фиолетовый",
+        watermarkColorBlack: "Чёрный",
+        watermarkColorWhite: "Белый",
+        watermarkPositionTopLeading: "Сверху слева",
+        watermarkPositionTop: "Сверху по центру",
+        watermarkPositionTopTrailing: "Сверху справа",
+        watermarkPositionLeading: "Слева по центру",
+        watermarkPositionCenter: "По центру",
+        watermarkPositionTrailing: "Справа по центру",
+        watermarkPositionBottomLeading: "Снизу слева",
+        watermarkPositionBottom: "Снизу по центру",
+        watermarkPositionBottomTrailing: "Снизу справа"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -976,7 +1088,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Tamaño",
         watermarkOpacityLabel: "Opacidad",
         watermarkRotationLabel: "Rotación",
-        watermarkSavePreset: "Guardar marca de agua"
+        watermarkSavePreset: "Guardar marca de agua",
+        watermarkColorRed: "Rojo",
+        watermarkColorOrange: "Naranja",
+        watermarkColorYellow: "Amarillo",
+        watermarkColorGreen: "Verde",
+        watermarkColorBlue: "Azul",
+        watermarkColorPurple: "Morado",
+        watermarkColorBlack: "Negro",
+        watermarkColorWhite: "Blanco",
+        watermarkPositionTopLeading: "Arriba a la izquierda",
+        watermarkPositionTop: "Arriba en el centro",
+        watermarkPositionTopTrailing: "Arriba a la derecha",
+        watermarkPositionLeading: "Centro a la izquierda",
+        watermarkPositionCenter: "Centro",
+        watermarkPositionTrailing: "Centro a la derecha",
+        watermarkPositionBottomLeading: "Abajo a la izquierda",
+        watermarkPositionBottom: "Abajo en el centro",
+        watermarkPositionBottomTrailing: "Abajo a la derecha"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -1135,7 +1264,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Größe",
         watermarkOpacityLabel: "Deckkraft",
         watermarkRotationLabel: "Drehung",
-        watermarkSavePreset: "Wasserzeichen sichern"
+        watermarkSavePreset: "Wasserzeichen sichern",
+        watermarkColorRed: "Rot",
+        watermarkColorOrange: "Orange",
+        watermarkColorYellow: "Gelb",
+        watermarkColorGreen: "Grün",
+        watermarkColorBlue: "Blau",
+        watermarkColorPurple: "Lila",
+        watermarkColorBlack: "Schwarz",
+        watermarkColorWhite: "Weiß",
+        watermarkPositionTopLeading: "Oben links",
+        watermarkPositionTop: "Oben mittig",
+        watermarkPositionTopTrailing: "Oben rechts",
+        watermarkPositionLeading: "Links mittig",
+        watermarkPositionCenter: "Mitte",
+        watermarkPositionTrailing: "Rechts mittig",
+        watermarkPositionBottomLeading: "Unten links",
+        watermarkPositionBottom: "Unten mittig",
+        watermarkPositionBottomTrailing: "Unten rechts"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1294,7 +1440,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Taille",
         watermarkOpacityLabel: "Opacité",
         watermarkRotationLabel: "Rotation",
-        watermarkSavePreset: "Enregistrer le filigrane"
+        watermarkSavePreset: "Enregistrer le filigrane",
+        watermarkColorRed: "Rouge",
+        watermarkColorOrange: "Orange",
+        watermarkColorYellow: "Jaune",
+        watermarkColorGreen: "Vert",
+        watermarkColorBlue: "Bleu",
+        watermarkColorPurple: "Violet",
+        watermarkColorBlack: "Noir",
+        watermarkColorWhite: "Blanc",
+        watermarkPositionTopLeading: "En haut à gauche",
+        watermarkPositionTop: "En haut au centre",
+        watermarkPositionTopTrailing: "En haut à droite",
+        watermarkPositionLeading: "Au centre à gauche",
+        watermarkPositionCenter: "Centre",
+        watermarkPositionTrailing: "Au centre à droite",
+        watermarkPositionBottomLeading: "En bas à gauche",
+        watermarkPositionBottom: "En bas au centre",
+        watermarkPositionBottomTrailing: "En bas à droite"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1453,7 +1616,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "Dimensione",
         watermarkOpacityLabel: "Opacità",
         watermarkRotationLabel: "Rotazione",
-        watermarkSavePreset: "Salva filigrana"
+        watermarkSavePreset: "Salva filigrana",
+        watermarkColorRed: "Rosso",
+        watermarkColorOrange: "Arancione",
+        watermarkColorYellow: "Giallo",
+        watermarkColorGreen: "Verde",
+        watermarkColorBlue: "Blu",
+        watermarkColorPurple: "Viola",
+        watermarkColorBlack: "Nero",
+        watermarkColorWhite: "Bianco",
+        watermarkPositionTopLeading: "In alto a sinistra",
+        watermarkPositionTop: "In alto al centro",
+        watermarkPositionTopTrailing: "In alto a destra",
+        watermarkPositionLeading: "Al centro a sinistra",
+        watermarkPositionCenter: "Centro",
+        watermarkPositionTrailing: "Al centro a destra",
+        watermarkPositionBottomLeading: "In basso a sinistra",
+        watermarkPositionBottom: "In basso al centro",
+        watermarkPositionBottomTrailing: "In basso a destra"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1612,7 +1792,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "サイズ",
         watermarkOpacityLabel: "不透明度",
         watermarkRotationLabel: "回転",
-        watermarkSavePreset: "透かしを保存"
+        watermarkSavePreset: "透かしを保存",
+        watermarkColorRed: "レッド",
+        watermarkColorOrange: "オレンジ",
+        watermarkColorYellow: "イエロー",
+        watermarkColorGreen: "グリーン",
+        watermarkColorBlue: "ブルー",
+        watermarkColorPurple: "パープル",
+        watermarkColorBlack: "黒",
+        watermarkColorWhite: "白",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "上中央",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左中央",
+        watermarkPositionCenter: "中央",
+        watermarkPositionTrailing: "右中央",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "下中央",
+        watermarkPositionBottomTrailing: "右下"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1771,7 +1968,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "크기",
         watermarkOpacityLabel: "불투명도",
         watermarkRotationLabel: "회전",
-        watermarkSavePreset: "워터마크 저장"
+        watermarkSavePreset: "워터마크 저장",
+        watermarkColorRed: "빨간색",
+        watermarkColorOrange: "주황색",
+        watermarkColorYellow: "노란색",
+        watermarkColorGreen: "초록색",
+        watermarkColorBlue: "파란색",
+        watermarkColorPurple: "보라색",
+        watermarkColorBlack: "검은색",
+        watermarkColorWhite: "흰색",
+        watermarkPositionTopLeading: "왼쪽 위",
+        watermarkPositionTop: "위쪽 가운데",
+        watermarkPositionTopTrailing: "오른쪽 위",
+        watermarkPositionLeading: "왼쪽 가운데",
+        watermarkPositionCenter: "가운데",
+        watermarkPositionTrailing: "오른쪽 가운데",
+        watermarkPositionBottomLeading: "왼쪽 아래",
+        watermarkPositionBottom: "아래쪽 가운데",
+        watermarkPositionBottomTrailing: "오른쪽 아래"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1930,7 +2144,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "大小",
         watermarkOpacityLabel: "不透明度",
         watermarkRotationLabel: "旋转",
-        watermarkSavePreset: "保存水印"
+        watermarkSavePreset: "保存水印",
+        watermarkColorRed: "红色",
+        watermarkColorOrange: "橙色",
+        watermarkColorYellow: "黄色",
+        watermarkColorGreen: "绿色",
+        watermarkColorBlue: "蓝色",
+        watermarkColorPurple: "紫色",
+        watermarkColorBlack: "黑色",
+        watermarkColorWhite: "白色",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "顶部居中",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左侧居中",
+        watermarkPositionCenter: "居中",
+        watermarkPositionTrailing: "右侧居中",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "底部居中",
+        watermarkPositionBottomTrailing: "右下"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -2089,7 +2320,24 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "大小",
         watermarkOpacityLabel: "不透明度",
         watermarkRotationLabel: "旋轉",
-        watermarkSavePreset: "儲存浮水印"
+        watermarkSavePreset: "儲存浮水印",
+        watermarkColorRed: "紅色",
+        watermarkColorOrange: "橙色",
+        watermarkColorYellow: "黃色",
+        watermarkColorGreen: "綠色",
+        watermarkColorBlue: "藍色",
+        watermarkColorPurple: "紫色",
+        watermarkColorBlack: "黑色",
+        watermarkColorWhite: "白色",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "上方中央",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左側中央",
+        watermarkPositionCenter: "置中",
+        watermarkPositionTrailing: "右側中央",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "下方中央",
+        watermarkPositionBottomTrailing: "右下"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -2248,6 +2496,23 @@ extension ScreenshotFeatureStrings {
         watermarkSizeLabel: "大小",
         watermarkOpacityLabel: "不透明度",
         watermarkRotationLabel: "旋轉",
-        watermarkSavePreset: "儲存水印"
+        watermarkSavePreset: "儲存水印",
+        watermarkColorRed: "紅色",
+        watermarkColorOrange: "橙色",
+        watermarkColorYellow: "黃色",
+        watermarkColorGreen: "綠色",
+        watermarkColorBlue: "藍色",
+        watermarkColorPurple: "紫色",
+        watermarkColorBlack: "黑色",
+        watermarkColorWhite: "白色",
+        watermarkPositionTopLeading: "左上",
+        watermarkPositionTop: "上方中央",
+        watermarkPositionTopTrailing: "右上",
+        watermarkPositionLeading: "左邊中央",
+        watermarkPositionCenter: "置中",
+        watermarkPositionTrailing: "右邊中央",
+        watermarkPositionBottomLeading: "左下",
+        watermarkPositionBottom: "下方中央",
+        watermarkPositionBottomTrailing: "右下"
     )
 }

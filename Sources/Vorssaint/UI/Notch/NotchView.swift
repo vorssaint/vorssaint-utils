@@ -35,8 +35,19 @@ struct NotchView: View {
 
     @ViewBuilder private var surface: some View {
         if let options = service.captureControls {
-            NotchCaptureControlsView(options: options, service: service)
-                .padding(.horizontal, 18).padding(.top, service.geometry.safeContentTop)
+            if service.captureControlsCollapsed {
+                HStack(spacing: 0) {
+                    Image(systemName: options.selectedTool.systemImageName).frame(width: 28)
+                    Color.clear.frame(width: service.geometry.cameraWidth)
+                    Image(systemName: "chevron.down").frame(width: 28)
+                }
+                .font(.system(size: 10, weight: .semibold))
+                .frame(maxHeight: .infinity)
+                .accessibilityHidden(true)
+            } else {
+                NotchCaptureControlsView(options: options, service: service)
+                    .padding(.horizontal, 18).padding(.top, service.geometry.safeContentTop)
+            }
         } else if service.expanded {
             expanded
         } else if service.dragPlaceholder {

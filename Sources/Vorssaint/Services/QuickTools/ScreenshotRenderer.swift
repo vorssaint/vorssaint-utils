@@ -300,7 +300,8 @@ enum ScreenshotRenderer {
                               in context: CGContext,
                               imageSize: CGSize,
                               scale: CGFloat,
-                              shadowsEnabled: Bool) {
+                              shadowsEnabled: Bool,
+                              cornerRadius: CGFloat = 0) {
         let style = style.sanitized()
         let contentSize: CGSize
         let draw: (CGRect) -> Void
@@ -343,7 +344,8 @@ enum ScreenshotRenderer {
         guard let placement = ScreenshotSupport.watermarkPlacement(contentSize: contentSize,
                                                                    rotation: style.rotation,
                                                                    anchor: style.anchor,
-                                                                   in: imageSize)
+                                                                   in: imageSize,
+                                                                   cornerRadius: cornerRadius)
         else { return }
 
         context.saveGState()
@@ -446,16 +448,17 @@ enum ScreenshotRenderer {
                              fill: BackdropFill,
                              downscaleTo1x: Bool) -> Export? {
         let imageSize = CGSize(width: baseImage.width, height: baseImage.height)
+        let corner = ScreenshotSupport.cardCornerRadius(for: imageSize,
+                                                        factor: style.cornerRadius)
         guard let flattened = renderFlattened(baseImage: baseImage,
                                               annotations: annotations,
                                               pixelated: pixelated,
                                               scale: scale,
                                               annotationShadowsEnabled: annotationShadowsEnabled,
                                               watermark: watermark,
-                                              watermarkImage: watermarkImage)
+                                              watermarkImage: watermarkImage,
+                                              cornerRadius: corner)
         else { return nil }
-        let corner = ScreenshotSupport.cardCornerRadius(for: imageSize,
-                                                        factor: style.cornerRadius)
 
         var result = flattened
         if case .none = fill {
@@ -505,7 +508,8 @@ enum ScreenshotRenderer {
                                         scale: CGFloat,
                                         annotationShadowsEnabled: Bool,
                                         watermark: ScreenshotSupport.WatermarkStyle,
-                                        watermarkImage: CGImage?) -> CGImage? {
+                                        watermarkImage: CGImage?,
+                                        cornerRadius: CGFloat) -> CGImage? {
         let width = baseImage.width
         let height = baseImage.height
         guard let context = CGContext(data: nil,
@@ -531,7 +535,8 @@ enum ScreenshotRenderer {
                       in: context,
                       imageSize: CGSize(width: width, height: height),
                       scale: scale,
-                      shadowsEnabled: annotationShadowsEnabled)
+                      shadowsEnabled: annotationShadowsEnabled,
+                      cornerRadius: cornerRadius)
         return context.makeImage()
     }
 

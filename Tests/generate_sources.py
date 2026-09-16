@@ -136,14 +136,18 @@ def main():
               "    private func showVolume(", "    func showCurrentVolume("])
           + "}\n}\n")
     canvas = "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift"
-    write("NotchHover.swift", "import Foundation\nextension NotchHoverTests {\nfinal class Service: State {\n"
-          + declaration(notch, "    func hover(") + "}\n}\n")
+    write("NotchHover.swift", "import AppKit\nextension NotchHoverTests {\nfinal class Service: State {\n"
+          + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    private var hiddenUntilHover:", "    func hover(",
+              "    private func syncHiddenHoverMonitoring(", "    private func removeHiddenHoverMonitors("])
+          + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
-        "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",
-        "    var compactActivityGeometry:", "    var surfaceSize:", "    func collapse(",
+        "    private var hiddenUntilHover:", "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",
+        "    var compactActivityGeometry:", "    var surfaceSize:", "    func collapse(", "    func endCaptureControls(",
         "    private func syncVisibleConsumers(", "    private func releaseMonitor("])
     for call in ["NotchSupport.controls", "NotchSupport.watchesMusicActivity", "NotchSupport.idleContent"]:
         music_visibility = music_visibility.replace(call + "()", call + "(in: ReviewDefaults.current)")
+    music_visibility = music_visibility.replace("UserDefaults.standard", "ReviewDefaults.current!")
     music_visibility = music_visibility.replace("playback?.isPlaying == true)",
                                                 "playback?.isPlaying == true, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("captureControls: captureControls != nil)",
@@ -168,6 +172,17 @@ def main():
           + "}\n}\n")
     write("NotchPresentationRefresh.swift", "import Foundation\nimport Combine\n"
           + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
+          + "func hover(_ entered: Bool) {\nlet wasInside = inside\n"
+          + "inside = windowHost?.containsHover(NSEvent.mouseLocation) == true\n"
+          + "hoverState.update(pointerInside: inside)\nupdateCaptureControlsHover(wasInside: wasInside)\n}\n"
+          + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    func collapseCaptureControls()", "    func expandCaptureControls()",
+              "    private func setCaptureSelectionInProgress(", "    func scheduleCaptureControlsCollapse()",
+              "    private func updateCaptureControlsHover(", "    private func updateCaptureControlsClickThrough()",
+              "    func endCaptureControls()"])
+          + declaration(notch, "    private var hiddenUntilHover:").replace("private var", "var", 1)
+          + declaration(notch, "    var acceptsSystemFeedback:")
+          + declaration(notch, "    var showsSystemFeedback:")
           + declaration(notch, "    func refreshPresentation(")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    func updateCaptureHeight(")
