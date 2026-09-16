@@ -54,6 +54,7 @@ final class AppSwitcher: ObservableObject {
             }
         }
     }
+    @Published private(set) var selectionSource: SwitcherSelectionSource = .programmatic
     @Published private(set) var grid = SwitcherGrid.empty
     @Published private(set) var iconRowLayout = SwitcherIconRowLayout.empty
     /// First icon currently shown in an overflow row. The row steps this
@@ -804,9 +805,17 @@ final class AppSwitcher: ObservableObject {
         case KeyCode.leftArrow:
             advanceSelection(by: -1)
         case KeyCode.downArrow:
-            moveSelection(by: usesVerticalSimpleLayout ? 1 : grid.columns)
+            if usesVerticalSimpleLayout {
+                advanceSelection(by: 1)
+            } else {
+                moveSelection(by: grid.columns)
+            }
         case KeyCode.upArrow:
-            moveSelection(by: usesVerticalSimpleLayout ? -1 : -grid.columns)
+            if usesVerticalSimpleLayout {
+                advanceSelection(by: -1)
+            } else {
+                moveSelection(by: -grid.columns)
+            }
         case KeyCode.delete:
             removeLastSearchCharacter()
         case KeyCode.escape:
@@ -1022,7 +1031,7 @@ final class AppSwitcher: ObservableObject {
         // other window — the toggle target, which may be another window of the
         // same app. Shift starts from the far end. With no on-screen window
         // the session opens on the first entry from another app.
-        selectedIndex = pending.scope == .frontmostApp
+        setSelectedIndex(pending.scope == .frontmostApp
             ? SwitcherSupport.initialWindowScopedSelectionIndex(itemCount: list.count,
                                                                 hasForegroundItem: listedSource != nil,
                                                                 reversed: pending.reversed)
@@ -1030,7 +1039,8 @@ final class AppSwitcher: ObservableObject {
                                     reversed: pending.reversed,
                                     hasForegroundItem: listedSource != nil,
                                     frontmostPID: SwitcherSupport.appPID(forFrontmost: reportedFrontPID,
-                                                                         items: list))
+                                                                         items: list)),
+                         source: .programmatic)
         sessionShortcut = pending.shortcut
         shiftBackNavigationHeld = pending.reversed && pending.shortcut.shiftIsNavigationModifier
 
@@ -1136,10 +1146,10 @@ final class AppSwitcher: ObservableObject {
         WindowUseTracker.shared.recordSwitch(to: activated.windowID, from: previous)
     }
 
-    func select(index: Int) {
+    func select(index: Int, source: SwitcherSelectionSource = .pointer) {
         guard sessionActive, windows.indices.contains(index) else { return }
         userNavigated = true
-        selectedIndex = index
+        setSelectedIndex(index, source: source)
     }
 
     /// Hover-selection from the panel. Ignored until the mouse really moves:
@@ -1153,11 +1163,16 @@ final class AppSwitcher: ObservableObject {
             guard hypot(mouse.x - anchor.x, mouse.y - anchor.y) > 4 else { return }
             hoverAnchor = nil
         }
-        select(index: index)
+        select(index: index, source: .pointer)
     }
 
     func hoverSelectEnded(index: Int) {
         if hoveredWindowIndex == index { hoveredWindowIndex = nil }
+    }
+
+    private func setSelectedIndex(_ index: Int, source: SwitcherSelectionSource) {
+        selectionSource = source
+        selectedIndex = index
     }
 
     /// Icon-row hover. Selects the tile, then only the last visible overflow
@@ -1219,9 +1234,10 @@ final class AppSwitcher: ObservableObject {
         }
         let visibleIDs = Set(SwitcherSupport.filteredSearchIDs(records: records, query: searchQuery))
         windows = sessionItems.filter { visibleIDs.contains($0.id) }
-        selectedIndex = SwitcherSupport.searchSelectionIndex(itemIDs: windows.map(\.id),
-                                                             preferredID: preferredItemID,
-                                                             previousIndex: selectedIndex)
+        setSelectedIndex(SwitcherSupport.searchSelectionIndex(itemIDs: windows.map(\.id),
+                                                               preferredID: preferredItemID,
+                                                               previousIndex: selectedIndex),
+                         source: .programmatic)
         recomputeLayouts(for: windows)
         resizePanel()
     }
@@ -1263,23 +1279,25 @@ final class AppSwitcher: ObservableObject {
         userNavigated = true
         let next = selectedIndex + delta
         if !wrapping, !windows.indices.contains(next) { return }
-        selectedIndex = (next + windows.count) % windows.count
+        setSelectedIndex((next + windows.count) % windows.count, source: .keyboard)
     }
 
     private func advanceAppSelection(by delta: Int, wrapping: Bool = true) {
         cancelIconRowEdgeHover()
         userNavigated = true
-        selectedIndex = SwitcherSupport.nextAppSelectionIndex(items: windows,
-                                                              selectedIndex: selectedIndex,
-                                                              delta: delta,
-                                                              wrapping: wrapping)
+        setSelectedIndex(SwitcherSupport.nextAppSelectionIndex(items: windows,
+                                                                selectedIndex: selectedIndex,
+                                                                delta: delta,
+                                                                wrapping: wrapping),
+                         source: .keyboard)
     }
 
     private func advanceWindowInSelectedApp(by delta: Int) {
         userNavigated = true
-        selectedIndex = SwitcherSupport.nextWindowSelectionIndexWithinApp(items: windows,
-                                                                          selectedIndex: selectedIndex,
-                                                                          delta: delta)
+        setSelectedIndex(SwitcherSupport.nextWindowSelectionIndexWithinApp(items: windows,
+                                                                            selectedIndex: selectedIndex,
+                                                                            delta: delta),
+                         source: .keyboard)
     }
 
     /// W and Q act on the selected item, which quit protection's own tap cannot
@@ -1362,13 +1380,14 @@ final class AppSwitcher: ObservableObject {
             return
         }
         guard !windows.isEmpty else {
-            selectedIndex = 0
+            setSelectedIndex(0, source: .programmatic)
             recomputeLayouts(for: windows)
             resizePanel()
             resumePendingCommitAfterClose()
             return
         }
-        selectedIndex = min(max(0, selectedIndex - removedBeforeSelection), windows.count - 1)
+        setSelectedIndex(min(max(0, selectedIndex - removedBeforeSelection), windows.count - 1),
+                         source: .programmatic)
         recomputeLayouts(for: windows)
         resizePanel()
         resumePendingCommitAfterClose()
@@ -1438,7 +1457,7 @@ final class AppSwitcher: ObservableObject {
             if sessionItems.isEmpty || searchQuery.isEmpty {
                 endSession()
             } else {
-                selectedIndex = 0
+                setSelectedIndex(0, source: .programmatic)
                 recomputeLayouts(for: windows)
                 resizePanel()
                 resumePendingCommitAfterClose()
@@ -1446,7 +1465,7 @@ final class AppSwitcher: ObservableObject {
             return
         }
 
-        selectedIndex = state.selectedIndex
+        setSelectedIndex(state.selectedIndex, source: .programmatic)
         recomputeLayouts(for: windows)
         resizePanel()
         resumePendingCommitAfterClose()
@@ -1471,7 +1490,7 @@ final class AppSwitcher: ObservableObject {
                                                         movingDown: delta > 0)
         guard target != selectedIndex else { return }
         userNavigated = true
-        selectedIndex = target
+        setSelectedIndex(target, source: .keyboard)
     }
 
     /// Activates the current selection. Also used by the panel on click.
@@ -1523,7 +1542,7 @@ final class AppSwitcher: ObservableObject {
         sessionItems = []
         windows = []
         previews = [:]
-        selectedIndex = 0
+        setSelectedIndex(0, source: .programmatic)
         grid = .empty
         iconRowLayout = .empty
         searchQuery = ""
@@ -1855,7 +1874,7 @@ final class AppSwitcher: ObservableObject {
         iconRowFirstVisibleIndex = nextFirst
         if let nextSelection = selectionIndex(forIconRowIndex: nextIcon) {
             userNavigated = true
-            selectedIndex = nextSelection
+            setSelectedIndex(nextSelection, source: .pointer)
         }
 
         let work = DispatchWorkItem { [weak self] in

@@ -214,12 +214,12 @@ struct SwitcherView: View {
             }
             .frame(width: switcher.iconRowLayout.verticalListWidth,
                    height: switcher.iconRowLayout.verticalListHeight)
-            .onAppear { revealSelection(in: proxy, animated: false) }
+            .onAppear { revealVerticalSelection(in: proxy, animated: false) }
             .onChange(of: switcher.selectedIndex) { _, _ in
-                revealSelection(in: proxy, animated: true)
+                revealVerticalSelection(in: proxy, animated: true)
             }
             .onChange(of: switcher.windows.map(\.id)) { _, _ in
-                revealSelection(in: proxy, animated: true)
+                revealVerticalSelection(in: proxy, animated: true)
             }
         }
     }
@@ -247,12 +247,12 @@ struct SwitcherView: View {
             }
             .frame(width: switcher.iconRowLayout.verticalDetailWidth,
                    height: switcher.iconRowLayout.verticalListHeight)
-            .onAppear { revealSelection(in: proxy, animated: false) }
+            .onAppear { revealVerticalSelection(in: proxy, animated: false) }
             .onChange(of: switcher.selectedIndex) { _, _ in
-                revealSelection(in: proxy, animated: true)
+                revealVerticalSelection(in: proxy, animated: true)
             }
             .onChange(of: switcher.windows.map(\.id)) { _, _ in
-                revealSelection(in: proxy, animated: true)
+                revealVerticalSelection(in: proxy, animated: true)
             }
         }
         .padding(SwitcherIconRowLayout.verticalSurfacePadding)
@@ -730,6 +730,21 @@ struct SwitcherView: View {
         withAnimation(.easeOut(duration: 0.15)) {
             proxy.scrollTo(id, anchor: .center)
         }
+    }
+
+    /// Pointer selection must not move rows under the pointer. Keyboard and
+    /// programmatic selection use SwiftUI's nearest-edge reveal instead of
+    /// centring the row, so the list moves only when the item leaves its viewport.
+    private func revealVerticalSelection(in proxy: ScrollViewProxy, animated: Bool) {
+        guard switcher.selectionSource != .pointer else { return }
+        let index = switcher.selectedIndex
+        guard switcher.windows.indices.contains(index) else { return }
+        let reveal = { proxy.scrollTo(switcher.windows[index].id, anchor: nil) }
+        guard animated else {
+            reveal()
+            return
+        }
+        withAnimation(.easeOut(duration: 0.15), reveal)
     }
 
     private var selectedAppWindows: [(offset: Int, element: SwitcherItem)] {
