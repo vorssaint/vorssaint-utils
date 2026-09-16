@@ -29,6 +29,8 @@ Dynamic Island adds configurable reopening, hidden-until-hover behavior, media d
 - Screen recordings no longer fail to save when microphone or system audio changes format during recording.
 - Dynamic Island hides playing music when At rest is set to Nothing or automatic music is disabled, while keeping controls available on demand.
 - Dynamic Island simulates a camera cutout within the menu bar on displays without one, preserving its shape and expansion. Thanks to @Yahddyyp.
+- Screen capture answers the first click and drag when its controls are shown in Dynamic Island, instead of needing a second attempt.
+- Screen capture stays smooth while its controls are shown in Dynamic Island: the island no longer asks for every pointer move twice, which left the selector and the loupe trailing the pointer on large displays.
 
 ## [3.4.0-beta.1] - 2026-09-15
 

@@ -18556,6 +18556,21 @@ struct MetricsTests {
                 && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
                "clicking the screenshot preview takes key focus and still delivers every preview button")
 
+        // With the controls in Dynamic Island, the island's panel holds key
+        // focus and the selection surface never becomes key on its own, so
+        // AppKit would spend the first click making it key and swallow it.
+        // The overlay view claims that click; comments are stripped so prose
+        // cannot answer for the code.
+        let selectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
+            encoding: .utf8)) ?? ""
+        let overlayViewBody = selectionSource.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+            .components(separatedBy: "class ScreenshotOverlayView").dropFirst().first?
+            .components(separatedBy: "\n}").first ?? ""
+        expect(overlayViewBody.contains("acceptsFirstMouse") && overlayViewBody.contains("acceptsFirstMouse(for event: NSEvent?) -> Bool { true }"),
+               "the capture surface claims the first click so a drag works while Dynamic Island holds key focus")
         // Both editors state a size the same way. The recorder wrote
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.

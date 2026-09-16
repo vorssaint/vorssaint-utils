@@ -919,6 +919,11 @@ private final class ScreenshotOverlayView: NSView {
 
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
+    /// With the controls in Dynamic Island, the island's panel holds key
+    /// focus for its shortcuts and this surface never becomes key on its own.
+    /// AppKit would then spend the first click making the window key and
+    /// swallow it, so the first drag drew nothing. Claim it instead.
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     init(frame: CGRect,
          frozenImage: CGImage?,
