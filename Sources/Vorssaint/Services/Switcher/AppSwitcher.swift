@@ -804,9 +804,9 @@ final class AppSwitcher: ObservableObject {
         case KeyCode.leftArrow:
             advanceSelection(by: -1)
         case KeyCode.downArrow:
-            moveSelection(by: grid.columns)
+            moveSelection(by: usesVerticalSimpleLayout ? 1 : grid.columns)
         case KeyCode.upArrow:
-            moveSelection(by: -grid.columns)
+            moveSelection(by: usesVerticalSimpleLayout ? -1 : -grid.columns)
         case KeyCode.delete:
             removeLastSearchCharacter()
         case KeyCode.escape:
@@ -1628,16 +1628,12 @@ final class AppSwitcher: ObservableObject {
     }
 
     private var currentPanelSize: CGSize {
-        usesIconRowLayout
-            ? (simpleModeEnabled
-                ? (simpleLayout == .vertical
-                    ? iconRowLayout.simpleVerticalPanelSize(
-                        showsDetail: !usesWindowRow
-                            && iconRowLayout.verticalDetailWidth
-                                >= SwitcherIconRowLayout.verticalDetailMinimumWidth)
-                    : (usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize))
-                : iconRowLayout.panelSize)
-            : grid.panelSize
+        guard usesIconRowLayout else { return grid.panelSize }
+        guard simpleModeEnabled else { return iconRowLayout.panelSize }
+        guard usesVerticalSimpleLayout else {
+            return usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize
+        }
+        return iconRowLayout.simpleVerticalPanelSize(showsDetail: showsVerticalSimpleDetail)
     }
 
     private var iconRowModeEnabled: Bool {
@@ -1651,6 +1647,16 @@ final class AppSwitcher: ObservableObject {
     private var simpleLayout: SwitcherSimpleLayout {
         SwitcherSimpleLayout.layout(
             storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherSimpleLayout))
+    }
+
+    private var usesVerticalSimpleLayout: Bool {
+        SwitcherSupport.usesVerticalSimpleLayout(simpleMode: simpleModeEnabled,
+                                                 simpleLayout: simpleLayout)
+    }
+
+    private var showsVerticalSimpleDetail: Bool {
+        !usesWindowRow
+            && iconRowLayout.verticalDetailWidth >= SwitcherIconRowLayout.verticalDetailMinimumWidth
     }
 
     private var usesWindowRow: Bool {

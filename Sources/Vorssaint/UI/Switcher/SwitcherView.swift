@@ -53,11 +53,8 @@ struct SwitcherView: View {
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
-    @State private var verticalHoveredAppPID: pid_t?
-    @State private var verticalHoveredItemID: String?
-
     var body: some View {
-        if simpleMode, simpleLayout == .vertical, !switcher.windows.isEmpty {
+        if usesVerticalSimpleLayout, !switcher.windows.isEmpty {
             verticalSimplePanel
         } else if SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowMode,
                                              simpleMode: simpleMode),
@@ -70,6 +67,10 @@ struct SwitcherView: View {
 
     private var simpleLayout: SwitcherSimpleLayout {
         SwitcherSimpleLayout.layout(storedValue: simpleLayoutStorage)
+    }
+
+    private var usesVerticalSimpleLayout: Bool {
+        SwitcherSupport.usesVerticalSimpleLayout(simpleMode: simpleMode, simpleLayout: simpleLayout)
     }
 
     private var standardPanel: some View {
@@ -138,12 +139,6 @@ struct SwitcherView: View {
                     verticalWindowDetailList(activeAppWindows)
                 }
             }
-            .onHover { hovering in
-                if !hovering {
-                    verticalHoveredAppPID = nil
-                    verticalHoveredItemID = nil
-                }
-            }
             if showsShortcutHints {
                 Spacer().frame(height: SwitcherIconRowLayout.hintGap)
                 shortcutHintBar
@@ -152,6 +147,9 @@ struct SwitcherView: View {
         .padding(SwitcherIconRowLayout.padding)
         .frame(width: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail).width,
                height: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail).height)
+        .overlay(alignment: .topTrailing) {
+            searchChip
+        }
     }
 
     private var supportsVerticalDetail: Bool {
@@ -160,8 +158,7 @@ struct SwitcherView: View {
     }
 
     private var activeAppWindows: [(offset: Int, element: SwitcherItem)]? {
-        guard supportsVerticalDetail,
-              let pid = verticalHoveredAppPID ?? selectedWindow?.pid else { return nil }
+        guard supportsVerticalDetail, let pid = selectedWindow?.pid else { return nil }
         let windows = Array(switcher.windows.enumerated()).filter { $0.element.pid == pid }
         return windows.isEmpty ? nil : windows
     }
@@ -181,14 +178,17 @@ struct SwitcherView: View {
                     if usesWindowRow {
                         ForEach(Array(switcher.windows.enumerated()), id: \.element.id) { index, window in
                             verticalRow(window: window, showsWindowTitle: true,
-                                        isSelected: index == switcher.selectedIndex
-                                            || verticalHoveredItemID == window.id) {
+                                        isSelected: index == switcher.selectedIndex) {
                                 switcher.select(index: index)
                                 switcher.commitSession()
                             }
                             .id(window.id)
                             .onHover { hovering in
-                                verticalHoveredItemID = hovering ? window.id : nil
+                                if hovering {
+                                    switcher.hoverSelect(index: index)
+                                } else {
+                                    switcher.hoverSelectEnded(index: index)
+                                }
                             }
                         }
                     } else {
@@ -196,18 +196,16 @@ struct SwitcherView: View {
                             let index = group.representativeIndex
                             let window = switcher.windows[index]
                             verticalRow(window: window, showsWindowTitle: false,
-                                        isSelected: group.pid == selectedWindow?.pid
-                                            || verticalHoveredItemID == window.id) {
+                                        isSelected: group.pid == selectedWindow?.pid) {
                                 switcher.select(index: index)
                                 switcher.commitSession()
                             }
                             .id(window.id)
                             .onHover { hovering in
                                 if hovering {
-                                    verticalHoveredAppPID = group.pid
-                                    verticalHoveredItemID = window.id
-                                } else if verticalHoveredItemID == window.id {
-                                    verticalHoveredItemID = nil
+                                    switcher.hoverSelect(index: index)
+                                } else {
+                                    switcher.hoverSelectEnded(index: index)
                                 }
                             }
                         }
@@ -227,24 +225,37 @@ struct SwitcherView: View {
     }
 
     private func verticalWindowDetailList(_ windows: [(offset: Int, element: SwitcherItem)]) -> some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: SwitcherIconRowLayout.verticalRowSpacing) {
-                ForEach(windows, id: \.element.id) { entry in
-                    verticalRow(window: entry.element, showsWindowTitle: true,
-                                isSelected: entry.offset == switcher.selectedIndex
-                                    || verticalHoveredItemID == entry.element.id) {
-                        switcher.select(index: entry.offset)
-                        switcher.commitSession()
-                    }
-                    .onHover { hovering in
-                        verticalHoveredItemID = hovering ? entry.element.id : nil
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: SwitcherIconRowLayout.verticalRowSpacing) {
+                    ForEach(windows, id: \.element.id) { entry in
+                        verticalRow(window: entry.element, showsWindowTitle: true,
+                                    isSelected: entry.offset == switcher.selectedIndex) {
+                            switcher.select(index: entry.offset)
+                            switcher.commitSession()
+                        }
+                        .id(entry.element.id)
+                        .onHover { hovering in
+                            if hovering {
+                                switcher.hoverSelect(index: entry.offset)
+                            } else {
+                                switcher.hoverSelectEnded(index: entry.offset)
+                            }
+                        }
                     }
                 }
             }
+            .frame(width: switcher.iconRowLayout.verticalDetailWidth,
+                   height: switcher.iconRowLayout.verticalListHeight)
+            .onAppear { revealSelection(in: proxy, animated: false) }
+            .onChange(of: switcher.selectedIndex) { _, _ in
+                revealSelection(in: proxy, animated: true)
+            }
+            .onChange(of: switcher.windows.map(\.id)) { _, _ in
+                revealSelection(in: proxy, animated: true)
+            }
         }
         .padding(SwitcherIconRowLayout.verticalSurfacePadding)
-        .frame(width: switcher.iconRowLayout.verticalDetailWidth,
-               height: switcher.iconRowLayout.verticalListHeight)
         .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
             .fill(SwitcherIconStyle.surfaceRaised))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)

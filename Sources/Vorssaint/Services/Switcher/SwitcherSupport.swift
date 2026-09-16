@@ -336,13 +336,17 @@ struct SwitcherIconRowLayout: Equatable {
                height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
     }
 
+    /// `verticalList*` describes the scrollable content viewport. Each list is
+    /// then wrapped in a surface with `verticalSurfacePadding`, and that final
+    /// surface is what the panel must fit.
     func simpleVerticalPanelSize(showsDetail: Bool) -> CGSize {
         let mainWidth = verticalListWidth + Self.verticalSurfacePadding * 2
         let detailWidth = showsDetail
             ? verticalDetailWidth + Self.verticalSurfacePadding * 2 + Self.verticalDetailGap
             : 0
         return CGSize(width: mainWidth + detailWidth + Self.padding * 2,
-                      height: verticalListHeight + shortcutHintHeight + Self.padding * 2)
+                      height: verticalListHeight + Self.verticalSurfacePadding * 2
+                        + shortcutHintHeight + Self.padding * 2)
     }
 
     private var shortcutHintHeight: CGFloat {
@@ -397,6 +401,7 @@ struct SwitcherIconRowLayout: Equatable {
                                       max(0, maxContentWidth - verticalListWidth - verticalDetailGap))
         let verticalMaximumHeight = max(verticalRowHeight,
                                         screenVisibleFrame.height * 0.80 - padding * 2
+                                            - verticalSurfacePadding * 2
                                             - (showsShortcutHints ? hintGap + hintHeight : 0))
         let verticalVisibleRows = max(1, min(appCount,
                                              verticalMaximumVisibleRows,
@@ -497,6 +502,11 @@ enum SwitcherSupport {
 
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
+    }
+
+    static func usesVerticalSimpleLayout(simpleMode: Bool,
+                                         simpleLayout: SwitcherSimpleLayout) -> Bool {
+        simpleMode && simpleLayout == .vertical
     }
 
     static func capturesPreviews(simpleMode: Bool) -> Bool {

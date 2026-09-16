@@ -2541,6 +2541,10 @@ struct MetricsTests {
         expect(SwitcherSimpleLayout.layout(storedValue: SwitcherSimpleLayout.vertical.rawValue) == .vertical
                && SwitcherSimpleLayout.layout(storedValue: "unknown") == .horizontal,
                "App Switcher simple layout accepts the vertical list and safely falls back to the horizontal row")
+        expect(SwitcherSupport.usesVerticalSimpleLayout(simpleMode: true, simpleLayout: .vertical)
+               && !SwitcherSupport.usesVerticalSimpleLayout(simpleMode: true, simpleLayout: .horizontal)
+               && !SwitcherSupport.usesVerticalSimpleLayout(simpleMode: false, simpleLayout: .vertical),
+               "App Switcher only applies the vertical layout while simple mode is enabled")
         expect(SwitcherSupport.usesWindowRow(simpleMode: true,
                                              mergeWindowsByApp: false,
                                              sessionScope: .allApps)
@@ -10771,7 +10775,8 @@ struct MetricsTests {
                == iconRowLayout.verticalListWidth + SwitcherIconRowLayout.verticalSurfacePadding * 2
                     + SwitcherIconRowLayout.padding * 2
                && iconRowLayout.simpleVerticalPanelSize(showsDetail: false).height
-                    == iconRowLayout.verticalListHeight + SwitcherIconRowLayout.hintGap
+                    == iconRowLayout.verticalListHeight + SwitcherIconRowLayout.verticalSurfacePadding * 2
+                        + SwitcherIconRowLayout.hintGap
                         + SwitcherIconRowLayout.hintHeight + SwitcherIconRowLayout.padding * 2
                && iconRowLayout.simpleVerticalPanelSize(showsDetail: false).height <= screen.height * 0.80
                && iconRowLayout.simpleVerticalPanelSize(showsDetail: true).width
