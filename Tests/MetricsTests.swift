@@ -5774,6 +5774,8 @@ struct MetricsTests {
                "Media image background starts transparent")
         expect(registeredDefaults[DefaultsKey.mediaImagePreserveModificationDate] as? Bool == false,
                "Media image conversion does not preserve modification dates by default")
+        expect(registeredDefaults[DefaultsKey.mediaImageSaveInSubfolder] as? Bool == false,
+               "Media image batches keep their current output folder by default")
         expect(registeredDefaults[DefaultsKey.mediaImageProfiles] as? String == "[]",
                "Media image profiles start empty")
         expect((registeredDefaults[DefaultsKey.autoQuitExceptions] as? [String]) == Defaults.mandatoryAutoQuitExceptionBundleIDs,
@@ -21656,6 +21658,7 @@ struct MetricsTests {
             DefaultsKey.mediaImageRenamePattern,
             DefaultsKey.mediaImageBackground,
             DefaultsKey.mediaImagePreserveModificationDate,
+            DefaultsKey.mediaImageSaveInSubfolder,
             DefaultsKey.mediaImageProfiles,
             DefaultsKey.mediaImageSelectedProfileID,
         ]).isSubset(of: backupKeys),

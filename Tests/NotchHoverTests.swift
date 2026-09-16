@@ -12,9 +12,11 @@ enum NotchHoverTests {
         static var standard = Preferences()
         struct Preferences {
             var enabled = true, expands = true
+            var delay = NotchSupport.defaultHoverDelay
             func bool(forKey key: String) -> Bool {
                 key == DefaultsKey.notchOpenOnHover ? enabled : expands
             }
+            func double(forKey key: String) -> Double { delay }
         }
     }
     enum AssistiveKeyboard {
@@ -44,7 +46,9 @@ enum NotchHoverTests {
         var compactActivityGeometry: NotchGeometry { geometry.compactMusicGeometry }
         var surfaceSize: CGSize { expanded ? geometry.expanded : peeking ? geometry.peek : geometry.collapsed }
         var openings = 0, closures = 0, feedbacks = 0
-        func open(_ module: NotchModule?, takeFocus: Bool) {
+        var requestedModule: NotchModule?
+        func open(_ module: NotchModule? = nil, takeFocus: Bool) {
+            requestedModule = module
             openings += 1; expanded = true; openedByHover = !takeFocus
             hoverState.open(); hoverWork?.cancel(); hoverWork = nil
             updateBounds()
@@ -82,13 +86,13 @@ enum NotchHoverTests {
             let service = fixture(physical: physical)
             service.hover(true)
             let initial = service.hoverWork
-            DispatchQueue.main.advance(0.06)
+            DispatchQueue.main.advance(0.20)
             expect(service.openings == 0, "passing briefly over either display's island does not open it")
             service.hover(false) // A tracking exit while the pointer is still inside.
             expect(service.hoverWork === initial, "duplicate tracking events preserve the original opening deadline")
-            DispatchQueue.main.advance(0.05)
+            DispatchQueue.main.advance(0.06)
             expect(service.openings == 1 && service.openedByHover && service.hoverWork == nil,
-                   "a deliberate hover opens within 110 ms on both physical and simulated cutouts")
+                   "a deliberate hover opens after the default 250 ms on both physical and simulated cutouts")
             leave(service)
             let closing = service.hoverWork
             DispatchQueue.main.advance(0.10)
@@ -100,14 +104,58 @@ enum NotchHoverTests {
         }
         let passing = fixture()
         passing.hover(true)
-        DispatchQueue.main.advance(0.04)
+        DispatchQueue.main.advance(0.20)
         leave(passing)
         DispatchQueue.main.advance(1)
         expect(passing.openings == 0, "leaving before the opening deadline cancels expansion")
 
+        let reentering = fixture()
+        reentering.hover(true)
+        DispatchQueue.main.advance(0.20)
+        leave(reentering)
+        DispatchQueue.main.advance(0.02)
+        NSEvent.mouseLocation = CGPoint(x: reentering.geometry.screen.midX, y: reentering.geometry.screen.maxY)
+        reentering.hover(true)
+        DispatchQueue.main.advance(0.20)
+        expect(reentering.openings == 0, "separate short passes cannot accumulate time toward opening")
+        DispatchQueue.main.advance(0.06)
+        expect(reentering.openings == 1, "reentering requires a fresh uninterrupted activation delay")
+
+        for delay in [0.10, 0.25, 0.65, 1.0] {
+            for expands in [false, true] {
+                let custom = fixture()
+                UserDefaults.standard.delay = delay
+                UserDefaults.standard.expands = expands
+                custom.hover(true)
+                DispatchQueue.main.advance(delay - 0.01)
+                expect(custom.openings == 0 && !custom.peeking, "hover waits for the full configured delay in both opening modes")
+                DispatchQueue.main.advance(0.02)
+                expect(expands ? custom.openings == 1 : custom.peeking,
+                       "both expansion and preview honor the selected activation time")
+            }
+        }
+
+        let adjusted = fixture()
+        adjusted.hover(true)
+        leave(adjusted)
+        UserDefaults.standard.delay = 0.65
+        NSEvent.mouseLocation = CGPoint(x: adjusted.geometry.screen.midX, y: adjusted.geometry.screen.maxY)
+        adjusted.hover(true)
+        DispatchQueue.main.advance(0.30)
+        expect(adjusted.openings == 0, "a changed activation time applies on the next entry without restarting")
+        DispatchQueue.main.advance(0.36)
+        expect(adjusted.openings == 1, "the updated activation time completes normally")
+
+        let active = fixture()
+        active.compactActivity = .music
+        active.hover(true)
+        DispatchQueue.main.advance(0.26)
+        expect(active.openings == 1 && active.requestedModule == nil,
+               "hover uses the saved reopening behavior instead of overriding it with compact music")
+
         let returning = fixture()
         returning.hover(true)
-        DispatchQueue.main.advance(0.11)
+        DispatchQueue.main.advance(0.26)
         leave(returning)
         DispatchQueue.main.advance(0.10)
         NSEvent.mouseLocation = CGPoint(x: returning.geometry.screen.midX, y: returning.geometry.screen.maxY)
@@ -119,7 +167,7 @@ enum NotchHoverTests {
         let preview = fixture()
         UserDefaults.standard.expands = false
         preview.hover(true)
-        DispatchQueue.main.advance(0.11)
+        DispatchQueue.main.advance(0.26)
         expect(preview.peeking && preview.openings == 0 && preview.feedbacks == 1 && preview.hoverWork == nil,
                "preview-only mode responds promptly without expanding the panel")
         leave(preview)

@@ -319,6 +319,16 @@ enum NotchTests {
                && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
                && defaults.bool(forKey: DefaultsKey.notchHoverExpands),
                "a new island starts spacious and expands on hover")
+        expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
+               "hover activation defaults to a deliberate quarter-second pause")
+        for value in [0.10, 0.25, 0.65, 1.0] {
+            expect(NotchSupport.sanitizedHoverDelay(value) == value, "valid hover activation times are preserved")
+        }
+        expect(NotchSupport.sanitizedHoverDelay(-1) == 0.10
+               && NotchSupport.sanitizedHoverDelay(9) == 1.0,
+               "hover activation times stay within usable bounds")
+        expect([Double.nan, .infinity, -.infinity].allSatisfy { NotchSupport.sanitizedHoverDelay($0) == 0.25 },
+               "non-finite hover activation times fall back to the default")
         expect(NotchSupport.routesAppPanel(in: defaults) && NotchSupport.routesQuickPanel(in: defaults)
                && NotchSupport.routesClipboardWindow(in: defaults) && NotchSupport.routesShelf(in: defaults)
                && NotchSupport.routesCaptureControls(in: defaults),
@@ -544,7 +554,7 @@ enum NotchTests {
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
-                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHiddenModules,
+                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
@@ -930,23 +940,28 @@ enum NotchTests {
                        "the capture preview preserves the screen edge and respects the custom height limit")
             }
         }
-        let regularFiles = mediaGeometry.expandedSize(module: .files)
-        let fileMedia = mediaGeometry.expandedSize(module: .files, fileMediaVisible: true)
-        expect(mediaGeometry.contentSize(for: fileMedia).height == 600 && fileMedia.height > regularFiles.height,
-               "opening the embedded media workspace gives previews, settings and actions six hundred useful points")
-        expect(mediaGeometry.expandedSize(module: .music, fileMediaVisible: true)
+        for layout in NotchSize.allCases {
+            let fitting = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
+                                        layout: layout, customHeight: 640)
+            for measured: CGFloat in [120, 280, 370, 480] {
+                let fileMedia = fitting.expandedSize(module: .files, fileMediaHeight: measured)
+                expect(fitting.contentSize(for: fileMedia).height == measured,
+                       "embedded media fits its measured content without adding a fixed blank area")
+            }
+        }
+        expect(mediaGeometry.expandedSize(module: .music, fileMediaHeight: 600)
                == mediaGeometry.expandedSize(module: .music),
                "an open file-media session does not enlarge unrelated notch modules")
         for height in [400.0, 520.0, 640.0] {
             let custom = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         layout: .custom, customHeight: height)
-            let target = custom.expandedSize(module: .files, fileMediaVisible: true)
+            let target = custom.expandedSize(module: .files, fileMediaHeight: 600)
             expect(target.height <= height && menuScreen.contains(custom.frame(for: target)),
                    "the embedded media workspace respects the user's custom height")
         }
         let shortScreen = CGRect(x: 0, y: 0, width: 1024, height: 600)
         let shortMedia = NotchGeometry(screen: shortScreen, safeAreaTop: 0, cameraWidth: 0)
-        let shortTarget = shortMedia.expandedSize(module: .files, fileMediaVisible: true)
+        let shortTarget = shortMedia.expandedSize(module: .files, fileMediaHeight: 600)
         expect(shortTarget.height <= shortScreen.height - 48 && shortScreen.contains(shortMedia.frame(for: shortTarget)),
                "the larger media workspace preserves the screen margin on shorter displays")
         expect(NotchSupport.screenIndex(preference: .automatic, builtIn: [false, true],

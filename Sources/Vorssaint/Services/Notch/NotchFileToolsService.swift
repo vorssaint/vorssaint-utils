@@ -15,6 +15,8 @@ final class NotchFileToolsService: ObservableObject {
     static let shared = NotchFileToolsService()
     let media = MediaService(replacesExistingOutputs: false)
     @Published private(set) var mediaSession: NotchMediaSession?
+    @Published private(set) var mediaPresented = false
+    @Published private(set) var mediaContentHeight: CGFloat?
     private(set) var mediaSelection = MediaWorkspaceSelection()
     private var mediaResults: AnyCancellable?
     @Published private(set) var isRunning = false
@@ -29,6 +31,47 @@ final class NotchFileToolsService: ObservableObject {
 
     private init() {}
     deinit { operation?.cancel(immediately: true) }
+
+    var offersMediaDrop: Bool {
+        NotchSupport.isEnabled() && NotchSupport.modules().contains(.files)
+            && AppFeature.mediaTools.isAvailable && AppFeature.shelf.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+    }
+
+    var canAcceptMediaDrop: Bool {
+        if case .running = media.state { return false }
+        return offersMediaDrop && !isRunning
+    }
+
+    func mediaDropContent(for pasteboard: NSPasteboard) -> (tool: MediaTool, inputs: [URL])? {
+        guard offersMediaDrop,
+              !pasteboard.canReadObject(forClasses: [NSFilePromiseReceiver.self], options: nil) else { return nil }
+        let inputs = ShelfService.shared.fileURLs(from: pasteboard)
+        // Mixed payloads stay in the shelf, where every companion is preserved.
+        guard inputs.count >= (pasteboard.pasteboardItems?.count ?? 0) else { return nil }
+        guard let tool = NotchFileToolsSupport.optimizationTool(for: inputs) else { return nil }
+        return (tool, inputs)
+    }
+
+    func openMediaDrop(_ pasteboard: NSPasteboard) -> Bool {
+        guard canAcceptMediaDrop, let content = mediaDropContent(for: pasteboard) else { return false }
+        return openMedia(content.tool, inputs: content.inputs)
+    }
+
+    func updateMediaHeight(id: UUID, height: CGFloat) {
+        guard mediaSession?.id == id, height.isFinite, height > 0 else { return }
+        let measured = ceil(height)
+        if mediaContentHeight != measured { mediaContentHeight = measured }
+    }
+
+    func showMedia() {
+        guard offersMediaDrop, mediaSession != nil else { return }
+        mediaPresented = true
+    }
+
+    func hideMedia() {
+        mediaPresented = false
+    }
 
     func syncWithPreferences() {
         guard NotchSupport.isEnabled(), NotchSupport.modules().contains(.files),
@@ -52,18 +95,23 @@ final class NotchFileToolsService: ObservableObject {
         mediaSelection.durationLoading.cancel()
         mediaSelection = MediaWorkspaceSelection()
         mediaSession = nil
+        mediaPresented = false
+        mediaContentHeight = nil
     }
 
-    func openMedia(_ tool: MediaTool, inputs: [URL]) {
+    @discardableResult
+    func openMedia(_ tool: MediaTool, inputs: [URL]) -> Bool {
         guard NotchSupport.isEnabled(), NotchSupport.modules().contains(.files),
               AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
-              NotchFileToolsSupport.accepts(inputs, for: tool) else { return }
+              NotchFileToolsSupport.accepts(inputs, for: tool) else { return false }
         closeMedia()
         mediaSession = NotchMediaSession(inputs: inputs, tool: tool)
+        mediaPresented = true
         mediaResults = media.$state.dropFirst().sink { state in
             guard case let .completed(result) = state, AppFeature.shelf.isAvailable else { return }
             _ = ShelfService.shared.addFiles(result.outputURLs)
         }
+        return true
     }
 
     func closeMedia() {
@@ -72,6 +120,8 @@ final class NotchFileToolsService: ObservableObject {
         mediaSelection.durationLoading.cancel()
         mediaSelection = MediaWorkspaceSelection()
         mediaSession = nil
+        mediaPresented = false
+        mediaContentHeight = nil
     }
 
     func cancel() {

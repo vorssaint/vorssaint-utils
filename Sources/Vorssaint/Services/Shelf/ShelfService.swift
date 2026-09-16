@@ -1800,7 +1800,7 @@ final class ShelfService: ObservableObject {
         return []
     }
 
-    private func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
+    func fileURLs(from pasteboard: NSPasteboard) -> [URL] {
         let fileOptions: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
         if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: fileOptions) as? [NSURL],
            !urls.isEmpty {

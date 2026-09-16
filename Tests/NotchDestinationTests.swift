@@ -85,6 +85,7 @@ enum NotchDestinationContract {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        reopeningContracts(defaults: defaults, expect: expect)
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
@@ -160,6 +161,70 @@ enum NotchDestinationContract {
         service.open(.tools)
         expect(launcher.selectedIndex == nil, "an empty Tools module leaves keyboard activation without a target")
         sessionContracts(expect: expect)
+    }
+
+    private static func reopeningContracts(defaults: UserDefaults, expect: (Bool, String) -> Void) {
+        expect(Defaults.registeredDefaults[DefaultsKey.notchReturnHome] as? Bool == false,
+               "returning home is opt-in and preserves the existing opening behavior")
+        expect(Defaults.registeredDefaults[DefaultsKey.notchHomeModule] as? String == NotchModule.controls.rawValue,
+               "the previously available home option keeps Controls as its initial destination")
+        for returnHome in [false, true] {
+            defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
+            let payload = SettingsBackupSupport.payload(appVersion: "test") {
+                if $0 == DefaultsKey.notchReturnHome { return returnHome }
+                if $0 == DefaultsKey.notchHomeModule { return NotchModule.music.rawValue }
+                if $0 == DefaultsKey.notchHoverDelay { return 0.65 }
+                return nil
+            }
+            let data = try? JSONSerialization.data(withJSONObject: payload)
+            let decoded = data.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+            let restored = decoded.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
+            expect(restored?[DefaultsKey.notchReturnHome] as? Bool == returnHome
+                   && restored?[DefaultsKey.notchHomeModule] as? String == NotchModule.music.rawValue
+                   && restored?[DefaultsKey.notchHoverDelay] as? Double == 0.65,
+                   "the opening behavior, selected page and activation time survive backup and restore")
+
+            let service = Service()
+            service.open(.files)
+            service.open()
+            expect(service.selected == .files, "an already open island does not jump away from the current page")
+            service.expanded = false
+            service.open()
+            expect(service.selected == (returnHome ? .controls : .files),
+                   "reopening either restores the last page or returns home according to the preference")
+            service.expanded = false
+            service.open(.music)
+            expect(service.selected == .music, "an explicit destination always wins over the opening preference")
+            defaults.set("controls", forKey: DefaultsKey.notchHiddenModules)
+            defaults.set("files,music", forKey: DefaultsKey.notchModuleOrder)
+            service.expanded = false
+            service.open()
+            expect(service.selected == (returnHome ? .files : .music),
+                   "a hidden home page falls back to the first visible page without unhiding controls")
+            defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+            defaults.set("", forKey: DefaultsKey.notchModuleOrder)
+        }
+        defaults.set(true, forKey: DefaultsKey.notchReturnHome)
+        for page in NotchSupport.modules(in: defaults) {
+            defaults.set(page.rawValue, forKey: DefaultsKey.notchHomeModule)
+            let service = Service()
+            service.open()
+            expect(service.selected == page, "each available page can be chosen for reopening: \(page.rawValue)")
+            service.open(.files)
+            expect(service.selected == .files, "a saved opening page never overrides explicit navigation")
+            defaults.set(page.rawValue, forKey: DefaultsKey.notchHiddenModules)
+            service.expanded = false
+            service.open()
+            expect(service.selected == NotchSupport.modules(in: defaults).first,
+                   "hiding the saved opening page falls back to an available page")
+            defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        }
+        defaults.set("unknown-page", forKey: DefaultsKey.notchHomeModule)
+        let invalid = Service()
+        invalid.open()
+        expect(invalid.selected == .controls, "a malformed saved page falls back to Controls")
+        defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchHomeModule)
+        defaults.set(false, forKey: DefaultsKey.notchReturnHome)
     }
 
     private static func sessionContracts(expect: (Bool, String) -> Void) {

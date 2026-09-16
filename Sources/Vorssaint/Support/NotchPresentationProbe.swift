@@ -6,7 +6,7 @@ import AppKit
 import SwiftUI
 import QuartzCore
 
-/// Exercises the production window host without touching preferences, files,
+/// Exercises the production window host without touching user preferences, files,
 /// clipboard, keyboard input or hardware controls. Tests keep the window
 /// invisible; the separate, explicitly requested notice preview is visible.
 enum NotchPresentationProbe {
@@ -52,6 +52,7 @@ enum NotchPresentationProbe {
     }
 
     static func runAndExit() -> Never {
+        if CommandLine.arguments.contains("--media-layout") { NotchMediaPresentationProbe.runAndExit() }
         if let index = CommandLine.arguments.firstIndex(of: "--preview-notice"),
            CommandLine.arguments.indices.contains(index + 1) {
             previewNoticeAndExit(title: CommandLine.arguments[index + 1])
@@ -67,6 +68,9 @@ enum NotchPresentationProbe {
         host.panel.ignoresMouseEvents = true
         host.panel.orderFrontRegardless()
         var failures: [String] = []
+        if host.panel.collectionBehavior.intersection([.managed, .transient, .stationary]) != .stationary {
+            failures.append("the island must stay stationary when revealing the desktop, without a conflicting window motion policy")
+        }
         if host.panel.level.rawValue <= NSWindow.Level.statusBar.rawValue
             || host.panel.level.rawValue >= NSWindow.Level.popUpMenu.rawValue {
             failures.append("top-edge activation must outrank status items while leaving native menus above the island")
@@ -216,7 +220,7 @@ enum NotchPresentationProbe {
         var accepted = 0
         host.setFileDropActions(NotchFileDropActions(
             canAccept: { $0.availableType(from: [.fileURL]) != nil },
-            enter: { entered += 1; host.present(size: geometry.expanded, geometry: geometry, animated: true) },
+            enter: { _ in entered += 1; host.present(size: geometry.expanded, geometry: geometry, animated: true) },
             accept: { board in
                 guard board.string(forType: .fileURL) == fixture.absoluteString else { return false }
                 accepted += 1

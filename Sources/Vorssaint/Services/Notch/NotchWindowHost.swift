@@ -7,9 +7,10 @@ import QuartzCore
 
 struct NotchFileDropActions {
     let canAccept: (NSPasteboard) -> Bool
-    let enter: () -> Void
+    let enter: (NSPasteboard) -> Void
     let accept: (NSPasteboard) -> Bool
     let exit: () -> Void
+    var update: ((CGPoint) -> Bool)? = nil
 }
 
 enum NotchContentTransition { case none, reveal, dismiss, replace }
@@ -50,8 +51,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         panel.isReleasedWhenClosed = false
         panel.animationBehavior = .none
         panel.level = NotchPanel.normalLevel
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary,
-                                    .transient, .ignoresCycle]
+        // Stationary and transient are mutually exclusive. Keep the island
+        // anchored when the desktop is revealed, outside the system's window motion.
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.contentView = quickAccessContainer ?? canvas
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
@@ -87,6 +89,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let previousWidth = canvas.bounds.width
         let sameScreen = geometry.screen == currentGeometry.screen
         animationGeneration += 1
+        let generation = animationGeneration
         isAnimating = false
         canvas.stopMotion()
         targetSize = size
@@ -104,8 +107,12 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         CATransaction.setDisableActions(true)
         canvas.setContentSize(size)
         setFrame(mainSize: envelope, gutter: reservedGutter, bottom: reservedBottom)
+        // Updating the hosting view can synchronously report a newer content
+        // size. Only the latest request may install an animation or settle it.
+        guard generation == animationGeneration else { CATransaction.commit(); return }
         configureQuickAccess()
         canvas.layoutSubtreeIfNeeded()
+        guard generation == animationGeneration else { CATransaction.commit(); return }
         var translation = CGAffineTransform(translationX: (envelope.width - previousWidth) / 2, y: 0)
         let from = previousPath.copy(using: &translation)
         let duration = NotchMotion.duration(from: previousPath.boundingBoxOfPath.size, to: size)
@@ -122,7 +129,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             animation.fillMode = .backwards
         }
         animation.delegate = self
-        animation.setValue(animationGeneration, forKey: "notchGeneration")
+        animation.setValue(generation, forKey: "notchGeneration")
         isAnimating = true
         canvas.animate(animation)
         CATransaction.commit()
@@ -137,6 +144,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     private func settle() {
+        let generation = animationGeneration
         isAnimating = false
         canvas.stopMotion()
         CATransaction.begin()
@@ -144,8 +152,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.setContentSize(targetSize)
         setFrame(mainSize: targetSize, gutter: quickAccessConfiguration == nil ? 0 : NotchQuickAccessLayout.gutter,
                  bottom: quickAccessConfiguration?.hasBottom == true ? NotchQuickAccessLayout.gutter : 0)
+        guard generation == animationGeneration else { CATransaction.commit(); return }
         configureQuickAccess()
         canvas.layoutSubtreeIfNeeded()
+        guard generation == animationGeneration else { CATransaction.commit(); return }
         CATransaction.commit()
         quickAccessContainer?.motion.setVisible(quickAccessConfiguration != nil, animated: quickAccessAnimate)
         runSettledActions()
@@ -155,6 +165,11 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         quickAccessContainer?.gutter = gutter
         quickAccessContainer?.bottomInset = bottom
         panel.setFrame(currentGeometry.frame(for: CGSize(width: mainSize.width + gutter * 2, height: mainSize.height + bottom)), display: false)
+        // A media measurement can arrive during AppKit layout. A nested
+        // layoutSubtreeIfNeeded is then deferred, so reserve the actual canvas
+        // and hosting view now, before the animated mask can expose new pixels.
+        quickAccessContainer?.updateFrames()
+        canvas.updateGeometry()
         panel.contentView?.layoutSubtreeIfNeeded()
         // AppKit aligns the backing window to pixels; its accepted frame is
         // the baseline for detecting a later move by the window server.
@@ -223,6 +238,19 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
 #if VORSSAINT_DEVELOPMENT
+    func probePresentDuringLayout(size: CGSize, geometry: NotchGeometry) -> Bool {
+        guard let container = quickAccessContainer else { return false }
+        var backingReady = false
+        container.nextProbeLayout = { [weak self] in
+            guard let self else { return }
+            self.present(size: size, geometry: geometry, animated: true, quickAccess: .initial)
+            backingReady = self.contentCanvasSize.height + 0.5 >= size.height
+        }
+        container.needsLayout = true
+        container.layoutSubtreeIfNeeded()
+        return backingReady
+    }
+
     var quickAccessProbeTrackingAreas: Int { quickAccessContainer?.trackingAreas.count ?? 0 }
     var quickAccessProbeInteractive: Bool { quickAccessContainer?.motion.interactive == true }
     var quickAccessProbeCenters: [CGPoint] {
@@ -283,6 +311,9 @@ private final class NotchQuickAccessContainer: NSView {
     var hoverChanged: ((Bool) -> Void)?
     var gutter: CGFloat = 0 { didSet { needsLayout = true } }
     var bottomInset: CGFloat = 0 { didSet { needsLayout = true } }
+#if VORSSAINT_DEVELOPMENT
+    var nextProbeLayout: (() -> Void)?
+#endif
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
 
@@ -306,10 +337,20 @@ private final class NotchQuickAccessContainer: NSView {
 
     override func layout() {
         super.layout()
+        updateFrames()
+#if VORSSAINT_DEVELOPMENT
+        let probe = nextProbeLayout
+        nextProbeLayout = nil
+        probe?()
+#endif
+    }
+
+    func updateFrames() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        canvas.frame = CGRect(x: gutter, y: 0, width: max(0, bounds.width - gutter * 2), height: max(0, bounds.height - bottomInset))
-        quickView.frame = bounds
+        let frame = CGRect(x: gutter, y: 0, width: max(0, bounds.width - gutter * 2), height: max(0, bounds.height - bottomInset))
+        if canvas.frame != frame { canvas.frame = frame }
+        if quickView.frame != bounds { quickView.frame = bounds }
         CATransaction.commit()
     }
 
@@ -428,13 +469,14 @@ private final class NotchCanvas: NSView {
         // In-app tile drags keep their own reorder/merge destinations. This
         // stable native view receives external drops while its content expands.
         acceptingDrag = !localSource && dropActions?.canAccept(pasteboard) == true
-        if acceptingDrag { dropActions?.enter() }
+        if acceptingDrag { dropActions?.enter(pasteboard) }
         return acceptingDrag ? .copy : []
     }
 
     func finishDrop(_ pasteboard: NSPasteboard) -> Bool {
-        defer { acceptingDrag = false }
-        return acceptingDrag && dropActions?.accept(pasteboard) == true
+        guard acceptingDrag else { return false }
+        defer { acceptingDrag = false; dropActions?.exit() }
+        return dropActions?.accept(pasteboard) == true
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -446,7 +488,9 @@ private final class NotchCanvas: NSView {
             if acceptingDrag { acceptingDrag = false; dropActions?.exit() }
             return []
         }
-        return acceptingDrag ? .copy : beginDrop(sender.draggingPasteboard, localSource: sender.draggingSource != nil)
+        let operation = acceptingDrag ? .copy : beginDrop(sender.draggingPasteboard, localSource: sender.draggingSource != nil)
+        if acceptingDrag, dropActions?.update?(convert(sender.draggingLocation, from: nil)) == false { return [] }
+        return operation
     }
 
     override func draggingExited(_ sender: NSDraggingInfo?) {
@@ -457,6 +501,12 @@ private final class NotchCanvas: NSView {
     override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
         guard containsVisiblePoint(convert(sender.draggingLocation, from: nil)) else {
             acceptingDrag = false
+            dropActions?.exit()
+            return false
+        }
+        if acceptingDrag, dropActions?.update?(convert(sender.draggingLocation, from: nil)) == false {
+            acceptingDrag = false
+            dropActions?.exit()
             return false
         }
         return finishDrop(sender.draggingPasteboard)
@@ -546,6 +596,10 @@ private final class NotchCanvas: NSView {
 
     override func layout() {
         super.layout()
+        updateGeometry()
+    }
+
+    func updateGeometry() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         silhouette.frame = bounds

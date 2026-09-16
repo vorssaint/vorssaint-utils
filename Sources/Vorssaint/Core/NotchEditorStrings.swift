@@ -28,6 +28,11 @@ struct NotchEditorStrings {
     let separate: String
     let feedback: String
     let privacy: String
+    let reopening: String
+    let lastPage: String
+    let activationTime: String
+    let activationTimeHint: String
+    let activationTimeFormat: String
 }
 
 extension FeatureStrings {
@@ -57,7 +62,12 @@ extension FeatureStrings {
             destinations: "Where things open",
             separate: "Separate window",
             feedback: "Indicators",
-            privacy: "Privacy"
+            privacy: "Privacy",
+            reopening: "When reopening",
+            lastPage: "Last page",
+            activationTime: "Activation time",
+            activationTimeHint: "Keep the pointer over the island for this long to open it.",
+            activationTimeFormat: "%.2f s"
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -83,7 +93,12 @@ extension FeatureStrings {
             destinations: "Onde abrir",
             separate: "Janela separada",
             feedback: "Indicadores",
-            privacy: "Privacidade"
+            privacy: "Privacidade",
+            reopening: "Ao reabrir",
+            lastPage: "Última página",
+            activationTime: "Tempo de ativação",
+            activationTimeHint: "Mantenha o ponteiro sobre a ilha por esse tempo para abrir.",
+            activationTimeFormat: "%.2f s"
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -109,7 +124,12 @@ extension FeatureStrings {
             destinations: "Dónde abrir",
             separate: "Ventana separada",
             feedback: "Indicadores",
-            privacy: "Privacidad"
+            privacy: "Privacidad",
+            reopening: "Al reabrir",
+            lastPage: "Última página",
+            activationTime: "Tiempo de activación",
+            activationTimeHint: "Mantén el puntero sobre la isla durante este tiempo para abrirla.",
+            activationTimeFormat: "%.2f s"
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -135,7 +155,12 @@ extension FeatureStrings {
             destinations: "Öffnungsort",
             separate: "Eigenes Fenster",
             feedback: "Anzeigen",
-            privacy: "Datenschutz"
+            privacy: "Datenschutz",
+            reopening: "Beim erneuten Öffnen",
+            lastPage: "Letzte Seite",
+            activationTime: "Aktivierungszeit",
+            activationTimeHint: "Halte den Zeiger so lange über der Insel, um sie zu öffnen.",
+            activationTimeFormat: "%.2f s"
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -161,7 +186,12 @@ extension FeatureStrings {
             destinations: "Lieu d’ouverture",
             separate: "Fenêtre séparée",
             feedback: "Indicateurs",
-            privacy: "Confidentialité"
+            privacy: "Confidentialité",
+            reopening: "À la réouverture",
+            lastPage: "Dernière page",
+            activationTime: "Délai d’activation",
+            activationTimeHint: "Laissez le pointeur sur l’île pendant cette durée pour l’ouvrir.",
+            activationTimeFormat: "%.2f s"
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -187,7 +217,12 @@ extension FeatureStrings {
             destinations: "Dove aprire",
             separate: "Finestra separata",
             feedback: "Indicatori",
-            privacy: "Privacy"
+            privacy: "Privacy",
+            reopening: "Alla riapertura",
+            lastPage: "Ultima pagina",
+            activationTime: "Tempo di attivazione",
+            activationTimeHint: "Mantieni il puntatore sull’isola per questo tempo per aprirla.",
+            activationTimeFormat: "%.2f s"
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -213,7 +248,12 @@ extension FeatureStrings {
             destinations: "Где открывать",
             separate: "Отдельное окно",
             feedback: "Индикаторы",
-            privacy: "Конфиденциальность"
+            privacy: "Конфиденциальность",
+            reopening: "При повторном открытии",
+            lastPage: "Последняя страница",
+            activationTime: "Время активации",
+            activationTimeHint: "Удерживайте указатель над островом в течение этого времени, чтобы открыть его.",
+            activationTimeFormat: "%.2f с"
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -239,7 +279,12 @@ extension FeatureStrings {
             destinations: "Açılacak yer",
             separate: "Ayrı pencere",
             feedback: "Göstergeler",
-            privacy: "Gizlilik"
+            privacy: "Gizlilik",
+            reopening: "Yeniden açıldığında",
+            lastPage: "Son sayfa",
+            activationTime: "Etkinleştirme süresi",
+            activationTimeHint: "Açmak için imleci bu süre boyunca adanın üzerinde tutun.",
+            activationTimeFormat: "%.2f sn"
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -265,7 +310,12 @@ extension FeatureStrings {
             destinations: "開く場所",
             separate: "別のウインドウ",
             feedback: "インジケータ",
-            privacy: "プライバシー"
+            privacy: "プライバシー",
+            reopening: "開き直したとき",
+            lastPage: "前回のページ",
+            activationTime: "開くまでの時間",
+            activationTimeHint: "島の上にポインタをこの時間置くと開きます。",
+            activationTimeFormat: "%.2f 秒"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -291,7 +341,12 @@ extension FeatureStrings {
             destinations: "열리는 위치",
             separate: "별도 윈도우",
             feedback: "표시기",
-            privacy: "개인정보 보호"
+            privacy: "개인정보 보호",
+            reopening: "다시 열 때",
+            lastPage: "마지막 페이지",
+            activationTime: "활성화 시간",
+            activationTimeHint: "이 시간 동안 섬 위에 포인터를 두면 열립니다.",
+            activationTimeFormat: "%.2f초"
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -317,7 +372,12 @@ extension FeatureStrings {
             destinations: "打开位置",
             separate: "单独窗口",
             feedback: "提示",
-            privacy: "隐私"
+            privacy: "隐私",
+            reopening: "重新打开时",
+            lastPage: "上次的页面",
+            activationTime: "激活时间",
+            activationTimeHint: "将指针在岛上停留此时长即可打开。",
+            activationTimeFormat: "%.2f 秒"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -343,7 +403,12 @@ extension FeatureStrings {
             destinations: "開啟位置",
             separate: "獨立視窗",
             feedback: "提示",
-            privacy: "隱私"
+            privacy: "隱私",
+            reopening: "重新開啟時",
+            lastPage: "上次的頁面",
+            activationTime: "啟用時間",
+            activationTimeHint: "將指標停留在島上達此時間即可開啟。",
+            activationTimeFormat: "%.2f 秒"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -369,7 +434,12 @@ extension FeatureStrings {
             destinations: "開啟位置",
             separate: "獨立視窗",
             feedback: "提示",
-            privacy: "私隱"
+            privacy: "私隱",
+            reopening: "重新開啟時",
+            lastPage: "上次的頁面",
+            activationTime: "啟用時間",
+            activationTimeHint: "將指標停留在島上達此時間即可開啟。",
+            activationTimeFormat: "%.2f 秒"
         )
         }
     }

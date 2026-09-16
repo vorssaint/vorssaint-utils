@@ -39,6 +39,8 @@ final class NotchService: ObservableObject {
     @Published private(set) var expanded = false
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
+    @Published private(set) var choosingFileDropDestination = false
+    @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
     @Published private(set) var captureControls: ScreenCaptureSelectionOptions?
     @Published var pinned = false
@@ -77,9 +79,11 @@ final class NotchService: ObservableObject {
     private var hoverState = NotchHoverState()
     private var openedByHover = false
     private var trackingMenu = false
+    private var fileInteractionActive = false
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || (expanded && !showingSections && selected == .calendar && Permissions.shared.keepsCalendarPrompt)
+            || (expanded && !showingSections && selected == .files && fileInteractionActive)
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
             || (expanded && !showingSections && selected == .captures && captureContent != nil)
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
@@ -150,7 +154,8 @@ final class NotchService: ObservableObject {
                                      detail: selectedMetric != nil, controlRows: (shortcuts + geometry.controlColumns - 1) / geometry.controlColumns,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicExtraHeight: musicExtras ? (musicDetailVisible ? 260 : 44) : 0,
-                                     fileMediaVisible: AppFeature.mediaTools.isAvailable && NotchFileToolsService.shared.mediaSession != nil,
+                                     fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
+                                        && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
                                      systemRows: (NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery)
                                         + geometry.systemColumns - 1) / geometry.systemColumns,
                                      capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
@@ -208,6 +213,7 @@ final class NotchService: ObservableObject {
         // Requested file work can continue while locked, but disabling its
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
+        if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -299,6 +305,8 @@ final class NotchService: ObservableObject {
         expanded = false
         peeking = false
         dragPlaceholder = false
+        endFileDrop()
+        fileInteractionActive = false
         heldDrag = false
         selectedMetric = nil
         pinned = false
@@ -324,7 +332,10 @@ final class NotchService: ObservableObject {
         if !running || self.panel == nil { syncWithPreferences() }
         else { refreshModules() }
         guard let panel else { return }
-        let destination = module.flatMap { modules.contains($0) ? $0 : nil } ?? selected
+        let returnHome = !expanded && UserDefaults.standard.bool(forKey: DefaultsKey.notchReturnHome)
+        let home = NotchModule(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchHomeModule) ?? "") ?? .controls
+        let fallback = returnHome ? (modules.contains(home) ? home : modules.first ?? .controls) : selected
+        let destination = module.flatMap { modules.contains($0) ? $0 : nil } ?? fallback
         let metric = metric.flatMap { metricIsAvailable($0) ? $0 : nil }
         let changesPresentation = !expanded || selected != destination
             || showingAppPanel != appPanel || selectedMetric != metric || showingSections != sections
@@ -418,14 +429,15 @@ final class NotchService: ObservableObject {
                       UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
                       self.geometry.contains(NSEvent.mouseLocation, in: self.surfaceSize) else { return }
                 if UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) {
-                    self.open(self.compactActivity?.module, takeFocus: false)
+                    self.open(takeFocus: false)
                 } else {
                     self.mutatePresentation(transitionContent: .reveal) { self.peeking = true }
                     self.provideHapticFeedback()
                 }
             }
             hoverWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.10, execute: work)
+            let delay = NotchSupport.sanitizedHoverDelay(UserDefaults.standard.double(forKey: DefaultsKey.notchHoverDelay))
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
         } else if NotchSupport.closesOnPointerExit(expanded: expanded, peeking: peeking, openedByHover: openedByHover) {
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
@@ -669,12 +681,49 @@ final class NotchService: ObservableObject {
     var canAcceptFileDrop: Bool {
         acceptsSystemFeedback && captureControls == nil && modules.contains(.files)
             && AppFeature.shelf.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+    }
+
+    func beginFileDrop(_ pasteboard: NSPasteboard) {
+        guard canAcceptFileDrop else { return }
+        choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
+        targetsMediaDrop = false
+        open(.files, takeFocus: false)
+    }
+
+    @discardableResult
+    func updateFileDrop(at point: CGPoint) -> Bool {
+        let targeted = choosingFileDropDestination
+            && NotchFileToolsSupport.mediaDropArea(in: geometry, size: surfaceSize).contains(point)
+        if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
+        return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
+    }
+
+    func endFileDrop() {
+        let changed = choosingFileDropDestination
+        if changed { choosingFileDropDestination = false }
+        if targetsMediaDrop { targetsMediaDrop = false }
+        if changed, acceptsSystemFeedback { refreshPresentation() }
+    }
+
+    func keepFileInteractionOpen(_ active: Bool) {
+        fileInteractionActive = active
+        hover(false)
     }
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
+        defer { endFileDrop() }
         guard canAcceptFileDrop else { return false }
-        let accepted = ShelfService.shared.acceptDrop(pasteboard: pasteboard)
-        if accepted { heldDrag = false; dragPlaceholder = false; open(.files) }
+        let optimize = choosingFileDropDestination && targetsMediaDrop
+        let accepted = optimize
+            ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
+            : ShelfService.shared.acceptDrop(pasteboard: pasteboard)
+        if accepted {
+            heldDrag = false
+            dragPlaceholder = false
+            if !optimize { NotchFileToolsService.shared.hideMedia() }
+            open(.files)
+        }
         return accepted
     }
 
@@ -1008,12 +1057,14 @@ final class NotchService: ObservableObject {
                     self?.canAcceptFileDrop == true && !ShelfService.shared.isInternalDragActive
                         && ShelfService.shared.canAcceptPasteboard(pasteboard)
                 },
-                enter: { [weak self] in self?.open(.files, takeFocus: false) },
+                enter: { [weak self] in self?.beginFileDrop($0) },
                 accept: { [weak self] in self?.accept($0) == true },
                 exit: { [weak self] in
                     guard let self else { return }
+                    self.endFileDrop()
                     self.hover(self.windowHost?.contains(NSEvent.mouseLocation) == true)
-                }))
+                },
+                update: { [weak self] in self?.updateFileDrop(at: $0) == true }))
         } else { windowHost?.setFileDropActions(nil) }
         panel?.sharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
     }
