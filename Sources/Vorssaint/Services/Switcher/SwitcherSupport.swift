@@ -290,6 +290,7 @@ struct SwitcherIconRowLayout: Equatable {
     static var verticalDetailMinimumWidth: CGFloat { 200 * scale }
     static var verticalDetailGap: CGFloat { 12 * scale }
     static var verticalSurfacePadding: CGFloat { 8 * scale }
+    static let verticalSearchHeaderHeight: CGFloat = 49
     static let verticalMaximumVisibleRows = 14
 
     /// The width `cardCount` preview cards lay out to, including the spacing
@@ -339,13 +340,14 @@ struct SwitcherIconRowLayout: Equatable {
     /// `verticalList*` describes the scrollable content viewport. Each list is
     /// then wrapped in a surface with `verticalSurfacePadding`, and that final
     /// surface is what the panel must fit.
-    func simpleVerticalPanelSize(showsDetail: Bool) -> CGSize {
+    func simpleVerticalPanelSize(showsDetail: Bool, showsSearchHeader: Bool = false) -> CGSize {
         let mainWidth = verticalListWidth + Self.verticalSurfacePadding * 2
         let detailWidth = showsDetail
             ? verticalDetailWidth + Self.verticalSurfacePadding * 2 + Self.verticalDetailGap
             : 0
         return CGSize(width: mainWidth + detailWidth + Self.padding * 2,
                       height: verticalListHeight + Self.verticalSurfacePadding * 2
+                        + (showsSearchHeader ? Self.verticalSearchHeaderHeight : 0)
                         + shortcutHintHeight + Self.padding * 2)
     }
 
@@ -369,6 +371,7 @@ struct SwitcherIconRowLayout: Equatable {
                         selectedWindowCount rawWindowCount: Int,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
+                        showsVerticalSearchHeader: Bool = false,
                         tileWidth: CGFloat = appTileWidth) -> SwitcherIconRowLayout {
         let appCount = max(1, rawAppCount)
         let windowCount = max(1, rawWindowCount)
@@ -402,6 +405,7 @@ struct SwitcherIconRowLayout: Equatable {
         let verticalMaximumHeight = max(verticalRowHeight,
                                         screenVisibleFrame.height * 0.80 - padding * 2
                                             - verticalSurfacePadding * 2
+                                            - (showsVerticalSearchHeader ? verticalSearchHeaderHeight : 0)
                                             - (showsShortcutHints ? hintGap + hintHeight : 0))
         let verticalVisibleRows = max(1, min(appCount,
                                              verticalMaximumVisibleRows,

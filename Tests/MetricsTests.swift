@@ -10784,6 +10784,10 @@ struct MetricsTests {
                         + iconRowLayout.verticalDetailWidth + SwitcherIconRowLayout.verticalSurfacePadding * 2
                             + SwitcherIconRowLayout.verticalDetailGap,
                "App Switcher vertical simple layout reserves a bounded scrolling list and shortcut hints")
+        expect(iconRowLayout.simpleVerticalPanelSize(showsDetail: false, showsSearchHeader: true).height
+               == iconRowLayout.simpleVerticalPanelSize(showsDetail: false).height
+                    + SwitcherIconRowLayout.verticalSearchHeaderHeight,
+               "App Switcher vertical simple layout reserves a header instead of overlaying search on its list")
         let tallVerticalLayout = SwitcherIconRowLayout.compute(appCount: 50,
                                                                selectedWindowCount: 1,
                                                                screenVisibleFrame: screen)

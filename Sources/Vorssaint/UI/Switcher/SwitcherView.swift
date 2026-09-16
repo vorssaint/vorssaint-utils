@@ -131,6 +131,14 @@ struct SwitcherView: View {
 
     private var verticalSimplePanel: some View {
         VStack(spacing: 0) {
+            if showsSearchChip {
+                HStack {
+                    Spacer(minLength: 0)
+                    searchChip
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: SwitcherIconRowLayout.verticalSearchHeaderHeight)
+            }
             HStack(alignment: .top, spacing: SwitcherIconRowLayout.verticalDetailGap) {
                 verticalPrimaryList
                     .padding(SwitcherIconRowLayout.verticalSurfacePadding)
@@ -145,16 +153,19 @@ struct SwitcherView: View {
             }
         }
         .padding(SwitcherIconRowLayout.padding)
-        .frame(width: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail).width,
-               height: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail).height)
-        .overlay(alignment: .topTrailing) {
-            searchChip
-        }
+        .frame(width: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail,
+                                                                      showsSearchHeader: showsSearchChip).width,
+               height: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail,
+                                                                       showsSearchHeader: showsSearchChip).height)
     }
 
     private var supportsVerticalDetail: Bool {
         !usesWindowRow
             && switcher.iconRowLayout.verticalDetailWidth >= SwitcherIconRowLayout.verticalDetailMinimumWidth
+    }
+
+    private var showsSearchChip: Bool {
+        !switcher.searchQuery.isEmpty || switcher.isSearchPinned
     }
 
     private var activeAppWindows: [(offset: Int, element: SwitcherItem)]? {

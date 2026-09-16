@@ -836,7 +836,10 @@ final class AppSwitcher: ObservableObject {
                 if event.getIntegerValueField(.keyboardEventAutorepeat) == 0 {
                     switch action {
                     case .closeWindow, .quitApp: runProtectedLetterAction(action)
-                    case .pinSearch: isSearchPinned = true
+                    case .pinSearch:
+                        isSearchPinned = true
+                        recomputeLayouts(for: windows)
+                        resizePanel()
                     }
                 }
             } else if let text {
@@ -1652,7 +1655,8 @@ final class AppSwitcher: ObservableObject {
         guard usesVerticalSimpleLayout else {
             return usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize
         }
-        return iconRowLayout.simpleVerticalPanelSize(showsDetail: showsVerticalSimpleDetail)
+        return iconRowLayout.simpleVerticalPanelSize(showsDetail: showsVerticalSimpleDetail,
+                                                     showsSearchHeader: showsSearchChip)
     }
 
     private var iconRowModeEnabled: Bool {
@@ -1676,6 +1680,10 @@ final class AppSwitcher: ObservableObject {
     private var showsVerticalSimpleDetail: Bool {
         !usesWindowRow
             && iconRowLayout.verticalDetailWidth >= SwitcherIconRowLayout.verticalDetailMinimumWidth
+    }
+
+    private var showsSearchChip: Bool {
+        !searchQuery.isEmpty || isSearchPinned
     }
 
     private var usesWindowRow: Bool {
@@ -1764,6 +1772,7 @@ final class AppSwitcher: ObservableObject {
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: items),
             screenVisibleFrame: screen.visibleFrame,
             showsShortcutHints: showsShortcutHints,
+            showsVerticalSearchHeader: showsSearchChip,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
         )
@@ -1777,6 +1786,7 @@ final class AppSwitcher: ObservableObject {
             selectedWindowCount: usesWindowRow ? 1 : selectedAppWindowCount(in: windows),
             screenVisibleFrame: placementVisibleFrame,
             showsShortcutHints: showsShortcutHints,
+            showsVerticalSearchHeader: showsSearchChip,
             tileWidth: usesWindowRow ? SwitcherIconRowLayout.windowTileWidth
                                      : SwitcherIconRowLayout.appTileWidth
         )
