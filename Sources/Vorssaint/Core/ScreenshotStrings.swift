@@ -153,6 +153,14 @@ struct ScreenshotFeatureStrings {
     let loupeZoomFast: String
     let loupeZoomStepped: String
     let loupeZoomOptionCaption: String
+    let watermarkLabel: String
+    let watermarkImageLabel: String
+    let watermarkTextPlaceholder: String
+    let watermarkPositionLabel: String
+    let watermarkSizeLabel: String
+    let watermarkOpacityLabel: String
+    let watermarkRotationLabel: String
+    let watermarkSavePreset: String
 }
 
 extension FeatureStrings {
@@ -324,7 +332,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Wheel zoom",
         loupeZoomFast: "Fast",
         loupeZoomStepped: "Step by step",
-        loupeZoomOptionCaption: "Hold ⌥ to temporarily use the other mode."
+        loupeZoomOptionCaption: "Hold ⌥ to temporarily use the other mode.",
+        watermarkLabel: "Watermark",
+        watermarkImageLabel: "Image",
+        watermarkTextPlaceholder: "Watermark text",
+        watermarkPositionLabel: "Position",
+        watermarkSizeLabel: "Size",
+        watermarkOpacityLabel: "Opacity",
+        watermarkRotationLabel: "Rotation",
+        watermarkSavePreset: "Save watermark"
     )
 
     static let ptBR = ScreenshotFeatureStrings(
@@ -475,7 +491,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom com a roda",
         loupeZoomFast: "Rápido",
         loupeZoomStepped: "Passo a passo",
-        loupeZoomOptionCaption: "Mantenha ⌥ pressionado para usar temporariamente o outro modo."
+        loupeZoomOptionCaption: "Mantenha ⌥ pressionado para usar temporariamente o outro modo.",
+        watermarkLabel: "Marca d’água",
+        watermarkImageLabel: "Imagem",
+        watermarkTextPlaceholder: "Texto da marca d’água",
+        watermarkPositionLabel: "Posição",
+        watermarkSizeLabel: "Tamanho",
+        watermarkOpacityLabel: "Opacidade",
+        watermarkRotationLabel: "Rotação",
+        watermarkSavePreset: "Salvar marca d’água"
     )
 
     static let tr = ScreenshotFeatureStrings(
@@ -626,7 +650,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Tekerlekle yakınlaştırma",
         loupeZoomFast: "Hızlı",
         loupeZoomStepped: "Adım adım",
-        loupeZoomOptionCaption: "Diğer modu geçici olarak kullanmak için ⌥ tuşunu basılı tutun."
+        loupeZoomOptionCaption: "Diğer modu geçici olarak kullanmak için ⌥ tuşunu basılı tutun.",
+        watermarkLabel: "Filigran",
+        watermarkImageLabel: "Görsel",
+        watermarkTextPlaceholder: "Filigran metni",
+        watermarkPositionLabel: "Konum",
+        watermarkSizeLabel: "Boyut",
+        watermarkOpacityLabel: "Opaklık",
+        watermarkRotationLabel: "Döndürme",
+        watermarkSavePreset: "Filigranı kaydet"
     )
 
     static let ru = ScreenshotFeatureStrings(
@@ -777,7 +809,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Масштабирование колёсиком",
         loupeZoomFast: "Быстро",
         loupeZoomStepped: "Пошагово",
-        loupeZoomOptionCaption: "Удерживайте ⌥, чтобы временно использовать другой режим."
+        loupeZoomOptionCaption: "Удерживайте ⌥, чтобы временно использовать другой режим.",
+        watermarkLabel: "Водяной знак",
+        watermarkImageLabel: "Изображение",
+        watermarkTextPlaceholder: "Текст водяного знака",
+        watermarkPositionLabel: "Положение",
+        watermarkSizeLabel: "Размер",
+        watermarkOpacityLabel: "Непрозрачность",
+        watermarkRotationLabel: "Поворот",
+        watermarkSavePreset: "Сохранить водяной знак"
     )
 
     static let es = ScreenshotFeatureStrings(
@@ -928,7 +968,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom con la rueda",
         loupeZoomFast: "Rápido",
         loupeZoomStepped: "Por pasos",
-        loupeZoomOptionCaption: "Mantén pulsado ⌥ para usar temporalmente el otro modo."
+        loupeZoomOptionCaption: "Mantén pulsado ⌥ para usar temporalmente el otro modo.",
+        watermarkLabel: "Marca de agua",
+        watermarkImageLabel: "Imagen",
+        watermarkTextPlaceholder: "Texto de la marca de agua",
+        watermarkPositionLabel: "Posición",
+        watermarkSizeLabel: "Tamaño",
+        watermarkOpacityLabel: "Opacidad",
+        watermarkRotationLabel: "Rotación",
+        watermarkSavePreset: "Guardar marca de agua"
     )
 
     static let de = ScreenshotFeatureStrings(
@@ -1079,7 +1127,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom mit dem Mausrad",
         loupeZoomFast: "Schnell",
         loupeZoomStepped: "Schrittweise",
-        loupeZoomOptionCaption: "Halte ⌥ gedrückt, um vorübergehend den anderen Modus zu verwenden."
+        loupeZoomOptionCaption: "Halte ⌥ gedrückt, um vorübergehend den anderen Modus zu verwenden.",
+        watermarkLabel: "Wasserzeichen",
+        watermarkImageLabel: "Bild",
+        watermarkTextPlaceholder: "Wasserzeichentext",
+        watermarkPositionLabel: "Position",
+        watermarkSizeLabel: "Größe",
+        watermarkOpacityLabel: "Deckkraft",
+        watermarkRotationLabel: "Drehung",
+        watermarkSavePreset: "Wasserzeichen sichern"
     )
 
     static let fr = ScreenshotFeatureStrings(
@@ -1230,7 +1286,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom à la molette",
         loupeZoomFast: "Rapide",
         loupeZoomStepped: "Pas à pas",
-        loupeZoomOptionCaption: "Maintenez ⌥ pour utiliser temporairement l’autre mode."
+        loupeZoomOptionCaption: "Maintenez ⌥ pour utiliser temporairement l’autre mode.",
+        watermarkLabel: "Filigrane",
+        watermarkImageLabel: "Image",
+        watermarkTextPlaceholder: "Texte du filigrane",
+        watermarkPositionLabel: "Position",
+        watermarkSizeLabel: "Taille",
+        watermarkOpacityLabel: "Opacité",
+        watermarkRotationLabel: "Rotation",
+        watermarkSavePreset: "Enregistrer le filigrane"
     )
 
     static let it = ScreenshotFeatureStrings(
@@ -1381,7 +1445,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "Zoom con la rotella",
         loupeZoomFast: "Rapido",
         loupeZoomStepped: "Passo per passo",
-        loupeZoomOptionCaption: "Tieni premuto ⌥ per usare temporaneamente l’altra modalità."
+        loupeZoomOptionCaption: "Tieni premuto ⌥ per usare temporaneamente l’altra modalità.",
+        watermarkLabel: "Filigrana",
+        watermarkImageLabel: "Immagine",
+        watermarkTextPlaceholder: "Testo della filigrana",
+        watermarkPositionLabel: "Posizione",
+        watermarkSizeLabel: "Dimensione",
+        watermarkOpacityLabel: "Opacità",
+        watermarkRotationLabel: "Rotazione",
+        watermarkSavePreset: "Salva filigrana"
     )
 
     static let ja = ScreenshotFeatureStrings(
@@ -1532,7 +1604,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "ホイールズーム",
         loupeZoomFast: "高速",
         loupeZoomStepped: "段階的",
-        loupeZoomOptionCaption: "⌥を押している間は一時的にもう一方のモードを使用します。"
+        loupeZoomOptionCaption: "⌥を押している間は一時的にもう一方のモードを使用します。",
+        watermarkLabel: "透かし",
+        watermarkImageLabel: "画像",
+        watermarkTextPlaceholder: "透かしテキスト",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "サイズ",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "回転",
+        watermarkSavePreset: "透かしを保存"
     )
 
     static let ko = ScreenshotFeatureStrings(
@@ -1683,7 +1763,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "휠 확대",
         loupeZoomFast: "빠르게",
         loupeZoomStepped: "단계별",
-        loupeZoomOptionCaption: "⌥를 누르는 동안 다른 모드를 임시로 사용합니다."
+        loupeZoomOptionCaption: "⌥를 누르는 동안 다른 모드를 임시로 사용합니다.",
+        watermarkLabel: "워터마크",
+        watermarkImageLabel: "이미지",
+        watermarkTextPlaceholder: "워터마크 텍스트",
+        watermarkPositionLabel: "위치",
+        watermarkSizeLabel: "크기",
+        watermarkOpacityLabel: "불투명도",
+        watermarkRotationLabel: "회전",
+        watermarkSavePreset: "워터마크 저장"
     )
 
     static let zhHans = ScreenshotFeatureStrings(
@@ -1834,7 +1922,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "滚轮缩放",
         loupeZoomFast: "快速",
         loupeZoomStepped: "逐步",
-        loupeZoomOptionCaption: "按住 ⌥ 可暂时使用另一种模式。"
+        loupeZoomOptionCaption: "按住 ⌥ 可暂时使用另一种模式。",
+        watermarkLabel: "水印",
+        watermarkImageLabel: "图片",
+        watermarkTextPlaceholder: "水印文字",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "大小",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "旋转",
+        watermarkSavePreset: "保存水印"
     )
 
     static let zhTW = ScreenshotFeatureStrings(
@@ -1985,7 +2081,15 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "滾輪縮放",
         loupeZoomFast: "快速",
         loupeZoomStepped: "逐步",
-        loupeZoomOptionCaption: "按住 ⌥ 可暫時使用另一種模式。"
+        loupeZoomOptionCaption: "按住 ⌥ 可暫時使用另一種模式。",
+        watermarkLabel: "浮水印",
+        watermarkImageLabel: "圖片",
+        watermarkTextPlaceholder: "浮水印文字",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "大小",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "旋轉",
+        watermarkSavePreset: "儲存浮水印"
     )
 
     static let zhHK = ScreenshotFeatureStrings(
@@ -2136,6 +2240,14 @@ extension ScreenshotFeatureStrings {
         loupeWheelZoomLabel: "滾輪縮放",
         loupeZoomFast: "快速",
         loupeZoomStepped: "逐步",
-        loupeZoomOptionCaption: "撳住 ⌥ 可暫時使用另一個模式。"
+        loupeZoomOptionCaption: "撳住 ⌥ 可暫時使用另一個模式。",
+        watermarkLabel: "水印",
+        watermarkImageLabel: "圖片",
+        watermarkTextPlaceholder: "水印文字",
+        watermarkPositionLabel: "位置",
+        watermarkSizeLabel: "大小",
+        watermarkOpacityLabel: "不透明度",
+        watermarkRotationLabel: "旋轉",
+        watermarkSavePreset: "儲存水印"
     )
 }

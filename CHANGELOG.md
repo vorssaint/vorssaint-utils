@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island adds configurable reopening and hover behavior, media drop choices and smoother tool and desktop transitions. Improvements also cover music, display fit, alerts, recording audio, image conversion and the sharpness of screenshots and recordings.
+Dynamic Island adds configurable reopening and hover behavior, media drop choices and smoother tool and desktop transitions. Improvements also cover music, display fit, alerts, recording audio, image conversion, screenshot watermarks and the sharpness of screenshots and recordings.
 
 ### Added
+- The screenshot editor adds a watermark of your own, a line of text in any of its colors or a picture from disk, with adjustable size, transparency, position and tilt, remembered for every capture that leaves the editor. Thanks to @Logimon.
 - Image conversion adds a naming menu and an optional subfolder for batch results. Thanks to @ruvelro.
 - Dynamic Island adds a configurable reopening page and fresh shelf or media choices for each drag, with smooth transitions between media tools.
 

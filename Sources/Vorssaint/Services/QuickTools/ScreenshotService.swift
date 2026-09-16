@@ -684,8 +684,8 @@ final class ScreenshotService: ObservableObject {
     }
 
     /// Direct outputs go through the same pipeline as the editor so the 1x
-    /// downscale preference applies everywhere; no backdrop and no rounding,
-    /// a direct capture is the raw pixels.
+    /// downscale preference applies everywhere; no backdrop, no rounding and
+    /// no watermark, a direct capture is the raw pixels.
     private func flatten(_ capture: ScreenshotSelectionController.Capture)
         -> ScreenshotRenderer.Export? {
         Self.flatten(
@@ -701,6 +701,8 @@ final class ScreenshotService: ObservableObject {
             pixelated: nil,
             scale: capture.scale,
             annotationShadowsEnabled: false,
+            watermark: ScreenshotSupport.WatermarkStyle(),
+            watermarkImage: nil,
             style: ScreenshotSupport.BackdropStyle(kind: .none, cornerRadius: 0),
             fill: .none,
             downscaleTo1x: downscaleTo1x)

@@ -2064,6 +2064,173 @@ enum ScreenshotSupport {
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
     }
+
+    // MARK: - Watermark
+
+    /// A mark of your own on every capture that leaves the editor: a line of
+    /// text or a picture from disk, faded, tilted if you like and set on one
+    /// of nine places. Persisted as JSON like the backdrop, so the next
+    /// capture opens with it already on.
+    struct WatermarkStyle: Codable, Equatable {
+        enum Kind: String, Codable {
+            case none, text, image
+        }
+
+        /// The same nine places the recorder's captions and pictures take:
+        /// one grid to learn across both editors.
+        typealias Anchor = RecorderTextOverlay.Anchor
+
+        var kind: Kind
+        var text: String
+        /// Absolute path when kind == .image.
+        var imagePath: String?
+        /// ColorID raw value the text is drawn in.
+        var color: String
+        var anchor: Anchor
+        /// Sliders 0…1; `watermarkFontSize` and `watermarkImageWidth` turn
+        /// them into pixels for a given capture.
+        var size: Double
+        var opacity: Double
+        /// Degrees, -90…90: positive tilts the mark up to the right, the way
+        /// a diagonal document watermark runs.
+        var rotation: Double
+
+        init(kind: Kind = .none,
+             text: String = "",
+             imagePath: String? = nil,
+             color: String = ColorID.white.rawValue,
+             anchor: Anchor = .bottomTrailing,
+             size: Double = 0.3,
+             opacity: Double = 0.4,
+             rotation: Double = 0) {
+            self.kind = kind
+            self.text = text
+            self.imagePath = imagePath
+            self.color = color
+            self.anchor = anchor
+            self.size = size
+            self.opacity = opacity
+            self.rotation = rotation
+        }
+
+        static let opacityRange: ClosedRange<Double> = 0.05...1
+        static let rotationRange: ClosedRange<Double> = -90...90
+        static let textLimit = 120
+
+        /// Clamps the sliders, trims the text and drops a configuration
+        /// missing its content back to .none, so a damaged persisted value
+        /// can never wedge the editor.
+        func sanitized() -> WatermarkStyle {
+            var style = self
+            style.text = String(text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(Self.textLimit))
+            style.color = ColorID(rawValue: color)?.rawValue ?? ColorID.white.rawValue
+            style.size = size.isFinite ? max(0, min(1, size)) : 0.3
+            style.opacity = opacity.isFinite
+                ? max(Self.opacityRange.lowerBound, min(Self.opacityRange.upperBound, opacity))
+                : 0.4
+            style.rotation = rotation.isFinite
+                ? max(Self.rotationRange.lowerBound, min(Self.rotationRange.upperBound, rotation))
+                : 0
+            switch style.kind {
+            case .none:
+                break
+            case .text:
+                guard !style.text.isEmpty else { return style.demoted() }
+            case .image:
+                guard let path = style.imagePath, !path.isEmpty else { return style.demoted() }
+            }
+            return style
+        }
+
+        private func demoted() -> WatermarkStyle {
+            var style = self
+            style.kind = .none
+            return style
+        }
+
+        func encoded() -> String {
+            guard let data = try? JSONEncoder().encode(self) else { return "" }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
+        static func decoded(_ raw: String?) -> WatermarkStyle {
+            guard let raw, !raw.isEmpty,
+                  let data = raw.data(using: .utf8),
+                  let style = try? JSONDecoder().decode(WatermarkStyle.self, from: data)
+            else { return WatermarkStyle() }
+            return style.sanitized()
+        }
+    }
+
+    /// Saved watermarks, capped like the backdrops.
+    static func decodedWatermarkPresets(_ raw: String?) -> [WatermarkStyle] {
+        guard let raw, !raw.isEmpty,
+              let data = raw.data(using: .utf8),
+              let presets = try? JSONDecoder().decode([WatermarkStyle].self, from: data)
+        else { return [] }
+        return presets.map { $0.sanitized() }
+            .filter { $0.kind != .none }
+            .suffix(backdropPresetLimit)
+            .map { $0 }
+    }
+
+    static func encodedWatermarkPresets(_ presets: [WatermarkStyle]) -> String {
+        guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
+        else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    /// Point size of watermark text in image pixels: factor 0 is a discreet
+    /// 2% of the short side, 1 a bold 16%, the recorder's caption ceiling.
+    static func watermarkFontSize(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(8, (min(imageSize.width, imageSize.height) * (0.02 + 0.14 * clamped)).rounded())
+    }
+
+    /// Width of a watermark picture in image pixels, from a corner mark of
+    /// 5% of the capture's width up to half of it. The picture's own
+    /// proportions decide the height.
+    static func watermarkImageWidth(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(1, (imageSize.width * (0.05 + 0.45 * clamped)).rounded())
+    }
+
+    struct WatermarkPlacement {
+        /// Where the mark's center goes, in image pixels with a top-left origin.
+        let center: CGPoint
+        /// How much the content shrinks so its tilted bounds stay inside the
+        /// margins; 1 when it already fits.
+        let fit: CGFloat
+    }
+
+    /// Where a mark of `contentSize`, turned by `rotation` degrees, sits on a
+    /// capture: its tilted bounding box is what the nine places position, so
+    /// a diagonal mark in a corner touches the margin instead of leaving it.
+    /// The margin is the recorder's, 5% of the short side.
+    static func watermarkPlacement(contentSize: CGSize,
+                                   rotation: Double,
+                                   anchor: WatermarkStyle.Anchor,
+                                   in imageSize: CGSize) -> WatermarkPlacement? {
+        guard contentSize.width.isFinite, contentSize.height.isFinite,
+              contentSize.width > 0, contentSize.height > 0,
+              imageSize.width > 0, imageSize.height > 0, rotation.isFinite
+        else { return nil }
+        let radians = rotation * .pi / 180
+        let bounds = CGSize(
+            width: abs(contentSize.width * cos(radians)) + abs(contentSize.height * sin(radians)),
+            height: abs(contentSize.width * sin(radians)) + abs(contentSize.height * cos(radians)))
+        let margin = min(imageSize.width, imageSize.height) * 0.05
+        let available = CGSize(width: imageSize.width - margin * 2,
+                               height: imageSize.height - margin * 2)
+        let fit = min(1, min(available.width / bounds.width, available.height / bounds.height))
+        let fitted = CGSize(width: bounds.width * fit, height: bounds.height * fit)
+        let point = anchor.unitPoint
+        return WatermarkPlacement(
+            center: CGPoint(x: margin + (available.width - fitted.width) * point.x + fitted.width / 2,
+                            y: margin + (available.height - fitted.height) * point.y + fitted.height / 2),
+            fit: fit)
+    }
 }
 
 /// The action to run automatically right after a capture, chosen in

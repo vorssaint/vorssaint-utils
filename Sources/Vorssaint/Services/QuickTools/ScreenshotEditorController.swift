@@ -84,6 +84,27 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// Loaded image for an image-kind backdrop; nil when missing on disk,
     /// which quietly renders as no backdrop.
     @Published private(set) var backdropImage: CGImage?
+    /// A mark of your own over the capture, persisted as JSON like the
+    /// backdrop and applied live on the canvas.
+    @Published var watermarkStyle: ScreenshotSupport.WatermarkStyle {
+        didSet {
+            UserDefaults.standard.set(watermarkStyle.encoded(),
+                                      forKey: DefaultsKey.screenshotWatermarkStyle)
+            reloadWatermarkImageIfNeeded()
+            refreshDirtyState()
+        }
+    }
+    /// Loaded picture for an image-kind watermark; nil when missing on disk,
+    /// which quietly draws nothing.
+    @Published private(set) var watermarkImage: CGImage?
+    /// Watermarks the user chose to keep.
+    @Published private(set) var watermarkPresets: [ScreenshotSupport.WatermarkStyle] {
+        didSet {
+            UserDefaults.standard.set(
+                ScreenshotSupport.encodedWatermarkPresets(watermarkPresets),
+                forKey: DefaultsKey.screenshotWatermarkPresets)
+        }
+    }
     @Published var cropDraft: CGRect?
     /// Exact image pixel under a crop resize grip. Nil while moving the
     /// whole crop so the loupe appears only when it adds precision.
@@ -108,6 +129,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var cleanImage: CGImage?
     private var cleanAnnotations: [ScreenshotSupport.Annotation] = []
     private var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
+    private var cleanWatermarkStyle = ScreenshotSupport.WatermarkStyle()
     private var cleanAnnotationShadowsEnabled = false
 
     // Gesture state, in image pixels.
@@ -152,8 +174,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         backdropStyle = ScreenshotSupport.BackdropStyle.decoded(rawStyle)
         backdropPresets = ScreenshotSupport.decodedBackdropPresets(
             defaults.string(forKey: DefaultsKey.screenshotBackdropPresets))
+        watermarkStyle = ScreenshotSupport.WatermarkStyle.decoded(
+            defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle))
+        watermarkPresets = ScreenshotSupport.decodedWatermarkPresets(
+            defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets))
         pixelated = nil
         reloadBackdropImageIfNeeded()
+        reloadWatermarkImageIfNeeded()
         recordCleanState()
     }
 
@@ -209,14 +236,36 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         }
         if backdropImage != nil, loadedBackdropPath == path { return }
         loadedBackdropPath = path
-        backdropImage = Self.loadBackdropImage(path)
+        backdropImage = Self.loadImageFile(path)
     }
 
     private var loadedBackdropPath: String?
 
-    /// Loads and caps a backdrop image; wallpapers can be 6K and the fill
-    /// never needs more than the export canvas.
-    private static func loadBackdropImage(_ path: String) -> CGImage? {
+    /// True when a mark actually draws: text with something typed, or a
+    /// picture that loaded.
+    var showsWatermark: Bool {
+        switch watermarkStyle.sanitized().kind {
+        case .none: return false
+        case .text: return true
+        case .image: return watermarkImage != nil
+        }
+    }
+
+    private func reloadWatermarkImageIfNeeded() {
+        guard watermarkStyle.kind == .image, let path = watermarkStyle.imagePath else {
+            watermarkImage = nil
+            return
+        }
+        if watermarkImage != nil, loadedWatermarkPath == path { return }
+        loadedWatermarkPath = path
+        watermarkImage = Self.loadImageFile(path)
+    }
+
+    private var loadedWatermarkPath: String?
+
+    /// Loads and caps a backdrop or watermark picture; wallpapers can be 6K
+    /// and neither needs more than the export canvas.
+    private static func loadImageFile(_ path: String) -> CGImage? {
         let url = URL(fileURLWithPath: path)
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         let options: [CFString: Any] = [
@@ -253,6 +302,22 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     func removeBackdropPreset(at index: Int) {
         guard backdropPresets.indices.contains(index) else { return }
         backdropPresets.remove(at: index)
+    }
+
+    // MARK: - Watermark presets
+
+    /// Keeps the current mark, placement and all, in the presets row;
+    /// duplicates are ignored.
+    func saveCurrentWatermarkAsPreset() {
+        let style = watermarkStyle.sanitized()
+        guard style.kind != .none, !watermarkPresets.contains(style) else { return }
+        watermarkPresets = Array((watermarkPresets + [style])
+            .suffix(ScreenshotSupport.backdropPresetLimit))
+    }
+
+    func removeWatermarkPreset(at index: Int) {
+        guard watermarkPresets.indices.contains(index) else { return }
+        watermarkPresets.remove(at: index)
     }
 
     // MARK: - Selectable text on the canvas
@@ -422,6 +487,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         cleanImage = baseImage
         cleanAnnotations = annotations
         cleanBackdropStyle = backdropStyle.sanitized()
+        cleanWatermarkStyle = watermarkStyle.sanitized()
         cleanAnnotationShadowsEnabled = annotationShadowsEnabled
         isDirty = false
     }
@@ -431,6 +497,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         isDirty = baseImage !== cleanImage
             || annotations != cleanAnnotations
             || backdropStyle.sanitized() != cleanBackdropStyle
+            || watermarkStyle.sanitized() != cleanWatermarkStyle
             || annotationShadowsEnabled != cleanAnnotationShadowsEnabled
     }
 
@@ -945,6 +1012,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             pixelated: pixelated,
             scale: scale,
             annotationShadowsEnabled: annotationShadowsEnabled,
+            watermark: watermarkStyle,
+            watermarkImage: watermarkImage,
             style: backdropStyle.sanitized(),
             fill: withBackdrop ? backdropFill : .none,
             downscaleTo1x: downscale)
