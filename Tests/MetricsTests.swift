@@ -2513,6 +2513,10 @@ struct MetricsTests {
                "App Switcher icon-row mode is optional")
         expect(registeredDefaults[DefaultsKey.switcherSimpleMode] as? Bool == false,
                "App Switcher simple mode preserves previews until requested")
+        expect(registeredDefaults[DefaultsKey.switcherSimpleLayout] as? String
+               == SwitcherSimpleLayout.horizontal.rawValue
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherSimpleLayout),
+               "App Switcher simple layout defaults to the existing horizontal row and carries the choice in backups")
         expect(registeredDefaults[DefaultsKey.switcherShowShortcutHints] as? Bool == true
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherShowShortcutHints),
                "App Switcher keeps shortcut hints visible by default and carries the choice in backups")
@@ -2533,7 +2537,10 @@ struct MetricsTests {
         expectClose(SwitcherSupport.appearanceDelay(milliseconds: 125), 0.125,
                     "the stored App Switcher milliseconds drive the panel timer in seconds")
         expect(SwitcherSupport.usesIconRowLayout(iconRowMode: false, simpleMode: true),
-               "App Switcher simple mode always uses the app icon row")
+               "App Switcher simple mode always uses the compact switcher surface")
+        expect(SwitcherSimpleLayout.layout(storedValue: SwitcherSimpleLayout.vertical.rawValue) == .vertical
+               && SwitcherSimpleLayout.layout(storedValue: "unknown") == .horizontal,
+               "App Switcher simple layout accepts the vertical list and safely falls back to the horizontal row")
         expect(SwitcherSupport.usesWindowRow(simpleMode: true,
                                              mergeWindowsByApp: false,
                                              sessionScope: .allApps)
@@ -10760,6 +10767,27 @@ struct MetricsTests {
                       SwitcherIconRowLayout.hintBarWidth)
                + SwitcherIconRowLayout.padding * 2,
                "App Switcher simple mode fits its app row, title rail and shortcut hints")
+        expect(iconRowLayout.simpleVerticalPanelSize(showsDetail: false).width
+               == iconRowLayout.verticalListWidth + SwitcherIconRowLayout.verticalSurfacePadding * 2
+                    + SwitcherIconRowLayout.padding * 2
+               && iconRowLayout.simpleVerticalPanelSize(showsDetail: false).height
+                    == iconRowLayout.verticalListHeight + SwitcherIconRowLayout.hintGap
+                        + SwitcherIconRowLayout.hintHeight + SwitcherIconRowLayout.padding * 2
+               && iconRowLayout.simpleVerticalPanelSize(showsDetail: false).height <= screen.height * 0.80
+               && iconRowLayout.simpleVerticalPanelSize(showsDetail: true).width
+                    == iconRowLayout.simpleVerticalPanelSize(showsDetail: false).width
+                        + iconRowLayout.verticalDetailWidth + SwitcherIconRowLayout.verticalSurfacePadding * 2
+                            + SwitcherIconRowLayout.verticalDetailGap,
+               "App Switcher vertical simple layout reserves a bounded scrolling list and shortcut hints")
+        let tallVerticalLayout = SwitcherIconRowLayout.compute(appCount: 50,
+                                                               selectedWindowCount: 1,
+                                                               screenVisibleFrame: screen)
+        expect(tallVerticalLayout.verticalListHeight
+               == CGFloat(SwitcherIconRowLayout.verticalMaximumVisibleRows)
+                    * SwitcherIconRowLayout.verticalRowHeight
+                    + CGFloat(SwitcherIconRowLayout.verticalMaximumVisibleRows - 1)
+                        * SwitcherIconRowLayout.verticalRowSpacing,
+               "App Switcher vertical simple layout caps the visible rows and scrolls the rest")
         let compactIconRowLayout = SwitcherIconRowLayout.compute(
             appCount: 1,
             selectedWindowCount: 1,
@@ -13890,6 +13918,10 @@ struct MetricsTests {
             expect(!strings.switcherIconRowModeCaption.isEmpty, "\(prefix) App Switcher icon-row caption is present")
             expect(!strings.switcherSimpleMode.isEmpty, "\(prefix) App Switcher simple-mode title is present")
             expect(!strings.switcherSimpleModeCaption.isEmpty, "\(prefix) App Switcher simple-mode caption is present")
+            expect(!strings.switcherSimpleLayout.isEmpty
+                   && !strings.switcherSimpleLayoutHorizontal.isEmpty
+                   && !strings.switcherSimpleLayoutVertical.isEmpty,
+                   "\(prefix) App Switcher simple-layout labels are present")
             expect(!strings.switcherCurrentSpaceOnly.isEmpty
                    && !strings.switcherCurrentSpaceOnly.contains("—"),
                    "\(prefix) App Switcher current-desktop title is present without em dash")

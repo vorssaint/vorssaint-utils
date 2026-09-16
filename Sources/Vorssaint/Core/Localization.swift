@@ -339,6 +339,9 @@ struct Strings {
     let switcherIconRowModeCaption: String
     let switcherSimpleMode: String
     let switcherSimpleModeCaption: String
+    let switcherSimpleLayout: String
+    let switcherSimpleLayoutHorizontal: String
+    let switcherSimpleLayoutVertical: String
     let switcherShortcutHintApps: String
     let switcherShortcutHintWindows: String
     let switcherWindowShortcutCaption: String
@@ -1383,6 +1386,9 @@ extension Strings {
         switcherIconRowModeCaption: "Mostra um ícone por app com os previews das janelas do app acima.",
         switcherSimpleMode: "Alternador simples",
         switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
+        switcherSimpleLayout: "Layout",
+        switcherSimpleLayoutHorizontal: "Horizontal",
+        switcherSimpleLayoutVertical: "Vertical",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
         switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor de apps aberto, pula entre as janelas do app selecionado.",
@@ -2395,6 +2401,9 @@ extension Strings {
         switcherIconRowModeCaption: "Shows one icon per app with that app’s window previews above it.",
         switcherSimpleMode: "Simple app switcher",
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
+        switcherSimpleLayout: "Layout",
+        switcherSimpleLayoutHorizontal: "Horizontal",
+        switcherSimpleLayoutVertical: "Vertical list",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
         switcherWindowShortcutCaption: "Opens a switcher for the frontmost app’s windows. While the Apps switcher is open, jumps between the selected app’s windows.",

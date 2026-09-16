@@ -242,6 +242,9 @@ struct SwitcherIconRowLayout: Equatable {
     let previewContentWidth: CGFloat
     let previewSurfaceWidth: CGFloat
     let simpleTitleSurfaceWidth: CGFloat
+    let verticalListWidth: CGFloat
+    let verticalListHeight: CGFloat
+    let verticalDetailWidth: CGFloat
     let panelSize: CGSize
     let showsShortcutHints: Bool
 
@@ -280,6 +283,14 @@ struct SwitcherIconRowLayout: Equatable {
     static var simpleTitlePanelPadding: CGFloat { 10 * scale }
     static let simpleTitleSpacing: CGFloat = 6
     static let simpleTitleScrollPadding: CGFloat = 1
+    static var verticalRowHeight: CGFloat { 36 * scale }
+    static var verticalRowSpacing: CGFloat { 4 * scale }
+    static var verticalMinimumWidth: CGFloat { 400 * scale }
+    static var verticalDetailPreferredWidth: CGFloat { 300 * scale }
+    static var verticalDetailMinimumWidth: CGFloat { 200 * scale }
+    static var verticalDetailGap: CGFloat { 12 * scale }
+    static var verticalSurfacePadding: CGFloat { 8 * scale }
+    static let verticalMaximumVisibleRows = 14
 
     /// The width `cardCount` preview cards lay out to, including the spacing
     /// the row puts between them. The preview viewport is sized from this and
@@ -325,6 +336,15 @@ struct SwitcherIconRowLayout: Equatable {
                height: Self.rowHeight + shortcutHintHeight + Self.padding * 2)
     }
 
+    func simpleVerticalPanelSize(showsDetail: Bool) -> CGSize {
+        let mainWidth = verticalListWidth + Self.verticalSurfacePadding * 2
+        let detailWidth = showsDetail
+            ? verticalDetailWidth + Self.verticalSurfacePadding * 2 + Self.verticalDetailGap
+            : 0
+        return CGSize(width: mainWidth + detailWidth + Self.padding * 2,
+                      height: verticalListHeight + shortcutHintHeight + Self.padding * 2)
+    }
+
     private var shortcutHintHeight: CGFloat {
         showsShortcutHints ? Self.hintGap + Self.hintHeight : 0
     }
@@ -335,6 +355,9 @@ struct SwitcherIconRowLayout: Equatable {
                                              previewContentWidth: 0,
                                              previewSurfaceWidth: 0,
                                              simpleTitleSurfaceWidth: 0,
+                                             verticalListWidth: 0,
+                                             verticalListHeight: 0,
+                                             verticalDetailWidth: 0,
                                              panelSize: .zero,
                                              showsShortcutHints: true)
 
@@ -369,6 +392,18 @@ struct SwitcherIconRowLayout: Equatable {
             + simpleTitlePanelPadding * 2
         let simpleTitleSurfaceWidth = min(naturalSimpleTitleWidth, maxContentWidth)
         let hintWidth = showsShortcutHints ? min(hintBarWidth, maxContentWidth) : 0
+        let verticalListWidth = min(maxContentWidth, max(verticalMinimumWidth, hintWidth))
+        let verticalDetailWidth = min(verticalDetailPreferredWidth,
+                                      max(0, maxContentWidth - verticalListWidth - verticalDetailGap))
+        let verticalMaximumHeight = max(verticalRowHeight,
+                                        screenVisibleFrame.height * 0.80 - padding * 2
+                                            - (showsShortcutHints ? hintGap + hintHeight : 0))
+        let verticalVisibleRows = max(1, min(appCount,
+                                             verticalMaximumVisibleRows,
+                                             Int((verticalMaximumHeight + verticalRowSpacing)
+                                                 / (verticalRowHeight + verticalRowSpacing))))
+        let verticalListHeight = CGFloat(verticalVisibleRows) * verticalRowHeight
+            + CGFloat(max(0, verticalVisibleRows - 1)) * verticalRowSpacing
         let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
@@ -380,6 +415,9 @@ struct SwitcherIconRowLayout: Equatable {
                                      previewContentWidth: previewWidth,
                                      previewSurfaceWidth: previewSurfaceWidth,
                                      simpleTitleSurfaceWidth: simpleTitleSurfaceWidth,
+                                     verticalListWidth: verticalListWidth,
+                                     verticalListHeight: verticalListHeight,
+                                     verticalDetailWidth: verticalDetailWidth,
                                      panelSize: CGSize(width: width, height: height),
                                      showsShortcutHints: showsShortcutHints)
     }

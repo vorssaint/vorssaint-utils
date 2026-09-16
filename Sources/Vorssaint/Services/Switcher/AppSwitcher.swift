@@ -1630,7 +1630,12 @@ final class AppSwitcher: ObservableObject {
     private var currentPanelSize: CGSize {
         usesIconRowLayout
             ? (simpleModeEnabled
-                ? (usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize)
+                ? (simpleLayout == .vertical
+                    ? iconRowLayout.simpleVerticalPanelSize(
+                        showsDetail: !usesWindowRow
+                            && iconRowLayout.verticalDetailWidth
+                                >= SwitcherIconRowLayout.verticalDetailMinimumWidth)
+                    : (usesWindowRow ? iconRowLayout.simpleWindowPanelSize : iconRowLayout.simplePanelSize))
                 : iconRowLayout.panelSize)
             : grid.panelSize
     }
@@ -1641,6 +1646,11 @@ final class AppSwitcher: ObservableObject {
 
     private var simpleModeEnabled: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+    }
+
+    private var simpleLayout: SwitcherSimpleLayout {
+        SwitcherSimpleLayout.layout(
+            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherSimpleLayout))
     }
 
     private var usesWindowRow: Bool {

@@ -48,19 +48,28 @@ struct SwitcherView: View {
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.switcherIconRowMode) private var iconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var simpleMode = false
+    @AppStorage(DefaultsKey.switcherSimpleLayout) private var simpleLayoutStorage = SwitcherSimpleLayout.horizontal.rawValue
     @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
+    @State private var verticalHoveredAppPID: pid_t?
+    @State private var verticalHoveredItemID: String?
 
     var body: some View {
-        if SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowMode,
+        if simpleMode, simpleLayout == .vertical, !switcher.windows.isEmpty {
+            verticalSimplePanel
+        } else if SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowMode,
                                              simpleMode: simpleMode),
            !switcher.windows.isEmpty {
             iconRowPanel
         } else {
             standardPanel
         }
+    }
+
+    private var simpleLayout: SwitcherSimpleLayout {
+        SwitcherSimpleLayout.layout(storedValue: simpleLayoutStorage)
     }
 
     private var standardPanel: some View {
@@ -117,6 +126,140 @@ struct SwitcherView: View {
             .overlay(alignment: .topTrailing) {
                 searchChip
             }
+    }
+
+    private var verticalSimplePanel: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .top, spacing: SwitcherIconRowLayout.verticalDetailGap) {
+                verticalPrimaryList
+                    .padding(SwitcherIconRowLayout.verticalSurfacePadding)
+                    .background(verticalListSurface)
+                if let activeAppWindows {
+                    verticalWindowDetailList(activeAppWindows)
+                }
+            }
+            .onHover { hovering in
+                if !hovering {
+                    verticalHoveredAppPID = nil
+                    verticalHoveredItemID = nil
+                }
+            }
+            if showsShortcutHints {
+                Spacer().frame(height: SwitcherIconRowLayout.hintGap)
+                shortcutHintBar
+            }
+        }
+        .padding(SwitcherIconRowLayout.padding)
+        .frame(width: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail).width,
+               height: switcher.iconRowLayout.simpleVerticalPanelSize(showsDetail: supportsVerticalDetail).height)
+    }
+
+    private var supportsVerticalDetail: Bool {
+        !usesWindowRow
+            && switcher.iconRowLayout.verticalDetailWidth >= SwitcherIconRowLayout.verticalDetailMinimumWidth
+    }
+
+    private var activeAppWindows: [(offset: Int, element: SwitcherItem)]? {
+        guard supportsVerticalDetail,
+              let pid = verticalHoveredAppPID ?? selectedWindow?.pid else { return nil }
+        let windows = Array(switcher.windows.enumerated()).filter { $0.element.pid == pid }
+        return windows.isEmpty ? nil : windows
+    }
+
+    private var verticalListSurface: some View {
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill(SwitcherIconStyle.surface)
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1))
+            .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 5)
+    }
+
+    private var verticalPrimaryList: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: SwitcherIconRowLayout.verticalRowSpacing) {
+                    if usesWindowRow {
+                        ForEach(Array(switcher.windows.enumerated()), id: \.element.id) { index, window in
+                            verticalRow(window: window, showsWindowTitle: true,
+                                        isSelected: index == switcher.selectedIndex
+                                            || verticalHoveredItemID == window.id) {
+                                switcher.select(index: index)
+                                switcher.commitSession()
+                            }
+                            .id(window.id)
+                            .onHover { hovering in
+                                verticalHoveredItemID = hovering ? window.id : nil
+                            }
+                        }
+                    } else {
+                        ForEach(appGroups) { group in
+                            let index = group.representativeIndex
+                            let window = switcher.windows[index]
+                            verticalRow(window: window, showsWindowTitle: false,
+                                        isSelected: group.pid == selectedWindow?.pid
+                                            || verticalHoveredItemID == window.id) {
+                                switcher.select(index: index)
+                                switcher.commitSession()
+                            }
+                            .id(window.id)
+                            .onHover { hovering in
+                                if hovering {
+                                    verticalHoveredAppPID = group.pid
+                                    verticalHoveredItemID = window.id
+                                } else if verticalHoveredItemID == window.id {
+                                    verticalHoveredItemID = nil
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(width: switcher.iconRowLayout.verticalListWidth,
+                   height: switcher.iconRowLayout.verticalListHeight)
+            .onAppear { revealSelection(in: proxy, animated: false) }
+            .onChange(of: switcher.selectedIndex) { _, _ in
+                revealSelection(in: proxy, animated: true)
+            }
+            .onChange(of: switcher.windows.map(\.id)) { _, _ in
+                revealSelection(in: proxy, animated: true)
+            }
+        }
+    }
+
+    private func verticalWindowDetailList(_ windows: [(offset: Int, element: SwitcherItem)]) -> some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: SwitcherIconRowLayout.verticalRowSpacing) {
+                ForEach(windows, id: \.element.id) { entry in
+                    verticalRow(window: entry.element, showsWindowTitle: true,
+                                isSelected: entry.offset == switcher.selectedIndex
+                                    || verticalHoveredItemID == entry.element.id) {
+                        switcher.select(index: entry.offset)
+                        switcher.commitSession()
+                    }
+                    .onHover { hovering in
+                        verticalHoveredItemID = hovering ? entry.element.id : nil
+                    }
+                }
+            }
+        }
+        .padding(SwitcherIconRowLayout.verticalSurfacePadding)
+        .frame(width: switcher.iconRowLayout.verticalDetailWidth,
+               height: switcher.iconRowLayout.verticalListHeight)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(SwitcherIconStyle.surfaceRaised))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(SwitcherIconStyle.stroke, lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.22), radius: 10, x: 0, y: 5)
+    }
+
+    private func verticalRow(window: SwitcherItem,
+                             showsWindowTitle: Bool,
+                             isSelected: Bool,
+                             onCommit: @escaping () -> Void) -> some View {
+        SwitcherVerticalListItem(window: window,
+                                 title: showsWindowTitle ? window.displayTitle : window.appName,
+                                 isSelected: isSelected,
+                                 onCommit: onCommit)
     }
 
     @ViewBuilder
@@ -607,6 +750,54 @@ struct SwitcherView: View {
             previewContentWidth: switcher.iconRowLayout.previewContentWidth,
             previewSurfaceWidth: switcher.iconRowLayout.previewSurfaceWidth
         )
+    }
+}
+
+private struct SwitcherVerticalListItem: View {
+    let window: SwitcherItem
+    let title: String
+    let isSelected: Bool
+    let onCommit: () -> Void
+
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        HStack(spacing: 12) {
+            if let icon = window.appIcon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 30, height: 30)
+                    .switcherHiddenAppBadge(window.isAppHidden, size: 12)
+            }
+            Text(title)
+                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 0)
+            statusBadges
+        }
+        .padding(.horizontal, 12)
+        .frame(height: SwitcherIconRowLayout.verticalRowHeight)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(isSelected ? SwitcherIconStyle.tileSelected : SwitcherIconStyle.tile))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(isSelected ? Color.accentColor.opacity(0.92) : SwitcherIconStyle.stroke,
+                          lineWidth: isSelected ? 1.25 : 1))
+        .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .onTapGesture(perform: onCommit)
+        .animation(.easeOut(duration: 0.12), value: isSelected)
+        .accessibilityLabel(window.spokenLabel(noOpenWindow: l10n.s.switcherNoOpenWindow,
+                                               hiddenApp: l10n.s.panelHiddenItem,
+                                               otherDesktop: l10n.s.switcherOtherDesktop))
+    }
+
+    @ViewBuilder
+    private var statusBadges: some View {
+        if window.isMinimized { Image(systemName: "minus.rectangle") }
+        if window.isFullscreen { Image(systemName: "arrow.up.left.and.arrow.down.right") }
+        if window.isOnHiddenSpace { Image(systemName: "rectangle.stack") }
     }
 }
 

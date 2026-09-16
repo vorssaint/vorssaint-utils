@@ -1210,6 +1210,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherIconRowMode) private var switcherIconRowMode = false
     @AppStorage(DefaultsKey.switcherSimpleMode) private var switcherSimpleMode = false
+    @AppStorage(DefaultsKey.switcherSimpleLayout) private var switcherSimpleLayout = SwitcherSimpleLayout.horizontal.rawValue
     @AppStorage(DefaultsKey.switcherMergeTabs) private var switcherMergeTabs = false
     @AppStorage(DefaultsKey.switcherWindowlessApps) private var switcherWindowlessApps = SwitcherWindowlessApps.fallback.rawValue
     @AppStorage(DefaultsKey.switcherMinimizedPlacement) private var switcherMinimizedPlacement = WindowSwitchMinimizedPlacement.normal.rawValue
@@ -1314,6 +1315,16 @@ struct SwitcherSettings: View {
                     Text(l10n.s.switcherSimpleModeCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if switcherSimpleMode {
+                        Picker(l10n.s.switcherSimpleLayout, selection: $switcherSimpleLayout) {
+                            Text(l10n.s.switcherSimpleLayoutHorizontal)
+                                .tag(SwitcherSimpleLayout.horizontal.rawValue)
+                            Text(l10n.s.switcherSimpleLayoutVertical)
+                                .tag(SwitcherSimpleLayout.vertical.rawValue)
+                        }
+                        .disabled(!switcherEnabled)
+                    }
 
                     Toggle(String(format: l10n.s.switcherIconRowMode, switcherShortcutDisplayString),
                            isOn: $switcherIconRowMode)
