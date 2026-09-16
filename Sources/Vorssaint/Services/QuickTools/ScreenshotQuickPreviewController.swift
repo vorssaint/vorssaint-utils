@@ -129,10 +129,10 @@ final class ScreenshotQuickPreviewController {
         self.panel = panel
         installKeyMonitor(for: panel)
         panel.orderFrontRegardless()
-        // Opt-in only. Taking the keyboard on presentation is the bug #1089
-        // reported, so by default a click is still the hand-off; people who
-        // reach for Escape or Enter the moment a capture lands can trade
-        // that for shortcuts that are armed as soon as the preview shows.
+        // On by default: leaving the keyboard behind after a capture is what
+        // #1463 reported, since Command-C and Command-S did nothing until a
+        // click. Taking it costs the caret in the app being typed into
+        // (#1089), so More options can hand that trade back to a click.
         if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus) {
             panel.makeKey()
         }

@@ -98,6 +98,7 @@ enum DefaultsKey {
     static let switcherCurrentDisplayOnly = "switcherCurrentDisplayOnly" // list only windows on the display under the pointer (issue #1391)
     static let minimalWindowPreviews = "minimalWindowPreviews"
     static let dockPreviewEnabled = "dockPreviewEnabled"
+    static let dockPreviewCurrentSpaceOnly = "dockPreviewCurrentSpaceOnly"
     static let dockPreviewBackgroundOpacity = "dockPreviewBackgroundOpacity" // how solid the preview panel's material is drawn (DockPreviewSupport.backgroundOpacityRange)
     static let dockPreviewOpenDelay = "dockPreviewOpenDelay" // milliseconds the cursor must rest on a Dock icon before its panel opens (DockPreviewSupport.openDelayMillisecondsRange)
     static let dockPreviewQuitAppOnClose = "dockPreviewQuitAppOnClose" // the preview card's close button quits the owning app instead of closing one window
@@ -754,8 +755,11 @@ enum UpdateHighlightsInfo {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
               let release = UpdateServiceSupport.SemanticVersion(raw: releaseVersion),
               (version.major, version.minor, version.patch) == (release.major, release.minor, release.patch),
-              version.prerelease.count == 2, version.prerelease[0].description == "beta",
+              (2...3).contains(version.prerelease.count), version.prerelease[0].description == "beta",
               let number = Int(version.prerelease[1].description) else { return false }
+        if version.prerelease.count == 3 {
+            guard case let .numeric(hotfix) = version.prerelease[2], hotfix >= 0 else { return false }
+        }
         return number >= 1
     }
 
@@ -991,6 +995,7 @@ enum Defaults {
         DefaultsKey.switcherCurrentDisplayOnly: false,
         DefaultsKey.minimalWindowPreviews: false,
         DefaultsKey.dockPreviewEnabled: false,
+        DefaultsKey.dockPreviewCurrentSpaceOnly: false,
         DefaultsKey.dockPreviewBackgroundOpacity: 1.0,
         DefaultsKey.dockPreviewOpenDelay: DockPreviewSupport.defaultOpenDelayMilliseconds,
         DefaultsKey.dockPreviewQuitAppOnClose: false,
@@ -1480,7 +1485,7 @@ enum Defaults {
         DefaultsKey.screenshotOpenEditorDirectly: false,
         DefaultsKey.screenshotCopyToClipboard: false,
         DefaultsKey.screenshotPreviewPosition: ScreenshotSupport.QuickPreviewPosition.automatic.rawValue,
-        DefaultsKey.screenshotPreviewTakesFocus: false,
+        DefaultsKey.screenshotPreviewTakesFocus: true,
         DefaultsKey.screenshotSharingEnabled: true,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,

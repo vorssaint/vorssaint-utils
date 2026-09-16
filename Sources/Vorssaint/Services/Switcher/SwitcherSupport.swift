@@ -314,7 +314,7 @@ struct SwitcherIconRowLayout: Equatable {
     func contentWidth(simpleMode: Bool, windowRow: Bool) -> CGFloat {
         let hintWidth = showsShortcutHints ? Self.hintBarWidth : 0
         guard simpleMode else {
-            return max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth)
+            return max(0, panelSize.width - Self.padding * 2)
         }
         return max(appRowSurfaceWidth,
                    windowRow ? 0 : simpleTitleSurfaceWidth,
@@ -369,6 +369,7 @@ struct SwitcherIconRowLayout: Equatable {
 
     static func compute(appCount rawAppCount: Int,
                         selectedWindowCount rawWindowCount: Int,
+                        maximumWindowCount: Int = 1,
                         screenVisibleFrame: CGRect,
                         showsShortcutHints: Bool = true,
                         showsVerticalSearchHeader: Bool = false,
@@ -383,15 +384,13 @@ struct SwitcherIconRowLayout: Equatable {
         let maxPreviewContentWidth = max(previewCardWidth, maxContentWidth - previewPanelPadding * 2)
         let appRowWidth = min(naturalAppRowWidth, maxAppContentWidth)
         let appRowSurfaceWidth = min(appRowWidth + rowHorizontalPadding * 2, maxContentWidth)
-        // The panel is re-centred whenever the selection changes, so a width
-        // that follows the selected app's window count moves the whole panel,
-        // icon row included, on every step. The preview is capped to the icon
-        // row it sits under and scrolls past that, the way a preview narrower
-        // than the row is already floated inside it (issue #783).
-        let previewCeiling = max(previewCardWidth, appRowSurfaceWidth - previewPanelPadding * 2)
-        let previewWidth = min(max(previewCardWidth, naturalPreviewWidth),
-                               maxPreviewContentWidth,
-                               previewCeiling)
+        // Reserve room for a pair whenever any app has multiple windows. Use
+        // the whole list so selecting another app never moves the icon row.
+        let reservedCardCount = min(2, max(windowCount, maximumWindowCount))
+        let previewCeiling = min(maxPreviewContentWidth,
+                                 max(Self.naturalPreviewWidth(cardCount: reservedCardCount),
+                                     appRowSurfaceWidth - previewPanelPadding * 2))
+        let previewWidth = min(naturalPreviewWidth, previewCeiling)
         let previewSurfaceWidth = min(previewWidth + previewPanelPadding * 2, maxContentWidth)
         let naturalSimpleTitleWidth = CGFloat(windowCount) * simpleTitleChipMaxWidth
             + CGFloat(max(0, windowCount - 1)) * simpleTitleSpacing
@@ -413,7 +412,9 @@ struct SwitcherIconRowLayout: Equatable {
                                                  / (verticalRowHeight + verticalRowSpacing))))
         let verticalListHeight = CGFloat(verticalVisibleRows) * verticalRowHeight
             + CGFloat(max(0, verticalVisibleRows - 1)) * verticalRowSpacing
-        let contentWidth = min(max(appRowSurfaceWidth, previewSurfaceWidth, hintWidth), maxContentWidth)
+        let contentWidth = min(max(appRowSurfaceWidth,
+                                   previewCeiling + previewPanelPadding * 2,
+                                   hintWidth), maxContentWidth)
         let visibleIconCount = max(1, min(appCount, Int((maxAppContentWidth + spacing) / (tileWidth + spacing))))
         let width = contentWidth + padding * 2
         let shortcutHintHeight = showsShortcutHints ? hintGap + hintHeight : 0
@@ -901,6 +902,23 @@ enum SwitcherSupport {
     static func isConfirmedHiddenAppWindow(appIsHidden: Bool,
                                            windowSpaces: [UInt64]) -> Bool {
         appIsHidden && !windowSpaces.isEmpty
+    }
+
+    /// A partial Accessibility list cannot veto windows on another desktop.
+    /// Still reject unmatched visible surfaces and helpers excluded from cycling.
+    static func keepsUnmatchedWindow(isOnHiddenSpace: Bool,
+                                     isConfirmedHiddenAppWindow: Bool,
+                                     isExcludedFromWindowCycle: Bool,
+                                     isOrderedIn: Bool?,
+                                     allowsUnverifiedHiddenSpace: Bool) -> Bool {
+        guard !isExcludedFromWindowCycle else { return false }
+        // Hiding an app orders its windows out without closing them.
+        if isConfirmedHiddenAppWindow { return true }
+        guard isOnHiddenSpace else { return false }
+        // Preserve the earlier empty-Accessibility and fullscreen exceptions:
+        // ordering out can also mean minimized, not closed. Only broaden that
+        // fallback when the native query positively witnesses a live window.
+        return allowsUnverifiedHiddenSpace || isOrderedIn == true
     }
 
     /// Whether a WindowServer surface whose owner never answered Accessibility

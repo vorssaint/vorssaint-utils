@@ -239,6 +239,7 @@ extension Strings {
         dockPreviewName: "Dock 미리보기",
         dockPreviewEnable: "Dock에서 윈도우 미리보기",
         dockPreviewEnableCaption: "Dock의 열린 앱 위에 포인터를 올려 윈도우를 확인한 다음 원하는 윈도우를 클릭하세요.",
+        dockPreviewCurrentSpaceOnlyCaption: "끄면 모든 데스크탑의 윈도우를 표시합니다. 다른 데스크탑의 윈도우를 선택하면 해당 데스크탑으로 이동합니다.",
         dockPreviewBackgroundOpacity: "패널 배경",
         dockPreviewBackgroundOpacityCaption: "낮추면 패널 뒤에 있는 것이 더 많이 보입니다.",
         dockPreviewOpenDelay: "열림 지연",

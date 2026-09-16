@@ -36,6 +36,23 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: GetWindowTagsFunction.self)
     }()
 
+    private typealias WindowIsOrderedInFunction =
+        @convention(c) (ConnectionID, CGWindowID, UnsafeMutablePointer<UInt8>) -> CGError
+    private static let windowIsOrderedIn: WindowIsOrderedInFunction? = {
+        guard let symbol = symbol("CGSWindowIsOrderedIn") else { return nil }
+        return unsafeBitCast(symbol, to: WindowIsOrderedInFunction.self)
+    }()
+
+    /// Unlike on-screen visibility, ordering survives a move to another desktop.
+    /// A dismissed surface can retain its desktop assignment without being ordered.
+    /// Keep an unavailable query distinct from an explicit ordered-out answer.
+    static func isWindowOrderedIn(_ windowID: CGWindowID) -> Bool? {
+        guard connection != 0, let windowIsOrderedIn else { return nil }
+        var ordered: UInt8 = 0
+        guard windowIsOrderedIn(connection, windowID, &ordered) == .success else { return nil }
+        return ordered != 0
+    }
+
     // MARK: - Space membership
 
     private typealias CopySpacesFunction =

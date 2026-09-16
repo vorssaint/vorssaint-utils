@@ -1222,6 +1222,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
+    @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewOpenDelay) private var dockPreviewOpenDelay = DockPreviewSupport.defaultOpenDelayMilliseconds
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
@@ -1414,6 +1415,11 @@ struct SwitcherSettings: View {
                             .font(.caption)
                             .foregroundStyle(dockPreviewWarning ? .orange : .secondary)
                         if dockPreviewEnabled {
+                            Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $dockPreviewCurrentSpaceOnly)
+                                .onChange(of: dockPreviewCurrentSpaceOnly) { _, _ in
+                                    DockPreviewService.shared.syncWithPreferences()
+                                }
+                            SettingsCaptionText(l10n.s.dockPreviewCurrentSpaceOnlyCaption)
                             HStack {
                                 Text(l10n.s.dockPreviewOpenDelay)
                                 Spacer()

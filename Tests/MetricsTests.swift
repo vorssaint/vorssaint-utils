@@ -2811,6 +2811,43 @@ struct MetricsTests {
                                                               windowSpaces: []),
                "App Switcher keeps only hidden-app surfaces assigned to a real desktop")
 
+        // Real parked windows remain ordered in; a dismissed surface can
+        // retain the same desktop assignment but is explicitly ordered out.
+        for visibleSpaces: Set<UInt64> in [[1], [2]] {
+            let hidden = SpaceHopSupport.isParkedOnHiddenSpace(
+                windowSpaces: [visibleSpaces.contains(1) ? 2 : 1], visibleSpaces: visibleSpaces)
+            for ordered in [true, false] {
+                for fallback in [true, false] {
+                    expect(SwitcherSupport.keepsUnmatchedWindow(
+                        isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: false,
+                        isExcludedFromWindowCycle: false, isOrderedIn: ordered,
+                        allowsUnverifiedHiddenSpace: fallback) == (ordered || fallback),
+                           "ordering recovers parked siblings without removing the earlier minimized or fullscreen exceptions")
+                }
+            }
+        }
+        for hidden in [true, false] {
+            for hiddenApp in [true, false] {
+                for excluded in [true, false] {
+                    for ordered: Bool? in [true, false, nil] {
+                        for fallback in [true, false] {
+                            let keep = SwitcherSupport.keepsUnmatchedWindow(
+                                isOnHiddenSpace: hidden, isConfirmedHiddenAppWindow: hiddenApp,
+                                isExcludedFromWindowCycle: excluded, isOrderedIn: ordered,
+                                allowsUnverifiedHiddenSpace: fallback)
+                            if excluded { expect(!keep, "cycle-excluded helpers never reappear") }
+                            else if hiddenApp { expect(keep, "hiding an app is not closing its windows") }
+                            else if !hidden { expect(!keep, "an unmatched visible-desktop surface is not a parked window") }
+                            else if ordered == nil {
+                                expect(keep == fallback, "an unavailable ordering query preserves the earlier desktop fallback")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        DockPreviewScopeTests.run { expect($0, $1) }
+
         // MARK: Stale surfaces without an Accessibility witness (issue #807)
 
         expect(!SwitcherSupport.unwitnessedSurfaceIsLeftover(isOnScreen: true,
@@ -3522,6 +3559,21 @@ struct MetricsTests {
                "hidden preview cards cannot close a window")
         expect(registeredDefaults[DefaultsKey.dockPreviewEnabled] as? Bool == false,
                "Dock Preview is opt-in for clean installs")
+        expect(registeredDefaults[DefaultsKey.dockPreviewCurrentSpaceOnly] as? Bool == false,
+               "Dock Preview shows all desktops by default")
+        for currentDesktopOnly in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                switch key {
+                case DefaultsKey.dockPreviewCurrentSpaceOnly: return currentDesktopOnly
+                case DefaultsKey.switcherCurrentSpaceOnly: return !currentDesktopOnly
+                default: return nil
+                }
+            }
+            let restored = SettingsBackupSupport.sanitizedSettings(from: backup)
+            expect(restored?[DefaultsKey.dockPreviewCurrentSpaceOnly] as? Bool == currentDesktopOnly
+                   && restored?[DefaultsKey.switcherCurrentSpaceOnly] as? Bool == !currentDesktopOnly,
+                   "backup preserves independent Dock Preview and Switcher desktop choices")
+        }
         expect(registeredDefaults[DefaultsKey.dockPreviewBackgroundOpacity] as? Double == 1.0,
                "the Dock Preview panel starts fully solid")
         expect(registeredDefaults[DefaultsKey.dockPreviewQuitAppOnClose] as? Bool == false,
@@ -3783,16 +3835,16 @@ struct MetricsTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        expect(plistVersion == "3.4.0-beta.1",
+        expect(plistVersion == "3.4.0-beta.2.1",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        expect(plistBuild == "87",
+        expect(plistBuild == "89",
                "every app version needs its own incremented bundle build")
         expect(SupportUpdateIntroInfo.releaseVersion == "3.3.2",
                "the support prompt remains deliberately pinned to 3.3.2")
         expect(UpdateHighlightsInfo.releaseVersion == "3.4.0-beta.1",
                "the prepared tour belongs to the first 3.4 beta without changing the installed version")
-        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.10"] {
+        for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.10"] {
             expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: "3.3.3"),
                    "the notch tour introduces this beta cycle to new and returning users")
@@ -3801,7 +3853,7 @@ struct MetricsTests {
             expect(!SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "beta updates do not request the support and social introduction")
         }
-        for version in ["3.3.5", "3.4.0", "3.4.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.5.0-beta.1", "4.0.0"] {
+        for version in ["3.3.5", "3.4.0", "3.4.1", "3.4.0-rc.1", "3.4.0-beta.0", "3.4.0-beta.no", "3.4.0-beta.2.no", "3.4.0-beta.2.1.1", "3.5.0-beta.1", "4.0.0"] {
             expect(!UpdateHighlightsInfo.matchesRelease(version)
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "previewing from the current build and other release cycles cannot consume the future beta tour")
@@ -10380,6 +10432,20 @@ struct MetricsTests {
         expect(!UpdateServiceSupport.isNewer("3.3.4-beta.1", than: "3.3.4"),
                "beta is not newer than the released final version")
 
+        expect(UpdateServiceSupport.isNewer("3.4.0-beta.2.1", than: "3.4.0-beta.2")
+               && !UpdateServiceSupport.isNewer("3.4.0-beta.2", than: "3.4.0-beta.2.1")
+               && UpdateServiceSupport.isNewer("3.4.0-beta.3", than: "3.4.0-beta.2.1")
+               && UpdateServiceSupport.isNewer("3.4.0", than: "3.4.0-beta.2.1"),
+               "beta hotfixes follow their parent beta and precede the next beta and stable version")
+        let betaHotfix = UpdateServiceSupport.ReleaseCandidate(
+            tagName: "v3.4.0-beta.2.1", isPrerelease: true, isDraft: false,
+            dmgURL: URL(string: "https://example.com/update.dmg"), dmgExpectedBytes: 1000, body: "Hotfix")
+        expect(UpdateServiceSupport.selectUpdate(from: [betaHotfix], currentVersion: "3.4.0-beta.2",
+                                                 includeBetas: true)?.tagName == betaHotfix.tagName
+               && UpdateServiceSupport.selectUpdate(from: [betaHotfix], currentVersion: "3.3.5",
+                                                     includeBetas: false) == nil,
+               "the beta channel offers the hotfix while the stable channel ignores it")
+
         // Release candidate selection
         let dummyDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
         let dummyBetaDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
@@ -12184,16 +12250,42 @@ struct MetricsTests {
         expect(groupedIconLayout.appRowContentWidth
                >= CGFloat(appGroups.count) * SwitcherIconRowLayout.appTileWidth,
                "App Switcher icon-row layout uses full app tile width")
-        // The viewport used to be sized to hold every card of the selected app,
-        // which is what made the panel widen and re-centre on each step (#783).
-        // It now stops at the icon row and scrolls past it, while still holding
-        // one whole card whatever the row is doing.
-        expect(groupedIconLayout.previewContentWidth >= SwitcherIconRowLayout.previewCardWidth
-               && groupedIconLayout.previewSurfaceWidth
-                    <= max(groupedIconLayout.appRowSurfaceWidth,
-                           SwitcherIconRowLayout.previewCardWidth
-                               + SwitcherIconRowLayout.previewPanelPadding * 2),
-               "App Switcher icon-row preview stays inside the icon row instead of widening the panel")
+        expect(groupedIconLayout.previewFitsWithoutScrolling(cardCount: 2),
+               "App Switcher shows a pair of windows even with a short icon row")
+        do {
+            let savedPreviewSize = UserDefaults.standard.object(forKey: DefaultsKey.previewSize)
+            defer {
+                if let savedPreviewSize {
+                    UserDefaults.standard.set(savedPreviewSize, forKey: DefaultsKey.previewSize)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.previewSize)
+                }
+            }
+            for size in Defaults.allowedPreviewSizes {
+                UserDefaults.standard.set(size, forKey: DefaultsKey.previewSize)
+                for width in [640.0, 800.0, 1440.0] {
+                    for hints in [false, true] {
+                        let frame = CGRect(x: 0, y: 0, width: width, height: 900)
+                        let pair = SwitcherIconRowLayout.compute(appCount: 2, selectedWindowCount: 2,
+                            maximumWindowCount: 8, screenVisibleFrame: frame, showsShortcutHints: hints)
+                        let single = SwitcherIconRowLayout.compute(appCount: 2, selectedWindowCount: 1,
+                            maximumWindowCount: 8, screenVisibleFrame: frame, showsShortcutHints: hints)
+                        let many = SwitcherIconRowLayout.compute(appCount: 2, selectedWindowCount: 8,
+                            maximumWindowCount: 8, screenVisibleFrame: frame, showsShortcutHints: hints)
+                        expect(pair.previewFitsWithoutScrolling(cardCount: 2),
+                               "App Switcher keeps two windows visible at every preview size")
+                        expect(pair.panelSize.width == single.panelSize.width
+                               && pair.panelSize.width == many.panelSize.width,
+                               "App Switcher keeps short icon rows stationary when changing apps")
+                        expect(pair.panelSize.width <= width * 0.96
+                               && !many.previewFitsWithoutScrolling(cardCount: 8),
+                               "App Switcher bounds multi-window previews to the display and keeps overflow scrollable")
+                        expect(single.previewContentWidth == SwitcherIconRowLayout.previewCardWidth,
+                               "App Switcher keeps single-window surfaces compact within the stable panel")
+                    }
+                }
+            }
+        }
         // A capped viewport can hold fewer cards than it looks like, because the
         // row puts spacing between them. Counting by card width alone reports a
         // fit while the last card is still clipped, and the scroll view then
@@ -14003,6 +14095,10 @@ struct MetricsTests {
             expect(!strings.dockPreviewBackgroundOpacityCaption.isEmpty
                    && !strings.dockPreviewBackgroundOpacityCaption.contains("—"),
                    "\(prefix) Dock Preview background caption is present without em dash")
+            expect(!strings.dockPreviewCurrentSpaceOnlyCaption.isEmpty
+                   && !strings.dockPreviewCurrentSpaceOnlyCaption.contains("—")
+                   && strings.dockPreviewCurrentSpaceOnlyCaption != strings.switcherCurrentSpaceOnlyCaption,
+                   "\(prefix) Dock Preview explains its own desktop scope")
             expect(!strings.dockPreviewOpenDelay.isEmpty
                    && !strings.dockPreviewOpenDelay.contains("—"),
                    "\(prefix) Dock Preview open delay title is present without em dash")
@@ -18581,19 +18677,19 @@ struct MetricsTests {
         // hosted SwiftUI content answers presses that never reach mouseDown.
         let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
-        // The opt-in keys the panel only after it is on screen, and the line
-        // above the call is the preference check itself, so dropping the guard
-        // or keying before ordering front both go red.
+        // The preference keys the panel only after it is on screen, and the
+        // line above the call is the preference check itself, so dropping the
+        // guard or keying before ordering front both go red.
         let presentLines = presentBody.components(separatedBy: "\n")
         let orderFrontLine = presentLines.firstIndex { $0.contains("orderFrontRegardless()") } ?? -1
         let makeKeyLine = presentLines.firstIndex { $0.contains("makeKey") } ?? -1
         expect(orderFrontLine >= 0 && makeKeyLine > orderFrontLine
                 && presentLines[makeKeyLine - 1].contains("screenshotPreviewTakesFocus"),
-               "presenting the screenshot preview takes key focus only behind the opt-in, once the panel is on screen")
+               "presenting the screenshot preview takes key focus only behind the preference, once the panel is on screen")
         let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
         let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
         expect(makeKeyCount == panelMakeKeyCount + 1 && panelMakeKeyCount >= 1,
-               "hover never takes key focus; only the opted-in presentation and the panel's own click hand-off may")
+               "hover never takes key focus; only the preferred presentation and the panel's own click hand-off may")
         expect(panelBody.contains("sendEvent") && panelBody.contains("leftMouseDown")
                 && panelBody.contains("makeKey") && panelBody.contains("super.sendEvent"),
                "clicking the screenshot preview takes key focus and still delivers every preview button")
@@ -19761,8 +19857,8 @@ struct MetricsTests {
                "screenshot number shortcuts ship enabled")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
                "screenshot preview placement preserves the existing automatic behavior by default")
-        expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == false,
-               "the screenshot preview leaves the keyboard where it was by default; taking it is the opt-in")
+        expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == true,
+               "the screenshot preview takes the keyboard as it appears by default, so its shortcuts work at once; leaving it is the opt-out")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String

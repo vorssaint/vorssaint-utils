@@ -361,6 +361,7 @@ struct Strings {
     let dockPreviewName: String
     let dockPreviewEnable: String
     let dockPreviewEnableCaption: String
+    let dockPreviewCurrentSpaceOnlyCaption: String
     let dockPreviewBackgroundOpacity: String
     let dockPreviewBackgroundOpacityCaption: String
     let dockPreviewOpenDelay: String
@@ -1408,6 +1409,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Pré-visualizar janelas no Dock",
         dockPreviewEnableCaption: "Passe o mouse em um app aberto no Dock para ver suas janelas e clique na que quiser abrir.",
+        dockPreviewCurrentSpaceOnlyCaption: "Quando desligado, mostra janelas de todas as mesas. Escolher uma janela em outra mesa leva você até ela.",
         dockPreviewBackgroundOpacity: "Fundo do painel",
         dockPreviewBackgroundOpacityCaption: "Diminua para ver mais do que está atrás do painel.",
         dockPreviewOpenDelay: "Atraso de abertura",
@@ -2423,6 +2425,7 @@ extension Strings {
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Preview windows from the Dock",
         dockPreviewEnableCaption: "Hover over an open app in the Dock to see its windows, then click the one you want.",
+        dockPreviewCurrentSpaceOnlyCaption: "When off, shows windows from all desktops. Choosing a window on another desktop takes you there.",
         dockPreviewBackgroundOpacity: "Panel background",
         dockPreviewBackgroundOpacityCaption: "Turn it down to see more of what sits behind the panel.",
         dockPreviewOpenDelay: "Open delay",

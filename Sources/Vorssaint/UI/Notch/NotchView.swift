@@ -193,6 +193,7 @@ struct NotchView: View {
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            NotchUpdateControl(action: service.showUpdate)
             if service.selected == .tools, !service.showingAppPanel, !service.showingSections, service.selectedMetric == nil,
                !service.modules.isEmpty, launcher.activeUtility == nil {
                 NotchIconButton(symbol: launcher.isEditing ? "checkmark" : "slider.horizontal.3",
@@ -224,6 +225,7 @@ struct NotchView: View {
             NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
         }
         .frame(height: NotchLayout.headerHeight)
+        .onAppear { UpdateService.shared.checkIfStale() }
     }
 
     private var navigation: some View {

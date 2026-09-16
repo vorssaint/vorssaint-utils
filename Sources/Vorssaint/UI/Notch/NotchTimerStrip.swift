@@ -42,7 +42,7 @@ struct NotchTimerStrip: View {
                 let seconds = timer.session.remaining(at: timer.now)
                 let locale = Locale(identifier: l10n.language.rawValue)
                 let remaining = seconds >= 3600
-                    ? Duration.seconds(seconds).formatted(.time(pattern: .hourMinute(padHourToLength: 1, roundSeconds: .down)).locale(locale))
+                    ? NotchTimerSupport.compactHoursText(seconds)
                     : NotchTimerSupport.compactText(seconds, locale: locale)
                 Button { service.open(.timer) } label: {
                     Group {

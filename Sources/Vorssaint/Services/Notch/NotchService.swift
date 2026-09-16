@@ -1418,6 +1418,12 @@ final class NotchService: ObservableObject {
         eventMonitors.removeAll()
     }
 
+    func showUpdate() {
+        guard running, !suspended, expanded, case .available = UpdateService.shared.state else { return }
+        collapse()
+        appDelegate()?.showUpdatePreview()
+    }
+
     private func bindEvents() {
         subscriptions.removeAll()
         if modules.contains(.timer) {

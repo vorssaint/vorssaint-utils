@@ -7,31 +7,77 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Dynamic Island adds configurable reopening and hidden-until-hover behavior, media drop choices and capture controls that stay out of the way. Improvements also cover music, display fit, alerts, screenshot selection and watermarks, recording audio, image conversion and the sharpness of screenshots and recordings.
-
-### Added
-- The screenshot editor adds reusable text and image watermarks with adjustable position, size, transparency and rotation. Thanks to @Logimon.
-- Dynamic Island can stay hidden until hover, keeping the menu bar clear between interactions.
-- Image conversion adds a naming menu and an optional subfolder for batch results. Thanks to @ruvelro.
-- Dynamic Island adds a configurable reopening page and fresh shelf or media choices for each drag, with smooth transitions between media tools.
-
-### Changed
-- Capture controls collapse after three idle seconds or when selection starts, with a collapse arrow and compact hover or click access to reopen.
-- Dynamic Island offers an adjustable hover activation time to avoid accidental openings, while keeping transitions between controls responsive.
-- Timers show hours and minutes in the duration ruler, countdown, compact view and focus settings.
-- Compact timers have more breathing room and stay beside the camera when menu space changes, including in full screen.
-- Dynamic Island follows each display's menu bar height and shows track names on screens without a camera cutout. Thanks to @ruvelro.
-- Screen recordings exported with the Balanced quality keep the full resolution of the screen, so text stays as sharp as in the system recorder; only Small file reduces the picture.
+App Switcher makes multiple windows easier to see with large icons.
 
 ### Fixed
-- Image conversion respects logo watermark opacity and centers previews. Thanks to @ruvelro.
-- Screenshots saved, copied, dragged or shared now carry their display density, so Retina captures open in Preview, Quick Look and documents at their real size and as sharp as system screenshots instead of doubled and softened.
-- Dynamic Island stays anchored when revealing the desktop after hover expansion.
-- Dynamic Island shows recognizable headset icons, keeps device alerts readable and avoids false volume alerts when switching audio outputs.
-- Screen recordings no longer fail to save when microphone or system audio changes format during recording.
-- Dynamic Island hides playing music when At rest is set to Nothing or automatic music is disabled, while keeping controls available on demand.
-- Dynamic Island simulates a camera cutout within the menu bar on displays without one, preserving its shape and expansion. Thanks to @Yahddyyp.
-- Screen captures respond to the first drag and keep the selector and magnifier smooth with Dynamic Island controls. Thanks to @ruvelro.
+- App Switcher shows two window previews side by side when space allows, even with only one app in the icon row.
+
+## [3.4.0-beta.2.1] - 2026-09-16
+
+### Summary
+Dynamic Island can hide until you hover, reopen where you choose and keep capture controls out of the way while you select. This beta also adds screenshot watermarks, makes screenshots and recordings sharper, and fixes Dock previews, timers, music, alerts and recording audio.
+
+### Hotfix
+- Dynamic Island shows an Update button only while open.
+
+### Added
+- Dynamic Island can stay completely hidden and appear only when you move the pointer to the top of the screen.
+- Dynamic Island can reopen on the page you left or always on a section you choose.
+- Dragging images or a video onto Dynamic Island lets you choose between the shelf and the media tools.
+- The screenshot editor can add your own text or image as a watermark, with position, size, transparency and rotation. Thanks to @Logimon.
+- Image conversion can name results with a menu of placeholders and save batches in their own subfolder. Thanks to @ruvelro.
+
+### Changed
+- Capture controls in Dynamic Island collapse while you select and after a few idle seconds, and come back with a click or hover.
+- You can choose how long the pointer needs to stay on Dynamic Island before it opens.
+- Dynamic Island matches each display's menu bar height and shows the track name on screens without a camera cutout. Thanks to @ruvelro.
+- Timers longer than an hour now show hours and minutes wherever the time appears.
+- Compact timers have more room beside the camera and stay there when menu space changes, including in full screen.
+- Recordings in Balanced quality keep the full screen resolution, so text stays as sharp as in the system recorder.
+
+### Fixed
+- Dock Preview and App Switcher keep windows from other desktops available, with an optional Dock filter and no empty flashes during desktop changes.
+- Dynamic Island stays in place when the desktop is revealed after opening on hover.
+- Dynamic Island shows the right headphone icons, keeps device alerts readable and no longer shows a wrong volume alert when switching outputs.
+- Dynamic Island no longer shows playing music at rest when you turned that off, while the music controls remain available.
+- Displays without a camera cutout get a simulated cutout inside the menu bar that keeps its shape when opening. Thanks to @Yahddyyp.
+- Screen captures start on the first drag and keep the selector and magnifier smooth while the controls are in Dynamic Island. Thanks to @ruvelro.
+- Saved, copied and shared screenshots open at their real size and stay as sharp as system screenshots.
+- Screenshot previews take the keyboard when they appear, so ⌘C and ⌘S work right after a capture, with a switch in More options.
+- Screen recordings no longer fail to save when the microphone or system audio changes format while recording.
+- Image conversion applies the chosen watermark transparency and centers previews. Thanks to @ruvelro.
+
+## [3.4.0-beta.2] - 2026-09-16
+
+### Summary
+Dynamic Island can hide until you hover, reopen where you choose and keep capture controls out of the way while you select. This beta also adds screenshot watermarks, makes screenshots and recordings sharper, and fixes Dock previews, timers, music, alerts and recording audio.
+
+### Added
+- Dynamic Island can stay completely hidden and appear only when you move the pointer to the top of the screen.
+- Dynamic Island can reopen on the page you left or always on a section you choose.
+- Dragging images or a video onto Dynamic Island lets you choose between the shelf and the media tools.
+- The screenshot editor can add your own text or image as a watermark, with position, size, transparency and rotation. Thanks to @Logimon.
+- Image conversion can name results with a menu of placeholders and save batches in their own subfolder. Thanks to @ruvelro.
+
+### Changed
+- Capture controls in Dynamic Island collapse while you select and after a few idle seconds, and come back with a click or hover.
+- You can choose how long the pointer needs to stay on Dynamic Island before it opens.
+- Dynamic Island matches each display's menu bar height and shows the track name on screens without a camera cutout. Thanks to @ruvelro.
+- Timers longer than an hour now show hours and minutes wherever the time appears.
+- Compact timers have more room beside the camera and stay there when menu space changes, including in full screen.
+- Recordings in Balanced quality keep the full screen resolution, so text stays as sharp as in the system recorder.
+
+### Fixed
+- Dock Preview and App Switcher keep windows from other desktops available, with an optional Dock filter and no empty flashes during desktop changes.
+- Dynamic Island stays in place when the desktop is revealed after opening on hover.
+- Dynamic Island shows the right headphone icons, keeps device alerts readable and no longer shows a wrong volume alert when switching outputs.
+- Dynamic Island no longer shows playing music at rest when you turned that off, while the music controls remain available.
+- Displays without a camera cutout get a simulated cutout inside the menu bar that keeps its shape when opening. Thanks to @Yahddyyp.
+- Screen captures start on the first drag and keep the selector and magnifier smooth while the controls are in Dynamic Island. Thanks to @ruvelro.
+- Saved, copied and shared screenshots open at their real size and stay as sharp as system screenshots.
+- Screenshot previews take the keyboard when they appear, so ⌘C and ⌘S work right after a capture, with a switch in More options.
+- Screen recordings no longer fail to save when the microphone or system audio changes format while recording.
+- Image conversion applies the chosen watermark transparency and centers previews. Thanks to @ruvelro.
 
 ## [3.4.0-beta.1] - 2026-09-15
 

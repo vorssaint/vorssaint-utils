@@ -23,7 +23,7 @@ enum NotchTimerRulerScale {
     }
 
     static func label(for minute: Int) -> String {
-        minute >= 60 ? String(format: "%d:%02d", minute / 60, minute % 60) : String(minute)
+        minute >= 60 ? NotchTimerSupport.hoursText(hours: minute / 60, minutes: minute % 60) : String(minute)
     }
 }
 
@@ -150,6 +150,17 @@ enum NotchTimerSupport {
             return String(format: "%d:%02d:%02d", seconds / 3600, seconds / 60 % 60, seconds % 60)
         }
         return String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    /// Hours read as "1h35", never "1:35", which beside the minute clock
+    /// would pass for one minute and thirty five seconds.
+    static func hoursText(hours: Int, minutes: Int) -> String {
+        String(format: "%dh%02d", hours, minutes)
+    }
+
+    static func compactHoursText(_ remaining: TimeInterval) -> String {
+        let seconds = remaining.isFinite ? Int(min(180 * 60, max(0, remaining))) : 0
+        return hoursText(hours: seconds / 3600, minutes: seconds / 60 % 60)
     }
 
     static func compactText(_ remaining: TimeInterval, locale: Locale) -> String {

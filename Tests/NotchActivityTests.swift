@@ -141,6 +141,14 @@ enum NotchActivityTests {
         }
         expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "3h",
                "compact duration formatting preserves the timer's upper limit")
+        let hourCases: [(TimeInterval, String)] = [
+            (3600, "1h00"), (3659.9, "1h00"), (3660, "1h01"), (5700, "1h35"),
+            (8580, "2h23"), (10800, "3h00"), (.greatestFiniteMagnitude, "3h00"), (.nan, "0h00")
+        ]
+        for (seconds, expected) in hourCases {
+            expect(NotchTimerSupport.compactHoursText(seconds) == expected,
+                   "the compact strip writes hours as 1h35, never as a colon that reads like minutes and seconds: \(seconds)")
+        }
         for language in AppLanguage.allCases {
             expect(!NotchTimerSupport.compactText(870, locale: Locale(identifier: language.rawValue)).isEmpty,
                    "remaining time has a compact unit in every supported language")
@@ -267,10 +275,10 @@ enum NotchActivityTests {
     }
 
     private static func rulerContracts(expect: (Bool, String) -> Void) {
-        for (minute, expected) in [(1, "1"), (55, "55"), (60, "1:00"), (65, "1:05"),
-                                   (140, "2:20"), (143, "2:23"), (180, "3:00")] {
+        for (minute, expected) in [(1, "1"), (55, "55"), (60, "1h00"), (65, "1h05"),
+                                   (140, "2h20"), (143, "2h23"), (180, "3h00")] {
             expect(NotchTimerRulerScale.label(for: minute) == expected,
-                   "ruler labels show hours and minutes for selections of an hour or more")
+                   "ruler labels write hours with an h, so an hour mark never reads like the minute clock")
         }
         for minute in [1, 15, 90, 180] {
             expect(NotchTimerRulerScale.offset(of: minute, selected: minute) == 0,
